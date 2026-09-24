@@ -115,10 +115,9 @@ class Canvas2DRenderer(RendererProtocol):
         """Clear the canvas and apply the background color."""
         self._resize_to_container()
         self._sync_offscreen_size()
-        width = self.canvas_el.width
-        height = self.canvas_el.height
         self._shared_primitives.clear_surface()
-        self.ctx.clearRect(0, 0, width, height)
+        if not self._primitives_draw_on_main_canvas():
+            self.ctx.clearRect(0, 0, self.canvas_el.width, self.canvas_el.height)
         self._apply_background()
 
     def render(self, drawable: Any, coordinate_mapper: Any) -> bool:
@@ -486,6 +485,8 @@ class Canvas2DRenderer(RendererProtocol):
         """
         size = self._container_client_size(getattr(self.canvas_el, "parentElement", None))
         if size is None:
+            # No container to measure: the element's own size is the viewport.
+            self._css_size = None
             return
         css_width, css_height = size
         ratio = self._device_pixel_ratio()
@@ -813,6 +814,10 @@ class Canvas2DRenderer(RendererProtocol):
         self._offscreen_canvas = self._create_offscreen_canvas() if self._use_layer_compositing else None
         return self._offscreen_canvas or self.canvas_el
 
+    def _primitives_draw_on_main_canvas(self) -> bool:
+        primitives = getattr(self, "_shared_primitives", None)
+        return primitives is not None and getattr(primitives, "canvas_el", None) is self.canvas_el
+
     def _apply_background(self) -> None:
         color = self._background_color
         if not color:
@@ -821,6 +826,9 @@ class Canvas2DRenderer(RendererProtocol):
             self._shared_primitives.fill_background(color)
         except Exception:
             pass
+        if self._primitives_draw_on_main_canvas():
+            # The adapter already filled the main canvas.
+            return
         try:
             self.ctx.save()
             self.ctx.setTransform(1, 0, 0, 1, 0, 0)

@@ -300,6 +300,24 @@ class TestCanvas2DRendererPlan(unittest.TestCase):
 
         self.assertGreater(len(renderer.ctx.transforms), transforms_after_first_resize)
 
+    def test_clear_fills_background_once(self) -> None:
+        renderer = self._make_renderer()
+        renderer._background_color = "#fff"
+        calls: list = []
+        renderer._shared_primitives = SimpleNamespace(
+            canvas_el=renderer.canvas_el,
+            clear_surface=lambda: calls.append("clear_surface"),
+            fill_background=lambda color: calls.append("fill_background"),
+        )
+        ctx = _TransformRecorder()
+        ctx.fillRect = lambda *args: calls.append("ctx.fillRect")
+        renderer.ctx = ctx
+
+        renderer.clear()
+
+        self.assertEqual(calls, ["clear_surface", "fill_background"])
+        self.assertEqual(ctx.clear_rect_calls, [])
+
     def test_flush_offscreen_draws_back_to_main_canvas(self) -> None:
         renderer = self._make_renderer()
         renderer.ctx = _TransformRecorder()
