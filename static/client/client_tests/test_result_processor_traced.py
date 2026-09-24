@@ -6,6 +6,7 @@ import unittest
 from typing import Any, Dict
 
 from canvas import Canvas
+from constants import successful_call_message
 from process_function_calls import ProcessFunctionCalls
 from drawables_aggregator import Position
 from .simple_mock import SimpleMock
@@ -89,6 +90,38 @@ class TestGetResultsTraced(unittest.TestCase):
             self.assertEqual(results.get("create_thing(name:A)"), "Error: bad A")
             self.assertEqual(results.get("create_thing(name:B)"), "Error: bad B")
             self.assertNotIn("create_thing", results)
+
+    def test_undoable_small_return_values_pass_through(self) -> None:
+        """Small string/dict returns of undoable tools reach the model instead of 'Call successful!'."""
+        graph_state = {"name": "G1", "vertices": ["A", "B"], "edges": [["A", "B"]]}
+        available_functions: Dict[str, Any] = {
+            "make_graph": lambda **kwargs: graph_state,
+            "make_label": lambda **kwargs: "Created label L1",
+        }
+        calls = [
+            {"function_name": "make_graph", "arguments": {"name": "G1"}},
+            {"function_name": "make_label", "arguments": {"text": "hi"}},
+        ]
+        results, traced = ProcessFunctionCalls.get_results_traced(
+            calls, available_functions, ("make_graph", "make_label"), self.canvas
+        )
+        self.assertEqual(results["make_graph(name:G1)"], graph_state)
+        self.assertEqual(results["make_label(text:hi)"], "Created label L1")
+        self.assertEqual(traced[0]["result"], graph_state)
+
+    def test_undoable_other_return_values_become_success_message(self) -> None:
+        """None, bools, objects, unserializable and oversized payloads keep the success message."""
+        available_functions: Dict[str, Any] = {
+            "ret_none": lambda **kwargs: None,
+            "ret_bool": lambda **kwargs: True,
+            "ret_obj": lambda **kwargs: SimpleMock(name="obj"),
+            "ret_mixed": lambda **kwargs: {"drawable": SimpleMock(name="obj")},
+            "ret_big": lambda **kwargs: {"data": "x" * 5000},
+        }
+        calls = [{"function_name": name, "arguments": {}} for name in available_functions]
+        results = ProcessFunctionCalls.get_results(calls, available_functions, tuple(available_functions), self.canvas)
+        for name in available_functions:
+            self.assertEqual(results[f"{name}()"], successful_call_message, name)
 
     def test_same_results_as_get_results(self) -> None:
         """get_results_traced should produce identical results dict as get_results."""

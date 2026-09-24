@@ -26,11 +26,16 @@ Dependencies:
 
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
 from browser import window
 
 from constants import successful_call_message
+
+# Largest JSON-serialized return value of a canvas-mutating tool passed back to the model;
+# larger values are replaced by the success message to keep token usage bounded.
+MAX_PASSTHROUGH_RESULT_CHARS = 2000
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -279,7 +284,7 @@ class ResultProcessor:
         """Process the result based on function type and update results dictionary."""
         if function_name in unformattable_functions:
             # Handle unformattable functions (return success message)
-            ResultProcessor._handle_unformattable_function(key, results)
+            ResultProcessor._handle_unformattable_function(key, result, results)
         elif function_name == "evaluate_expression" and "expression" in args:
             # Handle expression evaluation
             ResultProcessor._handle_expression_evaluation(
@@ -292,9 +297,27 @@ class ResultProcessor:
             )
 
     @staticmethod
-    def _handle_unformattable_function(key: str, results: Dict[str, Any]) -> None:
-        """Handle result for unformattable functions."""
-        results[key] = successful_call_message
+    def _handle_unformattable_function(key: str, result: Any, results: Dict[str, Any]) -> None:
+        """Handle result for unformattable functions.
+
+        Small string/dict return values (e.g. generated names or graph state) are passed
+        through so the model can use them; anything else becomes the success message.
+        """
+        if ResultProcessor._is_small_passthrough_result(result):
+            results[key] = result
+        else:
+            results[key] = successful_call_message
+
+    @staticmethod
+    def _is_small_passthrough_result(result: Any) -> bool:
+        """Return True for non-empty strings/dicts whose JSON form fits the size cap."""
+        if not isinstance(result, (str, dict)) or not result:
+            return False
+        try:
+            serialized: str = json.dumps(result)
+        except Exception:
+            return False
+        return len(serialized) <= MAX_PASSTHROUGH_RESULT_CHARS
 
     @staticmethod
     def _handle_regular_function(
