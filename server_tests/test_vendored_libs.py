@@ -171,5 +171,37 @@ class TestVendorManifest(unittest.TestCase):
         )
 
 
+class TestVendorCaching(unittest.TestCase):
+    """Vendored files live under versioned paths, so browsers may cache them for long."""
+
+    def setUp(self) -> None:
+        from static.app_manager import MatHudFlask
+
+        self.client = MatHudFlask("static.app_manager", static_folder=str(STATIC_DIR)).test_client()
+
+    def _cache_control(self, path: str) -> str:
+        response = self.client.get(path)
+        try:
+            self.assertEqual(response.status_code, 200, path)
+            return str(response.headers.get("Cache-Control", ""))
+        finally:
+            response.close()
+
+    def test_vendor_files_get_a_long_max_age(self) -> None:
+        cache_control = self._cache_control("/static/vendor/brython/3.12.5/brython.min.js")
+
+        match = re.search(r"max-age=(\d+)", cache_control)
+        self.assertIsNotNone(match, cache_control)
+        assert match is not None
+        self.assertGreaterEqual(int(match.group(1)), 30 * 24 * 3600)
+        self.assertNotIn("no-cache", cache_control)
+
+    def test_other_static_files_keep_revalidating(self) -> None:
+        cache_control = self._cache_control("/static/style.css")
+
+        self.assertIn("no-cache", cache_control)
+        self.assertNotIn("max-age", cache_control)
+
+
 if __name__ == "__main__":
     unittest.main()
