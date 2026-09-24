@@ -18,6 +18,7 @@ from unittest.mock import Mock, patch
 from server_tests.test_canvas_state_prompts import CANVAS_BLOCK, CanvasFormatEnv, user_prompt
 from static.app_manager import AppManager, MatHudFlask
 from static.config import MAX_IMAGE_BASE64_BYTES
+from static.routes import validate_canvas_snapshot
 
 PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=="
 SNAPSHOT = f"data:image/png;base64,{PNG_BASE64}"
@@ -66,6 +67,16 @@ class TestChatCompletionsVision(CanvasFormatEnv):
     def test_non_image_snapshot_is_ignored(self) -> None:
         api = self.chat_api()
         self.assertEqual(api._prepare_message_content(vision_prompt(snapshot="javascript:alert(1)")), USER_TEXT)
+
+    def test_only_base64_png_snapshots_are_sent(self) -> None:
+        api = self.chat_api()
+        for snapshot in (
+            "data:image/svg+xml;charset=utf-8,%3Csvg%3E%3C%2Fsvg%3E",
+            "data:image/png,rawbytes",
+            "data:image/jpeg;base64,/9j/AAAA",
+        ):
+            with self.subTest(snapshot=snapshot):
+                self.assertEqual(api._prepare_message_content(vision_prompt(snapshot=snapshot)), USER_TEXT)
 
     def test_snapshot_text_never_leaks_into_the_text_part(self) -> None:
         api = self.chat_api()
@@ -149,7 +160,7 @@ class TestVisionRoutes(unittest.TestCase):
         self.app.config["TESTING"] = True
         self.client = self.app.test_client()
 
-    def _payload(self, snapshot: str) -> Dict[str, Any]:
+    def _payload(self, snapshot: object) -> Dict[str, Any]:
         prompt = {
             "user_message": "what is drawn?",
             "use_vision": True,
@@ -177,6 +188,36 @@ class TestVisionRoutes(unittest.TestCase):
                 response = self.client.post(route, json=self._payload(oversized))
                 self.assertEqual(response.status_code, 400)
                 self.assertIn("Canvas snapshot exceeds", json.loads(response.data)["message"])
+
+    @patch("static.openai_completions_api.OpenAIChatCompletionsAPI.create_chat_completion_stream")
+    @patch("static.openai_completions_api.OpenAIChatCompletionsAPI.create_chat_completion")
+    def test_non_png_snapshot_is_rejected(self, mock_chat: Mock, mock_stream: Mock) -> None:
+        for snapshot in (
+            "data:image/svg+xml;charset=utf-8,%3Csvg%3E%3C%2Fsvg%3E",
+            "data:image/png,rawbytes",
+            "data:image/jpeg;base64,/9j/AAAA",
+            "javascript:alert(1)",
+        ):
+            for route in ("/send_message", "/send_message_stream"):
+                with self.subTest(snapshot=snapshot, route=route):
+                    response = self.client.post(route, json=self._payload(snapshot))
+                    self.assertEqual(response.status_code, 400)
+                    self.assertIn("base64 PNG", json.loads(response.data)["message"])
+        mock_chat.assert_not_called()
+        mock_stream.assert_not_called()
+
+    @patch("static.openai_completions_api.OpenAIChatCompletionsAPI.create_chat_completion")
+    def test_non_string_snapshot_is_rejected(self, mock_chat: Mock) -> None:
+        response = self.client.post("/send_message", json=self._payload(42))
+        self.assertEqual(response.status_code, 400)
+        mock_chat.assert_not_called()
+
+    @patch("static.openai_completions_api.OpenAIChatCompletionsAPI.create_chat_completion")
+    def test_png_snapshot_is_accepted_by_both_routes(self, mock_chat: Mock) -> None:
+        mock_chat.return_value = Mock(message=Mock(content="ok", tool_calls=None), finish_reason="stop")
+        self.assertEqual(self.client.post("/send_message", json=self._payload(SNAPSHOT)).status_code, 200)
+        self.assertIsNone(validate_canvas_snapshot(SNAPSHOT))
+        self.assertIsNone(validate_canvas_snapshot(None))
 
     def test_snapshot_payload_is_a_real_png(self) -> None:
         # Guard the fixture itself: the data URL decodes to PNG bytes.
