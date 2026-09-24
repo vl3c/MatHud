@@ -169,13 +169,57 @@ def _normalize_font_size(value):
     return size_float
 
 
+def _segment_entry_point(start, end, width, height):
+    """Point where the segment start->end enters the canvas rectangle, or None if it misses it.
+
+    Liang-Barsky clipping against [0, width] x [0, height].
+    """
+    x0, y0 = start
+    dx = end[0] - x0
+    dy = end[1] - y0
+    t_enter = 0.0
+    t_exit = 1.0
+    for p, q in ((-dx, x0), (dx, width - x0), (-dy, y0), (dy, height - y0)):
+        if p == 0:
+            if q < 0:
+                return None
+            continue
+        t = q / p
+        if p < 0:
+            if t > t_exit:
+                return None
+            if t > t_enter:
+                t_enter = t
+        else:
+            if t < t_enter:
+                return None
+            if t < t_exit:
+                t_exit = t
+    if t_enter == 0.0:
+        return (x0, y0)
+    return (x0 + t_enter * dx, y0 + t_enter * dy)
+
+
 def _first_visible_point(screen_paths, width, height):
-    """First path point inside the canvas, or the first point when none is (or size is unknown)."""
+    """Where the curve first enters the canvas, or its first point when it never does (or size is unknown).
+
+    Sampling can leave few vertices on straight stretches, so the entry point is
+    found by clipping each path segment rather than by the first vertex inside.
+    """
     if width > 0 and height > 0:
         for path in screen_paths:
-            for sx, sy in path:
+            if len(path) == 1:
+                sx, sy = path[0]
                 if 0 <= sx <= width and 0 <= sy <= height:
                     return (sx, sy)
+                continue
+            for index in range(1, len(path)):
+                try:
+                    entry = _segment_entry_point(path[index - 1], path[index], width, height)
+                except (ArithmeticError, TypeError, ValueError):
+                    entry = None
+                if entry is not None and math.isfinite(entry[0]) and math.isfinite(entry[1]):
+                    return entry
     return screen_paths[0][0]
 
 

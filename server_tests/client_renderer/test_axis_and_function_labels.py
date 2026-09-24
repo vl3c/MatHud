@@ -218,6 +218,17 @@ class TestFunctionLabelReprojection(unittest.TestCase):
         expected = _build_function_plan(self._line(-320, 960, y=250.0))
         self.assertEqual(_label_positions(plan), _label_positions(expected))
 
+    def test_label_anchors_where_a_sparsely_sampled_curve_enters_the_canvas(self) -> None:
+        # Straight lines are sampled with few vertices, often none near the left edge.
+        paths = [[(-320.0, 420.0), (960.0, -220.0)]]
+        plan = _build_function_plan(paths)
+        self.assertEqual(_label_positions(plan), [(4.0, 260.0)])
+
+        plan.update_map_state(_map_state(offset_x=200.0))
+
+        # The line now crosses the left edge at y = 420 - 0.5 * 120 = 360.
+        self.assertEqual(_label_positions(plan), [(4.0, 360.0)])
+
     def test_plan_bounds_include_the_reanchored_label(self) -> None:
         # Built with the curve starting at the left edge, so the label is clamped to x=4.
         plan = _build_function_plan(self._line(0, 960, y=100.0))
