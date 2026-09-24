@@ -55,7 +55,7 @@ DEFAULT_CIRCLE_ARC_RADIUS_SCALE: float = 1.0
 # ===== ZOOM AND NAVIGATION CONSTANTS =====
 # Scaling factors for canvas zoom operations
 zoom_in_scale_factor: float = 1.1  # 10% increase per zoom in action
-zoom_out_scale_factor: float = 0.9  # 10% decrease per zoom out action
+zoom_out_scale_factor: float = 1 / zoom_in_scale_factor  # exact inverse so in/out cycles do not drift
 
 # ===== RENDERER SELECTION =====
 # Default rendering backend used by Canvas when none is specified
