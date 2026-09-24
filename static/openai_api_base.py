@@ -23,7 +23,7 @@ from openai import APITimeoutError, OpenAI
 from static.ai_model import AIModel
 from static.config import CANVAS_SNAPSHOT_PATH
 from static.env_config import get_api_key
-from static.canvas_state_formatter import CanvasFormat, parse_canvas_format, render_state
+from static.canvas_state_formatter import CanvasFormat, parse_canvas_format, render_state, render_update
 from static.canvas_state_summarizer import compare_canvas_states
 from static.functions_definitions import FUNCTIONS, FunctionDefinition
 from static.token_estimation import estimate_tokens_from_bytes
@@ -721,6 +721,29 @@ class OpenAIAPIBase:
             for tool_call in tool_calls:
                 tool_message = self._create_tool_message(getattr(tool_call, "id", None), TOOL_RESULT_PLACEHOLDER)
                 self.messages.append(tool_message)
+
+    def _apply_tool_call_results(self, prompt_json: Dict[str, Any]) -> None:
+        """Answer the pending tool calls from a tool-results prompt, then report canvas changes."""
+        self._update_tool_messages_with_results(prompt_json["tool_call_results"])
+        self._append_canvas_changes(prompt_json.get("canvas_state"))
+
+    def _append_canvas_changes(self, canvas_state: Any) -> None:
+        """Append what the tool batch changed on the canvas to the batch's last tool message.
+
+        Runs after every result of the batch has been written, so matching results
+        to tool-call ids is unaffected. Nothing is added when the canvas did not
+        change or the json canvas format is active.
+        """
+        canvas_format = self._get_canvas_format()
+        if canvas_format == "json" or not isinstance(canvas_state, dict):
+            return
+        pending = self._get_pending_tool_messages()
+        if not pending or pending[-1].get("content") == TOOL_RESULT_PLACEHOLDER:
+            return
+        update = render_update(self._last_canvas_state, canvas_state, canvas_format, self._get_canvas_budget_tokens())
+        self._last_canvas_state = canvas_state
+        if update:
+            pending[-1]["content"] = f"{pending[-1]['content']}\n{update}"
 
     def _update_tool_messages_with_results(self, tool_call_results: str) -> None:
         """Update placeholder tool messages with actual results from the client.

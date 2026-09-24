@@ -2,7 +2,8 @@
 How canvas state reaches the model through each provider.
 
 Covers the <canvas> block in user messages (MATHUD_CANVAS_FORMAT=text/min_json),
-the legacy prompt-JSON path (json), history cleanup and the system prompt.
+the legacy prompt-JSON path (json), history cleanup, the system prompt, and the
+[canvas changes] note appended to the last tool result of a batch.
 """
 
 from __future__ import annotations
@@ -10,7 +11,8 @@ from __future__ import annotations
 import json
 import os
 import unittest
-from typing import Any, Dict
+from types import SimpleNamespace
+from typing import Any, Dict, List, Sequence
 from unittest.mock import patch
 
 from static.ai_model import AIModel
@@ -260,6 +262,149 @@ class TestJsonFormatIsUnchanged(CanvasFormatEnv):
         content = api._prepare_message_content(user_prompt(attached_images=["data:image/png;base64,AAAA"]))
         assert isinstance(content, list)
         self.assertEqual(content[0], {"type": "text", "text": "How long is AB?"})
+
+    def test_tool_results_get_no_canvas_changes(self) -> None:
+        api = self.chat_api()
+        api._prepare_messages_for_request(user_prompt())
+        api._finalize_stream("", TWO_CALLS)
+        api._prepare_messages_for_request(results_prompt(STATE_AFTER))
+        self.assertEqual(tool_contents(api), {"call_a": json.dumps(RESULT_A), "call_b": json.dumps(RESULT_B)})
+
+
+TWO_CALLS: List[Dict[str, Any]] = [
+    {"id": "call_a", "function": {"name": "create_point", "arguments": '{"x": 1, "y": 1, "name": "C"}'}},
+    {"id": "call_b", "function": {"name": "update_point", "arguments": '{"point_name": "B", "new_y": 0}'}},
+]
+RESULT_A = {"create_point(x:1, y:1, name:C)": "Call successful!"}
+RESULT_B = {"update_point(point_name:B, new_y:0)": "Call successful!"}
+
+STATE_AFTER: Dict[str, Any] = json.loads(json.dumps(STATE))
+STATE_AFTER["Points"][1]["args"]["position"] = {"x": 3, "y": 0}
+STATE_AFTER["Points"].append({"name": "C", "args": {"position": {"x": 1, "y": 1}}})
+
+CHANGES = "\n".join(
+    [
+        "[canvas changes]",
+        "+ C = (1, 1)",
+        "~ B = (3, 4)  ->  (3, 0)",
+        "~ AB = Segment(A, B)  len 5  ->  Segment(A, B)  len 3",
+    ]
+)
+
+
+def results_prompt(state: Dict[str, Any], order: Sequence[str] = ("call_b", "call_a")) -> str:
+    """The prompt the client sends after running a tool batch (per-call results plus state_after)."""
+    entries = {
+        "call_a": {"tool_call_id": "call_a", "result": RESULT_A},
+        "call_b": {"tool_call_id": "call_b", "result": RESULT_B},
+    }
+    return json.dumps(
+        {
+            "canvas_state": state,
+            "user_message": None,
+            "tool_call_results": json.dumps([entries[key] for key in order]),
+            "use_vision": False,
+            "ai_model": "gpt-4.1-mini",
+        }
+    )
+
+
+def tool_contents(api: OpenAIAPIBase) -> Dict[str, str]:
+    return {m["tool_call_id"]: m["content"] for m in api.messages if m.get("role") == "tool"}
+
+
+class TestCanvasChangesAfterToolCalls(CanvasFormatEnv):
+    """After a tool batch the last tool message says what changed on the canvas."""
+
+    EXPECTED = {"call_a": json.dumps(RESULT_A), "call_b": f"{json.dumps(RESULT_B)}\n{CHANGES}"}
+
+    def test_chat_completions(self) -> None:
+        api = self.chat_api()
+        api._prepare_messages_for_request(user_prompt())
+        api._finalize_stream("", TWO_CALLS)
+        api._prepare_messages_for_request(results_prompt(STATE_AFTER))
+        # Results are matched by id even though they arrive in reverse order.
+        self.assertEqual(tool_contents(api), self.EXPECTED)
+
+    def test_responses_api(self) -> None:
+        api = self.responses_api()
+        api._prepare_messages_for_stream(user_prompt())
+        api._finalize_stream("", TWO_CALLS)
+        api._prepare_messages_for_stream(results_prompt(STATE_AFTER))
+        self.assertEqual(tool_contents(api), self.EXPECTED)
+        converted = api._convert_messages_to_input()
+        self.assertTrue(converted[-1]["content"].endswith(CHANGES))
+        # The user message keeps its canvas block for the continuation request.
+        self.assertEqual(converted[1]["content"], f"{CANVAS_BLOCK}\n\nHow long is AB?")
+
+    def test_anthropic_keeps_changes_inside_the_tool_result_block(self) -> None:
+        api = self.anthropic_api()
+        api.messages.append(api._parse_and_prepare_message(user_prompt()) or {})
+        api._finalize_anthropic_stream("", TWO_CALLS)
+        self.assertIsNone(api._parse_and_prepare_message(results_prompt(STATE_AFTER)))
+        self.assertEqual(tool_contents(api), self.EXPECTED)
+        blocks = api._convert_messages_to_anthropic()[-1]["content"]
+        self.assertEqual([b["type"] for b in blocks], ["tool_result", "tool_result"])
+        self.assertEqual({b["tool_use_id"]: b["content"] for b in blocks}, self.EXPECTED)
+
+    def test_local_agent(self) -> None:
+        api = self.local_api()
+        api.messages.append(api._parse_and_prepare_message(user_prompt()) or {})
+        api._finalize_stream("", TWO_CALLS)
+        self.assertIsNone(api._parse_and_prepare_message(results_prompt(STATE_AFTER)))
+        self.assertEqual(tool_contents(api), self.EXPECTED)
+
+    def test_unchanged_canvas_adds_nothing(self) -> None:
+        api = self.chat_api()
+        api._prepare_messages_for_request(user_prompt())
+        api._finalize_stream("", TWO_CALLS)
+        api._prepare_messages_for_request(results_prompt(STATE))
+        self.assertEqual(tool_contents(api), {"call_a": json.dumps(RESULT_A), "call_b": json.dumps(RESULT_B)})
+
+    def test_second_batch_reports_changes_since_the_first(self) -> None:
+        api = self.chat_api()
+        api._prepare_messages_for_request(user_prompt())
+        api._finalize_stream("", TWO_CALLS)
+        api._prepare_messages_for_request(results_prompt(STATE_AFTER))
+        api._finalize_stream("", [{"id": "call_c", "function": {"name": "delete_point", "arguments": "{}"}}])
+        final_state = json.loads(json.dumps(STATE_AFTER))
+        final_state["Points"].pop()
+        entries = [{"tool_call_id": "call_c", "result": {"delete_point(point_name:C)": "Call successful!"}}]
+        prompt = json.loads(results_prompt(final_state))
+        prompt["tool_call_results"] = json.dumps(entries)
+        api._prepare_messages_for_request(json.dumps(prompt))
+        self.assertTrue(tool_contents(api)["call_c"].endswith("\n[canvas changes]\n- C (point) removed"))
+
+    def test_changes_follow_a_server_side_answer(self) -> None:
+        """A call answered by the server (e.g. a dropped tool) still gets the changes appended last."""
+        api = self.chat_api()
+        api._prepare_messages_for_request(user_prompt())
+        api._finalize_stream("", TWO_CALLS)
+        api.record_tool_call_result("call_b", "Error: tool 'update_point' is not loaded")
+        api._prepare_messages_for_request(results_prompt(STATE_AFTER, order=("call_a",)))
+        contents = tool_contents(api)
+        self.assertEqual(contents["call_a"], json.dumps(RESULT_A))
+        self.assertTrue(contents["call_b"].startswith("Error: tool 'update_point' is not loaded\n[canvas changes]"))
+
+    def test_reset_conversation_forgets_the_shown_state(self) -> None:
+        api = self.chat_api()
+        api._prepare_messages_for_request(user_prompt())
+        api.reset_conversation()
+        api.messages.append({"role": "assistant", "content": "", "tool_calls": TWO_CALLS})
+        api._append_tool_messages([SimpleNamespace(id="call_a"), SimpleNamespace(id="call_b")])
+        api._prepare_messages_for_request(results_prompt(STATE_AFTER))
+        self.assertTrue(tool_contents(api)["call_b"].endswith("[canvas now]\n" + CANVAS_AFTER))
+
+
+CANVAS_AFTER = "\n".join(
+    [
+        "view x [-10, 10] y [-5, 5]; grid 1",
+        "A = (0, 0)",
+        "B = (3, 0)",
+        "C = (1, 1)",
+        "AB = Segment(A, B)  len 3",
+    ]
+)
 
 
 if __name__ == "__main__":
