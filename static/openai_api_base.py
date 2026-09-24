@@ -54,6 +54,21 @@ def stream_error_user_message(exc: BaseException, default: str) -> str:
         return PROVIDER_TIMEOUT_MESSAGE
     return default
 
+# Environment variable selecting how many tools the model sees up front:
+# "search" (default) exposes search_tools plus essentials, "full" exposes every tool.
+TOOL_EXPOSURE_ENV = "MATHUD_TOOL_EXPOSURE"
+
+
+def get_configured_tool_mode() -> ToolMode:
+    """Return the tool mode configured by MATHUD_TOOL_EXPOSURE (default: "search")."""
+    raw = os.getenv(TOOL_EXPOSURE_ENV, "search").strip().lower()
+    if raw == "full":
+        return "full"
+    if raw != "search":
+        _logger.warning("Unknown %s value %r; using 'search'", TOOL_EXPOSURE_ENV, raw)
+    return "search"
+
+
 # Essential tool names that should always be available after injection
 ESSENTIAL_TOOLS = frozenset(
     {
@@ -88,6 +103,8 @@ class OpenAIAPIBase:
     """Base class for OpenAI API implementations."""
 
     DEV_MSG = """You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. Use the provided tools for calculations rather than computing results yourself, so every result shown comes from the math engine. Canvas state is included with user messages; base your actions on it. For large scenes it may be summarized to reduce noise; when you need complete details, call get_current_canvas_state. Canvas state may be stale after tool calls, so re-check live state between actions when needed. Never use emoticons or emoji in your responses. When performing multiple steps, include a succinct summary of all actions taken in your final response. INFO: Point labels and coordinates are hardcoded to be shown next to all points on the canvas."""
+
+    SEARCH_MODE_MSG = """Tool loading: at the start only search_tools and a few essential tools (undo, redo, get_current_canvas_state) are available. Before using any other tool, call search_tools with a short description of what you want to do (e.g. "plot a function", "evaluate an expression at a point"); the matching tools are then loaded for your following calls until you give your final answer. Calls to tools that were not loaded fail."""
 
     CANVAS_SUMMARY_MODE_ENV = "AI_CANVAS_SUMMARY_MODE"
     CANVAS_HYBRID_MAX_BYTES_ENV = "AI_CANVAS_HYBRID_FULL_MAX_BYTES"
@@ -138,7 +155,18 @@ class OpenAIAPIBase:
         self._custom_tools: Optional[Sequence[FunctionDefinition]] = tools
         self._injected_tools: bool = False  # Track if tools were dynamically injected
         self.tools: Sequence[FunctionDefinition] = self._resolve_tools()
-        self.messages: List[MessageDict] = [{"role": "developer", "content": OpenAIAPIBase.DEV_MSG}]
+        self.messages: List[MessageDict] = [{"role": "developer", "content": self._build_system_prompt()}]
+
+    def _build_system_prompt(self) -> str:
+        """Return the system prompt, explaining search-first tool loading when it is active."""
+        if self._tool_mode == "search" and self._custom_tools is None:
+            return f"{OpenAIAPIBase.DEV_MSG} {OpenAIAPIBase.SEARCH_MODE_MSG}"
+        return OpenAIAPIBase.DEV_MSG
+
+    def _refresh_system_prompt(self) -> None:
+        """Rewrite the leading system/developer message after the tool mode changes."""
+        if self.messages and self.messages[0].get("role") in ("developer", "system"):
+            self.messages[0]["content"] = self._build_system_prompt()
 
     def _resolve_tools(self) -> Sequence[FunctionDefinition]:
         """Resolve the active tool set based on mode and custom tools.
@@ -174,6 +202,7 @@ class OpenAIAPIBase:
             # Only update tools if not using custom tools
             if self._custom_tools is None:
                 self.tools = self._resolve_tools()
+                self._refresh_system_prompt()
                 msg = f"Tool mode changed to: {mode} ({len(self.tools)} tools available)"
                 print(msg)
                 _logger.info(msg)
@@ -241,7 +270,7 @@ class OpenAIAPIBase:
 
     def reset_conversation(self) -> None:
         """Reset the conversation history to start a new session."""
-        self.messages = [{"role": "developer", "content": OpenAIAPIBase.DEV_MSG}]
+        self.messages = [{"role": "developer", "content": self._build_system_prompt()}]
 
     def add_partial_assistant_message(self, content: str) -> None:
         """Add a partial assistant message that was interrupted by the user."""

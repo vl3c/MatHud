@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional, Set, Type
 
 from static.ai_model import AIModel
 from static.functions_definitions import FunctionDefinition
-from static.openai_api_base import OpenAIAPIBase, StreamEvent
+from static.openai_api_base import OpenAIAPIBase, StreamEvent, get_configured_tool_mode
 
 _logger = logging.getLogger("mathud")
 
@@ -201,13 +201,14 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         self.temperature = temperature
         self.max_tokens = max_tokens
         # Default to search mode for local LLMs to avoid context overflow
-        self._tool_mode = "search"
+        # (MATHUD_TOOL_EXPOSURE=full exposes every tool instead)
+        self._tool_mode = get_configured_tool_mode()
         self._custom_tools = tools
         self._injected_tools = False
         self.tools: Sequence[FunctionDefinition] = self._resolve_tools()
 
         # Use developer message as system prompt
-        self.messages: List[Dict[str, Any]] = [{"role": "system", "content": OpenAIAPIBase.DEV_MSG}]
+        self.messages: List[Dict[str, Any]] = [{"role": "system", "content": self._build_system_prompt()}]
 
     @abstractmethod
     def _is_available(self) -> bool:
@@ -272,7 +273,7 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
 
     def reset_conversation(self) -> None:
         """Reset the conversation history."""
-        self.messages = [{"role": "system", "content": OpenAIAPIBase.DEV_MSG}]
+        self.messages = [{"role": "system", "content": self._build_system_prompt()}]
 
     def create_chat_completion(self, full_prompt: str) -> Any:
         """Create a chat completion using the local LLM.

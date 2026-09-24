@@ -35,7 +35,7 @@ from static.config import (
     MAX_ATTACHED_IMAGES,
     MAX_IMAGE_BASE64_BYTES,
 )
-from static.openai_api_base import OpenAIAPIBase
+from static.openai_api_base import OpenAIAPIBase, get_configured_tool_mode
 from static.providers import ProviderRegistry, create_provider_instance, is_local_provider
 from static.route_helpers import get_active_provider, reset_tools_for_all_providers
 from static.tool_call_processor import ProcessedToolCall, ToolCallProcessor
@@ -144,10 +144,11 @@ def get_provider_for_model(app: MatHudFlask, model_id: str) -> OpenAIAPIBase:
     # For other providers, use lazy-loaded instances
     if provider_name not in app.providers:
         create_kwargs: Dict[str, Any] = {"model": model}
-        # Keep providers in search-first mode by default to reduce initial tool payload.
-        # Local providers are already search-first and take no tool_mode argument.
+        # Keep providers in search-first mode by default to reduce initial tool payload
+        # (MATHUD_TOOL_EXPOSURE=full exposes every tool). Local providers read the
+        # setting themselves and take no tool_mode argument.
         if not is_local_provider(provider_name):
-            create_kwargs["tool_mode"] = "search"
+            create_kwargs["tool_mode"] = get_configured_tool_mode()
 
         provider_instance = create_provider_instance(provider_name, **create_kwargs)
         if provider_instance is None:
