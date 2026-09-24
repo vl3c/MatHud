@@ -70,15 +70,8 @@ class GraphManager:
         id_to_point: Dict[str, Point] = {}
 
         for vertex in state.vertices:
-            name = self.name_generator.generate_point_name(vertex.name or "")
             coords = vertex_positions.get(vertex.id, (0.0, 0.0))
-            point = self.point_manager.create_point(
-                coords[0],
-                coords[1],
-                name=name,
-                color=vertex.color,
-                extra_graphics=False,
-            )
+            point = self._create_vertex_point(vertex, coords)
             vertex_name_map[vertex.id] = point.name
             id_to_point[vertex.id] = point
 
@@ -345,6 +338,34 @@ class GraphManager:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+    def _create_vertex_point(self, vertex: GraphVertexDescriptor, coords: Tuple[float, float]) -> "Point":
+        """Create the point for a vertex, honouring its requested name when valid and unused."""
+        requested_name = self._resolve_requested_vertex_name(vertex.name)
+        existing_point = self.point_manager.get_point(coords[0], coords[1])
+        if requested_name:
+            name = self.name_generator.generate_point_name("")
+        else:
+            name = self.name_generator.generate_point_name(vertex.name or "")
+        point = self.point_manager.create_point(
+            coords[0],
+            coords[1],
+            name=name,
+            color=vertex.color,
+            extra_graphics=False,
+        )
+        if requested_name and point is not existing_point and point.name != requested_name:
+            point.update_name(requested_name)
+        return point
+
+    def _resolve_requested_vertex_name(self, requested: Optional[str]) -> Optional[str]:
+        """Return the filtered requested vertex name if it is non-empty and not used by another point."""
+        if not requested:
+            return None
+        filtered = str(self.name_generator.filter_string(requested)).strip()
+        if not filtered or self.point_manager.get_point_by_name(filtered) is not None:
+            return None
+        return filtered
+
     def _resolve_positions(self, state: GraphState) -> Dict[str, Tuple[float, float]]:
         provided: Dict[str, Tuple[float, float]] = {}
         missing: List[str] = []
