@@ -24,6 +24,30 @@ def _require_finite(value: float, name: str) -> float:
     return value
 
 
+def _format_plain_number(value: float) -> str:
+    """Format a float without scientific notation, keeping its full (round-trip) precision.
+
+    str(1e-05) gives "1e-05", which expression parsers can misread as "1*e - 05".
+    """
+    text = repr(float(value))
+    if "e" not in text and "E" not in text:
+        return text
+    mantissa, exponent = text.lower().split("e")
+    sign = ""
+    if mantissa.startswith("-"):
+        sign, mantissa = "-", mantissa[1:]
+    integer_part, _, fraction_part = mantissa.partition(".")
+    digits = integer_part + fraction_part
+    point = len(integer_part) + int(exponent)
+    if point <= 0:
+        plain = "0." + "0" * (-point) + digits
+    elif point >= len(digits):
+        plain = digits + "0" * (point - len(digits)) + ".0"
+    else:
+        plain = digits[:point] + "." + digits[point:]
+    return sign + plain
+
+
 def normal_pdf_expression(mean: float, sigma: float) -> str:
     """
     Return a MatHud-compatible function expression string for the normal PDF.
@@ -36,7 +60,9 @@ def normal_pdf_expression(mean: float, sigma: float) -> str:
         raise ValueError("sigma must be > 0")
 
     # f(x) = (1 / (sigma * sqrt(2*pi))) * exp(-((x-mean)^2) / (2*sigma^2))
-    return f"(1/(({sigma})*sqrt(2*pi)))*exp(-(((x-({mean}))^2)/(2*({sigma})^2)))"
+    mean_text = _format_plain_number(mean)
+    sigma_text = _format_plain_number(sigma)
+    return f"(1/(({sigma_text})*sqrt(2*pi)))*exp(-(((x-({mean_text}))^2)/(2*({sigma_text})^2)))"
 
 
 def default_normal_bounds(mean: float, sigma: float, k: float = 4.0) -> Tuple[float, float]:

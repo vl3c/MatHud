@@ -24,6 +24,7 @@ from .test_chat_message_menu import TestChatMessageMenu
 from .test_throttle import TestThrottle
 from .test_window_mocks import TestWindowMocks
 from .test_expression_validator import TestExpressionValidator
+from .test_expression_evaluator import TestExpressionEvaluatorZeroResults
 from .test_function import TestFunction, TestFunctionUndefinedAt
 from .test_functions_bounded_colored_area import TestFunctionsBoundedColoredArea
 from .test_function_segment_bounded_colored_area import TestFunctionSegmentBoundedColoredArea
@@ -35,7 +36,12 @@ from .test_screen_offset_label_layout import TestScreenOffsetLabelLayout
 from .test_bar_manager import TestBarManager
 from .test_segments_bounded_colored_area import TestSegmentsBoundedColoredArea
 from .test_function_calling import TestProcessFunctionCalls, TestProcessFunctionCallsPlotTools
-from .test_math_functions import TestMathFunctions, TestNumberTheory
+from .test_math_functions import (
+    TestMathFunctions,
+    TestNumberTheory,
+    TestSequencesAndSeries,
+    TestSequencesAndSeriesEvaluate,
+)
 from .test_math_utils_solving import TestMathUtilsSolving
 from .test_periodicity_detection import TestPeriodicityDetection, TestPeriodicityEdgeCases
 from .test_geometry_utils import TestGeometryUtils, TestConvexHull, TestPointInConvexHull
@@ -411,6 +417,8 @@ class Tests:
             TestMathFunctions,
             TestNumberTheory,
             TestMathUtilsSolving,
+            TestSequencesAndSeries,
+            TestSequencesAndSeriesEvaluate,
             TestPeriodicityDetection,
             TestPeriodicityEdgeCases,
             TestGeometryUtils,
@@ -525,6 +533,7 @@ class Tests:
             TestZoomAspectRatios,
             TestZoomEdgeCases,
             TestExpressionValidator,
+            TestExpressionEvaluatorZeroResults,
             TestProcessFunctionCalls,
             TestProcessFunctionCallsPlotTools,
             TestLabel,

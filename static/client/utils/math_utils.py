@@ -1124,8 +1124,9 @@ class MathUtils:
             python_expression = ExpressionValidator.fix_math_expression(expression, python_compatible=True)
             ExpressionValidator.validate_expression_tree(python_expression)
 
-            # Check if expression contains Python-only functions (number theory)
-            if any(func in expression for func in MathUtils._PYTHON_ONLY_FUNCTIONS):
+            # Check if expression contains Python-only functions (number theory; randint has no
+            # inclusive math.js equivalent)
+            if "randint(" in expression or any(func in expression for func in MathUtils._PYTHON_ONLY_FUNCTIONS):
                 # Use Python evaluation for number theory functions
                 result = ExpressionValidator.evaluate_expression(
                     python_expression, variables.get("x", 0) if variables else 0
@@ -1137,12 +1138,26 @@ class MathUtils:
                     return str(result)
                 return result
 
+            # Map advertised names onto their math.js equivalents
             js_expression = js_expression.replace("arrangements(", "permutations(")
+            js_expression = js_expression.replace("stdev(", "std(")
+            js_expression = js_expression.replace("trunc(", "fix(")
 
-            if not variables:
-                result = window.math.format(window.math.evaluate(js_expression))
-            else:
-                result = window.math.format(window.math.evaluate(js_expression, variables))
+            try:
+                if not variables:
+                    result = window.math.format(window.math.evaluate(js_expression))
+                else:
+                    result = window.math.format(window.math.evaluate(js_expression, variables))
+            except Exception as e:
+                # Brython cannot convert integer-valued JS numbers >= 2^53 ("not a big int"),
+                # so let math.js format such results before they cross into Python
+                if "not a big int" not in str(e):
+                    raise
+                formatted_expression = f"format({js_expression})"
+                if not variables:
+                    result = window.math.evaluate(formatted_expression)
+                else:
+                    result = window.math.evaluate(formatted_expression, variables)
 
             converted_result = MathUtils.try_convert_to_number(result)
 
@@ -1160,7 +1175,12 @@ class MathUtils:
 
             return converted_result
         except ZeroDivisionError:
-            return "Error: ZeroDivisionError"
+            return (
+                "Error: Result is infinite (division by zero, overflow, "
+                "or a value outside the function's domain such as log(0))"
+            )
+        except OverflowError:
+            return "Error: Overflow - the result is too large to represent"
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
 
@@ -2406,30 +2426,9 @@ class MathUtils:
         try:
             # Create a_{n+1} by substituting n -> n+1
             next_term = str(window.nerdamer(expression).sub(n_var, f"({n_var}+1)").text())
-            # Compute |a_{n+1}/a_n|
-            ratio_expr = f"abs(({next_term})/({expression}))"
-            # Take the limit as n -> infinity
-            limit_result = MathUtils.limit(ratio_expr, n_var, "inf")
-
-            # Parse the result
-            if "Error" in limit_result:
-                return f"Error computing limit: {limit_result}"
-
-            # Try to evaluate the limit numerically
-            try:
-                L = float(limit_result)
-                if L < 1:
-                    return f"Converges (L = {limit_result})"
-                elif L > 1:
-                    return f"Diverges (L = {limit_result})"
-                else:  # L == 1
-                    return f"Inconclusive (L = {limit_result})"
-            except (ValueError, TypeError):
-                # Limit might be symbolic (e.g., "Infinity")
-                limit_lower = limit_result.lower()
-                if "infinity" in limit_lower or "inf" in limit_lower:
-                    return "Diverges (L = infinity)"
-                return f"Inconclusive (L = {limit_result})"
+            # L = lim |a_{n+1}/a_n|
+            ratio_expr = f"({next_term})/({expression})"
+            return MathUtils._classify_series_limit(ratio_expr, f"abs({ratio_expr})", n_var)
         except Exception as e:
             return f"Error: {e}"
 
@@ -2450,32 +2449,68 @@ class MathUtils:
             str: "Converges", "Diverges", or "Inconclusive" with the limit value
         """
         try:
-            # Compute |a_n|^{1/n}
-            root_expr = f"(abs({expression}))^(1/{n_var})"
-            # Take the limit as n -> infinity
-            limit_result = MathUtils.limit(root_expr, n_var, "inf")
-
-            # Parse the result
-            if "Error" in limit_result:
-                return f"Error computing limit: {limit_result}"
-
-            # Try to evaluate the limit numerically
-            try:
-                L = float(limit_result)
-                if L < 1:
-                    return f"Converges (L = {limit_result})"
-                elif L > 1:
-                    return f"Diverges (L = {limit_result})"
-                else:  # L == 1
-                    return f"Inconclusive (L = {limit_result})"
-            except (ValueError, TypeError):
-                # Limit might be symbolic (e.g., "Infinity")
-                limit_lower = limit_result.lower()
-                if "infinity" in limit_lower or "inf" in limit_lower:
-                    return "Diverges (L = infinity)"
-                return f"Inconclusive (L = {limit_result})"
+            # L = lim |a_n|^{1/n}
+            root_expr = f"({expression})^(1/{n_var})"
+            return MathUtils._classify_series_limit(root_expr, f"(abs({expression}))^(1/{n_var})", n_var)
         except Exception as e:
             return f"Error: {e}"
+
+    @staticmethod
+    def _classify_series_limit(expression: str, abs_expression: str, n_var: str) -> str:
+        """Classify L = |lim expression| as n -> infinity for the ratio and root tests.
+
+        nerdamer's limit() mishandles abs() at infinity (e.g. lim |2^n|^(1/n) gives 1), so the
+        limit of ``expression`` is taken first and its absolute value used; the limit of
+        ``abs_expression`` (already wrapped in abs) is the fallback when that is not numeric.
+        """
+        try:
+            # Let nerdamer simplify first (e.g. 2^(n+1)/2^n -> 2, (2^n)^(1/n) -> 2)
+            expression = str(window.nerdamer(expression).text())
+        except Exception:
+            pass
+        limit_result = MathUtils.limit(expression, n_var, "inf")
+        value = MathUtils._numeric_limit_value(limit_result)
+        if value is None:
+            limit_result = MathUtils.limit(abs_expression, n_var, "inf")
+            if "Error" in limit_result:
+                return f"Error computing limit: {limit_result}"
+            value = MathUtils._numeric_limit_value(limit_result)
+            if value is None:
+                # Limit is symbolic or could not be computed
+                return f"Inconclusive (L = {limit_result})"
+
+        L = abs(value)
+        if math.isinf(L):
+            return "Diverges (L = infinity)"
+        L_text = f"{L:.12g}"
+        if abs(L - 1) <= 1e-9:
+            return f"Inconclusive (L = {L_text})"
+        if L < 1:
+            return f"Converges (L = {L_text})"
+        return f"Diverges (L = {L_text})"
+
+    @staticmethod
+    def _numeric_limit_value(limit_result: str) -> Optional[float]:
+        """Numerically evaluate a nerdamer limit result (e.g. "e^(-0.69...)", "Infinity").
+
+        Returns None for errors, unevaluated limits, and non-numeric results.
+        """
+        if "Error" in limit_result or "limit" in limit_result:
+            return None
+        try:
+            evaluated: Any = window.nerdamer(limit_result).evaluate()
+            numeric_text = str(evaluated.text("decimals")).strip()
+        except Exception:
+            return None
+        if numeric_text in ("Infinity", "+Infinity"):
+            return float("inf")
+        if numeric_text == "-Infinity":
+            return float("-inf")
+        try:
+            value = float(numeric_text)
+        except (ValueError, TypeError):
+            return None
+        return None if math.isnan(value) else value
 
     @staticmethod
     def p_series_test(p: Number) -> str:
