@@ -485,7 +485,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "create_circle",
-            "description": "Creates and draws a circle with the specified center coordinates and radius. If a name is provided, it will be used to reference the circle.",
+            "description": "Creates and draws a circle with the specified center coordinates and radius. Circles are named after their center point and radius, e.g. 'A(3)'; use that name to reference the circle later.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -494,7 +494,10 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "center_y": {"type": "number", "description": "The Y coordinate of the circle's center"},
                     "radius": {"type": "number", "description": "The radius of the circle"},
                     "color": {"type": ["string", "null"], "description": "Optional color to assign to the circle"},
-                    "name": {"type": ["string", "null"], "description": "Optional name for the circle"},
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional name hint used to name the center point; the circle itself is named '<center>(<radius>)'",
+                    },
                 },
                 "required": ["center_x", "center_y", "radius", "color", "name"],
                 "additionalProperties": False,
@@ -691,7 +694,10 @@ FUNCTIONS: List[Dict[str, Any]] = [
                         "description": "Optional angle in degrees to rotate the ellipse around its center (default: 0)",
                     },
                     "color": {"type": ["string", "null"], "description": "Optional color for the ellipse"},
-                    "name": {"type": ["string", "null"], "description": "Optional name for the ellipse"},
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional name hint used to name the center point; the ellipse itself is named '<center>(<radius_x>, <radius_y>)'",
+                    },
                 },
                 "required": ["center_x", "center_y", "radius_x", "radius_y", "rotation_angle", "color", "name"],
                 "additionalProperties": False,
