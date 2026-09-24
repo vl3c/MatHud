@@ -781,8 +781,11 @@ class MathUtils:
             bool: True if vectors form a right angle, False otherwise
         """
         dot_product = MathUtils.dot_product(origin, p1, p2)
-        # Use a small tolerance for floating-point comparisons
-        return abs(dot_product) < 1e-10
+        # Normalize by the vector lengths so the tolerance is independent of scale
+        norms = math.hypot(p1.x - origin.x, p1.y - origin.y) * math.hypot(p2.x - origin.x, p2.y - origin.y)
+        if norms == 0:
+            return False
+        return abs(dot_product) / norms < 1e-9
 
     @staticmethod
     def is_rectangle(
@@ -811,12 +814,12 @@ class MathUtils:
             MathUtils.get_2D_distance(p1, p2) for i, p1 in enumerate(points) for j, p2 in enumerate(points) if i < j
         ]
 
-        # Group similar distances using tolerance
+        # Group similar distances using a tolerance relative to their magnitude
         grouped_distances: List[List[float]] = []
         for d in distances:
             found_group = False
             for group in grouped_distances:
-                if abs(group[0] - d) < TOLERANCE:
+                if abs(group[0] - d) < 1e-9 * max(group[0], d):
                     group.append(d)
                     found_group = True
                     break

@@ -117,6 +117,7 @@ from .test_relation_inspector import (
 from .test_polygon_canonicalizer import TestPolygonCanonicalizer
 from .test_shape_math_utils import (
     TestEllipseFormula,
+    TestIsRectangleScale,
 )
 from .test_triangle import TestTriangle
 from .test_quadrilateral import TestQuadrilateral
@@ -437,6 +438,7 @@ class Tests:
             TestAreaUtilities,
             TestPolygonCanonicalizer,
             TestEllipseFormula,
+            TestIsRectangleScale,
             TestDrawableNameGenerator,
             TestPoint,
             TestSegment,

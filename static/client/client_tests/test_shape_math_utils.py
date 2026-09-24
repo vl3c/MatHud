@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import unittest
 
+from drawables.point import Position
 from utils.math_utils import MathUtils
 
 
@@ -39,6 +40,39 @@ class TestEllipseFormula(unittest.TestCase):
         self.assertIn(" - ", formula)
         self._assert_points_satisfy(1, 2, 3, 2, 30)
         self._assert_points_satisfy(1, 2, 3, 2, 120)
+
+
+class TestIsRectangleScale(unittest.TestCase):
+    @staticmethod
+    def _rotated_rectangle(cx: float, cy: float, w: float, h: float, angle: float) -> list[float]:
+        ux, uy = math.cos(angle), math.sin(angle)
+        vx, vy = -uy, ux
+        coords: list[float] = []
+        for i, j in ((0, 0), (1, 0), (1, 1), (0, 1)):
+            coords.extend([cx + i * w * ux + j * h * vx, cy + i * w * uy + j * h * vy])
+        return coords
+
+    def test_rotated_rectangles_accepted_at_large_scale(self) -> None:
+        for scale in (1.0, 200.0, 1000.0, 1e5):
+            for k in range(12):
+                angle = 0.1 + k * 0.5
+                coords = self._rotated_rectangle(scale * 0.3, -scale * 0.7, scale, scale * 0.61, angle)
+                self.assertTrue(MathUtils.is_rectangle(*coords), f"scale={scale} angle={angle}")
+
+    def test_rotated_squares_accepted_at_large_scale(self) -> None:
+        for scale in (200.0, 1000.0):
+            coords = self._rotated_rectangle(17.0, 3.0, scale, scale, 0.7)
+            self.assertTrue(MathUtils.is_rectangle(*coords))
+
+    def test_non_rectangles_rejected_at_large_scale(self) -> None:
+        # Parallelogram with a 1e-4 rad skew
+        self.assertFalse(MathUtils.is_rectangle(0, 0, 1000, 0, 1000.1, 1000, 0.1, 1000))
+        # Kite-like quadrilateral
+        self.assertFalse(MathUtils.is_rectangle(0, 0, 1000, 0, 1000, 1000, 0, 1001))
+
+    def test_is_right_angle_scale_invariant(self) -> None:
+        self.assertTrue(MathUtils.is_right_angle(Position(0, 0), Position(3000.3, 0), Position(0, 4000.7)))
+        self.assertFalse(MathUtils.is_right_angle(Position(0, 0), Position(1e-3, 0), Position(1e-6, 1e-3)))
 
 
 if __name__ == "__main__":
