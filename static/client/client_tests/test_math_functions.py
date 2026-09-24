@@ -790,6 +790,39 @@ class TestMathFunctions(unittest.TestCase):
         result = MathUtils.evaluate("1 + 2i + 1j")
         self.assertEqual(result, "1 + 3i")
 
+    def test_evaluate_scientific_notation(self) -> None:
+        self.assertAlmostEqual(float(MathUtils.evaluate("1e-5")), 1e-5)
+        self.assertAlmostEqual(float(MathUtils.evaluate("2.5E+3")), 2500.0)
+        self.assertAlmostEqual(float(MathUtils.evaluate("6.02e23*2")) / 1.204e24, 1.0)
+        self.assertAlmostEqual(float(MathUtils.evaluate("2x + 1e3", {"x": 2})), 1004.0)
+
+    def test_evaluate_large_integer_valued_results(self) -> None:
+        # Results >= 2^53 used to fail converting from JavaScript ("not a big int")
+        self.assertAlmostEqual(float(MathUtils.evaluate("2^60")) / 2**60, 1.0)
+        self.assertAlmostEqual(float(MathUtils.evaluate("factorial(25)")) / math.factorial(25), 1.0)
+        self.assertAlmostEqual(float(MathUtils.evaluate("1e9^2")) / 1e18, 1.0)
+        self.assertAlmostEqual(float(MathUtils.evaluate("x^2", {"x": 1e9})) / 1e18, 1.0)
+
+    def test_evaluate_advertised_statistics_and_rounding_functions(self) -> None:
+        self.assertAlmostEqual(float(MathUtils.evaluate("stdev([2, 4, 6, 8, 10])")), 3.16227766, places=6)
+        self.assertAlmostEqual(float(MathUtils.evaluate("std([2, 4, 6, 8, 10])")), 3.16227766, places=6)
+        self.assertEqual(float(MathUtils.evaluate("trunc(2.7)")), 2.0)
+        self.assertEqual(float(MathUtils.evaluate("trunc(-2.7)")), -2.0)
+        for _ in range(10):
+            value = MathUtils.evaluate("randint(1, 6)")
+            self.assertNotIn("Error", str(value))
+            self.assertEqual(float(value), int(float(value)))
+            self.assertTrue(1 <= float(value) <= 6, f"randint(1, 6) out of range: {value}")
+
+    def test_evaluate_infinite_result_message(self) -> None:
+        for expr in ["exp(1000)", "log(0)", "1/0"]:
+            with self.subTest(expr=expr):
+                result = MathUtils.evaluate(expr)
+                self.assertIsInstance(result, str)
+                self.assertIn("Error", result)
+                self.assertIn("infinite", result)
+                self.assertNotIn("ZeroDivisionError", result)
+
     def test_evaluate_factorial_expression(self) -> None:
         result = MathUtils.evaluate("10!/(3!*(10-3)!)")
         expected = math.factorial(10) // (math.factorial(3) * math.factorial(7))

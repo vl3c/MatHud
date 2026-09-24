@@ -1107,8 +1107,9 @@ class MathUtils:
             python_expression = ExpressionValidator.fix_math_expression(expression, python_compatible=True)
             ExpressionValidator.validate_expression_tree(python_expression)
 
-            # Check if expression contains Python-only functions (number theory)
-            if any(func in expression for func in MathUtils._PYTHON_ONLY_FUNCTIONS):
+            # Check if expression contains Python-only functions (number theory; randint has no
+            # inclusive math.js equivalent)
+            if "randint(" in expression or any(func in expression for func in MathUtils._PYTHON_ONLY_FUNCTIONS):
                 # Use Python evaluation for number theory functions
                 result = ExpressionValidator.evaluate_expression(
                     python_expression, variables.get("x", 0) if variables else 0
@@ -1120,12 +1121,26 @@ class MathUtils:
                     return str(result)
                 return result
 
+            # Map advertised names onto their math.js equivalents
             js_expression = js_expression.replace("arrangements(", "permutations(")
+            js_expression = js_expression.replace("stdev(", "std(")
+            js_expression = js_expression.replace("trunc(", "fix(")
 
-            if not variables:
-                result = window.math.format(window.math.evaluate(js_expression))
-            else:
-                result = window.math.format(window.math.evaluate(js_expression, variables))
+            try:
+                if not variables:
+                    result = window.math.format(window.math.evaluate(js_expression))
+                else:
+                    result = window.math.format(window.math.evaluate(js_expression, variables))
+            except Exception as e:
+                # Brython cannot convert integer-valued JS numbers >= 2^53 ("not a big int"),
+                # so let math.js format such results before they cross into Python
+                if "not a big int" not in str(e):
+                    raise
+                formatted_expression = f"format({js_expression})"
+                if not variables:
+                    result = window.math.evaluate(formatted_expression)
+                else:
+                    result = window.math.evaluate(formatted_expression, variables)
 
             converted_result = MathUtils.try_convert_to_number(result)
 
@@ -1143,7 +1158,12 @@ class MathUtils:
 
             return converted_result
         except ZeroDivisionError:
-            return "Error: ZeroDivisionError"
+            return (
+                "Error: Result is infinite (division by zero, overflow, "
+                "or a value outside the function's domain such as log(0))"
+            )
+        except OverflowError:
+            return "Error: Overflow - the result is too large to represent"
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
 
