@@ -11,7 +11,6 @@ from rendering.canvas2d_renderer import Canvas2DRenderer
 from rendering.canvas2d_primitive_adapter import Canvas2DPrimitiveAdapter
 from rendering.primitives import FontStyle
 from rendering.svg_renderer import SvgRenderer
-from rendering.webgl_renderer import WebGLRenderer
 
 
 class CoordinateMapperStub:
@@ -58,11 +57,6 @@ class TestRendererLogic(unittest.TestCase):
         svg._handlers_by_type = {}
         svg.register_default_drawables()
         self.assertIn(Bar, svg._handlers_by_type)
-
-        webgl = WebGLRenderer.__new__(WebGLRenderer)
-        webgl._handlers_by_type = {}
-        webgl.register_default_drawables()
-        self.assertIn(Bar, webgl._handlers_by_type)
 
     def test_style_manager_returns_independent_copy(self) -> None:
         style_a = style_manager.get_renderer_style()

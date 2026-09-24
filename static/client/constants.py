@@ -59,7 +59,7 @@ zoom_out_scale_factor: float = 1 / zoom_in_scale_factor  # exact inverse so in/o
 
 # ===== RENDERER SELECTION =====
 # Default rendering backend used by Canvas when none is specified
-DEFAULT_RENDERER_MODE: str = "canvas2d"  # other options: "svg", "webgl"
+DEFAULT_RENDERER_MODE: str = "canvas2d"  # other option: "svg"
 
 # ===== AI INTERFACE CONSTANTS =====
 # Timeouts and limits for AI communication

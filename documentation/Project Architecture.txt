@@ -9,7 +9,7 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
 - Architecture decisions should prioritize deterministic tool execution, robust rollback/undo behavior, and explainable AI action traces.
 
 ## Key Features
-- Interactive math-space canvas rendered through Canvas2D, SVG, and an experimental WebGL backend
+- Interactive math-space canvas rendered through Canvas2D, with SVG as a fallback backend
 - AI-powered mathematical assistant with multi-provider support (OpenAI, Anthropic, OpenRouter)
 - Real-time geometric visualization and analysis
 - Switchable coordinate systems: Cartesian 2D grid and Polar grid (concentric circles with radial lines)
@@ -60,15 +60,15 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
 - Undo/Redo and Workspace Management unchanged; state serialization via `get_state()` on models
 
 ## Rendering Architecture
-1. Renderer selection uses `static/client/rendering/factory.create_renderer`, which builds a preference chain (`canvas2d`, `svg`, `webgl`) and instantiates the first backend that succeeds. The factory short-circuits when the caller passes a preferred mode and suppresses constructor failures so the next option can be tried.
+1. Renderer selection uses `static/client/rendering/factory.create_renderer`, which builds a preference chain (`canvas2d`, `svg`) and instantiates the first backend that succeeds, importing each renderer module only when it is attempted. The factory short-circuits when the caller passes a preferred mode and suppresses constructor failures so the next option can be tried.
 2. `SvgRenderer` maintains two plan caches: a dedicated `_cartesian_cache` for the main axis grid and `_plan_cache` for drawable-specific plans. Each entry tracks a signature, usage counts, and plan keys so `_prune_unused_plan_entries` can drop DOM groups that were not touched during the frame. Screen-space plans are marked dirty via `_mark_screen_space_plan_dirty` to keep sprites accurate after zoom.
 3. `Canvas2DRenderer` mirrors the caching strategy but targets a Canvas 2D context. It lazily recreates plans once signatures change, records telemetry for plan builds, and optionally composites through an offscreen canvas (`_use_layer_compositing`). When compositing is enabled, `_flush_offscreen_to_main` copies the offscreen buffer back to the main canvas between frames.
-4. `WebGLRenderer` prepares a WebGL program once, normalizes colors with `_parse_color` (hex and `rgba` support), uploads vertex buffers, and drives primitives through `WebGLPrimitiveAdapter`. The renderer keeps math-space plan objects but gates them with `_should_apply_plan` to skip invisible work before issuing GPU calls.
+4. The SVG renderer is frozen: it is kept working as the fallback, but new rendering features target Canvas2D only.
 5. Shared drawing helpers live in `rendering/shared_drawable_renderers.py`. Utilities like `render_point_helper` coordinate metadata emission for labels and delegate actual drawing to the primitive adapters. `style_manager.get_renderer_style()` returns cloned dictionaries so callers cannot mutate global defaults.
-6. Primitive adapters (`canvas2d_primitive_adapter.py`, `webgl_primitive_adapter.py`, `svg_primitive_adapter.py`) translate `OptimizedPrimitivePlan` commands into backend-specific APIs. Canvas2D batches polygon fills and flushes before strokes, SVG re-parents reserved elements to active groups, and WebGL converts strokes into line-strip draw calls backed by parsed colors.
+6. Primitive adapters (`canvas2d_primitive_adapter.py`, `svg_primitive_adapter.py`) translate `OptimizedPrimitivePlan` commands into backend-specific APIs. Canvas2D batches polygon fills and flushes before strokes, and SVG re-parents reserved elements to active groups.
 7. `cached_render_plan.py` owns the `OptimizedPrimitivePlan` type used by every renderer. Plans store map-state metadata, know when they need to be reapplied, expose usage counts for pooling, and can reproject commands when the coordinate mapper changes.
-8. DOM surfaces are layered as WebGL (highest `z-index` 20), Canvas2D (`z-index` 10), and SVG (base layer) inside `#math-container`, with inactive surfaces kept `pointer-events: none`. Labels remain on SVG to guarantee text clarity across backends.
-9. Runtime selection relies on the preference chain inside `create_renderer`: it first tries Canvas2D, falls back to SVG if Canvas2D fails, and finally attempts WebGL. Constructor errors are caught so the factory can continue down the chain.
+8. DOM surfaces are layered as Canvas2D (`z-index` 10) above the SVG base layer inside `#math-container`. The canvas is `pointer-events: none`, so the `#math-svg` element receives pointer events for every renderer.
+9. Runtime selection relies on the preference chain inside `create_renderer`: it first tries Canvas2D and falls back to SVG if Canvas2D fails. Constructor errors are caught so the factory can continue down the chain.
 10. Feature flags remain available for diagnostics: `window.MatHudSvgOffscreen` (or `localStorage["mathud.svg.offscreen"]`) toggles SVG offscreen staging, and `window.MatHudCanvas2DOffscreen` (or `localStorage["mathud.canvas2d.offscreen"]`) enables Canvas2D layer compositing.
 11. Renderers expose `begin_frame`, `end_frame`, `peek_telemetry`, and `drain_telemetry` hooks so automated tests and performance harnesses can capture plan build/apply timings, skip counts, adapter events, and maximum batch depth. Shared telemetry infrastructure lives in `base_telemetry.py`.
 
@@ -244,7 +244,6 @@ static/client/
 ├── rendering/                         # Renderer and renderables (screen conversion only)
 │   ├── svg_renderer.py                # Central SVG renderer (registry-based)
 │   ├── canvas2d_renderer.py           # Canvas 2D renderer with offscreen compositing
-│   ├── webgl_renderer.py              # Experimental WebGL renderer
 │   ├── factory.py                     # Renderer factory with preference chain
 │   ├── primitives.py                  # Renderable primitives (ClosedArea, ScreenPolyline)
 │   ├── function_renderable.py         # Function sampling and path generation
@@ -257,7 +256,6 @@ static/client/
 │   ├── cached_render_plan.py          # OptimizedPrimitivePlan type for caching
 │   ├── canvas2d_primitive_adapter.py  # Canvas 2D primitive adapter
 │   ├── svg_primitive_adapter.py       # SVG primitive adapter with DOM pooling
-│   ├── webgl_primitive_adapter.py     # WebGL primitive adapter
 │   └── helpers/                       # Rendering helper modules
 │       ├── bar_renderer.py            # Bar chart element rendering
 │       ├── shape_decorator.py         # Shape lifecycle management

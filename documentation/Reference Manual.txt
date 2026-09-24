@@ -210,7 +210,7 @@ Initializes the browser-based Python environment for mathematical canvas operati
 Sets up the SVG canvas, AI communication interface, and event handling system.
 
 Components Initialized:
-    - Canvas: mathematical visualization system backed by the renderer factory (Canvas2D by default with SVG/WebGL fallbacks)
+    - Canvas: mathematical visualization system backed by the renderer factory (Canvas2D by default with an SVG fallback)
     - AIInterface: Communication bridge to backend AI services  
     - CanvasEventHandler: User interaction and input processing
 
@@ -251,14 +251,14 @@ Architecture:
 
 Dependencies:
     - CoordinateMapper: centralized math-to-screen conversion
-    - rendering.factory: runtime selection between Canvas2D, SVG, and WebGL renderers
+    - rendering.factory: runtime selection between Canvas2D and SVG renderers
     - geometry: Geometric object definitions (Point, Position, etc.)
     - cartesian_system_2axis: Coordinate grid system
     - utils.*: Mathematical, styling, and geometry utilities
     - managers.*: Specialized management components
 ```
 
-_Note: The legacy docstring refers to an SVG canvas, but the live code delegates drawing to the renderer selected by `rendering.factory.create_renderer` (Canvas2D first, then SVG, then WebGL)._
+_Note: The legacy docstring refers to an SVG canvas, but the live code delegates drawing to the renderer selected by `rendering.factory.create_renderer` (Canvas2D first, then SVG)._
 
 **Class Documentation:**
 ```
@@ -4060,14 +4060,14 @@ dictionaries that can be sent to the client-side function processing system.
 
 ### Rendering Modules
 
-The rendering stack converts math-space drawables into Canvas2D, SVG, or WebGL output while keeping models renderer-agnostic.
+The rendering stack converts math-space drawables into Canvas2D (default) or SVG (frozen fallback) output while keeping models renderer-agnostic.
 
 #### Renderer Factory (`rendering/factory.py`)
 
 ```
 Factory responsible for choosing and instantiating renderer backends.
 
-Preference chain defaults to Canvas2D -> SVG -> WebGL. A caller-specified
+Preference chain defaults to Canvas2D -> SVG. A caller-specified
 `preferred` string is honored first, and the factory falls back when a
 constructor raises or returns `None`. Helper `_build_preference_chain`
 avoids duplicates, `_attempt_renderer` wraps instantiation with error
@@ -4076,7 +4076,7 @@ suppression, and `_safe_instantiate` guards against constructors that yield
 ```
 
 Key points:
-1. Renderer modules (`rendering.canvas2d_renderer`, `rendering.svg_renderer`, `rendering.webgl_renderer`) load lazily so environments without WebGL can still construct other backends.
+1. Renderer modules (`rendering.canvas2d_renderer`, `rendering.svg_renderer`) are imported only when the factory attempts them, so the SVG module is not loaded when Canvas2D succeeds.
 2. Each constructor returns an object implementing `RendererProtocol`; the factory does not mutate state beyond instantiation.
 
 #### SVG Renderer (`rendering/svg_renderer.py`)
@@ -4104,19 +4104,6 @@ Highlights:
 1. `_resolve_cartesian_plan` and `_resolve_drawable_plan` reuse cached `OptimizedPrimitivePlan` instances when signatures match, recording telemetry whenever a rebuild occurs.
 2. `_initialize_layer_state` toggles offscreen compositing based on `window.MatHudCanvas2DOffscreen` or `localStorage["mathud.canvas2d.offscreen"]`.
 3. `_flush_offscreen_to_main` copies the offscreen buffer back to the primary surface, while `begin_frame`/`end_frame` and telemetry accessors expose layer metrics.
-
-#### WebGL Renderer (`rendering/webgl_renderer.py`)
-
-```
-Experimental renderer that targets WebGL through Brython's browser APIs.
-Initializes shaders once, uploads geometry per draw call, and delegates
-primitive operations to `WebGLPrimitiveAdapter`.
-```
-
-Highlights:
-1. `_prepare_canvas_and_context` ensures the canvas element exists and retrieves the WebGL context, raising when unavailable.
-2. `_parse_color` canonicalizes style strings via a scratch 2D canvas; `_parse_rgb_color` normalizes alpha values above 1 by dividing by 255.
-3. `_prepare_vertices` maps math coordinates to normalized device coordinates before issuing GPU draw calls, while `_should_apply_plan` skips invisible work.
 
 #### Renderables (`rendering/function_renderable.py`, etc.)
 
@@ -4155,7 +4142,6 @@ Key points:
 #### Primitive Adapters
 
 - **Canvas2D (`rendering/canvas2d_primitive_adapter.py`)**: Prepares fill and stroke batches, flushes polygons before line work, and reuses cached text brush settings.
-- **WebGL (`rendering/webgl_primitive_adapter.py`)**: Converts stroke metadata into parsed colors and delegates to renderer `_draw_points`, `_draw_lines`, and `_draw_line_strip` helpers.
 - **SVG (`rendering/svg_primitive_adapter.py`)**: Manages DOM pooling and re-parenting so cached plans can reuse existing nodes (see module for details).
 
 #### Rendering Helpers (`rendering/helpers/`)
@@ -4244,10 +4230,9 @@ lightweight browser stubs installed in `server_tests.client_renderer.__init__`.
 
 Coverage highlights:
 1. `test_renderer_factory_plan.py` validates factory fallback ordering and preferred renderer short-circuiting.
-2. `test_webgl_renderer_plan.py` checks invisible-plan gating and RGBA alpha normalization in `_parse_color`.
-3. `test_svg_renderer_plan.py` covers cartesian plan cache reuse and stale plan pruning.
-4. `test_canvas2d_renderer_plan.py` focuses on cartesian plan signature changes and offscreen compositing flush behavior.
-5. `test_renderer_support_plan.py` verifies shared helper metadata, `_map_state_equal` tolerance, style cloning, and `ClosedArea` defaults.
+2. `test_svg_renderer_plan.py` covers cartesian plan cache reuse and stale plan pruning.
+3. `test_canvas2d_renderer_plan.py` focuses on cartesian plan signature changes and offscreen compositing flush behavior.
+4. `test_renderer_support_plan.py` verifies shared helper metadata, `_map_state_equal` tolerance, style cloning, and `ClosedArea` defaults.
 
 ### Testing and Quality Assurance
 
