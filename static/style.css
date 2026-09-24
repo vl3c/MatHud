@@ -825,6 +825,22 @@ input, select, textarea, button {
     border-left: 2px solid #ddd;
 }
 
+/* ===== RESPONSE METRICS FOOTER ===== */
+/* Muted model/speed summary under the final AI message of a turn (hover for details) */
+.chat-metrics-footer {
+    margin-top: 6px;
+    color: var(--text-secondary);
+    font-size: 0.75em;
+    line-height: 1.4;
+    font-variant-numeric: tabular-nums;
+    cursor: help;
+    opacity: 0.85;
+}
+
+.chat-metrics-footer:hover {
+    opacity: 1;
+}
+
 /* ===== TOOL CALL LOG STYLING ===== */
 /* Collapsible dropdown showing tool calls executed during an AI turn */
 .tool-call-log-dropdown {
