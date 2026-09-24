@@ -232,14 +232,15 @@ class TestPolygonCanonicalizer(unittest.TestCase):
         ]
         result = canonicalize_triangle(vertices, subtype="isosceles")
         lengths = self._side_lengths(result)
-        equal_legs = sorted([lengths[0], lengths[2]])
+        # The apex is (1.5, 4.1): its adjacent sides (1->2 and 2->0) are the closest in length.
+        equal_legs = sorted([lengths[1], lengths[2]])
         self.assertAlmostEqual(equal_legs[0], equal_legs[1], places=6)
 
         midpoint = (
-            (result[1][0] + result[2][0]) / 2.0,
-            (result[1][1] + result[2][1]) / 2.0,
+            (result[0][0] + result[1][0]) / 2.0,
+            (result[0][1] + result[1][1]) / 2.0,
         )
-        apex_vector = (result[0][0] - midpoint[0], result[0][1] - midpoint[1])
+        apex_vector = (result[2][0] - midpoint[0], result[2][1] - midpoint[1])
         self.assertGreater(math.hypot(*apex_vector), 0.0)
 
     def test_triangle_right_subtype(self) -> None:
@@ -514,6 +515,26 @@ class TestPolygonCanonicalizer(unittest.TestCase):
         ]
         with self.assertRaises(PolygonCanonicalizationError):
             canonicalize_quadrilateral(vertices, subtype="hexagon")
+
+    def _assert_vertices_close(
+        self,
+        result: list[tuple[float, float]],
+        expected: list[tuple[float, float]],
+        places: int = 6,
+    ) -> None:
+        self.assertEqual(len(result), len(expected))
+        for (rx, ry), (ex, ey) in zip(result, expected):
+            self.assertAlmostEqual(rx, ex, places=places)
+            self.assertAlmostEqual(ry, ey, places=places)
+
+    def test_triangle_isosceles_valid_input_unchanged(self) -> None:
+        for vertices in (
+            [(0.0, 0.0), (4.0, 0.0), (2.0, 3.0)],
+            [(2.0, 3.0), (0.0, 0.0), (4.0, 0.0)],
+            [(4.0, 0.0), (2.0, 3.0), (0.0, 0.0)],
+        ):
+            result = canonicalize_triangle(vertices, subtype="isosceles")
+            self._assert_vertices_close(result, vertices)
 
 
 if __name__ == "__main__":
