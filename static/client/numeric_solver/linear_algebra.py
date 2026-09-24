@@ -1,7 +1,8 @@
 """
 Linear algebra utilities for the numeric solver.
 
-Provides Gaussian elimination for solving linear systems.
+Provides Gaussian elimination for solving linear systems, plus least-squares
+(overdetermined) and minimum-norm (underdetermined) solutions for non-square ones.
 """
 
 from __future__ import annotations
@@ -20,8 +21,8 @@ def solve_linear_system_gaussian(
         b: n-element right-hand side vector.
 
     Returns:
-        Solution vector x, or None if the matrix is singular (pivot < 1e-12)
-        or non-square.
+        Solution vector x, or None if the matrix is singular (pivot below
+        1e-12 times the largest entry) or non-square.
     """
     n = len(b)
 
@@ -37,6 +38,9 @@ def solve_linear_system_gaussian(
         row = [float(A[i][j]) for j in range(n)]
         row.append(float(b[i]))
         aug.append(row)
+
+    # Pivots are judged relative to the matrix magnitude, not an absolute value
+    singular_tol = 1e-12 * max((abs(value) for row in aug for value in row[:n]), default=0.0)
 
     # Forward elimination with partial pivoting
     for col in range(n):
@@ -54,7 +58,7 @@ def solve_linear_system_gaussian(
 
         # Check for singular matrix
         pivot = aug[col][col]
-        if abs(pivot) < 1e-12:
+        if abs(pivot) <= singular_tol:
             return None
 
         # Eliminate below pivot
@@ -66,7 +70,7 @@ def solve_linear_system_gaussian(
     # Back substitution
     x: List[float] = [0.0] * n
     for i in range(n - 1, -1, -1):
-        if abs(aug[i][i]) < 1e-12:
+        if abs(aug[i][i]) <= singular_tol:
             return None
         x[i] = aug[i][n]
         for j in range(i + 1, n):
@@ -74,3 +78,40 @@ def solve_linear_system_gaussian(
         x[i] /= aug[i][i]
 
     return x
+
+
+def solve_least_squares_gaussian(
+    A: Sequence[Sequence[float]],
+    b: Sequence[float],
+) -> Optional[List[float]]:
+    """Solve Ax = b for an m*n matrix in the least-squares sense.
+
+    - m == n: plain Gaussian elimination.
+    - m > n (overdetermined): normal equations A^T A x = A^T b, the Gauss-Newton
+      step when A is a Jacobian.
+    - m < n (underdetermined): minimum-norm solution x = A^T y with A A^T y = b.
+
+    Args:
+        A: m*n coefficient matrix (list of rows).
+        b: m-element right-hand side vector.
+
+    Returns:
+        Solution vector x, or None if the reduced system is singular.
+    """
+    m = len(A)
+    n = len(A[0]) if m else 0
+    if m == n:
+        return solve_linear_system_gaussian(A, b)
+    if len(b) != m or any(len(row) != n for row in A):
+        return None
+
+    if m > n:
+        AtA = [[sum(A[k][i] * A[k][j] for k in range(m)) for j in range(n)] for i in range(n)]
+        Atb = [sum(A[k][i] * b[k] for k in range(m)) for i in range(n)]
+        return solve_linear_system_gaussian(AtA, Atb)
+
+    AAt = [[sum(A[i][k] * A[j][k] for k in range(n)) for j in range(m)] for i in range(m)]
+    y = solve_linear_system_gaussian(AAt, b)
+    if y is None:
+        return None
+    return [sum(A[k][j] * y[k] for k in range(m)) for j in range(n)]

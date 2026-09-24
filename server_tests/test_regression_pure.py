@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 import unittest
+from typing import Any, Callable, List
 
 from utils.statistics.regression import (
     SUPPORTED_MODEL_TYPES,
@@ -628,6 +629,153 @@ class TestRegressionResultStructure(unittest.TestCase):
         self.assertIsInstance(result["r_squared"], float)
         self.assertGreaterEqual(result["r_squared"], 0.0)
         self.assertLessEqual(result["r_squared"], 1.0)
+
+
+def _evaluate_expression(expression: str, x: float) -> float:
+    """Evaluate a generated regression expression with plain Python math."""
+    namespace = {"x": x, "exp": math.exp, "ln": math.log, "sin": math.sin}
+    return float(eval(expression.replace("^", "**"), {"__builtins__": {}}, namespace))
+
+
+class TestExpressionPrecision(unittest.TestCase):
+    """The plotted expression must reproduce the fitted model's predictions."""
+
+    def _assert_expression_matches(
+        self, result: Any, predict: Callable[[float], float], x_data: List[float], rel_tol: float = 1e-9
+    ) -> None:
+        self.assertNotIn("e-", result["expression"])
+        self.assertNotIn("e+", result["expression"])
+        for x in x_data:
+            expected = predict(x)
+            actual = _evaluate_expression(result["expression"], x)
+            self.assertTrue(
+                math.isclose(actual, expected, rel_tol=rel_tol, abs_tol=1e-12),
+                f"expression {result['expression']!r} gives {actual} at x={x}, model gives {expected}",
+            )
+
+    def test_exponential_fit_on_years_keeps_tiny_prefactor(self) -> None:
+        x = [float(year) for year in range(2000, 2011)]
+        y = [5.0 * 1.05 ** (xi - 2000) for xi in x]
+        result = fit_exponential(x, y)
+        a, b = result["coefficients"]["a"], result["coefficients"]["b"]
+        self.assertNotIn("(0)*", result["expression"])
+        self._assert_expression_matches(result, lambda xi: a * math.exp(b * xi), x)
+
+    def test_linear_fit_with_tiny_slope(self) -> None:
+        x = [0.0, 1.0, 2.0, 3.0]
+        y = [3e-7 * xi for xi in x]
+        result = fit_linear(x, y)
+        m, b = result["coefficients"]["m"], result["coefficients"]["b"]
+        self.assertNotIn("(0)*x", result["expression"])
+        self._assert_expression_matches(result, lambda xi: m * xi + b, x)
+
+    def test_all_models_expression_matches_coefficients(self) -> None:
+        x = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+        y = [1.3, 2.9, 4.2, 6.1, 7.7, 9.4]
+        cases = {
+            "logarithmic": lambda c, xi: c["a"] + c["b"] * math.log(xi),
+            "power": lambda c, xi: c["a"] * xi ** c["b"],
+            "logistic": lambda c, xi: c["L"] / (1 + math.exp(-c["k"] * (xi - c["x0"]))),
+            "sinusoidal": lambda c, xi: c["a"] * math.sin(c["b"] * xi + c["c"]) + c["d"],
+        }
+        for model, predict in cases.items():
+            with self.subTest(model=model):
+                result = fit_regression(x, y, model)
+                coefficients = result["coefficients"]
+                self._assert_expression_matches(result, lambda xi: predict(coefficients, xi), x)
+
+
+class TestNumericalStability(unittest.TestCase):
+    """Fits and R-squared must not depend on the absolute offset/scale of the data."""
+
+    def test_linear_fit_with_large_x_offset(self) -> None:
+        x = [1e8, 1e8 + 1, 1e8 + 2, 1e8 + 3]
+        y = [1.0, 2.0, 3.0, 4.0]
+        result = fit_linear(x, y)
+        self.assertAlmostEqual(result["coefficients"]["m"], 1.0, places=9)
+        self.assertAlmostEqual(result["r_squared"], 1.0, places=9)
+
+    def test_cubic_fit_on_years_reproduces_data(self) -> None:
+        x = [float(year) for year in range(2000, 2011)]
+        y = [0.01 * (xi - 2005) ** 3 - (xi - 2005) + 50.0 for xi in x]
+        result = fit_polynomial(x, y, degree=3)
+        self.assertAlmostEqual(result["r_squared"], 1.0, places=9)
+        for xi, yi in zip(x, y):
+            self.assertAlmostEqual(_evaluate_expression(result["expression"], xi), yi, delta=1e-5)
+
+    def test_cubic_fit_on_large_x_recovers_standard_coefficients(self) -> None:
+        # y = (x - 2010)^3 = x^3 - 6030 x^2 + 12120300 x - 8120601000
+        x = [float(year) for year in range(2000, 2021)]
+        y = [(xi - 2010) ** 3 for xi in x]
+        result = fit_polynomial(x, y, degree=3)
+        coefficients = result["coefficients"]
+        expected = {"a0": -8120601000.0, "a1": 12120300.0, "a2": -6030.0, "a3": 1.0}
+        for key, value in expected.items():
+            self.assertTrue(math.isclose(coefficients[key], value, rel_tol=1e-6), f"{key}={coefficients[key]}")
+        self.assertAlmostEqual(result["r_squared"], 1.0, places=9)
+
+    def test_cubic_fit_on_tiny_x_range(self) -> None:
+        x = [i * 0.001 for i in range(10)]
+        y = [1.0 + 2.0 * xi + 3.0 * xi**2 + 4.0 * xi**3 for xi in x]
+        result = fit_polynomial(x, y, degree=3)
+        coefficients = result["coefficients"]
+        self.assertAlmostEqual(coefficients["a0"], 1.0, places=9)
+        self.assertAlmostEqual(coefficients["a1"], 2.0, places=6)
+        self.assertAlmostEqual(coefficients["a2"], 3.0, places=3)
+        self.assertAlmostEqual(coefficients["a3"], 4.0, places=0)
+        self.assertAlmostEqual(result["r_squared"], 1.0, places=9)
+
+    def test_polynomial_fit_drops_round_off_coefficients(self) -> None:
+        x = [-2.0, -1.0, 0.0, 1.0, 2.0]
+        y = [xi**2 for xi in x]
+        result = fit_polynomial(x, y, degree=2)
+        self.assertEqual(result["expression"], "(1)*x^2")
+
+    def test_matrix_inverse_uses_relative_pivot_threshold(self) -> None:
+        A = [[2e-13, 0.0], [0.0, 4e-13]]
+        A_inv = _matrix_inverse(A)
+        self.assertAlmostEqual(A_inv[0][0] * 2e-13, 1.0, places=10)
+        self.assertAlmostEqual(A_inv[1][1] * 4e-13, 1.0, places=10)
+
+    def test_logistic_fit_with_steep_growth_on_small_x_range(self) -> None:
+        L, k, x0 = 10.0, 2000.0, 0.005
+        x = [i * 0.001 for i in range(11)]
+        y = [L / (1 + math.exp(-k * (xi - x0))) for xi in x]
+        result = fit_logistic(x, y)
+        self.assertGreater(result["r_squared"], 0.999)
+        self.assertAlmostEqual(result["coefficients"]["L"], L, delta=0.1)
+
+    def test_logistic_fit_on_large_x_offset(self) -> None:
+        L, k, x0 = 500.0, 0.5, 2010.0
+        x = [float(year) for year in range(2000, 2021)]
+        y = [L / (1 + math.exp(-k * (xi - x0))) for xi in x]
+        result = fit_logistic(x, y)
+        self.assertGreater(result["r_squared"], 0.999)
+        self.assertAlmostEqual(result["coefficients"]["x0"], x0, delta=0.1)
+
+    def test_logistic_fit_decreasing_curve(self) -> None:
+        L, k, x0 = 10.0, -1.0, 5.0
+        x = [float(i) for i in range(11)]
+        y = [L / (1 + math.exp(-k * (xi - x0))) for xi in x]
+        result = fit_logistic(x, y)
+        self.assertGreater(result["r_squared"], 0.999)
+        self.assertLess(result["coefficients"]["k"], 0.0)
+        self.assertAlmostEqual(result["coefficients"]["L"], L, delta=0.1)
+
+    def test_r_squared_is_scale_invariant(self) -> None:
+        y_actual = [1.0, 2.0, 3.0, 4.0]
+        y_predicted = [1.5, 2.0, 3.0, 3.5]
+        expected = calculate_r_squared(y_actual, y_predicted)
+        self.assertAlmostEqual(expected, 0.9, places=10)
+        for scale in (1e-7, 1e-12, 1e9):
+            with self.subTest(scale=scale):
+                scaled = calculate_r_squared([v * scale for v in y_actual], [v * scale for v in y_predicted])
+                self.assertAlmostEqual(scaled, expected, places=8)
+
+    def test_r_squared_small_scale_constant_prediction(self) -> None:
+        y_actual = [1e-7, 2e-7, 3e-7, 4e-7]
+        y_predicted = [2.5e-7] * 4
+        self.assertAlmostEqual(calculate_r_squared(y_actual, y_predicted), 0.0, places=8)
 
 
 if __name__ == "__main__":
