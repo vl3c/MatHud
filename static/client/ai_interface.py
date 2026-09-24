@@ -50,7 +50,7 @@ from slash_command_handler import SlashCommandHandler
 from command_autocomplete import CommandAutocomplete
 from tts_ui_manager import TTSUIManager
 from chat_ui_manager import ChatUIManager
-from turn_metrics import TurnMetricsCollector
+from turn_metrics import TurnMetricsCollector, turn_outcome
 from managers.action_trace_collector import ActionTraceCollector
 
 if TYPE_CHECKING:
@@ -371,8 +371,12 @@ class AIInterface:
         """Remove empty response container (delegates to ChatUIManager)."""
         self._chat_ui.remove_empty_container()
 
-    def _on_stream_final(self, event_obj: Any) -> None:
-        """Handle the final event from the streaming response."""
+    def _on_stream_final(self, event_obj: Any, turn_token: Optional[int] = None) -> None:
+        """Handle the final event from the streaming response.
+
+        ``turn_token`` is the metrics turn that sent the request; a late event of
+        an earlier turn does not touch the current turn's metrics.
+        """
         try:
             event = self._normalize_stream_event(event_obj)
 
@@ -380,7 +384,7 @@ class AIInterface:
             ai_tool_calls = event.get("ai_tool_calls", [])
             ai_message = event.get("ai_message", "")
             error_details = event.get("error_details", "")
-            self._turn_metrics.record_request(event.get("metrics"))
+            self._turn_metrics.record_request(event.get("metrics"), turn_token)
 
             # Log error details to console for debugging
             if finish_reason == "error":
@@ -390,8 +394,8 @@ class AIInterface:
             if finish_reason in ("stop", "error", "completed") or not ai_tool_calls:
                 if not self._chat_ui.stream_buffer and ai_message:
                     self._chat_ui.stream_buffer = ai_message
-                outcome = "error" if finish_reason == "error" else "stop"
-                self._chat_ui.pending_turn_metrics = self._turn_metrics.finish_turn(outcome)
+                outcome = turn_outcome(finish_reason)
+                self._chat_ui.pending_turn_metrics = self._turn_metrics.finish_turn(outcome, turn_token)
                 self._finalize_stream_message(ai_message or None)
                 # Restore user message on error so they can retry
                 if finish_reason == "error":
@@ -415,7 +419,7 @@ class AIInterface:
                     self.canvas,
                 )
                 self._store_results_in_canvas_state(call_results)
-                self._turn_metrics.record_tool_results(traced_calls)
+                self._turn_metrics.record_tool_results(traced_calls, turn_token)
                 if self._chat_ui.stream_container is None:
                     self._chat_ui.ensure_stream_element()
                 self._tool_call_log.ensure_element(self._chat_ui.stream_container, self._chat_ui.stream_content)
@@ -435,7 +439,7 @@ class AIInterface:
                         self._trace_collector.store(trace)
                     except Exception:
                         pass
-                    self._turn_metrics.finish_turn("stopped")
+                    self._turn_metrics.finish_turn("stopped", turn_token)
                     self._finalize_stream_message()
                     self._print_system_message_in_chat("Generation stopped.")
                     self._enable_send_controls()
@@ -478,13 +482,14 @@ class AIInterface:
                 except Exception:
                     pass
                 print(f"Error processing streamed tool calls: {e}")
-                self._turn_metrics.finish_turn("error")
+                self._turn_metrics.finish_turn("error", turn_token)
                 self._enable_send_controls()
         except Exception as e:
             print(f"Error handling stream final: {e}")
+            self._turn_metrics.finish_turn("error", turn_token)
             self._enable_send_controls()
 
-    def _on_stream_error(self, err: Any) -> None:
+    def _on_stream_error(self, err: Any, turn_token: Optional[int] = None) -> None:
         """Handle streaming errors and re-enable controls."""
         error_message = self._format_stream_error(err)
         print(f"Streaming error: {error_message}")
@@ -492,7 +497,7 @@ class AIInterface:
             console.error("Streaming error", err)
         except Exception:
             pass
-        self._turn_metrics.finish_turn("error")
+        self._turn_metrics.finish_turn("error", turn_token)
         self._restore_user_message_on_error()
         self._enable_send_controls()
 
@@ -686,11 +691,13 @@ class AIInterface:
         except Exception as e:
             print(f"Error saving partial response: {e}")
 
-    def _process_ai_response(self, ai_message: str, tool_calls: Any, finish_reason: str) -> None:
+    def _process_ai_response(
+        self, ai_message: str, tool_calls: Any, finish_reason: str, turn_token: Optional[int] = None
+    ) -> None:
         self._debug_log_ai_response(ai_message, tool_calls, finish_reason)
 
         if finish_reason == "stop" or finish_reason == "error":
-            turn_metrics = self._turn_metrics.finish_turn("error" if finish_reason == "error" else "stop")
+            turn_metrics = self._turn_metrics.finish_turn(turn_outcome(finish_reason), turn_token)
             self._chat_ui.print_ai_message(ai_message, turn_metrics=turn_metrics)
             self._enable_send_controls()
         else:  # finish_reason == "tool_calls" or "function_call"
@@ -705,7 +712,7 @@ class AIInterface:
                     self.canvas,
                 )
                 self._store_results_in_canvas_state(call_results)
-                self._turn_metrics.record_tool_results(traced_calls)
+                self._turn_metrics.record_tool_results(traced_calls, turn_token)
 
                 state_after = self.canvas.get_canvas_state()
                 total_ms = window.performance.now() - t0
@@ -739,15 +746,16 @@ class AIInterface:
                     pass
                 print(f"Error processing tool calls: {e}")
                 traceback.print_exc()
-                self._turn_metrics.finish_turn("error")
+                self._turn_metrics.finish_turn("error", turn_token)
                 self._enable_send_controls()  # Enable controls if there's an error
 
-    def _on_error(self, request: Any) -> None:
+    def _on_error(self, request: Any, turn_token: Optional[int] = None) -> None:
         """Handle request errors and ensure send controls are re-enabled."""
         print(f"Error: {request.status}, {request.text}")
+        self._turn_metrics.finish_turn("error", turn_token)
         self._enable_send_controls()
 
-    def _on_complete(self, request: Any) -> None:
+    def _on_complete(self, request: Any, turn_token: Optional[int] = None) -> None:
         """Handle request completion and process AI response."""
         try:
             if request.status == 200 or request.status == 0:
@@ -756,6 +764,7 @@ class AIInterface:
                 if not response_data:
                     error_msg = request.json.get("message", "Invalid response format")
                     print(f"Error: {error_msg}")
+                    self._turn_metrics.finish_turn("error", turn_token)
                     document["ai-response"].text = error_msg
                     self._enable_send_controls()
                     return
@@ -763,15 +772,16 @@ class AIInterface:
                 ai_message = response_data.get("ai_message")
                 ai_function_calls = response_data.get("ai_tool_calls")
                 finish_reason = response_data.get("finish_reason")
-                self._turn_metrics.record_request(response_data.get("metrics"))
+                self._turn_metrics.record_request(response_data.get("metrics"), turn_token)
 
                 # Parse the AI's response and create / delete drawables as needed
-                self._process_ai_response(ai_message, ai_function_calls, finish_reason)
+                self._process_ai_response(ai_message, ai_function_calls, finish_reason, turn_token)
             else:
-                self._on_error(request)
+                self._on_error(request, turn_token)
         except Exception as e:
             print(f"Error processing AI response: {e}")
             traceback.print_exc()
+            self._turn_metrics.finish_turn("error", turn_token)
             self._enable_send_controls()
 
     def _create_request_payload(
@@ -794,9 +804,10 @@ class AIInterface:
 
     def _make_request(self, payload: Dict[str, Any]) -> None:
         """Send an AJAX request with the given payload."""
+        turn_token = self._turn_metrics.turn_token
         req = ajax.ajax()
-        req.bind("complete", self._on_complete)
-        req.bind("error", self._on_error)
+        req.bind("complete", lambda request: self._on_complete(request, turn_token))
+        req.bind("error", lambda request: self._on_error(request, turn_token))
         req.open("POST", "/send_message", True)
         req.set_header("content-type", "application/json")
         req.send(json.dumps(payload))
@@ -809,11 +820,12 @@ class AIInterface:
             # Don't reset any state here - all state management is done in _send_prompt_to_ai
             # This preserves intermediary text and reasoning content across tool call continuations
             # Call JS streaming helper with reasoning and log callbacks
+            turn_token = self._turn_metrics.turn_token
             window.sendMessageStream(
                 payload_js,
                 self._on_stream_token,
-                self._on_stream_final,
-                self._on_stream_error,
+                lambda event_obj: self._on_stream_final(event_obj, turn_token),
+                lambda err: self._on_stream_error(err, turn_token),
                 self._on_stream_reasoning,
                 self._on_stream_log,
             )

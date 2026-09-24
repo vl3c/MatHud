@@ -19,6 +19,7 @@ from turn_metrics import (
     format_metrics_footer,
     format_seconds,
     short_model_name,
+    turn_outcome,
 )
 
 
@@ -226,3 +227,106 @@ class TestMetricsFooterElement(unittest.TestCase):
         chat_ui.pending_turn_metrics = aggregate_turn([_request()], [], 1.0, "stop")
         chat_ui.reset_streaming_state()
         self.assertIsNone(chat_ui.pending_turn_metrics)
+
+
+class TestTurnOutcomes(unittest.TestCase):
+    def test_finish_reasons_map_to_outcomes(self) -> None:
+        self.assertEqual(turn_outcome("stop"), "stop")
+        self.assertEqual(turn_outcome("completed"), "stop")
+        self.assertEqual(turn_outcome(None), "stop")
+        self.assertEqual(turn_outcome("error"), "error")
+        for reason in ("length", "max_tokens", "max_output_tokens", "incomplete"):
+            self.assertEqual(turn_outcome(reason), "truncated")
+        for reason in ("content_filter", "refusal"):
+            self.assertEqual(turn_outcome(reason), "filtered")
+
+    def test_stale_turn_token_is_ignored(self) -> None:
+        collector = TurnMetricsCollector(_Clock())
+        collector.start_turn("first")
+        old_token = collector.turn_token
+        collector.start_turn("second")
+
+        collector.record_request(_request(), turn_token=old_token)
+        self.assertIsNone(collector.finish_turn("stop", turn_token=old_token))
+        self.assertTrue(collector.is_active)
+
+        collector.record_request(_request(), turn_token=collector.turn_token)
+        turn = collector.finish_turn("stop", turn_token=collector.turn_token)
+        assert turn is not None
+        self.assertEqual(turn["requests"], 1)
+        self.assertEqual(turn["user_message"], "second")
+
+
+class _FakeRequest:
+    def __init__(self, status: int, payload: Any = None) -> None:
+        self.status = status
+        self.text = "response text"
+        self.json = payload
+
+
+class TestTurnBookkeeping(unittest.TestCase):
+    """AIInterface closes the turn on every way a request can end."""
+
+    def _ai(self) -> Any:
+        from ai_interface import AIInterface
+
+        ai = AIInterface.__new__(AIInterface)
+        tool_call_log = ToolCallLogManager()
+        ai._tool_call_log = tool_call_log
+        ai._chat_ui = ChatUIManager(message_menu=MessageMenuManager(), tool_call_log=tool_call_log)
+        ai._turn_metrics_collector = TurnMetricsCollector(_Clock())
+        ai._last_user_message = ""
+        ai.is_processing = True
+        ai._stop_requested = False
+        ai._response_timeout_id = None
+        ai._finalize_stream_message = lambda msg=None: None
+        ai._enable_send_controls = lambda: None
+        ai._restore_user_message_on_error = lambda: None
+        ai._turn_metrics.start_turn("hi")
+        return ai
+
+    def _last_outcome(self, ai: Any) -> Optional[str]:
+        turn = ai._turn_metrics.last_turn()
+        return None if turn is None else turn["outcome"]
+
+    def test_request_error_finishes_turn(self) -> None:
+        ai = self._ai()
+        ai._on_error(_FakeRequest(500))
+        self.assertFalse(ai._turn_metrics.is_active)
+        self.assertEqual(self._last_outcome(ai), "error")
+
+    def test_non_200_response_finishes_turn(self) -> None:
+        ai = self._ai()
+        ai._on_complete(_FakeRequest(502, {"message": "bad gateway"}))
+        self.assertEqual(self._last_outcome(ai), "error")
+
+    def test_response_without_data_finishes_turn(self) -> None:
+        ai = self._ai()
+        ai._on_complete(_FakeRequest(200, {"message": "Invalid response format"}))
+        self.assertEqual(self._last_outcome(ai), "error")
+
+    def test_failing_final_handler_finishes_turn(self) -> None:
+        ai = self._ai()
+
+        def broken(event: Any) -> Dict[str, Any]:
+            raise ValueError("unreadable event")
+
+        ai._normalize_stream_event = broken
+        ai._on_stream_final({"finish_reason": "stop"})
+        self.assertEqual(self._last_outcome(ai), "error")
+
+    def test_truncated_answer_has_its_own_outcome(self) -> None:
+        ai = self._ai()
+        event = {"finish_reason": "length", "ai_tool_calls": [], "ai_message": "partial", "metrics": _request()}
+        ai._on_stream_final(event, ai._turn_metrics.turn_token)
+        self.assertEqual(self._last_outcome(ai), "truncated")
+
+    def test_late_final_event_of_an_old_turn_is_ignored(self) -> None:
+        ai = self._ai()
+        old_token = ai._turn_metrics.turn_token
+        ai._turn_metrics.start_turn("next question")
+
+        ai._on_stream_final({"finish_reason": "stop", "ai_tool_calls": [], "ai_message": "old"}, old_token)
+
+        self.assertTrue(ai._turn_metrics.is_active)
+        self.assertIsNone(ai._turn_metrics.last_turn())

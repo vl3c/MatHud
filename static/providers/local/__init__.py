@@ -17,7 +17,12 @@ from static.ai_model import AIModel
 from static.canvas_state_formatter import CanvasFormat
 from static.functions_definitions import FunctionDefinition
 from static.openai_api_base import OpenAIAPIBase, StreamEvent, get_configured_tool_mode
-from static.response_metrics import record_chat_completions_usage, tool_call_argument_text
+from static.response_metrics import (
+    create_stream_requesting_usage,
+    reasoning_text_from_delta,
+    record_chat_completions_usage,
+    tool_call_argument_text,
+)
 
 _logger = logging.getLogger("mathud")
 
@@ -178,6 +183,9 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
     # the compact text canvas, and trim large scenes harder than for cloud models.
     DEFAULT_CANVAS_FORMAT: CanvasFormat = "text"
     DEFAULT_CANVAS_BUDGET_TOKENS: Optional[int] = 1500
+
+    # False once the server rejected stream_options (see create_stream_requesting_usage).
+    _stream_usage_supported = True
 
     def __init__(
         self,
@@ -342,14 +350,15 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         metrics = self._start_response_metrics("chat_completions")
 
         try:
-            stream = self.client.chat.completions.create(
+            stream, self._stream_usage_supported = create_stream_requesting_usage(
+                self.client.chat.completions.create,
+                self._stream_usage_supported,
                 model=self.model.id,
                 messages=self.messages,
                 tools=list(self.tools) if self.tools else None,
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
                 stream=True,
-                stream_options={"include_usage": True},
             )
 
             for chunk in stream:
@@ -360,6 +369,12 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
 
                 delta = chunk.choices[0].delta
                 chunk_finish = chunk.choices[0].finish_reason
+
+                # Reasoning is not shown, but it is generated output (llama-server reasoning_content).
+                reasoning_piece = reasoning_text_from_delta(delta)
+                if reasoning_piece:
+                    metrics.mark_output("reasoning")
+                    metrics.add_output_text(reasoning_piece)
 
                 # Handle content tokens
                 if delta.content:

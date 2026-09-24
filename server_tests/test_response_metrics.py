@@ -31,6 +31,8 @@ from static.providers.local.local_agent_api import LocalAgentAPI
 from static.response_metrics import (
     ResponseMetricsTracker,
     llama_timings_from,
+    record_chat_completions_usage,
+    tool_call_argument_text,
     usage_from_anthropic,
     usage_from_chat_completions,
     usage_from_responses,
@@ -60,7 +62,9 @@ class TestResponseMetricsTracker(unittest.TestCase):
         tracker = _tracker(clock)
         clock.advance(0.5)
         tracker.mark_output("content")
-        clock.advance(2.0)
+        clock.advance(1.0)
+        tracker.mark_output("content")
+        clock.advance(1.0)
         tracker.record_usage({"prompt_tokens": 120, "completion_tokens": 50, "cached_tokens": 100})
         metrics = tracker.finish("stop", 0)
 
@@ -97,7 +101,9 @@ class TestResponseMetricsTracker(unittest.TestCase):
         clock.advance(0.2)
         tracker.mark_output("content")
         tracker.add_output_text("The answer is 42.")
-        clock.advance(1.0)
+        clock.advance(0.5)
+        tracker.mark_output("content")
+        clock.advance(0.5)
         metrics = tracker.finish("stop", 0)
 
         self.assertTrue(metrics["output_tokens_estimated"])
@@ -130,6 +136,83 @@ class TestResponseMetricsTracker(unittest.TestCase):
         self.assertEqual(metrics["cached_tokens"], 30)
         self.assertEqual(metrics["server_timings"]["prompt_n"], 90)
 
+    def test_single_chunk_output_uses_whole_request_window(self) -> None:
+        # A tool call delivered in one chunk 2 ms before the end must not read as 150,000 tok/s.
+        clock = FakeClock()
+        tracker = _tracker(clock)
+        clock.advance(3.0)
+        tracker.mark_output("tool_call")
+        clock.advance(0.002)
+        tracker.record_usage({"completion_tokens": 300})
+        metrics = tracker.finish("tool_calls", 1)
+
+        self.assertEqual(metrics["output_tokens_per_s"], 99.93)  # 300 tokens over the 3.002 s request
+        self.assertEqual(metrics["tokens_per_s_source"], "usage_request")
+
+    def test_short_generation_window_uses_whole_request_window(self) -> None:
+        clock = FakeClock()
+        tracker = _tracker(clock)
+        clock.advance(1.9)
+        tracker.mark_output("content")
+        clock.advance(0.05)
+        tracker.mark_output("content")
+        clock.advance(0.05)
+        tracker.record_usage({"completion_tokens": 200})
+        metrics = tracker.finish("stop", 0)
+
+        self.assertEqual(metrics["output_tokens_per_s"], 100.0)  # 0.1 s window is below the minimum
+        self.assertEqual(metrics["tokens_per_s_source"], "usage_request")
+
+    def test_burst_request_keeps_turn_rate_sane(self) -> None:
+        from static.client.turn_metrics import aggregate_turn
+
+        clock = FakeClock()
+        burst = _tracker(clock)
+        clock.advance(3.0)
+        burst.mark_output("tool_call")
+        clock.advance(0.002)
+        burst.record_usage({"completion_tokens": 300})
+        requests: List[Dict[str, Any]] = [dict(burst.finish("tool_calls", 1))]
+        normal = _tracker(clock)
+        clock.advance(1.0)
+        normal.mark_output("content")
+        clock.advance(0.5)
+        normal.mark_output("content")
+        clock.advance(0.5)
+        normal.record_usage({"completion_tokens": 50})
+        requests.append(dict(normal.finish("stop", 0)))
+
+        # 350 tokens over 3.002 s + 1 s instead of 349 tok/s from the 2 ms burst.
+        self.assertEqual(aggregate_turn(requests, [], 5.0, "stop")["output_tokens_per_s"], 87.45)
+
+    def test_unseen_reasoning_uses_whole_request_window(self) -> None:
+        # 20 s of hidden thinking, then 1 s of visible answer: the usage counts both.
+        clock = FakeClock()
+        tracker = _tracker(clock)
+        clock.advance(20.0)
+        tracker.mark_output("content")
+        clock.advance(1.0)
+        tracker.mark_output("content")
+        tracker.record_usage({"completion_tokens": 2050, "reasoning_tokens": 2000})
+        metrics = tracker.finish("stop", 0)
+
+        self.assertEqual(metrics["output_tokens_per_s"], 97.62)  # 2050 tokens over 21 s, not 2050 tok/s
+        self.assertEqual(metrics["tokens_per_s_source"], "usage_request")
+
+    def test_streamed_reasoning_keeps_generation_window(self) -> None:
+        clock = FakeClock()
+        tracker = _tracker(clock)
+        clock.advance(1.0)
+        tracker.mark_output("reasoning")
+        clock.advance(19.0)
+        tracker.mark_output("content")
+        clock.advance(1.0)
+        tracker.record_usage({"completion_tokens": 2000, "reasoning_tokens": 1950})
+        metrics = tracker.finish("stop", 0)
+
+        self.assertEqual(metrics["output_tokens_per_s"], 100.0)
+        self.assertEqual(metrics["tokens_per_s_source"], "usage")
+
     def test_non_streamed_request_has_no_first_token(self) -> None:
         clock = FakeClock()
         tracker = _tracker(clock, streamed=False)
@@ -147,6 +230,73 @@ class TestResponseMetricsTracker(unittest.TestCase):
         tracker = _tracker(FakeClock())
         tracker.record_server_timings({"predicted_per_second": 10.0})
         json.dumps(tracker.finish("error", 0, error="boom"))
+
+
+class TestMetricsNeverRaise(unittest.TestCase):
+    """Metrics are a side channel: bad figures must not turn a good answer into an error."""
+
+    def test_non_finite_usage_values_are_dropped(self) -> None:
+        usage = usage_from_chat_completions(
+            {"prompt_tokens": float("nan"), "completion_tokens": float("inf"), "total_tokens": "12"}
+        )
+
+        self.assertEqual(usage["prompt_tokens"], None)
+        self.assertEqual(usage["completion_tokens"], None)
+        self.assertEqual(usage["total_tokens"], None)
+
+    def test_non_finite_values_never_reach_the_record(self) -> None:
+        clock = FakeClock()
+        tracker = _tracker(clock)
+        bad_usage: Dict[str, Any] = {"prompt_tokens": float("nan"), "completion_tokens": float("inf")}
+        tracker.record_usage(bad_usage)
+        tracker.record_server_timings({"cache_n": float("inf"), "predicted_per_second": float("nan")})
+        clock.advance(1.0)
+        metrics = tracker.finish("stop", 0)
+
+        json.dumps(metrics, allow_nan=False)
+        self.assertIsNone(metrics["prompt_tokens"])
+        self.assertIsNone(metrics["cached_tokens"])
+        self.assertNotIn("error", metrics)
+
+    def test_bad_inputs_to_recorders_are_ignored(self) -> None:
+        tracker = _tracker(FakeClock())
+        tracker.record_usage(None)  # type: ignore[arg-type]
+        tracker.record_server_timings(42)  # type: ignore[arg-type]
+        tracker.add_output_text(None)  # type: ignore[arg-type]
+
+        self.assertTrue(record_chat_completions_usage({"usage": {"prompt_tokens": 3}}, tracker))
+        self.assertEqual(tracker.finish("stop", 0)["prompt_tokens"], 3)
+
+    def test_finish_failure_returns_minimal_record(self) -> None:
+        tracker = _tracker(FakeClock())
+        with patch.object(ResponseMetricsTracker, "_add_throughput", side_effect=RuntimeError("bad")):
+            metrics = tracker.finish("stop", 1)
+
+        self.assertEqual(metrics["provider"], "local_agent")
+        self.assertEqual(metrics["finish_reason"], "stop")
+        self.assertIn("bad", metrics["error"])
+        json.dumps(metrics, allow_nan=False)
+
+    def test_unserializable_tool_arguments_do_not_raise(self) -> None:
+        text = tool_call_argument_text([{"function": {"name": "f", "arguments": {"x": object()}}}])
+        self.assertTrue(text.startswith("f"))
+
+    def test_nan_usage_chunk_keeps_the_answer(self) -> None:
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "k"}):
+            api = OpenAIChatCompletionsAPI(tools=[])
+        delta = SimpleNamespace(content="Hi", tool_calls=None)
+        api.client = MagicMock()
+        usage = SimpleNamespace(prompt_tokens=float("nan"), completion_tokens=2)
+        api.client.chat.completions.create.return_value = iter(
+            [SimpleNamespace(choices=[SimpleNamespace(delta=delta, finish_reason="stop", index=0)], usage=usage)]
+        )
+        events = list(api.create_chat_completion_stream(json.dumps({"user_message": "hi"})))
+        final = [event for event in events if event.get("type") == "final"][0]
+
+        self.assertEqual(final["finish_reason"], "stop")
+        self.assertEqual(final["ai_message"], "Hi")
+        self.assertEqual(final["metrics"]["completion_tokens"], 2)
+        json.dumps(final, allow_nan=False)
 
 
 class TestUsageExtraction(unittest.TestCase):
@@ -247,13 +397,38 @@ class _OpenAIStreamCase(unittest.TestCase):
     """Serves one SSE body through a real openai client and records request bodies."""
 
     sse_body = ""
+    # Error message of a 400 answer to requests that carry stream_options (a strict server).
+    stream_options_error = ""
 
     def setUp(self) -> None:
         self.request_bodies: List[Dict[str, Any]] = []
 
     def _handler(self, request: httpx2.Request) -> httpx2.Response:
-        self.request_bodies.append(json.loads(request.content))
+        body = json.loads(request.content)
+        self.request_bodies.append(body)
+        if self.stream_options_error and "stream_options" in body:
+            error = {"error": {"message": self.stream_options_error, "type": "invalid_request_error"}}
+            return httpx2.Response(400, json=error)
         return httpx2.Response(200, headers={"content-type": "text/event-stream"}, text=self.sse_body)
+
+    def _assert_retries_without_stream_options(self, api: Any) -> None:
+        """A server rejecting stream_options gets the request again without it, and later ones never."""
+        self.stream_options_error = "Unrecognized request argument supplied: stream_options"
+        self.sse_body = _sse([_chat_chunk({"content": "ok"}), _chat_chunk({}, finish_reason="stop")])
+        first = self._final(list(api.create_chat_completion_stream(json.dumps({"user_message": "hi"}))))
+        second = self._final(list(api.create_chat_completion_stream(json.dumps({"user_message": "again"}))))
+
+        self.assertEqual(first["ai_message"], "ok")
+        self.assertEqual(second["ai_message"], "ok")
+        self.assertEqual(["stream_options" in body for body in self.request_bodies], [True, False, False])
+        self.assertTrue(second["metrics"]["output_tokens_estimated"])
+
+    def _assert_other_bad_request_is_not_retried(self, api: Any) -> None:
+        self.stream_options_error = "maximum context length exceeded"
+        final = self._final(list(api.create_chat_completion_stream(json.dumps({"user_message": "hi"}))))
+
+        self.assertEqual(final["finish_reason"], "error")
+        self.assertEqual(len(self.request_bodies), 1)
 
     def _client(self) -> OpenAI:
         http_client = httpx2.Client(transport=httpx2.MockTransport(self._handler))
@@ -309,6 +484,12 @@ class TestChatCompletionsStreamMetrics(_OpenAIStreamCase):
         self.assertEqual(metrics["finish_reason"], "stop")
         self.assertEqual(api.last_response_metrics, metrics)
 
+    def test_retries_without_stream_options_when_rejected(self) -> None:
+        self._assert_retries_without_stream_options(self._make_api())
+
+    def test_other_bad_request_is_not_retried(self) -> None:
+        self._assert_other_bad_request_is_not_retried(self._make_api())
+
     def test_tool_call_counts_as_first_token(self) -> None:
         tool_delta = {
             "tool_calls": [
@@ -325,6 +506,20 @@ class TestChatCompletionsStreamMetrics(_OpenAIStreamCase):
         self.assertTrue(metrics["output_tokens_estimated"])  # no usage chunk was sent
         self.assertEqual(metrics["finish_reason"], "tool_calls")
 
+    def test_openrouter_reasoning_deltas_mark_output(self) -> None:
+        self.sse_body = _sse(
+            [
+                _chat_chunk({"role": "assistant", "content": "", "reasoning": "Let me think"}),
+                _chat_chunk({"content": "42"}),
+                _chat_chunk({}, finish_reason="stop"),
+            ]
+        )
+        api = self._make_api()
+        with patch.object(ResponseMetricsTracker, "mark_output", autospec=True) as mark_output:
+            list(api.create_chat_completion_stream(json.dumps({"user_message": "hi"})))
+
+        self.assertEqual([call.args[1] for call in mark_output.call_args_list], ["reasoning", "content"])
+
     def test_error_final_event_carries_metrics(self) -> None:
         with patch.dict(os.environ, {"OPENAI_API_KEY": "k"}):
             api = OpenAIChatCompletionsAPI(tools=[])
@@ -335,6 +530,67 @@ class TestChatCompletionsStreamMetrics(_OpenAIStreamCase):
         self.assertEqual(final["metrics"]["finish_reason"], "error")
         self.assertEqual(final["metrics"]["error"], "boom")
         self.assertIsNone(final["metrics"]["time_to_first_token_s"])
+
+    def _api_with_stream(self, chunks: Iterator[Any]) -> OpenAIChatCompletionsAPI:
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "k"}):
+            api = OpenAIChatCompletionsAPI(tools=[])
+        api.client = MagicMock()
+        api.client.chat.completions.create.return_value = chunks
+        return api
+
+    @staticmethod
+    def _chunk(content: Optional[str] = None, finish: Optional[str] = None, usage: Any = None) -> SimpleNamespace:
+        delta = SimpleNamespace(content=content, tool_calls=None)
+        return SimpleNamespace(choices=[SimpleNamespace(delta=delta, finish_reason=finish, index=0)], usage=usage)
+
+    def test_stops_reading_once_finish_and_usage_arrived(self) -> None:
+        # A proxy that never sends [DONE] must not hold the answer until the read timeout.
+        read_past_usage: List[bool] = []
+
+        def chunks() -> Iterator[Any]:
+            yield self._chunk("Hi")
+            yield self._chunk(None, "stop")
+            yield SimpleNamespace(choices=[], usage=SimpleNamespace(prompt_tokens=5, completion_tokens=1))
+            read_past_usage.append(True)
+            yield SimpleNamespace(choices=[], usage=None)
+
+        api = self._api_with_stream(chunks())
+        final = self._final(list(api.create_chat_completion_stream(json.dumps({"user_message": "hi"}))))
+
+        self.assertEqual(read_past_usage, [])
+        self.assertEqual(final["ai_message"], "Hi")
+        self.assertEqual(final["metrics"]["completion_tokens"], 1)
+
+    def test_stops_reading_when_finish_chunk_carries_usage(self) -> None:
+        read_past_finish: List[bool] = []
+
+        def chunks() -> Iterator[Any]:
+            yield self._chunk("Hi")
+            yield self._chunk(None, "stop", usage=SimpleNamespace(prompt_tokens=5, completion_tokens=1))
+            read_past_finish.append(True)
+            yield SimpleNamespace(choices=[], usage=None)
+
+        api = self._api_with_stream(chunks())
+        final = self._final(list(api.create_chat_completion_stream(json.dumps({"user_message": "hi"}))))
+
+        self.assertEqual(read_past_finish, [])
+        self.assertEqual(final["metrics"]["prompt_tokens"], 5)
+
+    def test_post_finish_wait_for_usage_is_bounded(self) -> None:
+        read_chunks: List[int] = []
+
+        def chunks() -> Iterator[Any]:
+            yield self._chunk("Hi")
+            yield self._chunk(None, "stop")
+            for index in range(20):
+                read_chunks.append(index)
+                yield SimpleNamespace(choices=[], usage=None)
+
+        api = self._api_with_stream(chunks())
+        final = self._final(list(api.create_chat_completion_stream(json.dumps({"user_message": "hi"}))))
+
+        self.assertEqual(final["finish_reason"], "stop")
+        self.assertLessEqual(len(read_chunks), OpenAIChatCompletionsAPI.MAX_CHUNKS_AFTER_FINISH)
 
     @patch("static.openai_api_base.OpenAI")
     def test_non_streaming_completion_records_last_metrics(self, mock_openai: Mock) -> None:
@@ -404,6 +660,27 @@ class TestLocalAgentStreamMetrics(_OpenAIStreamCase):
         self.assertFalse(metrics["output_tokens_estimated"])
         self.assertEqual(metrics["tokens_per_s_source"], "server_timings")
 
+    def test_retries_without_stream_options_when_rejected(self) -> None:
+        self._assert_retries_without_stream_options(self._make_api())
+
+    def test_other_bad_request_is_not_retried(self) -> None:
+        self._assert_other_bad_request_is_not_retried(self._make_api())
+
+    def test_llama_server_reasoning_content_marks_output(self) -> None:
+        self.sse_body = _sse(
+            [
+                _chat_chunk({"role": "assistant", "reasoning_content": "Solving"}),
+                _chat_chunk({"reasoning_content": " the equation"}),
+                _chat_chunk({"content": "x = 2"}),
+                _chat_chunk({}, finish_reason="stop"),
+            ]
+        )
+        api = self._make_api()
+        with patch.object(ResponseMetricsTracker, "mark_output", autospec=True) as mark_output:
+            list(api.create_chat_completion_stream(json.dumps({"user_message": "solve"})))
+
+        self.assertEqual([call.args[1] for call in mark_output.call_args_list], ["reasoning", "reasoning", "content"])
+
     def test_estimated_when_server_reports_nothing(self) -> None:
         self.sse_body = _sse([_chat_chunk({"content": "Plotted y = x^2."}), _chat_chunk({}, finish_reason="stop")])
         api = self._make_api()
@@ -450,7 +727,8 @@ class TestResponsesStreamMetrics(unittest.TestCase):
         self.assertEqual(metrics["cached_tokens"], 512)
         self.assertEqual(metrics["reasoning_tokens"], 100)
         self.assertIsNotNone(metrics["time_to_first_token_s"])
-        self.assertEqual(metrics["tokens_per_s_source"], "usage")
+        # The mocked events arrive at once, so the generation window is below the minimum.
+        self.assertEqual(metrics["tokens_per_s_source"], "usage_request")
 
     @patch("static.openai_api_base.OpenAI")
     def test_stream_error_carries_metrics(self, mock_openai: Mock) -> None:

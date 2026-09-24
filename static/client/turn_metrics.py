@@ -31,7 +31,30 @@ _RATE_SOURCE_LABELS = {
     "server_timings": "llama-server timings",
     "usage": "provider usage",
     "estimated": "estimated from text",
+    "usage_request": "provider usage over the whole request",
+    "estimated_request": "estimated from text over the whole request",
 }
+
+
+# Finish reasons of a final answer that was cut short (token limit) or withheld (safety filter).
+_TRUNCATED_FINISH_REASONS = ("length", "max_tokens", "max_output_tokens", "incomplete")
+_FILTERED_FINISH_REASONS = ("content_filter", "refusal")
+
+
+def turn_outcome(finish_reason: Any) -> str:
+    """Turn outcome for the finish reason of the request that ended the turn.
+
+    ``error``, ``truncated`` (token limit), ``filtered`` (content filter or
+    refusal) or ``stop`` for a normal answer.
+    """
+    reason = str(finish_reason or "stop").lower()
+    if reason == "error":
+        return "error"
+    if reason in _TRUNCATED_FINISH_REASONS:
+        return "truncated"
+    if reason in _FILTERED_FINISH_REASONS:
+        return "filtered"
+    return "stop"
 
 
 def _number(value: Any) -> Optional[float]:
@@ -95,7 +118,8 @@ def aggregate_turn(
         tool_results: Traced tool calls the client executed (``function_name``,
             ``result``, ``is_error``).
         wall_time_s: Client-measured time from sending the message to the final answer.
-        outcome: How the turn ended (``stop``, ``error``, ``stopped``, ``timeout``).
+        outcome: How the turn ended (``stop``, ``error``, ``truncated``, ``filtered``,
+            ``stopped``, ``timeout``).
     """
     last = requests[-1] if requests else {}
     first = requests[0] if requests else {}
@@ -279,6 +303,7 @@ class TurnMetricsCollector:
         self._max_history = max_history
         self._history: List[Dict[str, Any]] = []
         self._next_turn_id = 1
+        self._turn_token = 0
         self._active = False
         self._started_ms: Optional[float] = None
         self._user_message: Optional[str] = None
@@ -290,25 +315,36 @@ class TurnMetricsCollector:
         """True while a turn has started and not finished."""
         return self._active
 
+    @property
+    def turn_token(self) -> int:
+        """Identifies the latest turn; a request's callbacks pass the token of the turn that sent it."""
+        return self._turn_token
+
+    def _accepts(self, turn_token: Optional[int]) -> bool:
+        """True while a turn is active and ``turn_token`` (when given) is that turn's."""
+        return self._active and (turn_token is None or turn_token == self._turn_token)
+
     def start_turn(self, user_message: Optional[str] = None) -> None:
         """Begin a new turn (discarding an unfinished one)."""
         self._active = True
+        self._turn_token += 1
         self._started_ms = self._clock_ms()
         self._user_message = user_message
         self._requests = []
         self._tool_results = []
 
-    def record_request(self, metrics: Any) -> None:
+    def record_request(self, metrics: Any, turn_token: Optional[int] = None) -> None:
         """Add one request's ``metrics`` from a final stream event.
 
-        Ignored when absent or when no turn is active (e.g. a late event after the user stopped).
+        Ignored when absent, when no turn is active (e.g. a late event after the
+        user stopped) or when ``turn_token`` belongs to an earlier turn.
         """
-        if self._active and isinstance(metrics, dict):
+        if self._accepts(turn_token) and isinstance(metrics, dict):
             self._requests.append(dict(metrics))
 
-    def record_tool_results(self, traced_calls: Any) -> None:
+    def record_tool_results(self, traced_calls: Any, turn_token: Optional[int] = None) -> None:
         """Add the tool calls the client executed for this turn."""
-        if not self._active or not isinstance(traced_calls, list):
+        if not self._accepts(turn_token) or not isinstance(traced_calls, list):
             return
         for call in traced_calls:
             if isinstance(call, dict):
@@ -320,9 +356,13 @@ class TurnMetricsCollector:
                     }
                 )
 
-    def finish_turn(self, outcome: str = "stop") -> Optional[Dict[str, Any]]:
-        """Close the active turn, store its summary in the history and return it."""
-        if not self._active:
+    def finish_turn(self, outcome: str = "stop", turn_token: Optional[int] = None) -> Optional[Dict[str, Any]]:
+        """Close the active turn, store its summary in the history and return it.
+
+        Returns None without closing anything when no turn is active or
+        ``turn_token`` belongs to an earlier turn.
+        """
+        if not self._accepts(turn_token):
             return None
         wall_time_s: Optional[float] = None
         if self._started_ms is not None:

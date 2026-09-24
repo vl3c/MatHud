@@ -144,6 +144,7 @@ Note: All drawables are math-only. They do not hold screen-space coordinates and
 9. AI Model Configuration (`static/ai_model.py`)
 10. Provider Registry (`static/providers/`)
 11. Tool Call Processing Utilities (`static/tool_call_processor.py`)
+12. Response Metrics (`static/response_metrics.py`, client side `static/client/turn_metrics.py`)
 
 ### Testing and Quality Assurance
 1. Client-Side Testing (`client_tests/` and `test_runner.py`)
@@ -3683,6 +3684,29 @@ for both Chat Completions and Responses APIs.
 - `add_partial_assistant_message(content)`: Keep a partially streamed reply in history
 - `_prepare_message_content(full_prompt)`: Build the user message content for the configured canvas format (private)
 - `_append_canvas_changes(canvas_state)`: Append the post-batch canvas report to the last tool message (private)
+
+### Response Metrics (`static/response_metrics.py`)
+
+Per-request speed and token measurements for comparing models. Every provider path creates a `ResponseMetricsTracker` per model request (`OpenAIAPIBase._start_response_metrics`) and closes it with `_finish_response_metrics`, which also keeps the record as `last_response_metrics`. The JSON record rides on the final stream event (`metrics`), is returned by `/send_message`, tagged with `request_kind` (`user_message` or `tool_results`) and logged as a `response_metrics {...}` line. Nothing sent to the model changes. Metrics never raise: non-finite or non-numeric figures are dropped, and a failure while building the record yields a minimal record with an `error` field.
+
+**Record fields:** `schema`, `provider`, `model`, `api` (`chat_completions`, `responses`, `anthropic_messages`), `streamed`, `request_started_at` (epoch s), `time_to_first_token_s` (first streamed content or tool-call delta; reasoning does not count), `total_latency_s`, `output_tokens` / `output_tokens_estimated`, `output_tokens_per_s` / `tokens_per_s_source`, `prompt_tokens`, `completion_tokens`, `cached_tokens`, `reasoning_tokens`, `total_tokens` (from the provider's usage report when it sends one), `prompt_tokens_per_s` and `server_timings` (llama-server `timings`), `tool_calls`, `finish_reason`, `error`.
+
+**Tokens/s sources (`tokens_per_s_source`):**
+- `server_timings`: llama-server `timings.predicted_per_second`
+- `usage` / `estimated`: completion tokens (or a text estimate when no usage arrived) over the generation window, from the first streamed output (reasoning included) to the end of the request
+- `usage_request` / `estimated_request`: the same over the whole request, used when nothing was streamed, the output came in one chunk, the window is shorter than `MIN_GENERATION_WINDOW_S` (0.25 s), or the usage reports reasoning tokens that were never streamed (hidden thinking); a buffered reply then cannot read as thousands of tokens per second
+
+**Window API (`ResponseMetricsTracker`):**
+- `mark_output(kind)`: Record streamed output; `content`, `tool_call` or `reasoning` (Chat Completions paths mark OpenRouter `delta.reasoning` and llama-server `delta.reasoning_content` via `reasoning_text_from_delta`)
+- `add_output_text(text)`: Keep generated text for the estimate fallback
+- `record_usage(counts)` / `record_server_timings(timings)`: Merge usage counts (from `usage_from_chat_completions`, `usage_from_responses`, `usage_from_anthropic`) and llama-server timings
+- `finish(finish_reason, tool_calls, error=None)`: Return the `ResponseMetrics` record
+
+**Chat Completions streaming:** `create_stream_requesting_usage` sends `stream_options={"include_usage": true}` and, when a strict server rejects it with a 400, retries once without it and remembers that for the provider instance (tokens are then estimated). The stream loop stops reading once the usage chunk has arrived after the finish reason, or three chunks after it.
+
+**Client side (`static/client/turn_metrics.py`):** `TurnMetricsCollector` groups a turn's request records and executed tool calls into one summary (outcome `stop`, `error`, `truncated`, `filtered`, `stopped` or `timeout`; each request's callbacks carry the turn token so late events of an earlier turn are ignored), shown as a footer under the answer and exposed through `window.getMatHudLastTurnMetrics()`, `window.getMatHudTurnMetricsHistory()` and `window.clearMatHudTurnMetrics()`.
+
+**Limitation:** `last_response_metrics`, read by the non-streaming `/send_message` path, lives on the shared provider instance like its conversation history, so it is only reliable while one request per provider runs at a time.
 
 ### Canvas State Formatter (`static/canvas_state_formatter.py`)
 
