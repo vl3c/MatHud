@@ -248,6 +248,12 @@ from .test_image_attachment import (
     TestImageOnlySending,
 )
 from .test_tool_call_log import TestToolCallLog
+from .test_turn_metrics import (
+    TestTurnAggregation,
+    TestFooterFormatting,
+    TestTurnMetricsCollector,
+    TestMetricsFooterElement,
+)
 from .test_numeric_solver import (
     TestNumericSolverHelpers,
     TestNumericSolverIntegration,
@@ -590,6 +596,10 @@ class Tests:
             TestDataURLParsing,
             TestImageOnlySending,
             TestToolCallLog,
+            TestTurnAggregation,
+            TestFooterFormatting,
+            TestTurnMetricsCollector,
+            TestMetricsFooterElement,
             TestNumericSolverHelpers,
             TestNumericSolverIntegration,
             TestNumericSolverFallback,
