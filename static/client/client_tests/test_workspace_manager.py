@@ -359,6 +359,34 @@ class TestWorkspaceManagerOrchestration(unittest.TestCase):
 
         self.assertEqual(message, "Error deleting workspace: missing")
 
+    def test_delete_workspace_uses_json_post_request(self) -> None:
+        manager = WorkspaceManager(SimpleMock())
+        captured = {}
+
+        def fake_execute_json(
+            method: str,
+            url: str,
+            payload: dict,
+            on_complete: object,
+            error_prefix: str,
+        ) -> str:
+            captured.update(method=method, url=url, payload=payload, error_prefix=error_prefix)
+            return on_complete(SimpleMock(text='{"status":"success"}'))  # type: ignore[misc]
+
+        def fail_plain_request(*args: object, **kwargs: object) -> str:
+            raise AssertionError("delete_workspace must not use a plain (GET) request")
+
+        manager._execute_sync_json_request = fake_execute_json  # type: ignore[assignment]
+        manager._execute_sync_request = fail_plain_request  # type: ignore[assignment]
+
+        result = manager.delete_workspace("ws1")
+
+        self.assertEqual(result, 'Workspace "ws1" deleted successfully.')
+        self.assertEqual(captured.get("method"), "POST")
+        self.assertEqual(captured.get("url"), "/delete_workspace")
+        self.assertEqual(captured.get("payload"), {"name": "ws1"})
+        self.assertEqual(captured.get("error_prefix"), "Error deleting workspace")
+
 
 if __name__ == "__main__":
     unittest.main()

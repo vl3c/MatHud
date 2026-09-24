@@ -1439,10 +1439,11 @@ class WorkspaceManager:
         def on_complete(req: Any) -> str:
             return self._parse_delete_workspace_response(req, name)
 
-        url: str = f"/delete_workspace?name={name}"
-        return self._execute_sync_request(
-            method="GET",
-            url=url,
+        # POST + JSON body (not GET) so cross-site pages cannot trigger deletes.
+        return self._execute_sync_json_request(
+            method="POST",
+            url="/delete_workspace",
+            payload={"name": name},
             on_complete=on_complete,
             error_prefix="Error deleting workspace",
         )
