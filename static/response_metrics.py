@@ -190,12 +190,16 @@ def reasoning_text_from_delta(delta: Any) -> str:
     return ""
 
 
-def record_chat_completions_usage(source: Any, tracker: "ResponseMetricsTracker") -> None:
-    """Feed a Chat Completions chunk's or response's usage and llama-server timings to ``tracker``."""
+def record_chat_completions_usage(source: Any, tracker: "ResponseMetricsTracker") -> bool:
+    """Feed a Chat Completions chunk's or response's usage and llama-server timings to ``tracker``.
+
+    Returns True when ``source`` carried a usage report.
+    """
     usage = _read(source, "usage")
     if usage is not None:
         tracker.record_usage(usage_from_chat_completions(usage))
     tracker.record_server_timings(llama_timings_from(source))
+    return usage is not None
 
 
 class ResponseMetricsTracker:

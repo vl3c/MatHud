@@ -431,6 +431,67 @@ class TestChatCompletionsStreamMetrics(_OpenAIStreamCase):
         self.assertEqual(final["metrics"]["error"], "boom")
         self.assertIsNone(final["metrics"]["time_to_first_token_s"])
 
+    def _api_with_stream(self, chunks: Iterator[Any]) -> OpenAIChatCompletionsAPI:
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "k"}):
+            api = OpenAIChatCompletionsAPI(tools=[])
+        api.client = MagicMock()
+        api.client.chat.completions.create.return_value = chunks
+        return api
+
+    @staticmethod
+    def _chunk(content: Optional[str] = None, finish: Optional[str] = None, usage: Any = None) -> SimpleNamespace:
+        delta = SimpleNamespace(content=content, tool_calls=None)
+        return SimpleNamespace(choices=[SimpleNamespace(delta=delta, finish_reason=finish, index=0)], usage=usage)
+
+    def test_stops_reading_once_finish_and_usage_arrived(self) -> None:
+        # A proxy that never sends [DONE] must not hold the answer until the read timeout.
+        read_past_usage: List[bool] = []
+
+        def chunks() -> Iterator[Any]:
+            yield self._chunk("Hi")
+            yield self._chunk(None, "stop")
+            yield SimpleNamespace(choices=[], usage=SimpleNamespace(prompt_tokens=5, completion_tokens=1))
+            read_past_usage.append(True)
+            yield SimpleNamespace(choices=[], usage=None)
+
+        api = self._api_with_stream(chunks())
+        final = self._final(list(api.create_chat_completion_stream(json.dumps({"user_message": "hi"}))))
+
+        self.assertEqual(read_past_usage, [])
+        self.assertEqual(final["ai_message"], "Hi")
+        self.assertEqual(final["metrics"]["completion_tokens"], 1)
+
+    def test_stops_reading_when_finish_chunk_carries_usage(self) -> None:
+        read_past_finish: List[bool] = []
+
+        def chunks() -> Iterator[Any]:
+            yield self._chunk("Hi")
+            yield self._chunk(None, "stop", usage=SimpleNamespace(prompt_tokens=5, completion_tokens=1))
+            read_past_finish.append(True)
+            yield SimpleNamespace(choices=[], usage=None)
+
+        api = self._api_with_stream(chunks())
+        final = self._final(list(api.create_chat_completion_stream(json.dumps({"user_message": "hi"}))))
+
+        self.assertEqual(read_past_finish, [])
+        self.assertEqual(final["metrics"]["prompt_tokens"], 5)
+
+    def test_post_finish_wait_for_usage_is_bounded(self) -> None:
+        read_chunks: List[int] = []
+
+        def chunks() -> Iterator[Any]:
+            yield self._chunk("Hi")
+            yield self._chunk(None, "stop")
+            for index in range(20):
+                read_chunks.append(index)
+                yield SimpleNamespace(choices=[], usage=None)
+
+        api = self._api_with_stream(chunks())
+        final = self._final(list(api.create_chat_completion_stream(json.dumps({"user_message": "hi"}))))
+
+        self.assertEqual(final["finish_reason"], "stop")
+        self.assertLessEqual(len(read_chunks), OpenAIChatCompletionsAPI.MAX_CHUNKS_AFTER_FINISH)
+
     @patch("static.openai_api_base.OpenAI")
     def test_non_streaming_completion_records_last_metrics(self, mock_openai: Mock) -> None:
         api = OpenAIChatCompletionsAPI(tools=[])

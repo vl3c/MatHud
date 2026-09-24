@@ -26,6 +26,10 @@ _logger = logging.getLogger("mathud")
 class OpenAIChatCompletionsAPI(OpenAIAPIBase):
     """OpenAI Chat Completions API for standard models (GPT-4, GPT-4o, etc.)."""
 
+    # After the finish reason only the usage chunk is still expected; stop reading
+    # when it arrives, or after this many chunks without it.
+    MAX_CHUNKS_AFTER_FINISH = 3
+
     def _create_assistant_message(self, response_message: Any) -> MessageDict:
         """Create an assistant message from the API response message."""
         content = getattr(response_message, "content", "")
@@ -95,6 +99,7 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
         accumulated_text = ""
         tool_calls_accumulator: Dict[int, Dict[str, Any]] = {}
         finish_reason: Optional[str] = None
+        chunks_after_finish = 0
         metrics = self._start_response_metrics("chat_completions")
 
         try:
@@ -108,9 +113,14 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
             )
 
             for chunk in stream:
-                record_chat_completions_usage(chunk, metrics)
+                has_usage = record_chat_completions_usage(chunk, metrics)
                 if finish_reason is not None:
-                    # Only the trailing usage chunk follows the finish reason.
+                    # Only the trailing usage chunk follows the finish reason. Stop once it
+                    # arrived (a proxy may never send [DONE]) or after a few chunks without it.
+                    chunks_after_finish += 1
+                    if has_usage or chunks_after_finish >= self.MAX_CHUNKS_AFTER_FINISH:
+                        self._close_stream(stream)
+                        break
                     continue
 
                 choice = self._extract_choice_from_chunk(chunk)
@@ -138,6 +148,9 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
                 choice_finish_reason = getattr(choice, "finish_reason", None)
                 if choice_finish_reason is not None:
                     finish_reason = choice_finish_reason
+                    if has_usage:
+                        self._close_stream(stream)
+                        break
 
         except Exception as exc:
             if finish_reason is None:
@@ -174,6 +187,16 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
                 self._finish_response_metrics(metrics, resolved_finish_reason, len(ai_tool_calls_json_ready))
             ),
         }
+
+    @staticmethod
+    def _close_stream(stream: Any) -> None:
+        """Release the HTTP response of a stream that is abandoned before its end."""
+        close = getattr(stream, "close", None)
+        if callable(close):
+            try:
+                close()
+            except Exception as exc:
+                _logger.debug(f"[OpenAI API] Closing the stream failed: {exc}")
 
     def _prepare_messages_for_request(self, full_prompt: str) -> None:
         """Prepare conversation messages for a new request turn."""
