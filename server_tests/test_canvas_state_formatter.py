@@ -791,6 +791,11 @@ class TestTokenEstimation(unittest.TestCase):
         self.assertEqual(estimate_tokens_from_text("hello world"), 2)
         self.assertEqual(estimate_tokens_from_text('{"a":'), 3)
 
+    def test_cjk_characters_count_one_token_each(self) -> None:
+        self.assertEqual(estimate_tokens_from_text("三角形的面积"), 6)
+        self.assertEqual(estimate_tokens_from_text("点A"), 2)
+        self.assertEqual(estimate_tokens_from_text("「」"), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
