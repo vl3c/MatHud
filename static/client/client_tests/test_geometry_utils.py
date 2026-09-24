@@ -372,6 +372,87 @@ class TestGeometryUtils(unittest.TestCase):
         self.assertTrue(flags["rhombus"])
 
     # ------------------------------------------------------------------
+    # Curve-curve intersections
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _on_ellipse(point: tuple, center: tuple, rx: float, ry: float, rotation: float = 0.0) -> float:
+        dx, dy = point[0] - center[0], point[1] - center[1]
+        lx = math.cos(-rotation) * dx - math.sin(-rotation) * dy
+        ly = math.sin(-rotation) * dx + math.cos(-rotation) * dy
+        return (lx / rx) ** 2 + (ly / ry) ** 2 - 1.0
+
+    def test_circle_ellipse_intersection_finds_all_crossings(self) -> None:
+        full = 2 * math.pi
+        result = GeometryUtils.circle_ellipse_intersection(
+            (0.0, 0.0), 5.0, 0.0, full, False, (0.0, 0.0), 10.0, 2.0, 0.0, 0.0, full, False
+        )
+        self.assertEqual(len(result), 4)
+        for x, y in result:
+            self.assertAlmostEqual(math.hypot(x, y), 5.0, places=6)
+            self.assertAlmostEqual(self._on_ellipse((x, y), (0.0, 0.0), 10.0, 2.0), 0.0, places=6)
+            self.assertAlmostEqual(abs(x), math.sqrt(21.875), places=6)
+
+    def test_circle_ellipse_intersection_rotated_offset(self) -> None:
+        full = 2 * math.pi
+        center, rotation = (1.0, 1.0), math.pi / 4
+        result = GeometryUtils.circle_ellipse_intersection(
+            (1.5, 0.5), 3.0, 0.0, full, False, center, 4.0, 2.0, rotation, 0.0, full, False
+        )
+        self.assertEqual(len(result), 4)
+        for point in result:
+            self.assertAlmostEqual(math.hypot(point[0] - 1.5, point[1] - 0.5), 3.0, places=6)
+            self.assertAlmostEqual(self._on_ellipse(point, center, 4.0, 2.0, rotation), 0.0, places=6)
+
+    def test_circle_ellipse_tangent_points_reported_once(self) -> None:
+        full = 2 * math.pi
+        result = GeometryUtils.circle_ellipse_intersection(
+            (0.0, 0.0), 1.0, 0.0, full, False, (0.0, 0.0), 2.0, 1.0, 0.0, 0.0, full, False
+        )
+        self.assertEqual(len(result), 2)
+        for x, y in sorted(result, key=lambda p: p[1]):
+            self.assertAlmostEqual(x, 0.0, places=4)
+            self.assertAlmostEqual(abs(y), 1.0, places=6)
+
+    def test_circle_elliptical_arc_intersection_respects_arc_range(self) -> None:
+        full = 2 * math.pi
+        # Upper half of the ellipse only (parameter 0..pi)
+        result = GeometryUtils.circle_ellipse_intersection(
+            (0.0, 0.0), 5.0, 0.0, full, False, (0.0, 0.0), 10.0, 2.0, 0.0, 0.0, math.pi, False
+        )
+        self.assertEqual(len(result), 2)
+        for _, y in result:
+            self.assertGreater(y, 0.0)
+
+    def test_ellipse_ellipse_intersection_finds_all_crossings(self) -> None:
+        full = 2 * math.pi
+        result = GeometryUtils.ellipse_ellipse_intersection(
+            (0.0, 0.0), 3.0, 1.0, 0.0, 0.0, full, False, (0.0, 0.0), 1.0, 3.0, 0.0, 0.0, full, False
+        )
+        self.assertEqual(len(result), 4)
+        expected = math.sqrt(0.9)
+        for x, y in result:
+            self.assertAlmostEqual(abs(x), expected, places=6)
+            self.assertAlmostEqual(abs(y), expected, places=6)
+
+    def test_ellipse_ellipse_intersection_rotated(self) -> None:
+        full = 2 * math.pi
+        result = GeometryUtils.ellipse_ellipse_intersection(
+            (0.0, 0.0), 5.0, 1.0, 0.3, 0.0, full, False, (0.5, 0.0), 5.0, 1.0, -0.4, 0.0, full, False
+        )
+        self.assertEqual(len(result), 4)
+        for point in result:
+            self.assertAlmostEqual(self._on_ellipse(point, (0.0, 0.0), 5.0, 1.0, 0.3), 0.0, places=6)
+            self.assertAlmostEqual(self._on_ellipse(point, (0.5, 0.0), 5.0, 1.0, -0.4), 0.0, places=6)
+
+    def test_ellipse_ellipse_disjoint(self) -> None:
+        full = 2 * math.pi
+        result = GeometryUtils.ellipse_ellipse_intersection(
+            (0.0, 0.0), 2.0, 1.0, 0.0, 0.0, full, False, (10.0, 0.0), 2.0, 1.0, 0.0, 0.0, full, False
+        )
+        self.assertEqual(result, [])
+
+    # ------------------------------------------------------------------
     # Polygon side counts
     # ------------------------------------------------------------------
 
