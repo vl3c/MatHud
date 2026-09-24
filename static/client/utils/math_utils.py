@@ -1159,6 +1159,12 @@ class MathUtils:
                 else:
                     result = window.math.evaluate(formatted_expression, variables)
 
+            # math.format wraps string results (e.g. bin) in JSON quotes
+            unquoted_result = MathUtils._unquote_formatted_string(result)
+            if unquoted_result is not None:
+                return unquoted_result
+            result = MathUtils._unwrap_single_mode_result(js_expression, result)
+
             converted_result = MathUtils.try_convert_to_number(result)
 
             # Check for division by zero
@@ -1183,6 +1189,36 @@ class MathUtils:
             return "Error: Overflow - the result is too large to represent"
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
+
+    @staticmethod
+    def _unquote_formatted_string(result: Any) -> Optional[str]:
+        """Return the plain text of a JSON-quoted math.format string result, else None."""
+        if not isinstance(result, str) or len(result) < 2 or result[0] != '"' or result[-1] != '"':
+            return None
+        try:
+            unquoted = json.loads(result)
+        except Exception:
+            return result[1:-1]
+        return unquoted if isinstance(unquoted, str) else None
+
+    @staticmethod
+    def _unwrap_single_mode_result(js_expression: str, result: Any) -> Any:
+        """Return the lone value of a top-level mode(...) result; math.js always returns an array of modes."""
+        expression = js_expression.strip()
+        if not expression.startswith("mode(") or not expression.endswith(")"):
+            return result
+        depth = 0
+        for index, char in enumerate(expression[len("mode") :], start=len("mode")):
+            if char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+                if depth == 0 and index != len(expression) - 1:
+                    return result  # mode(...) is only part of a larger expression
+        if not isinstance(result, str) or not (result.startswith("[") and result.endswith("]")):
+            return result
+        values = MathUtils._split_top_level_commas(result[1:-1])
+        return values[0] if len(values) == 1 else result
 
     @staticmethod
     def derivative(expression: str, variable: str) -> str:

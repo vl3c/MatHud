@@ -823,6 +823,15 @@ class TestMathFunctions(unittest.TestCase):
                 self.assertIn("infinite", result)
                 self.assertNotIn("ZeroDivisionError", result)
 
+    def test_evaluate_string_results_have_no_json_quotes(self) -> None:
+        self.assertEqual(MathUtils.evaluate("bin(10)"), "0b1010")
+        self.assertEqual(MathUtils.evaluate("bin(5)"), "0b101")
+
+    def test_evaluate_mode_single_and_multiple(self) -> None:
+        self.assertEqual(float(MathUtils.evaluate("mode([1, 1, 2])")), 1.0)
+        self.assertEqual(MathUtils.evaluate("mode([1, 1, 2, 2, 3])"), "[1, 2]")
+        self.assertEqual(MathUtils.evaluate("[5]"), "[5]")
+
     def test_evaluate_factorial_expression(self) -> None:
         result = MathUtils.evaluate("10!/(3!*(10-3)!)")
         expected = math.factorial(10) // (math.factorial(3) * math.factorial(7))
