@@ -5,6 +5,8 @@ import unittest
 
 from geometry import (
     LineSegment,
+    CircularArc,
+    EllipticalArc,
     CompositePath,
     Region,
 )
@@ -261,6 +263,47 @@ class TestAreaUtilities(unittest.TestCase):
         area = GeometryUtils.circular_sector_area(1.0, math.pi / 2)
         expected = 0.5 * 1.0 * (math.pi / 2)
         self.assertAlmostEqual(area, expected, places=5)
+
+    def test_quarter_disc_path_area(self) -> None:
+        # Arc from (1, 0) to (0, 1) closed through the center: area pi/4.
+        arc = CircularArc((0.0, 0.0), 1.0, 0.0, math.pi / 2)
+        path = CompositePath([arc, LineSegment((0.0, 1.0), (0.0, 0.0)), LineSegment((0.0, 0.0), (1.0, 0.0))])
+        self.assertAlmostEqual(Region(path).area(), math.pi / 4, places=9)
+
+    def test_off_center_half_disc_path_area(self) -> None:
+        # Upper half of the circle centered at (3, 2), r=2, closed by its diameter.
+        arc = CircularArc((3.0, 2.0), 2.0, 0.0, math.pi)
+        path = CompositePath([arc, LineSegment((1.0, 2.0), (5.0, 2.0))])
+        self.assertAlmostEqual(Region(path).area(), 2 * math.pi, places=9)
+
+    def test_clockwise_circular_arc_contribution_is_negated(self) -> None:
+        ccw = GeometryUtils.circular_segment_area((1.0, -2.0), 3.0, 0.3, 1.9, False)
+        cw = GeometryUtils.circular_segment_area((1.0, -2.0), 3.0, 1.9, 0.3, True)
+        self.assertAlmostEqual(ccw, -cw, places=9)
+
+    def test_rotated_half_ellipse_path_area_exact(self) -> None:
+        # Half of a rotated, off-center ellipse closed by its (rotated) major axis.
+        arc = EllipticalArc((1.0, 2.0), 3.0, 2.0, 0.0, math.pi, rotation=0.7)
+        path = CompositePath([arc, LineSegment(arc.end_point(), arc.start_point())])
+        self.assertAlmostEqual(Region(path).area(), 3 * math.pi, places=9)
+
+    def test_elliptical_arc_contribution_matches_numeric_integration(self) -> None:
+        center, rx, ry, rot = (1.5, -0.5), 4.0, 1.5, 0.4
+        start, end = 0.2, 2.3
+        steps = 20000
+        dt = (end - start) / steps
+        expected = 0.0
+        for i in range(steps):
+            t = start + (i + 0.5) * dt
+            lx, ly = rx * math.cos(t), ry * math.sin(t)
+            x = math.cos(rot) * lx - math.sin(rot) * ly + center[0]
+            y = math.sin(rot) * lx + math.cos(rot) * ly + center[1]
+            dlx, dly = -rx * math.sin(t), ry * math.cos(t)
+            dx = math.cos(rot) * dlx - math.sin(rot) * dly
+            dy = math.sin(rot) * dlx + math.cos(rot) * dly
+            expected += 0.5 * (x * dy - y * dx) * dt
+        actual = GeometryUtils.elliptical_segment_area(center, rx, ry, rot, start, end, False)
+        self.assertAlmostEqual(actual, expected, places=6)
 
     def test_line_segment_area_contribution(self) -> None:
         area = GeometryUtils.line_segment_area_contribution((0.0, 0.0), (1.0, 0.0))

@@ -1067,10 +1067,11 @@ class GeometryUtils:
         Calculate the signed area contribution of a circular arc segment.
 
         Uses the formula: (1/2) * integral of (x*dy - y*dx) along the arc.
-        For a circular arc, this integrates to:
-        Area = (r^2/2) * (theta2 - theta1) + (1/2) * (x1*y2 - x2*y1)
+        For a circular arc with center C and endpoints P1, P2, this integrates to:
+        Area = (r^2/2) * (theta2 - theta1) + (1/2) * C x (P2 - P1)
+             = (r^2/2) * span + (1/2) * (cx*(y2 - y1) - cy*(x2 - x1))
 
-        The second term accounts for the chord contribution.
+        The second term accounts for the offset of the center from the origin.
 
         Args:
             center: (cx, cy) center of the circle
@@ -1109,9 +1110,9 @@ class GeometryUtils:
 
         sector_area = 0.5 * radius * radius * span
 
-        chord_area = 0.5 * (x1 * y2 - x2 * y1)
+        center_offset_area = 0.5 * (cx * (y2 - y1) - cy * (x2 - x1))
 
-        return sector_area + chord_area
+        return sector_area + center_offset_area
 
     @staticmethod
     def elliptical_segment_area(
@@ -1126,7 +1127,11 @@ class GeometryUtils:
         """
         Calculate the signed area contribution of an elliptical arc segment.
 
-        Uses numerical integration of (1/2) * (x*dy - y*dx) along the arc.
+        Uses the closed form of (1/2) * integral of (x*dy - y*dx) along the arc.
+        With P(t) = C + R(rotation) * (a*cos(t), b*sin(t)), rotation preserves the
+        cross product, so the integral is:
+        Area = (1/2) * (a*b*span + cx*(y2 - y1) - cy*(x2 - x1))
+        where (x1, y1) and (x2, y2) are the arc endpoints.
 
         Args:
             center: (cx, cy) center of the ellipse
@@ -1162,27 +1167,15 @@ class GeometryUtils:
         if abs(span) < GeometryUtils.INTERSECTION_EPSILON:
             span = two_pi if not clockwise else -two_pi
 
-        num_steps = max(100, int(abs(span) * 50))
-        dt = span / num_steps
-
-        area = 0.0
-        t = start_angle
-
-        for _ in range(num_steps):
+        def point_at(t: float) -> Tuple[float, float]:
             local_x = radius_x * math.cos(t)
             local_y = radius_y * math.sin(t)
-            x = cos_rot * local_x - sin_rot * local_y + cx
-            y = sin_rot * local_x + cos_rot * local_y + cy
+            return (cos_rot * local_x - sin_rot * local_y + cx, sin_rot * local_x + cos_rot * local_y + cy)
 
-            dx_dt = -radius_x * math.sin(t)
-            dy_dt = radius_y * math.cos(t)
-            dx = cos_rot * dx_dt - sin_rot * dy_dt
-            dy = sin_rot * dx_dt + cos_rot * dy_dt
+        x1, y1 = point_at(start_angle)
+        x2, y2 = point_at(start_angle + span)
 
-            area += 0.5 * (x * dy - y * dx) * dt
-            t += dt
-
-        return area
+        return 0.5 * (radius_x * radius_y * span + cx * (y2 - y1) - cy * (x2 - x1))
 
     @staticmethod
     def line_segment_area_contribution(start: Tuple[float, float], end: Tuple[float, float]) -> float:
