@@ -395,14 +395,33 @@ class AdaptiveSampler:
         p_mid: Tuple[float, float],
         p_right: Tuple[float, float],
     ) -> bool:
-        """True when all three points lie above, or all lie below, the viewport band."""
+        """True when the curve over this interval stays above, or stays below, the viewport band.
+
+        All three samples must be on the same side, and so must the extremum of the parabola
+        through them; otherwise a narrow peak between the samples could reach into view.
+        """
         if viewport_band is None:
             return False
         top, bottom = viewport_band
         if bottom <= top:
             return False
         ys = (p_left[1], p_mid[1], p_right[1])
+        extreme = AdaptiveSampler._interpolated_extremum(*ys)
+        if extreme is not None:
+            ys = ys + (extreme,)
         return all(y < top for y in ys) or all(y > bottom for y in ys)
+
+    @staticmethod
+    def _interpolated_extremum(y_left: float, y_mid: float, y_right: float) -> Optional[float]:
+        """Extremum of the parabola through three equally spaced samples, if inside the interval."""
+        curvature = (y_left + y_right) / 2.0 - y_mid
+        if curvature == 0:
+            return None
+        slope = (y_right - y_left) / 2.0
+        t_vertex = -slope / (2.0 * curvature)
+        if abs(t_vertex) > 1.0:
+            return None
+        return y_mid - slope * slope / (4.0 * curvature)
 
     @staticmethod
     def _sample_toward_domain_edge(

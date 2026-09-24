@@ -257,6 +257,19 @@ class TestAdaptiveSamplerViewportCulling(unittest.TestCase):
         self.assertLessEqual(len(offscreen), 20)
         self.assertGreater(len(onscreen), 10)
 
+    def test_narrow_peak_rising_into_view_is_sampled(self) -> None:
+        # Base of each parabola is far below the viewport; only a narrow tip reaches y = 3.
+        for center in (1.1, 0.37, 5.05):
+            for steepness in (1000, 3000):
+
+                def func(x: float, k: float = steepness, c: float = center) -> float:
+                    return -k * (x - c) ** 2 + 3
+
+                samples = get_samples(-20, 20, func, scaled_transform, viewport_band=(0, 480))
+                visible = [x for x in samples if func(x) > -7.5]
+                self.assertGreaterEqual(len(visible), 5, (center, steepness))
+                self.assertGreater(max(func(x) for x in samples), 2.5, (center, steepness))
+
 
 class TestAdaptiveSamplerProbes(unittest.TestCase):
     """Oscillation detection should be deterministic and robust."""
