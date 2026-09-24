@@ -12,6 +12,18 @@ from geometry.graph_state import (
 from utils.graph_analyzer import GraphAnalyzer
 
 
+def _make_state(vertex_names: str, edge_specs: List[tuple], directed: bool) -> GraphState:
+    """Build a GraphState from single-letter vertex names and (source, target[, weight]) tuples."""
+    vertices = [GraphVertexDescriptor(v) for v in vertex_names]
+    edges = [
+        GraphEdgeDescriptor(
+            f"e{i}", spec[0], spec[1], weight=spec[2] if len(spec) > 2 else None, name=f"{spec[0]}{spec[1]}_{i}"
+        )
+        for i, spec in enumerate(edge_specs)
+    ]
+    return GraphState("G", vertices, edges, directed=directed)
+
+
 class TestAnalyzeGraphShortestPath(unittest.TestCase):
     """Tests for shortest_path operation."""
 
@@ -112,6 +124,39 @@ class TestAnalyzeGraphShortestPath(unittest.TestCase):
         self.assertIn("seg_AB", highlights)
         self.assertIn("seg_BC", highlights)
 
+    def test_shortest_path_directed_negative_weight(self) -> None:
+        """Directed A->B 2, A->C 3, C->B -2: the cheapest path is A->C->B with cost 1."""
+        state = _make_state("ABC", [("A", "B", 2.0), ("A", "C", 3.0), ("C", "B", -2.0)], directed=True)
+        result = GraphAnalyzer.analyze(state, "shortest_path", {"start": "A", "goal": "B"})
+
+        self.assertNotIn("error", result)
+        self.assertEqual(result.get("path"), ["A", "C", "B"])
+        self.assertEqual(result.get("cost"), 1.0)
+
+    def test_shortest_path_directed_negative_cycle_reports_error(self) -> None:
+        """Directed negative cycle B->C->B makes the shortest path undefined."""
+        state = _make_state("ABC", [("A", "B", 1.0), ("B", "C", -3.0), ("C", "B", 1.0)], directed=True)
+        result = GraphAnalyzer.analyze(state, "shortest_path", {"start": "A", "goal": "C"})
+
+        self.assertIn("error", result)
+        self.assertIn("negative cycle", result["error"])
+
+    def test_shortest_path_undirected_negative_weight_reports_error(self) -> None:
+        """Undirected negative edge is a negative cycle; must error instead of looping forever."""
+        state = _make_state("ABC", [("A", "B", -1.0), ("B", "C", 5.0)], directed=False)
+        result = GraphAnalyzer.analyze(state, "shortest_path", {"start": "A", "goal": "C"})
+
+        self.assertIn("error", result)
+        self.assertIn("negative", result["error"])
+
+    def test_shortest_path_parallel_edges_use_minimum_weight(self) -> None:
+        """Parallel edges A-B (1) and A-B (5): the cheaper edge determines the cost."""
+        for directed in (False, True):
+            state = _make_state("AB", [("A", "B", 1.0), ("A", "B", 5.0)], directed=directed)
+            result = GraphAnalyzer.analyze(state, "shortest_path", {"start": "A", "goal": "B"})
+
+            self.assertEqual(result.get("cost"), 1.0)
+
 
 class TestAnalyzeGraphMST(unittest.TestCase):
     """Tests for minimum spanning tree (mst) operation."""
@@ -151,6 +196,36 @@ class TestAnalyzeGraphMST(unittest.TestCase):
 
         mst_edges = result.get("edges", [])
         self.assertEqual(len(mst_edges), 3)
+        self.assertTrue(result.get("connected"))
+
+    def test_mst_isolated_vertex_flags_disconnected(self) -> None:
+        """Isolated vertex D is not spanned; result is a forest flagged as disconnected."""
+        state = _make_state("ABCD", [("A", "B", 1.0), ("B", "C", 2.0)], directed=False)
+        result = GraphAnalyzer.analyze(state, "mst", {})
+
+        self.assertEqual(len(result.get("edges", [])), 2)
+        self.assertFalse(result.get("connected"))
+        self.assertIn("note", result)
+
+    def test_mst_two_components_returns_forest(self) -> None:
+        """Two components A-B and C-D yield a minimum spanning forest, not an empty result."""
+        state = _make_state("ABCD", [("A", "B", 1.0), ("C", "D", 2.0)], directed=False)
+        result = GraphAnalyzer.analyze(state, "mst", {})
+
+        edges = {frozenset(e) for e in result.get("edges", [])}
+        self.assertEqual(edges, {frozenset({"A", "B"}), frozenset({"C", "D"})})
+        self.assertEqual(len(result.get("highlight_vectors", [])), 2)
+        self.assertFalse(result.get("connected"))
+        self.assertIn("note", result)
+
+    def test_mst_parallel_edges_use_minimum_weight(self) -> None:
+        """Parallel B-A (5) and A-B (1): the cheap A-B edge belongs to the MST."""
+        state = _make_state("ABC", [("B", "A", 5.0), ("A", "B", 1.0), ("A", "C", 2.0), ("C", "B", 2.0)], directed=False)
+        result = GraphAnalyzer.analyze(state, "mst", {})
+
+        edges = {frozenset(e) for e in result.get("edges", [])}
+        self.assertEqual(len(edges), 2)
+        self.assertIn(frozenset({"A", "B"}), edges)
 
 
 class TestAnalyzeGraphTopologicalSort(unittest.TestCase):
@@ -194,6 +269,16 @@ class TestAnalyzeGraphTopologicalSort(unittest.TestCase):
 
         order = result.get("order", [])
         self.assertEqual(order, ["A", "B", "C", "D"])
+
+    def test_topological_sort_includes_isolated_vertex(self) -> None:
+        """Isolated vertex D must appear in the topological order."""
+        state = _make_state("ABCD", [("A", "B"), ("B", "C")], directed=True)
+        result = GraphAnalyzer.analyze(state, "topological_sort", {})
+
+        order = result.get("order") or []
+        self.assertEqual(sorted(order), ["A", "B", "C", "D"])
+        self.assertLess(order.index("A"), order.index("B"))
+        self.assertLess(order.index("B"), order.index("C"))
 
 
 class TestAnalyzeGraphBridges(unittest.TestCase):
@@ -248,6 +333,14 @@ class TestAnalyzeGraphBridges(unittest.TestCase):
         self.assertIn("C", bridge_vertices)
         self.assertIn("D", bridge_vertices)
 
+    def test_bridges_directed_uses_underlying_undirected_graph(self) -> None:
+        """Directed triangle A->B, C->B, A->C has no bridges in its underlying graph."""
+        state = _make_state("ABC", [("A", "B"), ("C", "B"), ("A", "C")], directed=True)
+        result = GraphAnalyzer.analyze(state, "bridges", {})
+
+        self.assertEqual(result.get("bridges"), [])
+        self.assertEqual(result.get("highlight_vectors"), [])
+
 
 class TestAnalyzeGraphArticulationPoints(unittest.TestCase):
     """Tests for articulation_points operation."""
@@ -282,6 +375,13 @@ class TestAnalyzeGraphArticulationPoints(unittest.TestCase):
 
         points = result.get("articulation_points", [])
         self.assertEqual(len(points), 0)
+
+    def test_articulation_points_directed_uses_underlying_undirected_graph(self) -> None:
+        """Directed A->B, C->B: removing B disconnects A from C, so B is an articulation point."""
+        state = _make_state("ABC", [("A", "B"), ("C", "B")], directed=True)
+        result = GraphAnalyzer.analyze(state, "articulation_points", {})
+
+        self.assertEqual(result.get("articulation_points"), ["B"])
 
 
 class TestAnalyzeGraphEulerStatus(unittest.TestCase):
@@ -329,6 +429,34 @@ class TestAnalyzeGraphEulerStatus(unittest.TestCase):
 
         status = result.get("status")
         self.assertIsNone(status)  # More than 2 odd-degree vertices
+
+    def test_euler_status_ignores_isolated_vertex(self) -> None:
+        """Triangle plus isolated D still has an Euler cycle over its edges."""
+        state = _make_state("ABCD", [("A", "B"), ("B", "C"), ("C", "A")], directed=False)
+        result = GraphAnalyzer.analyze(state, "euler_status", {})
+
+        self.assertEqual(result.get("status"), "cycle")
+
+    def test_euler_status_directed_cycle(self) -> None:
+        """Directed cycle A->B->C->A is balanced, so it has an Euler circuit."""
+        state = _make_state("ABC", [("A", "B"), ("B", "C"), ("C", "A")], directed=True)
+        result = GraphAnalyzer.analyze(state, "euler_status", {})
+
+        self.assertEqual(result.get("status"), "cycle")
+
+    def test_euler_status_directed_path(self) -> None:
+        """Directed A->B->C has one +1 and one -1 vertex, so it has an Euler path."""
+        state = _make_state("ABC", [("A", "B"), ("B", "C")], directed=True)
+        result = GraphAnalyzer.analyze(state, "euler_status", {})
+
+        self.assertEqual(result.get("status"), "path")
+
+    def test_euler_status_directed_fan_out_not_eulerian(self) -> None:
+        """Directed A->B, A->C: A has out-degree 2, no Euler path or circuit."""
+        state = _make_state("ABC", [("A", "B"), ("A", "C")], directed=True)
+        result = GraphAnalyzer.analyze(state, "euler_status", {})
+
+        self.assertIsNone(result.get("status"))
 
 
 class TestAnalyzeGraphBipartite(unittest.TestCase):
@@ -385,6 +513,17 @@ class TestAnalyzeGraphBipartite(unittest.TestCase):
         self.assertEqual(coloring["D"], coloring["E"])
         self.assertNotEqual(coloring["A"], coloring["C"])
 
+    def test_bipartite_directed_uses_underlying_undirected_graph(self) -> None:
+        """Directed A->B, C->D, B->D: the underlying graph is a path, hence bipartite."""
+        state = _make_state("ABCD", [("A", "B"), ("C", "D"), ("B", "D")], directed=True)
+        result = GraphAnalyzer.analyze(state, "bipartite", {})
+
+        self.assertTrue(result.get("is_bipartite"))
+        coloring = result.get("coloring", {})
+        self.assertNotEqual(coloring["A"], coloring["B"])
+        self.assertNotEqual(coloring["B"], coloring["D"])
+        self.assertNotEqual(coloring["C"], coloring["D"])
+
 
 class TestAnalyzeGraphBFSDFS(unittest.TestCase):
     """Tests for bfs and dfs operations."""
@@ -429,6 +568,13 @@ class TestAnalyzeGraphBFSDFS(unittest.TestCase):
         result = GraphAnalyzer.analyze(state, "bfs", {})
 
         self.assertIsNone(result.get("order"))
+
+    def test_bfs_dfs_from_isolated_vertex(self) -> None:
+        """BFS/DFS starting at an isolated vertex visit just that vertex."""
+        state = _make_state("ABD", [("A", "B")], directed=False)
+
+        self.assertEqual(GraphAnalyzer.analyze(state, "bfs", {"start": "D"}).get("order"), ["D"])
+        self.assertEqual(GraphAnalyzer.analyze(state, "dfs", {"start": "D"}).get("order"), ["D"])
 
 
 class TestAnalyzeGraphTreeOperations(unittest.TestCase):
@@ -658,9 +804,9 @@ class TestAnalyzeGraphEdgeCases(unittest.TestCase):
         vertices = [GraphVertexDescriptor("A")]
         state = GraphState("Single", vertices, [], directed=False)
 
-        # BFS on single vertex with no edges - adjacency is empty, so returns None
+        # BFS on single vertex with no edges visits just that vertex
         result = GraphAnalyzer.analyze(state, "bfs", {"start": "A"})
-        self.assertIsNone(result.get("order"))
+        self.assertEqual(result.get("order"), ["A"])
 
         # Euler status on empty graph: connected (trivially) with 0 odd-degree vertices
         result = GraphAnalyzer.analyze(state, "euler_status", {})
