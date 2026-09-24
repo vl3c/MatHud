@@ -1023,8 +1023,8 @@ class DrawableManager:
     def get_graph(self, name: str) -> Optional["Drawable"]:
         return self.graph_manager.get_graph(name)
 
-    def capture_graph_state(self, name: str) -> None:
-        self.graph_manager.capture_state(name)
+    def capture_graph_state(self, name: str) -> Optional["GraphState"]:
+        return self.graph_manager.capture_state(name)
 
     # ------------------- Angle Methods -------------------
     def create_angle(
