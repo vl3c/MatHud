@@ -537,6 +537,24 @@ class TestRenderMinJson(unittest.TestCase):
         self.assertEqual(payload["Labels"][0], {"name": "label_A", "position": [-4, 4], "text": "Area between f and g"})
         self.assertEqual(payload["Triangles"][0]["types"], ["triangle", "scalene", "right"])
 
+    def test_budget_keeps_a_fraction_of_every_bucket(self) -> None:
+        state = with_view(
+            Points=[point(f"P{i}", i, i) for i in range(200)],
+            Segments=[segment(f"P{i}", f"P{i + 1}") for i in range(100)],
+        )
+        full = render_min_json(state)
+        text = render_min_json(state, budget_tokens=500)
+        self.assertLessEqual(estimate_tokens_from_text(text), 500)
+        payload = json.loads(text)
+        self.assertTrue(0 < len(payload["Points"]) < 200 and 0 < len(payload["Segments"]) < 100)
+        self.assertEqual(
+            payload["omitted"], {"Points": 200 - len(payload["Points"]), "Segments": 100 - len(payload["Segments"])}
+        )
+        self.assertEqual(payload["note"], OMITTED_NOTE)
+        self.assertEqual(payload["view"], [-10, 10, -5, 5])
+        self.assertEqual(render_min_json(state, budget_tokens=10**6), full)
+        self.assertEqual(render_state(state, "min_json", 500), text)
+
 
 class TestRenderDelta(unittest.TestCase):
     def test_added_changed_removed(self) -> None:

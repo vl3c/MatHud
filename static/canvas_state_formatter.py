@@ -16,10 +16,12 @@ This module turns the state into prompt text. It is pure (no Flask, no I/O):
 ``render_delta``     the changes between two states, one line per object
 ``render_state``     dispatch on a ``CanvasFormat``
 ``render_update``    what to tell the model after a tool batch changed the canvas
+                     (the changes are text lines in every format; see render_delta)
 
-Budget: ``render_text`` accepts ``budget_tokens``; large scenes first pack
-points several per line, then drop the least important objects with a note
-telling the model to call ``get_current_canvas_state`` for the rest.
+Budget: ``render_text`` and ``render_min_json`` accept ``budget_tokens``. In
+text, large scenes first pack points several per line, then drop the least
+important objects; min_json keeps the same fraction of every bucket. Either
+way a note tells the model to call ``get_current_canvas_state`` for the rest.
 """
 
 from __future__ import annotations
@@ -1109,8 +1111,54 @@ def _keep_fraction(groups: Sequence[_Group], fraction: float) -> None:
 # --------------------------------------------------------------------------- compact JSON format
 
 
-def render_min_json(state: Mapping[str, Any]) -> str:
-    """Return the state as minified JSON without render-only fields, defaults or float noise."""
+def render_min_json(
+    state: Mapping[str, Any],
+    budget_tokens: Optional[int] = None,
+    count_tokens: Callable[[str], int] = estimate_tokens_from_text,
+) -> str:
+    """Return the state as minified JSON without render-only fields, defaults or float noise.
+
+    Over ``budget_tokens``, every object list is cut to the same kept fraction and
+    ``"omitted"`` (counts per bucket) plus ``"note"`` say how to get the rest.
+    """
+    output = _min_json_output(state)
+    text = _dump_min_json(output)
+    if budget_tokens is None or budget_tokens <= 0 or count_tokens(text) <= budget_tokens:
+        return text
+    return _fit_min_json_to_budget(output, budget_tokens, count_tokens)
+
+
+def _dump_min_json(output: Mapping[str, Any]) -> str:
+    return json.dumps(round_numbers(output), separators=(",", ":"), ensure_ascii=False)
+
+
+def _fit_min_json_to_budget(output: JsonDict, budget_tokens: int, count_tokens: Callable[[str], int]) -> str:
+    lists = {key: value for key, value in output.items() if isinstance(value, list) and value and key != "view"}
+
+    def build(fraction: float) -> str:
+        trimmed = dict(output)
+        omitted: Dict[str, int] = {}
+        for key, items in lists.items():
+            kept = math.ceil(len(items) * fraction)
+            trimmed[key] = items[:kept]
+            if kept < len(items):
+                omitted[key] = len(items) - kept
+        if omitted:
+            trimmed["omitted"] = omitted
+            trimmed["note"] = OMITTED_NOTE
+        return _dump_min_json(trimmed)
+
+    low, high = 0.0, 1.0
+    for _ in range(_FRACTION_SEARCH_STEPS):
+        middle = (low + high) / 2.0
+        if count_tokens(build(middle)) <= budget_tokens:
+            low = middle
+        else:
+            high = middle
+    return build(low)
+
+
+def _min_json_output(state: Mapping[str, Any]) -> JsonDict:
     output: JsonDict = {}
     visibility = state.get("Cartesian_System_Visibility")
     if isinstance(visibility, dict):
@@ -1129,7 +1177,7 @@ def render_min_json(state: Mapping[str, Any]) -> str:
             output[bucket] = items
             continue
         output[bucket] = [_min_json_item(item) for item in items if isinstance(item, dict)]
-    return json.dumps(round_numbers(output), separators=(",", ":"), ensure_ascii=False)
+    return output
 
 
 def _min_json_item(item: Mapping[str, Any]) -> JsonDict:
@@ -1223,7 +1271,7 @@ def render_state(state: Mapping[str, Any], fmt: CanvasFormat, budget_tokens: Opt
         if fmt == "text":
             return render_text(state, budget_tokens=budget_tokens)
         if fmt == "min_json":
-            return render_min_json(state)
+            return render_min_json(state, budget_tokens=budget_tokens)
         return json.dumps(state)
     except Exception:
         _logger.warning("Could not render the canvas state as %s; sending compact JSON", fmt, exc_info=True)
@@ -1250,7 +1298,9 @@ def render_update(
     """Describe the canvas after a tool batch; empty string when nothing changed.
 
     Sends the delta when it is smaller than the full rendering, else the full
-    state (e.g. after clear_canvas or when no previous state was shown). Never
+    state (e.g. after clear_canvas or when no previous state was shown). The
+    delta is the text of ``render_delta`` in every format (for min_json too:
+    one changed object per line reads better than a JSON diff). Never
     raises: if the states cannot be compared, the current state is sent as JSON.
     """
     try:

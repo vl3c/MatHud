@@ -19,6 +19,7 @@ from unittest.mock import patch
 from server_tests.test_canvas_state_formatter import load_scene
 from static.ai_model import AIModel
 from static.canvas_state_formatter import render_text
+from static.token_estimation import estimate_tokens_from_text
 from static.openai_api_base import OpenAIAPIBase, build_developer_message
 from static.openai_completions_api import OpenAIChatCompletionsAPI
 from static.openai_responses_api import OpenAIResponsesAPI
@@ -436,16 +437,35 @@ class TestCanvasStateToolResult(CanvasFormatEnv):
         api._prepare_messages_for_request(get_state_results_prompt(result))
         self.assertEqual(tool_contents(api)["call_s"], render_text(scene))
 
-    def test_tool_result_is_never_truncated(self) -> None:
-        api = self._api_waiting_for_state()
-        state = json.loads(json.dumps(STATE))
-        state["Points"] += [{"name": f"P{i}", "args": {"position": {"x": i, "y": i}}} for i in range(300)]
-        result = {STATE_KEY: {"type": "canvas_state", "value": state}}
-        with patch.dict(os.environ, {"MATHUD_CANVAS_BUDGET_TOKENS": "200"}):
-            api._prepare_messages_for_request(get_state_results_prompt(result))
-        content = tool_contents(api)["call_s"]
-        self.assertIn("P299 = (299, 299)", content)
+    def _state_result_content(self, points: int, budget: str, fmt: str = "text") -> str:
+        with patch.dict(os.environ, {"MATHUD_CANVAS_FORMAT": fmt}):
+            api = self._api_waiting_for_state()
+            state = json.loads(json.dumps(STATE))
+            state["Points"] += [{"name": f"P{i}", "args": {"position": {"x": i, "y": i}}} for i in range(points)]
+            result = {STATE_KEY: {"type": "canvas_state", "value": state}}
+            with patch.dict(os.environ, {"MATHUD_CANVAS_BUDGET_TOKENS": budget}):
+                api._prepare_messages_for_request(get_state_results_prompt(result))
+        return tool_contents(api)["call_s"]
+
+    def test_tool_result_gets_twice_the_canvas_budget(self) -> None:
+        # Over the canvas budget but within twice it: nothing is dropped.
+        content = self._state_result_content(points=30, budget="200")
+        self.assertGreater(estimate_tokens_from_text(content), 200)
+        self.assertIn("P29 = (29, 29)", content)
         self.assertNotIn("omitted", content)
+
+    def test_huge_tool_result_is_truncated_with_a_note(self) -> None:
+        content = self._state_result_content(points=300, budget="200")
+        self.assertLessEqual(estimate_tokens_from_text(content), 400)
+        self.assertIn("more points omitted; call get_current_canvas_state with object_names", content)
+        self.assertIn("P299", self._state_result_content(points=300, budget="0"))
+
+    def test_huge_min_json_tool_result_is_truncated_with_a_note(self) -> None:
+        content = self._state_result_content(points=300, budget="200", fmt="min_json")
+        self.assertLessEqual(estimate_tokens_from_text(content), 400)
+        payload = json.loads(content)
+        self.assertGreater(payload["omitted"]["Points"], 0)
+        self.assertIn("object_names", payload["note"])
 
     def test_filtered_state_renders_only_the_requested_objects(self) -> None:
         api = self._api_waiting_for_state()

@@ -56,6 +56,7 @@ def stream_error_user_message(exc: BaseException, default: str) -> str:
         return PROVIDER_TIMEOUT_MESSAGE
     return default
 
+
 # Environment variable selecting how many tools the model sees up front:
 # "search" (default) exposes search_tools plus essentials, "full" exposes every tool.
 TOOL_EXPOSURE_ENV = "MATHUD_TOOL_EXPOSURE"
@@ -87,7 +88,7 @@ _DEV_MSG_INTRO = "You are an educational graphing calculator AI interface that c
 _DEV_MSG_OUTRO = "Never use emoticons or emoji in your responses. When performing multiple steps, include a succinct summary of all actions taken in your final response. INFO: Point labels and coordinates are hardcoded to be shown next to all points on the canvas."
 _CANVAS_PROMPT_SENTENCES: Dict[CanvasFormat, str] = {
     "json": "Canvas state is included with user messages; base your actions on it. For large scenes it may be summarized to reduce noise; when you need complete details, call get_current_canvas_state. Canvas state may be stale after tool calls, so re-check live state between actions when needed.",
-    "min_json": "Each user message starts with the current canvas as compact JSON in a <canvas> block, and after tool calls the last tool result ends with the [canvas changes].",
+    "min_json": "Each user message starts with the current canvas as compact JSON in a <canvas> block, and after tool calls the last tool result ends with the [canvas changes] (one changed object per line).",
     "text": "Each user message starts with the current canvas in a <canvas> block (one object per line as name = definition, followed after tool calls by [canvas changes] at the end of the last tool result); the lengths, areas and angles it lists come from the math engine and can be quoted directly.",
 }
 
@@ -142,6 +143,10 @@ class OpenAIAPIBase:
 
     # System prompt for the default canvas format; build_developer_message covers the others.
     DEV_MSG = build_developer_message(DEFAULT_CANVAS_FORMAT)
+
+    # get_current_canvas_state results get this multiple of the canvas budget: the model
+    # asked for the state, but a huge scene must still not flood the context.
+    TOOL_RESULT_BUDGET_MULTIPLIER = 2
 
     # Last canvas state shown to the model, so tool results can report what changed.
     _last_canvas_state: Optional[Dict[str, Any]] = None
@@ -826,14 +831,19 @@ class OpenAIAPIBase:
 
         get_current_canvas_state values (``{"type": "canvas_state", "value": state}``)
         are rendered in the configured canvas format; a result holding only such a
-        state becomes that text. The client has already applied the call's filters,
-        and no budget is applied because the model asked for the state explicitly.
+        state becomes that text. The client has already applied the call's filters.
+        The budget is TOOL_RESULT_BUDGET_MULTIPLIER times the canvas budget, since the
+        model asked for the state; objects beyond it are listed as omitted with a note
+        to request them by name.
         """
         canvas_format = self._get_canvas_format()
         if canvas_format == "json" or not isinstance(result, dict):
             return json.dumps(result)
+        budget = self._get_canvas_budget_tokens()
+        if budget is not None:
+            budget *= self.TOOL_RESULT_BUDGET_MULTIPLIER
         rendered = {
-            key: render_state(value["value"], canvas_format) if _is_canvas_state_result(value) else value
+            key: render_state(value["value"], canvas_format, budget) if _is_canvas_state_result(value) else value
             for key, value in result.items()
         }
         if len(result) == 1 and _is_canvas_state_result(next(iter(result.values()))):
