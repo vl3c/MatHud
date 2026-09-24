@@ -24,6 +24,7 @@ from .test_chat_message_menu import TestChatMessageMenu
 from .test_throttle import TestThrottle
 from .test_window_mocks import TestWindowMocks
 from .test_expression_validator import TestExpressionValidator
+from .test_expression_evaluator import TestExpressionEvaluatorZeroResults
 from .test_function import TestFunction, TestFunctionUndefinedAt
 from .test_functions_bounded_colored_area import TestFunctionsBoundedColoredArea
 from .test_function_segment_bounded_colored_area import TestFunctionSegmentBoundedColoredArea
@@ -516,6 +517,7 @@ class Tests:
             TestZoomAspectRatios,
             TestZoomEdgeCases,
             TestExpressionValidator,
+            TestExpressionEvaluatorZeroResults,
             TestProcessFunctionCalls,
             TestProcessFunctionCallsPlotTools,
             TestLabel,

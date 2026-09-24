@@ -117,7 +117,8 @@ class ExpressionEvaluator:
         try:
             # First, try to evaluate the expression as a numeric expression
             numeric_result: float = ExpressionEvaluator.evaluate_numeric_expression(expression, variables or {})
-            if not numeric_result or (isinstance(numeric_result, str) and "Error" in numeric_result):
+            # A result of 0 is valid; only a missing result or an error string is a failure
+            if numeric_result is None or (isinstance(numeric_result, str) and "Error" in numeric_result):
                 raise ValueError("Error evaluating numeric expression")
             return numeric_result
         except Exception as e:
@@ -126,7 +127,7 @@ class ExpressionEvaluator:
                 # If numeric evaluation fails and we have a canvas, try to evaluate as a function
                 if canvas is not None:
                     function_result: float = ExpressionEvaluator.evaluate_function(expression, canvas)
-                    if not function_result:
+                    if function_result is None:
                         return bad_result_msg
                     return function_result
                 else:
