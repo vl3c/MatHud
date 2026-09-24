@@ -18,6 +18,7 @@ import os
 import re
 import shutil
 import tempfile
+import time
 from datetime import datetime
 from typing import Dict, List, Optional, TypedDict, Union, cast
 
@@ -27,6 +28,9 @@ from static.config import CURRENT_WORKSPACE_SCHEMA_VERSION, WORKSPACES_DIR
 BACKUP_SUFFIX = ".bak"
 # Deleted workspaces are moved here (inside the workspace's directory) instead of removed.
 TRASH_DIR_NAME = ".trash"
+# On Windows, replacing a file that another handle has open fails transiently.
+REPLACE_RETRY_ATTEMPTS = 5
+REPLACE_RETRY_DELAY_S = 0.05
 
 JsonPrimitive = Union[str, int, float, bool, None]
 JsonValue = Union[JsonPrimitive, Dict[str, "JsonValue"], List["JsonValue"]]
@@ -191,7 +195,7 @@ class WorkspaceManager:
                 os.fsync(f.fileno())
             if os.path.exists(file_path):
                 shutil.copy2(file_path, file_path + BACKUP_SUFFIX)
-            os.replace(temp_path, file_path)
+            self._replace_with_retry(temp_path, file_path)
         except BaseException:
             try:
                 os.remove(temp_path)
@@ -388,11 +392,34 @@ class WorkspaceManager:
             print(f"Error deleting workspace: {str(e)}")
             return False
 
+    @staticmethod
+    def _replace_with_retry(source: str, target: str) -> None:
+        """os.replace, retried briefly when another handle holds the target open (Windows)."""
+        for attempt in range(REPLACE_RETRY_ATTEMPTS):
+            try:
+                os.replace(source, target)
+                return
+            except PermissionError:
+                if attempt == REPLACE_RETRY_ATTEMPTS - 1:
+                    raise
+                time.sleep(REPLACE_RETRY_DELAY_S)
+
     def _move_to_trash(self, file_path: str, name: str) -> str:
-        """Move a workspace file into the sibling .trash directory under a timestamped name."""
+        """Move a workspace file (and its backup) into the sibling .trash directory.
+
+        Trash names are timestamped and never overwrite an earlier trashed copy.
+        """
         trash_dir = os.path.join(os.path.dirname(file_path), TRASH_DIR_NAME)
         os.makedirs(trash_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        trash_path = os.path.join(trash_dir, f"{name}_{timestamp}.json")
+        stem = f"{name}_{timestamp}"
+        counter = 1
+        while os.path.exists(os.path.join(trash_dir, f"{stem}.json")):
+            counter += 1
+            stem = f"{name}_{timestamp}_{counter}"
+        trash_path = os.path.join(trash_dir, f"{stem}.json")
         os.replace(file_path, trash_path)
+        backup_path = file_path + BACKUP_SUFFIX
+        if os.path.exists(backup_path):
+            os.replace(backup_path, trash_path + BACKUP_SUFFIX)
         return trash_path

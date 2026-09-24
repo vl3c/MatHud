@@ -94,6 +94,50 @@ class TestWorkspaceFileSafety(unittest.TestCase):
         states = sorted(self._read_state(self._path(".trash", name))["Points"][0]["name"] for name in trashed)
         self.assertEqual(states, ["A", "B"])
 
+    def test_trash_names_never_overwrite_within_one_clock_tick(self) -> None:
+        fixed = mock.Mock(wraps=__import__("datetime").datetime)
+        fixed.now.return_value = __import__("datetime").datetime(2026, 1, 2, 3, 4, 5, 6)
+        with mock.patch("static.workspace_manager.datetime", fixed):
+            for label in ("A", "B", "C"):
+                self.assertTrue(self.manager.save_workspace(_state(label), "ws"))
+                self.assertTrue(self.manager.delete_workspace("ws"))
+
+        trashed = [n for n in os.listdir(self._path(".trash")) if n.endswith(".json")]
+        states = sorted(self._read_state(self._path(".trash", n))["Points"][0]["name"] for n in trashed)
+        self.assertEqual(states, ["A", "B", "C"])
+
+    def test_delete_moves_backup_to_trash(self) -> None:
+        self.assertTrue(self.manager.save_workspace(_state("A"), "ws"))
+        self.assertTrue(self.manager.save_workspace(_state("B"), "ws"))
+        self.assertTrue(os.path.exists(self._path("ws.json.bak")))
+
+        self.assertTrue(self.manager.delete_workspace("ws"))
+
+        self.assertFalse(os.path.exists(self._path("ws.json.bak")))
+        backups = [n for n in os.listdir(self._path(".trash")) if n.endswith(".json.bak")]
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(self._read_state(self._path(".trash", backups[0])), _state("A"))
+
+    def test_save_retries_when_target_is_briefly_locked(self) -> None:
+        self.assertTrue(self.manager.save_workspace(_state("A"), "ws"))
+        real_replace = os.replace
+        calls: List[int] = []
+
+        def flaky_replace(src: str, dst: str) -> None:
+            calls.append(1)
+            if len(calls) == 1:
+                raise PermissionError(5, "Access is denied")
+            real_replace(src, dst)
+
+        with (
+            mock.patch("static.workspace_manager.os.replace", side_effect=flaky_replace),
+            mock.patch("static.workspace_manager.time.sleep"),
+        ):
+            self.assertTrue(self.manager.save_workspace(_state("B"), "ws"))
+
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(self._read_state(self._path("ws.json")), _state("B"))
+
     def test_delete_in_test_dir_uses_local_trash(self) -> None:
         self.assertTrue(self.manager.save_workspace(_state("A"), "ws", "Sub"))
 
