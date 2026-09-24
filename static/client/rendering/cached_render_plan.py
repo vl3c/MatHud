@@ -35,6 +35,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from constants import label_min_screen_font_px, label_vanish_threshold_px
 from rendering import shared_drawable_renderers as shared
+from rendering.helpers.function_renderer import function_label_position
 from rendering.primitives import RendererPrimitives
 
 # Type aliases for coordinate and command data
@@ -838,6 +839,38 @@ def _command_bounds_points(command: PrimitiveCommand) -> Sequence[Sequence[float
     return ()
 
 
+def _function_label_meta(command: PrimitiveCommand) -> Optional[Dict[str, Any]]:
+    """Return the function-label metadata of a draw_text command, if any."""
+    if command.op != "draw_text" or not command.kwargs:
+        return None
+    metadata = command.kwargs.get("metadata")
+    if not isinstance(metadata, dict):
+        return None
+    label_meta = metadata.get("function_label")
+    return label_meta if isinstance(label_meta, dict) else None
+
+
+def _reanchor_function_label(command: PrimitiveCommand, paths: List[Sequence[Sequence[float]]]) -> None:
+    """Re-place a function name label against the plan's reprojected paths.
+
+    The label is anchored to the first visible curve point and clamped to the
+    canvas, so a plain translation would let it drift (or leave the canvas)
+    during pans that reproject the cached plan.
+    """
+    label_meta = _function_label_meta(command)
+    if label_meta is None or not paths or not paths[0]:
+        return
+    text, _position, font, color, alignment = command.args
+    position = function_label_position(
+        text,
+        paths,
+        label_meta.get("font_size", 12),
+        label_meta.get("canvas_width", 0) or 0,
+        label_meta.get("canvas_height", 0) or 0,
+    )
+    command.args = (text, position, font, color, alignment)
+
+
 def _pan_translates_all_commands(commands: List[PrimitiveCommand]) -> bool:
     """Return True when a pure pan moves every command by the same screen offset.
 
@@ -875,6 +908,8 @@ class OptimizedPrimitivePlan:
         "_usage_counts",
         "_uses_screen_space",
         "_pan_shifts_bounds",
+        "_function_labels",
+        "_shape_bounds",
     )
 
     def __init__(
@@ -904,15 +939,20 @@ class OptimizedPrimitivePlan:
         self._usage_counts: Dict[str, int] = dict(usage_counts or {})
         self._uses_screen_space: bool = bool(metadata.get("uses_screen_space"))
         self._pan_shifts_bounds: bool = _pan_translates_all_commands(commands)
+        # Function name labels are re-anchored to the viewport after every
+        # reprojection, so they are kept out of the pan-shifted shape bounds.
+        self._function_labels: List[PrimitiveCommand] = [c for c in commands if _function_label_meta(c) is not None]
         stored_bounds = metadata.get("screen_bounds")
         self._screen_bounds: Optional[Bounds] = None
-        if isinstance(stored_bounds, (list, tuple)) and len(stored_bounds) == 4:
+        self._shape_bounds: Optional[Bounds] = None
+        if isinstance(stored_bounds, (list, tuple)) and len(stored_bounds) == 4 and not self._function_labels:
             self._screen_bounds = (
                 float(stored_bounds[0]),
                 float(stored_bounds[1]),
                 float(stored_bounds[2]),
                 float(stored_bounds[3]),
             )
+            self._shape_bounds = self._screen_bounds
         else:
             self._recompute_bounds_from_commands()
 
@@ -936,17 +976,17 @@ class OptimizedPrimitivePlan:
             handler = handlers.get(command.op)
             if handler is not None:
                 handler(command, current_state, new_state, xf)
+        if self._function_labels:
+            self._reanchor_function_labels()
         self._map_state = state_copy
         self.metadata["map_state"] = state_copy
-        bounds = self._screen_bounds
+        bounds = self._shape_bounds
         if xf[0] == 1.0 and bounds is not None and self._pan_shifts_bounds:
             # Pure pan: every command moves by exactly (tx, ty), so shift the bounds
             # instead of rescanning every point.
             tx = xf[1]
             ty = xf[2]
-            bounds = (bounds[0] + tx, bounds[1] + tx, bounds[2] + ty, bounds[3] + ty)
-            self._screen_bounds = bounds
-            self.metadata["screen_bounds"] = bounds
+            self._set_bounds((bounds[0] + tx, bounds[1] + tx, bounds[2] + ty, bounds[3] + ty))
         else:
             self._recompute_bounds_from_commands()
         self._needs_apply = True
@@ -969,10 +1009,17 @@ class OptimizedPrimitivePlan:
             primitives.end_batch(self)
         self._needs_apply = False
 
+    def _reanchor_function_labels(self) -> None:
+        """Re-place function name labels against the reprojected curve paths."""
+        paths = [command.args[0] for command in self.commands if command.op == "stroke_polyline"]
+        for command in self._function_labels:
+            _reanchor_function_label(command, paths)
+
     def _recompute_bounds_from_commands(self) -> None:
         """Recalculate screen bounds by scanning all commands."""
         inf = float("inf")
         bounds: Bounds = (inf, -inf, inf, -inf)
+        labels = self._function_labels
         for command in self.commands:
             op = command.op
             if op == "stroke_polyline" or op == "fill_polygon":
@@ -980,9 +1027,23 @@ class OptimizedPrimitivePlan:
             elif op == "fill_joined_area":
                 bounds = _extend_bounds(command.args[0], bounds)
                 bounds = _extend_bounds(command.args[1], bounds)
+            elif labels and any(command is label for label in labels):
+                continue
             else:
                 bounds = _extend_bounds(_command_bounds_points(command), bounds)
-        if bounds[0] == inf or bounds[2] == inf:
+        self._set_bounds(None if bounds[0] == inf or bounds[2] == inf else bounds)
+
+    def _set_bounds(self, shape_bounds: Optional[Bounds]) -> None:
+        """Store the shape bounds and the screen bounds (shape plus function labels)."""
+        self._shape_bounds = shape_bounds
+        bounds = shape_bounds
+        if self._function_labels:
+            inf = float("inf")
+            extended = bounds if bounds is not None else (inf, -inf, inf, -inf)
+            for command in self._function_labels:
+                extended = _extend_bounds((command.args[1],), extended)
+            bounds = extended
+        if bounds is None:
             self._screen_bounds = None
         else:
             self._screen_bounds = bounds

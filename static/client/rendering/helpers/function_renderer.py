@@ -179,6 +179,23 @@ def _first_visible_point(screen_paths, width, height):
     return screen_paths[0][0]
 
 
+def function_label_position(name, screen_paths, font_size, width=0, height=0):
+    """Screen position of a function's name label for the given (non-empty) screen paths.
+
+    The label sits left of the first visible curve point and, when the canvas
+    width is known, is kept inside the canvas. Cached plans call this again
+    after reprojecting their paths so the label stays anchored to the viewport.
+    """
+    first_point = _first_visible_point(screen_paths, width, height)
+    label_offset_x = (1 + len(name)) * font_size / 2.0
+    label_x = first_point[0] - label_offset_x
+    if width > 0:
+        # Curves usually start at the left edge, which pushed the label off-canvas.
+        text_width = len(name) * font_size * 0.6
+        label_x = max(4.0, min(label_x, width - text_width))
+    return (label_x, max(first_point[1], font_size))
+
+
 def _render_function_label(primitives, func, screen_paths, stroke, style, width=0, height=0):
     """Render the function name label near the curve start.
 
@@ -195,14 +212,7 @@ def _render_function_label(primitives, func, screen_paths, stroke, style, width=
     if not getattr(func, "name", "") or not screen_paths or not screen_paths[0]:
         return
     font_size = _normalize_font_size(style.get("function_label_font_size", 12))
-    first_point = _first_visible_point(screen_paths, width, height)
-    label_offset_x = (1 + len(func.name)) * font_size / 2.0
-    label_x = first_point[0] - label_offset_x
-    if width > 0:
-        # Curves usually start at the left edge, which pushed the label off-canvas.
-        text_width = len(func.name) * font_size * 0.6
-        label_x = max(4.0, min(label_x, width - text_width))
-    position = (label_x, max(first_point[1], font_size))
+    position = function_label_position(func.name, screen_paths, font_size, width, height)
     font_family = style.get("function_label_font_family", style.get("font_family", default_font_family))
     font = FontStyle(family=font_family, size=font_size)
     primitives.draw_text(
@@ -211,6 +221,7 @@ def _render_function_label(primitives, func, screen_paths, stroke, style, width=
         font,
         stroke.color,
         TextAlignment(horizontal="left", vertical="alphabetic"),
+        metadata={"function_label": {"font_size": font_size, "canvas_width": width, "canvas_height": height}},
     )
 
 

@@ -6,6 +6,7 @@ import unittest
 from types import SimpleNamespace
 from typing import Any, List, Tuple
 
+from rendering import cached_render_plan
 from rendering.helpers import cartesian_renderer, function_renderer
 from rendering.primitives import StrokeStyle
 
@@ -158,6 +159,74 @@ class TestFunctionLabelPlacement(unittest.TestCase):
     def test_label_is_not_placed_right_of_the_canvas(self) -> None:
         name = "g"
         self.assertLessEqual(self._label_x(WIDTH + 50, name), WIDTH - len(name) * 12 * 0.6 + 1e-9)
+
+
+def _map_state(offset_x: float = 0.0, offset_y: float = 0.0) -> dict:
+    return {"scale": 1.0, "offset_x": offset_x, "offset_y": offset_y, "origin_x": 0.0, "origin_y": 0.0}
+
+
+def _build_function_plan(paths: List[List[Tuple[float, float]]], name: str = "f") -> Any:
+    """Record a function plan the way render_function_helper does, at map offset (0, 0)."""
+    recorder = cached_render_plan._RecordingPrimitives(name)
+    func = SimpleNamespace(name=name)
+    stroke = StrokeStyle(color="#000", width=1)
+    function_renderer._render_function_paths(recorder, paths, stroke, WIDTH, HEIGHT, WIDTH / 2)
+    function_renderer._render_function_label(recorder, func, paths, stroke, {}, WIDTH, HEIGHT)
+    mapper = SimpleNamespace(
+        scale_factor=1.0, offset=SimpleNamespace(x=0.0, y=0.0), origin=SimpleNamespace(x=0.0, y=0.0)
+    )
+    return cached_render_plan._finish_plan(func, recorder, mapper, name, "Function")
+
+
+def _label_positions(plan: Any) -> List[Tuple[float, float]]:
+    return [command.args[1] for command in plan.commands if command.op == "draw_text"]
+
+
+class TestFunctionLabelReprojection(unittest.TestCase):
+    """Pans within a function plan's bucket reproject it; the label must stay anchored to the viewport."""
+
+    def _line(self, start_x: float, end_x: float, y: float = 100.0) -> List[List[Tuple[float, float]]]:
+        return [[(float(x), y) for x in range(int(start_x), int(end_x) + 1, 10)]]
+
+    def test_label_stays_at_left_edge_when_panning_right(self) -> None:
+        plan = _build_function_plan(self._line(-320, 960))
+        built = _label_positions(plan)[0]
+
+        plan.update_map_state(_map_state(offset_x=200.0))
+
+        self.assertEqual(_label_positions(plan), [built])
+
+    def test_label_stays_on_screen_when_panning_left(self) -> None:
+        plan = _build_function_plan(self._line(-320, 960))
+        built = _label_positions(plan)[0]
+
+        plan.update_map_state(_map_state(offset_x=-200.0))
+
+        self.assertEqual(_label_positions(plan), [built])
+
+    def test_label_follows_a_curve_that_starts_on_screen(self) -> None:
+        plan = _build_function_plan(self._line(300, 960))
+        plan.update_map_state(_map_state(offset_x=-200.0))
+
+        expected = _build_function_plan(self._line(100, 760))
+        self.assertEqual(_label_positions(plan), _label_positions(expected))
+
+    def test_label_matches_a_fresh_build_after_a_vertical_pan(self) -> None:
+        plan = _build_function_plan(self._line(-320, 960, y=100.0))
+        plan.update_map_state(_map_state(offset_y=150.0))
+
+        expected = _build_function_plan(self._line(-320, 960, y=250.0))
+        self.assertEqual(_label_positions(plan), _label_positions(expected))
+
+    def test_plan_bounds_include_the_reanchored_label(self) -> None:
+        # Built with the curve starting at the left edge, so the label is clamped to x=4.
+        plan = _build_function_plan(self._line(0, 960, y=100.0))
+        plan.update_map_state(_map_state(offset_x=200.0))
+
+        label_x, _label_y = _label_positions(plan)[0]
+        self.assertEqual(label_x, 200.0 - 12.0)
+        min_x, max_x, min_y, max_y = plan.metadata["screen_bounds"]
+        self.assertEqual((min_x, max_x, min_y, max_y), (label_x, 1160.0, 100.0, 100.0))
 
 
 if __name__ == "__main__":
