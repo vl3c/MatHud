@@ -47,6 +47,8 @@ _ZERO_EPSILON = 1e-11
 _INTEGER_RELATIVE_EPSILON = 1e-9
 # Relative tolerance for "point lies on circle".
 _ON_CIRCLE_RELATIVE_TOLERANCE = 1e-6
+# "passes through" is checked for every circle/point pair; skip it on scenes larger than this.
+_MAX_ON_CIRCLE_CHECKS = 20000
 
 # Longest list shown inline for asymptotes, discontinuities and similar lists.
 _MAX_INLINE_LIST = 8
@@ -253,6 +255,7 @@ class _Scene:
             self.segments[name] = (str(args.get("p1", "")), str(args.get("p2", "")))
             self.segment_items[name] = item
         self.vector_items: Dict[str, JsonDict] = {str(v.get("name", "")): v for v in _items(state, "Vectors")}
+        self.check_points_on_circles = len(self.points) * len(_items(state, "Circles")) <= _MAX_ON_CIRCLE_CHECKS
         self.graph_members: Set[str] = set()
         for bucket in _GRAPH_BUCKETS:
             for graph in _items(state, bucket):
@@ -447,7 +450,7 @@ def _render_circle(scene: _Scene, item: JsonDict) -> str:
     if r is not None:
         line += f"  area {format_number(math.pi * r * r)}"
         center_xy = scene.xy(center)
-        if center_xy is not None and r > 0:
+        if center_xy is not None and r > 0 and scene.check_points_on_circles:
             on_circle = [
                 name
                 for name, point in scene.points.items()
@@ -1026,8 +1029,17 @@ def render_text(
         count_tokens: Token counter used for the budget (heuristic by default).
     """
     state = _single_line_strings(state)
+    return _render_text_groups(state, _collect_groups(state), budget_tokens, count_tokens)
+
+
+def _render_text_groups(
+    state: Mapping[str, Any],
+    groups: List[_Group],
+    budget_tokens: Optional[int],
+    count_tokens: Callable[[str], int] = estimate_tokens_from_text,
+) -> str:
+    """Assemble already-rendered groups of a single-line state, fitting the budget."""
     header = [line for line in (_view_line(state), _duplicate_warning(state)) if line]
-    groups = _collect_groups(state)
     text = _assemble(header, groups)
     if budget_tokens is None or budget_tokens <= 0 or count_tokens(text) <= budget_tokens:
         return text
@@ -1151,9 +1163,9 @@ def _min_json_item(item: Mapping[str, Any]) -> JsonDict:
 # --------------------------------------------------------------------------- deltas
 
 
-def _object_lines(state: Mapping[str, Any]) -> Dict[Tuple[str, str], str]:
+def _object_lines(groups: Sequence[_Group]) -> Dict[Tuple[str, str], str]:
     lines: Dict[Tuple[str, str], str] = {}
-    for group in _collect_groups(state):
+    for group in groups:
         for entry in group.entries:
             lines[entry.key] = entry.text.replace("\n  ", "; ")
     return lines
@@ -1175,7 +1187,16 @@ def render_delta(previous: Mapping[str, Any], current: Mapping[str, Any]) -> str
     the segments, polygons and angles whose lengths/areas/sizes changed with it.
     """
     previous, current = _single_line_strings(previous), _single_line_strings(current)
-    before, after = _object_lines(previous), _object_lines(current)
+    return _delta_text(previous, current, _collect_groups(previous), _collect_groups(current))
+
+
+def _delta_text(
+    previous: Mapping[str, Any],
+    current: Mapping[str, Any],
+    previous_groups: Sequence[_Group],
+    current_groups: Sequence[_Group],
+) -> str:
+    before, after = _object_lines(previous_groups), _object_lines(current_groups)
     added = [f"+ {text}" for key, text in after.items() if key not in before]
     changed = [
         f"~ {before[key]}  ->  {text.split(' = ', 1)[-1]}"
@@ -1245,12 +1266,18 @@ def _render_update(
     fmt: CanvasFormat,
     budget_tokens: Optional[int],
 ) -> str:
-    full = render_state(current, fmt, budget_tokens)
     if previous is None:
-        return f"{CURRENT_HEADER}\n{full}"
-    delta = render_delta(previous, current)
+        return f"{CURRENT_HEADER}\n{render_state(current, fmt, budget_tokens)}"
+    # Each state is rendered once; the current groups serve both the delta and the full text.
+    previous, current = _single_line_strings(previous), _single_line_strings(current)
+    current_groups = _collect_groups(current)
+    delta = _delta_text(previous, current, _collect_groups(previous), current_groups)
     if not delta:
         return ""
+    if fmt == "text":
+        full = _render_text_groups(current, current_groups, budget_tokens)
+    else:
+        full = render_state(current, fmt, budget_tokens)
     if estimate_tokens_from_text(delta) >= estimate_tokens_from_text(full):
         return f"{CURRENT_HEADER}\n{full}"
     return f"{CHANGES_HEADER}\n{delta}"

@@ -587,6 +587,47 @@ class TestRenderDelta(unittest.TestCase):
         self.assertEqual(render_delta(before, after), "+ calc 1+1 = 2")
 
 
+class TestLargeScenes(unittest.TestCase):
+    @staticmethod
+    def _scene(points: int, circles: int) -> Dict[str, Any]:
+        rng = random.Random(1)
+        return with_view(
+            Points=[point(f"P{i}", rng.uniform(-50, 50), rng.uniform(-50, 50)) for i in range(points)],
+            Segments=[segment(f"P{i}", f"P{(i + 1) % points}") for i in range(points)],
+            Circles=[{"name": f"c{i}", "args": {"center": f"P{i}", "radius": 3.0}} for i in range(circles)],
+        )
+
+    def test_passes_through_is_skipped_on_large_scenes(self) -> None:
+        state = self._scene(300, 100)
+        state["Points"].append(point("ON", state["Points"][0]["args"]["position"]["x"] + 3.0, 0))
+        state["Points"][0]["args"]["position"]["y"] = 0
+        self.assertNotIn("passes through", render_text(state))
+        small = self._scene(300, 1)
+        small["Points"].append(point("ON", small["Points"][0]["args"]["position"]["x"] + 3.0, 0))
+        small["Points"][0]["args"]["position"]["y"] = 0
+        self.assertIn("passes through ON", render_text(small))
+
+    def test_update_renders_each_state_once(self) -> None:
+        import static.canvas_state_formatter as formatter
+
+        before = self._scene(50, 5)
+        after = copy.deepcopy(before)
+        after["Points"][0]["args"]["position"]["x"] = 99
+        with unittest.mock.patch.object(formatter, "_collect_groups", wraps=formatter._collect_groups) as collect:
+            self.assertTrue(render_update(before, after, "text", 4000).startswith(CHANGES_HEADER))
+        self.assertEqual(collect.call_count, 2)
+
+    def test_large_scene_update_is_fast(self) -> None:
+        import time
+
+        before = self._scene(2000, 2000)
+        after = copy.deepcopy(before)
+        after["Points"][0]["args"]["position"]["x"] = 99
+        start = time.perf_counter()
+        render_update(before, after, "text", 4000)
+        self.assertLess(time.perf_counter() - start, 5.0)
+
+
 class TestRenderUpdate(unittest.TestCase):
     def test_small_change_sends_delta(self) -> None:
         update = render_update(load_scene("mixed_medium"), load_scene("mixed_medium_after"), "text")
