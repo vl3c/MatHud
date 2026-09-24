@@ -332,7 +332,8 @@ class TestPolygonCanonicalizer(unittest.TestCase):
         result = canonicalize_quadrilateral(vertices, subtype="kite")
         self.assertEqual(len(result), 4)
         lengths = self._side_lengths(result)
-        pairs = [(lengths[0], lengths[3]), (lengths[1], lengths[2])]
+        # The input's axis of symmetry is the diagonal through (2, 3) and (2, -1)
+        pairs = [(lengths[0], lengths[1]), (lengths[2], lengths[3])]
         for a, b in pairs:
             self.assertAlmostEqual(a, b, places=5)
 
@@ -534,6 +535,46 @@ class TestPolygonCanonicalizer(unittest.TestCase):
             [(4.0, 0.0), (2.0, 3.0), (0.0, 0.0)],
         ):
             result = canonicalize_triangle(vertices, subtype="isosceles")
+            self._assert_vertices_close(result, vertices)
+
+    def test_quadrilateral_rhombus_non_square_preserved(self) -> None:
+        vertices = [(0.0, 0.0), (2.0, 1.0), (4.0, 0.0), (2.0, -1.0)]
+        result = canonicalize_quadrilateral(vertices, subtype="rhombus")
+        self._assert_vertices_close(result, vertices)
+
+    def test_quadrilateral_kite_valid_input_unchanged(self) -> None:
+        for vertices in (
+            [(0.0, 0.0), (1.0, 1.0), (4.0, 0.0), (1.0, -1.0)],
+            [(0.0, 0.0), (2.0, 3.0), (4.0, 0.0), (2.0, -1.0)],
+        ):
+            result = canonicalize_quadrilateral(vertices, subtype="kite")
+            self._assert_vertices_close(result, vertices)
+
+    def test_quadrilateral_trapezoid_valid_input_unchanged(self) -> None:
+        for vertices in (
+            [(0.0, 0.0), (0.0, 4.0), (-2.0, 3.0), (-2.0, 1.0)],
+            [(1.0, 0.0), (3.0, 0.0), (4.0, 2.0), (0.0, 2.0)],
+            [(0.0, 0.0), (6.0, 0.0), (5.0, 3.0), (1.0, 3.0)],
+        ):
+            result = canonicalize_quadrilateral(vertices, subtype="trapezoid")
+            self._assert_vertices_close(result, vertices)
+
+    def test_quadrilateral_isosceles_trapezoid_valid_input_unchanged(self) -> None:
+        for vertices in (
+            [(0.0, 0.0), (0.0, 4.0), (-2.0, 3.0), (-2.0, 1.0)],
+            [(1.0, 0.0), (3.0, 0.0), (4.0, 2.0), (0.0, 2.0)],
+            [(0.0, 0.0), (6.0, 0.0), (5.0, 4.0), (1.0, 4.0)],
+        ):
+            result = canonicalize_quadrilateral(vertices, subtype="isosceles_trapezoid")
+            self._assert_vertices_close(result, vertices)
+
+    def test_quadrilateral_right_trapezoid_valid_input_unchanged(self) -> None:
+        for vertices in (
+            [(0.0, 0.0), (5.0, 0.0), (5.0, 3.0), (0.0, 4.0)],
+            [(0.0, 0.0), (4.0, 0.0), (6.0, 3.0), (0.0, 3.0)],
+            [(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (-2.0, 3.0)],
+        ):
+            result = canonicalize_quadrilateral(vertices, subtype="right_trapezoid")
             self._assert_vertices_close(result, vertices)
 
 
