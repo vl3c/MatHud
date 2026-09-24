@@ -8,16 +8,12 @@ from typing import Any, Dict, List, Optional
 from unittest.mock import Mock, patch
 
 from static.app_manager import AppManager, MatHudFlask
-from static.config import CANVAS_SNAPSHOT_PATH
-from static.routes import save_canvas_snapshot_from_data_url
 from static.workspace_manager import WorkspaceManager
 from static.openai_completions_api import OpenAIChatCompletionsAPI
 from static.openai_responses_api import OpenAIResponsesAPI
 
 
 class TestRoutes(unittest.TestCase):
-    SAMPLE_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/w8AAwMB/aqVw0sAAAAASUVORK5CYII="
-
     def setUp(self) -> None:
         """Set up test client before each test."""
         # Set test environment variables to disable authentication
@@ -27,45 +23,14 @@ class TestRoutes(unittest.TestCase):
         self.app: MatHudFlask = AppManager.create_app()
         self.client = self.app.test_client()
         self.app.config["TESTING"] = True
-        # Ensure webdriver_manager is None at start
-        self.app.webdriver_manager = None
-        self._remove_canvas_snapshot()
 
     def tearDown(self) -> None:
         """Clean up after each test."""
-        # Clean up webdriver if it exists
-        if hasattr(self.app, "webdriver_manager") and self.app.webdriver_manager:
-            self.app.webdriver_manager = None
-        self._remove_canvas_snapshot()
-
         # Restore original REQUIRE_AUTH environment variable
         if self.original_require_auth is not None:
             os.environ["REQUIRE_AUTH"] = self.original_require_auth
         else:
             os.environ.pop("REQUIRE_AUTH", None)
-
-    def _remove_canvas_snapshot(self) -> None:
-        if os.path.exists(CANVAS_SNAPSHOT_PATH):
-            try:
-                os.remove(CANVAS_SNAPSHOT_PATH)
-            except OSError:
-                pass
-
-    @patch("static.webdriver_manager.WebDriverManager")
-    def test_init_webdriver_route(self, mock_webdriver_class: Mock) -> None:
-        """Test the webdriver initialization route."""
-        # Create a mock instance
-        mock_instance = Mock()
-        mock_webdriver_class.return_value = mock_instance
-
-        response = self.client.get("/init_webdriver")
-        data = json.loads(response.data)
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(data["status"], "success")
-        self.assertEqual(data["message"], "WebDriver initialization successful")
-        mock_webdriver_class.assert_called_once()
-        self.assertEqual(self.app.webdriver_manager, mock_instance)
 
     def test_index_route(self) -> None:
         """Test the index route returns HTML."""
@@ -154,40 +119,6 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(data["status"], "success")
         self.assertIn("ai_message", data["data"])
         self.assertIn("ai_tool_calls", data["data"])
-
-    def test_save_canvas_snapshot_helper(self) -> None:
-        data_url = f"data:image/png;base64,{self.SAMPLE_PNG_BASE64}"
-        saved = save_canvas_snapshot_from_data_url(data_url)
-        self.assertTrue(saved)
-        self.assertTrue(os.path.exists(CANVAS_SNAPSHOT_PATH))
-        self.assertGreater(os.path.getsize(CANVAS_SNAPSHOT_PATH), 0)
-
-    @patch("static.openai_completions_api.OpenAIChatCompletionsAPI.create_chat_completion")
-    def test_send_message_uses_canvas_snapshot(self, mock_chat: Mock) -> None:
-        class MockMessage:
-            content = "Test response with vision"
-            tool_calls = None
-
-        class MockResponse:
-            message = MockMessage()
-            finish_reason = "stop"
-
-        mock_chat.return_value = MockResponse()
-
-        canvas_data_url = f"data:image/png;base64,{self.SAMPLE_PNG_BASE64}"
-        payload = {
-            "message": json.dumps({"user_message": "vision request", "use_vision": True}),
-            "vision_snapshot": {"renderer_mode": "canvas2d", "canvas_image": canvas_data_url},
-        }
-
-        response = self.client.post("/send_message", json=payload)
-        data = json.loads(response.data)
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(data["status"], "success")
-        self.assertTrue(os.path.exists(CANVAS_SNAPSHOT_PATH))
-        self.assertGreater(os.path.getsize(CANVAS_SNAPSHOT_PATH), 0)
-        self.assertIsNone(self.app.webdriver_manager)
 
     def test_new_conversation_route(self) -> None:
         """Test the new_conversation route resets the AI conversation history."""

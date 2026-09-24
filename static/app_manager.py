@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 import os
 import secrets
-from typing import TYPE_CHECKING, Dict, Optional, Tuple, TypedDict, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, TypedDict, Union
 
 from cachelib.file import FileSystemCache
 from flask import Flask, Response, jsonify
@@ -35,7 +35,6 @@ from static.workspace_manager import WorkspaceManager
 
 if TYPE_CHECKING:
     from static.openai_api_base import OpenAIAPIBase
-    from static.webdriver_manager import WebDriverManager
 
 
 _logger = logging.getLogger(__name__)
@@ -58,7 +57,9 @@ class MatHudFlask(Flask):
     log_manager: LogManager
     ai_api: OpenAIChatCompletionsAPI
     responses_api: OpenAIResponsesAPI
-    webdriver_manager: Optional["WebDriverManager"]
+    # Deprecated, always None: vision snapshots are captured in the browser now.
+    # Kept only until app.py stops referencing it in its shutdown handler.
+    webdriver_manager: Optional[Any]
     workspace_manager: WorkspaceManager
     current_attached_images: Optional[list[str]]  # User-attached images for current request
     providers: Dict[str, "OpenAIAPIBase"]  # Lazily-loaded provider instances by name
@@ -218,7 +219,7 @@ class AppManager:
         app.ai_api.set_tool_mode(tool_mode)
         app.responses_api = OpenAIResponsesAPI()
         app.responses_api.set_tool_mode(tool_mode)
-        app.webdriver_manager = None  # Will be set after Flask starts
+        app.webdriver_manager = None  # Deprecated; see MatHudFlask.webdriver_manager
         app.current_attached_images = None  # User-attached images for current request
         app.providers = {}  # Lazily-loaded provider instances
 
