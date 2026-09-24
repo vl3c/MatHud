@@ -321,6 +321,7 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
                 func_args = {}
             result.append(
                 {
+                    "id": tc.get("id") if isinstance(tc, dict) else None,
                     "function_name": func_name or "",
                     "arguments": func_args,
                 }

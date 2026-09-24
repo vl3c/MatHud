@@ -36,6 +36,8 @@ StreamEvent = Dict[str, Any]
 # Tool mode type
 ToolMode = Literal["full", "search"]
 
+TOOL_RESULT_PLACEHOLDER = "Awaiting result..."
+
 PROVIDER_TIMEOUT_MESSAGE = (
     "The AI provider timed out before responding. Please try again or switch to a different model."
 )
@@ -51,6 +53,21 @@ def stream_error_user_message(exc: BaseException, default: str) -> str:
     if isinstance(exc, (APITimeoutError, httpx2.TimeoutException)):
         return PROVIDER_TIMEOUT_MESSAGE
     return default
+
+# Environment variable selecting how many tools the model sees up front:
+# "search" (default) exposes search_tools plus essentials, "full" exposes every tool.
+TOOL_EXPOSURE_ENV = "MATHUD_TOOL_EXPOSURE"
+
+
+def get_configured_tool_mode() -> ToolMode:
+    """Return the tool mode configured by MATHUD_TOOL_EXPOSURE (default: "search")."""
+    raw = os.getenv(TOOL_EXPOSURE_ENV, "search").strip().lower()
+    if raw == "full":
+        return "full"
+    if raw != "search":
+        _logger.warning("Unknown %s value %r; using 'search'", TOOL_EXPOSURE_ENV, raw)
+    return "search"
+
 
 # Essential tool names that should always be available after injection
 ESSENTIAL_TOOLS = frozenset(
@@ -86,6 +103,8 @@ class OpenAIAPIBase:
     """Base class for OpenAI API implementations."""
 
     DEV_MSG = """You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. Use the provided tools for calculations rather than computing results yourself, so every result shown comes from the math engine. Canvas state is included with user messages; base your actions on it. For large scenes it may be summarized to reduce noise; when you need complete details, call get_current_canvas_state. Canvas state may be stale after tool calls, so re-check live state between actions when needed. Never use emoticons or emoji in your responses. When performing multiple steps, include a succinct summary of all actions taken in your final response. INFO: Point labels and coordinates are hardcoded to be shown next to all points on the canvas."""
+
+    SEARCH_MODE_MSG = """Tool loading: at the start only search_tools and a few essential tools (undo, redo, get_current_canvas_state) are available. Before using any other tool, call search_tools with a short description of what you want to do (e.g. "plot a function", "evaluate an expression at a point"); the matching tools are then loaded for your following calls until you give your final answer. Calls to tools that were not loaded fail."""
 
     CANVAS_SUMMARY_MODE_ENV = "AI_CANVAS_SUMMARY_MODE"
     CANVAS_HYBRID_MAX_BYTES_ENV = "AI_CANVAS_HYBRID_FULL_MAX_BYTES"
@@ -136,7 +155,18 @@ class OpenAIAPIBase:
         self._custom_tools: Optional[Sequence[FunctionDefinition]] = tools
         self._injected_tools: bool = False  # Track if tools were dynamically injected
         self.tools: Sequence[FunctionDefinition] = self._resolve_tools()
-        self.messages: List[MessageDict] = [{"role": "developer", "content": OpenAIAPIBase.DEV_MSG}]
+        self.messages: List[MessageDict] = [{"role": "developer", "content": self._build_system_prompt()}]
+
+    def _build_system_prompt(self) -> str:
+        """Return the system prompt, explaining search-first tool loading when it is active."""
+        if self._tool_mode == "search" and self._custom_tools is None:
+            return f"{OpenAIAPIBase.DEV_MSG} {OpenAIAPIBase.SEARCH_MODE_MSG}"
+        return OpenAIAPIBase.DEV_MSG
+
+    def _refresh_system_prompt(self) -> None:
+        """Rewrite the leading system/developer message after the tool mode changes."""
+        if self.messages and self.messages[0].get("role") in ("developer", "system"):
+            self.messages[0]["content"] = self._build_system_prompt()
 
     def _resolve_tools(self) -> Sequence[FunctionDefinition]:
         """Resolve the active tool set based on mode and custom tools.
@@ -172,6 +202,7 @@ class OpenAIAPIBase:
             # Only update tools if not using custom tools
             if self._custom_tools is None:
                 self.tools = self._resolve_tools()
+                self._refresh_system_prompt()
                 msg = f"Tool mode changed to: {mode} ({len(self.tools)} tools available)"
                 print(msg)
                 _logger.info(msg)
@@ -239,7 +270,7 @@ class OpenAIAPIBase:
 
     def reset_conversation(self) -> None:
         """Reset the conversation history to start a new session."""
-        self.messages = [{"role": "developer", "content": OpenAIAPIBase.DEV_MSG}]
+        self.messages = [{"role": "developer", "content": self._build_system_prompt()}]
 
     def add_partial_assistant_message(self, content: str) -> None:
         """Add a partial assistant message that was interrupted by the user."""
@@ -547,23 +578,79 @@ class OpenAIAPIBase:
         """Create and append placeholder tool messages for each tool call."""
         if tool_calls:
             for tool_call in tool_calls:
-                tool_message = self._create_tool_message(getattr(tool_call, "id", None), "Awaiting result...")
+                tool_message = self._create_tool_message(getattr(tool_call, "id", None), TOOL_RESULT_PLACEHOLDER)
                 self.messages.append(tool_message)
 
     def _update_tool_messages_with_results(self, tool_call_results: str) -> None:
-        """Update placeholder tool messages with actual results from the client."""
+        """Update placeholder tool messages with actual results from the client.
+
+        Accepts either a list of per-call entries
+        (``[{"tool_call_id": ..., "result": {...}}, ...]`` in call order) or the
+        legacy single dict of all results.
+        """
         try:
             results = json.loads(tool_call_results)
-            if not isinstance(results, dict):
-                return
         except (json.JSONDecodeError, TypeError):
             return
 
-        results_str = json.dumps(results)
+        pending = self._get_pending_tool_messages()
+        if isinstance(results, list):
+            self._apply_per_call_results(pending, results)
+        elif isinstance(results, dict):
+            self._apply_legacy_results(pending, results)
+
+    def record_tool_call_result(self, tool_call_id: Optional[str], content: str) -> bool:
+        """Fill the pending placeholder for one tool call id. Returns True if one was updated."""
+        if not tool_call_id:
+            return False
+        for message in self._get_pending_tool_messages():
+            if message.get("tool_call_id") == tool_call_id and message.get("content") == TOOL_RESULT_PLACEHOLDER:
+                message["content"] = content
+                return True
+        return False
+
+    def _get_pending_tool_messages(self) -> List[MessageDict]:
+        """Return the trailing run of tool messages answering the latest tool calls."""
+        pending: List[MessageDict] = []
         for message in reversed(self.messages):
-            if message.get("role") == "tool":
-                message["content"] = results_str
-                return
+            if message.get("role") != "tool":
+                break
+            pending.append(message)
+        pending.reverse()
+        return pending
+
+    def _apply_per_call_results(self, pending: List[MessageDict], entries: List[Any]) -> None:
+        """Write each per-call result into its own tool message, matched by id then by order."""
+        awaiting = [m for m in pending if m.get("content") == TOOL_RESULT_PLACEHOLDER]
+        unmatched: List[str] = []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            content = json.dumps(entry.get("result"))
+            tool_call_id = entry.get("tool_call_id")
+            target = next((m for m in awaiting if tool_call_id and m.get("tool_call_id") == tool_call_id), None)
+            if target is None:
+                unmatched.append(content)
+                continue
+            target["content"] = content
+            awaiting.remove(target)
+
+        # Entries without a usable id fall back to call order.
+        for message, content in zip(list(awaiting), unmatched):
+            message["content"] = content
+            awaiting.remove(message)
+
+        for message in awaiting:
+            message["content"] = "Error: no result was returned for this tool call."
+
+    def _apply_legacy_results(self, pending: List[MessageDict], results: Dict[str, Any]) -> None:
+        """Write a legacy combined results dict into the last pending tool message."""
+        if not pending:
+            return
+        pending[-1]["content"] = json.dumps(results)
+        for message in pending[:-1]:
+            if message.get("content") == TOOL_RESULT_PLACEHOLDER:
+                message["content"] = "See the combined results in the last tool message of this turn."
 
     def _parse_prompt_json(self, full_prompt: str) -> Optional[Dict[str, Any]]:
         """Parse the prompt JSON and return the parsed dict, or None on failure."""

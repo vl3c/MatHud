@@ -86,9 +86,7 @@ class OpenRouterAPI(OpenAIChatCompletionsAPI):
         self.tools: Sequence[FunctionDefinition] = self._resolve_tools()
 
         # Initialize message history with developer message
-        from static.openai_api_base import OpenAIAPIBase
-
-        self.messages = [{"role": "developer", "content": OpenAIAPIBase.DEV_MSG}]
+        self.messages = [{"role": "developer", "content": self._build_system_prompt()}]
 
 
 # Self-register with provider registry

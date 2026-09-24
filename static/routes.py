@@ -35,7 +35,7 @@ from static.config import (
     MAX_ATTACHED_IMAGES,
     MAX_IMAGE_BASE64_BYTES,
 )
-from static.openai_api_base import OpenAIAPIBase
+from static.openai_api_base import OpenAIAPIBase, get_configured_tool_mode
 from static.providers import ProviderRegistry, create_provider_instance, is_local_provider
 from static.route_helpers import get_active_provider, reset_tools_for_all_providers
 from static.tool_call_processor import ProcessedToolCall, ToolCallProcessor
@@ -144,10 +144,11 @@ def get_provider_for_model(app: MatHudFlask, model_id: str) -> OpenAIAPIBase:
     # For other providers, use lazy-loaded instances
     if provider_name not in app.providers:
         create_kwargs: Dict[str, Any] = {"model": model}
-        # Keep providers in search-first mode by default to reduce initial tool payload.
-        # Local providers are already search-first and take no tool_mode argument.
+        # Keep providers in search-first mode by default to reduce initial tool payload
+        # (MATHUD_TOOL_EXPOSURE=full exposes every tool). Local providers read the
+        # setting themselves and take no tool_mode argument.
         if not is_local_provider(provider_name):
-            create_kwargs["tool_mode"] = "search"
+            create_kwargs["tool_mode"] = get_configured_tool_mode()
 
         provider_instance = create_provider_instance(provider_name, **create_kwargs)
         if provider_instance is None:
@@ -309,7 +310,9 @@ def _intercept_search_tools(
             if provider is not None and provider not in (app.ai_api, app.responses_api):
                 provider.inject_tools(result, include_essentials=True)
 
-        return _filter_tool_calls_by_allowed_names(tool_calls, allowed_names)
+        filtered_calls = _filter_tool_calls_by_allowed_names(tool_calls, allowed_names)
+        _report_dropped_tool_calls(app, provider, tool_calls, filtered_calls)
+        return filtered_calls
 
     except Exception:
         _logger.exception("search_tools interception failed; returning original tool calls")
@@ -388,6 +391,31 @@ def _filter_tool_calls_by_allowed_names(
     return filtered_calls
 
 
+def _report_dropped_tool_calls(
+    app: MatHudFlask,
+    provider: Optional[OpenAIAPIBase],
+    tool_calls: List[Dict[str, Any]],
+    filtered_calls: List[Dict[str, Any]],
+) -> None:
+    """Answer each filtered-out tool call with an explicit error instead of dropping it silently.
+
+    The provider already holds a placeholder tool message for every call it returned, so
+    the error is written there; the client never sees (or executes) the dropped call.
+    """
+    apis = [app.ai_api, app.responses_api]
+    if provider is not None and provider not in apis:
+        apis.append(provider)
+    for call in tool_calls:
+        if any(call is kept for kept in filtered_calls):
+            continue
+        name = _tool_call_name(call) or "unknown"
+        message = f"Error: tool '{name}' is not loaded; call search_tools first to load it."
+        _logger.warning("Dropped call to tool '%s' that is not loaded by search_tools", name)
+        tool_call_id = call.get("id")
+        for api in apis:
+            api.record_tool_call_result(tool_call_id, message)
+
+
 def _maybe_inject_search_tools(api: OpenAIAPIBase, tool_call_results: str) -> None:
     """Inject tools if search_tools was called in the previous turn.
 
@@ -409,6 +437,13 @@ def _extract_injectable_tools(tool_call_results: str) -> Optional[List[Dict[str,
         results = json.loads(tool_call_results)
     except (json.JSONDecodeError, TypeError):
         return None
+    if isinstance(results, list):
+        # Per-call shape: [{"tool_call_id": ..., "result": {key: value}}, ...]
+        merged: Dict[str, Any] = {}
+        for entry in results:
+            if isinstance(entry, dict) and isinstance(entry.get("result"), dict):
+                merged.update(entry["result"])
+        results = merged
     if not isinstance(results, dict):
         return None
 
@@ -1007,6 +1042,9 @@ def register_routes(app: MatHudFlask) -> None:
         tool_calls: ToolCallList = []
         if raw_tool_calls:
             tool_calls = ToolCallProcessor.jsonify_tool_calls(raw_tool_calls)
+            # Carry each call's id so the client can return per-call results.
+            for processed, raw in zip(tool_calls, raw_tool_calls):
+                cast(Dict[str, Any], processed)["id"] = getattr(raw, "id", None)
             app.log_manager.log_ai_tool_calls(tool_calls)
         else:
             app.log_manager.log_ai_tool_calls([])

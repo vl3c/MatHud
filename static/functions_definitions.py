@@ -2708,7 +2708,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "search_tools",
-            "description": "Search for the best tools to accomplish a task. Use this when you're unsure which specific tool to use. Provide a description of what you want to do, and receive the most relevant tool definitions.",
+            "description": "Find and load the tools for a task. When only a few tools are available (search-first mode), call this before any other tool: describe what you want to do and the most relevant tool definitions are returned and made available for your next calls. Calls to tools that were not loaded fail.",
             "strict": True,
             "parameters": {
                 "type": "object",

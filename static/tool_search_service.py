@@ -36,6 +36,19 @@ _logger = logging.getLogger("mathud")
 # Tools to exclude from search results (meta-tools that shouldn't be recommended)
 EXCLUDED_FROM_SEARCH = frozenset({"search_tools"})
 
+# Destructive tools (delete_*/clear_*/reset_*) rank below every other match unless
+# the query contains one of these words.
+DESTRUCTIVE_TOOL_PREFIXES = ("delete_", "clear_", "reset_")
+DESTRUCTIVE_QUERY_WORDS = frozenset(
+    {"delete", "remove", "erase", "clear", "reset", "wipe", "rid", "destroy", "clean", "fresh"}
+)
+
+# run_tests is only offered when the query mentions tests.
+TEST_QUERY_WORDS = frozenset({"test", "tests", "testing"})
+
+# A function applied to a single number, e.g. "f(3)" or "g(-2.5)".
+_FUNCTION_AT_POINT_RE = re.compile(r"\b[a-z]\w*\(\s*-?\d+(?:\.\d+)?\s*\)")
+
 # ---------------------------------------------------------------------------
 # Result cache
 # ---------------------------------------------------------------------------
@@ -579,8 +592,18 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         # 6. Intent boosts (same as existing _tool_score confusion boosts)
         self._apply_intent_boosts(query_tokens, scores, raw_query=query)
 
-        # Sort by score descending, then alphabetically for ties
-        ranked = sorted(scores.items(), key=lambda item: (-item[1], item[0]))
+        # 7. Only offer run_tests when the query is about tests
+        token_set = set(query_tokens)
+        if not token_set & TEST_QUERY_WORDS:
+            scores.pop("run_tests", None)
+
+        # Sort by score descending, then alphabetically for ties; destructive tools go
+        # after every other match unless the query asks to delete/clear/reset something.
+        demote_destructive = not token_set & DESTRUCTIVE_QUERY_WORDS
+        ranked = sorted(
+            scores.items(),
+            key=lambda item: (demote_destructive and item[0].startswith(DESTRUCTIVE_TOOL_PREFIXES), -item[1], item[0]),
+        )
 
         # Return top results as full FunctionDefinition objects
         results: List[FunctionDefinition] = []
@@ -748,6 +771,11 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             token_set & {"area", "statistics", "descriptive", "stats", "mean", "median"}
         ):
             scores["evaluate_expression"] += 3.0
+        # Values of a function at points: "f(3)", "value of f at 2", "table of values"
+        if _FUNCTION_AT_POINT_RE.search(raw_lower):
+            scores["evaluate_expression"] += 12.0
+        elif token_set & {"value", "values", "table", "plug", "substitute"}:
+            scores["evaluate_expression"] += 8.0
 
         # -- Convert (unit vs coordinate) --
         if token_set & {"convert", "change"} and token_set & {
