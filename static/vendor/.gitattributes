@@ -1,0 +1,3 @@
+# Vendored files are pinned by SHA-256 (scripts/vendor_js_libs.py);
+# never convert their line endings on checkout or commit.
+* -text

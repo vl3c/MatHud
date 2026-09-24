@@ -80,6 +80,17 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
 2. Open `http://127.0.0.1:5000/` in a desktop browser (Chrome, Firefox, or Edge confirmed). The Brython client loads automatically.
 3. Stop the server with `Ctrl+C`. The shutdown handler closes any active Selenium session before exiting.
 
+### 4.4 Offline / vendored libraries
+
+The page loads no scripts, stylesheets or fonts from the internet. Brython 3.12.5, math.js 14.5.2, nerdamer 1.1.13, MathJax 3.2.2 and the Inter font are committed under `static/vendor/`, so MatHud runs fully offline with LocalAgent. Versions, source URLs and SHA-256 hashes are pinned in `scripts/vendor_js_libs.py`:
+
+```sh
+python scripts/vendor_js_libs.py --check   # verify the committed files (no network)
+python scripts/vendor_js_libs.py           # re-download missing or changed files
+```
+
+Licenses are listed in `static/vendor/LICENSES.md`.
+
 ## 5. Configuration and Authentication
 
 1. The server reads configuration from environment variables or `.env` (loaded via `python-dotenv`). Common options:

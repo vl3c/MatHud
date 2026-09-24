@@ -18,10 +18,8 @@ Features:
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>MatHud - Access Required</title>
     
-    <!-- Google Fonts for modern typography -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Inter font, served locally from static/vendor (see static/vendor/LICENSES.md) -->
+    <link href="{{ url_for('static', filename='vendor/inter/5.3.0/inter.css') }}" rel="stylesheet">
     
     <style>
         * {
