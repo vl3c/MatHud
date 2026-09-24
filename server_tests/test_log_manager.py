@@ -129,3 +129,20 @@ class TestLogRetention(unittest.TestCase):
             manager._setup_logging()
 
         mock_prune.assert_called_once_with(self.logs_dir, current_file_name=manager._get_log_file_name())
+
+
+class TestBrowserLogForwardingDefault(unittest.TestCase):
+    """Log forwarding defaults on locally and off when PORT marks a deployment."""
+
+    def _should_forward(self, env: dict) -> bool:
+        with patch.dict(os.environ, env, clear=True):
+            return LogManager._should_forward_to_browser(object.__new__(LogManager))
+
+    def test_forwards_without_port(self) -> None:
+        self.assertTrue(self._should_forward({}))
+
+    def test_does_not_forward_when_port_is_set(self) -> None:
+        self.assertFalse(self._should_forward({"PORT": "5000"}))
+
+    def test_forced_local_mode_forwards_even_with_port(self) -> None:
+        self.assertTrue(self._should_forward({"PORT": "5000", "MATHUD_LOCAL_MODE": "1"}))

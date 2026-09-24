@@ -51,6 +51,15 @@ class ApiResponseDict(TypedDict, total=False):
     data: JsonValue
 
 
+# Set by the desktop launcher: the app is local-only even if a .env file sets PORT.
+LOCAL_MODE_ENV = "MATHUD_LOCAL_MODE"
+
+
+def is_local_mode_forced() -> bool:
+    """True when MATHUD_LOCAL_MODE marks this process as a local, single-user app."""
+    return os.environ.get(LOCAL_MODE_ENV, "").lower() in ("1", "true", "yes")
+
+
 class MatHudFlask(Flask):
     """Flask subclass with MatHud service attributes."""
 
@@ -101,7 +110,10 @@ class AppManager:
 
         Returns:
             bool: True if deployed (PORT environment variable is set), False for local development
+            or when MATHUD_LOCAL_MODE forces local mode (the desktop launcher sets it)
         """
+        if is_local_mode_forced():
+            return False
         return os.environ.get("PORT") is not None
 
     @staticmethod

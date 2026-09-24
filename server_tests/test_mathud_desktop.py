@@ -422,7 +422,6 @@ class TestCreateFlaskApp:
             with (
                 patch.dict(os.environ),
                 patch.dict(sys.modules),
-                patch.object(AppManager, "is_deployed", AppManager.__dict__["is_deployed"]),
                 patch("builtins.print"),
             ):
                 os.environ.pop("PORT", None)

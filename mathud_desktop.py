@@ -268,27 +268,14 @@ def create_flask_app() -> "MatHudFlask":
         sys.path.insert(0, str(PROJECT_ROOT))
     # PORT marks a hosted deployment (auth, secure cookies); the desktop app is local only.
     os.environ.pop("PORT", None)
-    _force_local_mode()
+    # .env files are reloaded at startup and on auth checks and may put PORT back,
+    # so mark the process as local explicitly (see AppManager.is_deployed).
+    os.environ["MATHUD_LOCAL_MODE"] = "1"
     logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
     from app import app
 
     return app
-
-
-def _never_deployed() -> bool:
-    return False
-
-
-def _force_local_mode() -> None:
-    """Keep the app out of deployed mode even when a .env file sets PORT.
-
-    Popping PORT is not enough: the app reloads .env files at startup and on
-    auth checks, which puts PORT back (the README's .env example includes it).
-    """
-    from static.app_manager import AppManager
-
-    setattr(AppManager, "is_deployed", staticmethod(_never_deployed))
 
 
 def pywebview_available() -> bool:

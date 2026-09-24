@@ -112,7 +112,9 @@ class LogManager:
             return True
         if forward_env in ("false", "0", "no"):
             return False
-        # Default: forward in development, not in production
+        # Default: forward in development (or forced local mode), not in production
+        if os.environ.get("MATHUD_LOCAL_MODE", "").lower() in ("1", "true", "yes"):
+            return True
         return os.environ.get("PORT") is None
 
     def _get_forward_level_index(self) -> int:
