@@ -100,6 +100,17 @@ class TestBaseToolResultMatching(unittest.TestCase):
             {"call_a": json.dumps(RESULT_A), "call_b": "Error: tool 'x' is not loaded"},
         )
 
+    def test_entry_with_unknown_id_is_not_matched_by_position(self) -> None:
+        with self.assertLogs("mathud", level="WARNING"):
+            self.api._update_tool_messages_with_results(
+                json.dumps(
+                    [{"tool_call_id": "call_zzz", "result": RESULT_A}, {"tool_call_id": "call_b", "result": RESULT_B}]
+                )
+            )
+        messages = _tool_messages(self.api)
+        self.assertTrue(messages["call_a"].startswith("Error:"))
+        self.assertEqual(messages["call_b"], json.dumps(RESULT_B))
+
     def test_older_turns_are_not_touched(self) -> None:
         self.api._update_tool_messages_with_results(json.dumps(_per_call_entries()))
         self.api.messages.append({"role": "assistant", "content": "done"})
@@ -166,6 +177,77 @@ class TestProviderToolResultRoundTrip(unittest.TestCase):
         self._assert_each_call_answered(api)
 
 
+class TestCallsWithoutIds(unittest.TestCase):
+    """Tool calls that arrive without ids (some local servers) still get the right results."""
+
+    CALLS: List[Dict[str, Any]] = [
+        {"id": "", "function_name": "search_tools", "arguments": {"query": "draw circle"}},
+        {"id": "", "function_name": "delete_all", "arguments": {}},
+        {"id": "", "function_name": "create_circle", "arguments": {"x": 0, "y": 0}},
+    ]
+
+    def setUp(self) -> None:
+        self.original_require_auth: Optional[str] = os.environ.get("REQUIRE_AUTH")
+        os.environ["REQUIRE_AUTH"] = "false"
+        self.app: MatHudFlask = AppManager.create_app()
+        self.app.config["TESTING"] = True
+
+    def tearDown(self) -> None:
+        if self.original_require_auth is not None:
+            os.environ["REQUIRE_AUTH"] = self.original_require_auth
+        else:
+            os.environ.pop("REQUIRE_AUTH", None)
+
+    def test_search_then_dropped_then_kept_call_without_ids(self) -> None:
+        from static.routes import _intercept_search_tools
+
+        provider = LocalAgentAPI(model=AIModel.from_identifier("local-model"))
+        provider.set_tool_mode("search")
+        provider.messages.append({"role": "assistant", "content": "", "tool_calls": []})
+        for _ in self.CALLS:
+            provider.messages.append({"role": "tool", "tool_call_id": "", "content": PLACEHOLDER})
+
+        with patch("static.tool_search_service.ToolSearchService") as service_class:
+            service_class.return_value.search_tools.return_value = [{"function": {"name": "create_circle"}}]
+            with self.assertLogs("static.routes", level="WARNING"):
+                kept = _intercept_search_tools(self.app, [dict(c) for c in self.CALLS], provider)
+        self.assertEqual([c["function_name"] for c in kept], ["search_tools", "create_circle"])
+
+        search_result = {"search_tools(query:draw circle)": {"count": 1}}
+        circle_result = {"create_circle(x:0, y:0)": "Call successful!"}
+        entries = [{"tool_call_id": "", "result": search_result}, {"tool_call_id": "", "result": circle_result}]
+        provider._update_tool_messages_with_results(json.dumps(entries))
+
+        contents = [m["content"] for m in provider.messages if m.get("role") == "tool"]
+        self.assertEqual(contents[0], json.dumps(search_result))
+        self.assertTrue(contents[1].startswith("Error: tool 'delete_all' is not loaded"))
+        self.assertEqual(contents[2], json.dumps(circle_result))
+
+    def test_local_stream_gives_calls_without_ids_an_id(self) -> None:
+        def delta(index: int, name: str) -> SimpleNamespace:
+            function = SimpleNamespace(name=name, arguments="{}")
+            tool_call = SimpleNamespace(index=index, id=None, function=function)
+            choice = SimpleNamespace(delta=SimpleNamespace(content=None, tool_calls=[tool_call]), finish_reason=None)
+            return SimpleNamespace(choices=[choice])
+
+        provider = LocalAgentAPI(model=AIModel.from_identifier("local-model"))
+        provider.client = Mock()
+        provider.client.chat.completions.create.return_value = iter([delta(0, "undo"), delta(1, "redo")])
+        events = list(provider.create_chat_completion_stream(json.dumps({"user_message": "hi"})))
+
+        final = events[-1]
+        self.assertEqual([c["id"] for c in final["ai_tool_calls"]], ["call_0", "call_1"])
+        placeholders = [m["tool_call_id"] for m in provider.messages if m.get("role") == "tool"]
+        self.assertEqual(placeholders, ["call_0", "call_1"])
+
+    def test_local_non_streaming_response_gives_calls_without_ids_an_id(self) -> None:
+        provider = LocalAgentAPI(model=AIModel.from_identifier("local-model"))
+        tool_call = SimpleNamespace(id=None, function=SimpleNamespace(name="undo", arguments="{}"))
+        choice = SimpleNamespace(message=SimpleNamespace(content="", tool_calls=[tool_call, tool_call]))
+        response = provider._process_response(choice)
+        self.assertEqual([tc.id for tc in response.message.tool_calls], ["call_0", "call_1"])
+
+
 class TestNonStreamingRouteExposesIds(unittest.TestCase):
     """The /send_message fallback must also send tool-call ids to the client."""
 
@@ -184,9 +266,7 @@ class TestNonStreamingRouteExposesIds(unittest.TestCase):
 
     @patch("static.openai_completions_api.OpenAIChatCompletionsAPI.create_chat_completion")
     def test_send_message_includes_tool_call_ids(self, mock_chat: Mock) -> None:
-        tool_calls = [
-            SimpleNamespace(id=tc["id"], function=SimpleNamespace(**tc["function"])) for tc in TWO_CALLS
-        ]
+        tool_calls = [SimpleNamespace(id=tc["id"], function=SimpleNamespace(**tc["function"])) for tc in TWO_CALLS]
         mock_chat.return_value = SimpleNamespace(
             message=SimpleNamespace(content="", tool_calls=tool_calls), finish_reason="tool_calls"
         )

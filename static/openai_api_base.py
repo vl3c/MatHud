@@ -783,6 +783,21 @@ class OpenAIAPIBase:
                 return True
         return False
 
+    def record_tool_call_result_at(self, position: int, call_count: int, content: str) -> bool:
+        """Fill the placeholder of the call at ``position`` of the latest batch of ``call_count`` calls.
+
+        For calls without an id: only applies when the pending tool messages line up
+        one-to-one with the batch. Returns True if a placeholder was updated.
+        """
+        pending = self._get_pending_tool_messages()
+        if len(pending) != call_count or not 0 <= position < call_count:
+            return False
+        message = pending[position]
+        if message.get("content") != TOOL_RESULT_PLACEHOLDER:
+            return False
+        message["content"] = content
+        return True
+
     def _get_pending_tool_messages(self) -> List[MessageDict]:
         """Return the trailing run of tool messages answering the latest tool calls."""
         pending: List[MessageDict] = []
@@ -794,7 +809,11 @@ class OpenAIAPIBase:
         return pending
 
     def _apply_per_call_results(self, pending: List[MessageDict], entries: List[Any]) -> None:
-        """Write each per-call result into its own tool message, matched by id then by order."""
+        """Write each per-call result into its own tool message, matched by id then by order.
+
+        Only entries without an id fall back to call order; an entry whose id matches
+        no awaiting call (e.g. one already answered) is ignored rather than guessed.
+        """
         awaiting = [m for m in pending if m.get("content") == TOOL_RESULT_PLACEHOLDER]
         unmatched: List[str] = []
         for entry in entries:
@@ -802,9 +821,12 @@ class OpenAIAPIBase:
                 continue
             content = self._format_tool_result(entry.get("result"))
             tool_call_id = entry.get("tool_call_id")
-            target = next((m for m in awaiting if tool_call_id and m.get("tool_call_id") == tool_call_id), None)
-            if target is None:
+            if not tool_call_id:
                 unmatched.append(content)
+                continue
+            target = next((m for m in awaiting if m.get("tool_call_id") == tool_call_id), None)
+            if target is None:
+                _logger.warning("Ignoring a result for unknown tool call id %r", tool_call_id)
                 continue
             target["content"] = content
             awaiting.remove(target)

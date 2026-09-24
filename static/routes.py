@@ -404,17 +404,22 @@ def _report_dropped_tool_calls(
 
     The provider already holds a placeholder tool message for every call it returned, so
     the error is written there; the client never sees (or executes) the dropped call.
+    A call without an id is answered by its position in the active provider's batch.
     """
     apis = [app.ai_api, app.responses_api]
     if provider is not None and provider not in apis:
         apis.append(provider)
-    for call in tool_calls:
+    active_provider = provider or app.ai_api
+    for position, call in enumerate(tool_calls):
         if any(call is kept for kept in filtered_calls):
             continue
         name = _tool_call_name(call) or "unknown"
         message = f"Error: tool '{name}' is not loaded; call search_tools first to load it."
         _logger.warning("Dropped call to tool '%s' that is not loaded by search_tools", name)
         tool_call_id = call.get("id")
+        if not tool_call_id:
+            active_provider.record_tool_call_result_at(position, len(tool_calls), message)
+            continue
         for api in apis:
             api.record_tool_call_result(tool_call_id, message)
 
