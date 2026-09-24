@@ -1,6 +1,6 @@
 MatHud Project Overview Table
 ==================================================
-Generated on: 2025-11-02 16:58:20
+Generated on: 2026-09-24 22:34:22
 
 AI-FIRST PRODUCT DIRECTION
 --------------------------------------------------
@@ -12,62 +12,62 @@ PROJECT METRICS OVERVIEW
 --------------------------------------------------
 Metric                    Count      Details        
 --------------------------------------------------
-Total Files               3,337      All types      
-Total Lines of Code       34,895     All files      
-Python Files              126        28,366 lines
-HTML Files                3          716 lines
-CSS Files                 1          780 lines
+Total Files               472        All types      
+Total Lines of Code       139,354    All files      
+Python Files              428        132,326 lines
+HTML Files                3          1,012 lines
+CSS Files                 1          1,658 lines
 JavaScript Files          0          0 lines
-Documentation Files       12         1,831 lines
+Documentation Files       29         4,229 lines
 
 --------------------------------------------------
 CODE ARCHITECTURE
 --------------------------------------------------
-Classes                   147        OOP Design     
-Methods                   1649       Class methods  
-Functions                 18         Module functions
-Drawable Classes          23         Geometric shapes
-Manager Classes           22         System managers
+Classes                   887        OOP Design     
+Methods                   8553       Class methods  
+Functions                 732        Module functions
+Drawable Classes          51         Geometric shapes
+Manager Classes           102        System managers
 
 --------------------------------------------------
 DEPENDENCIES
 --------------------------------------------------
-Python Dependencies       16         External packages
+Python Dependencies       25         External packages
 JavaScript Libraries      10         Frontend libs  
-Import Statements         880        All imports    
-Unique Python Imports     65         Distinct modules
+Import Statements         3323       All imports    
+Unique Python Imports     102        Distinct modules
 
 --------------------------------------------------
 TESTING
 --------------------------------------------------
-Test Files                40         Test modules   
-Test Functions            624        Unit tests     
+Test Files                188        Test modules   
+Test Functions            4528       Unit tests     
 
 --------------------------------------------------
 DOCUMENTATION
 --------------------------------------------------
-Comments                  2775       Code comments  
-Docstrings                1258       Documentation  
-Docstring Lines           6543       Doc content    
+Comments                  6272       Code comments  
+Docstrings                5506       Documentation  
+Docstring Lines           18686      Doc content    
 
 --------------------------------------------------
 AI INTEGRATION
 --------------------------------------------------
-AI Functions              43         Tool definitions
+AI Functions              92         Tool definitions
 
 ==================================================
 PROJECT SUMMARY
 ==================================================
 MatHud is a comprehensive mathematical visualization tool featuring:
 
-• 34,895 lines of code across 3337 files
-• 147 classes with 1649 methods
-• 23 drawable geometric shapes
-• 22 specialized system managers
-• 43 AI-powered mathematical functions
-• 624 test functions for quality assurance
+• 139,354 lines of code across 472 files
+• 887 classes with 8553 methods
+• 51 drawable geometric shapes
+• 102 specialized system managers
+• 92 AI-powered mathematical functions
+• 4528 test functions for quality assurance
 • Flask backend with Brython frontend architecture
-• Interactive SVG canvas with real-time mathematical visualization
+• Interactive Canvas2D canvas (SVG fallback) with real-time mathematical visualization
 
-NOTE: Reference Manual.txt (3,694 lines) contains duplicated docstring
+NOTE: Reference Manual.txt (4,670 lines) contains duplicated docstring
 content and is excluded from documentation totals to avoid double-counting.

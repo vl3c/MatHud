@@ -55,7 +55,6 @@ If the new drawable shares rendering behavior with an existing type:
 Missing renderer registration causes silent rendering failures. Verify the drawable is registered in:
 - `canvas2d_renderer.py` - `register_default_drawables()`
 - `svg_renderer.py` - `register_default_drawables()`
-- `webgl_renderer.py` - `register_default_drawables()` (if applicable)
 
 ## 7. Add Tests
 1. Introduce unit tests in `static/client/client_tests/` covering:

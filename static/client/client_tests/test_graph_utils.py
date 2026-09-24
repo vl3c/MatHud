@@ -446,6 +446,58 @@ class TestGraph(unittest.TestCase):
         self.assertIn(frozenset({"A", "B"}), names)
         self.assertIn(frozenset({"A", "C"}), names)
 
+    def test_shortest_path_dijkstra_directed_negative_weight_uses_bellman_ford(self) -> None:
+        edges = [Edge("A", "B"), Edge("A", "C"), Edge("C", "B")]
+        weights = {("A", "B"): 2.0, ("A", "C"): 3.0, ("C", "B"): -2.0}
+        result = GraphUtils.shortest_path_dijkstra(edges, "A", "B", weight_lookup=weights, directed=True)
+        self.assertEqual(result, (["A", "C", "B"], 1.0))
+
+    def test_shortest_path_dijkstra_negative_cycle_raises(self) -> None:
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "B")]
+        weights = {("A", "B"): 1.0, ("B", "C"): -3.0, ("C", "B"): 1.0}
+        with self.assertRaises(ValueError):
+            GraphUtils.shortest_path_dijkstra(edges, "A", "C", weight_lookup=weights, directed=True)
+
+    def test_shortest_path_ignores_negative_cycle_that_cannot_reach_goal(self) -> None:
+        # B <-> C is a negative cycle reachable from A, but D is not reachable from it
+        edges = [Edge("A", "D"), Edge("A", "B"), Edge("B", "C"), Edge("C", "B")]
+        weights = {("A", "D"): 2.0, ("A", "B"): 1.0, ("B", "C"): -3.0, ("C", "B"): 1.0}
+        result = GraphUtils.shortest_path_dijkstra(edges, "A", "D", weight_lookup=weights, directed=True)
+        self.assertEqual(result, (["A", "D"], 2.0))
+
+    def test_shortest_path_raises_for_goal_downstream_of_negative_cycle(self) -> None:
+        edges = [Edge("A", "D"), Edge("A", "B"), Edge("B", "C"), Edge("C", "B"), Edge("C", "E")]
+        weights = {("A", "D"): 2.0, ("A", "B"): 1.0, ("B", "C"): -3.0, ("C", "B"): 1.0, ("C", "E"): 1.0}
+        with self.assertRaises(ValueError):
+            GraphUtils.shortest_path_dijkstra(edges, "A", "E", weight_lookup=weights, directed=True)
+
+    def test_shortest_path_dijkstra_undirected_negative_weight_raises(self) -> None:
+        edges = [Edge("A", "B"), Edge("B", "C")]
+        weights = {("A", "B"): -1.0, ("B", "C"): 5.0}
+        with self.assertRaises(ValueError):
+            GraphUtils.shortest_path_dijkstra(edges, "A", "C", weight_lookup=weights, directed=False)
+
+    def test_minimum_spanning_forest_disconnected(self) -> None:
+        edges = [Edge("A", "B"), Edge("C", "D")]
+        forest, components = GraphUtils.minimum_spanning_forest(edges, vertices=["A", "B", "C", "D", "E"])
+        self.assertEqual({e.as_frozenset() for e in forest}, {frozenset({"A", "B"}), frozenset({"C", "D"})})
+        self.assertEqual(components, 3)
+        # The strict tree variant still reports no spanning tree
+        self.assertEqual(GraphUtils.minimum_spanning_tree(edges), [])
+
+    def test_minimum_spanning_forest_parallel_edges_keep_cheapest(self) -> None:
+        edges = [Edge("A", "B"), Edge("B", "A"), Edge("A", "C"), Edge("C", "B")]
+        weights = {("A", "B"): 5.0, ("B", "A"): 1.0, ("A", "C"): 2.0, ("C", "B"): 2.0}
+        forest, components = GraphUtils.minimum_spanning_forest(edges, weight_lookup=weights)
+        self.assertEqual(components, 1)
+        self.assertIn(frozenset({"A", "B"}), {e.as_frozenset() for e in forest})
+
+    def test_directed_euler_status(self) -> None:
+        self.assertEqual(GraphUtils.directed_euler_status([Edge("A", "B"), Edge("B", "C"), Edge("C", "A")]), "cycle")
+        self.assertEqual(GraphUtils.directed_euler_status([Edge("A", "B"), Edge("B", "C")]), "path")
+        self.assertIsNone(GraphUtils.directed_euler_status([Edge("A", "B"), Edge("A", "C")]))
+        self.assertIsNone(GraphUtils.directed_euler_status([Edge("A", "B"), Edge("C", "D")]))
+
     # ------------------------------------------------------------------
     # topo / bridges / articulation
     # ------------------------------------------------------------------

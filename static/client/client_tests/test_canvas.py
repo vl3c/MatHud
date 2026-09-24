@@ -2970,12 +2970,31 @@ class TestCanvasHelperMethods(unittest.TestCase):
         )
         self.assertEqual(kept, [{"name": "CustomBar"}, {"no_name": True}, 123])
 
+    def test_render_failures_are_logged_once_per_drawable(self) -> None:
+        def failing_render(_drawable: Any, _mapper: Any) -> bool:
+            raise ValueError("boom")
+
+        renderer = SimpleNamespace(render=failing_render)
+        warnings: List[str] = []
+        self.canvas._emit_render_warning = warnings.append
+        first = SimpleNamespace(name="A", get_class_name=lambda: "Circle")
+        second = SimpleNamespace(name="B", get_class_name=lambda: "Circle")
+
+        self.canvas._render_drawable_with_renderer(renderer, first)
+        self.canvas._render_drawable_with_renderer(renderer, first)
+        self.canvas._render_drawable_with_renderer(renderer, second)
+
+        self.assertEqual(len(warnings), 2)
+        self.assertIn("Circle", warnings[0])
+        self.assertIn("A", warnings[0])
+        self.assertIn("boom", warnings[0])
+
     def test_resolve_renderer_mode_helpers(self) -> None:
         self.assertEqual(self.canvas._resolve_renderer_mode_from_text("canvas2drenderer"), "canvas2d")
         self.assertEqual(self.canvas._resolve_renderer_mode_from_name("svgrenderer"), "svg")
         self.assertEqual(
-            self.canvas._resolve_renderer_mode_from_module("rendering.webgl_renderer"),
-            "webgl",
+            self.canvas._resolve_renderer_mode_from_module("rendering.canvas2d_renderer"),
+            "canvas2d",
         )
         self.assertIsNone(self.canvas._resolve_renderer_mode_from_text("other_renderer"))
 

@@ -7,10 +7,14 @@ required/optional, and fallback behaviours.
 from __future__ import annotations
 
 import os
+import tempfile
 import unittest
 from unittest.mock import patch
 
 from static.env_config import get_api_key, load_env_files
+
+# static/env_config.py -> project root -> its parent directory
+EXPECTED_PARENT_ENV = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".env")
 
 
 class TestLoadEnvFiles(unittest.TestCase):
@@ -72,12 +76,28 @@ class TestLoadEnvFiles(unittest.TestCase):
     def test_parent_env_path_constructed_correctly(
         self, mock_exists: unittest.mock.MagicMock, mock_load: unittest.mock.MagicMock
     ) -> None:
-        """The parent .env path should be <cwd>/../.env."""
+        """The parent .env path should be <project root>/../.env."""
         load_env_files()
 
-        expected_parent = os.path.join(os.path.dirname(os.getcwd()), ".env")
-        mock_exists.assert_called_once_with(expected_parent)
-        mock_load.assert_any_call(expected_parent)
+        mock_exists.assert_called_once_with(EXPECTED_PARENT_ENV)
+        mock_load.assert_any_call(EXPECTED_PARENT_ENV)
+
+    @patch("static.env_config.load_dotenv")
+    @patch("static.env_config.os.path.exists", return_value=True)
+    def test_parent_env_path_does_not_depend_on_cwd(
+        self, mock_exists: unittest.mock.MagicMock, mock_load: unittest.mock.MagicMock
+    ) -> None:
+        """Launching from another directory must not change which parent .env is read."""
+        original_cwd = os.getcwd()
+        with tempfile.TemporaryDirectory() as other_dir:
+            os.chdir(other_dir)
+            try:
+                load_env_files()
+            finally:
+                os.chdir(original_cwd)
+
+        mock_exists.assert_called_once_with(EXPECTED_PARENT_ENV)
+        mock_load.assert_any_call(EXPECTED_PARENT_ENV)
 
 
 class TestGetApiKeyFastPath(unittest.TestCase):

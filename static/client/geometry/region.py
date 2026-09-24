@@ -396,10 +396,38 @@ class Region:
             return list(reversed(points))
         return points
 
+    @staticmethod
+    def _is_convex(points: List[Tuple[float, float]]) -> bool:
+        """Check whether a CCW polygon is convex (collinear vertices allowed)."""
+        # Drop consecutive duplicates (e.g. a repeated closing point) so that
+        # zero-length edges cannot hide a reflex turn.
+        pts: List[Tuple[float, float]] = []
+        for p in points:
+            if not pts or abs(p[0] - pts[-1][0]) > 1e-12 or abs(p[1] - pts[-1][1]) > 1e-12:
+                pts.append(p)
+        if len(pts) > 1 and abs(pts[0][0] - pts[-1][0]) <= 1e-12 and abs(pts[0][1] - pts[-1][1]) <= 1e-12:
+            pts.pop()
+
+        n = len(pts)
+        if n < 4:
+            return True
+        for i in range(n):
+            ax = pts[(i + 1) % n][0] - pts[i][0]
+            ay = pts[(i + 1) % n][1] - pts[i][1]
+            bx = pts[(i + 2) % n][0] - pts[(i + 1) % n][0]
+            by = pts[(i + 2) % n][1] - pts[(i + 1) % n][1]
+            cross = ax * by - ay * bx
+            # Relative tolerance so nearly collinear sampled points still count as convex
+            if cross < -1e-9 * math.hypot(ax, ay) * math.hypot(bx, by):
+                return False
+        return True
+
     def intersection(self, other: Region, num_samples: int = 100) -> Optional[Region]:
         """Compute the intersection of this region with another.
 
-        Uses Sutherland-Hodgman polygon clipping on sampled boundaries.
+        Uses Sutherland-Hodgman polygon clipping on sampled boundaries. The
+        clip polygon must be convex, so a convex operand is used as the clip
+        polygon (intersection is commutative).
 
         Args:
             other: Another Region to intersect with
@@ -407,6 +435,9 @@ class Region:
 
         Returns:
             A new Region representing the intersection, or None if empty
+
+        Raises:
+            ValueError: If both regions are non-convex (not supported)
         """
         self_points = self._sample_to_points(num_samples)
         other_points = other._sample_to_points(num_samples)
@@ -417,6 +448,11 @@ class Region:
         # Ensure both polygons are CCW for correct clipping
         self_points = self._ensure_ccw(self_points)
         other_points = self._ensure_ccw(other_points)
+
+        if not self._is_convex(other_points):
+            if not self._is_convex(self_points):
+                raise ValueError("Boolean operations on two non-convex regions are not supported")
+            self_points, other_points = other_points, self_points
 
         clipped = self._sutherland_hodgman_clip(self_points, other_points)
 

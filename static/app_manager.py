@@ -26,6 +26,7 @@ from flask_session import Session as FlaskSession
 from static.config import MAX_CONTENT_LENGTH_BYTES
 from static.env_config import load_env_files
 from static.log_manager import LogManager
+from static.openai_api_base import get_configured_tool_mode
 from static.openai_completions_api import OpenAIChatCompletionsAPI
 from static.openai_responses_api import OpenAIResponsesAPI
 from static.providers import discover_providers
@@ -210,11 +211,13 @@ class AppManager:
         # Initialize managers
         app.log_manager = LogManager()
         # Default to minimal search-first tool exposure; routes inject matching
-        # tools dynamically after search_tools returns.
+        # tools dynamically after search_tools returns. MATHUD_TOOL_EXPOSURE=full
+        # exposes every tool up front instead.
+        tool_mode = get_configured_tool_mode()
         app.ai_api = OpenAIChatCompletionsAPI()
-        app.ai_api.set_tool_mode("search")
+        app.ai_api.set_tool_mode(tool_mode)
         app.responses_api = OpenAIResponsesAPI()
-        app.responses_api.set_tool_mode("search")
+        app.responses_api.set_tool_mode(tool_mode)
         app.webdriver_manager = None  # Will be set after Flask starts
         app.current_attached_images = None  # User-attached images for current request
         app.providers = {}  # Lazily-loaded provider instances

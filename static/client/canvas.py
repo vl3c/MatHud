@@ -294,8 +294,32 @@ class Canvas:
         if renderer is not None:
             try:
                 renderer.render(drawable, self.coordinate_mapper)
-            except Exception:
-                pass
+            except Exception as exc:
+                # Keep drawing the rest of the scene, but surface the failure once per drawable.
+                self._report_render_failure(drawable, exc)
+
+    def _report_render_failure(self, drawable: Any, exc: Exception) -> None:
+        try:
+            class_name = drawable.get_class_name()
+        except Exception:
+            class_name = drawable.__class__.__name__
+        key = (class_name, str(getattr(drawable, "name", "") or id(drawable)))
+        reported: Optional[Set[Tuple[str, str]]] = getattr(self, "_reported_render_failures", None)
+        if reported is None:
+            reported = set()
+            self._reported_render_failures = reported
+        if key in reported:
+            return
+        reported.add(key)
+        self._emit_render_warning(f"[Canvas] Failed to render {key[0]} '{key[1]}': {type(exc).__name__}: {exc}")
+
+    def _emit_render_warning(self, message: str) -> None:
+        try:
+            from browser import console
+
+            console.warn(message)
+        except Exception:
+            print(message)
 
     def _is_drawable_visible(self, drawable: "Drawable") -> bool:
         """Best-effort visibility check — delegates to VisibilityManager."""
@@ -2130,6 +2154,4 @@ class Canvas:
             return "canvas2d"
         if "svg" in text:
             return "svg"
-        if "webgl" in text:
-            return "webgl"
         return None

@@ -16,10 +16,21 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
+import tempfile
+import time
 from datetime import datetime
 from typing import Dict, List, Optional, TypedDict, Union, cast
 
 from static.config import CURRENT_WORKSPACE_SCHEMA_VERSION, WORKSPACES_DIR
+
+# Previous version of an overwritten workspace is kept as "<name>.json.bak".
+BACKUP_SUFFIX = ".bak"
+# Deleted workspaces are moved here (inside the workspace's directory) instead of removed.
+TRASH_DIR_NAME = ".trash"
+# On Windows, replacing a file that another handle has open fails transiently.
+REPLACE_RETRY_ATTEMPTS = 5
+REPLACE_RETRY_DELAY_S = 0.05
 
 JsonPrimitive = Union[str, int, float, bool, None]
 JsonValue = Union[JsonPrimitive, Dict[str, "JsonValue"], List["JsonValue"]]
@@ -162,13 +173,35 @@ class WorkspaceManager:
             }
 
             file_path = self.get_workspace_path(name, test_dir)
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(workspace_data, f, indent=2)
+            self._write_json_atomically(file_path, workspace_data)
 
             return True
         except (ValueError, OSError) as e:
             print(f"Error saving workspace: {str(e)}")
             return False
+
+    def _write_json_atomically(self, file_path: str, data: WorkspaceRecord) -> None:
+        """Write JSON to a temp file in the same directory, then swap it into place.
+
+        A failed or interrupted write never truncates the existing workspace. When an
+        existing workspace is overwritten, its previous version is kept as ``<file>.bak``.
+        """
+        target_dir = os.path.dirname(file_path)
+        fd, temp_path = tempfile.mkstemp(dir=target_dir, prefix=".tmp_", suffix=".json.part")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            if os.path.exists(file_path):
+                shutil.copy2(file_path, file_path + BACKUP_SUFFIX)
+            self._replace_with_retry(temp_path, file_path)
+        except BaseException:
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+            raise
 
     def _get_most_recent_current_workspace(self, test_dir: Optional[str] = None) -> str:
         """Get the path of the most recent current workspace.
@@ -305,7 +338,8 @@ class WorkspaceManager:
         workspaces: List[str] = []
 
         for filename in os.listdir(target_dir):
-            if filename.endswith(".json"):
+            # Backups end in ".json.bak"; the trash dir and temp files start with ".".
+            if filename.endswith(".json") and not filename.startswith("."):
                 name_without_extension = filename[:-5]
                 if name_without_extension.startswith("current_workspace_"):
                     continue
@@ -352,8 +386,40 @@ class WorkspaceManager:
             if not self._is_path_in_workspace_dir(file_path):
                 return False
 
-            os.remove(file_path)
+            self._move_to_trash(file_path, name)
             return True
         except (ValueError, OSError) as e:
             print(f"Error deleting workspace: {str(e)}")
             return False
+
+    @staticmethod
+    def _replace_with_retry(source: str, target: str) -> None:
+        """os.replace, retried briefly when another handle holds the target open (Windows)."""
+        for attempt in range(REPLACE_RETRY_ATTEMPTS):
+            try:
+                os.replace(source, target)
+                return
+            except PermissionError:
+                if attempt == REPLACE_RETRY_ATTEMPTS - 1:
+                    raise
+                time.sleep(REPLACE_RETRY_DELAY_S)
+
+    def _move_to_trash(self, file_path: str, name: str) -> str:
+        """Move a workspace file (and its backup) into the sibling .trash directory.
+
+        Trash names are timestamped and never overwrite an earlier trashed copy.
+        """
+        trash_dir = os.path.join(os.path.dirname(file_path), TRASH_DIR_NAME)
+        os.makedirs(trash_dir, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        stem = f"{name}_{timestamp}"
+        counter = 1
+        while os.path.exists(os.path.join(trash_dir, f"{stem}.json")):
+            counter += 1
+            stem = f"{name}_{timestamp}_{counter}"
+        trash_path = os.path.join(trash_dir, f"{stem}.json")
+        os.replace(file_path, trash_path)
+        backup_path = file_path + BACKUP_SUFFIX
+        if os.path.exists(backup_path):
+            os.replace(backup_path, trash_path + BACKUP_SUFFIX)
+        return trash_path

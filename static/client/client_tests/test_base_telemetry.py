@@ -6,7 +6,7 @@ import unittest
 
 from rendering.base_telemetry import BaseRendererTelemetry
 from rendering.canvas2d_renderer import Canvas2DTelemetry
-from rendering.svg_renderer import SvgTelemetry
+from rendering.svg_renderer import SvgRenderer, SvgTelemetry
 
 
 class TestBaseTelemetryInit(unittest.TestCase):
@@ -194,6 +194,20 @@ class TestBaseTelemetryRecordPlanApply(unittest.TestCase):
         tel = BaseRendererTelemetry()
         tel.record_plan_apply("Point", 5.0)
         self.assertEqual(tel._phase_totals["cartesian_plan_apply_ms"], 0.0)
+
+    def test_count_records_several_applies_at_once(self) -> None:
+        tel = BaseRendererTelemetry()
+        tel.record_plan_apply("Grid", 0.0, cartesian=True, count=7)
+        self.assertEqual(tel._phase_counts["plan_apply_count"], 7)
+        self.assertEqual(tel._per_drawable["Grid"]["plan_apply_count"], 7)
+        self.assertEqual(tel._phase_totals["plan_apply_ms"], 0.0)
+
+    def test_svg_plan_usage_matches_per_command_counts(self) -> None:
+        renderer = SvgRenderer.__new__(SvgRenderer)
+        renderer._telemetry = SvgTelemetry()
+        renderer._record_plan_usage("Point", {"fill_circle": 2, "draw_text": 1})
+        self.assertEqual(renderer._telemetry._phase_counts["plan_apply_count"], 3)
+        self.assertEqual(renderer._telemetry._per_drawable["Point"]["plan_apply_count"], 3)
 
 
 class TestBaseTelemetryRecordPlanMiss(unittest.TestCase):

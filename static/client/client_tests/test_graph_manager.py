@@ -32,6 +32,7 @@ class TestGraphManager(unittest.TestCase):
             name="NameGeneratorMock",
             generate_point_name=lambda name: name if name else "P",
             split_point_names=lambda expr, count: ["", ""][:count],
+            filter_string=lambda name: "".join(ch for ch in (name or "") if ch.isalnum() or ch in "_'()"),
         )
 
         self.dependency_manager = SimpleMock(
@@ -51,9 +52,23 @@ class TestGraphManager(unittest.TestCase):
             self.drawables.add(p)
             return p
 
+        def get_point(x: float, y: float) -> Any:
+            for p in self.points_created:
+                if abs(p.x - x) < 1e-9 and abs(p.y - y) < 1e-9:
+                    return p
+            return None
+
+        def get_point_by_name(name: str) -> Any:
+            for p in self.points_created:
+                if p.name == name:
+                    return p
+            return None
+
         self.point_manager = SimpleMock(
             name="PointManagerMock",
             create_point=create_point,
+            get_point=get_point,
+            get_point_by_name=get_point_by_name,
             delete_point_by_name=SimpleMock(return_value=True),
         )
 
@@ -456,6 +471,76 @@ class TestGraphManager(unittest.TestCase):
 
         self.assertTrue(removed)
         self.dependency_manager.remove_drawable.assert_called_once_with(graph)
+
+    def _use_real_name_generator(self) -> None:
+        from name_generator.drawable import DrawableNameGenerator
+
+        canvas_for_names = SimpleMock(
+            get_drawables_by_class_name=lambda class_name: list(self.points_created) if class_name == "Point" else []
+        )
+        self.graph_manager.name_generator = DrawableNameGenerator(canvas_for_names)
+
+    def _build_graph_with_vertex_names(self, name: str, vertex_names: List[str]) -> Any:
+        state = self.graph_manager.build_graph_state(
+            name=name,
+            graph_type="graph",
+            vertices=[{"name": v, "x": float(i), "y": 0.0} for i, v in enumerate(vertex_names)],
+            edges=[{"source": 0, "target": 1}],
+            adjacency_matrix=None,
+            directed=False,
+            root=None,
+            layout=None,
+            placement_box=None,
+            metadata=None,
+        )
+        return self.graph_manager.create_graph(state)
+
+    def test_create_graph_honours_requested_vertex_names(self) -> None:
+        self._use_real_name_generator()
+
+        self._build_graph_with_vertex_names("named_vertices", ["GA", "GB", "I"])
+
+        self.assertEqual([p.name for p in self.points_created], ["GA", "GB", "I"])
+        self.assertEqual(self.segments_created[0].name, "GAGB")
+
+    def test_create_graph_falls_back_for_used_or_invalid_vertex_names(self) -> None:
+        self._use_real_name_generator()
+        taken = Point(100.0, 100.0, name="GA")
+        self.points_created.append(taken)
+
+        self._build_graph_with_vertex_names("fallback_vertices", ["GA", "!!", "GC", "GC"])
+
+        new_names = [p.name for p in self.points_created[1:]]
+        self.assertEqual(len(new_names), 4)
+        self.assertNotIn("GA", new_names)
+        self.assertNotIn("!!", new_names)
+        self.assertEqual(new_names.count("GC"), 1)
+        all_names = [p.name for p in self.points_created]
+        self.assertEqual(len(all_names), len(set(all_names)), f"Duplicate names: {all_names}")
+
+    def test_drawable_manager_capture_graph_state_returns_state(self) -> None:
+        """DrawableManager must return the captured state; analyze_graph relies on it."""
+        from managers.drawable_manager import DrawableManager
+
+        state = self.graph_manager.build_graph_state(
+            name="capture_passthrough",
+            graph_type="tree",
+            vertices=[{"name": "A"}, {"name": "B"}],
+            edges=[{"source": 0, "target": 1}],
+            adjacency_matrix=None,
+            directed=None,
+            root="A",
+            layout=None,
+            placement_box=None,
+            metadata=None,
+        )
+        self.graph_manager.create_graph(state)
+        owner = SimpleMock(graph_manager=self.graph_manager)
+
+        captured = DrawableManager.capture_graph_state(owner, "capture_passthrough")
+
+        self.assertIsNotNone(captured)
+        self.assertEqual(captured.name, "capture_passthrough")
 
 
 if __name__ == "__main__":

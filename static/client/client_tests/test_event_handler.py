@@ -254,6 +254,31 @@ class TestCanvasEventHandlerTouch(unittest.TestCase):
         self.assertEqual(self.event_handler.current_mouse_position.x, 100)
         self.assertEqual(self.event_handler.current_mouse_position.y, 150)
 
+    def test_mouse_drag_coalesces_redraws_per_frame(self) -> None:
+        """Every move applies its offset, but only one draw runs per animation frame."""
+        import canvas_event_handler
+
+        frame_callbacks: List = []
+        original_window = canvas_event_handler.window
+        canvas_event_handler.window = SimpleMock(requestAnimationFrame=lambda cb: frame_callbacks.append(cb))
+        try:
+            start_x = self.mock_canvas.offset.x
+            self.event_handler.handle_mousedown(SimpleMock(clientX=100, clientY=100))
+            for client_x in (110, 125, 140):
+                self.event_handler.handle_mousemove(SimpleMock(clientX=client_x, clientY=100))
+
+            self.assertEqual(self.mock_canvas.offset.x, start_x + 40)
+            self.assertEqual(len(frame_callbacks), 1)
+            self.assertEqual(len(self.mock_canvas.draw.calls), 0)
+
+            frame_callbacks[0](0)
+            self.assertEqual(self.mock_canvas.draw.calls, [((False,), {})])
+
+            self.event_handler.handle_mousemove(SimpleMock(clientX=150, clientY=100))
+            self.assertEqual(len(frame_callbacks), 2)
+        finally:
+            canvas_event_handler.window = original_window
+
     def test_touch_action_none_set_in_bind_events(self) -> None:
         """Test that touch-action: none is set when binding events."""
         # The actual binding happens in bind_events which is called in __init__

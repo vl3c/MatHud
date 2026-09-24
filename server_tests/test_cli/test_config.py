@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
+
+import pytest
 
 
 class TestConfigConstants:
@@ -111,12 +114,27 @@ class TestGetPythonPath:
         result = get_python_path()
         assert "python" in result.name.lower()
 
-    def test_path_is_in_venv(self) -> None:
-        """Path should be in venv directory."""
-        from cli.config import get_python_path
+    def test_path_is_in_venv(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Path should be the project venv interpreter when that venv exists."""
+        import cli.config as config
 
-        result = get_python_path()
-        assert "venv" in str(result)
+        venv_python = tmp_path / "venv" / ("Scripts" if os.name == "nt" else "bin")
+        venv_python.mkdir(parents=True)
+        venv_python = venv_python / ("python.exe" if os.name == "nt" else "python")
+        venv_python.touch()
+        monkeypatch.setattr(config, "PROJECT_ROOT", tmp_path)
+
+        assert config.get_python_path() == venv_python
+
+    def test_falls_back_to_current_interpreter_without_venv(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Worktrees have no venv; the running interpreter is used instead."""
+        import cli.config as config
+
+        monkeypatch.setattr(config, "PROJECT_ROOT", tmp_path)
+
+        assert config.get_python_path() == Path(sys.executable)
 
     def test_windows_path_structure(self) -> None:
         """On Windows, path should use Scripts directory."""

@@ -98,6 +98,16 @@ class ExpressionEvaluator:
         raise ValueError(f"No function found with name: {function_name}")
 
     @staticmethod
+    def _is_canvas_function_call(expression: str, canvas: "Canvas") -> bool:
+        """Return True when the expression is a call to a function defined on the canvas."""
+        match: Optional[re.Match[str]] = re.match(r"(\w+)\((.+)\)", expression)
+        if not match:
+            return False
+        function_name: str = match.group(1).lower()
+        functions = canvas.get_drawables_by_class_name("Function")
+        return any(function.name.lower() == function_name for function in functions)
+
+    @staticmethod
     def evaluate_expression(
         expression: str, variables: Optional[Dict[str, Any]] = None, canvas: Optional["Canvas"] = None
     ) -> Union[float, str]:
@@ -114,10 +124,14 @@ class ExpressionEvaluator:
         Returns:
             float or str: Computed result or error message
         """
+        numeric_error: Optional[str] = None
         try:
             # First, try to evaluate the expression as a numeric expression
             numeric_result: float = ExpressionEvaluator.evaluate_numeric_expression(expression, variables or {})
-            if not numeric_result or (isinstance(numeric_result, str) and "Error" in numeric_result):
+            # A result of 0 is valid; only a missing result or an error string is a failure
+            if numeric_result is None or (isinstance(numeric_result, str) and "Error" in numeric_result):
+                if isinstance(numeric_result, str):
+                    numeric_error = numeric_result
                 raise ValueError("Error evaluating numeric expression")
             return numeric_result
         except Exception as e:
@@ -125,8 +139,16 @@ class ExpressionEvaluator:
             try:
                 # If numeric evaluation fails and we have a canvas, try to evaluate as a function
                 if canvas is not None:
+                    # Keep the explicit numeric error (e.g. overflow in exp) unless the expression calls a
+                    # canvas function or an unrecognised function, where the function lookup error applies
+                    if (
+                        numeric_error
+                        and "Disallowed function" not in numeric_error
+                        and not ExpressionEvaluator._is_canvas_function_call(expression, canvas)
+                    ):
+                        return numeric_error
                     function_result: float = ExpressionEvaluator.evaluate_function(expression, canvas)
-                    if not function_result:
+                    if function_result is None:
                         return bad_result_msg
                     return function_result
                 else:

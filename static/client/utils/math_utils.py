@@ -38,7 +38,7 @@ import json
 import math
 import random
 import statistics
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 from browser import window
 
@@ -344,11 +344,13 @@ class MathUtils:
         # Calculate segment length for a better threshold
         segment_length = math.sqrt((sp2x - sp1x) ** 2 + (sp2y - sp1y) ** 2)
 
-        # Calculate a threshold as a proportion of the segment length
-        # This makes it work well for both small and large coordinate values
-        threshold = max(1e-5, segment_length * 0.01)  # 1% of segment length as threshold
+        # |cross| / length is the point's distance from the segment's line. Allow up to 0.01
+        # (tolerates rounded coordinates), but scale with the segment length so tiny segments
+        # are not over-matched and very long ones are not under-matched.
+        distance = abs(cross_product) / segment_length
+        threshold = max(1e-5 * segment_length, min(0.01, 1e-3 * segment_length))
 
-        return abs(cross_product) < threshold
+        return distance < threshold
 
     @staticmethod
     def _segment_endpoints(segment: SegmentLike) -> Tuple[float, float, float, float]:
@@ -781,8 +783,11 @@ class MathUtils:
             bool: True if vectors form a right angle, False otherwise
         """
         dot_product = MathUtils.dot_product(origin, p1, p2)
-        # Use a small tolerance for floating-point comparisons
-        return abs(dot_product) < 1e-10
+        # Normalize by the vector lengths so the tolerance is independent of scale
+        norms = math.hypot(p1.x - origin.x, p1.y - origin.y) * math.hypot(p2.x - origin.x, p2.y - origin.y)
+        if norms == 0:
+            return False
+        return abs(dot_product) / norms < 1e-9
 
     @staticmethod
     def is_rectangle(
@@ -811,12 +816,12 @@ class MathUtils:
             MathUtils.get_2D_distance(p1, p2) for i, p1 in enumerate(points) for j, p2 in enumerate(points) if i < j
         ]
 
-        # Group similar distances using tolerance
+        # Group similar distances using a tolerance relative to their magnitude
         grouped_distances: List[List[float]] = []
         for d in distances:
             found_group = False
             for group in grouped_distances:
-                if abs(group[0] - d) < TOLERANCE:
+                if abs(group[0] - d) < 1e-9 * max(group[0], d):
                     group.append(d)
                     found_group = True
                     break
@@ -1017,15 +1022,27 @@ class MathUtils:
             B = 2 * cos_a * sin_a * (1 / rx**2 - 1 / ry**2)
             C = (sin_a**2 / rx**2) + (cos_a**2 / ry**2)
 
-            # Format coefficients to 4 decimal places for readability
-            A = round(A, 4)
-            B = round(B, 4)
-            C = round(C, 4)
+            # Format coefficients with significant digits in plain decimal notation (no exponent),
+            # since fixed decimal places collapse small coefficients (large radii) to 0
+            coef_scale = max(abs(A), abs(C))
+
+            def fmt_coef(value: float) -> str:
+                if not math.isfinite(value):
+                    return str(value)
+                if abs(value) <= 1e-12 * coef_scale:  # floating-point noise, e.g. cross term at 90 degrees
+                    return "0"
+                decimals = max(0, 9 - int(math.floor(math.log10(abs(value)))))
+                text = format(value, "." + str(decimals) + "f")
+                if "." in text:
+                    text = text.rstrip("0").rstrip(".")
+                return text
+
+            a_str, b_str, c_str = fmt_coef(A), fmt_coef(B), fmt_coef(C)
 
             # Handle special cases for coefficient signs in the formula
-            b_term = f"+ {B}" if B >= 0 else f"- {abs(B)}"
+            b_term = f"- {b_str[1:]}" if b_str.startswith("-") else f"+ {b_str}"
 
-            return f"{A}*(x - {fx})**2 {b_term}*(x - {fy})*(y - {fy}) + {C}*(y - {fy})**2 = 1"
+            return f"{a_str}*(x - {fx})**2 {b_term}*(x - {fx})*(y - {fy}) + {c_str}*(y - {fy})**2 = 1"
 
     @staticmethod
     def try_convert_to_number(value: Any) -> Any:
@@ -1107,8 +1124,9 @@ class MathUtils:
             python_expression = ExpressionValidator.fix_math_expression(expression, python_compatible=True)
             ExpressionValidator.validate_expression_tree(python_expression)
 
-            # Check if expression contains Python-only functions (number theory)
-            if any(func in expression for func in MathUtils._PYTHON_ONLY_FUNCTIONS):
+            # Check if expression contains Python-only functions (number theory; randint has no
+            # inclusive math.js equivalent)
+            if "randint(" in expression or any(func in expression for func in MathUtils._PYTHON_ONLY_FUNCTIONS):
                 # Use Python evaluation for number theory functions
                 result = ExpressionValidator.evaluate_expression(
                     python_expression, variables.get("x", 0) if variables else 0
@@ -1120,12 +1138,32 @@ class MathUtils:
                     return str(result)
                 return result
 
+            # Map advertised names onto their math.js equivalents
             js_expression = js_expression.replace("arrangements(", "permutations(")
+            js_expression = js_expression.replace("stdev(", "std(")
+            js_expression = js_expression.replace("trunc(", "fix(")
 
-            if not variables:
-                result = window.math.format(window.math.evaluate(js_expression))
-            else:
-                result = window.math.format(window.math.evaluate(js_expression, variables))
+            try:
+                if not variables:
+                    result = window.math.format(window.math.evaluate(js_expression))
+                else:
+                    result = window.math.format(window.math.evaluate(js_expression, variables))
+            except Exception as e:
+                # Brython cannot convert integer-valued JS numbers >= 2^53 ("not a big int"),
+                # so let math.js format such results before they cross into Python
+                if "not a big int" not in str(e):
+                    raise
+                formatted_expression = f"format({js_expression})"
+                if not variables:
+                    result = window.math.evaluate(formatted_expression)
+                else:
+                    result = window.math.evaluate(formatted_expression, variables)
+
+            # math.format wraps string results (e.g. bin) in JSON quotes
+            unquoted_result = MathUtils._unquote_formatted_string(result)
+            if unquoted_result is not None:
+                return unquoted_result
+            result = MathUtils._unwrap_single_mode_result(js_expression, result)
 
             converted_result = MathUtils.try_convert_to_number(result)
 
@@ -1143,9 +1181,44 @@ class MathUtils:
 
             return converted_result
         except ZeroDivisionError:
-            return "Error: ZeroDivisionError"
+            return (
+                "Error: Result is infinite (division by zero, overflow, "
+                "or a value outside the function's domain such as log(0))"
+            )
+        except OverflowError:
+            return "Error: Overflow - the result is too large to represent"
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
+
+    @staticmethod
+    def _unquote_formatted_string(result: Any) -> Optional[str]:
+        """Return the plain text of a JSON-quoted math.format string result, else None."""
+        if not isinstance(result, str) or len(result) < 2 or result[0] != '"' or result[-1] != '"':
+            return None
+        try:
+            unquoted = json.loads(result)
+        except Exception:
+            return result[1:-1]
+        return unquoted if isinstance(unquoted, str) else None
+
+    @staticmethod
+    def _unwrap_single_mode_result(js_expression: str, result: Any) -> Any:
+        """Return the lone value of a top-level mode(...) result; math.js always returns an array of modes."""
+        expression = js_expression.strip()
+        if not expression.startswith("mode(") or not expression.endswith(")"):
+            return result
+        depth = 0
+        for index, char in enumerate(expression[len("mode") :], start=len("mode")):
+            if char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+                if depth == 0 and index != len(expression) - 1:
+                    return result  # mode(...) is only part of a larger expression
+        if not isinstance(result, str) or not (result.startswith("[") and result.endswith("]")):
+            return result
+        values = MathUtils._split_top_level_commas(result[1:-1])
+        return values[0] if len(values) == 1 else result
 
     @staticmethod
     def derivative(expression: str, variable: str) -> str:
@@ -1212,15 +1285,147 @@ class MathUtils:
         Returns:
             str: Integral result as string or error message
         """
+        import re
+
         try:
             indefinite_integral = window.nerdamer(f"integrate({expression}, {variable})")
             if lower_bound is None and upper_bound is None:
                 return str(indefinite_integral.text())
             evaluated_at_upper = indefinite_integral.sub(variable, upper_bound).text()
             evaluated_at_lower = indefinite_integral.sub(variable, lower_bound).text()
-            return str(window.nerdamer(f"{evaluated_at_upper} - {evaluated_at_lower}").evaluate().text())
+            result = str(window.nerdamer(f"{evaluated_at_upper} - {evaluated_at_lower}").evaluate().text())
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
+
+        # F(b) - F(a) is only valid when the integrand has no singularity inside the interval
+        singular_point = (
+            MathUtils._find_interior_singularity(expression, variable, lower_bound, upper_bound)
+            if lower_bound is not None and upper_bound is not None
+            else None
+        )
+        if singular_point is not None:
+            return (
+                f"Error: The integrand {expression} is singular or undefined near {variable} = {singular_point:.6g} "
+                f"inside [{lower_bound}, {upper_bound}], so this is an improper integral that may diverge; "
+                "the antiderivative cannot be evaluated across it."
+            )
+        if re.search(r"\bi\b", result):
+            return (
+                f"Error: The definite integral of {expression} over [{lower_bound}, {upper_bound}] is not a real "
+                "number; the integrand is likely singular or undefined in the interval (improper or divergent integral)."
+            )
+        return result
+
+    @staticmethod
+    def _find_interior_singularity(
+        expression: str,
+        variable: str,
+        lower_bound: Union[Number, str],
+        upper_bound: Union[Number, str],
+    ) -> Optional[float]:
+        """Scan the integrand on a fine grid for interior points where it is undefined or blows up.
+
+        Returns the approximate location of such a point, or None when the integrand looks
+        finite inside the interval or cannot be evaluated numerically. Singularities exactly
+        at an endpoint are ignored; they are handled by the antiderivative evaluation.
+        """
+        try:
+            from expression_validator import ExpressionValidator
+
+            compiled = window.math.compile(ExpressionValidator.fix_math_expression(str(expression)))
+            a = float(window.math.evaluate(str(lower_bound)))
+            b = float(window.math.evaluate(str(upper_bound)))
+            if not (math.isfinite(a) and math.isfinite(b)) or a == b:
+                return None
+
+            def value_at(x: float) -> Optional[float]:
+                value = compiled.evaluate({variable: x})
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    return None  # complex or non-numeric: undefined over the reals
+                return float(value)
+
+            steps = 2000
+            step = (b - a) / steps
+            xs = [a + k * step for k in range(steps + 1)]
+            raw_values = [value_at(x) for x in xs]
+            finite_magnitudes = sorted(abs(v) for v in raw_values if v is not None and math.isfinite(v))
+            typical_scale = finite_magnitudes[len(finite_magnitudes) // 2] if finite_magnitudes else 0.0
+            probe_step = 1e-7 * abs(b - a)
+
+            def magnitude(x: float, value: Optional[float] = None) -> Optional[float]:
+                if value is None:
+                    value = value_at(x)
+                if value is not None and math.isnan(value):
+                    # 0/0 at a removable point (e.g. sin(x)/x at 0) is NaN but not a singularity
+                    value = MathUtils._removable_limit(value_at, x, probe_step, typical_scale)
+                if value is None or not math.isfinite(value):
+                    return None
+                return abs(value)
+
+            values = [magnitude(x, value) for x, value in zip(xs, raw_values)]
+            for k in range(1, steps):
+                if values[k] is None:
+                    return xs[k]
+
+            # Zoom into the largest local maxima of |f|: a pole keeps growing, a smooth peak does not
+            def at(k: int) -> float:
+                value = values[k]
+                return math.inf if value is None else value
+
+            peaks = [k for k in range(1, steps) if at(k) >= at(k - 1) and at(k) >= at(k + 1)]
+            peaks.sort(key=at, reverse=True)
+            for k in peaks[:20]:
+                lo, hi = sorted((xs[k - 1], xs[k + 1]))
+                location = MathUtils._refine_blow_up(magnitude, lo, hi, at(k))
+                if location is not None and min(abs(location - a), abs(location - b)) > abs(step) * 1e-6:
+                    return location
+            return None
+        except Exception:
+            return None
+
+    @staticmethod
+    def _removable_limit(
+        value_at: Callable[[float], Optional[float]], x: float, probe_step: float, typical_scale: float
+    ) -> Optional[float]:
+        """Return the limit of f at x when f is undefined there but continuous around it, else None.
+
+        f is probed at x +/- h and x +/- 2h: a removable point gives four nearly equal finite
+        values, while a pole or a jump makes them differ markedly.
+        """
+        h = max(probe_step, 1e-12 * max(1.0, abs(x)))
+        probes = [value_at(x + offset) for offset in (-2 * h, -h, h, 2 * h)]
+        finite = [p for p in probes if p is not None and math.isfinite(p)]
+        if len(finite) != len(probes):
+            return None
+        tolerance = 1e-3 * max(typical_scale, max(abs(p) for p in finite))
+        if max(finite) - min(finite) > tolerance:
+            return None
+        return (finite[1] + finite[2]) / 2
+
+    @staticmethod
+    def _refine_blow_up(magnitude: Any, lo: float, hi: float, grid_value: float) -> Optional[float]:
+        """Ternary-search the maximum of |f| on [lo, hi]; return its location if it grows without bound.
+
+        magnitude(x) returns |f(x)|, or None where f is undefined or infinite.
+        """
+        for _ in range(100):
+            m1 = lo + (hi - lo) / 3
+            m2 = hi - (hi - lo) / 3
+            v1 = magnitude(m1)
+            if v1 is None:
+                return m1
+            v2 = magnitude(m2)
+            if v2 is None:
+                return m2
+            if v1 < v2:
+                lo = m1
+            else:
+                hi = m2
+        peak_location = (lo + hi) / 2
+        peak = magnitude(peak_location)
+        if peak is None or peak > 1e6 * max(1.0, grid_value):
+            return peak_location
+        return None
 
     @staticmethod
     def numeric_integrate(
@@ -1269,11 +1474,14 @@ class MathUtils:
             method=method,
             steps=steps,
         )
-        return {
+        payload: Dict[str, Any] = {
             "value": result["value"],
             "error_estimate": result["error_estimate"],
             "steps": result["steps"],
         }
+        if "warning" in result:
+            payload["warning"] = result["warning"]
+        return payload
 
     @staticmethod
     def simplify(expression: str) -> str:
@@ -1369,6 +1577,13 @@ class MathUtils:
             trigonometric_match = re.search(r"\b(sin|cos|tan|csc|sec|cot)\s*\(([^)]+)\)", expanded_equation)
             if trigonometric_match:
                 return "Trigonometric"
+
+            # Check for non-polynomial terms
+            # Pattern: a power that is not a plain integer, or a division by a variable/group
+            # Matches: 'x^(-1)' (expanded 1/x), 'e^x', '2^x', 'x^0.5', '1/(x+1)'
+            # Does not match: 'x^2', '(1/2)*x', 'x/2'
+            if re.search(r"\^(?!\d+(?![\d.]))|/\s*[(a-zA-Z]", expanded_equation):
+                return "Other Non-linear"
 
             # Check for non-linear terms with multiple variables
             # Pattern: letter followed optionally by * followed by letter
@@ -1477,9 +1692,124 @@ class MathUtils:
             str: JSON string of solutions or error message
         """
         try:
-            return str(window.nerdamer(f"solve({equation}, {variable})").text())
+            raw_solutions = str(window.nerdamer(f"solve({equation}, {variable})").text())
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
+        return MathUtils._drop_invalid_roots(raw_solutions, equation, variable)
+
+    @staticmethod
+    def _drop_invalid_roots(raw_solutions: str, equation: str, variable: str) -> str:
+        """Remove roots that clearly fail the equation when substituted back numerically.
+
+        Roots that cannot be checked (e.g. symbolic parameters) are kept, and the
+        original text is returned unchanged when every root checks out.
+        """
+        if not (raw_solutions.startswith("[") and raw_solutions.endswith("]")):
+            return raw_solutions
+        roots = MathUtils._split_top_level_commas(raw_solutions[1:-1])
+        sides = equation.split("=")
+        if not roots or len(sides) > 2:
+            return raw_solutions
+        kept = []
+        for root in roots:
+            try:
+                scope = {variable: window.math.evaluate(root)}
+            except Exception:
+                kept.append(root)
+                continue
+            if MathUtils._equation_holds(sides, scope) is not False:
+                kept.append(root)
+        if len(kept) == len(roots):
+            return raw_solutions
+        return "[" + ",".join(kept) + "]"
+
+    @staticmethod
+    def _equation_holds(sides: Sequence[str], scope: Dict[str, Any]) -> Optional[bool]:
+        """Check lhs = rhs (or expression = 0) numerically with math.js.
+
+        The tolerance also scales with how steeply the residual changes with each variable,
+        so a root that is accurate to rounding error still passes when the equation has large
+        coefficients (e.g. the small root of x^2 - 2000000*x + 1 = 0).
+        Returns None when the equation cannot be evaluated for the given scope.
+        """
+
+        def residual_at(values: Dict[str, Any]) -> Any:
+            lhs = window.math.evaluate(sides[0], values)
+            rhs = window.math.evaluate(sides[1], values) if len(sides) == 2 else 0
+            return window.math.subtract(lhs, rhs)
+
+        try:
+            lhs = window.math.evaluate(sides[0], scope)
+            rhs = window.math.evaluate(sides[1], scope) if len(sides) == 2 else 0
+            residual = float(window.math.abs(window.math.subtract(lhs, rhs)))
+            scale = max(1.0, float(window.math.abs(lhs)), float(window.math.abs(rhs)))
+        except Exception:
+            return None
+        if not math.isfinite(residual) or not math.isfinite(scale):
+            return None
+        for name, value in scope.items():
+            try:
+                size = max(1.0, float(window.math.abs(value)))
+                step = 1e-7 * size
+                forward = residual_at({**scope, name: window.math.subtract(value, -step)})
+                backward = residual_at({**scope, name: window.math.subtract(value, step)})
+                slope = float(window.math.abs(window.math.subtract(forward, backward))) / (2 * step)
+            except Exception:
+                continue
+            if math.isfinite(slope):
+                scale = max(scale, size * slope)
+        return residual <= 1e-6 * scale
+
+    @staticmethod
+    def _split_top_level_commas(text: str) -> List[str]:
+        """Split text on commas that are not nested inside brackets."""
+        parts: List[str] = []
+        current: List[str] = []
+        depth = 0
+        for char in text:
+            if char in "([{":
+                depth += 1
+            elif char in ")]}":
+                depth -= 1
+            if char == "," and depth == 0:
+                parts.append("".join(current).strip())
+                current = []
+            else:
+                current.append(char)
+        parts.append("".join(current).strip())
+        return [part for part in parts if part]
+
+    @staticmethod
+    def _to_real_float(value_text: str) -> Optional[float]:
+        """Convert a numeric root string to a float, or None if it is not a finite real number."""
+        try:
+            value = float(value_text)
+        except Exception:
+            try:
+                result = window.math.evaluate(value_text)
+                if isinstance(result, (int, float)):
+                    value = float(result)
+                else:
+                    real, imag = float(result.re), float(result.im)
+                    if abs(imag) > 1e-9 * max(1.0, abs(real)):
+                        return None
+                    value = real
+            except Exception:
+                return None
+        return value if math.isfinite(value) else None
+
+    @staticmethod
+    def _numeric_real_roots(expression: str, variable: str) -> List[float]:
+        """Solve expression = 0 with nerdamer and return the distinct real roots as floats."""
+        raw_roots = str(window.nerdamer(f"solve({expression}, {variable})").evaluate().text("decimals"))
+        if not (raw_roots.startswith("[") and raw_roots.endswith("]")):
+            return []
+        roots: List[float] = []
+        for root_text in MathUtils._split_top_level_commas(raw_roots[1:-1]):
+            root = MathUtils._to_real_float(root_text)
+            if root is not None and not any(abs(root - r) <= 1e-9 * max(1.0, abs(r)) for r in roots):
+                roots.append(root)
+        return roots
 
     @staticmethod
     def solve_linear_system(equations: Sequence[str]) -> str:
@@ -1510,6 +1840,16 @@ class MathUtils:
                 raise ValueError("The system of equations must contain at most 2 equations.")
 
             print(f"Attempting to solve a system of linear and quadratic equations: {equations}")
+
+            # The coefficient fast path below only works when both equations are 'y = f(x)'
+            if any(MathUtils._explicit_y_expression(eq) is None for eq in equations):
+                substitution_solutions = MathUtils._solve_by_substitution(equations)
+                if not substitution_solutions:
+                    return MathUtils.solve_numeric(equations)
+                if len(substitution_solutions) == 1:
+                    return f"x = {substitution_solutions[0][0]}, y = {substitution_solutions[0][1]}"
+                indexed = [f"x{i} = {x}, y{i} = {y}" for i, (x, y) in enumerate(substitution_solutions, start=1)]
+                return ", ".join(indexed)
 
             from expression_validator import ExpressionValidator
 
@@ -1578,51 +1918,18 @@ class MathUtils:
     @staticmethod
     def solve_quadratic_system(equations: Sequence[str]) -> str:
         try:
-            from expression_validator import ExpressionValidator
-
             if len(equations) != 2:
                 raise ValueError("The system must contain exactly 2 quadratic equations.")
 
             print(f"Attempting to solve a system of quadratic equations: {equations}")
-            eqs = []
-            for equation in equations:
-                eq = MathUtils.expand(equation)
-                eq = ExpressionValidator.fix_math_expression(eq, python_compatible=False)
-                eq = eq.split("=")[0] if "x" in eq.split("=")[0] else eq.split("=")[1]
-                eqs.append(eq)
+            # Substitute an explicit 'y = f(x)' equation into the other one and solve for x
+            solutions = MathUtils._solve_by_substitution(equations)
+            if not solutions:
+                # Neither equation is explicit in y, or no real root was found symbolically
+                print("Falling back to numeric solver for quadratic system")
+                return MathUtils.solve_numeric(equations)
 
-            # Construct the system equation by setting the equations equal to each other
-            system_eq = f"({eqs[0]}) - ({eqs[1]}) = 0"
-            system_eq = MathUtils.expand(system_eq)
-
-            # Use nerdamer to solve the system equation for x
-            x_solutions_raw = MathUtils.solve(system_eq, "x")
-            x_solutions_data = json.loads(x_solutions_raw)
-            x_solutions = [float(r) for r in x_solutions_data]
-
-            solution_dict = {}
-            for x_solution in x_solutions:
-                # Substitute x_solution into both original equations to find y
-                y_equation1 = eqs[0].replace("x", f"({x_solution})")
-                y_equation2 = eqs[1].replace("x", f"({x_solution})")
-
-                if "y" not in y_equation1:
-                    y_equation1 += " = y"
-                if "y" not in y_equation2:
-                    y_equation2 += " = y"
-
-                y1_raw = MathUtils.solve(y_equation1, "y")
-                y2_raw = MathUtils.solve(y_equation2, "y")
-
-                y1_value: Optional[float] = float(json.loads(y1_raw)[0]) if y1_raw else None
-                y2_value: Optional[float] = float(json.loads(y2_raw)[0]) if y2_raw else None
-
-                print(f"Solving for x = {x_solution}: {y_equation1} = {y1_value}, {y_equation2} = {y2_value}")
-
-                if y1_value is not None and y2_value is not None and y1_value == y2_value:
-                    solution_dict[x_solution] = y1_value
-
-            solution_strings = [f"(x = {k}, y = {v})" for k, v in solution_dict.items()]
+            solution_strings = [f"(x = {x}, y = {y})" for x, y in solutions]
             print(f"Solutions found: {solution_strings}")
             return ", ".join(solution_strings)
 
@@ -1630,6 +1937,64 @@ class MathUtils:
             raise ve
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
+
+    _Y_TOKEN_PATTERN = r"(?<![A-Za-z_])y(?![A-Za-z_])"
+
+    @staticmethod
+    def _explicit_y_expression(equation: str) -> Optional[str]:
+        """Return f(x) when the equation is literally 'y = f(x)' or 'f(x) = y', else None."""
+        import re
+
+        sides = [side.strip() for side in equation.split("=")]
+        if len(sides) != 2:
+            return None
+        for side, other in ((sides[0], sides[1]), (sides[1], sides[0])):
+            if side == "y" and other and not re.search(MathUtils._Y_TOKEN_PATTERN, other):
+                return other
+        return None
+
+    @staticmethod
+    def _solve_by_substitution(equations: Sequence[str]) -> Optional[List[Tuple[float, float]]]:
+        """Solve two equations in x and y by substituting an explicit 'y = f(x)' into the other.
+
+        Returns the real (x, y) solutions that satisfy both equations, or None when
+        neither equation is explicit in y or the reduced equation cannot be solved.
+        """
+        import re
+
+        explicit_forms = [MathUtils._explicit_y_expression(eq) for eq in equations]
+        index = next((i for i, form in enumerate(explicit_forms) if form is not None), None)
+        if index is None:
+            return None
+        y_expression = explicit_forms[index]
+        if y_expression is None:
+            return None
+        other_sides = equations[1 - index].split("=")
+        if len(other_sides) > 2:
+            return None
+        if len(other_sides) == 1:
+            other_sides.append("0")
+        substituted = [re.sub(MathUtils._Y_TOKEN_PATTERN, f"({y_expression})", side) for side in other_sides]
+        try:
+            x_roots = MathUtils._numeric_real_roots(f"({substituted[0]}) - ({substituted[1]})", "x")
+        except Exception as e:
+            print(f"Substitution solve failed: {e}")
+            return None
+
+        equation_sides = [eq.split("=") for eq in equations]
+        solutions: List[Tuple[float, float]] = []
+        for x_value in x_roots:
+            try:
+                y_value = window.math.evaluate(y_expression, {"x": x_value})
+            except Exception:
+                continue
+            if not isinstance(y_value, (int, float)) or not math.isfinite(y_value):
+                continue
+            y_value = float(y_value)
+            scope = {"x": x_value, "y": y_value}
+            if all(MathUtils._equation_holds(sides, scope) is not False for sides in equation_sides):
+                solutions.append((x_value, y_value))
+        return solutions
 
     @staticmethod
     def solve_system_of_equations(equations: Sequence[str]) -> str:
@@ -1671,6 +2036,19 @@ class MathUtils:
                 if any(t in ["Trigonometric", "Unknown", "Other Non-linear"] or "Error" in t for t in equation_types):
                     print("Falling back to numeric solver for transcendental/non-polynomial system")
                     return MathUtils.solve_numeric(equations)
+
+                # Two x/y equations with an explicit 'y = f(x)': substitute to find every real intersection
+                if len(equations) == 2:
+                    substitution_solutions = MathUtils._solve_by_substitution(equations)
+                    if substitution_solutions:
+                        if len(substitution_solutions) == 1:
+                            x_value, y_value = substitution_solutions[0]
+                            return f"x = {x_value}, y = {y_value}"
+                        indexed = [
+                            f"x{i} = {x_value}, y{i} = {y_value}"
+                            for i, (x_value, y_value) in enumerate(substitution_solutions, start=1)
+                        ]
+                        return ", ".join(indexed)
 
                 # Try the nerdamer library solver, fall back to numeric on failure
                 print("Solving using nerdamer, returning first solution found")
@@ -2156,30 +2534,9 @@ class MathUtils:
         try:
             # Create a_{n+1} by substituting n -> n+1
             next_term = str(window.nerdamer(expression).sub(n_var, f"({n_var}+1)").text())
-            # Compute |a_{n+1}/a_n|
-            ratio_expr = f"abs(({next_term})/({expression}))"
-            # Take the limit as n -> infinity
-            limit_result = MathUtils.limit(ratio_expr, n_var, "inf")
-
-            # Parse the result
-            if "Error" in limit_result:
-                return f"Error computing limit: {limit_result}"
-
-            # Try to evaluate the limit numerically
-            try:
-                L = float(limit_result)
-                if L < 1:
-                    return f"Converges (L = {limit_result})"
-                elif L > 1:
-                    return f"Diverges (L = {limit_result})"
-                else:  # L == 1
-                    return f"Inconclusive (L = {limit_result})"
-            except (ValueError, TypeError):
-                # Limit might be symbolic (e.g., "Infinity")
-                limit_lower = limit_result.lower()
-                if "infinity" in limit_lower or "inf" in limit_lower:
-                    return "Diverges (L = infinity)"
-                return f"Inconclusive (L = {limit_result})"
+            # L = lim |a_{n+1}/a_n|
+            ratio_expr = f"({next_term})/({expression})"
+            return MathUtils._classify_series_limit(ratio_expr, f"abs({ratio_expr})", n_var)
         except Exception as e:
             return f"Error: {e}"
 
@@ -2200,32 +2557,68 @@ class MathUtils:
             str: "Converges", "Diverges", or "Inconclusive" with the limit value
         """
         try:
-            # Compute |a_n|^{1/n}
-            root_expr = f"(abs({expression}))^(1/{n_var})"
-            # Take the limit as n -> infinity
-            limit_result = MathUtils.limit(root_expr, n_var, "inf")
-
-            # Parse the result
-            if "Error" in limit_result:
-                return f"Error computing limit: {limit_result}"
-
-            # Try to evaluate the limit numerically
-            try:
-                L = float(limit_result)
-                if L < 1:
-                    return f"Converges (L = {limit_result})"
-                elif L > 1:
-                    return f"Diverges (L = {limit_result})"
-                else:  # L == 1
-                    return f"Inconclusive (L = {limit_result})"
-            except (ValueError, TypeError):
-                # Limit might be symbolic (e.g., "Infinity")
-                limit_lower = limit_result.lower()
-                if "infinity" in limit_lower or "inf" in limit_lower:
-                    return "Diverges (L = infinity)"
-                return f"Inconclusive (L = {limit_result})"
+            # L = lim |a_n|^{1/n}
+            root_expr = f"({expression})^(1/{n_var})"
+            return MathUtils._classify_series_limit(root_expr, f"(abs({expression}))^(1/{n_var})", n_var)
         except Exception as e:
             return f"Error: {e}"
+
+    @staticmethod
+    def _classify_series_limit(expression: str, abs_expression: str, n_var: str) -> str:
+        """Classify L = |lim expression| as n -> infinity for the ratio and root tests.
+
+        nerdamer's limit() mishandles abs() at infinity (e.g. lim |2^n|^(1/n) gives 1), so the
+        limit of ``expression`` is taken first and its absolute value used; the limit of
+        ``abs_expression`` (already wrapped in abs) is the fallback when that is not numeric.
+        """
+        try:
+            # Let nerdamer simplify first (e.g. 2^(n+1)/2^n -> 2, (2^n)^(1/n) -> 2)
+            expression = str(window.nerdamer(expression).text())
+        except Exception:
+            pass
+        limit_result = MathUtils.limit(expression, n_var, "inf")
+        value = MathUtils._numeric_limit_value(limit_result)
+        if value is None:
+            limit_result = MathUtils.limit(abs_expression, n_var, "inf")
+            if "Error" in limit_result:
+                return f"Error computing limit: {limit_result}"
+            value = MathUtils._numeric_limit_value(limit_result)
+            if value is None:
+                # Limit is symbolic or could not be computed
+                return f"Inconclusive (L = {limit_result})"
+
+        L = abs(value)
+        if math.isinf(L):
+            return "Diverges (L = infinity)"
+        L_text = f"{L:.12g}"
+        if abs(L - 1) <= 1e-9:
+            return f"Inconclusive (L = {L_text})"
+        if L < 1:
+            return f"Converges (L = {L_text})"
+        return f"Diverges (L = {L_text})"
+
+    @staticmethod
+    def _numeric_limit_value(limit_result: str) -> Optional[float]:
+        """Numerically evaluate a nerdamer limit result (e.g. "e^(-0.69...)", "Infinity").
+
+        Returns None for errors, unevaluated limits, and non-numeric results.
+        """
+        if "Error" in limit_result or "limit" in limit_result:
+            return None
+        try:
+            evaluated: Any = window.nerdamer(limit_result).evaluate()
+            numeric_text = str(evaluated.text("decimals")).strip()
+        except Exception:
+            return None
+        if numeric_text in ("Infinity", "+Infinity"):
+            return float("inf")
+        if numeric_text == "-Infinity":
+            return float("-inf")
+        try:
+            value = float(numeric_text)
+        except (ValueError, TypeError):
+            return None
+        return None if math.isnan(value) else value
 
     @staticmethod
     def p_series_test(p: Number) -> str:
@@ -2342,60 +2735,119 @@ class MathUtils:
         right_bound: Optional[Number] = None,
     ) -> List[float]:
         """Calculate vertical asymptotes of a function within given bounds"""
-        import re
         from expression_validator import ExpressionValidator
 
         # Standardize the function string
         function_string = ExpressionValidator.fix_math_expression(function_string)
         vertical_asymptotes: List[float] = []
 
-        # For logarithmic functions
-        if "log" in function_string:
-            vertical_asymptotes.append(0.0)
+        # For logarithmic functions: where the (first) argument is zero
+        for log_argument in MathUtils._function_call_arguments(function_string, "log|ln|log10|log2"):
+            arguments = MathUtils._split_top_level_commas(log_argument)
+            if arguments:
+                vertical_asymptotes.extend(MathUtils._real_zeros_in_x(arguments[0]))
 
-        # For rational functions
-        if "/" in function_string:
-            denominator = function_string.split("/")[-1].strip()
-            try:
-                # Try to solve denominator = 0
-                zeros = json.loads(MathUtils.solve(denominator, "x"))
-                vertical_asymptotes.extend(float(x) for x in zeros)
-            except:
-                pass
+        # For rational functions: where any denominator that depends on x is zero
+        for denominator in MathUtils._denominators(function_string):
+            vertical_asymptotes.extend(MathUtils._real_zeros_in_x(denominator))
 
-        # For tangent functions
-        if "tan" in function_string:
-            # Find all tangent terms in the function
-            tan_matches = re.findall(r"tan\((.*?)(?:\)|$)", function_string)
-            for tan_arg in tan_matches:
-                coeff = 1.0
-                # Check for x/divisor pattern first (e.g., x/100)
-                div_match = re.search(r"x\s*/\s*(\d+\.?\d*)", tan_arg)
-                if div_match:
-                    divisor = float(div_match.group(1))
-                    coeff = 1.0 / divisor if divisor != 0 else 1.0
-                else:
-                    # Check for coefficient*x pattern (e.g., 2*x or 2x)
-                    coeff_match = re.search(r"([+-]?\d+\.?\d*)\s*\*?\s*x", tan_arg)
-                    if coeff_match:
-                        coeff = float(coeff_match.group(1))
+        # For tangent functions (word boundary so atan/arctan are excluded)
+        left = left_bound if left_bound is not None else -1000
+        right = right_bound if right_bound is not None else 1000
+        for tan_argument in MathUtils._function_call_arguments(function_string, "tan"):
+            vertical_asymptotes.extend(MathUtils._tangent_asymptotes(tan_argument, left, right))
 
-                # Get bounds
-                left = left_bound if left_bound is not None else -1000
-                right = right_bound if right_bound is not None else 1000
+        return sorted(set(vertical_asymptotes))
 
-                # Calculate asymptotes within bounds
-                # Asymptotes occur at x = (pi/2 + n*pi)/coeff
-                n = math.floor(left * coeff / math.pi - 0.5)
-                while True:
-                    x = (math.pi / 2 + n * math.pi) / coeff
-                    if x > right:
-                        break
-                    if x >= left:
-                        vertical_asymptotes.append(x)
-                    n += 1
+    _X_TOKEN_PATTERN = r"(?<![A-Za-z_])x(?![A-Za-z_])"
 
-        return sorted(vertical_asymptotes)
+    @staticmethod
+    def _balanced_group(text: str, open_index: int) -> Optional[str]:
+        """Return the contents of the parenthesized group starting at text[open_index] == '('."""
+        depth = 0
+        for index in range(open_index, len(text)):
+            if text[index] == "(":
+                depth += 1
+            elif text[index] == ")":
+                depth -= 1
+                if depth == 0:
+                    return text[open_index + 1 : index]
+        return None
+
+    @staticmethod
+    def _function_call_arguments(text: str, names: str) -> List[str]:
+        """Return the full (balanced) argument text of every call to one of the '|'-separated names."""
+        import re
+
+        arguments = []
+        for match in re.finditer(rf"\b(?:{names})\s*\(", text):
+            group = MathUtils._balanced_group(text, match.end() - 1)
+            if group is not None:
+                arguments.append(group)
+        return arguments
+
+    @staticmethod
+    def _denominators(text: str) -> List[str]:
+        """Return each denominator that depends on x: the group or token right after every '/'."""
+        import re
+
+        denominators = []
+        for index, char in enumerate(text):
+            if char != "/":
+                continue
+            rest = text[index + 1 :]
+            start = index + 1 + (len(rest) - len(rest.lstrip()))
+            if start < len(text) and text[start] == "(":
+                denominator = MathUtils._balanced_group(text, start)
+            else:
+                token_match = re.match(r"[A-Za-z_][A-Za-z_0-9.]*|\d*\.?\d+", text[start:])
+                denominator = token_match.group(0) if token_match else None
+                if denominator is not None and text[start + len(denominator) : start + len(denominator) + 1] == "(":
+                    call_arguments = MathUtils._balanced_group(text, start + len(denominator))
+                    denominator = None if call_arguments is None else f"{denominator}({call_arguments})"
+            if denominator and re.search(MathUtils._X_TOKEN_PATTERN, denominator):
+                denominators.append(denominator)
+        return denominators
+
+    @staticmethod
+    def _real_zeros_in_x(expression: str) -> List[float]:
+        """Return the real zeros of an expression in x, or [] when it has none or cannot be solved."""
+        import re
+
+        if not re.search(MathUtils._X_TOKEN_PATTERN, expression):
+            return []
+        try:
+            return MathUtils._numeric_real_roots(expression, "x")
+        except Exception:
+            return []
+
+    @staticmethod
+    def _tangent_asymptotes(argument: str, left: Number, right: Number) -> List[float]:
+        """Return the asymptotes of tan(argument) within [left, right] for a linear argument a*x + b."""
+        try:
+            compiled = window.math.compile(argument)
+            offset = float(compiled.evaluate({"x": 0}))
+            slope = float(compiled.evaluate({"x": 1})) - offset
+            for probe in (-2.5, 3.7):
+                expected = offset + slope * probe
+                if abs(float(compiled.evaluate({"x": probe})) - expected) > 1e-9 * max(1.0, abs(expected)):
+                    return []  # non-linear argument: leave it to numeric discontinuity detection
+        except Exception:
+            return []
+        if slope == 0 or not math.isfinite(slope) or not math.isfinite(offset):
+            return []
+
+        # Asymptotes occur where slope*x + offset = pi/2 + n*pi
+        n_at_left = (slope * left + offset - math.pi / 2) / math.pi
+        n_at_right = (slope * right + offset - math.pi / 2) / math.pi
+        first_n = math.floor(min(n_at_left, n_at_right)) - 1
+        last_n = math.ceil(max(n_at_left, n_at_right)) + 1
+        asymptotes = []
+        for n in range(first_n, last_n + 1):
+            x = (math.pi / 2 + n * math.pi - offset) / slope
+            if left <= x <= right:
+                asymptotes.append(x)
+        return asymptotes
 
     @staticmethod
     def calculate_horizontal_asymptotes(function_string: str) -> List[float]:
@@ -2478,16 +2930,9 @@ class MathUtils:
 
         # For absolute value function at its corners
         if "abs" in function_string:
-            # Extract all arguments of abs functions
-            abs_pattern = r"abs\((.*?)\)"
-            matches = re.findall(abs_pattern, function_string)
-            for match in matches:
-                try:
-                    # Try to solve the argument = 0 to find the corner point
-                    zeros = json.loads(MathUtils.solve(match, "x"))
-                    point_discontinuities_set.update(float(x) for x in zeros)
-                except:
-                    pass
+            # Solve each (balanced) abs argument = 0 to find the corner points
+            for abs_argument in MathUtils._function_call_arguments(function_string, "abs"):
+                point_discontinuities_set.update(MathUtils._real_zeros_in_x(abs_argument))
 
         # Convert to list and sort
         point_discontinuities_list = sorted(point_discontinuities_set)
@@ -2550,42 +2995,26 @@ class MathUtils:
         if len(points) != 4:
             return None, None
 
-        # Find all possible diagonal pairs (points that differ in both x and y)
-        potential_diagonals = []
-
-        for i in range(len(points)):
-            for j in range(i + 1, len(points)):
-                p1 = points[i]
-                p2 = points[j]
-
-                # Check if points differ in both x and y coordinates (potential diagonal)
-                dx = abs(p1.x - p2.x)
-                dy = abs(p1.y - p2.y)
-
-                if dx > MathUtils.EPSILON and dy > MathUtils.EPSILON:
-                    distance = math.sqrt(dx**2 + dy**2)
-                    potential_diagonals.append((p1, p2, distance, dx, dy))
-
-        if not potential_diagonals:
+        # Points with no pair differing in both x and y (e.g. on a horizontal line) cannot form a rectangle
+        has_2d_extent = any(
+            abs(points[i].x - points[j].x) > MathUtils.EPSILON and abs(points[i].y - points[j].y) > MathUtils.EPSILON
+            for i in range(len(points))
+            for j in range(i + 1, len(points))
+        )
+        if not has_2d_extent:
             return None, None
 
-        # Sort by a combination of factors that make good rectangle diagonals:
-        # 1. Prefer more balanced rectangles (closer dx/dy ratio to 1.0)
-        # 2. Then by distance as secondary criterion
-        def diagonal_score(diag_info: Tuple[PointLike, PointLike, float, float, float]) -> Tuple[float, float]:
-            p1, p2, distance, dx, dy = diag_info
-            # Calculate how balanced the rectangle would be (closer to 1.0 is better)
-            aspect_ratio = max(dx, dy) / min(dx, dy) if min(dx, dy) > 0 else float("inf")
-            balance_score = 1.0 / aspect_ratio  # Higher score for more balanced rectangles
-            # Return tuple for sorting: (balance_score descending, distance descending)
-            return (-balance_score, -distance)
-
-        # Sort potential diagonals by our scoring criteria
-        potential_diagonals.sort(key=diagonal_score)
-
-        # Return the best diagonal pair
-        best_diagonal = potential_diagonals[0]
-        return best_diagonal[0], best_diagonal[1]
+        # The diagonals of a rectangle are its longest vertex pairs. Consider every pair
+        # (a rotated rectangle's diagonal may be axis-aligned); the first longest one wins ties.
+        best_pair: Tuple[Optional[PointLike], Optional[PointLike]] = (None, None)
+        best_distance = -1.0
+        for i in range(len(points)):
+            for j in range(i + 1, len(points)):
+                distance = math.hypot(points[i].x - points[j].x, points[i].y - points[j].y)
+                if distance > best_distance:
+                    best_distance = distance
+                    best_pair = (points[i], points[j])
+        return best_pair
 
     @staticmethod
     def rectangular_to_polar(x: float, y: float) -> Tuple[float, float]:
@@ -2687,19 +3116,24 @@ class MathUtils:
         Args:
             func: Callable that takes a float and returns a float
             x: Point at which to calculate the derivative
-            h: Step size for the finite difference (default: 1e-7)
+            h: Relative step size for the finite difference (default: 1e-7);
+                the actual step is h * max(1, |x|) so it stays resolvable at large |x|
 
         Returns:
             The derivative value, or None if calculation fails
         """
         try:
-            y_plus = func(x + h)
-            y_minus = func(x - h)
+            step = h * max(1.0, abs(x))
+            x_plus = x + step
+            x_minus = x - step
+            y_plus = func(x_plus)
+            y_minus = func(x_minus)
 
             if not (math.isfinite(y_plus) and math.isfinite(y_minus)):
                 return None
 
-            derivative = (y_plus - y_minus) / (2 * h)
+            # Divide by the actually representable step to avoid rounding bias
+            derivative = (y_plus - y_minus) / (x_plus - x_minus)
 
             if not math.isfinite(derivative):
                 return None
@@ -2986,18 +3420,25 @@ class MathUtils:
         Raises:
             ValueError: If the three points are collinear or coincident
         """
-        d = 2.0 * (x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2))
-        if abs(d) < MathUtils.EPSILON:
+        # Translate so the first vertex is the origin to avoid precision loss far from (0, 0)
+        bx, by = x2 - x1, y2 - y1
+        qx, qy = x3 - x1, y3 - y1
+
+        d = 2.0 * (bx * qy - by * qx)
+        # Relative collinearity test: d (four times the area) against the longest squared side
+        scale = max(bx * bx + by * by, qx * qx + qy * qy, (qx - bx) ** 2 + (qy - by) ** 2)
+        if scale == 0 or abs(d) <= MathUtils.EPSILON * scale:
             raise ValueError("Points are collinear: circumcircle is undefined")
 
-        sq1 = x1 * x1 + y1 * y1
-        sq2 = x2 * x2 + y2 * y2
-        sq3 = x3 * x3 + y3 * y3
+        sq_b = bx * bx + by * by
+        sq_q = qx * qx + qy * qy
 
-        cx = (sq1 * (y2 - y3) + sq2 * (y3 - y1) + sq3 * (y1 - y2)) / d
-        cy = (sq1 * (x3 - x2) + sq2 * (x1 - x3) + sq3 * (x2 - x1)) / d
+        ux = (qy * sq_b - by * sq_q) / d
+        uy = (bx * sq_q - qx * sq_b) / d
 
-        radius = math.sqrt((x1 - cx) ** 2 + (y1 - cy) ** 2)
+        cx = x1 + ux
+        cy = y1 + uy
+        radius = math.hypot(ux, uy)
 
         if not (math.isfinite(cx) and math.isfinite(cy) and math.isfinite(radius)):
             raise ValueError("Circumcenter computation produced non-finite result")

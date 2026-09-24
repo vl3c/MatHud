@@ -20,6 +20,12 @@ class TestStatisticsDistributions(unittest.TestCase):
         with self.assertRaises(ValueError):
             normal_pdf_expression(0.0, -1.0)
 
+    def test_normal_pdf_expression_avoids_scientific_notation(self) -> None:
+        expr = normal_pdf_expression(-2.5e-7, 1e-5)
+        self.assertIn("(0.00001)", expr)
+        self.assertIn("(-0.00000025)", expr)
+        self.assertNotIn("e-", expr.replace("exp", ""))
+
     def test_default_normal_bounds(self) -> None:
         left, right = default_normal_bounds(0.0, 1.0)
         self.assertAlmostEqual(left, -4.0)

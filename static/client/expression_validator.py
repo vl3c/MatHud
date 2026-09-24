@@ -52,7 +52,7 @@ import ast
 import math
 import random
 import re
-from typing import Any, Callable, Dict, Set, Type, cast
+from typing import Any, Callable, Dict, Optional, Set, Type, cast
 
 
 # The ExpressionValidator class is used to validate and evaluate mathematical expressions
@@ -164,6 +164,13 @@ class ExpressionValidator(ast.NodeVisitor):
         "root_test",
         "p_series_test",
     }
+    # Identifiers or number literals (with optional exponent), matched whole for implicit multiplication.
+    # Note: "[-+]" rather than "[+-]" -- Brython's re fails to match "e-5" with the latter.
+    _IMPLICIT_MULTIPLICATION_TOKEN = re.compile(r"[a-zA-Z_][a-zA-Z_0-9]*|(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?")
+    # Evaluation namespace (built lazily once) and compiled code objects keyed by function string
+    _functions: Optional[Dict[str, Any]] = None
+    _compiled_cache: Dict[str, Any] = {}
+    _COMPILED_CACHE_LIMIT = 256
 
     def _is_allowed_node_type(self, node: ast.AST) -> bool:
         """
@@ -327,10 +334,18 @@ class ExpressionValidator(ast.NodeVisitor):
     @staticmethod
     def _get_variables_and_functions(x: float) -> Dict[str, Any]:
         """Create a dictionary with variables and functions for expression evaluation"""
+        if ExpressionValidator._functions is None:
+            ExpressionValidator._functions = ExpressionValidator._build_functions()
+        variables_and_functions = dict(ExpressionValidator._functions)
+        variables_and_functions["x"] = x
+        return variables_and_functions
+
+    @staticmethod
+    def _build_functions() -> Dict[str, Any]:
+        """Build the dictionary of functions and constants available to expressions (built once)"""
         from utils.math_utils import MathUtils
 
         return {
-            "x": x,
             "sin": math.sin,
             "cos": math.cos,
             "tan": math.tan,
@@ -424,7 +439,9 @@ class ExpressionValidator(ast.NodeVisitor):
         expression = expression.replace("°", " deg")
         expression = expression.replace("degrees", " deg")
         expression = expression.replace("degree", " deg")
-        expression = re.sub(r"(\d+)\s*deg", lambda match: str(float(match.group(1)) * math.pi / 180), expression)
+        expression = re.sub(
+            r"(\d+(?:\.\d+)?)\s*deg", lambda match: str(float(match.group(1)) * math.pi / 180), expression
+        )
         return expression
 
     @staticmethod
@@ -506,7 +523,8 @@ class ExpressionValidator(ast.NodeVisitor):
     def _replace_function_names(expression: str) -> str:
         """Replace common mathematical function names with their Python equivalents"""
         replacements = ExpressionValidator._get_function_replacements()
-        for old, new in replacements.items():
+        # Longest names first so "sine(" doesn't clobber "arcsine(", "cosine(" or "hyperbolic sine("
+        for old, new in sorted(replacements.items(), key=lambda item: len(item[0]), reverse=True):
             expression = expression.replace(old, new)
         return expression
 
@@ -572,8 +590,17 @@ class ExpressionValidator(ast.NodeVisitor):
         expression = re.sub(r"log(\d+)", r"log[\1]", expression)
 
         # Step 2: Insert '*' between a number and a variable, function name, or parenthesis,
-        # excluding 'i' or 'j' immediately after a number
-        expression = re.sub(rf"(\d)(?!{imaginary_unit})([a-zA-Z_\(])", r"\1*\2", expression)
+        # excluding 'i' or 'j' immediately after a number. Identifiers (atan2, x1) and number
+        # literals with exponents (1e-5, 2.5E+3) are matched whole so they are never split.
+        def insert_operator(match: re.Match[str]) -> str:
+            token = match.group(0)
+            next_char = expression[match.end() : match.end() + 1]
+            is_number = token[0].isdigit() or token[0] == "."
+            if is_number and next_char != imaginary_unit and re.match(r"[a-zA-Z_\(]", next_char):
+                return token + "*"
+            return token
+
+        expression = re.sub(ExpressionValidator._IMPLICIT_MULTIPLICATION_TOKEN, insert_operator, expression)
 
         # Step 3: Revert "log" followed by any number back to its original form
         expression = re.sub(r"log\[(\d+)\]", r"log\1", expression)
@@ -588,16 +615,29 @@ class ExpressionValidator(ast.NodeVisitor):
         return lambda x: MathUtils.evaluate(function_string, {"x": x})
 
     @staticmethod
+    def _compile_function_string(function_string: str) -> Any:
+        """Fix, validate and compile a function string, caching the code object per string"""
+        cache = ExpressionValidator._compiled_cache
+        compiled_code = cache.get(function_string)
+        if compiled_code is None:
+            fixed_string = ExpressionValidator.fix_math_expression(function_string, python_compatible=True)
+            ExpressionValidator.validate_expression_tree(fixed_string)
+            tree = ast.parse(fixed_string, mode="eval")
+            compiled_code = compile(tree, "<string>", mode="eval")
+            if len(cache) >= ExpressionValidator._COMPILED_CACHE_LIMIT:
+                cache.clear()
+            cache[function_string] = compiled_code
+        return compiled_code
+
+    @staticmethod
     def _parse_with_python(function_string: str) -> Callable[[float], float]:
         """Parse a function string using Python's built-in evaluation (faster)"""
-        function_string = ExpressionValidator.fix_math_expression(function_string, python_compatible=True)
-        ExpressionValidator.validate_expression_tree(function_string)
-
-        tree = ast.parse(function_string, mode="eval")
-        compiled_code = compile(tree, "<string>", mode="eval")
+        compiled_code = ExpressionValidator._compile_function_string(function_string)
+        # One namespace per parsed function, reused across calls; only 'x' changes (hot plotting path)
+        variables = ExpressionValidator._get_variables_and_functions(0)
 
         def evaluator(x: float) -> float:
-            variables = ExpressionValidator._get_variables_and_functions(x)
+            variables["x"] = x
             return float(eval(compiled_code, variables))
 
         return evaluator
@@ -663,14 +703,12 @@ class ExpressionValidator(ast.NodeVisitor):
 
         Uses 't' as the parameter variable instead of 'x'.
         """
-        expression_string = ExpressionValidator.fix_math_expression(expression_string, python_compatible=True)
-        ExpressionValidator.validate_expression_tree(expression_string)
-
-        tree = ast.parse(expression_string, mode="eval")
-        compiled_code = compile(tree, "<string>", mode="eval")
+        compiled_code = ExpressionValidator._compile_function_string(expression_string)
+        # One namespace per parsed expression, reused across calls; only 't' changes
+        variables = ExpressionValidator._get_variables_and_functions_parametric(0)
 
         def evaluator(t: float) -> float:
-            variables = ExpressionValidator._get_variables_and_functions_parametric(t)
+            variables["t"] = t
             return float(eval(compiled_code, variables))
 
         return evaluator

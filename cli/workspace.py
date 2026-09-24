@@ -212,9 +212,9 @@ def delete(name: str, port: int, yes: bool) -> None:
             return
 
     try:
-        response = requests.get(
+        response = requests.post(
             f"{get_api_base(DEFAULT_HOST, port)}/delete_workspace",
-            params={"name": name},
+            json={"name": name},
             timeout=HEALTH_CHECK_TIMEOUT,
         )
         response.raise_for_status()

@@ -38,19 +38,34 @@ class GraphAnalyzer:
 
     @staticmethod
     def _build_adjacency(state: GraphState, directed: bool) -> Dict[str, set[str]]:
+        """Adjacency over all state vertices, so isolated vertices are included."""
         edges = GraphAnalyzer._build_edges(state)
         if directed:
             raw = GraphUtils.build_directed_adjacency_map(edges)
-            return {k: set(v) for k, v in raw.items()}
-        raw = GraphUtils.build_adjacency_map(edges)
-        return {k: set(v) for k, v in raw.items()}
+        else:
+            raw = GraphUtils.build_adjacency_map(edges)
+        adjacency = {k: set(v) for k, v in raw.items()}
+        for vertex in state.vertices:
+            adjacency.setdefault(vertex.id, set())
+        return adjacency
 
     @staticmethod
-    def _weight_lookup(state: GraphState) -> Dict[Tuple[str, str], float]:
+    def _weight_lookup(state: GraphState, directed: bool) -> Dict[Tuple[str, str], float]:
+        """Edge weights keyed by endpoints.
+
+        Parallel edges keep the minimum weight, since shortest path and MST only
+        ever use the cheapest edge between two vertices. Undirected graphs store
+        both orientations so either edge direction resolves to that minimum.
+        """
         weights: Dict[Tuple[str, str], float] = {}
         for edge in state.edges:
-            if edge.weight is not None:
-                weights[(edge.source, edge.target)] = float(edge.weight)
+            if edge.weight is None:
+                continue
+            keys = [(edge.source, edge.target)]
+            if not directed:
+                keys.append((edge.target, edge.source))
+            for key in keys:
+                weights[key] = min(float(edge.weight), weights.get(key, float("inf")))
         return weights
 
     @staticmethod
@@ -114,7 +129,7 @@ class GraphAnalyzer:
         directed = bool(state.directed)
         adjacency = GraphAnalyzer._build_adjacency(state, directed)
         edges = GraphAnalyzer._build_edges(state)
-        weights = GraphAnalyzer._weight_lookup(state)
+        weights = GraphAnalyzer._weight_lookup(state, directed)
         result: Dict[str, Any] = {"operation": operation}
 
         if operation == "shortest_path":
@@ -123,13 +138,16 @@ class GraphAnalyzer:
             if start is None or goal is None:
                 return {"error": "start and goal are required for shortest_path"}
             if weights:
-                path_data = GraphUtils.shortest_path_dijkstra(
-                    edges,
-                    start,
-                    goal,
-                    weight_lookup=weights,
-                    directed=directed,
-                )
+                try:
+                    path_data = GraphUtils.shortest_path_dijkstra(
+                        edges,
+                        start,
+                        goal,
+                        weight_lookup=weights,
+                        directed=directed,
+                    )
+                except ValueError as exc:
+                    return {"error": str(exc)}
                 if path_data is None:
                     return {"path": None}
                 path, cost = path_data
@@ -143,18 +161,30 @@ class GraphAnalyzer:
             return result
 
         if operation == "mst":
-            mst_edges = GraphUtils.minimum_spanning_tree(edges, weight_lookup=weights)
+            mst_edges, components = GraphUtils.minimum_spanning_forest(
+                edges, weight_lookup=weights, vertices=list(adjacency.keys())
+            )
             edge_names = GraphAnalyzer._edge_names_from_edges(state, mst_edges, directed=False)
             result["edges"] = [e.as_tuple() for e in mst_edges]
             result["highlight_vectors"] = edge_names
+            result["connected"] = components <= 1
+            if components > 1:
+                result["note"] = (
+                    f"Graph is disconnected ({components} components); "
+                    "returned a minimum spanning forest (one tree per component)."
+                )
             return result
 
         if operation == "topological_sort":
             order = GraphUtils.topological_sort(adjacency)
             return {"order": order}
 
+        # Bridges, articulation points and bipartiteness are defined on the
+        # underlying undirected graph, even for directed graphs.
+        undirected_adjacency = GraphAnalyzer._build_adjacency(state, False) if directed else adjacency
+
         if operation == "bridges":
-            bridges = GraphUtils.find_bridges(adjacency)
+            bridges = GraphUtils.find_bridges(undirected_adjacency)
             names = []
             for u, v in bridges:
                 name = GraphAnalyzer._edge_name_for_endpoints(state, u, v, directed=False)
@@ -163,15 +193,18 @@ class GraphAnalyzer:
             return {"bridges": bridges, "highlight_vectors": names}
 
         if operation == "articulation_points":
-            points = list(GraphUtils.find_articulation_points(adjacency))
+            points = list(GraphUtils.find_articulation_points(undirected_adjacency))
             return {"articulation_points": points}
 
         if operation == "euler_status":
-            status = GraphUtils.euler_status(adjacency)
+            if directed:
+                status = GraphUtils.directed_euler_status(edges)
+            else:
+                status = GraphUtils.euler_status(adjacency)
             return {"status": status}
 
         if operation == "bipartite":
-            is_bipartite, color_map = GraphUtils.is_bipartite(adjacency)
+            is_bipartite, color_map = GraphUtils.is_bipartite(undirected_adjacency)
             return {"is_bipartite": is_bipartite, "coloring": color_map}
 
         if operation == "bfs":

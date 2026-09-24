@@ -271,10 +271,9 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
     def _prepare_messages_for_stream(self, full_prompt: str) -> None:
         """Prepare messages for the streaming request."""
         prompt_json = self._parse_prompt_json(full_prompt)
-        tool_call_results = prompt_json.get("tool_call_results") if prompt_json else None
 
-        if tool_call_results:
-            self._update_tool_messages_with_results(tool_call_results)
+        if prompt_json and prompt_json.get("tool_call_results"):
+            self._apply_tool_call_results(prompt_json)
         else:
             message_content = self._prepare_message_content(full_prompt)
             user_message: MessageDict = {"role": "user", "content": message_content}
@@ -659,5 +658,5 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
                 args = json.loads(args_raw) if args_raw else {}
             except Exception:
                 args = {}
-            result.append({"function_name": func.get("name") or "", "arguments": args})
+            result.append({"id": tc.get("id"), "function_name": func.get("name") or "", "arguments": args})
         return result

@@ -16,6 +16,7 @@ Key Features:
 from __future__ import annotations
 
 import math
+from bisect import bisect_left
 from copy import deepcopy
 from typing import Any, Callable, Dict, List, Optional, cast
 
@@ -253,12 +254,24 @@ class Function(Drawable):
 
     def has_vertical_asymptote_between_x(self, x1: float, x2: float) -> bool:
         """Check if there is a vertical asymptote between x1 and x2"""
-        return hasattr(self, "vertical_asymptotes") and any(x1 <= x < x2 for x in self.vertical_asymptotes)
+        return self.get_vertical_asymptote_between_x(x1, x2) is not None
 
     def get_vertical_asymptote_between_x(self, x1: float, x2: float) -> Optional[float]:
-        """Get the x value of a vertical asymptote between x1 and x2, if any exists"""
-        if hasattr(self, "vertical_asymptotes"):
-            for x in self.vertical_asymptotes:
-                if x1 <= x < x2:
-                    return x
+        """Get the smallest vertical asymptote x with x1 <= x < x2, if any exists.
+
+        Called for every rendered sample, so it bisects a sorted copy of the
+        asymptote list (tan(x) can have hundreds) instead of scanning it.
+        """
+        asymptotes = getattr(self, "vertical_asymptotes", None)
+        if not asymptotes:
+            return None
+        # Keyed on the list object itself (held by the cache) and its length.
+        cache = getattr(self, "_sorted_asymptotes_cache", None)
+        if cache is None or cache[0] is not asymptotes or cache[1] != len(asymptotes):
+            cache = (asymptotes, len(asymptotes), sorted(asymptotes))
+            self._sorted_asymptotes_cache = cache
+        ordered = cache[2]
+        index = bisect_left(ordered, x1)
+        if index < len(ordered) and ordered[index] < x2:
+            return cast(float, ordered[index])
         return None

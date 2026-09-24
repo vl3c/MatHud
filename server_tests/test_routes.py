@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 import unittest
 from typing import Any, Dict, List, Optional
 from unittest.mock import Mock, patch
@@ -9,6 +10,7 @@ from unittest.mock import Mock, patch
 from static.app_manager import AppManager, MatHudFlask
 from static.config import CANVAS_SNAPSHOT_PATH
 from static.routes import save_canvas_snapshot_from_data_url
+from static.workspace_manager import WorkspaceManager
 from static.openai_completions_api import OpenAIChatCompletionsAPI
 from static.openai_responses_api import OpenAIResponsesAPI
 
@@ -71,8 +73,16 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/html", response.content_type)
 
+    def _use_temp_workspaces_dir(self) -> str:
+        """Point the app at a throwaway workspaces dir so tests leave no files behind."""
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        self.app.workspace_manager = WorkspaceManager(temp_dir.name)
+        return temp_dir.name
+
     def test_workspace_operations(self) -> None:
         """Test workspace CRUD operations."""
+        self._use_temp_workspaces_dir()
         # Test creating a workspace
         test_state = {"test": "data"}
         response = self.client.post("/save_workspace", json={"state": test_state, "name": "test_workspace"})
@@ -95,7 +105,7 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(data["data"]["state"], test_state)
 
         # Test deleting workspace
-        response = self.client.get("/delete_workspace?name=test_workspace")
+        response = self.client.post("/delete_workspace", json={"name": "test_workspace"})
         data = json.loads(response.data)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(data["status"], "success")
@@ -104,6 +114,23 @@ class TestRoutes(unittest.TestCase):
         response = self.client.get("/list_workspaces")
         data = json.loads(response.data)
         self.assertNotIn("test_workspace", data["data"])
+
+    def test_delete_workspace_rejects_cross_site_simple_requests(self) -> None:
+        """Deletes need POST + JSON; GET links and form/text posts cannot trigger them."""
+        workspaces_dir = self._use_temp_workspaces_dir()
+        response = self.client.post("/save_workspace", json={"state": {"test": "data"}, "name": "keep_me"})
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.get("/delete_workspace?name=keep_me")
+        self.assertEqual(response.status_code, 405)
+
+        response = self.client.post("/delete_workspace", data={"name": "keep_me"})
+        self.assertEqual(response.status_code, 415)
+
+        response = self.client.post("/delete_workspace", data='{"name": "keep_me"}', content_type="text/plain")
+        self.assertEqual(response.status_code, 415)
+
+        self.assertTrue(os.path.exists(os.path.join(workspaces_dir, "keep_me.json")))
 
     @patch("static.openai_completions_api.OpenAIChatCompletionsAPI.create_chat_completion")
     def test_send_message(self, mock_chat: Mock) -> None:
@@ -243,7 +270,7 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(data["status"], "error")
 
         # Test missing workspace name
-        response = self.client.get("/delete_workspace")
+        response = self.client.post("/delete_workspace", json={})
         data = json.loads(response.data)
         self.assertEqual(response.status_code, 400)
         self.assertEqual(data["status"], "error")

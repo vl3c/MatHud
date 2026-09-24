@@ -64,6 +64,36 @@ class TestNumericIntegrationPure(unittest.TestCase):
         with self.assertRaises(TypeError):
             integrate(lambda x: x, 0.0, 1.0, method="trapezoid", steps=True)  # type: ignore[arg-type]
 
+    def test_reports_steps_of_the_returned_value(self) -> None:
+        # The value comes from the refined pass, so steps must be doubled too
+        for method in ("trapezoid", "midpoint"):
+            with self.subTest(method=method):
+                result = integrate(lambda x: x * x, 0.0, 1.0, method=method, steps=100)
+                self.assertEqual(result["steps"], 200)
+
+    def test_smooth_integrand_has_no_warning(self) -> None:
+        for method in ("trapezoid", "midpoint", "simpson"):
+            with self.subTest(method=method):
+                result = integrate(math.exp, 0.0, 50.0, method=method, steps=100)
+                self.assertNotIn("warning", result)
+
+    def test_flags_endpoint_singularity(self) -> None:
+        result = integrate(lambda x: 1.0 / math.sqrt(x), 0.0, 1.0, method="midpoint", steps=200)
+        self.assertIn("warning", result)
+        self.assertIn("lower bound", result["warning"])
+
+        result = integrate(lambda x: 1.0 / math.sqrt(1.0 - x), 0.0, 1.0, method="midpoint", steps=200)
+        self.assertIn("upper bound", result["warning"])
+
+    def test_flags_integrand_that_fails_near_endpoint(self) -> None:
+        def eval_fn(x: float) -> float:
+            if x < 1e-6:
+                return float("inf")
+            return 1.0 / math.sqrt(x)
+
+        result = integrate(eval_fn, 0.0, 1.0, method="midpoint", steps=100)
+        self.assertIn("warning", result)
+
 
 if __name__ == "__main__":
     unittest.main()

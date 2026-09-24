@@ -603,17 +603,35 @@ class GraphUtils:
         default_weight: float = 1.0,
         directed: bool = False,
     ) -> Optional[Tuple[List[V], float]]:
+        """Weighted shortest path; returns (path, cost) or None when unreachable.
+
+        Negative weights: directed graphs fall back to Bellman-Ford; undirected
+        graphs raise ValueError (a negative undirected edge is a negative cycle).
+        Raises ValueError if a negative cycle reachable from ``start`` can also reach ``goal``.
+        """
         adjacency: Dict[V, List[Tuple[V, float]]] = {}
+        has_negative = False
         for edge in edges:
             w = GraphUtils._resolve_weight(edge, weight_lookup, weight_fn, default_weight, not directed)
+            if w < 0:
+                has_negative = True
             adjacency.setdefault(edge.source, []).append((edge.target, w))
             if not directed:
                 adjacency.setdefault(edge.target, []).append((edge.source, w))
             else:
                 adjacency.setdefault(edge.target, [])
 
+        if has_negative and not directed:
+            raise ValueError(
+                "Shortest path is undefined: undirected graph has a negative edge weight "
+                "(each negative undirected edge forms a negative cycle)"
+            )
+
         if start not in adjacency or goal not in adjacency:
             return None
+
+        if has_negative:
+            return GraphUtils._shortest_path_bellman_ford(adjacency, start, goal)
 
         import heapq
 
@@ -621,14 +639,19 @@ class GraphUtils:
         prev: Dict[V, V] = {}
         dist[start] = 0.0
         heap: List[Tuple[float, V]] = [(0.0, start)]
+        # Settled vertices are expanded once, bounding the loop by the edge count
+        settled: Set[V] = set()
 
         while heap:
             current_dist, current = heapq.heappop(heap)
             if current == goal:
                 break
-            if current_dist > dist[current]:
+            if current in settled or current_dist > dist[current]:
                 continue
+            settled.add(current)
             for neighbor, weight in adjacency[current]:
+                if neighbor in settled:
+                    continue
                 candidate = current_dist + weight
                 if candidate < dist[neighbor]:
                     dist[neighbor] = candidate
@@ -638,15 +661,75 @@ class GraphUtils:
         if dist[goal] == float("inf"):
             return None
 
-        path: List[V] = []
-        node = goal
-        while True:
-            path.append(node)
-            if node == start:
+        return GraphUtils._reconstruct_path(prev, start, goal), dist[goal]
+
+    @staticmethod
+    def _shortest_path_bellman_ford(
+        adjacency: Dict[V, List[Tuple[V, float]]],
+        start: V,
+        goal: V,
+    ) -> Optional[Tuple[List[V], float]]:
+        """Bellman-Ford over a directed weighted adjacency list (supports negative weights).
+
+        Raises ValueError if a negative cycle reachable from ``start`` can also reach ``goal``.
+        """
+        dist: Dict[V, float] = {vertex: float("inf") for vertex in adjacency}
+        prev: Dict[V, V] = {}
+        dist[start] = 0.0
+
+        for _ in range(len(adjacency) - 1):
+            changed = False
+            for u, neighbors in adjacency.items():
+                if dist[u] == float("inf"):
+                    continue
+                for v, weight in neighbors:
+                    if dist[u] + weight < dist[v]:
+                        dist[v] = dist[u] + weight
+                        prev[v] = u
+                        changed = True
+            if not changed:
                 break
+
+        # Vertices still relaxing after |V| - 1 rounds lie on or behind a negative cycle.
+        # Only a cycle that can reach the goal makes the goal's distance undefined.
+        still_relaxing = [
+            v
+            for u, neighbors in adjacency.items()
+            if dist[u] != float("inf")
+            for v, weight in neighbors
+            if dist[u] + weight < dist[v]
+        ]
+        if still_relaxing and goal in GraphUtils._reachable_from(adjacency, still_relaxing):
+            raise ValueError("Shortest path is undefined: graph contains a negative cycle between start and goal")
+
+        if dist[goal] == float("inf"):
+            return None
+        return GraphUtils._reconstruct_path(prev, start, goal), dist[goal]
+
+    @staticmethod
+    def _reachable_from(adjacency: Dict[V, List[Tuple[V, float]]], sources: Sequence[V]) -> Set[V]:
+        """Return every vertex reachable from any of ``sources`` (sources included)."""
+        seen: Set[V] = set(sources)
+        stack: List[V] = list(seen)
+        while stack:
+            for neighbor, _weight in adjacency.get(stack.pop(), []):
+                if neighbor not in seen:
+                    seen.add(neighbor)
+                    stack.append(neighbor)
+        return seen
+
+    @staticmethod
+    def _reconstruct_path(prev: Dict[V, V], start: V, goal: V) -> List[V]:
+        """Walk predecessor links from goal back to start (bounded to avoid cycles)."""
+        path: List[V] = [goal]
+        node = goal
+        while node != start:
             node = prev[node]
+            path.append(node)
+            if len(path) > len(prev) + 1:
+                raise ValueError("Shortest path reconstruction failed: predecessor cycle detected")
         path.reverse()
-        return path, dist[goal]
+        return path
 
     # ------------------------------------------------------------------
     # Spanning tree and ordering
@@ -658,44 +741,66 @@ class GraphUtils:
         weight_fn: Optional[Callable[[Edge[V]], float]] = None,
         default_weight: float = 1.0,
     ) -> List[Edge[V]]:
-        adjacency: Dict[V, List[Tuple[V, float]]] = {}
-        undirected_edges: List[Tuple[V, V, float]] = []
-        seen: Set[FrozenSet[V]] = set()
+        """Minimum spanning tree; returns [] when the graph is disconnected."""
+        forest, components = GraphUtils.minimum_spanning_forest(edges, weight_lookup, weight_fn, default_weight)
+        if components > 1:
+            return []
+        return forest
+
+    @staticmethod
+    def minimum_spanning_forest(
+        edges: Sequence[Edge[V]],
+        weight_lookup: Optional[Dict[Tuple[V, V], float]] = None,
+        weight_fn: Optional[Callable[[Edge[V]], float]] = None,
+        default_weight: float = 1.0,
+        vertices: Optional[Sequence[V]] = None,
+    ) -> Tuple[List[Edge[V]], int]:
+        """Minimum spanning forest (Prim's algorithm restarted per component).
+
+        Edges are treated as undirected; parallel edges keep the cheapest one.
+        ``vertices`` adds isolated vertices, each counting as its own component.
+
+        Returns:
+            (forest_edges, component_count)
+        """
+        cheapest: Dict[FrozenSet[V], Tuple[V, V, float]] = {}
         for edge in edges:
             key = edge.as_frozenset()
-            if key in seen:
-                continue
-            seen.add(key)
             weight = GraphUtils._resolve_weight(edge, weight_lookup, weight_fn, default_weight, True)
-            undirected_edges.append((edge.source, edge.target, weight))
-            adjacency.setdefault(edge.source, []).append((edge.target, weight))
-            adjacency.setdefault(edge.target, []).append((edge.source, weight))
-
-        if not adjacency:
-            return []
+            if key not in cheapest or weight < cheapest[key][2]:
+                cheapest[key] = (edge.source, edge.target, weight)
+        adjacency: Dict[V, List[Tuple[V, float]]] = {}
+        for source, target, weight in cheapest.values():
+            adjacency.setdefault(source, []).append((target, weight))
+            adjacency.setdefault(target, []).append((source, weight))
+        for vertex in vertices or ():
+            adjacency.setdefault(vertex, [])
 
         import heapq
 
-        start = next(iter(adjacency))
-        visited: Set[V] = {start}
-        heap: List[Tuple[float, V, V]] = []
-        for neighbor, weight in adjacency[start]:
-            heapq.heappush(heap, (weight, start, neighbor))
-
+        visited: Set[V] = set()
         result: List[Edge[V]] = []
-        while heap and len(visited) < len(adjacency):
-            weight, u, v = heapq.heappop(heap)
-            if v in visited:
+        components = 0
+        for start in adjacency:
+            if start in visited:
                 continue
-            visited.add(v)
-            result.append(Edge(u, v))
-            for nxt, w in adjacency[v]:
-                if nxt not in visited:
-                    heapq.heappush(heap, (w, v, nxt))
+            components += 1
+            visited.add(start)
+            heap: List[Tuple[float, V, V]] = []
+            for neighbor, weight in adjacency[start]:
+                heapq.heappush(heap, (weight, start, neighbor))
 
-        if len(visited) != len(adjacency):
-            return []
-        return result
+            while heap:
+                weight, u, v = heapq.heappop(heap)
+                if v in visited:
+                    continue
+                visited.add(v)
+                result.append(Edge(u, v))
+                for nxt, w in adjacency[v]:
+                    if nxt not in visited:
+                        heapq.heappush(heap, (w, v, nxt))
+
+        return result, components
 
     @staticmethod
     def topological_sort(adjacency: Dict[V, Set[V]]) -> Optional[List[V]]:
@@ -790,13 +895,36 @@ class GraphUtils:
 
     @staticmethod
     def euler_status(adjacency: Dict[V, Set[V]]) -> Optional[str]:
-        if not GraphUtils.is_connected(adjacency):
+        """Euler status of an undirected graph; isolated vertices are ignored."""
+        active = {vertex: neighbors for vertex, neighbors in adjacency.items() if neighbors}
+        if not GraphUtils.is_connected(active):
             return None
-        degrees = GraphUtils.get_vertex_degrees(adjacency)
+        degrees = GraphUtils.get_vertex_degrees(active)
         odd = sum(1 for d in degrees.values() if d % 2 == 1)
         if odd == 0:
             return "cycle"
         if odd == 2:
+            return "path"
+        return None
+
+    @staticmethod
+    def directed_euler_status(edges: Sequence[Edge[V]]) -> Optional[str]:
+        """Euler status of a directed graph from its edge list.
+
+        Circuit ("cycle"): every vertex has in-degree == out-degree.
+        Path: exactly one vertex with out - in == 1 and one with in - out == 1.
+        Both also require the non-isolated vertices to be weakly connected.
+        """
+        if not GraphUtils.is_connected(GraphUtils.build_adjacency_map(edges)):
+            return None
+        balance: Dict[V, int] = {}
+        for edge in edges:
+            balance[edge.source] = balance.get(edge.source, 0) + 1
+            balance[edge.target] = balance.get(edge.target, 0) - 1
+        unbalanced = [b for b in balance.values() if b != 0]
+        if not unbalanced:
+            return "cycle"
+        if sorted(unbalanced) == [-1, 1]:
             return "path"
         return None
 

@@ -7,11 +7,17 @@ Orchestrates multi-start Newton-Raphson solving.
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Optional, Sequence
+import math
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from .expression_utils import detect_variables, equation_to_residual, evaluate_residuals
-from .newton_raphson import newton_raphson
+from .jacobian import compute_jacobian
+from .newton_raphson import evaluate_scaled_residual, newton_raphson
 from .utils import deduplicate_solutions, generate_initial_guesses
+
+# Largest rise of the residual between two nearby solutions, relative to the
+# equation's scale, for them to still count as copies of one multiple root
+_SAME_ROOT_MIDPOINT_TOLERANCE = 1e-7
 
 
 def solve_numeric(
@@ -28,7 +34,8 @@ def solve_numeric(
             If no '=' is present, the expression is assumed equal to 0.
         variables: Optional list of variable names. If not provided, auto-detected.
         initial_guesses: Optional list of starting point vectors.
-        tolerance: Convergence tolerance for residuals.
+        tolerance: Convergence tolerance for residuals, relative to the scale of
+            each equation and the size of the variables.
         max_iterations: Maximum Newton-Raphson iterations per starting point.
 
     Returns:
@@ -50,10 +57,18 @@ def solve_numeric(
     n_vars = len(var_list)
     n_eqs = len(equations)
 
-    # Warn if system is over/under-determined (but still try to solve)
+    # Warn if system is over/under-determined (non-square systems are solved with
+    # Gauss-Newton least-squares or minimum-norm steps)
     warning = None
-    if n_eqs != n_vars:
-        warning = f"System has {n_eqs} equations and {n_vars} variables."
+    if n_eqs > n_vars:
+        warning = (
+            f"System has {n_eqs} equations and {n_vars} variables; only points satisfying every equation are reported."
+        )
+    elif n_eqs < n_vars:
+        warning = (
+            f"System has {n_eqs} equations and {n_vars} variables, so solutions are not unique; "
+            "the reported solutions are sample points of the solution set."
+        )
 
     # Convert equations to residual form
     residual_exprs = [equation_to_residual(eq) for eq in equations]
@@ -63,6 +78,7 @@ def solve_numeric(
 
     # Run Newton-Raphson from each starting point
     found_solutions: List[List[float]] = []
+    found_residuals: List[float] = []
 
     for guess in guesses:
         solution = newton_raphson(
@@ -74,13 +90,19 @@ def solve_numeric(
         )
 
         if solution is not None:
-            # Verify the solution by checking residuals
-            residuals = evaluate_residuals(residual_exprs, var_list, solution)
-            if residuals is not None and all(abs(r) < tolerance * 10 for r in residuals):
+            # Verify the solution with the same scale-aware residual as the iteration
+            residual = evaluate_scaled_residual(residual_exprs, var_list, solution)
+            if residual is not None and residual <= math.sqrt(tolerance):
                 found_solutions.append(solution)
+                found_residuals.append(residual)
 
-    # Deduplicate solutions
-    unique_solutions = deduplicate_solutions(found_solutions, var_list)
+    # Deduplicate solutions (keeping the most accurate of each cluster)
+    unique_solutions = deduplicate_solutions(
+        found_solutions,
+        var_list,
+        residuals=found_residuals,
+        is_same_root=_same_root_check(residual_exprs, var_list),
+    )
 
     # Build result
     result: Dict[str, Any] = {
@@ -92,12 +114,50 @@ def solve_numeric(
     if warning:
         result["warning"] = warning
 
-    if not unique_solutions:
+    if not unique_solutions and n_eqs > n_vars:
+        result["message"] = (
+            f"No point satisfies all {n_eqs} equations simultaneously: the least-squares residual stays "
+            "non-zero, so the system appears inconsistent. Try providing initial_guesses if a solution is expected."
+        )
+    elif not unique_solutions:
         result["message"] = (
             "No solutions found in search range [-10, 10]. Try providing initial_guesses closer to expected solutions."
         )
 
     return json.dumps(result)
+
+
+def _same_root_check(
+    residual_exprs: Sequence[str], variables: Sequence[str]
+) -> Callable[[Sequence[float], Sequence[float]], bool]:
+    """Build a check telling copies of one root apart from two distinct close roots.
+
+    Between two copies of a (multiple) root the residual stays as small as at the
+    copies themselves, e.g. (x-1)^2 near x = 1; between two distinct roots it rises,
+    e.g. (x-1)*(x-1.00005) at the midpoint of its roots.
+    """
+
+    def is_same_root(a: Sequence[float], b: Sequence[float]) -> bool:
+        midpoint = [(p + q) / 2 for p, q in zip(a, b)]
+        points = [a, b, midpoint]
+        values: List[List[float]] = []
+        jacobians: List[List[List[float]]] = []
+        for point in points:
+            F = evaluate_residuals(residual_exprs, variables, point)
+            J = compute_jacobian(residual_exprs, variables, point)
+            if F is None or J is None:
+                return True  # cannot tell: fall back to the distance-based merge
+            values.append(F)
+            jacobians.append(J)
+        F_a, F_b, F_mid = values
+        for i in range(len(residual_exprs)):
+            scale = sum(max(abs(J[i][j]) for J in jacobians) * (1.0 + abs(midpoint[j])) for j in range(len(variables)))
+            rise = abs(F_mid[i]) - 4.0 * max(abs(F_a[i]), abs(F_b[i]))
+            if rise > _SAME_ROOT_MIDPOINT_TOLERANCE * scale:
+                return False
+        return True
+
+    return is_same_root
 
 
 def _error_result(variables: List[str], message: str) -> str:

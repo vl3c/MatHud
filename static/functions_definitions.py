@@ -1,16 +1,19 @@
 """
 MatHud AI Function Definitions
 
-Comprehensive set of 40+ AI function definitions for mathematical operations and canvas manipulation.
+Comprehensive set of 90+ AI function definitions for mathematical operations and canvas manipulation.
 Provides OpenAI tool calling schema for geometric shapes, calculations, transformations, and workspace management.
 
 Categories:
-    - Canvas Operations: reset, clear, undo, redo, run_tests
-    - Geometric Shapes: points, segments, vectors, triangles, rectangles, circles, ellipses, angles
-    - Mathematical Functions: plotting, colored areas, bounded regions
-    - Calculations: expressions, trigonometry, algebra, calculus
-    - Transformations: translate, rotate, scale geometric objects
+    - Canvas Operations: reset, clear, undo, redo, zoom, coordinate system, grid, canvas state
+    - Geometric Shapes: points, segments, vectors, polygons, circles, ellipses, arcs, angles, labels
+    - Constructions and Relations: midpoints, bisectors, tangents, circumcircles, relation inspection
+    - Mathematical Functions: explicit, parametric and piecewise plots, colored areas, bounded regions
+    - Calculations: expressions, algebra, calculus, equation systems, numeric solving and integration
+    - Statistics and Graphs: distributions, bar charts, regression, graph generation and analysis
+    - Transformations: translate, rotate, reflect, scale, shear geometric objects
     - Workspace Management: save, load, list, delete workspaces
+    - Tool Discovery: search_tools
 
 Dependencies:
     - OpenAI Function Calling: Structured function definitions with strict schema validation
@@ -121,7 +124,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "get_current_canvas_state",
-            "description": "Returns the current serialized canvas state (drawables, cartesian state, computations) without modifying the canvas. Optional filters can narrow by drawable collections or object names.",
+            "description": "Returns the current canvas state (drawables, viewport, computations) without modifying the canvas, in the same format as the canvas sent with user messages but never shortened. Optional filters can narrow by drawable collections or object names, e.g. to see objects the user-message canvas listed as omitted.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -485,7 +488,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "create_circle",
-            "description": "Creates and draws a circle with the specified center coordinates and radius. If a name is provided, it will be used to reference the circle.",
+            "description": "Creates and draws a circle with the specified center coordinates and radius. Circles are named after their center point and radius, e.g. 'A(3)'; use that name to reference the circle later.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -494,7 +497,10 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "center_y": {"type": "number", "description": "The Y coordinate of the circle's center"},
                     "radius": {"type": "number", "description": "The radius of the circle"},
                     "color": {"type": ["string", "null"], "description": "Optional color to assign to the circle"},
-                    "name": {"type": ["string", "null"], "description": "Optional name for the circle"},
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional name hint used to name the center point; the circle itself is named '<center>(<radius>)'",
+                    },
                 },
                 "required": ["center_x", "center_y", "radius", "color", "name"],
                 "additionalProperties": False,
@@ -691,7 +697,10 @@ FUNCTIONS: List[Dict[str, Any]] = [
                         "description": "Optional angle in degrees to rotate the ellipse around its center (default: 0)",
                     },
                     "color": {"type": ["string", "null"], "description": "Optional color for the ellipse"},
-                    "name": {"type": ["string", "null"], "description": "Optional name for the ellipse"},
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional name hint used to name the center point; the ellipse itself is named '<center>(<radius_x>, <radius_y>)'",
+                    },
                 },
                 "required": ["center_x", "center_y", "radius_x", "radius_y", "rotation_angle", "color", "name"],
                 "additionalProperties": False,
@@ -1100,7 +1109,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "draw_tangent_line",
-            "description": "Draws a tangent line segment to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For circles and ellipses, it's the angle in radians from the positive x-axis.",
+            "description": "Draws a tangent line segment to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For circles, it's the angle in radians from the positive x-axis. For ellipses, it's the parametric angle t in radians, measured from the ellipse's own (rotated) x-axis: point = center + R(rotation) * (radius_x*cos(t), radius_y*sin(t)).",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -1111,7 +1120,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     },
                     "parameter": {
                         "type": "number",
-                        "description": "Position on curve: x-coordinate for functions, t-value for parametric curves, or angle (radians) for circles/ellipses",
+                        "description": "Position on curve: x-coordinate for functions, t-value for parametric curves, angle (radians) for circles, or parametric angle t (radians, in the ellipse's rotated frame) for ellipses",
                     },
                     "name": {"type": ["string", "null"], "description": "Optional name for the tangent line segment"},
                     "length": {
@@ -1132,7 +1141,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "draw_normal_line",
-            "description": "Draws a normal line segment (perpendicular to tangent) to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For circles and ellipses, it's the angle in radians from the positive x-axis.",
+            "description": "Draws a normal line segment (perpendicular to tangent) to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For circles, it's the angle in radians from the positive x-axis. For ellipses, it's the parametric angle t in radians, measured from the ellipse's own (rotated) x-axis: point = center + R(rotation) * (radius_x*cos(t), radius_y*sin(t)).",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -1143,7 +1152,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     },
                     "parameter": {
                         "type": "number",
-                        "description": "Position on curve: x-coordinate for functions, t-value for parametric curves, or angle (radians) for circles/ellipses",
+                        "description": "Position on curve: x-coordinate for functions, t-value for parametric curves, angle (radians) for circles, or parametric angle t (radians, in the ellipse's rotated frame) for ellipses",
                     },
                     "name": {"type": ["string", "null"], "description": "Optional name for the normal line segment"},
                     "length": {
@@ -1354,7 +1363,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "evaluate_expression",
-            "description": "Calculate or evaluate a mathematical expression and return the numerical result. Use for arithmetic (+, -, *, /, ^), algebra, and math functions. Supports variables (x, y), constants (e, pi), and functions: sin, cos, tan, sqrt, log, log10, log2, factorial, arrangements, permutations, combinations, asin, acos, atan, sinh, cosh, tanh, exp, abs, pow, det, bin, round, ceil, floor, trunc, max, min, sum, gcd, lcm, is_prime, prime_factors, mod_pow, mod_inverse, next_prime, prev_prime, totient, divisors, mean, median, mode, stdev, variance, random, randint. Also supports sequence/series helpers such as summation('n^2','n',0,50), product('n+1','n',0,10), arithmetic_sum(1,2,20), geometric_sum(3,0.5,15), ratio_test('1/factorial(n)','n'), root_test('(1/2)^n','n'), and p_series_test(2).",
+            "description": "Calculate or evaluate a mathematical expression and return the numerical result. Use for arithmetic (+, -, *, /, ^), algebra, and math functions. Supports variables (x, y), constants (e, pi), and functions: sin, cos, tan, sqrt, log, log10, log2, factorial, arrangements, permutations, combinations, asin, acos, atan, sinh, cosh, tanh, exp, abs, pow, det, bin, round, ceil, floor, trunc, max, min, sum, gcd, lcm, is_prime, prime_factors, mod_pow, mod_inverse, next_prime, prev_prime, totient, divisors, mean, median, mode, stdev, variance, random, randint. Also supports sequence/series helpers such as summation('n^2','n',0,50), product('n+1','n',0,10), arithmetic_sum(1,2,20), geometric_sum(3,0.5,15), ratio_test('1/factorial(n)','n'), root_test('(1/2)^n','n'), and p_series_test(2). Numbers like 2e-3 are scientific notation (0.002); write 2*e for a multiple of Euler's number.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -1621,7 +1630,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "solve_system_of_equations",
-            "description": "Solves a system of mathematical equations.",
+            "description": "Solves a system of mathematical equations. Returns either plain text such as 'x = 1, y = 2' (or 'x1 = .., y1 = .., x2 = .., y2 = ..' for several solutions) or, when it falls back to the numeric solver, the solve_numeric JSON object whose 'solutions' list holds one {variable: value} entry per solution.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2067,7 +2076,10 @@ FUNCTIONS: List[Dict[str, Any]] = [
                         "items": {
                             "type": "object",
                             "properties": {
-                                "name": {"type": ["string", "null"]},
+                                "name": {
+                                    "type": ["string", "null"],
+                                    "description": "Point name for the vertex; used as given when not already taken, otherwise a name is generated.",
+                                },
                                 "x": {"type": ["number", "null"]},
                                 "y": {"type": ["number", "null"]},
                                 "color": {"type": ["string", "null"]},
@@ -2140,7 +2152,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "analyze_graph",
-            "description": "Analyzes an existing graph/tree for connectivity and structural queries (connectedness, shortest path, BFS/DFS, bipartite, bridges, articulation points, diameter, etc.). Use generate_graph first if the graph does not exist yet.",
+            "description": 'Analyzes an existing graph/tree for connectivity and structural queries (connectedness, shortest path, BFS/DFS, bipartite, bridges, articulation points, diameter, etc.). Use generate_graph first if the graph does not exist yet. Notes: shortest_path supports negative weights on directed graphs (Bellman-Ford) and returns {"error": ...} for negative weights on undirected graphs or a reachable negative cycle; mst on a disconnected graph returns a minimum spanning forest with connected: false and a note; bridges, articulation_points and bipartite on directed graphs use the underlying undirected graph; euler_status on directed graphs uses in/out-degree balance.',
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2708,7 +2720,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "search_tools",
-            "description": "Search for the best tools to accomplish a task. Use this when you're unsure which specific tool to use. Provide a description of what you want to do, and receive the most relevant tool definitions.",
+            "description": "Find and load the tools for a task. When only a few tools are available (search-first mode), call this before any other tool: describe what you want to do and the most relevant tool definitions are returned and made available for your next calls. Calls to tools that were not loaded fail.",
             "strict": True,
             "parameters": {
                 "type": "object",

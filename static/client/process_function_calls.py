@@ -127,6 +127,17 @@ class ProcessFunctionCalls:
         return result
 
     @staticmethod
+    def build_tool_call_results(
+        calls: List[Dict[str, Any]],
+        traced_calls: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Build per-call results (tool-call id plus that call's result) in call order.
+
+        Delegates to ResultProcessor; the server uses the ids to answer each tool call.
+        """
+        return cast(List[Dict[str, Any]], ResultProcessor.build_tool_call_results(calls, traced_calls))
+
+    @staticmethod
     def validate_results(results: Dict[str, Any]) -> bool:
         """Validates result structure and data types for integrity.
 
