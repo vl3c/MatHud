@@ -170,6 +170,17 @@ class TestCanvasSnapshotter(unittest.TestCase):
         CanvasSnapshotter(container_id="no-such-container").capture(results.append)
         self.assertEqual(results, [None])
 
+    def test_raising_callback_is_not_called_twice(self) -> None:
+        calls: List[Optional[str]] = []
+
+        def on_done(snapshot: Optional[str]) -> None:
+            calls.append(snapshot)
+            raise RuntimeError("callback failed")
+
+        with self.assertRaises(RuntimeError):
+            CanvasSnapshotter(container_id="no-such-container").capture(on_done)
+        self.assertEqual(calls, [None])
+
     def test_empty_svg_layer_is_not_serialized(self) -> None:
         self._add_svg(with_content=False)
         self.assertIsNone(self._snapshotter()._svg_markup(CSS_WIDTH, CSS_HEIGHT))

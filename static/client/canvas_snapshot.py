@@ -75,19 +75,11 @@ class CanvasSnapshotter:
 
     def capture(self, on_done: SnapshotCallback) -> None:
         """Capture the canvas and call ``on_done`` once with a PNG data URL (or None)."""
-        try:
-            css_size = self._css_size()
-            if css_size is None:
-                on_done(None)
-                return
-            css_width, css_height = css_size
-            width, height = snapshot_size(css_width, css_height, self._max_side)
-            output, ctx = self._create_output(width, height)
-            svg_markup = self._svg_markup(css_width, css_height)
-        except Exception as exc:
-            print(f"Canvas snapshot failed: {exc}")
+        prepared = self._prepare()
+        if prepared is None:
             on_done(None)
             return
+        output, ctx, width, height, svg_markup = prepared
 
         finish = self._once(lambda svg_drawn: on_done(self._finish(output, ctx, width, height, svg_drawn)))
         if svg_markup is None:
@@ -96,6 +88,21 @@ class CanvasSnapshotter:
         self._draw_svg_then(svg_markup, ctx, width, height, finish)
 
     # ----- sizing and output -----
+
+    def _prepare(self) -> Optional[Tuple[Any, Any, int, int, Optional[str]]]:
+        """Create the output canvas and serialize the SVG layer; None when there is nothing to capture."""
+        try:
+            css_size = self._css_size()
+            if css_size is None:
+                return None
+            css_width, css_height = css_size
+            width, height = snapshot_size(css_width, css_height, self._max_side)
+            output, ctx = self._create_output(width, height)
+            svg_markup = self._svg_markup(css_width, css_height)
+        except Exception as exc:
+            print(f"Canvas snapshot failed: {exc}")
+            return None
+        return output, ctx, width, height, svg_markup
 
     def _css_size(self) -> Optional[Tuple[float, float]]:
         container = document.getElementById(self._container_id)
