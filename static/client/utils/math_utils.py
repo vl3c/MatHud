@@ -1298,7 +1298,11 @@ class MathUtils:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
 
         # F(b) - F(a) is only valid when the integrand has no singularity inside the interval
-        singular_point = MathUtils._find_interior_singularity(expression, variable, lower_bound, upper_bound)
+        singular_point = (
+            MathUtils._find_interior_singularity(expression, variable, lower_bound, upper_bound)
+            if lower_bound is not None and upper_bound is not None
+            else None
+        )
         if singular_point is not None:
             return (
                 f"Error: The integrand {expression} is singular or undefined near {variable} = {singular_point:.6g} "
@@ -1786,12 +1790,12 @@ class MathUtils:
 
             # The coefficient fast path below only works when both equations are 'y = f(x)'
             if any(MathUtils._explicit_y_expression(eq) is None for eq in equations):
-                solutions = MathUtils._solve_by_substitution(equations)
-                if not solutions:
+                substitution_solutions = MathUtils._solve_by_substitution(equations)
+                if not substitution_solutions:
                     return MathUtils.solve_numeric(equations)
-                if len(solutions) == 1:
-                    return f"x = {solutions[0][0]}, y = {solutions[0][1]}"
-                indexed = [f"x{i} = {x}, y{i} = {y}" for i, (x, y) in enumerate(solutions, start=1)]
+                if len(substitution_solutions) == 1:
+                    return f"x = {substitution_solutions[0][0]}, y = {substitution_solutions[0][1]}"
+                indexed = [f"x{i} = {x}, y{i} = {y}" for i, (x, y) in enumerate(substitution_solutions, start=1)]
                 return ", ".join(indexed)
 
             from expression_validator import ExpressionValidator
@@ -1910,6 +1914,8 @@ class MathUtils:
         if index is None:
             return None
         y_expression = explicit_forms[index]
+        if y_expression is None:
+            return None
         other_sides = equations[1 - index].split("=")
         if len(other_sides) > 2:
             return None

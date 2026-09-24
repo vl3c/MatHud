@@ -639,7 +639,7 @@ class TestProcessFunctionCallsPlotTools(unittest.TestCase):
         # These calls are undoable; the processor should archive once up front.
         self.assertEqual(after, before + 1)
         # Small dict payloads from undoable tools are passed through to the model.
-        plot_names = sorted(value.get("plot_name") for value in results.values() if isinstance(value, dict))
+        plot_names = sorted(str(value.get("plot_name")) for value in results.values() if isinstance(value, dict))
         self.assertEqual(plot_names, ["ToolBars", "ToolPlot"])
 
         self.assertIn("ToolPlot", [d.name for d in self.canvas.get_drawables_by_class_name("DiscretePlot")])

@@ -135,7 +135,7 @@ class ProcessFunctionCalls:
 
         Delegates to ResultProcessor; the server uses the ids to answer each tool call.
         """
-        return ResultProcessor.build_tool_call_results(calls, traced_calls)
+        return cast(List[Dict[str, Any]], ResultProcessor.build_tool_call_results(calls, traced_calls))
 
     @staticmethod
     def validate_results(results: Dict[str, Any]) -> bool:
