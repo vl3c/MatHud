@@ -35,7 +35,12 @@ from .test_screen_offset_label_layout import TestScreenOffsetLabelLayout
 from .test_bar_manager import TestBarManager
 from .test_segments_bounded_colored_area import TestSegmentsBoundedColoredArea
 from .test_function_calling import TestProcessFunctionCalls, TestProcessFunctionCallsPlotTools
-from .test_math_functions import TestMathFunctions, TestNumberTheory
+from .test_math_functions import (
+    TestMathFunctions,
+    TestNumberTheory,
+    TestSequencesAndSeries,
+    TestSequencesAndSeriesEvaluate,
+)
 from .test_periodicity_detection import TestPeriodicityDetection, TestPeriodicityEdgeCases
 from .test_geometry_utils import TestGeometryUtils, TestConvexHull, TestPointInConvexHull
 from .test_graph_layout import TestGraphLayout, TestGraphLayoutVisibility
@@ -401,6 +406,8 @@ class Tests:
             TestWorkspacePlotsRestore,
             TestMathFunctions,
             TestNumberTheory,
+            TestSequencesAndSeries,
+            TestSequencesAndSeriesEvaluate,
             TestPeriodicityDetection,
             TestPeriodicityEdgeCases,
             TestGeometryUtils,

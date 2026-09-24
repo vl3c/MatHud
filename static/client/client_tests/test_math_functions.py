@@ -2143,8 +2143,8 @@ class TestSequencesAndSeries(unittest.TestCase):
 
     def test_geometric_sum_infinite_third(self) -> None:
         """Test geometric_sum_infinite with r=1/3."""
-        # a/(1-r) = 1/(1-1/3) = 1.5
-        self.assertEqual(MathUtils.geometric_sum_infinite(1, 1 / 3), 1.5)
+        # a/(1-r) = 1/(1-1/3) = 1.5 (up to float rounding)
+        self.assertAlmostEqual(MathUtils.geometric_sum_infinite(1, 1 / 3), 1.5, places=12)
 
     def test_geometric_sum_infinite_negative_ratio(self) -> None:
         """Test geometric_sum_infinite with negative ratio."""
@@ -2192,6 +2192,22 @@ class TestSequencesAndSeries(unittest.TestCase):
         # 2^n diverges (L = 2)
         result = MathUtils.root_test("2^n", "n")
         self.assertIn("Diverges", result)
+
+    def test_root_test_reports_numeric_limit(self) -> None:
+        """Test root_test evaluates nerdamer's symbolic limit (e.g. e^(-0.69...)) to a number."""
+        result = MathUtils.root_test("(1/2)^n", "n")
+        self.assertEqual(result, "Converges (L = 0.5)")
+
+    def test_ratio_and_root_test_more_series(self) -> None:
+        """Test ratio_test/root_test on further series with known limits."""
+        self.assertIn("Converges", MathUtils.ratio_test("n/2^n", "n"))
+        self.assertIn("Converges", MathUtils.root_test("n/2^n", "n"))
+        self.assertIn("Converges", MathUtils.ratio_test("3^n/factorial(n)", "n"))
+        self.assertIn("Converges", MathUtils.ratio_test("(-1)^n/2^n", "n"))
+        self.assertIn("Diverges", MathUtils.ratio_test("(-2)^n", "n"))
+        self.assertIn("Diverges", MathUtils.root_test("3^n/n", "n"))
+        self.assertIn("Inconclusive", MathUtils.ratio_test("1/n^2", "n"))
+        self.assertIn("Inconclusive", MathUtils.root_test("1/n", "n"))
 
     # ========== p_series_test tests ==========
     def test_p_series_test_converges(self) -> None:

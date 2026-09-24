@@ -2156,30 +2156,9 @@ class MathUtils:
         try:
             # Create a_{n+1} by substituting n -> n+1
             next_term = str(window.nerdamer(expression).sub(n_var, f"({n_var}+1)").text())
-            # Compute |a_{n+1}/a_n|
-            ratio_expr = f"abs(({next_term})/({expression}))"
-            # Take the limit as n -> infinity
-            limit_result = MathUtils.limit(ratio_expr, n_var, "inf")
-
-            # Parse the result
-            if "Error" in limit_result:
-                return f"Error computing limit: {limit_result}"
-
-            # Try to evaluate the limit numerically
-            try:
-                L = float(limit_result)
-                if L < 1:
-                    return f"Converges (L = {limit_result})"
-                elif L > 1:
-                    return f"Diverges (L = {limit_result})"
-                else:  # L == 1
-                    return f"Inconclusive (L = {limit_result})"
-            except (ValueError, TypeError):
-                # Limit might be symbolic (e.g., "Infinity")
-                limit_lower = limit_result.lower()
-                if "infinity" in limit_lower or "inf" in limit_lower:
-                    return "Diverges (L = infinity)"
-                return f"Inconclusive (L = {limit_result})"
+            # L = lim |a_{n+1}/a_n|
+            ratio_expr = f"({next_term})/({expression})"
+            return MathUtils._classify_series_limit(ratio_expr, f"abs({ratio_expr})", n_var)
         except Exception as e:
             return f"Error: {e}"
 
@@ -2200,32 +2179,68 @@ class MathUtils:
             str: "Converges", "Diverges", or "Inconclusive" with the limit value
         """
         try:
-            # Compute |a_n|^{1/n}
-            root_expr = f"(abs({expression}))^(1/{n_var})"
-            # Take the limit as n -> infinity
-            limit_result = MathUtils.limit(root_expr, n_var, "inf")
-
-            # Parse the result
-            if "Error" in limit_result:
-                return f"Error computing limit: {limit_result}"
-
-            # Try to evaluate the limit numerically
-            try:
-                L = float(limit_result)
-                if L < 1:
-                    return f"Converges (L = {limit_result})"
-                elif L > 1:
-                    return f"Diverges (L = {limit_result})"
-                else:  # L == 1
-                    return f"Inconclusive (L = {limit_result})"
-            except (ValueError, TypeError):
-                # Limit might be symbolic (e.g., "Infinity")
-                limit_lower = limit_result.lower()
-                if "infinity" in limit_lower or "inf" in limit_lower:
-                    return "Diverges (L = infinity)"
-                return f"Inconclusive (L = {limit_result})"
+            # L = lim |a_n|^{1/n}
+            root_expr = f"({expression})^(1/{n_var})"
+            return MathUtils._classify_series_limit(root_expr, f"(abs({expression}))^(1/{n_var})", n_var)
         except Exception as e:
             return f"Error: {e}"
+
+    @staticmethod
+    def _classify_series_limit(expression: str, abs_expression: str, n_var: str) -> str:
+        """Classify L = |lim expression| as n -> infinity for the ratio and root tests.
+
+        nerdamer's limit() mishandles abs() at infinity (e.g. lim |2^n|^(1/n) gives 1), so the
+        limit of ``expression`` is taken first and its absolute value used; the limit of
+        ``abs_expression`` (already wrapped in abs) is the fallback when that is not numeric.
+        """
+        try:
+            # Let nerdamer simplify first (e.g. 2^(n+1)/2^n -> 2, (2^n)^(1/n) -> 2)
+            expression = str(window.nerdamer(expression).text())
+        except Exception:
+            pass
+        limit_result = MathUtils.limit(expression, n_var, "inf")
+        value = MathUtils._numeric_limit_value(limit_result)
+        if value is None:
+            limit_result = MathUtils.limit(abs_expression, n_var, "inf")
+            if "Error" in limit_result:
+                return f"Error computing limit: {limit_result}"
+            value = MathUtils._numeric_limit_value(limit_result)
+            if value is None:
+                # Limit is symbolic or could not be computed
+                return f"Inconclusive (L = {limit_result})"
+
+        L = abs(value)
+        if math.isinf(L):
+            return "Diverges (L = infinity)"
+        L_text = f"{L:.12g}"
+        if abs(L - 1) <= 1e-9:
+            return f"Inconclusive (L = {L_text})"
+        if L < 1:
+            return f"Converges (L = {L_text})"
+        return f"Diverges (L = {L_text})"
+
+    @staticmethod
+    def _numeric_limit_value(limit_result: str) -> Optional[float]:
+        """Numerically evaluate a nerdamer limit result (e.g. "e^(-0.69...)", "Infinity").
+
+        Returns None for errors, unevaluated limits, and non-numeric results.
+        """
+        if "Error" in limit_result or "limit" in limit_result:
+            return None
+        try:
+            evaluated: Any = window.nerdamer(limit_result).evaluate()
+            numeric_text = str(evaluated.text("decimals")).strip()
+        except Exception:
+            return None
+        if numeric_text in ("Infinity", "+Infinity"):
+            return float("inf")
+        if numeric_text == "-Infinity":
+            return float("-inf")
+        try:
+            value = float(numeric_text)
+        except (ValueError, TypeError):
+            return None
+        return None if math.isnan(value) else value
 
     @staticmethod
     def p_series_test(p: Number) -> str:
