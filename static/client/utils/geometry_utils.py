@@ -385,16 +385,20 @@ class GeometryUtils:
             angles.append(angle)
         return angles
 
+    # Shape classification tolerances, loose enough for user-entered decimals
+    # (e.g. 3.464 for 2*sqrt(3)) but tight enough to reject visibly unequal shapes.
+    SIDE_LENGTH_RELATIVE_TOLERANCE = 1e-4
+    ANGLE_TOLERANCE_DEGREES = 1e-2
+
     @staticmethod
     def _comparison_tolerance(reference: float = 1.0, *, override: Optional[float] = None) -> float:
         if override is not None:
             return float(override)
-        scale = max(abs(reference), 1.0)
-        return max(MathUtils.EPSILON * scale * 10.0, 1e-6)
+        return max(abs(reference) * GeometryUtils.SIDE_LENGTH_RELATIVE_TOLERANCE, MathUtils.EPSILON)
 
     @staticmethod
     def _is_close(value_a: float, value_b: float, *, tolerance: Optional[float] = None) -> bool:
-        tol = GeometryUtils._comparison_tolerance(reference=max(abs(value_a), abs(value_b), 1.0), override=tolerance)
+        tol = GeometryUtils._comparison_tolerance(reference=max(abs(value_a), abs(value_b)), override=tolerance)
         return abs(value_a - value_b) <= tol
 
     @staticmethod
@@ -413,8 +417,9 @@ class GeometryUtils:
         return False
 
     @staticmethod
-    def _has_right_angle(angles: Sequence[float], *, tolerance: float = 1e-3) -> bool:
-        return any(GeometryUtils._is_close(angle, 90.0, tolerance=tolerance) for angle in angles)
+    def _has_right_angle(angles: Sequence[float], *, tolerance: Optional[float] = None) -> bool:
+        tol = GeometryUtils.ANGLE_TOLERANCE_DEGREES if tolerance is None else tolerance
+        return any(GeometryUtils._is_close(angle, 90.0, tolerance=tol) for angle in angles)
 
     # -------------------------------------------------------------------------
     # Triangle classification helpers
@@ -497,7 +502,9 @@ class GeometryUtils:
         opposite_sides_equal = GeometryUtils._is_close(side_lengths[0], side_lengths[2]) and GeometryUtils._is_close(
             side_lengths[1], side_lengths[3]
         )
-        right_angles = all(GeometryUtils._is_close(angle, 90.0) for angle in angles)
+        right_angles = all(
+            GeometryUtils._is_close(angle, 90.0, tolerance=GeometryUtils.ANGLE_TOLERANCE_DEGREES) for angle in angles
+        )
 
         square = all_sides_equal and right_angles
         rectangle = right_angles and opposite_sides_equal
@@ -562,7 +569,9 @@ class GeometryUtils:
     def polygon_flags(points: Sequence[PointLike]) -> Dict[str, bool]:
         side_lengths = GeometryUtils._polygon_side_lengths(points)
         angles = GeometryUtils._polygon_internal_angles(points)
-        regular = GeometryUtils._all_close(side_lengths) and GeometryUtils._all_close(angles, tolerance=1e-3)
+        regular = GeometryUtils._all_close(side_lengths) and GeometryUtils._all_close(
+            angles, tolerance=GeometryUtils.ANGLE_TOLERANCE_DEGREES
+        )
         return {
             "regular": regular,
             "irregular": not regular,

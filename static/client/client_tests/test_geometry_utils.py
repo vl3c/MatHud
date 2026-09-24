@@ -325,6 +325,52 @@ class TestGeometryUtils(unittest.TestCase):
             self.assertTrue(seg_flags["regular"], msg=f"Expected regular flag true for {sides}-gon segments")
             self.assertFalse(seg_flags["irregular"], msg=f"Expected irregular flag false for {sides}-gon segments")
 
+    def test_triangle_flags_tolerate_user_entered_decimals(self) -> None:
+        # (2, 3.464) approximates the apex (2, 2*sqrt(3)) of an equilateral triangle.
+        points = [_make_point("A", 0, 0), _make_point("B", 4, 0), _make_point("C", 2, 3.464)]
+        flags = GeometryUtils.triangle_type_flags(points)
+        self.assertTrue(flags["equilateral"])
+        self.assertTrue(flags["isosceles"])
+        self.assertFalse(flags["scalene"])
+
+    def test_triangle_flags_still_reject_clearly_unequal_sides(self) -> None:
+        points = [_make_point("A", 0, 0), _make_point("B", 4, 0), _make_point("C", 2, 3.4)]
+        flags = GeometryUtils.triangle_type_flags(points)
+        self.assertFalse(flags["equilateral"])
+        self.assertTrue(flags["isosceles"])
+
+    def test_right_triangle_with_rounded_coordinates(self) -> None:
+        # Legs of length 3 and 4 along directions 20 and 110 degrees, rounded to 3 decimals.
+        points = [_make_point("A", 0, 0), _make_point("B", 2.819, 1.026), _make_point("C", -1.368, 3.759)]
+        self.assertTrue(GeometryUtils.triangle_type_flags(points)["right"])
+
+    def test_regular_hexagon_with_rounded_coordinates(self) -> None:
+        for decimals in (3, 4):
+            points = []
+            for idx in range(6):
+                angle = 2 * math.pi * idx / 6
+                points.append(
+                    _make_point(f"H{idx}", round(5 * math.cos(angle), decimals), round(5 * math.sin(angle), decimals))
+                )
+            flags = GeometryUtils.polygon_flags(points)
+            self.assertTrue(flags["regular"], msg=f"{decimals} decimals")
+            self.assertFalse(flags["irregular"], msg=f"{decimals} decimals")
+
+    def test_square_with_rounded_coordinates(self) -> None:
+        # Unit-ish square rotated by 30 degrees, coordinates rounded independently.
+        c, s = round(2 * math.cos(math.pi / 6), 3), round(2 * math.sin(math.pi / 6), 3)
+        points = [
+            _make_point("S1", 1.0, 1.0),
+            _make_point("S2", round(1.0 + c, 3), round(1.0 + s, 3)),
+            _make_point("S3", round(1.0 + c - s, 3), round(1.0 + s + c, 3)),
+            _make_point("S4", round(1.0 - s, 3), round(1.0 + c, 3)),
+        ]
+        points[2].x += 0.0001  # a user-entered rounding difference
+        flags = GeometryUtils.quadrilateral_type_flags(points)
+        self.assertTrue(flags["square"])
+        self.assertTrue(flags["rectangle"])
+        self.assertTrue(flags["rhombus"])
+
     # ------------------------------------------------------------------
     # Polygon side counts
     # ------------------------------------------------------------------
