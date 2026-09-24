@@ -88,7 +88,7 @@ class ResultProcessor:
                 )
             except Exception as e:
                 function_name: str = call.get("function_name", "")
-                ResultProcessor._handle_exception(e, function_name, results)
+                ResultProcessor._handle_exception(e, function_name, results, call.get("arguments", {}))
 
         return results
 
@@ -161,8 +161,8 @@ class ResultProcessor:
                 if isinstance(result_value, str) and result_value.startswith("Error"):
                     is_error = True
             except Exception as e:
-                ResultProcessor._handle_exception(e, function_name, results)
-                result_value = results.get(function_name, str(e))
+                ResultProcessor._handle_exception(e, function_name, results, args)
+                result_value = f"Error: {str(e)}"
                 is_error = True
 
             duration_ms = window.performance.now() - t0
@@ -328,7 +328,9 @@ class ResultProcessor:
             canvas.add_computation(expression=expression, result=result)
 
     @staticmethod
-    def _handle_exception(exception: Exception, function_name: str, results: Dict[str, Any]) -> None:
+    def _handle_exception(
+        exception: Exception, function_name: str, results: Dict[str, Any], args: Any = None
+    ) -> None:
         """
         Handle exceptions during function calls.
 
@@ -336,9 +338,10 @@ class ResultProcessor:
             exception: The exception that was raised
             function_name: Name of the function that caused the exception
             results: Dictionary to update with the error information
+            args: Arguments of the failed call, used to key the error like a success
         """
-        # Use the function name as the key for storing the error
-        key: str = function_name
+        # Key errors like successes so failures of the same tool don't overwrite each other
+        key: str = ResultProcessor.generate_result_key(function_name, args) if isinstance(args, dict) else function_name
 
         # Store the error message as the result value
         results[key] = f"Error: {str(exception)}"

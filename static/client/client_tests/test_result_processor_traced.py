@@ -69,7 +69,26 @@ class TestGetResultsTraced(unittest.TestCase):
             self.canvas,
         )
         self.assertTrue(traced[0]["is_error"])
-        self.assertIn("Error", str(results.get("fail_func", "")))
+        self.assertIn("Error", str(results.get("fail_func()", "")))
+        self.assertIn("intentional error", str(traced[0]["result"]))
+
+    def test_errors_from_same_tool_keep_distinct_keys(self) -> None:
+        """Failures of the same tool with different args must not overwrite each other."""
+
+        def fail_on_name(**kwargs: Any) -> str:
+            raise ValueError(f"bad {kwargs.get('name')}")
+
+        available_functions: Dict[str, Any] = {"create_thing": fail_on_name}
+        calls = [
+            {"function_name": "create_thing", "arguments": {"name": "A"}},
+            {"function_name": "create_thing", "arguments": {"name": "B"}},
+        ]
+        plain = ProcessFunctionCalls.get_results(calls, available_functions, (), self.canvas)
+        traced, _ = ProcessFunctionCalls.get_results_traced(calls, available_functions, (), self.canvas)
+        for results in (plain, traced):
+            self.assertEqual(results.get("create_thing(name:A)"), "Error: bad A")
+            self.assertEqual(results.get("create_thing(name:B)"), "Error: bad B")
+            self.assertNotIn("create_thing", results)
 
     def test_same_results_as_get_results(self) -> None:
         """get_results_traced should produce identical results dict as get_results."""
