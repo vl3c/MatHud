@@ -26,7 +26,7 @@ import urllib.error
 import urllib.request
 import webbrowser
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Sequence
 
 from werkzeug.serving import BaseWSGIServer, make_server
 
@@ -46,6 +46,9 @@ MIN_WINDOW_SIZE = (800, 600)
 WINDOW_STATE_FILENAME = "desktop_window.json"
 WEBVIEW_STORAGE_DIRNAME = "webview"
 DESKTOP_INSTALL_HINT = "pip install -r requirements-desktop.txt"
+# Readiness checks talk to localhost directly; system or environment proxies
+# (possibly unreachable) must not be consulted.
+_LOCAL_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
 class BackgroundServer:
@@ -131,16 +134,25 @@ def start_background_server(app: Any, port: Optional[int] = None, host: str = LO
     return background
 
 
-def wait_for_server(url: str, timeout: float = SERVER_READY_TIMEOUT_S, interval: float = 0.1) -> bool:
+def wait_for_server(
+    url: str,
+    timeout: float = SERVER_READY_TIMEOUT_S,
+    interval: float = 0.1,
+    alive: Optional[Callable[[], bool]] = None,
+) -> bool:
     """Poll ``url`` until the server answers or ``timeout`` seconds pass.
 
     Any HTTP response counts as ready, including error statuses such as a login
     redirect or 401, because they prove the server is accepting requests.
+
+    Args:
+        alive: Optional check (such as the server thread's ``is_alive``); once
+            it returns False the wait ends early with False.
     """
     deadline = time.monotonic() + timeout
-    while True:
+    while alive is None or alive():
         try:
-            with urllib.request.urlopen(url, timeout=max(interval, 1.0)):
+            with _LOCAL_OPENER.open(url, timeout=max(interval, 1.0)):
                 return True
         except urllib.error.HTTPError:
             return True
@@ -149,6 +161,7 @@ def wait_for_server(url: str, timeout: float = SERVER_READY_TIMEOUT_S, interval:
         if time.monotonic() >= deadline:
             return False
         time.sleep(interval)
+    return False
 
 
 def user_data_dir() -> Path:
@@ -255,11 +268,27 @@ def create_flask_app() -> "MatHudFlask":
         sys.path.insert(0, str(PROJECT_ROOT))
     # PORT marks a hosted deployment (auth, secure cookies); the desktop app is local only.
     os.environ.pop("PORT", None)
+    _force_local_mode()
     logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
     from app import app
 
     return app
+
+
+def _never_deployed() -> bool:
+    return False
+
+
+def _force_local_mode() -> None:
+    """Keep the app out of deployed mode even when a .env file sets PORT.
+
+    Popping PORT is not enough: the app reloads .env files at startup and on
+    auth checks, which puts PORT back (the README's .env example includes it).
+    """
+    from static.app_manager import AppManager
+
+    setattr(AppManager, "is_deployed", staticmethod(_never_deployed))
 
 
 def pywebview_available() -> bool:

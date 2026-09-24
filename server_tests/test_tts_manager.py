@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import sys
 import threading
+import time
 import types
 import unittest
 from typing import TYPE_CHECKING, Iterator, List, Tuple
@@ -210,18 +211,76 @@ class TestTTSLazyLoading(unittest.TestCase):
         self.assertEqual(self.kpipeline.call_count, 1)
         self.assertFalse(manager.is_available())
 
+    def test_load_that_calls_sys_exit_is_cached_and_reported(self) -> None:
+        # spaCy's model download inside KPipeline calls sys.exit(1) when it fails.
+        manager = self._manager()
+        self.kpipeline.side_effect = SystemExit(1)
+
+        success, message = manager.generate_speech_threaded("hello", timeout=5.0)
+        again, _ = manager.generate_speech_threaded("hello", timeout=5.0)
+
+        self.assertFalse(success)
+        self.assertFalse(again)
+        self.assertIn("Failed to initialize Kokoro", str(message))
+        self.assertEqual(self.kpipeline.call_count, 1)
+        self.assertFalse(manager.is_available())
+
     def test_threaded_first_request_allows_time_to_load_model(self) -> None:
         manager = self._manager()
         future = MagicMock()
         future.result.return_value = (True, b"RIFF-fake")
 
-        with patch.object(manager._executor, "submit", return_value=future):
+        with patch.object(manager, "_start_generation", return_value=future):
             manager.generate_speech_threaded("hello", timeout=60.0)
             future.result.assert_called_with(timeout=60.0 + manager.PIPELINE_LOAD_TIMEOUT)
 
             manager._pipeline = _fake_pipeline
             manager.generate_speech_threaded("hello", timeout=60.0)
             future.result.assert_called_with(timeout=60.0)
+
+    def test_threaded_generation_runs_on_daemon_thread(self) -> None:
+        # A non-daemon worker would keep the process alive after the desktop
+        # window closes while the model is still loading.
+        manager = self._manager()
+        worker_daemon: List[bool] = []
+
+        def recording_pipeline(**_kwargs: str) -> object:
+            worker_daemon.append(threading.current_thread().daemon)
+            return _fake_pipeline
+
+        self.kpipeline.side_effect = recording_pipeline
+
+        self.assertEqual(manager.generate_speech_threaded("hello", timeout=5.0), (True, b"RIFF-fake"))
+        self.assertEqual(worker_daemon, [True])
+
+    def test_threaded_generation_runs_one_request_at_a_time(self) -> None:
+        manager = self._manager()
+        release = threading.Event()
+        active: List[int] = []
+        peak: List[int] = []
+
+        def slow_generate(text: str, voice: object = None) -> Tuple[bool, bytes]:
+            active.append(1)
+            peak.append(len(active))
+            release.wait(2)
+            active.pop()
+            return True, b"RIFF-fake"
+
+        results: List[Tuple[bool, object]] = []
+        with patch.object(manager, "generate_speech", side_effect=slow_generate):
+            threads = [
+                threading.Thread(target=lambda: results.append(manager.generate_speech_threaded("hi", timeout=5.0)))
+                for _ in range(3)
+            ]
+            for thread in threads:
+                thread.start()
+            time.sleep(0.1)
+            release.set()
+            for thread in threads:
+                thread.join(5)
+
+        self.assertEqual(results, [(True, b"RIFF-fake")] * 3)
+        self.assertEqual(max(peak), 1)
 
     def test_app_startup_does_not_load_kokoro(self) -> None:
         from static.app_manager import AppManager

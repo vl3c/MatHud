@@ -8,6 +8,8 @@ localhost.
 from __future__ import annotations
 
 import json
+import os
+import signal
 import socket
 import sys
 import time
@@ -158,9 +160,28 @@ class TestWaitForServer:
                 raise result
             return result
 
-        with patch("urllib.request.urlopen", side_effect=fake_urlopen) as urlopen:
+        with patch.object(mathud_desktop._LOCAL_OPENER, "open", side_effect=fake_urlopen) as urlopen:
             assert wait_for_server("http://127.0.0.1:1/", timeout=5, interval=0.01)
         assert urlopen.call_count == 3
+
+    def test_stops_waiting_once_the_server_thread_is_gone(self) -> None:
+        started = time.monotonic()
+        url = f"http://127.0.0.1:{_unused_port()}/"
+
+        assert not wait_for_server(url, timeout=10, interval=0.05, alive=lambda: False)
+        assert time.monotonic() - started < 5
+
+    def test_ignores_configured_proxies(self, server: BackgroundServer, monkeypatch: pytest.MonkeyPatch) -> None:
+        # An unreachable system proxy must not make a localhost server look down.
+        dead_proxy = f"http://127.0.0.1:{_unused_port()}"
+        for name in ("HTTP_PROXY", "http_proxy"):
+            monkeypatch.setenv(name, dead_proxy)
+        for name in ("NO_PROXY", "no_proxy"):
+            monkeypatch.delenv(name, raising=False)
+        # urlopen caches a default opener, and with it the proxies seen first.
+        monkeypatch.setattr(urllib.request, "_opener", None)
+
+        assert wait_for_server(server.url, timeout=1, interval=0.05)
 
 
 class TestWindowState:
@@ -379,6 +400,43 @@ class TestRunInBrowser:
 
         assert opened["body"] == b"hello"
         assert not wait_for_server(opened["url"], timeout=0.3, interval=0.05)
+
+
+class TestCreateFlaskApp:
+    def test_port_in_dotenv_does_not_switch_to_deployed_mode(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The README's .env example sets PORT, which marks a hosted deployment
+        # (auth required, secure-only cookies) and would lock the window out.
+        import dotenv
+
+        from static.app_manager import AppManager
+
+        env_file = tmp_path / ".env"
+        env_file.write_text("PORT=5000\n", encoding="utf-8")
+        real_load_dotenv = dotenv.load_dotenv
+        monkeypatch.setattr("static.env_config.load_dotenv", lambda *args, **kwargs: real_load_dotenv(env_file))
+        monkeypatch.chdir(Path.cwd())
+        previous_sigint = signal.getsignal(signal.SIGINT)
+        try:
+            with (
+                patch.dict(os.environ),
+                patch.dict(sys.modules),
+                patch.object(AppManager, "is_deployed", AppManager.__dict__["is_deployed"]),
+                patch("builtins.print"),
+            ):
+                os.environ.pop("PORT", None)
+                os.environ.pop("REQUIRE_AUTH", None)
+                sys.modules.pop("app", None)
+                flask_app = mathud_desktop.create_flask_app()
+
+                assert not AppManager.is_deployed()
+                assert not AppManager.requires_auth()
+                assert flask_app.config.get("SESSION_COOKIE_SECURE") is not True
+                response = flask_app.test_client().get("/")
+                assert response.status_code == 200
+        finally:
+            signal.signal(signal.SIGINT, previous_sigint)
 
 
 class TestDesktopCliCommand:

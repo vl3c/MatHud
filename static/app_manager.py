@@ -61,6 +61,18 @@ class MatHudFlask(Flask):
     current_attached_images: Optional[list[str]]  # User-attached images for current request
     providers: Dict[str, "OpenAIAPIBase"]  # Lazily-loaded provider instances by name
 
+    # static/vendor/ paths include the library version, so their contents never
+    # change under a given URL and browsers may cache them for a year.
+    VENDOR_STATIC_PREFIX = "vendor/"
+    VENDOR_CACHE_MAX_AGE_S = 365 * 24 * 60 * 60
+
+    def get_send_file_max_age(self, filename: Optional[str]) -> Optional[int]:
+        """Cache vendored libraries for long; other static files keep Flask's default."""
+        if filename is not None and filename.replace("\\", "/").startswith(self.VENDOR_STATIC_PREFIX):
+            return self.VENDOR_CACHE_MAX_AGE_S
+        default_max_age: Optional[int] = super().get_send_file_max_age(filename)
+        return default_max_age
+
 
 class AppManager:
     """Manages core Flask application setup and utilities for the MatHud mathematical visualization system.

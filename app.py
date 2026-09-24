@@ -7,6 +7,7 @@ import os
 import signal
 import sys
 import time
+from threading import Thread
 from types import FrameType
 
 from static.app_manager import AppManager, MatHudFlask
@@ -17,6 +18,30 @@ def signal_handler(sig: int, frame: FrameType | None) -> None:
     print("\nShutting down gracefully...")
     print("Goodbye!")
     sys.exit(0)
+
+
+def _keep_serving(server: Thread, url: str) -> int:
+    """Block while the server thread runs; return an exit status once it stops.
+
+    The thread ends early when the server cannot start, e.g. because the port
+    is already taken, so the process exits instead of idling without a server.
+    """
+    from mathud_desktop import wait_for_server
+
+    if not wait_for_server(url, alive=server.is_alive):
+        if not server.is_alive():
+            print(f"The MatHud server failed to start at {url}")
+            return 1
+        print(f"Warning: the server did not respond at {url} yet")
+
+    print(f"MatHud is running at {url}")
+    print("Press Ctrl+C to stop the server")
+
+    # Keep the main thread alive but responsive to keyboard interrupts
+    while server.is_alive():
+        time.sleep(1)
+    print("The MatHud server stopped unexpectedly")
+    return 1
 
 
 # Create the app at module level for VS Code debugger
@@ -60,8 +85,6 @@ if __name__ == "__main__":
             host = "127.0.0.1"  # Localhost for development
             print(f"Starting Flask app on {host}:{port} (development mode, debug={debug_mode})")
 
-            from threading import Thread
-
             server = Thread(
                 target=app.run,
                 kwargs={
@@ -73,18 +96,7 @@ if __name__ == "__main__":
             )
             server.daemon = True  # Make the server thread a daemon so it exits when main thread exits
             server.start()
-
-            from mathud_desktop import wait_for_server
-
-            if not wait_for_server(f"http://{host}:{port}/"):
-                print(f"Warning: the server did not respond on {host}:{port} yet")
-
-            print(f"MatHud is running at http://{host}:{port}")
-            print("Press Ctrl+C to stop the server")
-
-            # Keep the main thread alive but responsive to keyboard interrupts
-            while True:
-                time.sleep(1)
+            sys.exit(_keep_serving(server, f"http://{host}:{port}/"))
 
     except KeyboardInterrupt:
         signal_handler(signal.SIGINT, None)
