@@ -36,21 +36,26 @@ Items marked *(GeoGebra-inspired)* come from a concept review of the GeoGebra so
 
 # Part A — This project
 
-## A0. Stabilization (in progress)
+## A0. Stabilization (done, September 2026)
 
 From the September 2026 project review. Conservative fixes, each with a regression test.
 
-- **Math correctness:** scientific-notation parsing, zero results reported as errors, equation-system solving (non-`y=f(x)` forms, nonlinear systems, nerdamer root parsing), definite integrals across singularities, convergence tests, regression numerics (coefficient formatting, centered fits), polygon canonicalizers (isosceles, rhombus, kite, trapezoid), rotated-ellipse formula, graph algorithms on directed/disconnected/negative-weight graphs, chord and region areas, scale-aware tolerances.
-- **Data safety:** workspace save/reload must restore every drawable type (polygons, graphs); atomic saves, `.bak` on overwrite, trash instead of hard delete; `delete_workspace` via POST; log retention.
-- **Tool-result plumbing:** one result per tool call for every provider; errors keyed by call; real return values passed back; explicit error when a tool isn't loaded; search-first mode explained to the model; `MATHUD_TOOL_EXPOSURE=search|full`.
-- **Renderer:** Canvas2D is the only actively developed renderer. SVG is frozen (kept as fallback and event surface); WebGL removed. Fix stale/leaking plan caches, domain-edge sampling (`sqrt(1-x^2)`), label placement, tick formatting, HiDPI; make plan recording and function sampling fast enough for smooth pan/zoom.
-- **Test hygiene:** register all client test classes; round-trip test per drawable class.
+- ~~**Math correctness:** scientific-notation parsing, zero results reported as errors, equation-system solving (non-`y=f(x)` forms, nonlinear and cubic systems, nerdamer root parsing and verification), definite integrals across singularities, series convergence tests, vertical-asymptote detection, regression numerics (coefficient formatting, centered/scaled fits, logistic), Newton solver tolerances and non-square systems, polygon canonicalizers (isosceles, rhombus, kite, trapezoid), rotated-ellipse formula, graph algorithms on directed/disconnected/negative-weight graphs, `analyze_graph` wiring, chord and region areas, circle/ellipse intersections, relation checks, scale-aware tolerances, large-integer results from math.js.~~
+- ~~**Data safety:** workspace reload restores every drawable type (round-trip test per class); atomic saves, `.bak` on overwrite, trash instead of hard delete; `delete_workspace` via POST; log retention.~~
+- ~~**Tool-result plumbing:** one result per tool call for every provider; errors keyed by call; small return values passed back; explicit error when a tool isn't loaded; search-first mode explained to the model; `MATHUD_TOOL_EXPOSURE=search|full`; better local tool-search ranking.~~
+- ~~**Canvas state for the model:** compact text format with derived facts (lengths, areas, angles, edge weights), change reports after each tool batch, canvas kept with vision requests, LocalAgent now sees the scene; `MATHUD_CANVAS_FORMAT=json|min_json|text`, `MATHUD_CANVAS_BUDGET_TOKENS`.~~
+- ~~**Renderer:** WebGL removed, SVG frozen; Canvas2D cache invalidation/pruning, domain-edge sampling, labels, tick formatting, HiDPI; lean plan recording, JS path tracing, pan reprojection (pan with 4 functions ~250 ms → ~32 ms per frame).~~
+- ~~**Test hygiene:** unregistered client test classes registered.~~
 
-Follow-ups not yet scheduled:
+Follow-ups:
+- **Comprehension benchmark for the canvas format** — once a model is reachable, compare `json` vs `text` answers (lengths, names, graph edges, changes after tool calls) per provider; tune the local budget to the model's context size.
 - One user-visible undo step per AI action (nested manager archives currently create several).
-- Serialize drawable colors/styles so they survive reload.
+- Serialize drawable colors/styles (points, segments, vectors, circles, polygons, graphs, function curves) so they survive reload and reach the model.
 - `localStorage` mirror of the canvas so an accidental page reload doesn't lose work.
-- Doc drift: tool counts, provider list, Reference Manual coverage of all tools.
+- Custom names for circles and ellipses (currently always `<center>(<radius>)`; needs a custom-name flag honoured by `regenerate_name()` and `__deepcopy__`).
+- Region boolean operations ignore holes and use only outer boundaries when results are combined further.
+- Undirected graph analysis collapses parallel edges (a doubled edge is still reported as a bridge).
+- Server-side: remaining mypy `no-any-return` warnings in modules outside `mypy.ini`'s file list; a route test can make a live OpenAI call when a key is configured.
 
 ## A1. Unified app and model workbench
 
@@ -175,7 +180,7 @@ Not scheduled. Worth revisiting once Part A is solid, or better built as a separ
 
 | Milestone | Focus |
 |---|---|
-| **1 — Stable** | A0 complete: known math bugs fixed, workspace round-trip, tool-result plumbing, renderer fixes and speed |
+| **1 — Stable** ✓ | A0 complete: known math bugs fixed, workspace round-trip, tool-result plumbing, canvas-state format, renderer fixes and speed |
 | **2 — Unified app** | Desktop shell, vendored libs, client-side snapshots, per-response metrics, chat persistence |
 | **3 — Workbench** | Benchmark suite, CAS audit, side-by-side comparison, local-model tuning |
 | **4 — Explore I** | Sliders, roots/extrema/intersections, adaptive plotting, polar, calculus visuals, adaptive quadrature |
