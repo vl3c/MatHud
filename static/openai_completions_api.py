@@ -12,7 +12,13 @@ from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
-from static.openai_api_base import OpenAIAPIBase, MessageDict, StreamEvent, stream_error_user_message
+from static.openai_api_base import (
+    TOOL_CALL_FINISH_REASONS,
+    MessageDict,
+    OpenAIAPIBase,
+    StreamEvent,
+    stream_error_user_message,
+)
 from static.response_metrics import (
     create_stream_requesting_usage,
     reasoning_text_from_delta,
@@ -98,8 +104,11 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
     # False once the server rejected stream_options (see create_stream_requesting_usage).
     _stream_usage_supported = True
 
-    def _create_assistant_message(self, response_message: Any) -> MessageDict:
-        """Create an assistant message from the API response message."""
+    def _create_assistant_message(self, response_message: Any, include_tool_calls: bool = True) -> MessageDict:
+        """Create an assistant message from the API response message.
+
+        ``include_tool_calls`` is False for a reply whose tool calls will not run.
+        """
         content = getattr(response_message, "content", "")
         assistant_message: MessageDict = {
             "role": "assistant",
@@ -112,7 +121,7 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
                 assistant_message["reasoning_details"] = reasoning_details
 
         tool_calls = getattr(response_message, "tool_calls", None)
-        if tool_calls:
+        if tool_calls and include_tool_calls:
             assistant_message["tool_calls"] = [
                 {
                     "id": getattr(tool_call, "id", None),
@@ -124,6 +133,8 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
                 }
                 for tool_call in tool_calls
             ]
+        elif content is None:
+            assistant_message["content"] = ""  # null content is only valid alongside tool calls
 
         return assistant_message
 
@@ -147,17 +158,16 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
             return self._create_error_response()
 
         choice = response.choices[0]
+        finish_reason = getattr(choice, "finish_reason", None)
+        tool_calls = getattr(choice.message, "tool_calls", None)
         record_chat_completions_usage(response, metrics)
-        self._finish_response_metrics(
-            metrics,
-            getattr(choice, "finish_reason", None),
-            len(getattr(choice.message, "tool_calls", None) or []),
-        )
+        self._finish_response_metrics(metrics, finish_reason, len(tool_calls or []))
 
-        assistant_message = self._create_assistant_message(choice.message)
+        runs_tools = finish_reason in TOOL_CALL_FINISH_REASONS
+        assistant_message = self._create_assistant_message(choice.message, include_tool_calls=runs_tools)
         self.messages.append(assistant_message)
 
-        self._append_tool_messages(getattr(choice.message, "tool_calls", None))
+        self._append_tool_messages(tool_calls if runs_tools else None)
         self._clean_conversation_history()
 
         return choice
@@ -249,11 +259,12 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
             _logger.warning(f"[OpenAI API] Stream ended with an error after the finish reason: {exc}")
 
         normalized_tool_calls = self._normalize_tool_calls(tool_calls_accumulator)
-        self._finalize_stream(accumulated_text, normalized_tool_calls, reasoning_details)
+        resolved_finish_reason = finish_reason or "stop"
+        stored_tool_calls = normalized_tool_calls if resolved_finish_reason in TOOL_CALL_FINISH_REASONS else []
+        self._finalize_stream(accumulated_text, stored_tool_calls, reasoning_details)
 
         ai_tool_calls_json_ready = self._prepare_tool_calls_for_response(normalized_tool_calls)
         metrics.add_output_text(tool_call_argument_text(normalized_tool_calls))
-        resolved_finish_reason = finish_reason or "stop"
 
         yield {
             "type": "final",

@@ -177,6 +177,98 @@ class TestProviderToolResultRoundTrip(unittest.TestCase):
         self._assert_each_call_answered(api)
 
 
+class TestUnrunToolCallsAreNotStored(unittest.TestCase):
+    """Tool calls of a reply that did not end in tool calls (e.g. partial calls of a
+    reply cut off at the token limit) never run, so no placeholder waits for them."""
+
+    PARTIAL_CALL = SimpleNamespace(id="call_cut", function=SimpleNamespace(name="create_point", arguments='{"x": 1'))
+
+    @staticmethod
+    def _stream_chunk(content: Optional[str], tool_calls: Any, finish_reason: Optional[str]) -> SimpleNamespace:
+        delta = SimpleNamespace(content=content, tool_calls=tool_calls)
+        return SimpleNamespace(choices=[SimpleNamespace(delta=delta, finish_reason=finish_reason)], usage=None)
+
+    def _partial_stream(self, finish_reason: str) -> List[SimpleNamespace]:
+        tool_delta = SimpleNamespace(index=0, id="call_cut", function=self.PARTIAL_CALL.function)
+        return [
+            self._stream_chunk("Placing", None, None),
+            self._stream_chunk(None, [tool_delta], finish_reason),
+        ]
+
+    def _assert_nothing_pending(self, api: OpenAIAPIBase) -> None:
+        self.assertEqual(_tool_messages(api), {})
+        assistant = [m for m in api.messages if m.get("role") == "assistant"]
+        self.assertTrue(assistant)
+        self.assertNotIn("tool_calls", assistant[-1])
+
+    def test_chat_completions_non_streaming_length(self) -> None:
+        with patch("static.openai_api_base.OpenAI"):
+            api = OpenAIChatCompletionsAPI()
+        message = SimpleNamespace(content="Placing", tool_calls=[self.PARTIAL_CALL])
+        api.client = Mock()
+        api.client.chat.completions.create.return_value = SimpleNamespace(
+            choices=[SimpleNamespace(message=message, finish_reason="length")], usage=None
+        )
+
+        result = api.create_chat_completion(json.dumps({"user_message": "hi"}))
+
+        self.assertEqual(result.finish_reason, "length")
+        self._assert_nothing_pending(api)
+
+    def test_chat_completions_unrun_calls_without_text_store_empty_content(self) -> None:
+        """Null content is only valid alongside tool calls, so it becomes an empty string."""
+        with patch("static.openai_api_base.OpenAI"):
+            api = OpenAIChatCompletionsAPI()
+        message = SimpleNamespace(content=None, tool_calls=[self.PARTIAL_CALL])
+
+        stored = api._create_assistant_message(message, include_tool_calls=False)
+
+        self.assertEqual(stored, {"role": "assistant", "content": ""})
+
+    def test_chat_completions_streaming_length(self) -> None:
+        with patch("static.openai_api_base.OpenAI"):
+            api = OpenAIChatCompletionsAPI()
+        api.client = Mock()
+        api.client.chat.completions.create.return_value = iter(self._partial_stream("length"))
+
+        final = list(api.create_chat_completion_stream(json.dumps({"user_message": "hi"})))[-1]
+
+        self.assertEqual(final["finish_reason"], "length")
+        self._assert_nothing_pending(api)
+
+    def test_chat_completions_streaming_tool_calls_are_stored(self) -> None:
+        with patch("static.openai_api_base.OpenAI"):
+            api = OpenAIChatCompletionsAPI()
+        api.client = Mock()
+        api.client.chat.completions.create.return_value = iter(self._partial_stream("tool_calls"))
+
+        list(api.create_chat_completion_stream(json.dumps({"user_message": "hi"})))
+
+        self.assertEqual(_tool_messages(api), {"call_cut": PLACEHOLDER})
+
+    def test_local_non_streaming_length(self) -> None:
+        api = LocalAgentAPI(model=AIModel.from_identifier("local-model"))
+        choice = SimpleNamespace(
+            message=SimpleNamespace(content="Placing", tool_calls=[self.PARTIAL_CALL]), finish_reason="length"
+        )
+
+        result = api._process_response(choice)
+
+        self.assertEqual(result.finish_reason, "length")
+        self.assertIsNone(result.message.tool_calls)
+        self._assert_nothing_pending(api)
+
+    def test_local_streaming_length(self) -> None:
+        api = LocalAgentAPI(model=AIModel.from_identifier("local-model"))
+        api.client = Mock()
+        api.client.chat.completions.create.return_value = iter(self._partial_stream("length"))
+
+        final = list(api.create_chat_completion_stream(json.dumps({"user_message": "hi"})))[-1]
+
+        self.assertEqual(final["finish_reason"], "length")
+        self._assert_nothing_pending(api)
+
+
 class TestCallsWithoutIds(unittest.TestCase):
     """Tool calls that arrive without ids (some local servers) still get the right results."""
 
@@ -224,15 +316,17 @@ class TestCallsWithoutIds(unittest.TestCase):
         self.assertEqual(contents[2], json.dumps(circle_result))
 
     def test_local_stream_gives_calls_without_ids_an_id(self) -> None:
-        def delta(index: int, name: str) -> SimpleNamespace:
+        def delta(index: int, name: str, finish_reason: Optional[str] = None) -> SimpleNamespace:
             function = SimpleNamespace(name=name, arguments="{}")
             tool_call = SimpleNamespace(index=index, id=None, function=function)
-            choice = SimpleNamespace(delta=SimpleNamespace(content=None, tool_calls=[tool_call]), finish_reason=None)
+            choice = SimpleNamespace(
+                delta=SimpleNamespace(content=None, tool_calls=[tool_call]), finish_reason=finish_reason
+            )
             return SimpleNamespace(choices=[choice])
 
         provider = LocalAgentAPI(model=AIModel.from_identifier("local-model"))
         provider.client = Mock()
-        provider.client.chat.completions.create.return_value = iter([delta(0, "undo"), delta(1, "redo")])
+        provider.client.chat.completions.create.return_value = iter([delta(0, "undo"), delta(1, "redo", "tool_calls")])
         events = list(provider.create_chat_completion_stream(json.dumps({"user_message": "hi"})))
 
         final = events[-1]

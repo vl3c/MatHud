@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional, Set, Type
 from static.ai_model import AIModel
 from static.canvas_state_formatter import CanvasFormat
 from static.functions_definitions import FunctionDefinition
-from static.openai_api_base import OpenAIAPIBase, StreamEvent, get_configured_tool_mode
+from static.openai_api_base import TOOL_CALL_FINISH_REASONS, OpenAIAPIBase, StreamEvent, get_configured_tool_mode
 from static.response_metrics import (
     create_stream_requesting_usage,
     reasoning_text_from_delta,
@@ -429,14 +429,16 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
             if not tool_call["id"]:
                 tool_call["id"] = f"call_{index}"
         tool_calls = list(tool_call_deltas.values())
+        resolved_finish_reason = finish_reason or "stop"
 
-        # Update conversation history
-        self._finalize_stream(accumulated_text, tool_calls)
+        # Update conversation history; calls of a reply that did not end in tool calls
+        # (e.g. cut off at the token limit) do not run, so they are not stored.
+        runs_tools = resolved_finish_reason in TOOL_CALL_FINISH_REASONS
+        self._finalize_stream(accumulated_text, tool_calls if runs_tools else [])
 
         # Prepare tool calls for response
         ai_tool_calls = self._prepare_tool_calls_for_response(tool_calls)
         metrics.add_output_text(tool_call_argument_text(tool_calls))
-        resolved_finish_reason = finish_reason or "stop"
 
         yield {
             "type": "final",
@@ -525,7 +527,9 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
 
         message = choice.message
         text_content = message.content or ""
-        raw_tool_calls = message.tool_calls or []
+        # A reply cut off at the token limit may hold partial tool calls; none run.
+        cut_off = getattr(choice, "finish_reason", None) == "length"
+        raw_tool_calls = [] if cut_off else (message.tool_calls or [])
 
         # Build tool calls list
         tool_calls: List[Dict[str, Any]] = []
@@ -560,7 +564,7 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         self._clean_conversation_history()
 
         # Return OpenAI-like response object
-        finish_reason = "tool_calls" if tool_calls else "stop"
+        finish_reason = "length" if cut_off else ("tool_calls" if tool_calls else "stop")
         return SimpleNamespace(
             message=SimpleNamespace(
                 content=text_content,
