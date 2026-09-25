@@ -244,6 +244,13 @@ from .test_math_symbols import (
     TestRecentSymbols,
     TestPaletteGridNavigation,
 )
+from .test_math_symbol_input import (
+    TestMathSymbolInsertion,
+    TestMathSymbolInputKeys,
+    TestMathSymbolPopups,
+    TestEverySymbol,
+    TestCommandAutocompleteModifiers,
+)
 from .test_image_attachment import (
     TestAttachedImagesState,
     TestImageValidation,
@@ -608,6 +615,11 @@ class Tests:
             TestLatexCompletion,
             TestRecentSymbols,
             TestPaletteGridNavigation,
+            TestMathSymbolInsertion,
+            TestMathSymbolInputKeys,
+            TestMathSymbolPopups,
+            TestEverySymbol,
+            TestCommandAutocompleteModifiers,
             TestAttachedImagesState,
             TestImageValidation,
             TestPayloadGeneration,
