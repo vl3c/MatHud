@@ -136,6 +136,40 @@ class TestReasoningDetailsNonStreamed(unittest.TestCase):
 
         self.assertEqual(_assistant_messages(api.messages)[0]["reasoning_details"], REASONING_DETAILS)
 
+    def test_reasoning_details_of_earlier_turns_are_not_resent(self) -> None:
+        """A new user prompt drops reasoning_details from earlier turns; within the
+        current turn's tool loop they are still sent back."""
+        api, mock_client = _make_openrouter()
+        turn1_details = [dict(REASONING_DETAILS[0], text="Turn one.")]
+        responses = [
+            _completion(
+                SimpleNamespace(content="", tool_calls=[_tool_call("call_1")], reasoning_details=turn1_details),
+                "tool_calls",
+            ),
+            _completion(SimpleNamespace(content="Done.", tool_calls=None, reasoning_details=turn1_details), "stop"),
+            _completion(
+                SimpleNamespace(content="", tool_calls=[_tool_call("call_2")], reasoning_details=REASONING_DETAILS),
+                "tool_calls",
+            ),
+            _completion(SimpleNamespace(content="Done again.", tool_calls=None), "stop"),
+        ]
+        sent = _record_sent_messages(mock_client, responses)
+
+        api.create_chat_completion(_user_prompt("draw a circle"))
+        api.create_chat_completion(_tool_results_prompt("call_1"))
+        api.create_chat_completion(_user_prompt("draw another circle"))
+        api.create_chat_completion(_tool_results_prompt("call_2"))
+
+        turn2_first_request = _assistant_messages(sent[2])
+        self.assertEqual(len(turn2_first_request), 2)
+        self.assertTrue(all("reasoning_details" not in m for m in turn2_first_request))
+
+        turn2_tool_loop = _assistant_messages(sent[3])
+        self.assertEqual(len(turn2_tool_loop), 3)
+        self.assertTrue(all("reasoning_details" not in m for m in turn2_tool_loop[:2]))
+        self.assertEqual(turn2_tool_loop[2]["reasoning_details"], REASONING_DETAILS)
+        self.assertEqual(turn2_tool_loop[2]["tool_calls"][0]["id"], "call_2")
+
     @patch("static.openai_api_base.OpenAI")
     def test_openai_chat_completions_does_not_keep_reasoning_details(self, _mock_openai: MagicMock) -> None:
         api = OpenAIChatCompletionsAPI()

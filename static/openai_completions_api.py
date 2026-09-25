@@ -90,8 +90,9 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
     MAX_CHUNKS_AFTER_FINISH = 3
 
     # Providers that set this keep the response's reasoning_details on the stored
-    # assistant message, so the next request sends them back unchanged (Gemini 3
-    # via OpenRouter needs its thought signatures after a tool call).
+    # assistant message, so the requests of the same tool-call loop send them back
+    # unchanged (Gemini 3 via OpenRouter needs its thought signatures after a tool
+    # call). A new user prompt drops them from earlier turns.
     PRESERVE_REASONING_DETAILS = False
 
     # False once the server rejected stream_options (see create_stream_requesting_usage).
@@ -281,9 +282,21 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
             self._apply_tool_call_results(prompt_json)
             return
 
+        if self.PRESERVE_REASONING_DETAILS:
+            self._drop_past_reasoning_details()
         message_content = self._prepare_message_content(full_prompt)
         user_message: MessageDict = {"role": "user", "content": message_content}
         self.messages.append(user_message)
+
+    def _drop_past_reasoning_details(self) -> None:
+        """Remove reasoning_details from the assistant messages of earlier turns.
+
+        They are only needed on the requests of the tool-call loop that produced
+        them, so a new user prompt ends their use instead of resending them forever.
+        """
+        for message in self.messages:
+            if message.get("role") == "assistant":
+                message.pop("reasoning_details", None)
 
     def _extract_choice_from_chunk(self, chunk: Any) -> Optional[Any]:
         """Best-effort extraction of first choice from streaming chunk."""
