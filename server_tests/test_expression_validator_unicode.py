@@ -327,6 +327,27 @@ class TestPythonEvaluationNamespace(unittest.TestCase):
         self.assertEqual(stored_t, "max(t, -Infinity)")
         self.assertEqual(ExpressionValidator.parse_parametric_expression(stored_t)(2), 2.0)
 
+    def test_reciprocal_and_inverse_hyperbolic_functions_plot(self) -> None:
+        # Values match math.js 14.5.2, which evaluates the same names outside plotting
+        cases = {
+            "sinh⁻¹(x)": (1, math.asinh(1)),
+            "cosh⁻¹(x)": (2, 1.3169578969248166),
+            "tanh⁻¹(x)": (0.5, 0.5493061443340548),
+            "sec⁻¹(x)": (-2, 2.0943951023931957),
+            "csc⁻¹(x)": (-2, -0.5235987755982989),
+            "cot⁻¹(x)": (-1, -0.7853981633974483),
+            "acot(x)": (0, math.pi / 2),
+            "sec(x)": (1, 1.8508157176809255),
+            "csc(x)": (1, 1.1883951057781212),
+            "cot(x)": (1, 0.6420926159343306),
+            "sec²(x) - tan²(x)": (0.4, 1),
+        }
+        for expression, (x, expected) in cases.items():
+            with self.subTest(expression=expression):
+                self.assertAlmostEqual(ExpressionValidator.parse_function_string(expression)(x), expected)
+                t_expression = expression.replace("x", "t")
+                self.assertAlmostEqual(ExpressionValidator.parse_parametric_expression(t_expression)(x), expected)
+
 
 class TestNumericSolverVariableDetection(unittest.TestCase):
     """detect_variables must find the Greek names normalize_unicode_math keeps."""

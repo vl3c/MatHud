@@ -1209,6 +1209,13 @@ class TestMathFunctions(unittest.TestCase):
         self.assertAlmostEqual(MathUtils.evaluate("ϑ + ϵ", {"ϑ": 1, "ϵ": 2}), 3)
         self.assertAlmostEqual(MathUtils.evaluate("2µ", {"µ": 4}), 8)
 
+    def test_evaluate_reciprocal_and_inverse_hyperbolic_functions(self) -> None:
+        # Regression: these passed math.js but failed the Python validation step first
+        self.assertAlmostEqual(MathUtils.evaluate("sinh⁻¹(1)"), math.asinh(1))
+        self.assertAlmostEqual(MathUtils.evaluate("atanh(0.5)"), math.atanh(0.5))
+        self.assertAlmostEqual(MathUtils.evaluate("acot(-1)"), -math.pi / 4)
+        self.assertAlmostEqual(MathUtils.evaluate("sec(0)"), 1)
+
     def test_delta_names_stay_whole_in_nerdamer(self) -> None:
         # Regression: "Δx" was split into Δ*x, even in the variable argument
         self.assertEqual(MathUtils.simplify("Δx/Δt"), "Δt^(-1)*Δx")

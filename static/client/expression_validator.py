@@ -22,8 +22,8 @@ Security Features:
 
 Mathematical Support:
     - Standard arithmetic operations (+, -, *, /, ^, **)
-    - Trigonometric functions (sin, cos, tan, asin, acos, atan)
-    - Hyperbolic functions (sinh, cosh, tanh)
+    - Trigonometric functions (sin, cos, tan, sec, csc, cot and their inverses asin ... acot)
+    - Hyperbolic functions (sinh, cosh, tanh, asinh, acosh, atanh)
     - Logarithmic functions (log, log10, log2, ln)
     - Advanced functions (sqrt, exp, abs, factorial)
     - Statistical functions (mean, median, mode, variance, stdev)
@@ -54,6 +54,46 @@ import math
 import random
 import re
 from typing import Any, Callable, Dict, Optional, Set, Type, cast
+
+
+# Reciprocal trigonometric functions and their inverses, which Python's math module lacks.
+# They follow math.js: acot(x) = atan(1/x), so acot(0) = pi/2 and acot(-1) = -pi/4.
+def _sec(x: float) -> float:
+    return 1 / math.cos(x)
+
+
+def _csc(x: float) -> float:
+    return 1 / math.sin(x)
+
+
+def _cot(x: float) -> float:
+    return 1 / math.tan(x)
+
+
+def _asec(x: float) -> float:
+    return math.acos(1 / x)
+
+
+def _acsc(x: float) -> float:
+    return math.asin(1 / x)
+
+
+def _acot(x: float) -> float:
+    return math.pi / 2 if x == 0 else math.atan(1 / x)
+
+
+# Functions both Python evaluation namespaces (x and parametric t) share beyond the basics
+_TRIGONOMETRIC_EXTRAS: Dict[str, Callable[[float], float]] = {
+    "sec": _sec,
+    "csc": _csc,
+    "cot": _cot,
+    "asec": _asec,
+    "acsc": _acsc,
+    "acot": _acot,
+    "asinh": math.asinh,
+    "acosh": math.acosh,
+    "atanh": math.atanh,
+}
 
 
 # The ExpressionValidator class is used to validate and evaluate mathematical expressions
@@ -115,6 +155,15 @@ class ExpressionValidator(ast.NodeVisitor):
         "sinh",
         "cosh",
         "tanh",
+        "sec",
+        "csc",
+        "cot",
+        "asec",
+        "acsc",
+        "acot",
+        "asinh",
+        "acosh",
+        "atanh",
         "exp",
         "abs",
         "pi",
@@ -476,6 +525,7 @@ class ExpressionValidator(ast.NodeVisitor):
             "sinh": math.sinh,  # Hyperbolic sine function
             "cosh": math.cosh,  # Hyperbolic cosine function
             "tanh": math.tanh,  # Hyperbolic tangent function
+            **_TRIGONOMETRIC_EXTRAS,  # sec, csc, cot, their inverses and the inverse hyperbolic functions
             "exp": math.exp,  # Exponential function
             "abs": abs,  # Absolute value function
             "pi": math.pi,  # The constant pi
@@ -979,6 +1029,7 @@ class ExpressionValidator(ast.NodeVisitor):
             "sinh": math.sinh,
             "cosh": math.cosh,
             "tanh": math.tanh,
+            **_TRIGONOMETRIC_EXTRAS,
             "exp": math.exp,
             "abs": abs,
             "pi": math.pi,

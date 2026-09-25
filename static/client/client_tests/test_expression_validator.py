@@ -326,6 +326,12 @@ class TestExpressionValidator(unittest.TestCase):
         curve = ParametricFunction("max(t, −∞)", "t", name="p")
         self.assertEqual(copy.deepcopy(curve).evaluate_x(2), 2.0)
 
+    def test_reciprocal_and_inverse_hyperbolic_functions_plot(self) -> None:
+        # Regression: sinh⁻¹(x) became asinh(x), which was not an allowed function
+        self.assertAlmostEqual(ExpressionValidator.parse_function_string("sinh⁻¹(x)")(1), math.asinh(1))
+        self.assertAlmostEqual(ExpressionValidator.parse_function_string("cot⁻¹(x)")(-1), -math.pi / 4)
+        self.assertAlmostEqual(ExpressionValidator.parse_parametric_expression("sec²(t) - tan²(t)")(0.4), 1)
+
     def test_parsed_functions_keep_independent_state(self) -> None:
         # Parsed callables share cached code but must not share the variable namespace
         square = ExpressionValidator.parse_function_string("x^2")
