@@ -637,14 +637,17 @@ class AnthropicAPI(OpenAIAPIBase):
                 metrics.mark_output("reasoning")
 
     def _drop_refused_user_message(self) -> None:
-        """Remove the user message a refusal answered.
+        """Remove the round a refusal answered, from the user's latest message on.
 
         The refused reply is not stored, so without this the user's next message would
-        be merged into the refused one and likely declined again. Only a trailing user
-        message is removed; a refusal in the middle of a tool round leaves history as is.
+        be merged into the refused one and likely declined again. A refusal in the
+        middle of a tool round also drops that round's tool calls and results, so no
+        tool_use is left without its reply and none of the refused context remains.
         """
-        if self.messages and self.messages[-1].get("role") == "user":
-            self.messages.pop()
+        for index in range(len(self.messages) - 1, -1, -1):
+            if self.messages[index].get("role") == "user":
+                del self.messages[index:]
+                return
 
     def _finalize_anthropic_stream(self, accumulated_text: str, tool_calls: List[Dict[str, Any]]) -> None:
         """Record a reply's text and tool calls in the conversation history.

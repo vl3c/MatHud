@@ -272,6 +272,43 @@ class TestStreamingRefusal(_AnthropicTransportTest):
 
         self.assertFalse(any(message.get("role") == "user" for message in api.messages))
 
+    def test_refused_fresh_prompt_keeps_earlier_turns(self) -> None:
+        api = self._make_api()
+        self._queue_stream(_sse(_text_block(0, "Hello."), "end_turn"))
+        self._queue_stream(_sse(_text_block(0, "Sure"), "refusal", _REFUSAL_DETAILS))
+        self._queue_stream(_sse(_text_block(0, "Done."), "end_turn"))
+
+        list(api.create_chat_completion_stream("Hi"))
+        history_before = [dict(message) for message in api.messages]
+        list(api.create_chat_completion_stream("Refused prompt"))
+
+        self.assertEqual(api.messages, history_before)
+        list(api.create_chat_completion_stream("Next"))
+        sent = self.request_bodies[2]["messages"]
+        self.assertEqual([message["role"] for message in sent], ["user", "assistant", "user"])
+        self.assertNotIn("Refused prompt", json.dumps(sent))
+
+    def test_refusal_mid_tool_round_drops_the_whole_round(self) -> None:
+        api = self._make_api()
+        self._queue_stream(_sse(_text_block(0, "Hello."), "end_turn"))
+        self._queue_stream(_sse(_tool_block(0, "toolu_1", _COMPLETE_ARGS), "tool_use"))
+        self._queue_stream(_sse(_text_block(0, "Sure"), "refusal", _REFUSAL_DETAILS))
+        self._queue_stream(_sse(_text_block(0, "Done."), "end_turn"))
+
+        list(api.create_chat_completion_stream("Hi"))
+        history_before = [dict(message) for message in api.messages]
+        list(api.create_chat_completion_stream("Refused prompt"))
+        results = json.dumps([{"tool_call_id": "toolu_1", "result": {"status": "ok"}}])
+        list(api.create_chat_completion_stream(json.dumps({"tool_call_results": results})))
+
+        self.assertEqual(api.messages, history_before)
+        self.assertFalse(any(message.get("role") == "tool" for message in api.messages))
+        list(api.create_chat_completion_stream("Next"))
+        sent = self.request_bodies[3]["messages"]
+        self.assertEqual([message["role"] for message in sent], ["user", "assistant", "user"])
+        self.assertNotIn("toolu_1", json.dumps(sent))
+        self.assertNotIn("Refused prompt", json.dumps(sent))
+
 
 class TestStreamingPauseTurn(_AnthropicTransportTest):
     def test_pause_turn_stops_with_a_note(self) -> None:
@@ -370,6 +407,20 @@ class TestNonStreamingStopReasons(_AnthropicTransportTest):
         self.assertIn("cyber", result.message.content)
         self.assertEqual(self._assistant_turns(api), [])
         self.assertFalse(any(message.get("role") == "user" for message in api.messages))
+
+    def test_non_streaming_refusal_mid_tool_round_drops_the_whole_round(self) -> None:
+        api = self._make_api()
+        self._queue_message(
+            _message([{"type": "tool_use", "id": "toolu_1", "name": "create_point", "input": {}}], "tool_use")
+        )
+        self._queue_message(_message([{"type": "text", "text": "Sure"}], "refusal", stop_details=_REFUSAL_DETAILS))
+
+        api.create_chat_completion("Refused prompt")
+        results = json.dumps([{"tool_call_id": "toolu_1", "result": {"status": "ok"}}])
+        result = api.create_chat_completion(json.dumps({"tool_call_results": results}))
+
+        self.assertEqual(result.finish_reason, "refusal")
+        self.assertEqual(api.messages, [])
 
 
 if __name__ == "__main__":
