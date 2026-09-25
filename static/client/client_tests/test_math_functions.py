@@ -1209,6 +1209,17 @@ class TestMathFunctions(unittest.TestCase):
         self.assertAlmostEqual(MathUtils.evaluate("ϑ + ϵ", {"ϑ": 1, "ϵ": 2}), 3)
         self.assertAlmostEqual(MathUtils.evaluate("2µ", {"µ": 4}), 8)
 
+    def test_delta_names_stay_whole_in_nerdamer(self) -> None:
+        # Regression: "Δx" was split into Δ*x, even in the variable argument
+        self.assertEqual(MathUtils.simplify("Δx/Δt"), "Δt^(-1)*Δx")
+        self.assertEqual(MathUtils.derivative("Δx^2", "Δx"), "2*Δx")
+        self.assertEqual(MathUtils.derivative("δt²", "δt"), "2*δt")
+        self.assertEqual(MathUtils.integral("Δx", "Δx"), "0.5*Δx^2")
+        self.assertEqual([float(root) for root in json.loads(MathUtils.solve("Δx² = 4", "Δx"))], [2.0, -2.0])
+        self.assertEqual(MathUtils.derivative("ϕ²", "ϕ"), "2*φ")
+        # Other Greek letters are still single-letter factors
+        self.assertEqual(MathUtils.derivative("sin(ωt)", "t"), "cos(t*ω)*ω")
+
     def test_solve_linear_quadratic_invalid_input(self) -> None:
         equations = ["y = 2*x + 3"]  # Not enough equations
         with self.assertRaises(ValueError):

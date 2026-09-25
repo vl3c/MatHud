@@ -285,6 +285,8 @@ class ExpressionValidator(ast.NodeVisitor):
     _INFINITY_SIGN = "∞"  # U+221E, rewritten to inf (Python) or Infinity (math.js and nerdamer)
     _CONSTANT_SIGNS = _PI_SIGN + _SCRIPT_E + _INFINITY_SIGN + _IMAGINARY_IOTA
     _NOT_EQUAL_SIGN = "≠"  # U+2260
+    # Δ and δ followed by ASCII letters or digits form one name (Δx, δt), not a product
+    _DIFFERENCE_LETTERS = "Δδ"
 
     def _is_allowed_node_type(self, node: ast.AST) -> bool:
         """
@@ -675,11 +677,21 @@ class ExpressionValidator(ast.NodeVisitor):
         return "Α" <= char <= "Ω" or "α" <= char <= "ω"
 
     @staticmethod
+    def _continues_greek_name(letter: str, following: str) -> bool:
+        """True when following extends the name the Greek letter starts: θ1, θ_0, Δx, δt."""
+        if "0" <= following <= "9" or following == "_":
+            return True
+        is_ascii_letter = "a" <= following <= "z" or "A" <= following <= "Z"
+        return is_ascii_letter and letter in ExpressionValidator._DIFFERENCE_LETTERS
+
+    @staticmethod
     def _replace_unicode_symbols(expression: str, python_compatible: bool) -> str:
         """Spell out π, ℯ, ∞ and ί and give them and Greek letters explicit multiplication.
 
         Each of these characters is a single-letter token, so "2πr" is 2*pi*r and "αβ" is α*β.
-        A Greek letter may still start a name with digits or underscores (θ1, θ_0).
+        A Greek letter may still start a name with digits or underscores (θ1, θ_0), and Δ or δ
+        followed by ASCII letters or digits is one name, the usual notation for a change or a
+        small quantity (Δx, δt, Δx1), whereas other letters are factors ("ωt" is ω*t).
         """
         constants = {
             ExpressionValidator._PI_SIGN: "pi",
@@ -702,7 +714,7 @@ class ExpressionValidator(ast.NodeVisitor):
             token = constants.get(char, char)
             parts.append(token)
             following = expression[index + 1 : index + 2]
-            continues_name = char not in constants and ("0" <= following <= "9" or following == "_")  # θ1, θ_0
+            continues_name = char not in constants and ExpressionValidator._continues_greek_name(char, following)
             if ExpressionValidator._starts_operand(following) and not continues_name:
                 parts.append("*")
                 previous = "*"

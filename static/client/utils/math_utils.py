@@ -1095,6 +1095,19 @@ class MathUtils:
 
         return ExpressionValidator.normalize_unicode_math(value)
 
+    @staticmethod
+    def _normalize_variable(value: Any) -> Any:
+        """Rewrite a variable name argument (ϕ -> φ) with character replacements only.
+
+        A variable is one name, so it is never split into factors: "Δx" stays "Δx".
+        Non-string values are returned unchanged.
+        """
+        if not isinstance(value, str):
+            return value
+        from expression_validator import ExpressionValidator
+
+        return ExpressionValidator.normalize_unicode_name(value)
+
     # Number theory functions that require Python evaluation (not available in Math.js)
     _PYTHON_ONLY_FUNCTIONS = {
         "is_prime",
@@ -1252,7 +1265,7 @@ class MathUtils:
         Returns:
             str: Derivative expression as string or error message
         """
-        expression, variable = MathUtils._normalize_symbols(expression), MathUtils._normalize_symbols(variable)
+        expression, variable = MathUtils._normalize_symbols(expression), MathUtils._normalize_variable(variable)
         try:
             return str(window.nerdamer(f"diff({expression}, {variable})").text())
         except Exception as e:
@@ -1273,7 +1286,7 @@ class MathUtils:
         Returns:
             str: Limit result as string or error message
         """
-        expression, variable = MathUtils._normalize_symbols(expression), MathUtils._normalize_symbols(variable)
+        expression, variable = MathUtils._normalize_symbols(expression), MathUtils._normalize_variable(variable)
         try:
             value_to_approach = str(MathUtils._normalize_symbols(value_to_approach)).lower().replace(" ", "")
             if value_to_approach in ["inf", "infinity"]:
@@ -1307,7 +1320,7 @@ class MathUtils:
         """
         import re
 
-        expression, variable = MathUtils._normalize_symbols(expression), MathUtils._normalize_symbols(variable)
+        expression, variable = MathUtils._normalize_symbols(expression), MathUtils._normalize_variable(variable)
         lower_bound, upper_bound = MathUtils._normalize_symbols(lower_bound), MathUtils._normalize_symbols(upper_bound)
         try:
             indefinite_integral = window.nerdamer(f"integrate({expression}, {variable})")
@@ -1469,7 +1482,7 @@ class MathUtils:
             raise ValueError("expression must be a non-empty string")
         if not isinstance(variable, str) or not variable.strip():
             raise ValueError("variable must be a non-empty string")
-        expression, variable = MathUtils._normalize_symbols(expression), MathUtils._normalize_symbols(variable)
+        expression, variable = MathUtils._normalize_symbols(expression), MathUtils._normalize_variable(variable)
 
         lower = float(lower_bound)
         upper = float(upper_bound)
@@ -1717,7 +1730,7 @@ class MathUtils:
         Returns:
             str: JSON string of solutions or error message
         """
-        equation, variable = MathUtils._normalize_symbols(equation), MathUtils._normalize_symbols(variable)
+        equation, variable = MathUtils._normalize_symbols(equation), MathUtils._normalize_variable(variable)
         try:
             raw_solutions = str(window.nerdamer(f"solve({equation}, {variable})").text())
         except Exception as e:
@@ -2118,7 +2131,7 @@ class MathUtils:
         if isinstance(equations, list):
             equations = [MathUtils._normalize_symbols(equation) for equation in equations]
         if isinstance(variables, list):
-            variables = [MathUtils._normalize_symbols(variable) for variable in variables]
+            variables = [MathUtils._normalize_variable(variable) for variable in variables]
         return str(_solve_numeric(equations, variables, initial_guesses, tolerance, max_iterations))
 
     @staticmethod

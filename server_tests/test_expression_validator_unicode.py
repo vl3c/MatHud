@@ -96,7 +96,17 @@ FIX_CASES: Dict[str, Tuple[str, str]] = {
     "θ1 + θ_0": ("θ1 + θ_0", "θ1 + θ_0"),
     "√θ": ("sqrt(θ)", "sqrt(θ)"),
     "λ": ("λ", "λ"),
-    "Δx": ("Δ*x", "Δ*x"),
+    # Δ and δ followed by ASCII letters or digits name one quantity; other letters are factors
+    "Δx": ("Δx", "Δx"),
+    "δt": ("δt", "δt"),
+    "Δx1": ("Δx1", "Δx1"),
+    "2Δx": ("2*Δx", "2*Δx"),
+    "Δx/Δt": ("Δx/Δt", "Δx/Δt"),
+    "ΔxΔt": ("Δx*Δt", "Δx*Δt"),
+    "Δx²": ("Δx**2", "Δx^2"),
+    "Δ(x+1)": ("Δ*(x+1)", "Δ*(x+1)"),
+    "ωt": ("ω*t", "ω*t"),
+    "sin(ωt)": ("sin(ω*t)", "sin(ω*t)"),
     "2πθ": ("2*pi*θ", "2*pi*θ"),
     # Variant forms and look-alikes
     "µ": ("μ", "μ"),
@@ -164,6 +174,7 @@ EVALUATION_CASES: List[Tuple[str, Dict[str, float], float]] = [
     ("2ℯ", {}, 2 * math.e),
     ("1/∞", {}, 0),
     ("2θ + α", {"θ": 1.5, "α": 1}, 4),
+    ("Δx/Δt", {"Δx": 3, "Δt": 2}, 1.5),
     ("µ", {"μ": 7}, 7),
     ("√π", {}, math.sqrt(math.pi)),
 ]
