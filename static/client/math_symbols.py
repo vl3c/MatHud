@@ -60,11 +60,11 @@ class MathSymbol:
 
 # Palette groups in display order: (id, tab label).
 GROUPS: List[Tuple[str, str]] = [
-    ("greek", "Greek"),
     ("operators", "Operators"),
-    ("geometry", "Geometry"),
-    ("sets", "Sets & logic"),
     ("calculus", "Calculus"),
+    ("sets", "Sets & logic"),
+    ("geometry", "Geometry"),
+    ("greek", "Greek"),
 ]
 
 # Symbols shown in a group besides the ones whose primary group it is.
@@ -234,6 +234,14 @@ SHORTCUT_LABELS: Dict[str, str] = _build_shortcut_labels()
 def get_symbol(symbol: str) -> Optional[MathSymbol]:
     """Return the table entry for a symbol, or None."""
     return SYMBOLS_BY_CHAR.get(symbol)
+
+
+def group_index_for(group_id: object) -> int:
+    """Return the tab index of a group id, or 0 (the first tab) when it is unknown."""
+    for index, (known_id, _) in enumerate(GROUPS):
+        if group_id == known_id:
+            return index
+    return 0
 
 
 def symbols_in_group(group_id: str) -> List[MathSymbol]:

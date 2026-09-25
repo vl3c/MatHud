@@ -27,6 +27,7 @@ from browser import document, html, window
 
 from math_symbols import (
     GROUPS,
+    group_index_for,
     MathSymbol,
     describe_symbol,
     get_symbol,
@@ -36,6 +37,10 @@ from math_symbols import (
 )
 
 PALETTE_HINT: str = "Arrows + Enter insert · Tab: next group · type \\name to search"
+
+
+# localStorage key of the last group tab the user opened (the first tab until one is chosen).
+GROUP_STORAGE_KEY: str = "mathud.symbols.group"
 
 
 class MathSymbolPalette:
@@ -65,7 +70,7 @@ class MathSymbolPalette:
         self._button: Any = button_element
         self._on_pick: Callable[[MathSymbol], None] = on_pick
         self.visible: bool = False
-        self._group_index: int = 0
+        self._group_index: int = self._load_group_index()
         self._recent: List[str] = []
         self._sections: List[List[MathSymbol]] = []
         self._cells: List[List[Any]] = []
@@ -303,10 +308,25 @@ class MathSymbolPalette:
 
     def _show_group(self, group_index: int) -> None:
         self._group_index = group_index
+        self._save_group_index()
         self._update_tabs()
         keep_highlight = self._selection is not None
         self._render_sections()
         self._set_selection((len(self._sections) - 1, 0) if keep_highlight else None)
+
+    @staticmethod
+    def _load_group_index() -> int:
+        """Tab to open on: the one used last, or the first (Operators) the first time."""
+        try:
+            return group_index_for(window.localStorage.getItem(GROUP_STORAGE_KEY))
+        except Exception:
+            return 0
+
+    def _save_group_index(self) -> None:
+        try:
+            window.localStorage.setItem(GROUP_STORAGE_KEY, GROUPS[self._group_index][0])
+        except Exception:
+            pass
 
     def _update_tabs(self) -> None:
         for index, tab in enumerate(self._tab_buttons):

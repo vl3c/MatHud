@@ -11,6 +11,7 @@ from math_symbols import (
     ALT_SHORTCUTS,
     GROUP_EXTRAS,
     GROUPS,
+    group_index_for,
     RECENT_LIMIT,
     SYMBOLS,
     describe_symbol,
@@ -54,6 +55,19 @@ class TestMathSymbolTable(unittest.TestCase):
         for entry in SYMBOLS:
             for name in entry.latex:
                 self.assertEqual(find_latex_token("\\" + name, len(name) + 1), (0, name))
+
+    def test_group_tab_order(self) -> None:
+        # The first group is the tab the palette opens on.
+        self.assertEqual(
+            [label for _, label in GROUPS],
+            ["Operators", "Calculus", "Sets & logic", "Geometry", "Greek"],
+        )
+
+    def test_group_index_for_known_and_unknown_ids(self) -> None:
+        self.assertEqual(group_index_for("operators"), 0)
+        self.assertEqual(group_index_for("greek"), len(GROUPS) - 1)
+        for unknown in (None, "", "nope", 3):
+            self.assertEqual(group_index_for(unknown), 0)
 
     def test_groups_are_known_and_non_empty(self) -> None:
         group_ids = [group_id for group_id, _ in GROUPS]
