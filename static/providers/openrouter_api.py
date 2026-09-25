@@ -38,6 +38,10 @@ class OpenRouterAPI(OpenAIChatCompletionsAPI):
     # OpenRouter base URL
     OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
+    # OpenRouter returns reasoning as reasoning_details, which must be sent back
+    # unchanged after a tool call (Gemini 3 thought signatures).
+    PRESERVE_REASONING_DETAILS = True
+
     # OpenRouter emits keepalive bytes while the upstream model is still
     # processing, so the read timeout only trips when the connection goes
     # truly silent (a stalled provider), not while a model is thinking.
@@ -58,7 +62,7 @@ class OpenRouterAPI(OpenAIChatCompletionsAPI):
         """Initialize OpenRouter API client.
 
         Args:
-            model: AI model to use. Defaults to Gemini 3.1 Pro.
+            model: AI model to use. Defaults to Gemini 3.8 Flash.
             temperature: Sampling temperature.
             tools: Custom tool definitions.
             max_tokens: Maximum tokens in response.
@@ -76,8 +80,8 @@ class OpenRouterAPI(OpenAIChatCompletionsAPI):
             },
         )
 
-        # Set model (default to Gemini 3.1 Pro if not specified)
-        self.model: AIModel = model if model is not None else AIModel.from_identifier("google/gemini-3.1-pro-preview")
+        # Set model (default to Gemini 3.8 Flash if not specified)
+        self.model: AIModel = model if model is not None else AIModel.from_identifier("google/gemini-3.8-flash")
         self.temperature = temperature
         self.max_tokens = max_tokens
         self._tool_mode: ToolMode = tool_mode
@@ -85,8 +89,28 @@ class OpenRouterAPI(OpenAIChatCompletionsAPI):
         self._injected_tools: bool = False
         self.tools: Sequence[FunctionDefinition] = self._resolve_tools()
 
-        # Initialize message history with developer message
-        self.messages = [{"role": "developer", "content": self._build_system_prompt()}]
+        # Initialize message history with the system prompt
+        self.messages = [{"role": self._system_role(), "content": self._build_system_prompt()}]
+
+    def _system_role(self) -> str:
+        """Role of the system prompt: "developer" for OpenAI models, "system" for the rest,
+        since not every upstream provider understands the developer role."""
+        return "developer" if self.model.id.startswith("openai/") else "system"
+
+    def _sync_system_role(self) -> None:
+        """Give the leading system prompt the role the current model expects."""
+        if self.messages and self.messages[0].get("role") in ("developer", "system"):
+            self.messages[0]["role"] = self._system_role()
+
+    def set_model(self, identifier: str) -> None:
+        """Set the model and match the system prompt role to it."""
+        super().set_model(identifier)
+        self._sync_system_role()
+
+    def reset_conversation(self) -> None:
+        """Reset the conversation, keeping the system prompt role of the current model."""
+        super().reset_conversation()
+        self._sync_system_role()
 
 
 # Self-register with provider registry
