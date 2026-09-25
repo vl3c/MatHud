@@ -3665,7 +3665,7 @@ Base class for OpenAI API implementations providing shared functionality
 for both Chat Completions and Responses APIs.
 ```
 
-`OpenAIAPIBase` is also the base of the Anthropic, OpenRouter and LocalAgent providers in `static/providers/`. `OpenAIChatCompletionsAPI` (`static/openai_completions_api.py`) and `OpenAIResponsesAPI` (`static/openai_responses_api.py`, reasoning models, keeps turns server-side via `previous_response_id`) are the OpenAI implementations.
+`OpenAIAPIBase` is also the base of the Anthropic, OpenRouter and LocalAgent providers in `static/providers/`. `OpenAIChatCompletionsAPI` (`static/openai_completions_api.py`) and `OpenAIResponsesAPI` (`static/openai_responses_api.py`, reasoning models, keeps turns server-side via `previous_response_id`) are the OpenAI implementations. `OpenRouterAPI` extends `OpenAIChatCompletionsAPI` with two OpenRouter-specific behaviors: it sends the system prompt as role `system` (role `developer` only for `openai/*` models), and it keeps each response's `reasoning_details` (streamed fragments are merged per `index` and `type`) on the stored assistant message so the next request sends them back unchanged; Gemini 3 models need these thought signatures after a tool call.
 
 **Responsibilities:**
 - Conversation history, system prompt (`build_developer_message(canvas_format)` describes how the canvas is presented), and vision/attached-image message content.
@@ -3777,7 +3777,7 @@ Tools whose implementation appears in this manual under a different name (Canvas
 Provides tool discovery via fast local keyword/category matching (default) or AI-powered semantic matching. The search mode is selected by the `TOOL_SEARCH_MODE` environment variable:
 
 - `local` — keyword + category index, no API call (~0.01ms per query)
-- `api` — AI-powered semantic search via gpt-4.1-nano
+- `api` — AI-powered semantic search with the active provider's model, or `gpt-6-luna` when none is given; OpenAI reasoning models are called with `reasoning_effort: "none"`, and GPT-6 Astra, which rejects that effort, is replaced by `gpt-6-luna`
 - `hybrid` (default) — local first, falls back to API when confidence is low
 
 **Architecture:**
@@ -3930,9 +3930,9 @@ Manages model-specific capabilities (vision support, reasoning mode, provider as
 and provides factory methods for creating model instances from identifiers.
 
 Supported Providers:
-    - PROVIDER_OPENAI ("openai"): GPT-5.6 (Sol/Terra/Luna), GPT-5.5, GPT-5.2, GPT-4.1 family, GPT-4o mini
-    - PROVIDER_ANTHROPIC ("anthropic"): Claude Fable 5, Claude Opus 4.8, Claude Sonnet 5, Claude Haiku 4.5
-    - PROVIDER_OPENROUTER ("openrouter"): Gemini, DeepSeek, Qwen, GLM, Grok, MiniMax, Llama, Gemma, and more (paid and free tiers)
+    - PROVIDER_OPENAI ("openai"): GPT-6 Sol (DEFAULT_MODEL), GPT-6 Astra, GPT-6 Luna, GPT-5.6 Sol; all reasoning models on the Responses API
+    - PROVIDER_ANTHROPIC ("anthropic"): Claude Fable 5.1, Claude Opus 5.5, Claude Sonnet 5, Claude Haiku 4.5
+    - PROVIDER_OPENROUTER ("openrouter"): paid Claude Opus 5.5, Claude Sonnet 5, Gemini 3.8 Flash, Grok 4.7, MiMo V2.6 Pro, GLM 5.3 Flash, DeepSeek V4.1 Flash, Qwen3.8 Max; free Qwen3.8 27B, Nemotron 3 Ultra, Gemma 4 31B, Gemma 4 26B A4B, Inkling (free models: 20 requests/min, 50/day under $10 of lifetime credits, 1000/day otherwise)
     - PROVIDER_LOCAL_AGENT ("local_agent"): whichever model the local llama-server reports from /v1/models (registered at runtime)
 ```
 
@@ -3947,7 +3947,8 @@ Supported Providers:
 - `DEFAULT_MODEL`: Default model identifier string
 - `id`: Model identifier string
 - `has_vision`: Boolean indicating vision capability support
-- `is_reasoning_model`: Boolean indicating if model uses reasoning API (OpenAI Responses API)
+- `is_reasoning_model`: Boolean indicating if model uses reasoning API (OpenAI Responses API); for Anthropic models it marks adaptive-thinking models, which get no temperature
+- `reasoning_effort`: Optional effort sent with reasoning models (OpenAI `reasoning.effort`; Anthropic `output_config.effort`): GPT-6 Luna and Claude Fable 5.1 `"low"`, the other OpenAI models and Claude Opus 5.5 / Sonnet 5 `"medium"`, none for Claude Haiku 4.5
 - `provider`: Provider string (`"openai"`, `"anthropic"`, `"openrouter"`, or `"local_agent"`)
 - `display_name`: Human-readable label shown in the model dropdown
 

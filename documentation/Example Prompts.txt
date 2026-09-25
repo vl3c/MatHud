@@ -189,7 +189,7 @@ Delete the workspace 'OldDraft'.
 /vision                  Toggle vision mode (vision models only)
 /image                   Attach an image (vision models only)
 /model                   Show current AI model
-/model gpt-4.1           Switch to a specific model
+/model gpt-6-luna        Switch to a specific model
 /test                    Run client test suite
 /export                  Export canvas state as JSON
 /import <json>           Import canvas state from JSON
