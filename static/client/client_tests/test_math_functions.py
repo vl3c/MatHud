@@ -1209,6 +1209,70 @@ class TestMathFunctions(unittest.TestCase):
         self.assertAlmostEqual(MathUtils.evaluate("ϑ + ϵ", {"ϑ": 1, "ϵ": 2}), 3)
         self.assertAlmostEqual(MathUtils.evaluate("2µ", {"µ": 4}), 8)
 
+    def test_every_palette_symbol_through_the_engines(self) -> None:
+        # Every symbol the chat input inserts, through Brython's Python evaluation, math.js
+        # and nerdamer; server_tests/test_math_symbol_parsing.py pins the exact rewrites
+        import ast
+
+        from expression_validator import ExpressionValidator
+        from math_symbols import SYMBOLS
+
+        evaluable = {
+            "×": ("3×4", {}, 12),
+            "÷": ("6÷4", {}, 1.5),
+            "·": ("a·b", {"a": 2, "b": 3}, 6),
+            "√": ("x√y", {"x": 3, "y": 4}, 6),
+            "°": ("sin(30°)", {}, 0.5),
+            "²": ("x²", {"x": 5}, 25),
+            "³": ("x³", {"x": 5}, 125),
+            "⁰": ("x⁰", {"x": 5}, 1),
+            "¹": ("x¹", {"x": 5}, 5),
+            "⁴": ("x⁴", {"x": 2}, 16),
+            "⁵": ("x⁵", {"x": 2}, 32),
+            "⁶": ("x⁶", {"x": 2}, 64),
+            "⁷": ("x⁷", {"x": 2}, 128),
+            "⁸": ("x⁸", {"x": 2}, 256),
+            "⁹": ("x⁹", {"x": 2}, 512),
+            "⁻": ("x⁻¹", {"x": 4}, 0.25),
+            "ⁿ": ("xⁿ", {"x": 2, "n": 3}, 8),
+            "π": ("2π", {}, 2 * math.pi),
+            "∞": ("1/∞", {}, 0),
+        }
+        for letter in "αβγδεζηθκλμξρστφχψωΓΔΘΠΣΦΩ":
+            evaluable[letter] = (f"2{letter}+1", {letter: 1.5}, 4)
+        comparisons = {"≠": "x ≠ 3", "≤": "x ≤ 3", "≥": "x ≥ 3"}
+        text_only = {"lim"}
+        passthrough = {entry.symbol for entry in SYMBOLS} - set(evaluable) - set(comparisons) - text_only
+        self.assertEqual(len(passthrough), 35)
+
+        for symbol, (expression, variables, expected) in evaluable.items():
+            fixed = ExpressionValidator.fix_math_expression(expression, python_compatible=True)
+            ExpressionValidator.validate_expression_tree(fixed)
+            namespace = ExpressionValidator._get_variables_and_functions(0)
+            namespace.update(variables)
+            python_value = eval(compile(ast.parse(fixed, mode="eval"), "<symbol>", "eval"), namespace)
+            self.assertAlmostEqual(python_value, expected, msg=f"Python: {symbol} in {expression}")
+            self.assertAlmostEqual(
+                MathUtils.evaluate(expression, variables), expected, msg=f"math.js: {symbol} in {expression}"
+            )
+        for symbol in passthrough | set(comparisons):
+            expression = comparisons.get(symbol, f"2{symbol}")
+            result = MathUtils.evaluate(expression, {"x": 1})
+            self.assertTrue(str(result).startswith("Error"), msg=f"{symbol}: {result}")
+
+        # nerdamer receives the same rewrites
+        self.assertEqual(MathUtils.derivative("xⁿ", "x"), "n*x^(-1+n)")
+        self.assertEqual(MathUtils.derivative("x⁻¹", "x"), "-x^(-2)")
+        self.assertEqual(MathUtils.simplify("x²·x³"), "x^5")
+        self.assertEqual(MathUtils.integral("x⁴", "x"), "0.2*x^5")
+        self.assertEqual(MathUtils.derivative("sin(30°)·x", "x"), "0.5")
+        self.assertEqual(MathUtils.derivative("x√y", "y"), "0.5*x*y^(-0.5)")
+        self.assertEqual(MathUtils.simplify("6÷4"), "1.5")
+        self.assertEqual(MathUtils.simplify("2π/π"), "2")
+        self.assertEqual(MathUtils.derivative("2θ+1", "θ"), "2")
+        self.assertEqual(ExpressionValidator.fix_math_expression("lim(sin(x)/x, x, 0)"), "limit(sin(x)/x, x, 0)")
+        self.assertEqual(MathUtils.limit("sin(x)/x", "x", 0), "1")
+
     def test_evaluate_reciprocal_and_inverse_hyperbolic_functions(self) -> None:
         # Regression: these passed math.js but failed the Python validation step first
         self.assertAlmostEqual(MathUtils.evaluate("sinh⁻¹(1)"), math.asinh(1))
