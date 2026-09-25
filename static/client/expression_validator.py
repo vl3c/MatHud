@@ -53,7 +53,7 @@ import ast
 import math
 import random
 import re
-from typing import Any, Callable, Dict, Optional, Set, Type, cast
+from typing import Any, Callable, Dict, Optional, Set, Tuple, Type, cast
 
 
 # Reciprocal trigonometric functions and their inverses, which Python's math module lacks.
@@ -299,9 +299,8 @@ class ExpressionValidator(ast.NodeVisitor):
         "ˣ": "x",  # U+02E3
     }
     # A superscript exponent: a run of superscript characters (x², x⁻¹, xⁿ, e⁻ˣ, x⁽ⁿ⁺¹⁾)
-    _SUPERSCRIPT_POWER = re.compile("[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁽⁾ⁿⁱˣ]+")
-    # A function name raised to a superscript power right before its argument list: sin²(x), sin⁻¹(x)
-    _FUNCTION_SUPERSCRIPT = re.compile("(?<![A-Za-z_])([A-Za-z][A-Za-z0-9]*)([⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁽⁾ⁿⁱˣ]+)\\(")
+    _SUPERSCRIPT_RUN = "[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁽⁾ⁿⁱˣ]+"
+    _SUPERSCRIPT_POWER = re.compile(_SUPERSCRIPT_RUN)
     # Functions whose superscript applies to the result: sin²(x) = sin(x)^2
     _SUPERSCRIPT_FUNCTIONS: Set[str] = {
         "sin",
@@ -316,6 +315,12 @@ class ExpressionValidator(ast.NodeVisitor):
         "asin",
         "acos",
         "atan",
+        "asec",
+        "acsc",
+        "acot",
+        "asinh",
+        "acosh",
+        "atanh",
         "log",
         "ln",
         "log10",
@@ -336,6 +341,21 @@ class ExpressionValidator(ast.NodeVisitor):
         "cosh": "acosh",
         "tanh": "atanh",
     }
+    # Those names as a regex alternation, longest first so sinh is not read as sin
+    _FUNCTION_NAMES = "(?:" + "|".join(sorted(_SUPERSCRIPT_FUNCTIONS, key=len, reverse=True)) + ")"
+    # A known function name, an optional superscript and spaces: sin²(x), sin⁻¹ (x), sin²x, sinθ
+    _FUNCTION_NOTATION = re.compile(f"(?<![A-Za-z_])({_FUNCTION_NAMES})({_SUPERSCRIPT_RUN})?([ \\t]*)")
+    # The operand of a function written without parentheses (group 1): an optional number and
+    # factors (x, θ1, Δx, π, ωt) that stop before another function name (sin²x cos²x), then an
+    # optional superscript (sin x² is sin(x²)) and degree sign (sin 30°)
+    _NOT_A_FUNCTION = f"(?!{_FUNCTION_NAMES})"
+    _OPERAND_FACTOR = (
+        f"[Δδ](?:{_NOT_A_FUNCTION}[A-Za-z0-9_])*|[Α-Ωα-ω][0-9_]*|ℯ"
+        f"|{_NOT_A_FUNCTION}[A-Za-z_](?:{_NOT_A_FUNCTION}[A-Za-z0-9_])*"
+    )
+    _FUNCTION_OPERAND = re.compile(
+        f"((?:\\d+\\.?\\d*|\\.\\d+)?(?:{_OPERAND_FACTOR})*)((?:{_SUPERSCRIPT_RUN})?(?:[ \\t]*°)?)"
+    )
     _PI_SIGN = "π"  # U+03C0, rewritten to the constant name "pi"
     _SCRIPT_E = "ℯ"  # U+212F, rewritten to the constant name "e"
     _IMAGINARY_IOTA = "ί"  # U+03AF, GeoGebra's imaginary unit, rewritten to i (or j when python_compatible)
@@ -662,7 +682,7 @@ class ExpressionValidator(ast.NodeVisitor):
             return expression
         for symbol, replacement in ExpressionValidator._UNICODE_REPLACEMENTS.items():
             expression = expression.replace(symbol, replacement)
-        expression = ExpressionValidator._convert_function_superscripts(expression)
+        expression = ExpressionValidator._convert_function_notation(expression)
         expression = ExpressionValidator._SUPERSCRIPT_POWER.sub(ExpressionValidator._superscript_power, expression)
         return ExpressionValidator._replace_unicode_symbols(expression, python_compatible)
 
@@ -716,28 +736,59 @@ class ExpressionValidator(ast.NodeVisitor):
         return f"({exponent})"
 
     @staticmethod
-    def _convert_function_superscripts(expression: str) -> str:
-        """Move a function's superscript after its call: sin²(x) -> sin(x)^2, sin⁻¹(x) -> asin(x)."""
+    def _convert_function_notation(expression: str) -> str:
+        """Rewrite known functions written with a superscript or without parentheses.
+
+        A superscript moves after the call and ⁻¹ names the inverse: sin²(x) -> sin(x)^2,
+        sin⁻¹ (x) -> asin(x). A single operand without parentheses is wrapped when the
+        function has a superscript or the operand is Unicode: sin²x -> sin(x)^2,
+        sin⁻¹x -> asin(x), sinθ -> sin(θ), sinπ -> sin(π), sin 30° -> sin(30°). ASCII such as
+        sinx or sin (x) is left for the later steps, as before.
+        """
         search_start = 0
         while True:
-            match = ExpressionValidator._FUNCTION_SUPERSCRIPT.search(expression, search_start)
+            match = ExpressionValidator._FUNCTION_NOTATION.search(expression, search_start)
             if match is None:
                 return expression
-            name = match.group(1)
-            open_index = match.end() - 1
-            close_index = ExpressionValidator._find_closing_parenthesis(expression, open_index)
-            exponent = ExpressionValidator._superscript_exponent(match.group(2))
-            has_exponent = any(char.isalnum() for char in exponent)
-            if name not in ExpressionValidator._SUPERSCRIPT_FUNCTIONS or close_index < 0 or not has_exponent:
-                search_start = match.end()  # not a function call: the superscript stays a plain power
+            name, superscript = match.group(1), match.group(2) or ""
+            exponent = ExpressionValidator._superscript_exponent(superscript) if superscript else ""
+            if superscript and not any(char.isalnum() for char in exponent):
+                exponent = ""  # signs alone (sin⁻x) are not an exponent
+            call = ExpressionValidator._function_call_after(expression, match.end(), exponent != "")
+            if call is None:
+                search_start = match.end()  # not a call: any superscript stays a plain power
                 continue
-            arguments = expression[open_index : close_index + 1]
+            arguments, end = call
             if exponent == "(-1)" and name in ExpressionValidator._INVERSE_FUNCTIONS:
                 replacement = ExpressionValidator._INVERSE_FUNCTIONS[name] + arguments
-            else:
+            elif exponent:
                 replacement = f"{name}{arguments}^{exponent}"
-            expression = expression[: match.start()] + replacement + expression[close_index + 1 :]
+            else:
+                replacement = name + arguments
+            if ExpressionValidator._starts_operand(expression[end : end + 1]):
+                replacement += "*"  # sin²x cosθ -> sin(x)^2*cos(θ)
+            expression = expression[: match.start()] + replacement + expression[end:]
             search_start = match.start() + 1  # nested calls such as sin²(cos²(x)) are handled next
+
+    @staticmethod
+    def _function_call_after(expression: str, start: int, has_exponent: bool) -> Optional[Tuple[str, int]]:
+        """Return the parenthesised argument list at start and the index after it, or None.
+
+        With an exponent, "(...)" is the argument list; otherwise, and for a bare operand, the
+        operand is wrapped only when it is Unicode (see _convert_function_notation).
+        """
+        if expression[start : start + 1] == "(":
+            if not has_exponent:
+                return None
+            close_index = ExpressionValidator._find_closing_parenthesis(expression, start)
+            return None if close_index < 0 else (expression[start : close_index + 1], close_index + 1)
+        operand = ExpressionValidator._FUNCTION_OPERAND.match(expression, start)
+        if operand is None or not operand.group(1):
+            return None
+        text = operand.group(0)
+        if not has_exponent and not ExpressionValidator._NON_ASCII.search(text):
+            return None
+        return f"({text})", operand.end()
 
     @staticmethod
     def _find_closing_parenthesis(expression: str, open_index: int) -> int:

@@ -1216,6 +1216,12 @@ class TestMathFunctions(unittest.TestCase):
         self.assertAlmostEqual(MathUtils.evaluate("acot(-1)"), -math.pi / 4)
         self.assertAlmostEqual(MathUtils.evaluate("sec(0)"), 1)
 
+    def test_functions_without_parentheses_reach_nerdamer_as_calls(self) -> None:
+        # Regression: sin²x reached nerdamer as sin^2*x
+        self.assertEqual(MathUtils.simplify("sin²x + cos²x"), "1")
+        self.assertEqual(MathUtils.derivative("sin⁻¹x", "x"), MathUtils.derivative("asin(x)", "x"))
+        self.assertAlmostEqual(MathUtils.evaluate("cos⁻¹0.5"), math.pi / 3)
+
     def test_delta_names_stay_whole_in_nerdamer(self) -> None:
         # Regression: "Δx" was split into Δ*x, even in the variable argument
         self.assertEqual(MathUtils.simplify("Δx/Δt"), "Δt^(-1)*Δx")

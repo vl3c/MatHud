@@ -313,6 +313,14 @@ class TestExpressionValidator(unittest.TestCase):
                     ExpressionValidator.fix_math_expression(expression, python_compatible=True)
                 )
 
+    def test_functions_without_parentheses_in_brython(self) -> None:
+        # Regression: sin²x, sin⁻¹x and sinθ were not calls (Python read sin²x as sin**2*x)
+        self.assertAlmostEqual(ExpressionValidator.parse_function_string("sin²x + cos²x")(0.7), 1)
+        self.assertAlmostEqual(ExpressionValidator.parse_function_string("sin⁻¹ (x)")(0.5), math.asin(0.5))
+        self.assertAlmostEqual(ExpressionValidator.parse_function_string("x·sinπ")(3), 0)
+        self.assertEqual(ExpressionValidator.fix_math_expression("sin²θcos ωt"), "sin(θ)^2*cos(ω*t)")
+        self.assertEqual(ExpressionValidator.fix_math_expression("sinx + π"), "sinx + pi")
+
     def test_superscript_runs_in_brython(self) -> None:
         # Regression: only digit runs were exponents; Python read xⁿ as the name xn
         self.assertAlmostEqual(ExpressionValidator.parse_function_string("e⁻ˣ")(1), math.exp(-1))
