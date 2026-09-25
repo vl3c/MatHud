@@ -313,6 +313,13 @@ class TestExpressionValidator(unittest.TestCase):
                     ExpressionValidator.fix_math_expression(expression, python_compatible=True)
                 )
 
+    def test_superscript_runs_in_brython(self) -> None:
+        # Regression: only digit runs were exponents; Python read xⁿ as the name xn
+        self.assertAlmostEqual(ExpressionValidator.parse_function_string("e⁻ˣ")(1), math.exp(-1))
+        self.assertAlmostEqual(ExpressionValidator.parse_function_string("x²⁺¹")(2), 8)
+        self.assertAlmostEqual(ExpressionValidator.parse_parametric_expression("t⁽²⁺¹⁾")(2), 8)
+        self.assertEqual(ExpressionValidator.fix_math_expression("xⁿ"), "x^(n)")
+
     def test_infinity_survives_function_round_trips(self) -> None:
         # Regression: ∞ is stored as math.js "Infinity", which the Python namespace lacked
         import copy

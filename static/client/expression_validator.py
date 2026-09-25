@@ -278,7 +278,8 @@ class ExpressionValidator(ast.NodeVisitor):
         "\u2060": "",  # word joiner
         "\ufeff": "",  # byte order mark / zero-width no-break space
     }
-    _SUPERSCRIPT_DIGITS: Dict[str, str] = {
+    # Superscript characters and the ASCII they stand for in an exponent
+    _SUPERSCRIPT_CHARACTERS: Dict[str, str] = {
         "⁰": "0",
         "¹": "1",
         "²": "2",
@@ -289,11 +290,18 @@ class ExpressionValidator(ast.NodeVisitor):
         "⁷": "7",
         "⁸": "8",
         "⁹": "9",
+        "⁺": "+",  # U+207A
+        "⁻": "-",  # U+207B
+        "⁽": "(",  # U+207D
+        "⁾": ")",  # U+207E
+        "ⁿ": "n",  # U+207F
+        "ⁱ": "i",  # U+2071
+        "ˣ": "x",  # U+02E3
     }
-    # A superscript exponent: optional sign (⁻ U+207B, ⁺ U+207A) and a run of superscript digits
-    _SUPERSCRIPT_POWER = re.compile("[⁻⁺]?[⁰¹²³⁴⁵⁶⁷⁸⁹]+")
+    # A superscript exponent: a run of superscript characters (x², x⁻¹, xⁿ, e⁻ˣ, x⁽ⁿ⁺¹⁾)
+    _SUPERSCRIPT_POWER = re.compile("[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁽⁾ⁿⁱˣ]+")
     # A function name raised to a superscript power right before its argument list: sin²(x), sin⁻¹(x)
-    _FUNCTION_SUPERSCRIPT = re.compile("(?<![A-Za-z_])([A-Za-z][A-Za-z0-9]*)([⁻⁺]?[⁰¹²³⁴⁵⁶⁷⁸⁹]+)\\(")
+    _FUNCTION_SUPERSCRIPT = re.compile("(?<![A-Za-z_])([A-Za-z][A-Za-z0-9]*)([⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁽⁾ⁿⁱˣ]+)\\(")
     # Functions whose superscript applies to the result: sin²(x) = sin(x)^2
     _SUPERSCRIPT_FUNCTIONS: Set[str] = {
         "sin",
@@ -660,8 +668,14 @@ class ExpressionValidator(ast.NodeVisitor):
 
     @staticmethod
     def _superscript_power(match: re.Match[str]) -> str:
-        """Return "^exponent" for a superscript run, with a "*" when an operand follows: x²y -> x^2*y."""
-        power = "^" + ExpressionValidator._superscript_exponent(match.group(0))
+        """Return "^exponent" for a superscript run, with a "*" when an operand follows: x²y -> x^2*y.
+
+        A run of signs or parentheses alone (x⁻) has no exponent and is left as it is.
+        """
+        exponent = ExpressionValidator._superscript_exponent(match.group(0))
+        if not any(char.isalnum() for char in exponent):
+            return match.group(0)
+        power = "^" + exponent
         following = match.string[match.end() : match.end() + 1]
         return power + "*" if ExpressionValidator._starts_operand(following) else power
 
@@ -682,9 +696,24 @@ class ExpressionValidator(ast.NodeVisitor):
 
     @staticmethod
     def _superscript_exponent(superscript: str) -> str:
-        """Return the ASCII exponent of a superscript run: "²³" -> "23", "⁻¹" -> "(-1)"."""
-        digits = "".join(ExpressionValidator._SUPERSCRIPT_DIGITS.get(char, "") for char in superscript)
-        return f"(-{digits})" if superscript.startswith("⁻") else digits
+        """Return the ASCII exponent of a superscript run.
+
+        Digits with an optional sign keep the short forms "²³" -> "23", "⁺²" -> "2" and
+        "⁻¹" -> "(-1)"; any other run is parenthesised whole: "ⁿ⁺¹" -> "(n+1)", "⁻ˣ" -> "(-x)".
+        Superscript letters are single-letter factors: "²ⁿ" -> "(2*n)", "ⁱˣ" -> "(i*x)".
+        """
+        characters = ExpressionValidator._SUPERSCRIPT_CHARACTERS
+        exponent = ""
+        for char in superscript:
+            ascii_char = characters.get(char, "")
+            previous = exponent[-1:]
+            if previous.isalnum() and ascii_char.isalnum() and (previous.isalpha() or ascii_char.isalpha()):
+                exponent += "*"
+            exponent += ascii_char
+        sign, digits = (exponent[0], exponent[1:]) if exponent[:1] in ("+", "-") else ("", exponent)
+        if digits.isdigit():
+            return f"(-{digits})" if sign == "-" else digits
+        return f"({exponent})"
 
     @staticmethod
     def _convert_function_superscripts(expression: str) -> str:
@@ -697,11 +726,12 @@ class ExpressionValidator(ast.NodeVisitor):
             name = match.group(1)
             open_index = match.end() - 1
             close_index = ExpressionValidator._find_closing_parenthesis(expression, open_index)
-            if name not in ExpressionValidator._SUPERSCRIPT_FUNCTIONS or close_index < 0:
+            exponent = ExpressionValidator._superscript_exponent(match.group(2))
+            has_exponent = any(char.isalnum() for char in exponent)
+            if name not in ExpressionValidator._SUPERSCRIPT_FUNCTIONS or close_index < 0 or not has_exponent:
                 search_start = match.end()  # not a function call: the superscript stays a plain power
                 continue
             arguments = expression[open_index : close_index + 1]
-            exponent = ExpressionValidator._superscript_exponent(match.group(2))
             if exponent == "(-1)" and name in ExpressionValidator._INVERSE_FUNCTIONS:
                 replacement = ExpressionValidator._INVERSE_FUNCTIONS[name] + arguments
             else:
