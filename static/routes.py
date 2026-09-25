@@ -700,7 +700,7 @@ def register_routes(app: MatHudFlask) -> None:
 
         Routes to appropriate API based on model type:
         - OpenAI reasoning models (GPT-6, GPT-5.6): Uses Responses API with reasoning streaming
-        - Other models (OpenRouter, Anthropic, local, non-reasoning OpenAI): Use their provider's chat streaming
+        - Other models (OpenRouter, Anthropic, local): Use their provider's chat streaming
 
         Returns a newline-delimited JSON stream with events of shape:
         {"type":"reasoning","text":"..."}\n for reasoning tokens (reasoning models only)

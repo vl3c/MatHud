@@ -89,7 +89,10 @@ def _find_reasoning_detail(accumulator: List[Dict[str, Any]], entry: Dict[str, A
 
 
 class OpenAIChatCompletionsAPI(OpenAIAPIBase):
-    """Chat Completions API for OpenAI (non-reasoning models) and OpenRouter, which subclasses it."""
+    """Chat Completions API for OpenAI-compatible endpoints; OpenRouter subclasses it.
+
+    Every registered OpenAI model is a reasoning model served by the Responses API.
+    """
 
     # After the finish reason only the usage chunk is still expected; stop reading
     # when it arrives, or after this many chunks without it.
