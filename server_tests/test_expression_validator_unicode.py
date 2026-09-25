@@ -119,6 +119,10 @@ FIX_CASES: Dict[str, Tuple[str, str]] = {
     "sin(π/2)": ("sin(pi/2)", "sin(pi/2)"),
     "π√2": ("pi*sqrt(2)", "pi*sqrt(2)"),
     "√π": ("sqrt(pi)", "sqrt(pi)"),
+    "x√y": ("x*sqrt(y)", "x*sqrt(y)"),
+    "2√3": ("2*sqrt(3)", "2*sqrt(3)"),
+    "(x+1)√2": ("(x+1)*sqrt(2)", "(x+1)*sqrt(2)"),
+    "θ√2": ("θ*sqrt(2)", "θ*sqrt(2)"),
     "ℯ": ("e", "e"),
     "2ℯ": ("2*e", "2*e"),
     "ℯ^x": ("e**x", "e^x"),
@@ -231,6 +235,7 @@ EVALUATION_CASES: List[Tuple[str, Dict[str, float], float]] = [
     ("Δx/Δt", {"Δx": 3, "Δt": 2}, 1.5),
     ("µ", {"μ": 7}, 7),
     ("√π", {}, math.sqrt(math.pi)),
+    ("x√y", {"x": 3, "y": 4}, 6),
 ]
 
 

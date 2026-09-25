@@ -824,6 +824,7 @@ class ExpressionValidator(ast.NodeVisitor):
         A Greek letter may still start a name with digits or underscores (θ1, θ_0), and Δ or δ
         followed by ASCII letters or digits is one name, the usual notation for a change or a
         small quantity (Δx, δt, Δx1), whereas other letters are factors ("ωt" is ω*t).
+        A "√" after an operand is a factor too: "x√y" is x*√y.
         """
         constants = {
             ExpressionValidator._PI_SIGN: "pi",
@@ -834,13 +835,15 @@ class ExpressionValidator(ast.NodeVisitor):
         parts = []
         previous = ""  # last character emitted
         for index, char in enumerate(expression):
+            ends_operand = previous == ")" or (previous not in "(√" and ExpressionValidator._starts_operand(previous))
             if not ExpressionValidator._is_unicode_symbol(char):
+                if char == "√" and ends_operand:
+                    parts.append("*")  # x√y -> x*√y, which would otherwise become the name xsqrt
                 parts.append(char)
                 previous = char
                 continue
             follows_number = "0" <= previous <= "9" or previous == "."
             imaginary_literal = char == ExpressionValidator._IMAGINARY_IOTA and follows_number  # 2ί -> 2i
-            ends_operand = previous == ")" or (previous not in "(√" and ExpressionValidator._starts_operand(previous))
             if ends_operand and not imaginary_literal:
                 parts.append("*")
             token = constants.get(char, char)
