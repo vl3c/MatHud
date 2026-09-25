@@ -311,6 +311,23 @@ class TestNormalizeUnicodeMath(unittest.TestCase):
                 self.assertEqual(ExpressionValidator.normalize_unicode_math(once), once)
 
 
+class TestPythonEvaluationNamespace(unittest.TestCase):
+    """The real plotting namespaces (MathUtils is importable behind the browser stub)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        from server_tests import client_renderer  # noqa: F401  (installs the browser stub)
+
+    def test_math_js_infinity_round_trips(self) -> None:
+        # Function and ParametricFunction store the math.js form and parse it again later
+        stored = ExpressionValidator.fix_math_expression("min(x, ∞)")
+        self.assertEqual(stored, "min(x, Infinity)")
+        self.assertEqual(ExpressionValidator.parse_function_string(stored)(3), 3.0)
+        stored_t = ExpressionValidator.fix_math_expression("max(t, −∞)")
+        self.assertEqual(stored_t, "max(t, -Infinity)")
+        self.assertEqual(ExpressionValidator.parse_parametric_expression(stored_t)(2), 2.0)
+
+
 class TestNumericSolverVariableDetection(unittest.TestCase):
     """detect_variables must find the Greek names normalize_unicode_math keeps."""
 

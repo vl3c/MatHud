@@ -313,6 +313,19 @@ class TestExpressionValidator(unittest.TestCase):
                     ExpressionValidator.fix_math_expression(expression, python_compatible=True)
                 )
 
+    def test_infinity_survives_function_round_trips(self) -> None:
+        # Regression: ∞ is stored as math.js "Infinity", which the Python namespace lacked
+        import copy
+
+        from drawables.function import Function
+        from drawables.parametric_function import ParametricFunction
+
+        function = Function("min(x, ∞)", name="f")
+        self.assertEqual(function.function_string, "min(x, Infinity)")
+        self.assertEqual(copy.deepcopy(function).function(3), 3.0)
+        curve = ParametricFunction("max(t, −∞)", "t", name="p")
+        self.assertEqual(copy.deepcopy(curve).evaluate_x(2), 2.0)
+
     def test_parsed_functions_keep_independent_state(self) -> None:
         # Parsed callables share cached code but must not share the variable namespace
         square = ExpressionValidator.parse_function_string("x^2")

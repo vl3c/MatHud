@@ -481,6 +481,7 @@ class ExpressionValidator(ast.NodeVisitor):
             "pi": math.pi,  # The constant pi
             "e": math.e,  # The constant e
             "inf": math.inf,  # Infinity, written ∞
+            "Infinity": math.inf,  # The math.js spelling of ∞, kept in stored function strings
             "pow": MathUtils.pow,  # Power function
             "bin": bin,  # Binary representation of an integer
             "det": MathUtils.det,  # Determinant of a matrix
@@ -983,6 +984,7 @@ class ExpressionValidator(ast.NodeVisitor):
             "pi": math.pi,
             "e": math.e,
             "inf": math.inf,
+            "Infinity": math.inf,
             "pow": MathUtils.pow,
             "ceil": math.ceil,
             "floor": math.floor,
