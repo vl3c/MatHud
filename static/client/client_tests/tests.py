@@ -236,6 +236,21 @@ from .test_slash_commands import (
     TestExportCommandOutput,
     TestStatusCommandOutput,
 )
+from .test_math_symbols import (
+    TestMathSymbolTable,
+    TestAltShortcutLookup,
+    TestLatexWordTail,
+    TestLatexCompletion,
+    TestRecentSymbols,
+    TestPaletteGridNavigation,
+)
+from .test_math_symbol_input import (
+    TestMathSymbolInsertion,
+    TestMathSymbolInputKeys,
+    TestMathSymbolPopups,
+    TestEverySymbol,
+    TestCommandAutocompleteModifiers,
+)
 from .test_image_attachment import (
     TestAttachedImagesState,
     TestImageValidation,
@@ -594,6 +609,17 @@ class Tests:
             TestExpandableContent,
             TestExportCommandOutput,
             TestStatusCommandOutput,
+            TestMathSymbolTable,
+            TestAltShortcutLookup,
+            TestLatexWordTail,
+            TestLatexCompletion,
+            TestRecentSymbols,
+            TestPaletteGridNavigation,
+            TestMathSymbolInsertion,
+            TestMathSymbolInputKeys,
+            TestMathSymbolPopups,
+            TestEverySymbol,
+            TestCommandAutocompleteModifiers,
             TestAttachedImagesState,
             TestImageValidation,
             TestPayloadGeneration,

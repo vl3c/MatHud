@@ -113,6 +113,8 @@ Evaluate the expression 3*A.x + 10.
 Calculate 2^5 + sqrt(16).
 What is the derivative of x^3 + 2x - 1 with respect to x?
 Find the derivative of sin(x)*cos(x).
+Differentiate x³ − 2x and simplify sin²(θ) + cos²(θ). (Math symbols such as ×, ÷, −, x², sin⁻¹(x), π, ∞ and Greek letters are understood.)
+Evaluate 2πr for r = 3.
 Calculate the integral of 2x from x=0 to x=3.
 What is the integral of 1/x^2 from x=-1 to x=1? (The integrand is singular at 0, so this is reported as an improper integral.)
 Numerically integrate 1/sqrt(x) from 0 to 1 with the midpoint rule and report any warning.

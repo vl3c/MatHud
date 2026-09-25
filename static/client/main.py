@@ -23,9 +23,11 @@ from ai_interface import AIInterface
 from browser import document, window
 from canvas import Canvas
 from canvas_event_handler import CanvasEventHandler
+from math_symbol_input import MathSymbolInput
 
 # Module-level reference for programmatic test access
 _ai_interface: Optional[AIInterface] = None
+_math_symbol_input: Optional[MathSymbolInput] = None
 _test_results: Optional[str] = None
 _tests_running: bool = False
 
@@ -183,7 +185,7 @@ def main() -> None:
     Creates the mathematical canvas, AI interface, and event handling system.
     Automatically called when the Brython runtime loads this module.
     """
-    global _ai_interface, _canvas
+    global _ai_interface, _canvas, _math_symbol_input
 
     # Instantiate the canvas with current SVG viewport dimensions
     viewport = document["math-svg"].getBoundingClientRect()
@@ -198,6 +200,13 @@ def main() -> None:
 
     # Initialize command autocomplete for slash commands
     _ai_interface.initialize_autocomplete()
+
+    # Math symbol palette, Alt shortcuts and \name completion for the chat input.
+    # Attached after the slash autocomplete so its keydown handler sees events first.
+    try:
+        _math_symbol_input = MathSymbolInput.attach()
+    except Exception as e:
+        print(f"Error initializing math symbol input: {e}")
 
     # Initialize image attachment functionality
     _ai_interface.initialize_image_attachment()

@@ -419,6 +419,31 @@ class TestLinearAlgebraUtils(unittest.TestCase):
         _, scope = fake_math.evaluate_calls[0]
         self.assertIn("diag", scope)
 
+    def test_unicode_notation_is_rewritten_for_mathjs(self) -> None:
+        fake_math = FakeMath(FakeMatrix([[0.0]]))
+        self._set_math(fake_math)
+        objects = [{"name": "u", "value": [1, 0, 0]}, {"name": "v", "value": [0, 1, 0]}]
+
+        LinearAlgebraUtils.evaluate_expression(objects, "u×v + u·v")
+        self.assertEqual(fake_math.evaluate_calls[-1][0], "cross(u, v) + u*v")
+        with self.assertRaises(ValueError):
+            LinearAlgebraUtils.evaluate_expression(objects, "u×v×u")
+
+    def test_unicode_notation_with_real_mathjs(self) -> None:
+        # Regression: A⁻¹ and u×v reached math.js as-is and failed to parse
+        inverse = LinearAlgebraUtils.evaluate_expression([{"name": "A", "value": [[1, 2], [3, 4]]}], "A⁻¹")
+        self.assertEqual(inverse["type"], "matrix")
+        inverse_rows: List[List[float]] = inverse["value"]
+        expected_rows: List[List[float]] = [[-2.0, 1.0], [1.5, -0.5]]
+        for row, expected_row in zip(inverse_rows, expected_rows):
+            for value, expected in zip(row, expected_row):
+                self.assertAlmostEqual(value, expected)
+        objects = [{"name": "u", "value": [1, 0, 0]}, {"name": "v", "value": [0, 1, 0]}]
+        cross = LinearAlgebraUtils.evaluate_expression(objects, "u×v")
+        self.assertEqual(cross, {"type": "vector", "value": [0, 0, 1]})
+        dot = LinearAlgebraUtils.evaluate_expression(objects, "u·(u + v)")
+        self.assertEqual(dot, {"type": "scalar", "value": 1.0})
+
 
 if __name__ == "__main__":
     unittest.main()

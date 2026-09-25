@@ -129,8 +129,9 @@ Note: All drawables are math-only. They do not hold screen-space coordinates and
 6. Result Validator (`result_validator.py`)
 7. Slash Command Handler (`slash_command_handler.py`)
 8. Command Autocomplete (`command_autocomplete.py`)
-9. HTML Template (`templates/index.html`)
-10. CSS Stylesheet (`static/style.css`)
+9. Math Symbol Input (`math_symbols.py`, `math_symbol_input.py`, `math_symbol_palette.py`, `symbol_completion_popup.py`)
+10. HTML Template (`templates/index.html`)
+11. CSS Stylesheet (`static/style.css`)
 
 ### Server-Side Components
 1. Server-Side Workspace Manager (`static/workspace_manager.py`)
@@ -812,8 +813,8 @@ Security Features:
 
 Mathematical Support:
     - Standard arithmetic operations (+, -, *, /, ^, **)
-    - Trigonometric functions (sin, cos, tan, asin, acos, atan)
-    - Hyperbolic functions (sinh, cosh, tanh)
+    - Trigonometric functions (sin, cos, tan, sec, csc, cot and their inverses asin ... acot)
+    - Hyperbolic functions (sinh, cosh, tanh, asinh, acosh, atanh)
     - Logarithmic functions (log, log10, log2, ln)
     - Advanced functions (sqrt, exp, abs, factorial, arrangements, permutations, combinations)
     - Statistical functions (mean, median, mode, variance, stdev)
@@ -824,6 +825,7 @@ Mathematical Support:
 Expression Processing:
     - Automatic syntax correction and normalization
     - Mathematical notation conversion (√, °, π, !)
+    - Unicode math notation (× ÷ − ≤ ≥ ≠, x², sin⁻¹(x), π ℯ ∞, Greek letters, Unicode spaces)
     - Implicit multiplication insertion (2x → 2*x)
     - Power operator conversion (^ ↔ **)
     - Function name standardization
@@ -870,12 +872,44 @@ Attributes:
 - `validate_expression_tree(expression)`: Validate mathematical expression using AST parsing
 - `evaluate_expression(expression, x=0)`: Safely evaluate mathematical expression with controlled scope
 - `fix_math_expression(expression, python_compatible=False)`: Automatically correct and normalize expression syntax. Scientific notation is kept as a number (`2e-3` is 0.002, not 2*e - 3); write `2*e` for a multiple of Euler's number
+- `normalize_unicode_math(expression, python_compatible=False)`: Rewrite Unicode math notation as ASCII syntax (table below) and leave ASCII input unchanged. `fix_math_expression` does this first; `MathUtils` calls it for expressions it sends to nerdamer without `fix_math_expression` (`derive`, `integrate`, `numeric_integrate`, `limit`, `simplify`, `expand`, `factor`, `solve`, `solve_numeric`) and `LinearAlgebraUtils.evaluate_expression` calls it before math.js. Unlike `fix_math_expression` it turns `30°` into exact radians, `(30*pi/180)`, for the symbolic engine
+- `normalize_unicode_name(name)`: Apply only the one-for-one character table (`ϕ` → `φ`, `µ` → `μ`, Unicode spaces) to a variable name, never splitting it into factors. `MathUtils.evaluate` uses it for the names of its variables dictionary, and `derive`, `integrate`, `numeric_integrate`, `limit`, `solve` and `solve_numeric` for their variable arguments, so `derive("Δx^2", "Δx")` differentiates with respect to `Δx`
 - `parse_function_string(function_string, use_mathjs=False)`: Parse function string into callable function object
 - `_convert_degrees(expression)`: Convert degree symbols and text to radians
 - `_handle_special_symbols(expression, python_compatible)`: Handle square roots, absolute values, and factorials
 - `_replace_function_names(expression)`: Replace common mathematical function names with Python equivalents
 - `_handle_power_and_imaginary(expression, python_compatible)`: Handle power operators and imaginary numbers
 - `_insert_multiplication_operators(expression, python_compatible)`: Insert multiplication operators for implicit multiplication
+
+**Accepted Unicode Notation:**
+Users type these symbols in the chat and models may copy them into tool arguments; the system prompt asks models to write ASCII, and these rewrites cover what still gets through. ASCII input is never changed by this step.
+
+| Input | Becomes | Notes |
+|-------|---------|-------|
+| `×` `⋅` `·` `∙` `•` `∗` | `*` | `3×4` = 12 |
+| `÷` `∕` | `/` | |
+| `−` (U+2212) `–` (en dash) | `-` | |
+| `≤` `≥` `≠` | `<=` `>=` `!=` | Converted, but comparisons are not supported: evaluated expressions reject them with a readable error, and solve, simplify and the other nerdamer tools do not understand them (nerdamer reads `x!=3` as `factorial(x)=3`). Write equations with `=`. `≠` is converted after factorials, so `x ≠ 3` is not read as `x!` in `fix_math_expression` |
+| `x²`, `x²³`, `x⁻¹`, `(x+1)²` | `x^2`, `x^23`, `x^(-1)`, `(x+1)^2` | Superscript digits with an optional `⁻`/`⁺`; `x²y` becomes `x^2*y` |
+| `xⁿ`, `e⁻ˣ`, `x²⁺¹`, `x⁽ⁿ⁺¹⁾`, `x²ⁿ` | `x^(n)`, `e^(-x)`, `x^(2+1)`, `x^((n+1))`, `x^(2*n)` | A whole run of superscript digits, `⁺ ⁻ ⁽ ⁾` and the letters `ⁿ ⁱ ˣ` is one exponent, parenthesised unless it is plain digits; superscript letters are single-letter factors. Signs alone (`x⁻`) are left for validation to reject |
+| `sin²(x)`, `ln²(x)`, `sin² (x)` | `sin(x)^2`, `ln(x)^2`, `sin(x)^2` | On sin, cos, tan, sec, csc, cot, their inverses (asin ... acot), sinh, cosh, tanh, asinh, acosh, atanh, log, ln, log10, log2, exp, sqrt and abs |
+| `sin⁻¹(x)`, `sin⁻¹ (x)` | `asin(x)` | Also cos, tan, sec, csc, cot, sinh, cosh, tanh (all of asin ... acot and asinh, acosh, atanh evaluate in Python and math.js) |
+| `sin²x`, `sin⁻¹x`, `sinθ`, `sin θ`, `sinπ`, `sin2θ`, `sin ωt`, `sin 30°` | `sin(x)^2`, `asin(x)`, `sin(θ)`, `sin(θ)`, `sin(pi)`, `sin(2*θ)`, `sin(ω*t)`, `sin(30°)` | A known function followed by one operand without parentheses: an optional number and names (`x`, `θ1`, `Δx`, `π`, `ωt`) with its own superscript (`sinθ²` = `sin(θ^2)`) or degree sign. The operand stops before another function name, so `sin²xcos²x` and `sin²x·cos²x` are products (with only a space between them, `sin²x cos²x` is not accepted for plotting). Without a superscript only Unicode operands are wrapped: ASCII `sinx` and `sin (x)` keep their old meaning |
+| `π` | `pi` | Always a separate factor: `2πr` = `2*pi*r`, `πr²` = `pi*r^2` |
+| `ℯ` (U+212F) | `e` | `2ℯ` = `2*e` |
+| `ί` (U+03AF) | `i`; in Python mode `j` after a number, else `1j` | Imaginary unit: `3+4ί` = `3+4i`, `ίx` = `1j*x` in Python |
+| `∞` | `Infinity` (math.js, nerdamer), `inf` (Python) | Both `inf` and `Infinity` are in the Python evaluation namespaces, since functions store the math.js form and parse it again; `limit(..., ∞)` approaches Infinity |
+| Greek letters `α`-`ω`, `Α`-`Ω` | unchanged | Python, math.js and nerdamer all accept them as variable names; each letter is its own factor (`2θ` = `2*θ`, `αβ` = `α*β`, `ωt` = `ω*t`) but `θ1` and `θ_0` stay names. They are not spelled out because `lambda` is a Python keyword and `gamma`, `zeta`, `phi`, `tau` are math.js functions or constants |
+| `Δx`, `δt`, `Δx1` | unchanged | `Δ` or `δ` followed by ASCII letters or digits is one name, the usual notation for a change or a small quantity: `Δx/Δt` stays a quotient of two variables. `Δ(x+1)` is still `Δ*(x+1)`. `solve_numeric` detects `Δx` as one variable |
+| `µ` (micro sign), `ϕ`, `ϵ`, `ϑ`, `ϱ`, `ϰ` | `μ`, `φ`, `ε`, `θ`, `ρ`, `κ` | Python folds these variants into the plain letter but math.js and nerdamer would not. Variable names passed next to an expression get the same rewrite (`evaluate("sin(ϕ)", {"ϕ": 0.5})`) |
+| `˚` (U+02DA), `º` (U+00BA) | `°` | Then read as degrees: `sin(30˚)` = `sin(π/6)`, a float in `fix_math_expression` and `(30*pi/180)` in `normalize_unicode_math` |
+| `√x`, `√(x+1)`, `√θ`, `x√y` | `sqrt(x)`, `sqrt(x+1)`, `sqrt(θ)`, `x*sqrt(y)` | |
+| No-break, thin, em and other Unicode spaces | space | |
+| Zero-width space/joiners, word joiner, BOM, soft hyphen | removed | |
+
+**Symbols left unchanged:** `±`, `≈`, the geometry signs (`∠ ⊥ ∥ △ ≅ ∼ ′ ″`), set and logic signs (`∈ ∉ ⊂ ⊆ ∪ ∩ ∅ ∧ ∨ ¬ → ⇒ ⇔ ∀ ∃`) and `∫ ∑ ∏ ∂ ∇` have no arithmetic meaning in an expression. They pass through unchanged and validation rejects them with a readable error (Python's "invalid character"). `ℝ ℕ ℤ ℚ ℂ` and the rest of the letterlike block (U+2100-U+214F) are rejected by `validate_expression_tree` as "Unsupported symbol", because Python would otherwise fold them into the names R, N, Z, Q and C. `server_tests/test_math_symbol_parsing.py` pins the behaviour of every symbol the chat input can insert.
+
+**Linear algebra (`LinearAlgebraUtils.evaluate_expression`):** the expression goes through `normalize_unicode_math` before math.js, so `A⁻¹` is `A^(-1)` (math.js inverts the matrix), `u·v` is `u*v` (a dot product for vectors) and `2π` is `2*pi`; object names get the character table and Greek names are checked like ASCII ones. `×` is not mapped to `*` there, which would silently compute a dot product: `u×v` between two names becomes `cross(u, v)`, a number on either side makes it a scalar product (`2×u` = `2*u`), and any other `×` (chains such as `u×v×w`, or next to `^`, `*`, `/` or brackets) is an error that asks for `cross(a, b)`.
 
 #### Markdown Parser (`markdown_parser.py`)
 
@@ -4006,6 +4040,25 @@ Key Features:
 - `is_slash_command(message)`: Check if a message starts with `/`
 - `execute(message)`: Parse and execute a slash command, returning a `CommandResult`
 - `get_commands_list()`: Get all commands with descriptions for autocomplete
+
+### Math Symbol Input (`static/client/math_symbols.py` and companions)
+
+Lets users type math symbols into the chat input; the message carries them as plain Unicode.
+
+**Modules:**
+- `math_symbols.py`: the single symbol table (`SYMBOLS`: symbol, readable name, backslash names, palette group, inserted text) plus `GROUPS`, `ALT_SHORTCUTS` (keyed by the key's ordinary character, e.g. `"p"`, `"2"`, `","`) and DOM-free helpers: `find_latex_token(value, caret)`, `latex_word_tail(name, after)` (how much of a `\name` word continues after the caret), `search_symbols(query)`, `exact_latex_match(name)`, `lookup_alt_shortcut(key, shift)`, `update_recent(recent, symbol)` and `move_grid_selection(...)`.
+- `math_symbol_palette.py` (`MathSymbolPalette`): the popover opened by the Σ button (`#symbol-palette-button`) with a Recent row (last 10, stored in `localStorage["mathud.symbols.recent"]`), group tabs (Operators, Calculus, Sets & logic, Geometry, Greek; it opens on the tab used last, stored in `localStorage["mathud.symbols.group"]`, or Operators the first time) and a symbol grid. Cells carry `title` and `aria-label` (name, Alt shortcut, backslash names); the highlighted cell is exposed through the input's `aria-activedescendant`. Tabs are a `tablist` of `tab`s with `aria-selected` and `aria-controls` pointing at the grid (`#symbol-palette-grid`, a `listbox`). Its height is capped to the space between the input and the top of the chat pane (which clips overflow): the grid scrolls, and below 240px the keyboard hint and "Recent" label are hidden. Also exports `space_above(element)` and `keep_in_view(scroller, item)`, which scrolls a popup without scrolling the chat pane or page.
+- `symbol_completion_popup.py` (`SymbolCompletionPopup`): the `\name` suggestion list, styled like the slash-command popup, capped to the same space above the input (at most 300px) with the highlighted row kept in view. Rows have ids `symbol-suggestion-N` and the highlighted one is the input's `aria-activedescendant`; `navigated` records whether the arrow keys moved the highlight.
+- `math_symbol_input.py` (`MathSymbolInput`): binds the chat input's key and input events and performs insertions through `insertText` (undoable with Ctrl+Z), falling back to `setRangeText`. All positions are DOM selection offsets (UTF-16 units): only the 40 units on each side of the caret are read, through JavaScript `String.substring`, so emoji or astral math letters (𝑥) do not shift insertions and a keystroke costs the same in long messages. Keeps the input's combobox attributes (`aria-expanded`, `aria-controls` pointing at the open popup) in sync and refits open popups when the window or chat pane (ResizeObserver) changes size or the input gains focus. Created in `main.py` after `CommandAutocomplete`.
+
+**Keys in the chat input:**
+- `Ctrl+↑`: open or close the palette with the first symbol highlighted (the slash-command list ignores keys pressed with Ctrl, Meta or Alt, so this works while it is open; on macOS `Ctrl+↑` usually belongs to Mission Control, so the Σ button or `\name` is the way there). While it is open: arrows move, `Enter` inserts (only once the highlight was moved or opened from the keyboard; otherwise `Enter` closes the palette and sends), `Tab` / `Shift+Tab` switch group, `Esc` closes. Clicks outside close it; the palette and Σ button never take focus.
+- `\name` before the caret (letters, optionally followed by digits such as `\sup2`) opens suggestions: exact name, then prefix, then substring matches (case-sensitive matches rank first, so `\D` offers Δ before δ). `Tab` accepts the highlighted suggestion; `Enter` accepts only after the arrow keys moved the highlight, and otherwise closes the list and sends the message as typed. `Esc` dismisses, and a space after an exact name converts it. With the caret inside a name (`\al|pha`), accepting replaces the whole word (letters, then digits, after the caret; digits alone are kept, so `\pi|2` becomes `π2`). Disabled while the input starts with `/`, so slash commands keep their own autocomplete.
+- Alt shortcuts, matched on `event.key` (the character the key types without Alt, which Windows and Linux report while Alt is held), so letters follow the layout's key labels (AZERTY `Alt+A` is the key labelled A) and digits typed with Shift still match. On macOS `event.key` is the character Option produces (`π`, `@`, a dead key), which matches nothing, so Option keeps the layout's native characters (the US layout already has π, ≤, ≥, ≠, ∞ and √ on Option). Ignored with `Ctrl`, `Meta`, right Alt or AltGraph so AltGr layouts keep working: `Alt+A` α, `Alt+B` β, `Alt+D`/`Alt+Shift+D` δ/Δ, `Alt+F`/`Alt+Shift+F` φ/Φ, `Alt+G`/`Alt+Shift+G` γ/Γ, `Alt+L` λ, `Alt+M` μ, `Alt+O` °, `Alt+P`/`Alt+Shift+P` π/Π, `Alt+R` √, `Alt+S`/`Alt+Shift+S` σ/Σ, `Alt+T`/`Alt+Shift+T` θ/Θ, `Alt+U` ∞, `Alt+W`/`Alt+Shift+W` ω/Ω, `Alt+0`…`Alt+9` ⁰…⁹, `Alt+,` ≤, `Alt+.` ≥, `Alt+=` ≠, `Alt+-` ⁻.
+
+**Coexistence:** the handler ignores keydown events the slash-command autocomplete already handled (`defaultPrevented`), and cancelling `Enter` on keydown suppresses the `keypress` that sends the message, so `Enter` sends only when no symbol popup uses it. One popup is open at a time: typing `\name` closes the palette, opening the palette hides the suggestions and fires `mathud-symbol-popup-open` on the input (the slash-command list closes on it), and an input starting with `/` closes the palette.
+
+**Tests:** `client_tests/test_math_symbols.py` (table integrity, Alt lookup, word tail, completion, recent list, grid navigation) and `client_tests/test_math_symbol_input.py` (a detached `<input>` driven with synthetic events: Enter/Tab/Alt handling and `defaultPrevented`, insertion next to emoji, one popup at a time, ARIA, the slash list's modifier pass-through, and a loop over every entry of `SYMBOLS` checking insertion at start, middle, end, over a selection and next to emoji, completion and space conversion of every backslash name, its labelled palette cell and its Alt shortcut, plus a count/snapshot of the table).
 
 ### Tool Call Processing Utilities (`static/tool_call_processor.py`)
 

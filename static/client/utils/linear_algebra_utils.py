@@ -19,6 +19,8 @@ from typing import Any, Dict, List, Tuple, Union, TypedDict
 
 from browser import window
 
+from expression_validator import ExpressionValidator
+
 
 class LinearAlgebraObject(TypedDict):
     name: str
@@ -65,11 +67,28 @@ class LinearAlgebraUtils:
         "pow",
     )
 
+    # Identifiers: ASCII or Greek letters, then letters, digits and underscores
+    _IDENTIFIER_PATTERN = re.compile(r"[A-Za-z_Α-Ωα-ω][A-Za-z0-9_Α-Ωα-ω]*")
+
+    # "×" between two operands that are names or numbers, not glued to other tokens
+    _CROSS_OPERAND = r"[A-Za-z_Α-Ωα-ω][A-Za-z0-9_Α-Ωα-ω]*|\d+(?:\.\d*)?|\.\d+"
+    _CROSS_PRODUCT_PATTERN = re.compile(
+        rf"(?<![A-Za-z0-9_.Α-Ωα-ω])({_CROSS_OPERAND})\s*×\s*({_CROSS_OPERAND})(?![A-Za-z0-9_.Α-Ωα-ω])"
+    )
+    # Characters that may surround u×v when it is read as cross(u, v): the product must not
+    # bind to a neighbouring *, /, ^ or another ×, whose precedence would change its meaning
+    _CROSS_PRODUCT_BOUNDARIES: Tuple[str, ...] = ("", "(", ")", ",", "+", "-", "=")
+
     @staticmethod
     def evaluate_expression(objects: List[LinearAlgebraObject], expression: str) -> LinearAlgebraResult:
-        """Evaluate a linear algebra expression with predefined objects."""
+        """Evaluate a linear algebra expression with predefined objects.
+
+        Unicode notation is rewritten first (A⁻¹ -> A^(-1), u·v -> u*v, π -> pi), and "×"
+        between two named vectors is their cross product: u×v -> cross(u, v).
+        """
 
         LinearAlgebraUtils._validate_expression(expression)
+        expression = LinearAlgebraUtils._normalize_expression(expression)
         scope = LinearAlgebraUtils._build_scope(objects)
         LinearAlgebraUtils._validate_identifiers(expression, scope)
 
@@ -84,6 +103,36 @@ class LinearAlgebraUtils:
     def _validate_expression(expression: str) -> None:
         if not isinstance(expression, str) or not expression.strip():
             raise ValueError("Expression must be a non-empty string")
+
+    @staticmethod
+    def _normalize_expression(expression: str) -> str:
+        """Rewrite "×" and other Unicode notation into the ASCII syntax math.js reads."""
+        if "×" in expression:
+            expression = LinearAlgebraUtils._CROSS_PRODUCT_PATTERN.sub(LinearAlgebraUtils._cross_product, expression)
+            if "×" in expression:
+                raise ValueError(
+                    "'×' is read only between two names (u×v is cross(u, v)) or two numbers; "
+                    "write cross(a, b) for other cross products or * for other products"
+                )
+        return str(ExpressionValidator.normalize_unicode_math(expression))
+
+    @staticmethod
+    def _cross_product(match: re.Match[str]) -> str:
+        """Rewrite u×v as cross(u, v) and 2×3 as 2*3; leave other contexts unchanged."""
+        left, right = match.group(1), match.group(2)
+        if not (LinearAlgebraUtils._is_name(left) and LinearAlgebraUtils._is_name(right)):
+            return f"{left}*{right}"  # a number on either side makes it a scalar product
+        text = match.string
+        before = text[: match.start()].rstrip()[-1:]
+        after = text[match.end() :].lstrip()[:1]
+        boundaries = LinearAlgebraUtils._CROSS_PRODUCT_BOUNDARIES
+        if before in boundaries and after in boundaries:
+            return f"cross({left}, {right})"
+        return match.group(0)
+
+    @staticmethod
+    def _is_name(operand: str) -> bool:
+        return operand[0].isalpha() or operand[0] == "_"
 
     @staticmethod
     def _build_scope(objects: List[LinearAlgebraObject]) -> Dict[str, Any]:
@@ -114,7 +163,7 @@ class LinearAlgebraUtils:
     @staticmethod
     def _validate_identifiers(expression: str, scope: Dict[str, Any]) -> None:
         allowed_tokens = set(scope.keys()) | set(LinearAlgebraUtils.ADDITIONAL_IDENTIFIER_ALLOWLIST)
-        tokens = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", expression))
+        tokens = set(LinearAlgebraUtils._IDENTIFIER_PATTERN.findall(expression))
 
         unknown_tokens = []
         for token in tokens:
@@ -141,7 +190,8 @@ class LinearAlgebraUtils:
         if not isinstance(name, str) or not name.strip():
             raise ValueError("Object name must be a non-empty string")
 
-        return name.strip(), value
+        # Names match the normalised expression: an object named ϕ is looked up as φ
+        return ExpressionValidator.normalize_unicode_name(name.strip()), value
 
     @staticmethod
     def _create_math_value(value: Any) -> Any:
