@@ -9,17 +9,25 @@ from __future__ import annotations
 import os
 import tempfile
 import unittest
+from typing import Any, List, Optional
 from unittest.mock import patch
 
-from static.env_config import get_api_key, load_env_files
+import dotenv
+
+from static.env_config import _parent_env_candidates, get_api_key, load_env_files
 
 # static/env_config.py -> project root -> its parent directory
 EXPECTED_PARENT_ENV = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".env")
+
+# A project root that is not a git worktree, so only its parent .env is a candidate.
+FLAT_PROJECT_ROOT = os.path.abspath(os.path.join(os.sep, "src", "MatHud"))
+FLAT_PARENT_ENV = os.path.join(os.path.dirname(FLAT_PROJECT_ROOT), ".env")
 
 
 class TestLoadEnvFiles(unittest.TestCase):
     """Test cases for load_env_files()."""
 
+    @patch("static.env_config._PROJECT_ROOT", FLAT_PROJECT_ROOT)
     @patch("static.env_config.load_dotenv")
     @patch("static.env_config.os.path.exists", return_value=True)
     def test_loads_project_root_and_parent_env(
@@ -54,6 +62,7 @@ class TestLoadEnvFiles(unittest.TestCase):
         # Should complete without error
         load_env_files()
 
+    @patch("static.env_config._PROJECT_ROOT", FLAT_PROJECT_ROOT)
     @patch("static.env_config.load_dotenv")
     @patch("static.env_config.os.path.exists", return_value=True)
     def test_idempotent_multiple_calls(
@@ -71,6 +80,7 @@ class TestLoadEnvFiles(unittest.TestCase):
         # Two invocations x 2 load_dotenv calls each = 4 total
         self.assertEqual(mock_load.call_count, 4)
 
+    @patch("static.env_config._PROJECT_ROOT", FLAT_PROJECT_ROOT)
     @patch("static.env_config.load_dotenv")
     @patch("static.env_config.os.path.exists", return_value=True)
     def test_parent_env_path_constructed_correctly(
@@ -79,8 +89,8 @@ class TestLoadEnvFiles(unittest.TestCase):
         """The parent .env path should be <project root>/../.env."""
         load_env_files()
 
-        mock_exists.assert_called_once_with(EXPECTED_PARENT_ENV)
-        mock_load.assert_any_call(EXPECTED_PARENT_ENV)
+        mock_exists.assert_called_once_with(FLAT_PARENT_ENV)
+        mock_load.assert_any_call(FLAT_PARENT_ENV)
 
     @patch("static.env_config.load_dotenv")
     @patch("static.env_config.os.path.exists", return_value=True)
@@ -96,8 +106,80 @@ class TestLoadEnvFiles(unittest.TestCase):
             finally:
                 os.chdir(original_cwd)
 
-        mock_exists.assert_called_once_with(EXPECTED_PARENT_ENV)
+        # The project's parent .env is always the first candidate (a worktree adds one more).
+        self.assertEqual(mock_exists.call_args_list[0], unittest.mock.call(EXPECTED_PARENT_ENV))
         mock_load.assert_any_call(EXPECTED_PARENT_ENV)
+
+
+class TestWorktreeEnvLookup(unittest.TestCase):
+    """A git worktree under <repo>/.claude/worktrees/<name> also reads the main checkout's parent .env.
+
+    Every file lives in a temporary directory; the real .env files are never read.
+    """
+
+    VAR = "MATHUD_TEST_WORKTREE_ENV_VALUE"
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.outer = os.path.join(self._tmp.name, "Code")
+        self.repo = os.path.join(self.outer, "MatHud")
+        self.worktree = os.path.join(self.repo, ".claude", "worktrees", "feature-x")
+        os.makedirs(self.worktree)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _write_env(self, directory: str, value: str) -> str:
+        path = os.path.join(directory, ".env")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(f"{self.VAR}={value}\n")
+        return path
+
+    def _load(self, project_root: str) -> List[Optional[str]]:
+        """Run load_env_files for *project_root*, loading only explicit (temp) paths."""
+        loaded: List[Optional[str]] = []
+
+        def fake_load_dotenv(path: Optional[str] = None, **kwargs: Any) -> bool:
+            loaded.append(path)
+            return dotenv.load_dotenv(path) if path else False
+
+        with (
+            patch("static.env_config._PROJECT_ROOT", project_root),
+            patch("static.env_config.load_dotenv", side_effect=fake_load_dotenv),
+        ):
+            load_env_files()
+        return loaded
+
+    def test_candidates_for_worktree(self) -> None:
+        self.assertEqual(
+            _parent_env_candidates(self.worktree),
+            [os.path.join(os.path.dirname(self.worktree), ".env"), os.path.join(self.outer, ".env")],
+        )
+
+    def test_candidates_for_main_checkout(self) -> None:
+        self.assertEqual(_parent_env_candidates(self.repo), [os.path.join(self.outer, ".env")])
+
+    def test_worktree_loads_main_checkout_parent_env(self) -> None:
+        outer_env = self._write_env(self.outer, "from-outer")
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop(self.VAR, None)
+            loaded = self._load(self.worktree)
+            self.assertEqual(os.environ.get(self.VAR), "from-outer")
+        self.assertEqual(loaded, [None, outer_env])
+
+    def test_nearer_env_takes_precedence(self) -> None:
+        self._write_env(self.outer, "from-outer")
+        self._write_env(os.path.dirname(self.worktree), "from-worktrees-dir")
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop(self.VAR, None)
+            self._load(self.worktree)
+            self.assertEqual(os.environ.get(self.VAR), "from-worktrees-dir")
+
+    def test_existing_variable_is_not_overridden(self) -> None:
+        self._write_env(self.outer, "from-outer")
+        with patch.dict(os.environ, {self.VAR: "already-set"}, clear=False):
+            self._load(self.worktree)
+            self.assertEqual(os.environ.get(self.VAR), "already-set")
 
 
 class TestGetApiKeyFastPath(unittest.TestCase):

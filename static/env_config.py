@@ -1,13 +1,14 @@
 """Centralized environment variable loading for the MatHud backend.
 
 Provides helpers that consolidate the duplicated .env discovery logic
-(project root then parent directory) used by multiple API modules.
+(project root, then its parent directory, then the main checkout's parent
+when running from a git worktree) used by multiple API modules.
 """
 
 from __future__ import annotations
 
 import os
-from typing import Optional
+from typing import List, Optional
 
 from dotenv import load_dotenv
 
@@ -16,19 +17,43 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def load_env_files() -> None:
-    """Load .env files from the project root and its parent directory.
+    """Load .env files from the project root and the directories above it.
 
     The project-root .env is loaded first so its values take precedence.
-    A parent-directory .env is loaded afterwards only when the file exists,
-    which is useful when API keys are stored one level above the repository.
+    Each .env from :func:`_parent_env_candidates` is loaded afterwards, in
+    order, only when the file exists, which is useful when API keys are
+    stored one level above the repository.
 
     Calling this function multiple times is safe; ``python-dotenv`` will
     not overwrite variables that are already present in ``os.environ``.
     """
     load_dotenv()
-    parent_env = os.path.join(os.path.dirname(_PROJECT_ROOT), ".env")
-    if os.path.exists(parent_env):
-        load_dotenv(parent_env)
+    for env_path in _parent_env_candidates(_PROJECT_ROOT):
+        if os.path.exists(env_path):
+            load_dotenv(env_path)
+
+
+def _parent_env_candidates(project_root: str) -> List[str]:
+    """Return the .env paths above the project, nearest first.
+
+    The first is in the project's parent directory. When the project is a git
+    worktree under ``<repo>/.claude/worktrees/<name>``, that parent is the
+    worktrees folder, so the main checkout's parent directory follows.
+    """
+    candidates = [os.path.join(os.path.dirname(project_root), ".env")]
+    main_checkout = _main_checkout_root(project_root)
+    if main_checkout is not None:
+        candidates.append(os.path.join(os.path.dirname(main_checkout), ".env"))
+    return candidates
+
+
+def _main_checkout_root(project_root: str) -> Optional[str]:
+    """Return ``<repo>`` when *project_root* is ``<repo>/.claude/worktrees/<name>``, else None."""
+    worktrees_dir = os.path.dirname(project_root)
+    claude_dir = os.path.dirname(worktrees_dir)
+    if os.path.basename(worktrees_dir) == "worktrees" and os.path.basename(claude_dir) == ".claude":
+        return os.path.dirname(claude_dir)
+    return None
 
 
 def get_api_key(
