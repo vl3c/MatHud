@@ -9,7 +9,10 @@ namespace because the full one needs the browser-only MathUtils.
 from __future__ import annotations
 
 import ast
+import json
 import math
+import os
+import random
 import unittest
 from typing import Dict, List, Tuple
 
@@ -390,6 +393,47 @@ class TestNormalizeUnicodeMath(unittest.TestCase):
             with self.subTest(expression=expression):
                 once = ExpressionValidator.normalize_unicode_math(expression)
                 self.assertEqual(ExpressionValidator.normalize_unicode_math(once), once)
+
+
+class TestAsciiRegression(unittest.TestCase):
+    """ASCII input must be rewritten exactly as before the Unicode notation support."""
+
+    GOLDEN_PATH = os.path.join(os.path.dirname(__file__), "data", "fix_math_expression_ascii_golden.json")
+
+    @staticmethod
+    def _fix(expression: str, python_compatible: bool) -> str:
+        try:
+            return str(ExpressionValidator.fix_math_expression(expression, python_compatible))
+        except Exception as error:
+            return "EXCEPTION " + type(error).__name__
+
+    def test_golden_corpus_is_unchanged(self) -> None:
+        # Outputs recorded with main's expression_validator (before Unicode support) for the
+        # expression-like ASCII strings of the test suites
+        with open(self.GOLDEN_PATH, encoding="utf-8") as golden_file:
+            golden = json.load(golden_file)
+        expected: Dict[str, List[str]] = {expression: [expression, expression] for expression in golden["unchanged"]}
+        expected.update(golden["changed"])
+        self.assertGreater(len(expected), 2000)
+        mismatches = []
+        for expression, (python_expected, js_expected) in expected.items():
+            actual = [self._fix(expression, True), self._fix(expression, False)]
+            if actual != [python_expected, js_expected]:
+                mismatches.append((expression, actual, [python_expected, js_expected]))
+        self.assertEqual(mismatches, [])
+
+    def test_random_ascii_is_left_to_the_ascii_steps(self) -> None:
+        # The Unicode step and the name and nerdamer normalisers are the identity on ASCII
+        rng = random.Random(70)
+        alphabet = "xyzeinfpiasoctlg0123456789.+-*/^()!|<>=, _jdr"
+        for _ in range(20000):
+            expression = "".join(rng.choice(alphabet) for _ in range(rng.randint(1, 14)))
+            for python_compatible in (True, False):
+                self.assertEqual(
+                    ExpressionValidator._normalize_unicode_notation(expression, python_compatible), expression
+                )
+                self.assertEqual(ExpressionValidator.normalize_unicode_math(expression, python_compatible), expression)
+            self.assertEqual(ExpressionValidator.normalize_unicode_name(expression), expression)
 
 
 class TestPythonEvaluationNamespace(unittest.TestCase):
