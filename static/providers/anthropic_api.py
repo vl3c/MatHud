@@ -22,6 +22,17 @@ from static.response_metrics import ResponseMetricsTracker, tool_call_argument_t
 
 _logger = logging.getLogger("mathud")
 
+# Values the Messages API accepts for output_config.effort.
+_EFFORT_LEVELS = frozenset({"low", "medium", "high", "xhigh", "max"})
+
+# Streaming requests have no HTTP timeout concern, so they get more room than the
+# non-streaming default: thinking tokens count toward max_tokens on adaptive-thinking models.
+_STREAM_MAX_TOKENS = 32000
+
+# Output-token ceilings for models that allow fewer than the 128K output tokens of
+# the other current Claude models; request max_tokens is capped to them.
+_MODEL_MAX_OUTPUT_TOKENS: Dict[str, int] = {"claude-haiku-4-5": 64000}
+
 
 def _get_anthropic_api_key() -> str:
     """Get the Anthropic API key from environment."""
@@ -49,10 +60,12 @@ class AnthropicAPI(OpenAIAPIBase):
 
         Args:
             model: AI model to use. Defaults to Claude Sonnet 5.
-            temperature: Sampling temperature.
+            temperature: Sampling temperature, sent only to models that accept it
+                (Claude Haiku 4.5); see _apply_temperature.
             tools: Custom tool definitions.
-            max_tokens: Maximum tokens in response. Thinking tokens count toward this
-                limit on adaptive-thinking models, so it matches the base class default.
+            max_tokens: Maximum tokens in a non-streaming response. Thinking tokens count
+                toward this limit on adaptive-thinking models. Streaming requests use at
+                least _STREAM_MAX_TOKENS.
             tool_mode: Tool mode - "full" or "search".
         """
         # Import anthropic here to avoid import errors if not installed
@@ -233,8 +246,8 @@ class AnthropicAPI(OpenAIAPIBase):
     def _apply_temperature(self, request_kwargs: Dict[str, Any]) -> None:
         """Add the temperature parameter only for models that accept it.
 
-        Adaptive-thinking Claude models (Claude Fable 5, Opus 4.8, Sonnet 5, and later)
-        reject the ``temperature`` sampling parameter with a 400 error. Those models are
+        Adaptive-thinking Claude models (Claude Fable 5.1, Opus 5.5, Sonnet 5) reject
+        the ``temperature`` sampling parameter with a 400 error. Those models are
         flagged ``is_reasoning_model`` in the registry, so only send ``temperature`` for
         non-reasoning models (e.g. Claude Haiku 4.5) that still support it.
 
@@ -243,6 +256,31 @@ class AnthropicAPI(OpenAIAPIBase):
         """
         if not self.model.is_reasoning_model:
             request_kwargs.setdefault("extra_body", {})["temperature"] = self.temperature
+
+    def _apply_effort(self, request_kwargs: Dict[str, Any]) -> None:
+        """Send the model's configured effort level as ``output_config.effort``.
+
+        Thinking runs adaptive by default on Claude Fable 5.1, Opus 5.5 and Sonnet 5,
+        so effort is the control for how much the model thinks. Models without a
+        ``reasoning_effort`` in the registry (Claude Haiku 4.5, which rejects the
+        parameter) get no ``output_config`` and keep the API default.
+        """
+        effort = self.model.reasoning_effort
+        if not effort:
+            return
+        if effort not in _EFFORT_LEVELS:
+            _logger.warning("[Anthropic API] Ignoring unsupported effort %r for model %s", effort, self.model.id)
+            return
+        request_kwargs["output_config"] = {"effort": effort}
+
+    def _request_max_tokens(self, streaming: bool) -> int:
+        """max_tokens for a request, capped to the model's output limit where known.
+
+        Streaming requests get at least _STREAM_MAX_TOKENS; non-streaming ones keep
+        ``self.max_tokens`` so they stay well within the SDK's HTTP timeout.
+        """
+        max_tokens = max(self.max_tokens, _STREAM_MAX_TOKENS) if streaming else self.max_tokens
+        return min(max_tokens, _MODEL_MAX_OUTPUT_TOKENS.get(self.model.id, max_tokens))
 
     def create_chat_completion(self, full_prompt: str) -> Any:
         """Create chat completion with Anthropic API."""
@@ -258,11 +296,12 @@ class AnthropicAPI(OpenAIAPIBase):
             # Anthropic API doesn't accept empty tools list - must be None or non-empty
             create_kwargs: Dict[str, Any] = {
                 "model": self.model.id,
-                "max_tokens": self.max_tokens,
+                "max_tokens": self._request_max_tokens(streaming=False),
                 "system": self._build_system_prompt(),
                 "messages": anthropic_messages,
             }
             self._apply_temperature(create_kwargs)
+            self._apply_effort(create_kwargs)
             if anthropic_tools:
                 create_kwargs["tools"] = anthropic_tools
 
@@ -365,11 +404,12 @@ class AnthropicAPI(OpenAIAPIBase):
             # Anthropic API doesn't accept empty tools list - must be None or non-empty
             stream_kwargs: Dict[str, Any] = {
                 "model": self.model.id,
-                "max_tokens": self.max_tokens,
+                "max_tokens": self._request_max_tokens(streaming=True),
                 "system": self._build_system_prompt(),
                 "messages": anthropic_messages,
             }
             self._apply_temperature(stream_kwargs)
+            self._apply_effort(stream_kwargs)
             if anthropic_tools:
                 stream_kwargs["tools"] = anthropic_tools
 
