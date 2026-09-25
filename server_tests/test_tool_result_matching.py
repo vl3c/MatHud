@@ -270,8 +270,8 @@ class TestNonStreamingRouteExposesIds(unittest.TestCase):
         mock_chat.return_value = SimpleNamespace(
             message=SimpleNamespace(content="", tool_calls=tool_calls), finish_reason="tool_calls"
         )
-        # A non-reasoning OpenAI model routes through the (mocked) Chat Completions path.
-        prompt = {"user_message": "hi", "use_vision": False, "ai_model": "gpt-4.1-mini"}
+        # A model missing from MODEL_CONFIGS routes through the (mocked) OpenAI Chat Completions path.
+        prompt = {"user_message": "hi", "use_vision": False, "ai_model": "chat-completions-test-model"}
         payload = {"message": json.dumps(prompt), "svg_state": None}
         response = self.client.post("/send_message", json=payload)
         data = json.loads(response.data)

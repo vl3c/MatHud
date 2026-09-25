@@ -59,7 +59,7 @@ def user_prompt(text: str = "How long is AB?", state: Dict[str, Any] = STATE, **
         "user_message": text,
         "tool_call_results": None,
         "use_vision": False,
-        "ai_model": "gpt-4.1-mini",
+        "ai_model": "chat-completions-test-model",  # not in MODEL_CONFIGS: OpenAI Chat Completions
     }
     prompt.update(extra)
     return json.dumps(prompt)
@@ -320,7 +320,7 @@ def results_prompt(state: Dict[str, Any], order: Sequence[str] = ("call_b", "cal
             "user_message": None,
             "tool_call_results": json.dumps([entries[key] for key in order]),
             "use_vision": False,
-            "ai_model": "gpt-4.1-mini",
+            "ai_model": "chat-completions-test-model",
         }
     )
 

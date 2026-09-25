@@ -444,8 +444,9 @@ class _OpenAIStreamCase(unittest.TestCase):
 
 class TestChatCompletionsStreamMetrics(_OpenAIStreamCase):
     def _make_api(self) -> OpenAIChatCompletionsAPI:
+        # A model missing from MODEL_CONFIGS defaults to the "openai" provider.
         with patch.dict(os.environ, {"OPENAI_API_KEY": "k"}):
-            api = OpenAIChatCompletionsAPI(model=AIModel.from_identifier("gpt-4.1"), tools=[])
+            api = OpenAIChatCompletionsAPI(model=AIModel.from_identifier("chat-completions-test-model"), tools=[])
         api.client = self._client()
         return api
 
@@ -472,7 +473,7 @@ class TestChatCompletionsStreamMetrics(_OpenAIStreamCase):
         self.assertEqual(final["ai_message"], "Hi there")
         metrics = final["metrics"]
         self.assertEqual(metrics["provider"], "openai")
-        self.assertEqual(metrics["model"], "gpt-4.1")
+        self.assertEqual(metrics["model"], "chat-completions-test-model")
         self.assertEqual(metrics["api"], "chat_completions")
         self.assertEqual(metrics["prompt_tokens"], 1500)
         self.assertEqual(metrics["completion_tokens"], 3)
@@ -697,7 +698,7 @@ class TestResponsesStreamMetrics(unittest.TestCase):
     @patch("static.openai_api_base.OpenAI")
     def test_usage_and_first_token_from_response_events(self, mock_openai: Mock) -> None:
         api = OpenAIResponsesAPI()
-        api.model = AIModel.from_identifier("gpt-5.5")
+        api.model = AIModel.from_identifier("gpt-6-sol")
         usage = SimpleNamespace(
             input_tokens=900,
             output_tokens=120,
@@ -721,7 +722,7 @@ class TestResponsesStreamMetrics(unittest.TestCase):
 
         metrics = final["metrics"]
         self.assertEqual(metrics["api"], "responses")
-        self.assertEqual(metrics["model"], "gpt-5.5")
+        self.assertEqual(metrics["model"], "gpt-6-sol")
         self.assertEqual(metrics["prompt_tokens"], 900)
         self.assertEqual(metrics["completion_tokens"], 120)
         self.assertEqual(metrics["cached_tokens"], 512)
@@ -841,7 +842,10 @@ class TestRoutesForwardMetrics(unittest.TestCase):
             os.environ.pop("REQUIRE_AUTH", None)
 
     def _post_stream(self, prompt: Dict[str, Any]) -> List[Dict[str, Any]]:
-        payload = {"message": json.dumps({"use_vision": False, "ai_model": "gpt-4.1", **prompt}), "svg_state": None}
+        payload = {
+            "message": json.dumps({"use_vision": False, "ai_model": "chat-completions-test-model", **prompt}),
+            "svg_state": None,
+        }
         response = self.client.post("/send_message_stream", json=payload)
         return [json.loads(line) for line in response.data.decode("utf-8").splitlines() if line.strip()]
 
@@ -854,7 +858,7 @@ class TestRoutesForwardMetrics(unittest.TestCase):
                 "ai_message": "ok",
                 "ai_tool_calls": [],
                 "finish_reason": "stop",
-                "metrics": {"model": "gpt-4.1", "total_latency_s": 0.4},
+                "metrics": {"model": "chat-completions-test-model", "total_latency_s": 0.4},
             }
 
         mock_stream.side_effect = lambda message: stream()
@@ -868,11 +872,15 @@ class TestRoutesForwardMetrics(unittest.TestCase):
     @patch.object(OpenAIChatCompletionsAPI, "create_chat_completion")
     def test_send_message_returns_provider_metrics(self, mock_chat: Mock) -> None:
         def complete(message: str) -> Any:
-            self.app.ai_api.last_response_metrics = {"model": "gpt-4.1", "total_latency_s": 1.0}
+            self.app.ai_api.last_response_metrics = {"model": "chat-completions-test-model", "total_latency_s": 1.0}
             return SimpleNamespace(message=SimpleNamespace(content="ok", tool_calls=None), finish_reason="stop")
 
         mock_chat.side_effect = complete
-        payload = {"message": json.dumps({"user_message": "hi", "use_vision": False, "ai_model": "gpt-4.1"})}
+        payload = {
+            "message": json.dumps(
+                {"user_message": "hi", "use_vision": False, "ai_model": "chat-completions-test-model"}
+            )
+        }
         data = json.loads(self.client.post("/send_message", json=payload).data)
 
         self.assertEqual(data["data"]["metrics"]["request_kind"], "user_message")

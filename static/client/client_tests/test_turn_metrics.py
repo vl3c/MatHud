@@ -143,7 +143,7 @@ class TestFooterFormatting(unittest.TestCase):
         self.assertEqual(format_seconds(75), "1 m 15 s")
         self.assertEqual(format_seconds(None), "?")
         self.assertEqual(short_model_name("C:\\models\\Qwen3.8-27B-Q4_K_M.gguf"), "Qwen3.8-27B-Q4_K_M")
-        self.assertEqual(short_model_name("google/gemini-3.1-pro-preview"), "gemini-3.1-pro-preview")
+        self.assertEqual(short_model_name("google/gemini-3.8-flash"), "gemini-3.8-flash")
 
 
 class TestTurnMetricsCollector(unittest.TestCase):

@@ -165,7 +165,8 @@ class TestVisionRoutes(unittest.TestCase):
             "user_message": "what is drawn?",
             "use_vision": True,
             "canvas_snapshot": snapshot,
-            "ai_model": "gpt-4.1-mini",  # Chat Completions, so the mock below intercepts it
+            # Not in MODEL_CONFIGS: OpenAI Chat Completions, so the mock below intercepts it
+            "ai_model": "chat-completions-test-model",
         }
         return {"message": json.dumps(prompt)}
 

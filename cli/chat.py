@@ -189,7 +189,7 @@ def chat() -> None:
 @click.option(
     "--model",
     "-m",
-    help="AI model to use (e.g., gpt-5.5, claude-sonnet-5)",
+    help="AI model to use (e.g., gpt-6-sol, claude-sonnet-5)",
 )
 @click.option(
     "--vision",
@@ -226,7 +226,7 @@ def send(
 
       mathud chat send "Draw a circle with center A and radius 50"
 
-      mathud chat send "What is the derivative of x^2?" --model gpt-5.5
+      mathud chat send "What is the derivative of x^2?" --model gpt-6-sol
     """
     if not check_server(DEFAULT_HOST, port):
         click.echo(click.style(f"Server is not running on port {port}", fg="red"), err=True)
