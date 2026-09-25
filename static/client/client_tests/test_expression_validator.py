@@ -299,6 +299,20 @@ class TestExpressionValidator(unittest.TestCase):
             with self.subTest(expr=expr):
                 self.assertEqual(ExpressionValidator.fix_math_expression(expr, python_compatible=True), expected)
 
+    def test_unicode_notation_in_brython(self) -> None:
+        # Brython must parse the rewritten expressions, including Greek letters kept as names
+        self.assertEqual(ExpressionValidator.parse_function_string("x²")(3), 9.0)
+        self.assertAlmostEqual(ExpressionValidator.parse_function_string("2πx")(1), 2 * math.pi)
+        self.assertAlmostEqual(ExpressionValidator.parse_function_string("sin²(x) + cos²(x)")(0.7), 1.0)
+        self.assertAlmostEqual(ExpressionValidator.parse_function_string("3×x − x÷2")(2), 5.0)
+        self.assertAlmostEqual(ExpressionValidator.parse_parametric_expression("t⁻¹")(4), 0.25)
+        self.assertEqual(ExpressionValidator.evaluate_expression("1/inf"), 0.0)
+        for expression in ("2θ + α", "λ*μ", "sin(θ_0)"):
+            with self.subTest(expression=expression):
+                ExpressionValidator.validate_expression_tree(
+                    ExpressionValidator.fix_math_expression(expression, python_compatible=True)
+                )
+
     def test_parsed_functions_keep_independent_state(self) -> None:
         # Parsed callables share cached code but must not share the variable namespace
         square = ExpressionValidator.parse_function_string("x^2")

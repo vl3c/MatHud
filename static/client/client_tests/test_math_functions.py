@@ -1188,6 +1188,21 @@ class TestMathFunctions(unittest.TestCase):
         solution = float(result[0])  # Convert the first (and only) result to float
         self.assertAlmostEqual(solution, -34.7692307692308, places=5)
 
+    def test_unicode_notation_reaches_math_engines(self) -> None:
+        # Symbols typed by users or copied by models are rewritten before nerdamer and math.js see them
+        self.assertAlmostEqual(MathUtils.evaluate("2πr", {"r": 1}), 2 * math.pi)
+        self.assertAlmostEqual(MathUtils.evaluate("x² + 3×x − 1", {"x": 3}), 17)
+        self.assertAlmostEqual(MathUtils.evaluate("2θ", {"θ": 1.5}), 3)
+        self.assertAlmostEqual(MathUtils.evaluate("1/∞"), 0)
+        self.assertEqual(MathUtils.derivative("x³ − 2x", "x"), "-2+3*x^2")
+        self.assertEqual(MathUtils.derivative("sin²(θ)", "θ"), "2*cos(θ)*sin(θ)")
+        self.assertEqual(MathUtils.simplify("sin²(x) + cos²(x)"), "1")
+        self.assertEqual(MathUtils.expand("(x+1)²"), "1+2*x+x^2")
+        self.assertEqual(MathUtils.limit("1/x", "x", "∞"), "0")
+        self.assertEqual(MathUtils.integral("3x²", "x"), "x^3")
+        self.assertAlmostEqual(float(MathUtils.integral("cos(x)", "x", 0, "π/2")), 1)
+        self.assertEqual([float(root) for root in json.loads(MathUtils.solve("x² − 4 = 0", "x"))], [2.0, -2.0])
+
     def test_solve_linear_quadratic_invalid_input(self) -> None:
         equations = ["y = 2*x + 3"]  # Not enough equations
         with self.assertRaises(ValueError):

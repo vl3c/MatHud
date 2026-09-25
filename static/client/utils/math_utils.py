@@ -1082,6 +1082,19 @@ class MathUtils:
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
 
+    @staticmethod
+    def _normalize_symbols(value: Any) -> Any:
+        """Rewrite Unicode math notation (π, x², ×, −, ≤, ∞, ...) in a raw expression for nerdamer or math.js.
+
+        For expressions that do not pass through ExpressionValidator.fix_math_expression;
+        ASCII strings and non-string values are returned unchanged.
+        """
+        if not isinstance(value, str):
+            return value
+        from expression_validator import ExpressionValidator
+
+        return ExpressionValidator.normalize_unicode_math(value)
+
     # Number theory functions that require Python evaluation (not available in Math.js)
     _PYTHON_ONLY_FUNCTIONS = {
         "is_prime",
@@ -1234,6 +1247,7 @@ class MathUtils:
         Returns:
             str: Derivative expression as string or error message
         """
+        expression, variable = MathUtils._normalize_symbols(expression), MathUtils._normalize_symbols(variable)
         try:
             return str(window.nerdamer(f"diff({expression}, {variable})").text())
         except Exception as e:
@@ -1254,8 +1268,9 @@ class MathUtils:
         Returns:
             str: Limit result as string or error message
         """
+        expression, variable = MathUtils._normalize_symbols(expression), MathUtils._normalize_symbols(variable)
         try:
-            value_to_approach = str(value_to_approach).lower().replace(" ", "")
+            value_to_approach = str(MathUtils._normalize_symbols(value_to_approach)).lower().replace(" ", "")
             if value_to_approach in ["inf", "infinity"]:
                 value_to_approach = "Infinity"
             elif value_to_approach in ["-inf", "-infinity"]:
@@ -1287,6 +1302,8 @@ class MathUtils:
         """
         import re
 
+        expression, variable = MathUtils._normalize_symbols(expression), MathUtils._normalize_symbols(variable)
+        lower_bound, upper_bound = MathUtils._normalize_symbols(lower_bound), MathUtils._normalize_symbols(upper_bound)
         try:
             indefinite_integral = window.nerdamer(f"integrate({expression}, {variable})")
             if lower_bound is None and upper_bound is None:
@@ -1447,6 +1464,7 @@ class MathUtils:
             raise ValueError("expression must be a non-empty string")
         if not isinstance(variable, str) or not variable.strip():
             raise ValueError("variable must be a non-empty string")
+        expression, variable = MathUtils._normalize_symbols(expression), MathUtils._normalize_symbols(variable)
 
         lower = float(lower_bound)
         upper = float(upper_bound)
@@ -1496,6 +1514,7 @@ class MathUtils:
         Returns:
             str: Simplified expression as string or error message
         """
+        expression = MathUtils._normalize_symbols(expression)
         try:
             return str(window.nerdamer(f"simplify({expression})").text())
         except Exception as e:
@@ -1514,6 +1533,7 @@ class MathUtils:
         Returns:
             str: Expanded expression as string or error message
         """
+        expression = MathUtils._normalize_symbols(expression)
         try:
             return str(window.nerdamer(f"expand({expression})").text())
         except Exception as e:
@@ -1532,6 +1552,7 @@ class MathUtils:
         Returns:
             str: Factored expression as string or error message
         """
+        expression = MathUtils._normalize_symbols(expression)
         try:
             return str(window.nerdamer(f"factor({expression})").text())
         except Exception as e:
@@ -1691,6 +1712,7 @@ class MathUtils:
         Returns:
             str: JSON string of solutions or error message
         """
+        equation, variable = MathUtils._normalize_symbols(equation), MathUtils._normalize_symbols(variable)
         try:
             raw_solutions = str(window.nerdamer(f"solve({equation}, {variable})").text())
         except Exception as e:
@@ -2088,6 +2110,10 @@ class MathUtils:
         """
         from numeric_solver import solve_numeric as _solve_numeric
 
+        if isinstance(equations, list):
+            equations = [MathUtils._normalize_symbols(equation) for equation in equations]
+        if isinstance(variables, list):
+            variables = [MathUtils._normalize_symbols(variable) for variable in variables]
         return str(_solve_numeric(equations, variables, initial_guesses, tolerance, max_iterations))
 
     @staticmethod

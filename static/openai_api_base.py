@@ -88,7 +88,7 @@ CANVAS_BLOCK_START = "<canvas>"
 CANVAS_BLOCK_END = "</canvas>"
 _LEADING_CANVAS_BLOCK = re.compile(r"\A<canvas>\n.*?\n</canvas>(?:\n\n)?", re.DOTALL)
 
-_DEV_MSG_INTRO = "You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. Use the provided tools for calculations rather than computing results yourself, so every result shown comes from the math engine."
+_DEV_MSG_INTRO = "You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. Use the provided tools for calculations rather than computing results yourself, so every result shown comes from the math engine. Write expressions in tool arguments in ASCII syntax (for example x^2, pi, sqrt(x), <=), even when the user types symbols such as x², π, √ or ≤."
 _DEV_MSG_OUTRO = "Never use emoticons or emoji in your responses. When performing multiple steps, include a succinct summary of all actions taken in your final response. INFO: Point labels and coordinates are hardcoded to be shown next to all points on the canvas."
 _CANVAS_PROMPT_SENTENCES: Dict[CanvasFormat, str] = {
     "json": "Canvas state is included with user messages; base your actions on it. For large scenes it may be summarized to reduce noise; when you need complete details, call get_current_canvas_state. Canvas state may be stale after tool calls, so re-check live state between actions when needed.",
