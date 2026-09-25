@@ -390,8 +390,7 @@ class AIInterface:
             if finish_reason == "error":
                 console.error(f"[AI Error] {error_details or ai_message}")
 
-            # If no tool calls OR finish reason indicates completion, finalize the message
-            if finish_reason in ("stop", "error", "completed") or not ai_tool_calls:
+            if not self._should_run_tools(finish_reason, ai_tool_calls):
                 if not self._chat_ui.stream_buffer and ai_message:
                     self._chat_ui.stream_buffer = ai_message
                 outcome = turn_outcome(finish_reason)
@@ -587,6 +586,15 @@ class AIInterface:
         print(f"### AI function calls: {ai_function_calls}")
         print(f"### AI finish reason: {finish_reason}")
 
+    @staticmethod
+    def _should_run_tools(finish_reason: Any, tool_calls: Any) -> bool:
+        """Whether a reply's tool calls run and the tool loop continues.
+
+        Only a reply that ends in tool calls and carries some runs tools; every other
+        ending (stop, error, length/truncated, refusal/filtered) is a final message.
+        """
+        return bool(tool_calls) and finish_reason in ("tool_calls", "function_call")
+
     def _disable_send_controls(self) -> None:
         """Switch send button to stop mode while processing and start a timeout."""
         try:
@@ -696,13 +704,14 @@ class AIInterface:
     ) -> None:
         self._debug_log_ai_response(ai_message, tool_calls, finish_reason)
 
-        # Only a reply that ends in tool calls and carries some runs tools; every other
-        # ending (stop, error, length/truncated, refusal/filtered) is a final message.
-        if finish_reason not in ("tool_calls", "function_call") or not tool_calls:
+        if not self._should_run_tools(finish_reason, tool_calls):
             turn_metrics = self._turn_metrics.finish_turn(turn_outcome(finish_reason), turn_token)
             self._chat_ui.print_ai_message(ai_message, turn_metrics=turn_metrics)
             self._enable_send_controls()
         else:
+            # Text sent with the calls (e.g. a cut-off note) is shown before they run.
+            if isinstance(ai_message, str) and ai_message.strip():
+                self._chat_ui.print_ai_message(ai_message)
             state_before = self.canvas.get_canvas_state()
             t0 = window.performance.now()
             traced_calls: list[Dict[str, Any]] = []
