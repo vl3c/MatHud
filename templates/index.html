@@ -111,7 +111,8 @@ Dependencies:
                     </button>
                     <!-- Math symbol palette toggle (popover built by static/client/math_symbol_palette.py) -->
                     <button type="button" id="symbol-palette-button" class="symbol-palette-button" title="Math symbols (Ctrl+↑)" aria-label="Math symbols" aria-haspopup="dialog" aria-expanded="false" aria-controls="symbol-palette">Σ</button>
-                    <input class="chat-input" id="chat-input" type="text" placeholder="Type your message here...">
+                    <!-- Combobox: aria-expanded / aria-controls / aria-activedescendant follow the open symbol popup -->
+                    <input class="chat-input" id="chat-input" type="text" placeholder="Type your message here..." role="combobox" aria-label="Message" aria-autocomplete="list" aria-expanded="false">
                 </div>
                 <div class="chat-buttons">
                     <button id="send-button">Send</button>

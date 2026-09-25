@@ -1354,16 +1354,24 @@ input, select, textarea, button {
     z-index: 100;
     display: flex;
     flex-direction: column;
+    /* The group grid is the scroll area; nothing spills past the capped height */
+    overflow: hidden;
 }
 
 .symbol-palette > * {
     flex-shrink: 0;
 }
 
+/* Short chat pane (set from JavaScript): drop the hint and the "Recent" label */
+.symbol-palette.compact .symbol-palette-hint,
+.symbol-palette.compact .symbol-palette-label {
+    display: none;
+}
+
 /* The group grid scrolls when the chat pane is too short for the whole palette */
 .symbol-palette > .symbol-palette-grid {
     flex: 1 1 auto;
-    min-height: 34px;
+    min-height: 32px;
     overflow-y: auto;
 }
 

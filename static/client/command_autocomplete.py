@@ -25,6 +25,9 @@ from browser import document, html
 if TYPE_CHECKING:
     from slash_command_handler import SlashCommandHandler
 
+# Fired on the chat input by MathSymbolInput when the symbol palette opens.
+SYMBOL_POPUP_OPEN_EVENT: str = "mathud-symbol-popup-open"
+
 
 class CommandAutocomplete:
     """Autocomplete popup for slash commands.
@@ -87,6 +90,8 @@ class CommandAutocomplete:
             self.input_element.bind("input", self._on_input)
             self.input_element.bind("keydown", self._on_keydown)
             self.input_element.bind("blur", self._on_blur)
+            # The math symbol palette (opened with Ctrl+Up or the Σ button) takes the same space
+            self.input_element.bind(SYMBOL_POPUP_OPEN_EVENT, self._on_symbol_popup_open)
         except Exception as e:
             print(f"Error binding autocomplete events: {e}")
 
@@ -109,11 +114,17 @@ class CommandAutocomplete:
             print(f"Error handling autocomplete input: {e}")
 
     def _on_keydown(self, event: Any) -> None:
-        """Handle keyboard navigation in the popup."""
+        """Handle keyboard navigation in the popup.
+
+        Keys pressed with Ctrl, Meta or Alt (such as Ctrl+Up, which opens the
+        math symbol palette) are left to other handlers.
+        """
         if not self.visible:
             return
 
         try:
+            if event.ctrlKey or event.metaKey or event.altKey:
+                return
             key = event.key
 
             if key == "ArrowDown":
@@ -138,6 +149,10 @@ class CommandAutocomplete:
                     self._trigger_refilter()
         except Exception as e:
             print(f"Error handling autocomplete keydown: {e}")
+
+    def _on_symbol_popup_open(self, event: Any) -> None:
+        """Hide the list while the math symbol palette is open (one popup at a time)."""
+        self.hide()
 
     def _trigger_refilter(self) -> None:
         """Re-filter and show popup based on current input value.

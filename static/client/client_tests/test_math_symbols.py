@@ -18,17 +18,14 @@ from math_symbols import (
     exact_latex_match,
     find_latex_token,
     get_symbol,
-    index_to_utf16_offset,
-    insert_text,
+    latex_word_tail,
     lookup_alt_shortcut,
     move_grid_selection,
-    replace_latex_token,
     sanitize_recent,
     search_symbols,
     shortcut_label,
     symbols_in_group,
     update_recent,
-    utf16_offset_to_index,
 )
 
 
@@ -91,17 +88,17 @@ class TestMathSymbolTable(unittest.TestCase):
             self.assertIsNone(get_symbol(symbol), symbol)
 
     def test_every_alt_shortcut_maps_to_a_table_entry(self) -> None:
-        for code, (plain, shifted) in ALT_SHORTCUTS.items():
-            self.assertIsNotNone(get_symbol(plain), f"{code} -> {plain}")
+        for key, (plain, shifted) in ALT_SHORTCUTS.items():
+            self.assertIsNotNone(get_symbol(plain), f"{key} -> {plain}")
             if shifted is not None:
-                self.assertIsNotNone(get_symbol(shifted), f"Shift+{code} -> {shifted}")
+                self.assertIsNotNone(get_symbol(shifted), f"Shift+{key} -> {shifted}")
 
-    def test_alt_shortcut_codes_are_keyboard_event_codes(self) -> None:
-        for code in ALT_SHORTCUTS:
-            self.assertTrue(
-                code.startswith("Key") or code.startswith("Digit") or code in ("Comma", "Period", "Equal", "Minus"),
-                code,
-            )
+    def test_alt_shortcut_keys_are_unshifted_characters(self) -> None:
+        # Keys are what KeyboardEvent.key reports with Alt on Windows/Linux: one lower-case character
+        for key in ALT_SHORTCUTS:
+            self.assertEqual(len(key), 1, key)
+            self.assertEqual(key, key.lower(), key)
+            self.assertTrue(key.isalnum() or key in ",.=-", key)
 
     def test_lim_inserts_text(self) -> None:
         entry = get_symbol("lim")
@@ -124,62 +121,63 @@ class TestMathSymbolTable(unittest.TestCase):
 
 class TestAltShortcutLookup(unittest.TestCase):
     def test_letters(self) -> None:
-        self.assertEqual(lookup_alt_shortcut("KeyP", False), "π")
-        self.assertEqual(lookup_alt_shortcut("KeyP", True), "Π")
-        self.assertEqual(lookup_alt_shortcut("KeyA", False), "α")
-        self.assertEqual(lookup_alt_shortcut("KeyT", True), "Θ")
+        self.assertEqual(lookup_alt_shortcut("p", False), "π")
+        self.assertEqual(lookup_alt_shortcut("P", True), "Π")
+        self.assertEqual(lookup_alt_shortcut("a", False), "α")
+        self.assertEqual(lookup_alt_shortcut("T", True), "Θ")
+
+    def test_caps_lock_letter_without_shift_is_lower_case_symbol(self) -> None:
+        self.assertEqual(lookup_alt_shortcut("P", False), "π")
 
     def test_shift_without_capital_is_not_handled(self) -> None:
-        self.assertIsNone(lookup_alt_shortcut("KeyA", True))
-        self.assertIsNone(lookup_alt_shortcut("Digit2", True))
+        self.assertIsNone(lookup_alt_shortcut("A", True))
 
     def test_digits_and_punctuation(self) -> None:
-        self.assertEqual(lookup_alt_shortcut("Digit0", False), "⁰")
-        self.assertEqual(lookup_alt_shortcut("Digit9", False), "⁹")
-        self.assertEqual(lookup_alt_shortcut("Comma", False), "≤")
-        self.assertEqual(lookup_alt_shortcut("Period", False), "≥")
-        self.assertEqual(lookup_alt_shortcut("Equal", False), "≠")
-        self.assertEqual(lookup_alt_shortcut("Minus", False), "⁻")
-        self.assertEqual(lookup_alt_shortcut("KeyO", False), "°")
+        self.assertEqual(lookup_alt_shortcut("0", False), "⁰")
+        self.assertEqual(lookup_alt_shortcut("9", False), "⁹")
+        self.assertEqual(lookup_alt_shortcut(",", False), "≤")
+        self.assertEqual(lookup_alt_shortcut(".", False), "≥")
+        self.assertEqual(lookup_alt_shortcut("=", False), "≠")
+        self.assertEqual(lookup_alt_shortcut("-", False), "⁻")
+        self.assertEqual(lookup_alt_shortcut("o", False), "°")
 
-    def test_unmapped_codes(self) -> None:
-        self.assertIsNone(lookup_alt_shortcut("KeyZ", False))
+    def test_digits_typed_with_shift_still_match(self) -> None:
+        # AZERTY types digits with Shift, so key is "2" with shiftKey set
+        self.assertEqual(lookup_alt_shortcut("2", True), "²")
+        # US Shift+2 reports "@", which is not a shortcut
+        self.assertIsNone(lookup_alt_shortcut("@", True))
+
+    def test_characters_produced_by_option_on_macos_are_not_handled(self) -> None:
+        for key in ("π", "∏", "@", "[", "ß", "¬", "≤", "Dead"):
+            self.assertIsNone(lookup_alt_shortcut(key, False), key)
+            self.assertIsNone(lookup_alt_shortcut(key, True), key)
+
+    def test_unmapped_keys(self) -> None:
+        self.assertIsNone(lookup_alt_shortcut("z", False))
         self.assertIsNone(lookup_alt_shortcut("Enter", False))
         self.assertIsNone(lookup_alt_shortcut("", False))
+        self.assertIsNone(lookup_alt_shortcut("KeyP", False))
 
 
-class TestInsertText(unittest.TestCase):
-    def test_insert_at_caret(self) -> None:
-        self.assertEqual(insert_text("a+b", 1, 1, "π"), ("aπ+b", 2))
+class TestLatexWordTail(unittest.TestCase):
+    def test_letters_after_the_caret_belong_to_the_word(self) -> None:
+        self.assertEqual(latex_word_tail("al", "pha + 1"), 3)
+        self.assertEqual(latex_word_tail("al", "pha"), 3)
 
-    def test_insert_at_end_and_start(self) -> None:
-        self.assertEqual(insert_text("x", 1, 1, "²"), ("x²", 2))
-        self.assertEqual(insert_text("x", 0, 0, "√"), ("√x", 1))
+    def test_digits_after_letters(self) -> None:
+        self.assertEqual(latex_word_tail("su", "p2 x"), 2)
 
-    def test_replaces_selection(self) -> None:
-        self.assertEqual(insert_text("a+b=c", 2, 3, "β"), ("a+β=c", 3))
+    def test_nothing_continues_the_word(self) -> None:
+        self.assertEqual(latex_word_tail("pi", " x"), 0)
+        self.assertEqual(latex_word_tail("pi", ""), 0)
+        self.assertEqual(latex_word_tail("pi", "+1"), 0)
 
-    def test_multi_character_text(self) -> None:
-        self.assertEqual(insert_text("x→0", 0, 0, "lim "), ("lim x→0", 4))
+    def test_digits_alone_do_not_continue_the_word(self) -> None:
+        self.assertEqual(latex_word_tail("pi", "2x"), 0)
 
-    def test_reversed_and_out_of_range_selection(self) -> None:
-        self.assertEqual(insert_text("abc", 3, 1, "θ"), ("aθ", 2))
-        self.assertEqual(insert_text("abc", -4, 99, "θ"), ("θ", 1))
-
-    def test_empty_value(self) -> None:
-        self.assertEqual(insert_text("", 0, 0, "∞"), ("∞", 1))
-
-    def test_utf16_offsets_without_astral_characters(self) -> None:
-        self.assertEqual(utf16_offset_to_index("απβ", 2), 2)
-        self.assertEqual(index_to_utf16_offset("απβ", 3), 3)
-        self.assertEqual(utf16_offset_to_index("ab", 10), 2)
-
-    def test_utf16_offsets_with_astral_characters(self) -> None:
-        # The DOM counts U+1D465 (mathematical italic x) as two UTF-16 units
-        value = "\U0001d465=β"
-        self.assertEqual(utf16_offset_to_index(value, 2), 1)
-        self.assertEqual(utf16_offset_to_index(value, 3), 2)
-        self.assertEqual(index_to_utf16_offset(value, 3), 4)
+    def test_name_ending_in_a_digit_does_not_continue(self) -> None:
+        self.assertEqual(latex_word_tail("sup2", "abc"), 0)
+        self.assertEqual(latex_word_tail("", "abc"), 0)
 
 
 class TestLatexCompletion(unittest.TestCase):
@@ -237,11 +235,6 @@ class TestLatexCompletion(unittest.TestCase):
         self.assertEqual(search_symbols("zzzz"), [])
         self.assertLessEqual(len(search_symbols("s")), 8)
         self.assertEqual(len(search_symbols("s", limit=3)), 3)
-
-    def test_replace_token(self) -> None:
-        value = "angle \\alp = 30"
-        start, _ = find_latex_token(value, 10)
-        self.assertEqual(replace_latex_token(value, start, 10, "α"), ("angle α = 30", 7))
 
 
 class TestRecentSymbols(unittest.TestCase):

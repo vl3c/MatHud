@@ -12,9 +12,8 @@ such as ``lim`` whose ``insert`` text differs.
 
 Key Features:
     - SYMBOLS / GROUPS: the table and the palette tabs
-    - ALT_SHORTCUTS: Alt / Alt+Shift key codes mapped to symbols
-    - insert_text: replace the selection with text, returning value and caret
-    - find_latex_token / search_symbols: backslash completion
+    - ALT_SHORTCUTS / lookup_alt_shortcut: Alt / Alt+Shift keys mapped to symbols
+    - find_latex_token / latex_word_tail / search_symbols: backslash completion
     - update_recent: most-recently-used list
     - move_grid_selection: arrow-key movement across palette sections
 
@@ -172,56 +171,49 @@ SYMBOLS: List[MathSymbol] = [
 
 SYMBOLS_BY_CHAR: Dict[str, MathSymbol] = {entry.symbol: entry for entry in SYMBOLS}
 
-# Alt shortcuts keyed by KeyboardEvent.code: (Alt symbol, Alt+Shift symbol or None).
-# Capitals are mapped only where they differ from Latin letters.
+# Alt shortcuts keyed by the key's ordinary character (KeyboardEvent.key while
+# Alt is held on Windows and Linux): (Alt symbol, Alt+Shift symbol or None).
+# Letters follow the key labels of the active layout. Capitals are mapped only
+# where they differ from Latin letters.
 ALT_SHORTCUTS: Dict[str, Tuple[str, Optional[str]]] = {
-    "KeyA": ("α", None),
-    "KeyB": ("β", None),
-    "KeyD": ("δ", "Δ"),
-    "KeyF": ("φ", "Φ"),
-    "KeyG": ("γ", "Γ"),
-    "KeyL": ("λ", None),
-    "KeyM": ("μ", None),
-    "KeyO": ("°", None),
-    "KeyP": ("π", "Π"),
-    "KeyR": ("√", None),
-    "KeyS": ("σ", "Σ"),
-    "KeyT": ("θ", "Θ"),
-    "KeyU": ("∞", None),
-    "KeyW": ("ω", "Ω"),
-    "Digit0": ("⁰", None),
-    "Digit1": ("¹", None),
-    "Digit2": ("²", None),
-    "Digit3": ("³", None),
-    "Digit4": ("⁴", None),
-    "Digit5": ("⁵", None),
-    "Digit6": ("⁶", None),
-    "Digit7": ("⁷", None),
-    "Digit8": ("⁸", None),
-    "Digit9": ("⁹", None),
-    "Comma": ("≤", None),
-    "Period": ("≥", None),
-    "Equal": ("≠", None),
-    "Minus": ("⁻", None),
+    "a": ("α", None),
+    "b": ("β", None),
+    "d": ("δ", "Δ"),
+    "f": ("φ", "Φ"),
+    "g": ("γ", "Γ"),
+    "l": ("λ", None),
+    "m": ("μ", None),
+    "o": ("°", None),
+    "p": ("π", "Π"),
+    "r": ("√", None),
+    "s": ("σ", "Σ"),
+    "t": ("θ", "Θ"),
+    "u": ("∞", None),
+    "w": ("ω", "Ω"),
+    "0": ("⁰", None),
+    "1": ("¹", None),
+    "2": ("²", None),
+    "3": ("³", None),
+    "4": ("⁴", None),
+    "5": ("⁵", None),
+    "6": ("⁶", None),
+    "7": ("⁷", None),
+    "8": ("⁸", None),
+    "9": ("⁹", None),
+    ",": ("≤", None),
+    ".": ("≥", None),
+    "=": ("≠", None),
+    "-": ("⁻", None),
 }
 
 RECENT_LIMIT: int = 10
 COMPLETION_LIMIT: int = 8
 
 
-def _key_label(code: str) -> str:
-    """Readable key name for a KeyboardEvent.code value."""
-    if code.startswith("Key"):
-        return code[3:]
-    if code.startswith("Digit"):
-        return code[5:]
-    return {"Comma": ",", "Period": ".", "Equal": "=", "Minus": "-"}.get(code, code)
-
-
 def _build_shortcut_labels() -> Dict[str, str]:
     labels: Dict[str, str] = {}
-    for code, (plain, shifted) in ALT_SHORTCUTS.items():
-        key = _key_label(code)
+    for base_key, (plain, shifted) in ALT_SHORTCUTS.items():
+        key = base_key.upper()
         labels[plain] = f"Alt+{key}"
         if shifted:
             labels[shifted] = f"Alt+Shift+{key}"
@@ -254,12 +246,25 @@ def symbols_in_group(group_id: str) -> List[MathSymbol]:
     return entries
 
 
-def lookup_alt_shortcut(code: str, shift: bool) -> Optional[str]:
-    """Return the symbol for an Alt (or Alt+Shift) key code, or None."""
-    mapping = ALT_SHORTCUTS.get(code)
+def lookup_alt_shortcut(key: str, shift: bool) -> Optional[str]:
+    """Return the symbol for an Alt (or Alt+Shift) keystroke, or None.
+
+    ``key`` is ``KeyboardEvent.key``. With Alt held, Windows and Linux report
+    the key's ordinary character (``"p"``, ``"P"`` with Shift, ``"2"``), which
+    is what the shortcuts match. macOS reports the character Option produces
+    (``"π"``, ``"@"``, ``"Dead"``), which matches nothing, so Option keeps
+    typing the layout's own characters. Letters use ``shift`` to pick the
+    capital; digits and punctuation ignore it because their ``key`` already
+    reflects Shift (AZERTY types digits with Shift).
+    """
+    if len(key) != 1:
+        return None
+    mapping = ALT_SHORTCUTS.get(key.lower())
     if mapping is None:
         return None
-    return mapping[1] if shift else mapping[0]
+    if _is_ascii_letter(key):
+        return mapping[1] if shift else mapping[0]
+    return mapping[0]
 
 
 def shortcut_label(symbol: str) -> Optional[str]:
@@ -276,36 +281,6 @@ def describe_symbol(entry: MathSymbol) -> str:
     if entry.latex:
         parts.append(" ".join("\\" + name for name in entry.latex))
     return " · ".join(parts)
-
-
-def insert_text(value: str, selection_start: int, selection_end: int, text: str) -> Tuple[str, int]:
-    """Replace the selected range of ``value`` with ``text``.
-
-    Out-of-range or reversed selections are clamped. Returns the new value and
-    the caret position just after the inserted text.
-    """
-    length = len(value)
-    start = max(0, min(selection_start, length))
-    end = max(0, min(selection_end, length))
-    if end < start:
-        start, end = end, start
-    new_value = value[:start] + text + value[end:]
-    return new_value, start + len(text)
-
-
-def utf16_offset_to_index(value: str, offset: int) -> int:
-    """Convert a DOM (UTF-16) selection offset to a string index."""
-    units = 0
-    for index, char in enumerate(value):
-        if units >= offset:
-            return index
-        units += 2 if ord(char) > 0xFFFF else 1
-    return len(value)
-
-
-def index_to_utf16_offset(value: str, index: int) -> int:
-    """Convert a string index to a DOM (UTF-16) selection offset."""
-    return sum(2 if ord(char) > 0xFFFF else 1 for char in value[:index])
 
 
 def _is_ascii_letter(char: str) -> bool:
@@ -330,6 +305,27 @@ def find_latex_token(value: str, caret: int) -> Optional[Tuple[int, str]]:
     if index == letters_end or index == 0 or value[index - 1] != "\\":
         return None
     return index - 1, value[index:caret]
+
+
+def latex_word_tail(name: str, after: str) -> int:
+    """Length of the part of a ``\\name`` word that continues after the caret.
+
+    With the caret inside a word (``\\al|pha``) a completion replaces the whole
+    word, so this returns how many leading characters of ``after`` (the text
+    after the caret) still belong to it: ASCII letters, then digits. A name
+    that already ends in a digit (``\\sup2|``) does not continue, and neither
+    do digits alone, so ``\\pi|2`` keeps its ``2``.
+    """
+    if not name or "0" <= name[-1] <= "9":
+        return 0
+    index = 0
+    while index < len(after) and _is_ascii_letter(after[index]):
+        index += 1
+    if index == 0:
+        return 0
+    while index < len(after) and "0" <= after[index] <= "9":
+        index += 1
+    return index
 
 
 def exact_latex_match(name: str) -> Optional[MathSymbol]:
@@ -369,11 +365,6 @@ def search_symbols(query: str, limit: int = COMPLETION_LIMIT) -> List[MathSymbol
             ranked.append((rank, position, entry))
     ranked.sort(key=lambda item: (item[0], item[1]))
     return [entry for _, _, entry in ranked[:limit]]
-
-
-def replace_latex_token(value: str, token_start: int, caret: int, text: str) -> Tuple[str, int]:
-    """Replace the ``\\name`` token spanning ``token_start..caret`` with ``text``."""
-    return insert_text(value, token_start, caret, text)
 
 
 def update_recent(recent: Sequence[str], symbol: str, limit: int = RECENT_LIMIT) -> List[str]:

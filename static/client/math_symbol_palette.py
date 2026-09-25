@@ -14,6 +14,10 @@ driven by MathSymbolInput, which forwards arrow keys, Tab and Enter while the
 palette is open; the highlighted cell is announced through the input's
 aria-activedescendant.
 
+The chat pane clips overflow, so the palette's height is capped to the space
+above the input: the group grid scrolls, and the keyboard hint and section
+label are dropped when space is short.
+
 Dependencies:
     - browser: DOM construction and events
     - math_symbols: symbol table and grid navigation
@@ -38,9 +42,56 @@ from math_symbols import (
 
 PALETTE_HINT: str = "Arrows + Enter insert · Tab: next group · type \\name to search"
 
+PALETTE_ID: str = "symbol-palette"
+GROUP_GRID_ID: str = "symbol-palette-grid"
+RECENT_GRID_ID: str = "symbol-palette-recent-grid"
 
 # localStorage key of the last group tab the user opened (the first tab until one is chosen).
 GROUP_STORAGE_KEY: str = "mathud.symbols.group"
+
+# Gap kept between a popup and the top of the chat pane.
+POPUP_TOP_MARGIN: int = 12
+# Below this height the palette drops its keyboard hint and "Recent" label.
+PALETTE_COMPACT_HEIGHT: int = 240
+PALETTE_MIN_HEIGHT: int = 80
+
+
+def space_above(element: Any) -> Optional[int]:
+    """Pixels between the top of ``element``'s container and the top of the chat pane.
+
+    Popups sit above the chat input container, and the chat pane clips
+    overflow, so this is the most height a popup can use. Returns None when
+    the container is not inside the chat pane (for example in tests).
+    """
+    try:
+        chat = document.querySelector(".chat-container")
+        container = element.parentElement
+        if chat is None or container is None or not chat.contains(container):
+            return None
+        top = container.getBoundingClientRect().top - chat.getBoundingClientRect().top
+        return int(top) - POPUP_TOP_MARGIN
+    except Exception:
+        return None
+
+
+def keep_in_view(scroller: Any, item: Any) -> None:
+    """Scroll ``scroller`` (vertically and sideways) just enough to show ``item``.
+
+    Unlike ``scrollIntoView`` this never scrolls the chat pane or the page.
+    """
+    try:
+        outer = scroller.getBoundingClientRect()
+        inner = item.getBoundingClientRect()
+        if inner.top < outer.top:
+            scroller.scrollTop -= outer.top - inner.top
+        elif inner.bottom > outer.bottom:
+            scroller.scrollTop += inner.bottom - outer.bottom
+        if inner.left < outer.left:
+            scroller.scrollLeft -= outer.left - inner.left
+        elif inner.right > outer.right:
+            scroller.scrollLeft += inner.right - outer.right
+    except Exception:
+        pass
 
 
 class MathSymbolPalette:
@@ -57,6 +108,7 @@ class MathSymbolPalette:
         button_element: Any,
         container: Any,
         on_pick: Callable[[MathSymbol], None],
+        on_toggle: Optional[Callable[[bool], None]] = None,
     ) -> None:
         """Build the popover inside ``container`` (the chat input container).
 
@@ -65,10 +117,14 @@ class MathSymbolPalette:
             button_element: The Σ toggle button.
             container: Positioned element the popover is appended to.
             on_pick: Called with the symbol a user clicks or confirms.
+            on_toggle: Called with the new visibility after the palette opens
+                (before a cell is highlighted) or closes.
         """
         self._input: Any = input_element
         self._button: Any = button_element
         self._on_pick: Callable[[MathSymbol], None] = on_pick
+        self._on_toggle: Optional[Callable[[bool], None]] = on_toggle
+        self._document_mousedown: Callable[[Any], None] = self._on_document_mousedown
         self.visible: bool = False
         self._group_index: int = self._load_group_index()
         self._recent: List[str] = []
@@ -97,9 +153,10 @@ class MathSymbolPalette:
         self._render_sections()
         self._root.style.display = ""
         self.visible = True
-        self._fit_height()
+        self.fit_height()
         self._button.classList.add("active")
         self._button.attrs["aria-expanded"] = "true"
+        self._notify_toggle()
         self._set_selection((0, 0) if keyboard else None)
 
     def close(self) -> None:
@@ -111,6 +168,30 @@ class MathSymbolPalette:
         self.visible = False
         self._button.classList.remove("active")
         self._button.attrs["aria-expanded"] = "false"
+        self._notify_toggle()
+
+    def fit_height(self) -> None:
+        """Cap the height to the space above the input (the chat pane clips overflow)."""
+        available = space_above(self._root)
+        if available is None:
+            return
+        self._root.style.maxHeight = f"{max(PALETTE_MIN_HEIGHT, available)}px"
+        if available < PALETTE_COMPACT_HEIGHT:
+            self._root.classList.add("compact")
+        else:
+            self._root.classList.remove("compact")
+
+    def destroy(self) -> None:
+        """Remove the popover and its document listener."""
+        try:
+            document.unbind("mousedown", self._document_mousedown)
+        except Exception:
+            pass
+        self._root.remove()
+
+    def _notify_toggle(self) -> None:
+        if self._on_toggle is not None:
+            self._on_toggle(self.visible)
 
     def set_recent(self, recent: List[str]) -> None:
         """Replace the recent list, keeping the highlight on the same symbol."""
@@ -163,29 +244,31 @@ class MathSymbolPalette:
     # ----- DOM construction -----
 
     def _build(self, container: Any) -> None:
-        self._root = html.DIV(Class="symbol-palette", id="symbol-palette")
+        self._root = html.DIV(Class="symbol-palette", id=PALETTE_ID)
         self._root.attrs["role"] = "dialog"
         self._root.attrs["aria-label"] = "Math symbols"
         self._root.style.display = "none"
 
         self._recent_section = html.DIV(Class="symbol-palette-recent")
         self._recent_section <= html.SPAN("Recent", Class="symbol-palette-label")
-        self._recent_grid = self._make_grid("Recent symbols")
+        self._recent_grid = self._make_grid("Recent symbols", RECENT_GRID_ID)
         self._recent_section <= self._recent_grid
 
         self._tabs = html.DIV(Class="symbol-palette-tabs")
         self._tabs.attrs["role"] = "tablist"
+        self._tabs.attrs["aria-label"] = "Symbol groups"
         self._tab_buttons: List[Any] = []
-        for index, (_, label) in enumerate(GROUPS):
-            tab = html.BUTTON(label, Class="symbol-palette-tab")
+        for index, (group_id, label) in enumerate(GROUPS):
+            tab = html.BUTTON(label, Class="symbol-palette-tab", id=f"symbol-palette-tab-{group_id}")
             tab.attrs["type"] = "button"
             tab.attrs["tabindex"] = "-1"
             tab.attrs["role"] = "tab"
+            tab.attrs["aria-controls"] = GROUP_GRID_ID
             tab.bind("click", self._make_tab_handler(index))
             self._tab_buttons.append(tab)
             self._tabs <= tab
 
-        self._group_grid = self._make_grid("Symbols")
+        self._group_grid = self._make_grid("Symbols", GROUP_GRID_ID)
         hint = html.DIV(PALETTE_HINT, Class="symbol-palette-hint")
 
         self._root <= self._recent_section
@@ -195,8 +278,8 @@ class MathSymbolPalette:
         container <= self._root
         self._update_tabs()
 
-    def _make_grid(self, label: str) -> Any:
-        grid = html.DIV(Class="symbol-palette-grid")
+    def _make_grid(self, label: str, grid_id: str) -> Any:
+        grid = html.DIV(Class="symbol-palette-grid", id=grid_id)
         grid.attrs["role"] = "listbox"
         grid.attrs["aria-label"] = label
         return grid
@@ -235,8 +318,7 @@ class MathSymbolPalette:
         self._root.bind("mousedown", self._prevent_focus_steal)
         self._button.bind("mousedown", self._prevent_focus_steal)
         self._button.bind("click", self._on_button_click)
-        document.bind("mousedown", self._on_document_mousedown)
-        window.bind("resize", self._on_window_resize)
+        document.bind("mousedown", self._document_mousedown)
 
     def _prevent_focus_steal(self, event: Any) -> None:
         event.preventDefault()
@@ -254,22 +336,6 @@ class MathSymbolPalette:
             return bool(window.matchMedia("(pointer: coarse)").matches)
         except Exception:
             return False
-
-    def _on_window_resize(self, event: Any) -> None:
-        if self.visible:
-            self._fit_height()
-
-    def _fit_height(self) -> None:
-        """Cap the height to the chat area above the input (the chat pane clips overflow)."""
-        try:
-            chat = document.querySelector(".chat-container")
-            container = self._root.parentElement
-            if chat is None or container is None:
-                return
-            available = container.getBoundingClientRect().top - chat.getBoundingClientRect().top - 12
-            self._root.style.maxHeight = f"{max(120, int(available))}px"
-        except Exception:
-            pass
 
     def _on_document_mousedown(self, event: Any) -> None:
         if self.visible and not self.contains(event.target):
@@ -336,6 +402,7 @@ class MathSymbolPalette:
             else:
                 tab.classList.remove("selected")
             tab.attrs["aria-selected"] = "true" if selected else "false"
+        self._group_grid.attrs["aria-label"] = GROUPS[self._group_index][1]
 
     def _column_count(self, section: int) -> int:
         """Cells in the first row of a section, measured from the layout."""
@@ -361,10 +428,7 @@ class MathSymbolPalette:
             current.classList.add("selected")
             current.attrs["aria-selected"] = "true"
             self._input.attrs["aria-activedescendant"] = current.id
-            try:
-                current.scrollIntoView({"block": "nearest"})
-            except Exception:
-                pass
+            keep_in_view(current.parentElement, current)
         else:
             self._input.removeAttribute("aria-activedescendant")
 
