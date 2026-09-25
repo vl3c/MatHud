@@ -207,6 +207,7 @@ Surfaces are layered inside `#math-container`: Canvas2D (z-index 10) above the S
 - **Client tests (CLI)**: `python -m cli.main test client --port PORT` (preferred for iteration)
 - **Client tests (UI)**: Click **Run Tests** in the UI or ask the assistant to "run tests"
 - **Single pytest file**: `python -m pytest path/to/test.py`
+- **Provider keys**: server tests blank provider API keys (including ones from `.env`) unless `MATHUD_LIVE_TESTS=1` is set in the shell; live tests make paid API calls. The guard lives in `server_tests/conftest.py` and applies only under pytest: running a test file directly (`python file.py`) bypasses it.
 
 ## Running Client Tests via CLI (Recommended)
 The CLI provides the fastest iteration loop for development:

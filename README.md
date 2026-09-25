@@ -274,7 +274,7 @@ images are not forwarded.
 
 ### 6.8 Testing
 
-1. Server tests: run `python run_server_tests.py` (add `--with-auth` to exercise authenticated flows).
+1. Server tests: run `python run_server_tests.py` (add `--with-auth` to exercise authenticated flows). Provider API keys, including those in `.env`, are blanked for the run unless `MATHUD_LIVE_TESTS=1` is set in the shell; live tests make paid API calls. The guard lives in `server_tests/conftest.py` and applies only under pytest, so running a test file directly with `python file.py` bypasses it.
 2. Client tests: click **Run Tests** in the UI or ask the assistant to "run tests". Results stream back into the chat after execution (`static/client/test_runner.py`).
 3. Linting: run `python -m cli.main test lint` (ruff + mypy). The optional pre-commit hook runs ruff on staged files (see 4.2).
 4. CI: every pull request and every push to `main` runs lint, the server tests and the client tests (headless Chrome) via `.github/workflows/tests.yml`, with the packages in `requirements-ci.txt` (no text-to-speech stack). Client-test failures are reported as a warning, not a failed check, for now.
