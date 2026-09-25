@@ -482,6 +482,7 @@ class ExpressionValidator(ast.NodeVisitor):
         Raises:
             ValueError: If expression contains disallowed operations or syntax errors
         """
+        ExpressionValidator._reject_folded_letters(expression)
         try:
             # Parse the expression into an abstract syntax tree
             tree = ast.parse(expression, mode="eval")
@@ -492,6 +493,19 @@ class ExpressionValidator(ast.NodeVisitor):
             ExpressionValidator._handle_syntax_error(expression, e)
         except Exception as e:
             ExpressionValidator._handle_validation_error(expression, e)
+
+    @staticmethod
+    def _reject_folded_letters(expression: str) -> None:
+        """Reject letterlike symbols (U+2100-U+214F) such as ℝ, ℕ, ℤ, ℚ and ℂ.
+
+        Python accepts them in names but folds them into Latin letters (ℝ becomes R), so the
+        expression would otherwise fail later with a NameError about a name nobody wrote.
+        """
+        if not ExpressionValidator._NON_ASCII.search(expression):
+            return
+        for char in expression:
+            if "\u2100" <= char <= "\u214f":  # the letterlike symbols block
+                raise ValueError(f"Unsupported symbol '{char}' in expression '{expression}'")
 
     @staticmethod
     def _handle_syntax_error(expression: str, error: SyntaxError) -> None:

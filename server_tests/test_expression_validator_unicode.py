@@ -280,6 +280,15 @@ class TestFixMathExpressionUnicode(unittest.TestCase):
             ExpressionValidator.validate_expression_tree(ExpressionValidator.fix_math_expression("x ≤ 3", True))
         self.assertIn("x <= 3", str(context.exception))
 
+    def test_letterlike_symbols_fail_validation_by_name(self) -> None:
+        # Regression: Python folded ℝ into the name R, which failed later as "name 'R' is not defined"
+        for symbol in "ℝℕℤℚℂ":
+            with self.subTest(symbol=symbol):
+                fixed = ExpressionValidator.fix_math_expression(f"2{symbol} + x", python_compatible=True)
+                with self.assertRaises(ValueError) as context:
+                    ExpressionValidator.validate_expression_tree(fixed)
+                self.assertIn(f"Unsupported symbol '{symbol}'", str(context.exception))
+
     def test_fixed_expressions_evaluate(self) -> None:
         for expression, variables, expected in EVALUATION_CASES:
             with self.subTest(expression=expression):
