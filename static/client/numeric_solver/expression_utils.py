@@ -50,10 +50,20 @@ MATH_FUNCTIONS = frozenset(
 )
 
 
+# Single ASCII or Greek letters that are not part of longer words, or Δ/δ followed by ASCII
+# letters or digits, which name one quantity (Δx, δt) as in ExpressionValidator.
+_LETTER = "a-zA-ZΑ-Ωα-ω"
+_VARIABLE_PATTERN = re.compile(rf"(?<![{_LETTER}])([Δδ][a-zA-Z0-9]+|[{_LETTER}])(?![{_LETTER}])")
+
+# Greek letters that are constants rather than variables
+_GREEK_CONSTANTS = frozenset({"π"})
+
+
 def detect_variables(equations: Sequence[str]) -> List[str]:
     """Extract single-letter variable names from equations.
 
-    Excludes math function names like sin, cos, log, etc.
+    Letters may be ASCII or Greek (θ, α); Δ or δ followed by ASCII letters or digits
+    is one name (Δx). Excludes math function names like sin, cos, log, and π.
 
     Args:
         equations: List of equation strings.
@@ -63,15 +73,9 @@ def detect_variables(equations: Sequence[str]) -> List[str]:
     """
     variables: set[str] = set()
 
-    # Pattern matches single letters that are not part of longer words
-    # Uses negative lookbehind and lookahead to ensure it's a standalone letter
-    pattern = r"(?<![a-zA-Z])([a-zA-Z])(?![a-zA-Z])"
-
     for eq in equations:
-        # Find all single letters
-        matches = re.findall(pattern, eq)
-        for match in matches:
-            if match.lower() not in MATH_FUNCTIONS:
+        for match in _VARIABLE_PATTERN.findall(eq):
+            if match.lower() not in MATH_FUNCTIONS and match not in _GREEK_CONSTANTS:
                 variables.add(match)
 
     return sorted(variables)

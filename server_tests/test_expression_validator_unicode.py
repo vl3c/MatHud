@@ -311,5 +311,26 @@ class TestNormalizeUnicodeMath(unittest.TestCase):
                 self.assertEqual(ExpressionValidator.normalize_unicode_math(once), once)
 
 
+class TestNumericSolverVariableDetection(unittest.TestCase):
+    """detect_variables must find the Greek names normalize_unicode_math keeps."""
+
+    def test_greek_variables_are_detected(self) -> None:
+        from server_tests import client_renderer  # noqa: F401  (installs the browser stub)
+        from numeric_solver.expression_utils import detect_variables
+
+        self.assertEqual(detect_variables(["θ^2 = 2"]), ["θ"])
+        self.assertEqual(detect_variables(["2*pi*r + α*β = x"]), ["r", "x", "α", "β"])
+        self.assertEqual(detect_variables(["Δx*2 = δt1 + π"]), ["Δx", "δt1"])
+        normalized = ExpressionValidator.normalize_unicode_math("2Δx + ωt = 1")
+        self.assertEqual(detect_variables([normalized]), ["t", "Δx", "ω"])
+
+    def test_ascii_detection_is_unchanged(self) -> None:
+        from server_tests import client_renderer  # noqa: F401
+        from numeric_solver.expression_utils import detect_variables
+
+        self.assertEqual(detect_variables(["sin(x) + y = 1"]), ["x", "y"])
+        self.assertEqual(detect_variables(["log(a) + exp(b) = 0", "x + pi = 0"]), ["a", "b", "x"])
+
+
 if __name__ == "__main__":
     unittest.main()
