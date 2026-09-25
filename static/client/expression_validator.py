@@ -650,10 +650,10 @@ class ExpressionValidator(ast.NodeVisitor):
         """
         Rewrite Unicode math notation as the ASCII syntax the math engines parse.
 
-        Covers the operator signs (× ÷ − ≤ ≥ ≠), superscript powers (x², x⁻¹, sin²(x),
-        sin⁻¹(x)), the constants π, ℯ, ∞ and ί, Greek letter variants and Unicode spaces.
-        Greek letters stay as they are: Python, math.js and nerdamer all accept them as
-        variable names. ASCII input is returned unchanged.
+        Covers the operator signs (× ÷ − ≤ ≥ ≠), superscript powers (x², x⁻¹, xⁿ, sin²(x),
+        sin⁻¹x), the constants π, ℯ, ∞ and ί, √, degrees (30° -> (30*pi/180)), Greek letter
+        variants and Unicode spaces. Greek letters stay as they are: Python, math.js and
+        nerdamer all accept them as variable names. ASCII input is returned unchanged.
 
         fix_math_expression already does this; call it directly only for expressions that
         go to nerdamer or math.js without passing through fix_math_expression.
@@ -667,6 +667,9 @@ class ExpressionValidator(ast.NodeVisitor):
         """
         expression = ExpressionValidator._normalize_unicode_notation(expression, python_compatible)
         expression = ExpressionValidator._convert_square_roots(expression)
+        if "°" in expression:
+            # Same numbers as _convert_degrees, kept exact for the symbolic engine: 30° -> (30*pi/180)
+            expression = re.sub(r"(\d+(?:\.\d+)?)\s*°", r"(\1*pi/180)", expression)
         return expression.replace(ExpressionValidator._NOT_EQUAL_SIGN, "!=")
 
     @staticmethod

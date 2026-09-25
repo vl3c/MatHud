@@ -1222,6 +1222,11 @@ class TestMathFunctions(unittest.TestCase):
         self.assertEqual(MathUtils.derivative("sin⁻¹x", "x"), MathUtils.derivative("asin(x)", "x"))
         self.assertAlmostEqual(MathUtils.evaluate("cos⁻¹0.5"), math.pi / 3)
 
+    def test_degrees_reach_nerdamer_as_radians(self) -> None:
+        # Regression: nerdamer received the ° sign itself
+        self.assertAlmostEqual(float(MathUtils.simplify("sin(30°)")), 0.5)
+        self.assertAlmostEqual(float(MathUtils.integral("1", "x", 0, "180°")), math.pi)
+
     def test_delta_names_stay_whole_in_nerdamer(self) -> None:
         # Regression: "Δx" was split into Δ*x, even in the variable argument
         self.assertEqual(MathUtils.simplify("Δx/Δt"), "Δt^(-1)*Δx")

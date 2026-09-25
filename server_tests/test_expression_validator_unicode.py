@@ -359,6 +359,11 @@ class TestNormalizeUnicodeMath(unittest.TestCase):
             "√x": "sqrt(x)",
             "3×4÷2": "3*4/2",
             "θ² + ϕ": "θ^2 + φ",
+            # Degrees become exact radians for the symbolic engine (fix_math_expression uses a float)
+            "sin(30°)": "sin((30*pi/180))",
+            "cos(x + 22.5˚)": "cos(x + (22.5*pi/180))",
+            "sin 45º": "sin((45*pi/180))",
+            "x°": "x°",
             "x\u00a0=\u20093": "x = 3",
         }
         for expression, expected in cases.items():
