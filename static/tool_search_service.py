@@ -423,6 +423,8 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         """
         self._client = client
         self._client_initialized = client is not None
+        # Without a supplied client the service builds its own for api.openai.com.
+        self._client_supplied = client is not None
         self.default_model = default_model
         self.last_error: Optional[str] = None
         self._last_local_top_score: float = 0.0
@@ -441,6 +443,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
     def client(self, value: OpenAI) -> None:
         self._client = value
         self._client_initialized = True
+        self._client_supplied = True
 
     @staticmethod
     def _initialize_api_key() -> str:
@@ -986,11 +989,15 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
 
     def _resolve_search_model(self, model: Optional[AIModel]) -> AIModel:
         """Pick the model for an API search: the given one, else the instance
-        default, else the fallback, which also replaces any model that rejects
-        reasoning effort "none"."""
+        default, else the fallback. The fallback also replaces any model that
+        rejects reasoning effort "none", and any non-OpenAI model when the
+        service built its own OpenAI client (the active provider, e.g.
+        Anthropic, had no OpenAI-compatible client to pass in)."""
         if model is None:
             model = self.default_model
         if model is None or model.id in _MODELS_REJECTING_NO_REASONING:
+            return AIModel.from_identifier(API_SEARCH_FALLBACK_MODEL)
+        if not self._client_supplied and model.provider != PROVIDER_OPENAI:
             return AIModel.from_identifier(API_SEARCH_FALLBACK_MODEL)
         return model
 

@@ -322,6 +322,38 @@ class TestSearchToolsWithMock:
         assert call_args.kwargs.get("reasoning_effort") == "none"
         assert "temperature" not in call_args.kwargs
 
+    def _own_client_service(self, mock_client: MagicMock, model_id: str) -> ToolSearchService:
+        """A service with no client passed in; its lazily built OpenAI client is the mock."""
+        service = ToolSearchService(default_model=AIModel.from_identifier(model_id))
+        patch.object(ToolSearchService, "_initialize_api_key", return_value="test-key").start()
+        patch("static.tool_search_service.OpenAI", return_value=mock_client).start()
+        return service
+
+    def test_search_own_client_replaces_non_openai_model(self, mock_client: MagicMock) -> None:
+        """With no client passed in (e.g. the active provider is Anthropic), the service
+        calls api.openai.com, so a non-OpenAI model is replaced by the fallback."""
+        self._setup_mock_response(mock_client, '["create_circle"]')
+        try:
+            service = self._own_client_service(mock_client, "claude-sonnet-5")
+            service.search_tools("draw")
+        finally:
+            patch.stopall()
+
+        call_args = mock_client.chat.completions.create.call_args
+        assert call_args.kwargs.get("model") == API_SEARCH_FALLBACK_MODEL
+
+    def test_search_own_client_keeps_openai_model(self, mock_client: MagicMock) -> None:
+        """An OpenAI model is kept when the service builds its own OpenAI client."""
+        self._setup_mock_response(mock_client, '["create_circle"]')
+        try:
+            service = self._own_client_service(mock_client, "gpt-6-sol")
+            service.search_tools("draw")
+        finally:
+            patch.stopall()
+
+        call_args = mock_client.chat.completions.create.call_args
+        assert call_args.kwargs.get("model") == "gpt-6-sol"
+
     def test_search_non_openai_reasoning_model_uses_max_tokens(
         self, service: ToolSearchService, mock_client: MagicMock
     ) -> None:

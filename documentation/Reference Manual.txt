@@ -3777,7 +3777,7 @@ Tools whose implementation appears in this manual under a different name (Canvas
 Provides tool discovery via fast local keyword/category matching (default) or AI-powered semantic matching. The search mode is selected by the `TOOL_SEARCH_MODE` environment variable:
 
 - `local` — keyword + category index, no API call (~0.01ms per query)
-- `api` — AI-powered semantic search with the active provider's model, or `gpt-6-luna` when none is given; OpenAI reasoning models are called with `reasoning_effort: "none"`, and GPT-6 Astra, which rejects that effort, is replaced by `gpt-6-luna`
+- `api` — AI-powered semantic search through the active provider's OpenAI-compatible client and model (OpenAI, OpenRouter, local). A provider without such a client (Anthropic) searches through an OpenAI client with `gpt-6-luna`, which is also used when no model is given. OpenAI reasoning models are called with `reasoning_effort: "none"`, and GPT-6 Astra, which rejects that effort, is replaced by `gpt-6-luna`
 - `hybrid` (default) — local first, falls back to API when confidence is low
 
 **Architecture:**
