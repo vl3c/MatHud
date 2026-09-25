@@ -696,11 +696,13 @@ class AIInterface:
     ) -> None:
         self._debug_log_ai_response(ai_message, tool_calls, finish_reason)
 
-        if finish_reason == "stop" or finish_reason == "error":
+        # Only a reply that ends in tool calls and carries some runs tools; every other
+        # ending (stop, error, length/truncated, refusal/filtered) is a final message.
+        if finish_reason not in ("tool_calls", "function_call") or not tool_calls:
             turn_metrics = self._turn_metrics.finish_turn(turn_outcome(finish_reason), turn_token)
             self._chat_ui.print_ai_message(ai_message, turn_metrics=turn_metrics)
             self._enable_send_controls()
-        else:  # finish_reason == "tool_calls" or "function_call"
+        else:
             state_before = self.canvas.get_canvas_state()
             t0 = window.performance.now()
             traced_calls: list[Dict[str, Any]] = []
