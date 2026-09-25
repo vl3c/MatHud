@@ -313,6 +313,40 @@ class TestExpressionValidator(unittest.TestCase):
                     ExpressionValidator.fix_math_expression(expression, python_compatible=True)
                 )
 
+    def test_functions_without_parentheses_in_brython(self) -> None:
+        # Regression: sin²x, sin⁻¹x and sinθ were not calls (Python read sin²x as sin**2*x)
+        self.assertAlmostEqual(ExpressionValidator.parse_function_string("sin²x + cos²x")(0.7), 1)
+        self.assertAlmostEqual(ExpressionValidator.parse_function_string("sin⁻¹ (x)")(0.5), math.asin(0.5))
+        self.assertAlmostEqual(ExpressionValidator.parse_function_string("x·sinπ")(3), 0)
+        self.assertEqual(ExpressionValidator.fix_math_expression("sin²θcos ωt"), "sin(θ)^2*cos(ω*t)")
+        self.assertEqual(ExpressionValidator.fix_math_expression("sinx + π"), "sinx + pi")
+
+    def test_superscript_runs_in_brython(self) -> None:
+        # Regression: only digit runs were exponents; Python read xⁿ as the name xn
+        self.assertAlmostEqual(ExpressionValidator.parse_function_string("e⁻ˣ")(1), math.exp(-1))
+        self.assertAlmostEqual(ExpressionValidator.parse_function_string("x²⁺¹")(2), 8)
+        self.assertAlmostEqual(ExpressionValidator.parse_parametric_expression("t⁽²⁺¹⁾")(2), 8)
+        self.assertEqual(ExpressionValidator.fix_math_expression("xⁿ"), "x^(n)")
+
+    def test_infinity_survives_function_round_trips(self) -> None:
+        # Regression: ∞ is stored as math.js "Infinity", which the Python namespace lacked
+        import copy
+
+        from drawables.function import Function
+        from drawables.parametric_function import ParametricFunction
+
+        function = Function("min(x, ∞)", name="f")
+        self.assertEqual(function.function_string, "min(x, Infinity)")
+        self.assertEqual(copy.deepcopy(function).function(3), 3.0)
+        curve = ParametricFunction("max(t, −∞)", "t", name="p")
+        self.assertEqual(copy.deepcopy(curve).evaluate_x(2), 2.0)
+
+    def test_reciprocal_and_inverse_hyperbolic_functions_plot(self) -> None:
+        # Regression: sinh⁻¹(x) became asinh(x), which was not an allowed function
+        self.assertAlmostEqual(ExpressionValidator.parse_function_string("sinh⁻¹(x)")(1), math.asinh(1))
+        self.assertAlmostEqual(ExpressionValidator.parse_function_string("cot⁻¹(x)")(-1), -math.pi / 4)
+        self.assertAlmostEqual(ExpressionValidator.parse_parametric_expression("sec²(t) - tan²(t)")(0.4), 1)
+
     def test_parsed_functions_keep_independent_state(self) -> None:
         # Parsed callables share cached code but must not share the variable namespace
         square = ExpressionValidator.parse_function_string("x^2")

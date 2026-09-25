@@ -813,8 +813,8 @@ Security Features:
 
 Mathematical Support:
     - Standard arithmetic operations (+, -, *, /, ^, **)
-    - Trigonometric functions (sin, cos, tan, asin, acos, atan)
-    - Hyperbolic functions (sinh, cosh, tanh)
+    - Trigonometric functions (sin, cos, tan, sec, csc, cot and their inverses asin ... acot)
+    - Hyperbolic functions (sinh, cosh, tanh, asinh, acosh, atanh)
     - Logarithmic functions (log, log10, log2, ln)
     - Advanced functions (sqrt, exp, abs, factorial, arrangements, permutations, combinations)
     - Statistical functions (mean, median, mode, variance, stdev)
@@ -872,7 +872,8 @@ Attributes:
 - `validate_expression_tree(expression)`: Validate mathematical expression using AST parsing
 - `evaluate_expression(expression, x=0)`: Safely evaluate mathematical expression with controlled scope
 - `fix_math_expression(expression, python_compatible=False)`: Automatically correct and normalize expression syntax. Scientific notation is kept as a number (`2e-3` is 0.002, not 2*e - 3); write `2*e` for a multiple of Euler's number
-- `normalize_unicode_math(expression, python_compatible=False)`: Rewrite Unicode math notation as ASCII syntax (table below) and leave ASCII input unchanged. `fix_math_expression` does this first; `MathUtils` calls it for expressions it sends to nerdamer without `fix_math_expression` (`derive`, `integrate`, `numeric_integrate`, `limit`, `simplify`, `expand`, `factor`, `solve`, `solve_numeric`)
+- `normalize_unicode_math(expression, python_compatible=False)`: Rewrite Unicode math notation as ASCII syntax (table below) and leave ASCII input unchanged. `fix_math_expression` does this first; `MathUtils` calls it for expressions it sends to nerdamer without `fix_math_expression` (`derive`, `integrate`, `numeric_integrate`, `limit`, `simplify`, `expand`, `factor`, `solve`, `solve_numeric`) and `LinearAlgebraUtils.evaluate_expression` calls it before math.js. Unlike `fix_math_expression` it turns `30°` into exact radians, `(30*pi/180)`, for the symbolic engine
+- `normalize_unicode_name(name)`: Apply only the one-for-one character table (`ϕ` → `φ`, `µ` → `μ`, Unicode spaces) to a variable name, never splitting it into factors. `MathUtils.evaluate` uses it for the names of its variables dictionary, and `derive`, `integrate`, `numeric_integrate`, `limit`, `solve` and `solve_numeric` for their variable arguments, so `derive("Δx^2", "Δx")` differentiates with respect to `Δx`
 - `parse_function_string(function_string, use_mathjs=False)`: Parse function string into callable function object
 - `_convert_degrees(expression)`: Convert degree symbols and text to radians
 - `_handle_special_symbols(expression, python_compatible)`: Handle square roots, absolute values, and factorials
@@ -888,20 +889,27 @@ Users type these symbols in the chat and models may copy them into tool argument
 | `×` `⋅` `·` `∙` `•` `∗` | `*` | `3×4` = 12 |
 | `÷` `∕` | `/` | |
 | `−` (U+2212) `–` (en dash) | `-` | |
-| `≤` `≥` `≠` | `<=` `>=` `!=` | Comparisons are not valid in evaluated expressions, so these give a readable error there; `≠` is converted after factorials, so `x ≠ 3` is not read as `x!` |
+| `≤` `≥` `≠` | `<=` `>=` `!=` | Converted, but comparisons are not supported: evaluated expressions reject them with a readable error, and solve, simplify and the other nerdamer tools do not understand them (nerdamer reads `x!=3` as `factorial(x)=3`). Write equations with `=`. `≠` is converted after factorials, so `x ≠ 3` is not read as `x!` in `fix_math_expression` |
 | `x²`, `x²³`, `x⁻¹`, `(x+1)²` | `x^2`, `x^23`, `x^(-1)`, `(x+1)^2` | Superscript digits with an optional `⁻`/`⁺`; `x²y` becomes `x^2*y` |
-| `sin²(x)`, `ln²(x)` | `sin(x)^2`, `ln(x)^2` | On sin, cos, tan, sec, csc, cot, sinh, cosh, tanh, asin, acos, atan, log, ln, log10, log2, exp, sqrt and abs, followed by `(` |
-| `sin⁻¹(x)` | `asin(x)` | Also cos, tan, sec, csc, cot, sinh, cosh, tanh (Python evaluation supports only asin, acos and atan) |
+| `xⁿ`, `e⁻ˣ`, `x²⁺¹`, `x⁽ⁿ⁺¹⁾`, `x²ⁿ` | `x^(n)`, `e^(-x)`, `x^(2+1)`, `x^((n+1))`, `x^(2*n)` | A whole run of superscript digits, `⁺ ⁻ ⁽ ⁾` and the letters `ⁿ ⁱ ˣ` is one exponent, parenthesised unless it is plain digits; superscript letters are single-letter factors. Signs alone (`x⁻`) are left for validation to reject |
+| `sin²(x)`, `ln²(x)`, `sin² (x)` | `sin(x)^2`, `ln(x)^2`, `sin(x)^2` | On sin, cos, tan, sec, csc, cot, their inverses (asin ... acot), sinh, cosh, tanh, asinh, acosh, atanh, log, ln, log10, log2, exp, sqrt and abs |
+| `sin⁻¹(x)`, `sin⁻¹ (x)` | `asin(x)` | Also cos, tan, sec, csc, cot, sinh, cosh, tanh (all of asin ... acot and asinh, acosh, atanh evaluate in Python and math.js) |
+| `sin²x`, `sin⁻¹x`, `sinθ`, `sin θ`, `sinπ`, `sin2θ`, `sin ωt`, `sin 30°` | `sin(x)^2`, `asin(x)`, `sin(θ)`, `sin(θ)`, `sin(pi)`, `sin(2*θ)`, `sin(ω*t)`, `sin(30°)` | A known function followed by one operand without parentheses: an optional number and names (`x`, `θ1`, `Δx`, `π`, `ωt`) with its own superscript (`sinθ²` = `sin(θ^2)`) or degree sign. The operand stops before another function name, so `sin²x cos²x` is a product. Without a superscript only Unicode operands are wrapped: ASCII `sinx` and `sin (x)` keep their old meaning |
 | `π` | `pi` | Always a separate factor: `2πr` = `2*pi*r`, `πr²` = `pi*r^2` |
 | `ℯ` (U+212F) | `e` | `2ℯ` = `2*e` |
-| `ί` (U+03AF) | `i` (`j` in Python mode) | Imaginary unit: `3+4ί` = `3+4i` |
-| `∞` | `Infinity` (math.js, nerdamer), `inf` (Python) | `inf` is in the Python evaluation namespace; `limit(..., ∞)` approaches Infinity |
-| Greek letters `α`-`ω`, `Α`-`Ω` | unchanged | Python, math.js and nerdamer all accept them as variable names; each letter is its own factor (`2θ` = `2*θ`, `αβ` = `α*β`) but `θ1` and `θ_0` stay names. They are not spelled out because `lambda` is a Python keyword and `gamma`, `zeta`, `phi`, `tau` are math.js functions or constants |
-| `µ` (micro sign), `ϕ`, `ϵ`, `ϑ`, `ϱ`, `ϰ` | `μ`, `φ`, `ε`, `θ`, `ρ`, `κ` | Python folds these variants into the plain letter but math.js and nerdamer would not |
-| `˚` (U+02DA), `º` (U+00BA) | `°` | Then read as degrees: `sin(30˚)` = `sin(π/6)` in `fix_math_expression` |
-| `√x`, `√(x+1)`, `√θ` | `sqrt(x)`, `sqrt(x+1)`, `sqrt(θ)` | |
+| `ί` (U+03AF) | `i`; in Python mode `j` after a number, else `1j` | Imaginary unit: `3+4ί` = `3+4i`, `ίx` = `1j*x` in Python |
+| `∞` | `Infinity` (math.js, nerdamer), `inf` (Python) | Both `inf` and `Infinity` are in the Python evaluation namespaces, since functions store the math.js form and parse it again; `limit(..., ∞)` approaches Infinity |
+| Greek letters `α`-`ω`, `Α`-`Ω` | unchanged | Python, math.js and nerdamer all accept them as variable names; each letter is its own factor (`2θ` = `2*θ`, `αβ` = `α*β`, `ωt` = `ω*t`) but `θ1` and `θ_0` stay names. They are not spelled out because `lambda` is a Python keyword and `gamma`, `zeta`, `phi`, `tau` are math.js functions or constants |
+| `Δx`, `δt`, `Δx1` | unchanged | `Δ` or `δ` followed by ASCII letters or digits is one name, the usual notation for a change or a small quantity: `Δx/Δt` stays a quotient of two variables. `Δ(x+1)` is still `Δ*(x+1)`. `solve_numeric` detects `Δx` as one variable |
+| `µ` (micro sign), `ϕ`, `ϵ`, `ϑ`, `ϱ`, `ϰ` | `μ`, `φ`, `ε`, `θ`, `ρ`, `κ` | Python folds these variants into the plain letter but math.js and nerdamer would not. Variable names passed next to an expression get the same rewrite (`evaluate("sin(ϕ)", {"ϕ": 0.5})`) |
+| `˚` (U+02DA), `º` (U+00BA) | `°` | Then read as degrees: `sin(30˚)` = `sin(π/6)`, a float in `fix_math_expression` and `(30*pi/180)` in `normalize_unicode_math` |
+| `√x`, `√(x+1)`, `√θ`, `x√y` | `sqrt(x)`, `sqrt(x+1)`, `sqrt(θ)`, `x*sqrt(y)` | |
 | No-break, thin, em and other Unicode spaces | space | |
 | Zero-width space/joiners, word joiner, BOM, soft hyphen | removed | |
+
+**Symbols left unchanged:** `±`, `≈`, the geometry signs (`∠ ⊥ ∥ △ ≅ ∼ ′ ″`), set and logic signs (`∈ ∉ ⊂ ⊆ ∪ ∩ ∅ ∧ ∨ ¬ → ⇒ ⇔ ∀ ∃`) and `∫ ∑ ∏ ∂ ∇` have no arithmetic meaning in an expression. They pass through unchanged and validation rejects them with a readable error (Python's "invalid character"). `ℝ ℕ ℤ ℚ ℂ` and the rest of the letterlike block (U+2100-U+214F) are rejected by `validate_expression_tree` as "Unsupported symbol", because Python would otherwise fold them into the names R, N, Z, Q and C. `server_tests/test_math_symbol_parsing.py` pins the behaviour of every symbol the chat input can insert.
+
+**Linear algebra (`LinearAlgebraUtils.evaluate_expression`):** the expression goes through `normalize_unicode_math` before math.js, so `A⁻¹` is `A^(-1)` (math.js inverts the matrix), `u·v` is `u*v` (a dot product for vectors) and `2π` is `2*pi`; object names get the character table and Greek names are checked like ASCII ones. `×` is not mapped to `*` there, which would silently compute a dot product: `u×v` between two names becomes `cross(u, v)`, a number on either side makes it a scalar product (`2×u` = `2*u`), and any other `×` (chains such as `u×v×w`, or next to `^`, `*`, `/` or brackets) is an error that asks for `cross(a, b)`.
 
 #### Markdown Parser (`markdown_parser.py`)
 

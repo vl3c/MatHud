@@ -36,6 +36,14 @@ class TestNumericSolverHelpers(unittest.TestCase):
         result = detect_variables(["x + pi = 0"])
         self.assertEqual(result, ["x"])
 
+    def test_detect_variables_greek_letters(self) -> None:
+        """Greek letters are variables (π is not) and Δx is one name."""
+        from numeric_solver.expression_utils import detect_variables
+
+        self.assertEqual(detect_variables(["θ^2 = 2"]), ["θ"])
+        self.assertEqual(detect_variables(["2*pi*r + α*β = x"]), ["r", "x", "α", "β"])
+        self.assertEqual(detect_variables(["Δx*2 = δt1 + π"]), ["Δx", "δt1"])
+
     def test_equation_to_residual_with_equals(self) -> None:
         """Test conversion of equation with equals sign."""
         from numeric_solver.expression_utils import equation_to_residual
@@ -154,6 +162,15 @@ class TestNumericSolverIntegration(unittest.TestCase):
         sol = result["solutions"][0]
         self.assertAlmostEqual(sol["x"], 3.0, places=5)
         self.assertAlmostEqual(sol["y"], 1.0, places=5)
+
+    def test_solve_numeric_greek_variable(self) -> None:
+        """Regression: θ was not detected ("No variables detected")."""
+        from utils.math_utils import MathUtils
+
+        result = json.loads(MathUtils.solve_numeric(["θ² = 2"]))
+        self.assertGreater(len(result["solutions"]), 0)
+        for sol in result["solutions"]:
+            self.assertAlmostEqual(abs(sol["θ"]), math.sqrt(2), places=5)
 
     def test_solve_numeric_transcendental(self) -> None:
         """Test solving sin(x) = 0.5."""

@@ -22,8 +22,8 @@ Security Features:
 
 Mathematical Support:
     - Standard arithmetic operations (+, -, *, /, ^, **)
-    - Trigonometric functions (sin, cos, tan, asin, acos, atan)
-    - Hyperbolic functions (sinh, cosh, tanh)
+    - Trigonometric functions (sin, cos, tan, sec, csc, cot and their inverses asin ... acot)
+    - Hyperbolic functions (sinh, cosh, tanh, asinh, acosh, atanh)
     - Logarithmic functions (log, log10, log2, ln)
     - Advanced functions (sqrt, exp, abs, factorial)
     - Statistical functions (mean, median, mode, variance, stdev)
@@ -53,7 +53,47 @@ import ast
 import math
 import random
 import re
-from typing import Any, Callable, Dict, Optional, Set, Type, cast
+from typing import Any, Callable, Dict, Optional, Set, Tuple, Type, cast
+
+
+# Reciprocal trigonometric functions and their inverses, which Python's math module lacks.
+# They follow math.js: acot(x) = atan(1/x), so acot(0) = pi/2 and acot(-1) = -pi/4.
+def _sec(x: float) -> float:
+    return 1 / math.cos(x)
+
+
+def _csc(x: float) -> float:
+    return 1 / math.sin(x)
+
+
+def _cot(x: float) -> float:
+    return 1 / math.tan(x)
+
+
+def _asec(x: float) -> float:
+    return math.acos(1 / x)
+
+
+def _acsc(x: float) -> float:
+    return math.asin(1 / x)
+
+
+def _acot(x: float) -> float:
+    return math.pi / 2 if x == 0 else math.atan(1 / x)
+
+
+# Functions both Python evaluation namespaces (x and parametric t) share beyond the basics
+_TRIGONOMETRIC_EXTRAS: Dict[str, Callable[[float], float]] = {
+    "sec": _sec,
+    "csc": _csc,
+    "cot": _cot,
+    "asec": _asec,
+    "acsc": _acsc,
+    "acot": _acot,
+    "asinh": math.asinh,
+    "acosh": math.acosh,
+    "atanh": math.atanh,
+}
 
 
 # The ExpressionValidator class is used to validate and evaluate mathematical expressions
@@ -115,6 +155,15 @@ class ExpressionValidator(ast.NodeVisitor):
         "sinh",
         "cosh",
         "tanh",
+        "sec",
+        "csc",
+        "cot",
+        "asec",
+        "acsc",
+        "acot",
+        "asinh",
+        "acosh",
+        "atanh",
         "exp",
         "abs",
         "pi",
@@ -229,7 +278,8 @@ class ExpressionValidator(ast.NodeVisitor):
         "\u2060": "",  # word joiner
         "\ufeff": "",  # byte order mark / zero-width no-break space
     }
-    _SUPERSCRIPT_DIGITS: Dict[str, str] = {
+    # Superscript characters and the ASCII they stand for in an exponent
+    _SUPERSCRIPT_CHARACTERS: Dict[str, str] = {
         "⁰": "0",
         "¹": "1",
         "²": "2",
@@ -240,11 +290,17 @@ class ExpressionValidator(ast.NodeVisitor):
         "⁷": "7",
         "⁸": "8",
         "⁹": "9",
+        "⁺": "+",  # U+207A
+        "⁻": "-",  # U+207B
+        "⁽": "(",  # U+207D
+        "⁾": ")",  # U+207E
+        "ⁿ": "n",  # U+207F
+        "ⁱ": "i",  # U+2071
+        "ˣ": "x",  # U+02E3
     }
-    # A superscript exponent: optional sign (⁻ U+207B, ⁺ U+207A) and a run of superscript digits
-    _SUPERSCRIPT_POWER = re.compile("[⁻⁺]?[⁰¹²³⁴⁵⁶⁷⁸⁹]+")
-    # A function name raised to a superscript power right before its argument list: sin²(x), sin⁻¹(x)
-    _FUNCTION_SUPERSCRIPT = re.compile("(?<![A-Za-z_])([A-Za-z][A-Za-z0-9]*)([⁻⁺]?[⁰¹²³⁴⁵⁶⁷⁸⁹]+)\\(")
+    # A superscript exponent: a run of superscript characters (x², x⁻¹, xⁿ, e⁻ˣ, x⁽ⁿ⁺¹⁾)
+    _SUPERSCRIPT_RUN = "[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁽⁾ⁿⁱˣ]+"
+    _SUPERSCRIPT_POWER = re.compile(_SUPERSCRIPT_RUN)
     # Functions whose superscript applies to the result: sin²(x) = sin(x)^2
     _SUPERSCRIPT_FUNCTIONS: Set[str] = {
         "sin",
@@ -259,6 +315,12 @@ class ExpressionValidator(ast.NodeVisitor):
         "asin",
         "acos",
         "atan",
+        "asec",
+        "acsc",
+        "acot",
+        "asinh",
+        "acosh",
+        "atanh",
         "log",
         "ln",
         "log10",
@@ -279,12 +341,29 @@ class ExpressionValidator(ast.NodeVisitor):
         "cosh": "acosh",
         "tanh": "atanh",
     }
+    # Those names as a regex alternation, longest first so sinh is not read as sin
+    _FUNCTION_NAMES = "(?:" + "|".join(sorted(_SUPERSCRIPT_FUNCTIONS, key=len, reverse=True)) + ")"
+    # A known function name, an optional superscript and spaces: sin²(x), sin⁻¹ (x), sin²x, sinθ
+    _FUNCTION_NOTATION = re.compile(f"(?<![A-Za-z_])({_FUNCTION_NAMES})({_SUPERSCRIPT_RUN})?([ \\t]*)")
+    # The operand of a function written without parentheses (group 1): an optional number and
+    # factors (x, θ1, Δx, π, ωt) that stop before another function name (sin²x cos²x), then an
+    # optional superscript (sin x² is sin(x²)) and degree sign (sin 30°)
+    _NOT_A_FUNCTION = f"(?!{_FUNCTION_NAMES})"
+    _OPERAND_FACTOR = (
+        f"[Δδ](?:{_NOT_A_FUNCTION}[A-Za-z0-9_])*|[Α-Ωα-ω][0-9_]*|ℯ"
+        f"|{_NOT_A_FUNCTION}[A-Za-z_](?:{_NOT_A_FUNCTION}[A-Za-z0-9_])*"
+    )
+    _FUNCTION_OPERAND = re.compile(
+        f"((?:\\d+\\.?\\d*|\\.\\d+)?(?:{_OPERAND_FACTOR})*)((?:{_SUPERSCRIPT_RUN})?(?:[ \\t]*°)?)"
+    )
     _PI_SIGN = "π"  # U+03C0, rewritten to the constant name "pi"
     _SCRIPT_E = "ℯ"  # U+212F, rewritten to the constant name "e"
-    _IMAGINARY_IOTA = "ί"  # U+03AF, GeoGebra's imaginary unit, rewritten to i (or j when python_compatible)
+    _IMAGINARY_IOTA = "ί"  # U+03AF, GeoGebra's imaginary unit, rewritten to i (Python: 2j, or 1j alone)
     _INFINITY_SIGN = "∞"  # U+221E, rewritten to inf (Python) or Infinity (math.js and nerdamer)
     _CONSTANT_SIGNS = _PI_SIGN + _SCRIPT_E + _INFINITY_SIGN + _IMAGINARY_IOTA
     _NOT_EQUAL_SIGN = "≠"  # U+2260
+    # Δ and δ followed by ASCII letters or digits form one name (Δx, δt), not a product
+    _DIFFERENCE_LETTERS = "Δδ"
 
     def _is_allowed_node_type(self, node: ast.AST) -> bool:
         """
@@ -403,6 +482,7 @@ class ExpressionValidator(ast.NodeVisitor):
         Raises:
             ValueError: If expression contains disallowed operations or syntax errors
         """
+        ExpressionValidator._reject_folded_letters(expression)
         try:
             # Parse the expression into an abstract syntax tree
             tree = ast.parse(expression, mode="eval")
@@ -413,6 +493,19 @@ class ExpressionValidator(ast.NodeVisitor):
             ExpressionValidator._handle_syntax_error(expression, e)
         except Exception as e:
             ExpressionValidator._handle_validation_error(expression, e)
+
+    @staticmethod
+    def _reject_folded_letters(expression: str) -> None:
+        """Reject letterlike symbols (U+2100-U+214F) such as ℝ, ℕ, ℤ, ℚ and ℂ.
+
+        Python accepts them in names but folds them into Latin letters (ℝ becomes R), so the
+        expression would otherwise fail later with a NameError about a name nobody wrote.
+        """
+        if not ExpressionValidator._NON_ASCII.search(expression):
+            return
+        for char in expression:
+            if "\u2100" <= char <= "\u214f":  # the letterlike symbols block
+                raise ValueError(f"Unsupported symbol '{char}' in expression '{expression}'")
 
     @staticmethod
     def _handle_syntax_error(expression: str, error: SyntaxError) -> None:
@@ -474,11 +567,13 @@ class ExpressionValidator(ast.NodeVisitor):
             "sinh": math.sinh,  # Hyperbolic sine function
             "cosh": math.cosh,  # Hyperbolic cosine function
             "tanh": math.tanh,  # Hyperbolic tangent function
+            **_TRIGONOMETRIC_EXTRAS,  # sec, csc, cot, their inverses and the inverse hyperbolic functions
             "exp": math.exp,  # Exponential function
             "abs": abs,  # Absolute value function
             "pi": math.pi,  # The constant pi
             "e": math.e,  # The constant e
             "inf": math.inf,  # Infinity, written ∞
+            "Infinity": math.inf,  # The math.js spelling of ∞, kept in stored function strings
             "pow": MathUtils.pow,  # Power function
             "bin": bin,  # Binary representation of an integer
             "det": MathUtils.det,  # Determinant of a matrix
@@ -555,10 +650,10 @@ class ExpressionValidator(ast.NodeVisitor):
         """
         Rewrite Unicode math notation as the ASCII syntax the math engines parse.
 
-        Covers the operator signs (× ÷ − ≤ ≥ ≠), superscript powers (x², x⁻¹, sin²(x),
-        sin⁻¹(x)), the constants π, ℯ, ∞ and ί, Greek letter variants and Unicode spaces.
-        Greek letters stay as they are: Python, math.js and nerdamer all accept them as
-        variable names. ASCII input is returned unchanged.
+        Covers the operator signs (× ÷ − ≤ ≥ ≠), superscript powers (x², x⁻¹, xⁿ, sin²(x),
+        sin⁻¹x), the constants π, ℯ, ∞ and ί, √, degrees (30° -> (30*pi/180)), Greek letter
+        variants and Unicode spaces. Greek letters stay as they are: Python, math.js and
+        nerdamer all accept them as variable names. ASCII input is returned unchanged.
 
         fix_math_expression already does this; call it directly only for expressions that
         go to nerdamer or math.js without passing through fix_math_expression.
@@ -572,7 +667,30 @@ class ExpressionValidator(ast.NodeVisitor):
         """
         expression = ExpressionValidator._normalize_unicode_notation(expression, python_compatible)
         expression = ExpressionValidator._convert_square_roots(expression)
+        if "°" in expression:
+            # Same numbers as _convert_degrees, kept exact for the symbolic engine: 30° -> (30*pi/180)
+            expression = re.sub(r"(\d+(?:\.\d+)?)\s*°", r"(\1*pi/180)", expression)
         return expression.replace(ExpressionValidator._NOT_EQUAL_SIGN, "!=")
+
+    @staticmethod
+    def normalize_unicode_name(name: str) -> str:
+        """
+        Rewrite a variable name with the one-for-one character table only (ϕ -> φ, µ -> μ).
+
+        Unlike normalize_unicode_math this never splits the name into factors or spells out
+        constants, so it suits variable names passed next to an expression: the names in an
+        evaluation scope or the variable of a derivative, integral, limit or solve.
+
+        Args:
+            name (str): Variable name that may contain Greek variant forms or Unicode spaces
+
+        Returns:
+            str: The name with the same characters the normalised expression uses
+        """
+        if not isinstance(name, str) or not ExpressionValidator._NON_ASCII.search(name):
+            return name
+        replacements = ExpressionValidator._UNICODE_REPLACEMENTS
+        return "".join(replacements.get(char, char) for char in name)
 
     @staticmethod
     def _normalize_unicode_notation(expression: str, python_compatible: bool) -> str:
@@ -581,14 +699,20 @@ class ExpressionValidator(ast.NodeVisitor):
             return expression
         for symbol, replacement in ExpressionValidator._UNICODE_REPLACEMENTS.items():
             expression = expression.replace(symbol, replacement)
-        expression = ExpressionValidator._convert_function_superscripts(expression)
+        expression = ExpressionValidator._convert_function_notation(expression)
         expression = ExpressionValidator._SUPERSCRIPT_POWER.sub(ExpressionValidator._superscript_power, expression)
         return ExpressionValidator._replace_unicode_symbols(expression, python_compatible)
 
     @staticmethod
     def _superscript_power(match: re.Match[str]) -> str:
-        """Return "^exponent" for a superscript run, with a "*" when an operand follows: x²y -> x^2*y."""
-        power = "^" + ExpressionValidator._superscript_exponent(match.group(0))
+        """Return "^exponent" for a superscript run, with a "*" when an operand follows: x²y -> x^2*y.
+
+        A run of signs or parentheses alone (x⁻) has no exponent and is left as it is.
+        """
+        exponent = ExpressionValidator._superscript_exponent(match.group(0))
+        if not any(char.isalnum() for char in exponent):
+            return match.group(0)
+        power = "^" + exponent
         following = match.string[match.end() : match.end() + 1]
         return power + "*" if ExpressionValidator._starts_operand(following) else power
 
@@ -609,32 +733,79 @@ class ExpressionValidator(ast.NodeVisitor):
 
     @staticmethod
     def _superscript_exponent(superscript: str) -> str:
-        """Return the ASCII exponent of a superscript run: "²³" -> "23", "⁻¹" -> "(-1)"."""
-        digits = "".join(ExpressionValidator._SUPERSCRIPT_DIGITS.get(char, "") for char in superscript)
-        return f"(-{digits})" if superscript.startswith("⁻") else digits
+        """Return the ASCII exponent of a superscript run.
+
+        Digits with an optional sign keep the short forms "²³" -> "23", "⁺²" -> "2" and
+        "⁻¹" -> "(-1)"; any other run is parenthesised whole: "ⁿ⁺¹" -> "(n+1)", "⁻ˣ" -> "(-x)".
+        Superscript letters are single-letter factors: "²ⁿ" -> "(2*n)", "ⁱˣ" -> "(i*x)".
+        """
+        characters = ExpressionValidator._SUPERSCRIPT_CHARACTERS
+        exponent = ""
+        for char in superscript:
+            ascii_char = characters.get(char, "")
+            previous = exponent[-1:]
+            if previous.isalnum() and ascii_char.isalnum() and (previous.isalpha() or ascii_char.isalpha()):
+                exponent += "*"
+            exponent += ascii_char
+        sign, digits = (exponent[0], exponent[1:]) if exponent[:1] in ("+", "-") else ("", exponent)
+        if digits.isdigit():
+            return f"(-{digits})" if sign == "-" else digits
+        return f"({exponent})"
 
     @staticmethod
-    def _convert_function_superscripts(expression: str) -> str:
-        """Move a function's superscript after its call: sin²(x) -> sin(x)^2, sin⁻¹(x) -> asin(x)."""
+    def _convert_function_notation(expression: str) -> str:
+        """Rewrite known functions written with a superscript or without parentheses.
+
+        A superscript moves after the call and ⁻¹ names the inverse: sin²(x) -> sin(x)^2,
+        sin⁻¹ (x) -> asin(x). A single operand without parentheses is wrapped when the
+        function has a superscript or the operand is Unicode: sin²x -> sin(x)^2,
+        sin⁻¹x -> asin(x), sinθ -> sin(θ), sinπ -> sin(π), sin 30° -> sin(30°). ASCII such as
+        sinx or sin (x) is left for the later steps, as before.
+        """
         search_start = 0
         while True:
-            match = ExpressionValidator._FUNCTION_SUPERSCRIPT.search(expression, search_start)
+            match = ExpressionValidator._FUNCTION_NOTATION.search(expression, search_start)
             if match is None:
                 return expression
-            name = match.group(1)
-            open_index = match.end() - 1
-            close_index = ExpressionValidator._find_closing_parenthesis(expression, open_index)
-            if name not in ExpressionValidator._SUPERSCRIPT_FUNCTIONS or close_index < 0:
-                search_start = match.end()  # not a function call: the superscript stays a plain power
+            name, superscript = match.group(1), match.group(2) or ""
+            exponent = ExpressionValidator._superscript_exponent(superscript) if superscript else ""
+            if superscript and not any(char.isalnum() for char in exponent):
+                exponent = ""  # signs alone (sin⁻x) are not an exponent
+            call = ExpressionValidator._function_call_after(expression, match.end(), exponent != "")
+            if call is None:
+                search_start = match.end()  # not a call: any superscript stays a plain power
                 continue
-            arguments = expression[open_index : close_index + 1]
-            exponent = ExpressionValidator._superscript_exponent(match.group(2))
+            arguments, end = call
             if exponent == "(-1)" and name in ExpressionValidator._INVERSE_FUNCTIONS:
                 replacement = ExpressionValidator._INVERSE_FUNCTIONS[name] + arguments
-            else:
+            elif exponent:
                 replacement = f"{name}{arguments}^{exponent}"
-            expression = expression[: match.start()] + replacement + expression[close_index + 1 :]
+            else:
+                replacement = name + arguments
+            if ExpressionValidator._starts_operand(expression[end : end + 1]):
+                replacement += "*"  # sin²x cosθ -> sin(x)^2*cos(θ)
+            expression = expression[: match.start()] + replacement + expression[end:]
             search_start = match.start() + 1  # nested calls such as sin²(cos²(x)) are handled next
+
+    @staticmethod
+    def _function_call_after(expression: str, start: int, has_exponent: bool) -> Optional[Tuple[str, int]]:
+        """Return the parenthesised argument list at start and the index after it, or None.
+
+        With an exponent, "(...)" is the argument list; otherwise, and for a bare operand, the
+        operand is wrapped only when it is Unicode (see _convert_function_notation).
+        """
+        if expression[start : start + 1] == "(":
+            if not has_exponent:
+                return None
+            close_index = ExpressionValidator._find_closing_parenthesis(expression, start)
+            return None if close_index < 0 else (expression[start : close_index + 1], close_index + 1)
+        operand = ExpressionValidator._FUNCTION_OPERAND.match(expression, start)
+        if operand is None or not operand.group(1):
+            return None
+        text = operand.group(0)
+        if not has_exponent and not ExpressionValidator._NON_ASCII.search(text):
+            return None
+        return f"({text})", operand.end()
 
     @staticmethod
     def _find_closing_parenthesis(expression: str, open_index: int) -> int:
@@ -655,11 +826,22 @@ class ExpressionValidator(ast.NodeVisitor):
         return "Α" <= char <= "Ω" or "α" <= char <= "ω"
 
     @staticmethod
+    def _continues_greek_name(letter: str, following: str) -> bool:
+        """True when following extends the name the Greek letter starts: θ1, θ_0, Δx, δt."""
+        if "0" <= following <= "9" or following == "_":
+            return True
+        is_ascii_letter = "a" <= following <= "z" or "A" <= following <= "Z"
+        return is_ascii_letter and letter in ExpressionValidator._DIFFERENCE_LETTERS
+
+    @staticmethod
     def _replace_unicode_symbols(expression: str, python_compatible: bool) -> str:
         """Spell out π, ℯ, ∞ and ί and give them and Greek letters explicit multiplication.
 
         Each of these characters is a single-letter token, so "2πr" is 2*pi*r and "αβ" is α*β.
-        A Greek letter may still start a name with digits or underscores (θ1, θ_0).
+        A Greek letter may still start a name with digits or underscores (θ1, θ_0), and Δ or δ
+        followed by ASCII letters or digits is one name, the usual notation for a change or a
+        small quantity (Δx, δt, Δx1), whereas other letters are factors ("ωt" is ω*t).
+        A "√" after an operand is a factor too: "x√y" is x*√y.
         """
         constants = {
             ExpressionValidator._PI_SIGN: "pi",
@@ -670,19 +852,23 @@ class ExpressionValidator(ast.NodeVisitor):
         parts = []
         previous = ""  # last character emitted
         for index, char in enumerate(expression):
+            ends_operand = previous == ")" or (previous not in "(√" and ExpressionValidator._starts_operand(previous))
             if not ExpressionValidator._is_unicode_symbol(char):
+                if char == "√" and ends_operand:
+                    parts.append("*")  # x√y -> x*√y, which would otherwise become the name xsqrt
                 parts.append(char)
                 previous = char
                 continue
             follows_number = "0" <= previous <= "9" or previous == "."
             imaginary_literal = char == ExpressionValidator._IMAGINARY_IOTA and follows_number  # 2ί -> 2i
-            ends_operand = previous == ")" or (previous not in "(√" and ExpressionValidator._starts_operand(previous))
             if ends_operand and not imaginary_literal:
                 parts.append("*")
             token = constants.get(char, char)
+            if char == ExpressionValidator._IMAGINARY_IOTA and python_compatible and not follows_number:
+                token = "1j"  # a bare j is a name in Python; the unit alone is the literal 1j
             parts.append(token)
             following = expression[index + 1 : index + 2]
-            continues_name = char not in constants and ("0" <= following <= "9" or following == "_")  # θ1, θ_0
+            continues_name = char not in constants and ExpressionValidator._continues_greek_name(char, following)
             if ExpressionValidator._starts_operand(following) and not continues_name:
                 parts.append("*")
                 previous = "*"
@@ -946,11 +1132,13 @@ class ExpressionValidator(ast.NodeVisitor):
             "sinh": math.sinh,
             "cosh": math.cosh,
             "tanh": math.tanh,
+            **_TRIGONOMETRIC_EXTRAS,
             "exp": math.exp,
             "abs": abs,
             "pi": math.pi,
             "e": math.e,
             "inf": math.inf,
+            "Infinity": math.inf,
             "pow": MathUtils.pow,
             "ceil": math.ceil,
             "floor": math.floor,
