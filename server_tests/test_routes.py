@@ -112,7 +112,10 @@ class TestRoutes(unittest.TestCase):
 
         mock_chat.return_value = MockResponse()
 
-        test_message = {"message": json.dumps({"user_message": "test message", "use_vision": False}), "svg_state": None}
+        # Pin a model that routes to the mocked Chat Completions call; the default model uses
+        # the Responses API, which this test does not mock (it would reach the real provider).
+        prompt = {"user_message": "test message", "use_vision": False, "ai_model": "chat-completions-test-model"}
+        test_message = {"message": json.dumps(prompt), "svg_state": None}
         response = self.client.post("/send_message", json=test_message)
         data = json.loads(response.data)
         self.assertEqual(response.status_code, 200)
