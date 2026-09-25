@@ -954,10 +954,9 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             content = response.choices[0].message.content
             if not content:
                 _logger.warning("Tool search returned empty response")
-                return []
 
             # Parse the JSON array of tool names
-            tool_names = self._parse_tool_names(content)
+            tool_names = self._parse_tool_names(content) if content else []
             if not tool_names:
                 # Fallback for non-compliant model outputs
                 tool_names = self._fallback_tool_names(query, max_results)

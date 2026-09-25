@@ -260,12 +260,23 @@ class TestSearchToolsWithMock:
         assert "create_circle" in names
 
     def test_search_handles_empty_response(self, service: ToolSearchService, mock_client: MagicMock) -> None:
-        """search_tools should handle empty API response."""
+        """An empty API response falls back to keyword ranking, as an API error does."""
         self._setup_mock_response(mock_client, "")
 
-        result = service.search_tools("draw")
+        result = service.search_tools("draw a circle")
 
-        assert result == []
+        names = [t["function"]["name"] for t in result]
+        assert "create_circle" in names
+
+    def test_search_handles_none_content(self, service: ToolSearchService, mock_client: MagicMock) -> None:
+        """A reply with no content at all (None) also falls back to keyword ranking."""
+        self._setup_mock_response(mock_client, "")
+        mock_client.chat.completions.create.return_value.choices[0].message.content = None
+
+        result = service.search_tools("draw a circle")
+
+        names = [t["function"]["name"] for t in result]
+        assert "create_circle" in names
 
     def test_search_uses_correct_model(self, service: ToolSearchService, mock_client: MagicMock) -> None:
         """search_tools should use the specified model."""
