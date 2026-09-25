@@ -11,7 +11,7 @@ MatHud is a personal workbench for exploring mathematics with an AI assistant: t
 
 UI gestures remain secondary unless they directly support AI workflows.
 
-This file has two parts. **Part A** is the committed roadmap for this project, in priority order. **Part B** collects ideas that are interesting but optional — future work, or better suited to a separate app. The previous, longer roadmap (with step-by-step breakdowns of every Part B item) is in git history before this rewrite.
+This file has two parts. **Part A** is the committed roadmap for this project, in priority order. **Part B** collects ideas that are interesting but optional — future work, or better suited to a separate app. The previous, longer roadmap (with step-by-step breakdowns of every Part B item) is kept unchanged in [`archive/Roadmap_2026-09_full.md`](archive/Roadmap_2026-09_full.md), with an index of possible spinoff apps.
 
 Items marked *(GeoGebra-inspired)* come from a concept review of the GeoGebra source. GeoGebra is GPL-licensed: implement these from the named public algorithms, never by porting its code.
 
@@ -128,7 +128,7 @@ Heavier segmentation (SAM) and OCR pipelines are in Part B; modern vision models
 
 # Part B — Optional / future / separate projects
 
-Not scheduled. Worth revisiting once Part A is solid, or better built as a separate app.
+Not scheduled. Worth revisiting once Part A is solid, or better built as a separate app. Detailed step lists for these items, grouped into spinoff app ideas, are in [`archive/Roadmap_2026-09_full.md`](archive/Roadmap_2026-09_full.md).
 
 ### Platform
 - **Android app** — separate project; likely a thin client to a desktop/remote MatHud server, or a WebView wrapper once the desktop shell (A1) exists.
