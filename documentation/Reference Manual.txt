@@ -824,6 +824,7 @@ Mathematical Support:
 Expression Processing:
     - Automatic syntax correction and normalization
     - Mathematical notation conversion (√, °, π, !)
+    - Unicode math notation (× ÷ − ≤ ≥ ≠, x², sin⁻¹(x), π ℯ ∞, Greek letters, Unicode spaces)
     - Implicit multiplication insertion (2x → 2*x)
     - Power operator conversion (^ ↔ **)
     - Function name standardization
@@ -870,12 +871,36 @@ Attributes:
 - `validate_expression_tree(expression)`: Validate mathematical expression using AST parsing
 - `evaluate_expression(expression, x=0)`: Safely evaluate mathematical expression with controlled scope
 - `fix_math_expression(expression, python_compatible=False)`: Automatically correct and normalize expression syntax. Scientific notation is kept as a number (`2e-3` is 0.002, not 2*e - 3); write `2*e` for a multiple of Euler's number
+- `normalize_unicode_math(expression, python_compatible=False)`: Rewrite Unicode math notation as ASCII syntax (table below) and leave ASCII input unchanged. `fix_math_expression` does this first; `MathUtils` calls it for expressions it sends to nerdamer without `fix_math_expression` (`derive`, `integrate`, `numeric_integrate`, `limit`, `simplify`, `expand`, `factor`, `solve`, `solve_numeric`)
 - `parse_function_string(function_string, use_mathjs=False)`: Parse function string into callable function object
 - `_convert_degrees(expression)`: Convert degree symbols and text to radians
 - `_handle_special_symbols(expression, python_compatible)`: Handle square roots, absolute values, and factorials
 - `_replace_function_names(expression)`: Replace common mathematical function names with Python equivalents
 - `_handle_power_and_imaginary(expression, python_compatible)`: Handle power operators and imaginary numbers
 - `_insert_multiplication_operators(expression, python_compatible)`: Insert multiplication operators for implicit multiplication
+
+**Accepted Unicode Notation:**
+Users type these symbols in the chat and models may copy them into tool arguments; the system prompt asks models to write ASCII, and these rewrites cover what still gets through. ASCII input is never changed by this step.
+
+| Input | Becomes | Notes |
+|-------|---------|-------|
+| `×` `⋅` `·` `∙` `•` `∗` | `*` | `3×4` = 12 |
+| `÷` `∕` | `/` | |
+| `−` (U+2212) `–` (en dash) | `-` | |
+| `≤` `≥` `≠` | `<=` `>=` `!=` | Comparisons are not valid in evaluated expressions, so these give a readable error there; `≠` is converted after factorials, so `x ≠ 3` is not read as `x!` |
+| `x²`, `x²³`, `x⁻¹`, `(x+1)²` | `x^2`, `x^23`, `x^(-1)`, `(x+1)^2` | Superscript digits with an optional `⁻`/`⁺`; `x²y` becomes `x^2*y` |
+| `sin²(x)`, `ln²(x)` | `sin(x)^2`, `ln(x)^2` | On sin, cos, tan, sec, csc, cot, sinh, cosh, tanh, asin, acos, atan, log, ln, log10, log2, exp, sqrt and abs, followed by `(` |
+| `sin⁻¹(x)` | `asin(x)` | Also cos, tan, sec, csc, cot, sinh, cosh, tanh (Python evaluation supports only asin, acos and atan) |
+| `π` | `pi` | Always a separate factor: `2πr` = `2*pi*r`, `πr²` = `pi*r^2` |
+| `ℯ` (U+212F) | `e` | `2ℯ` = `2*e` |
+| `ί` (U+03AF) | `i` (`j` in Python mode) | Imaginary unit: `3+4ί` = `3+4i` |
+| `∞` | `Infinity` (math.js, nerdamer), `inf` (Python) | `inf` is in the Python evaluation namespace; `limit(..., ∞)` approaches Infinity |
+| Greek letters `α`-`ω`, `Α`-`Ω` | unchanged | Python, math.js and nerdamer all accept them as variable names; each letter is its own factor (`2θ` = `2*θ`, `αβ` = `α*β`) but `θ1` and `θ_0` stay names. They are not spelled out because `lambda` is a Python keyword and `gamma`, `zeta`, `phi`, `tau` are math.js functions or constants |
+| `µ` (micro sign), `ϕ`, `ϵ`, `ϑ`, `ϱ`, `ϰ` | `μ`, `φ`, `ε`, `θ`, `ρ`, `κ` | Python folds these variants into the plain letter but math.js and nerdamer would not |
+| `˚` (U+02DA), `º` (U+00BA) | `°` | Then read as degrees: `sin(30˚)` = `sin(π/6)` in `fix_math_expression` |
+| `√x`, `√(x+1)`, `√θ` | `sqrt(x)`, `sqrt(x+1)`, `sqrt(θ)` | |
+| No-break, thin, em and other Unicode spaces | space | |
+| Zero-width space/joiners, word joiner, BOM, soft hyphen | removed | |
 
 #### Markdown Parser (`markdown_parser.py`)
 
