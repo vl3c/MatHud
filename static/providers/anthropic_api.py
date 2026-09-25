@@ -56,6 +56,7 @@ def _resolve_stop(
     tool_calls: List[Dict[str, Any]],
     cut_off_tool_id: Optional[str],
     max_tokens: int,
+    cut_off_known_unfinished: bool = True,
 ) -> _StopOutcome:
     """Decide what to do with a reply given the API's ``stop_reason``.
 
@@ -66,6 +67,8 @@ def _resolve_stop(
         cut_off_tool_id: ID of the tool call in the reply's last content block, the one
             being written when a truncated reply stopped.
         max_tokens: The request's max_tokens, for the cut-off note.
+        cut_off_known_unfinished: False when the reply cannot show whether the last
+            tool call was finished (a non-streamed reply); the note then says it may be.
     """
     if stop_reason == "refusal":
         # A refusal can stop mid-reply, even mid tool call: run nothing and keep nothing.
@@ -76,7 +79,7 @@ def _resolve_stop(
         _logger.warning("[Anthropic API] Reply paused (pause_turn); dropping %d tool call(s)", len(tool_calls))
         return _StopOutcome("stop", [], _PAUSE_NOTE, keep_text=True)
     if stop_reason in _TRUNCATION_STOP_REASONS:
-        return _resolve_truncation(stop_reason, tool_calls, cut_off_tool_id, max_tokens)
+        return _resolve_truncation(stop_reason, tool_calls, cut_off_tool_id, max_tokens, cut_off_known_unfinished)
     return _StopOutcome("tool_calls" if tool_calls else "stop", tool_calls, "", keep_text=True)
 
 
@@ -85,6 +88,7 @@ def _resolve_truncation(
     tool_calls: List[Dict[str, Any]],
     cut_off_tool_id: Optional[str],
     max_tokens: int,
+    cut_off_known_unfinished: bool = True,
 ) -> _StopOutcome:
     """Keep only the tool calls the model finished before the reply was cut off.
 
@@ -103,7 +107,9 @@ def _resolve_truncation(
         note = "The reply was cut off because the conversation filled the model's context window."
     else:
         note = f"The reply was cut off at the {max_tokens}-token output limit."
-    if dropped == 1:
+    if dropped and not cut_off_known_unfinished:
+        note += " The last tool call may be unfinished, so it was not run."
+    elif dropped == 1:
         note += " 1 unfinished tool call was not run."
     elif dropped > 1:
         note += f" {dropped} unfinished tool calls were not run."
@@ -469,6 +475,8 @@ class AnthropicAPI(OpenAIAPIBase):
             all_tool_calls,
             cut_off_tool_id,
             self._request_max_tokens(streaming=False),
+            # A non-streamed reply cannot show whether its last tool call was finished.
+            cut_off_known_unfinished=False,
         )
         tool_calls = outcome.tool_calls
         self._finalize_anthropic_stream(text_content if outcome.keep_text else "", tool_calls)

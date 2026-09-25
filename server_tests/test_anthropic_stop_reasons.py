@@ -210,7 +210,7 @@ class TestStreamingMaxTokens(_AnthropicTransportTest):
         self.assertEqual([call["id"] for call in final["ai_tool_calls"]], ["toolu_done"])
         self.assertEqual(final["ai_tool_calls"][0]["arguments"], {"x": 1, "y": 2})
         self.assertEqual(final["finish_reason"], "tool_calls")
-        self.assertIn("not run", self._streamed_text(events))
+        self.assertIn("1 unfinished tool call was not run.", self._streamed_text(events))
         tool_messages = [message for message in api.messages if message.get("role") == "tool"]
         self.assertEqual([message.get("tool_call_id") for message in tool_messages], ["toolu_done"])
 
@@ -379,6 +379,7 @@ class TestNonStreamingStopReasons(_AnthropicTransportTest):
         self.assertEqual(result.finish_reason, "length")
         self.assertFalse(result.message.tool_calls)
         self.assertIn("cut off", result.message.content)
+        self.assertIn("may be unfinished", result.message.content)
         self.assertEqual(self._assistant_turns(api), [{"role": "assistant", "content": "Placing the point."}])
 
     def test_finished_tool_call_before_the_cut_off_still_runs(self) -> None:
@@ -393,6 +394,7 @@ class TestNonStreamingStopReasons(_AnthropicTransportTest):
 
         self.assertEqual(result.finish_reason, "tool_calls")
         self.assertEqual([call.id for call in result.message.tool_calls], ["toolu_done"])
+        self.assertIn("The last tool call may be unfinished, so it was not run.", result.message.content)
 
     def test_refusal_is_surfaced_and_not_stored(self) -> None:
         api = self._make_api()
