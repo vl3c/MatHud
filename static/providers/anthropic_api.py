@@ -472,6 +472,8 @@ class AnthropicAPI(OpenAIAPIBase):
         )
         tool_calls = outcome.tool_calls
         self._finalize_anthropic_stream(text_content if outcome.keep_text else "", tool_calls)
+        if outcome.finish_reason == "refusal":
+            self._drop_refused_user_message()
 
         # Return OpenAI-like response object
         return SimpleNamespace(
@@ -591,6 +593,8 @@ class AnthropicAPI(OpenAIAPIBase):
 
         # Update conversation history
         self._finalize_anthropic_stream(accumulated_text if outcome.keep_text else "", outcome.tool_calls)
+        if outcome.finish_reason == "refusal":
+            self._drop_refused_user_message()
 
         # Prepare tool calls for response
         ai_tool_calls = self._prepare_tool_calls_for_response(outcome.tool_calls)
@@ -631,6 +635,16 @@ class AnthropicAPI(OpenAIAPIBase):
                 metrics.mark_output("tool_call")
             elif delta_type in ("thinking_delta", "signature_delta"):
                 metrics.mark_output("reasoning")
+
+    def _drop_refused_user_message(self) -> None:
+        """Remove the user message a refusal answered.
+
+        The refused reply is not stored, so without this the user's next message would
+        be merged into the refused one and likely declined again. Only a trailing user
+        message is removed; a refusal in the middle of a tool round leaves history as is.
+        """
+        if self.messages and self.messages[-1].get("role") == "user":
+            self.messages.pop()
 
     def _finalize_anthropic_stream(self, accumulated_text: str, tool_calls: List[Dict[str, Any]]) -> None:
         """Record a reply's text and tool calls in the conversation history.

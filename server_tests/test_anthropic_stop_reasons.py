@@ -264,6 +264,14 @@ class TestStreamingRefusal(_AnthropicTransportTest):
         self.assertEqual(self._assistant_turns(api), [])
         self.assertFalse(any(message.get("role") == "tool" for message in api.messages))
 
+    def test_refused_prompt_is_removed_from_history(self) -> None:
+        api = self._make_api()
+        self._queue_stream(_sse(_text_block(0, "Sure"), "refusal", _REFUSAL_DETAILS))
+
+        list(api.create_chat_completion_stream("Hi"))
+
+        self.assertFalse(any(message.get("role") == "user" for message in api.messages))
+
 
 class TestStreamingPauseTurn(_AnthropicTransportTest):
     def test_pause_turn_stops_with_a_note(self) -> None:
@@ -361,6 +369,7 @@ class TestNonStreamingStopReasons(_AnthropicTransportTest):
         self.assertIn("declined", result.message.content)
         self.assertIn("cyber", result.message.content)
         self.assertEqual(self._assistant_turns(api), [])
+        self.assertFalse(any(message.get("role") == "user" for message in api.messages))
 
 
 if __name__ == "__main__":
