@@ -575,6 +575,26 @@ class ExpressionValidator(ast.NodeVisitor):
         return expression.replace(ExpressionValidator._NOT_EQUAL_SIGN, "!=")
 
     @staticmethod
+    def normalize_unicode_name(name: str) -> str:
+        """
+        Rewrite a variable name with the one-for-one character table only (ϕ -> φ, µ -> μ).
+
+        Unlike normalize_unicode_math this never splits the name into factors or spells out
+        constants, so it suits variable names passed next to an expression: the names in an
+        evaluation scope or the variable of a derivative, integral, limit or solve.
+
+        Args:
+            name (str): Variable name that may contain Greek variant forms or Unicode spaces
+
+        Returns:
+            str: The name with the same characters the normalised expression uses
+        """
+        if not isinstance(name, str) or not ExpressionValidator._NON_ASCII.search(name):
+            return name
+        replacements = ExpressionValidator._UNICODE_REPLACEMENTS
+        return "".join(replacements.get(char, char) for char in name)
+
+    @staticmethod
     def _normalize_unicode_notation(expression: str, python_compatible: bool) -> str:
         """Rewrite Unicode math notation except "≠" (see normalize_unicode_math)."""
         if not ExpressionValidator._NON_ASCII.search(expression):

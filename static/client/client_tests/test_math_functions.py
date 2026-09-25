@@ -1203,6 +1203,12 @@ class TestMathFunctions(unittest.TestCase):
         self.assertAlmostEqual(float(MathUtils.integral("cos(x)", "x", 0, "π/2")), 1)
         self.assertEqual([float(root) for root in json.loads(MathUtils.solve("x² − 4 = 0", "x"))], [2.0, -2.0])
 
+    def test_evaluate_renames_greek_variant_variables(self) -> None:
+        # Regression: the expression's ϕ became φ but the scope still said ϕ ("Undefined symbol φ")
+        self.assertAlmostEqual(MathUtils.evaluate("sin(ϕ)", {"ϕ": 0.5}), math.sin(0.5))
+        self.assertAlmostEqual(MathUtils.evaluate("ϑ + ϵ", {"ϑ": 1, "ϵ": 2}), 3)
+        self.assertAlmostEqual(MathUtils.evaluate("2µ", {"µ": 4}), 8)
+
     def test_solve_linear_quadratic_invalid_input(self) -> None:
         equations = ["y = 2*x + 3"]  # Not enough equations
         with self.assertRaises(ValueError):

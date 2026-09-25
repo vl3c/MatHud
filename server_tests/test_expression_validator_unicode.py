@@ -282,6 +282,14 @@ class TestNormalizeUnicodeMath(unittest.TestCase):
         self.assertEqual(ExpressionValidator._superscript_exponent("⁰¹²³⁴⁵⁶⁷⁸⁹"), "0123456789")
         self.assertEqual(ExpressionValidator._superscript_exponent("⁻⁴²"), "(-42)")
 
+    def test_variable_names_use_the_character_table_only(self) -> None:
+        # Names in a scope or a variable argument must match the normalised expression
+        # without being split into factors or having constants spelled out
+        cases = {"ϕ": "φ", "µ": "μ", "ϑ_1": "θ_1", "Δx": "Δx", "αβ": "αβ", "x": "x", "π": "π"}
+        for name, expected in cases.items():
+            with self.subTest(name=name):
+                self.assertEqual(ExpressionValidator.normalize_unicode_name(name), expected)
+
     def test_python_compatible_infinity(self) -> None:
         self.assertEqual(ExpressionValidator.normalize_unicode_math("-∞", python_compatible=True), "-inf")
 

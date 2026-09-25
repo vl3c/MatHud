@@ -1136,6 +1136,11 @@ class MathUtils:
             js_expression = ExpressionValidator.fix_math_expression(expression, python_compatible=False)
             python_expression = ExpressionValidator.fix_math_expression(expression, python_compatible=True)
             ExpressionValidator.validate_expression_tree(python_expression)
+            if variables:
+                # The expression's ϕ became φ, so the scope's names must too
+                variables = {
+                    ExpressionValidator.normalize_unicode_name(name): value for name, value in variables.items()
+                }
 
             # Check if expression contains Python-only functions (number theory; randint has no
             # inclusive math.js equivalent)
