@@ -24,8 +24,9 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
 9. Share the current canvas with the assistant using Vision mode to get feedback grounded in your drawing.
 10. Attach images directly to chat messages for the AI to analyze alongside your prompts.
 11. Use slash commands (`/help`, `/vision`, `/model`, `/image`, etc.) for quick local operations without waiting for an AI response.
-12. Choose from multiple AI providers — a local `llama-server` (LocalAgent, the default), OpenAI, Anthropic (Claude), and OpenRouter — with the model dropdown automatically filtered by which API keys you have configured and which local server is reachable.
-13. Trigger client-side tests from the UI or chat to verify canvas behavior without leaving the app.
+12. Type math symbols with the Σ palette, backslash completion (`\alpha` → α) or Alt shortcuts (`Alt+P` → π).
+13. Choose from multiple AI providers — a local `llama-server` (LocalAgent, the default), OpenAI, Anthropic (Claude), and OpenRouter — with the model dropdown automatically filtered by which API keys you have configured and which local server is reachable.
+14. Trigger client-side tests from the UI or chat to verify canvas behavior without leaving the app.
 
 ## 3. Architecture Overview
 
@@ -63,7 +64,7 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
    ```
    Only models for configured providers will appear in the model dropdown. A local
    `llama-server` needs no key: start one and MatHud picks it up automatically (see
-   [6.6 AI Provider Configuration](#66-ai-provider-configuration)).
+   [6.7 AI Provider Configuration](#67-ai-provider-configuration)).
 5. (Optional, for contributors) Install the pre-commit hook, which runs ruff on staged Python files:
    ```sh
    python -m cli.main test lint --install-hook
@@ -221,7 +222,29 @@ Type `/` in the chat input to access local commands that execute instantly witho
 
 Autocomplete suggestions appear as you type. Unknown commands trigger fuzzy-match suggestions.
 
-### 6.4 Image Attachment
+### 6.4 Math Symbols
+
+Type math symbols straight into the chat input (they are sent as plain Unicode text):
+
+1. **Palette**: click the **Σ** button next to the chat input (or press `Ctrl+↑` in the input) to open the symbol palette with Greek, Operators, Geometry, Sets & logic and Calculus groups, plus a **Recent** row of the last 10 symbols you used. Clicking a symbol inserts it at the caret (replacing any selection) and keeps focus in the input. With the palette open, arrow keys move the highlight, `Enter` inserts, `Tab` / `Shift+Tab` switch group and `Esc` or a click elsewhere closes it; `Enter` sends the message as usual if you have not moved the highlight. Hover a symbol for its name, Alt shortcut and `\` names.
+2. **Backslash completion**: type `\` followed by a name, e.g. `\alpha`, `\le`, `\pi`, `\int`, `\in`, `\R`; a suggestion list shows matching symbols (prefix matches first). `Tab` or `Enter` accepts, `↑`/`↓` navigate, `Esc` dismisses, and typing a space after an exact name converts it too (`\theta ` becomes `θ `). Plain words such as `pi` are never converted.
+3. **Alt shortcuts** (left Alt; `Ctrl+Alt`/AltGr combinations are left alone so keyboard layouts keep working):
+
+| Keys | Symbol | Keys | Symbol |
+|------|--------|------|--------|
+| `Alt+A` | α | `Alt+P` / `Alt+Shift+P` | π / Π |
+| `Alt+B` | β | `Alt+R` | √ |
+| `Alt+D` / `Alt+Shift+D` | δ / Δ | `Alt+S` / `Alt+Shift+S` | σ / Σ |
+| `Alt+F` / `Alt+Shift+F` | φ / Φ | `Alt+T` / `Alt+Shift+T` | θ / Θ |
+| `Alt+G` / `Alt+Shift+G` | γ / Γ | `Alt+U` | ∞ |
+| `Alt+L` | λ | `Alt+W` / `Alt+Shift+W` | ω / Ω |
+| `Alt+M` | μ | `Alt+0` … `Alt+9` | ⁰ … ⁹ |
+| `Alt+O` | ° | `Alt+-` | ⁻ |
+| `Alt+,` / `Alt+.` | ≤ / ≥ | `Alt+=` | ≠ |
+
+The symbol table lives in `static/client/math_symbols.py`.
+
+### 6.5 Image Attachment
 
 1. Click the paperclip button next to the chat input (or use `/image`) to attach images to your message.
 2. Multiple images can be attached per message (up to the configured limit).
@@ -229,13 +252,13 @@ Autocomplete suggestions appear as you type. Unknown commands trigger fuzzy-matc
 4. Images are sent alongside your text message for the AI to analyze.
 5. The attach button and `/image` command are only available when the selected model supports vision. Non-vision models show "(text only)" in the dropdown.
 
-### 6.5 Vision Mode
+### 6.6 Vision Mode
 
 1. Use the **Enable Vision** checkbox in the chat header to include screenshots of the current canvas.
 2. The vision toggle and attach button are hidden for models without vision support. Models marked "(text only)" in the dropdown do not support image input.
 3. The snapshot is taken in the browser when the message is sent: the Canvas2D and SVG layers composited at CSS-pixel size (longest side capped at 1280 px) on a white background. It is not saved on the server.
 
-### 6.6 AI Provider Configuration
+### 6.7 AI Provider Configuration
 
 MatHud supports four AI providers. The model dropdown dynamically shows only models for providers that are configured (an API key) or reachable (a running local server):
 
@@ -264,7 +287,7 @@ backend serving the same OpenAI-compatible API) over `/v1`, and needs no API key
 Local models are used in search-first tool mode and currently receive text only; attached
 images are not forwarded.
 
-### 6.7 Workspace Management
+### 6.8 Workspace Management
 
 1. Workspaces are persisted as JSON under `workspaces/`.
 2. The chat tools `save_workspace`, `load_workspace`, `list_workspaces`, and `delete_workspace` are exposed to the assistant and UI.
@@ -272,7 +295,7 @@ images are not forwarded.
 4. Saves are atomic (written to a temporary file, then swapped in); overwriting a workspace keeps its previous version as `<name>.json.bak`.
 5. Deleting a workspace moves it to `workspaces/.trash/` under a timestamped name instead of removing it. The `/delete_workspace` route only accepts a POST with a JSON body (`{"name": ...}`).
 
-### 6.8 Testing
+### 6.9 Testing
 
 1. Server tests: run `python run_server_tests.py` (add `--with-auth` to exercise authenticated flows). Provider API keys, including those in `.env`, are blanked for the run unless `MATHUD_LIVE_TESTS=1` is set in the shell; live tests make paid API calls. The guard lives in `server_tests/conftest.py` and applies only under pytest, so running a test file directly with `python file.py` bypasses it.
 2. Client tests: click **Run Tests** in the UI or ask the assistant to "run tests". Results stream back into the chat after execution (`static/client/test_runner.py`).

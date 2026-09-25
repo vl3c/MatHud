@@ -129,8 +129,9 @@ Note: All drawables are math-only. They do not hold screen-space coordinates and
 6. Result Validator (`result_validator.py`)
 7. Slash Command Handler (`slash_command_handler.py`)
 8. Command Autocomplete (`command_autocomplete.py`)
-9. HTML Template (`templates/index.html`)
-10. CSS Stylesheet (`static/style.css`)
+9. Math Symbol Input (`math_symbols.py`, `math_symbol_input.py`, `math_symbol_palette.py`, `symbol_completion_popup.py`)
+10. HTML Template (`templates/index.html`)
+11. CSS Stylesheet (`static/style.css`)
 
 ### Server-Side Components
 1. Server-Side Workspace Manager (`static/workspace_manager.py`)
@@ -4006,6 +4007,25 @@ Key Features:
 - `is_slash_command(message)`: Check if a message starts with `/`
 - `execute(message)`: Parse and execute a slash command, returning a `CommandResult`
 - `get_commands_list()`: Get all commands with descriptions for autocomplete
+
+### Math Symbol Input (`static/client/math_symbols.py` and companions)
+
+Lets users type math symbols into the chat input; the message carries them as plain Unicode.
+
+**Modules:**
+- `math_symbols.py`: the single symbol table (`SYMBOLS`: symbol, readable name, backslash names, palette group, inserted text) plus `GROUPS`, `ALT_SHORTCUTS` and DOM-free helpers: `insert_text(value, start, end, text)` (replace the selection, return new value and caret), `find_latex_token(value, caret)`, `search_symbols(query)`, `exact_latex_match(name)`, `lookup_alt_shortcut(code, shift)`, `update_recent(recent, symbol)`, `move_grid_selection(...)`, and UTF-16 offset conversion for DOM selections.
+- `math_symbol_palette.py` (`MathSymbolPalette`): the popover opened by the Σ button (`#symbol-palette-button`) with a Recent row (last 10, stored in `localStorage["mathud.symbols.recent"]`), group tabs and a symbol grid. Cells carry `title` and `aria-label` (name, Alt shortcut, backslash names); the highlighted cell is exposed through the input's `aria-activedescendant`.
+- `symbol_completion_popup.py` (`SymbolCompletionPopup`): the `\name` suggestion list, styled like the slash-command popup.
+- `math_symbol_input.py` (`MathSymbolInput`): binds the chat input's key and input events and performs insertions through `insertText` (undoable with Ctrl+Z), with a direct value update as fallback. Created in `main.py` after `CommandAutocomplete`.
+
+**Keys in the chat input:**
+- `Ctrl+↑`: open or close the palette with the first symbol highlighted. While it is open: arrows move, `Enter` inserts (only once the highlight was moved or opened from the keyboard; otherwise `Enter` closes the palette and sends), `Tab` / `Shift+Tab` switch group, `Esc` closes. Clicks outside close it; the palette and Σ button never take focus.
+- `\name` before the caret (letters, optionally followed by digits such as `\sup2`) opens suggestions: exact name, then prefix, then substring matches (case-sensitive matches rank first, so `\D` offers Δ before δ). `Tab`/`Enter` accept, arrows navigate, `Esc` dismisses, and a space after an exact name converts it. Disabled while the input starts with `/`, so slash commands keep their own autocomplete.
+- Alt shortcuts, matched on `event.code` and ignored with `Ctrl`, `Meta`, right Alt or AltGraph so AltGr layouts keep working: `Alt+A` α, `Alt+B` β, `Alt+D`/`Alt+Shift+D` δ/Δ, `Alt+F`/`Alt+Shift+F` φ/Φ, `Alt+G`/`Alt+Shift+G` γ/Γ, `Alt+L` λ, `Alt+M` μ, `Alt+O` °, `Alt+P`/`Alt+Shift+P` π/Π, `Alt+R` √, `Alt+S`/`Alt+Shift+S` σ/Σ, `Alt+T`/`Alt+Shift+T` θ/Θ, `Alt+U` ∞, `Alt+W`/`Alt+Shift+W` ω/Ω, `Alt+0`…`Alt+9` ⁰…⁹, `Alt+,` ≤, `Alt+.` ≥, `Alt+=` ≠, `Alt+-` ⁻.
+
+**Coexistence:** the handler ignores keydown events the slash-command autocomplete already handled (`defaultPrevented`), and cancelling `Enter` on keydown suppresses the `keypress` that sends the message, so `Enter` sends only when no symbol popup uses it.
+
+**Tests:** `client_tests/test_math_symbols.py` (table integrity, Alt lookup, insertion, completion, recent list, grid navigation).
 
 ### Tool Call Processing Utilities (`static/tool_call_processor.py`)
 
