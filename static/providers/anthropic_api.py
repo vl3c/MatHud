@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Iterator, Sequence
+from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
@@ -32,6 +33,114 @@ _STREAM_MAX_TOKENS = 32000
 # Output-token ceilings for models that allow fewer than the 128K output tokens of
 # the other current Claude models; request max_tokens is capped to them.
 _MODEL_MAX_OUTPUT_TOKENS: Dict[str, int] = {"claude-haiku-4-5": 64000}
+
+# Stop reasons for a reply that ran out of room before it was finished.
+_TRUNCATION_STOP_REASONS = frozenset({"max_tokens", "model_context_window_exceeded"})
+
+_PAUSE_NOTE = "The model paused before finishing its reply. Send a follow-up message to continue."
+
+
+@dataclass
+class _StopOutcome:
+    """How a Claude reply ended and which of its parts MatHud may use."""
+
+    finish_reason: str
+    tool_calls: List[Dict[str, Any]]  # the calls that are safe to run
+    note: str  # shown to the user after the reply; empty for a normal stop
+    keep_text: bool  # whether the reply text enters the conversation history
+
+
+def _resolve_stop(
+    stop_reason: Optional[str],
+    stop_details: Any,
+    tool_calls: List[Dict[str, Any]],
+    cut_off_tool_id: Optional[str],
+    max_tokens: int,
+) -> _StopOutcome:
+    """Decide what to do with a reply given the API's ``stop_reason``.
+
+    Args:
+        stop_reason: The reply's stop reason, None when the stream did not report one.
+        stop_details: The reply's ``stop_details`` (set on refusals).
+        tool_calls: The reply's tool calls, OpenAI-style.
+        cut_off_tool_id: ID of the tool call in the reply's last content block, the one
+            being written when a truncated reply stopped.
+        max_tokens: The request's max_tokens, for the cut-off note.
+    """
+    if stop_reason == "refusal":
+        # A refusal can stop mid-reply, even mid tool call: run nothing and keep nothing.
+        _logger.warning("[Anthropic API] Reply refused; stop_details=%s", stop_details)
+        return _StopOutcome("refusal", [], _refusal_note(stop_details), keep_text=False)
+    if stop_reason == "pause_turn":
+        # Only server tools pause a turn and MatHud uses none, so stop instead of resuming.
+        _logger.warning("[Anthropic API] Reply paused (pause_turn); dropping %d tool call(s)", len(tool_calls))
+        return _StopOutcome("stop", [], _PAUSE_NOTE, keep_text=True)
+    if stop_reason in _TRUNCATION_STOP_REASONS:
+        return _resolve_truncation(stop_reason, tool_calls, cut_off_tool_id, max_tokens)
+    return _StopOutcome("tool_calls" if tool_calls else "stop", tool_calls, "", keep_text=True)
+
+
+def _resolve_truncation(
+    stop_reason: str,
+    tool_calls: List[Dict[str, Any]],
+    cut_off_tool_id: Optional[str],
+    max_tokens: int,
+) -> _StopOutcome:
+    """Keep only the tool calls the model finished before the reply was cut off.
+
+    The call in the last content block was being written when the limit hit, so its
+    arguments are incomplete (or empty) and it must not run. Finished calls still run
+    and the tool loop continues; with none left, the turn ends as truncated ("length").
+    """
+    runnable = [call for call in tool_calls if call.get("id") != cut_off_tool_id and _has_complete_arguments(call)]
+    dropped = len(tool_calls) - len(runnable)
+    _logger.warning(
+        "[Anthropic API] Reply cut off (%s); dropping %d unfinished tool call(s)",
+        stop_reason,
+        dropped,
+    )
+    if stop_reason == "model_context_window_exceeded":
+        note = "The reply was cut off because the conversation filled the model's context window."
+    else:
+        note = f"The reply was cut off at the {max_tokens}-token output limit."
+    if dropped == 1:
+        note += " 1 unfinished tool call was not run."
+    elif dropped > 1:
+        note += f" {dropped} unfinished tool calls were not run."
+    return _StopOutcome("tool_calls" if runnable else "length", runnable, note, keep_text=True)
+
+
+def _has_complete_arguments(tool_call: Dict[str, Any]) -> bool:
+    """Whether a tool call's arguments are a whole JSON object (empty means no arguments)."""
+    function = tool_call.get("function")
+    arguments = function.get("arguments") if isinstance(function, dict) else None
+    if isinstance(arguments, dict) or not arguments:
+        return True
+    try:
+        return isinstance(json.loads(arguments), dict)
+    except (TypeError, ValueError):
+        return False
+
+
+def _refusal_note(stop_details: Any) -> str:
+    """User-facing explanation of a refusal, with its category and explanation when given."""
+    category = _stop_detail(stop_details, "category")
+    explanation = _stop_detail(stop_details, "explanation")
+    note = "Claude declined to continue this request"
+    note += f" (category: {category})." if category else "."
+    return f"{note} {explanation}" if explanation else note
+
+
+def _stop_detail(stop_details: Any, field: str) -> str:
+    value = stop_details.get(field) if isinstance(stop_details, dict) else getattr(stop_details, field, None)
+    return str(value) if value else ""
+
+
+def _note_suffix(text: str, note: str) -> str:
+    """The text to append to a reply for its note, separated from any reply text."""
+    if not note:
+        return ""
+    return f"\n\n{note}" if text else note
 
 
 def _get_anthropic_api_key() -> str:
@@ -129,6 +238,15 @@ class AnthropicAPI(OpenAIAPIBase):
         - user messages → user messages
         - assistant messages with tool_calls → assistant with tool_use content blocks
         - tool messages → user messages with tool_result content blocks
+
+        Thinking blocks are never stored, so they are never sent back. Claude Fable 5.1
+        and Opus 5.5 bind them to the model and the conversation, and MatHud edits
+        history between requests (canvas blocks and images are stripped, search mode
+        swaps tools), so replaying them after such edits would be rejected.
+
+        Assistant messages with no text and no tool calls (a thinking-only reply, for
+        instance) are skipped: the API rejects empty assistant content, and it merges
+        the consecutive user messages this leaves.
         """
         anthropic_messages: List[Dict[str, Any]] = []
 
@@ -174,9 +292,10 @@ class AnthropicAPI(OpenAIAPIBase):
                                 "input": args,
                             }
                         )
-                    anthropic_messages.append({"role": "assistant", "content": content_blocks})
-                else:
-                    anthropic_messages.append({"role": "assistant", "content": content or ""})
+                    if content_blocks:
+                        anthropic_messages.append({"role": "assistant", "content": content_blocks})
+                elif content:
+                    anthropic_messages.append({"role": "assistant", "content": content})
 
             elif role == "tool":
                 # Convert tool result - Anthropic expects this as a user message with tool_result
@@ -325,13 +444,13 @@ class AnthropicAPI(OpenAIAPIBase):
     def _process_anthropic_response(self, response: Any) -> Any:
         """Process Anthropic response and update conversation history."""
         text_content = ""
-        tool_calls = []
+        all_tool_calls: List[Dict[str, Any]] = []
 
         for block in response.content:
             if block.type == "text":
                 text_content += block.text
             elif block.type == "tool_use":
-                tool_calls.append(
+                all_tool_calls.append(
                     {
                         "id": block.id,
                         "type": "function",
@@ -342,30 +461,22 @@ class AnthropicAPI(OpenAIAPIBase):
                     }
                 )
 
-        # Create assistant message for history
-        assistant_message: MessageDict = {"role": "assistant", "content": text_content}
-        if tool_calls:
-            assistant_message["tool_calls"] = tool_calls
-        self.messages.append(assistant_message)
-
-        # Append placeholder tool messages
-        if tool_calls:
-            for tc in tool_calls:
-                self.messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": tc["id"],
-                        "content": "Awaiting result...",
-                    }
-                )
-
-        self._clean_conversation_history()
+        last_block = response.content[-1] if response.content else None
+        cut_off_tool_id = getattr(last_block, "id", None) if getattr(last_block, "type", "") == "tool_use" else None
+        outcome = _resolve_stop(
+            getattr(response, "stop_reason", None),
+            getattr(response, "stop_details", None),
+            all_tool_calls,
+            cut_off_tool_id,
+            self._request_max_tokens(streaming=False),
+        )
+        tool_calls = outcome.tool_calls
+        self._finalize_anthropic_stream(text_content if outcome.keep_text else "", tool_calls)
 
         # Return OpenAI-like response object
-        finish_reason = "tool_calls" if tool_calls else "stop"
         return SimpleNamespace(
             message=SimpleNamespace(
-                content=text_content,
+                content=text_content + _note_suffix(text_content, outcome.note),
                 tool_calls=[
                     SimpleNamespace(
                         id=tc["id"],
@@ -379,7 +490,7 @@ class AnthropicAPI(OpenAIAPIBase):
                 if tool_calls
                 else None,
             ),
-            finish_reason=finish_reason,
+            finish_reason=outcome.finish_reason,
         )
 
     def create_chat_completion_stream(self, full_prompt: str) -> Iterator[StreamEvent]:
@@ -394,7 +505,10 @@ class AnthropicAPI(OpenAIAPIBase):
         accumulated_text = ""
         tool_calls: List[Dict[str, Any]] = []
         current_tool: Optional[Dict[str, Any]] = None
-        finish_reason: Optional[str] = None
+        cut_off_tool_id: Optional[str] = None  # the tool call in the latest content block
+        stop_reason: Optional[str] = None
+        stop_details: Any = None
+        max_tokens = self._request_max_tokens(streaming=True)
         metrics = self._start_response_metrics("anthropic_messages")
 
         try:
@@ -404,7 +518,7 @@ class AnthropicAPI(OpenAIAPIBase):
             # Anthropic API doesn't accept empty tools list - must be None or non-empty
             stream_kwargs: Dict[str, Any] = {
                 "model": self.model.id,
-                "max_tokens": self._request_max_tokens(streaming=True),
+                "max_tokens": max_tokens,
                 "system": self._build_system_prompt(),
                 "messages": anthropic_messages,
             }
@@ -420,6 +534,7 @@ class AnthropicAPI(OpenAIAPIBase):
 
                     if event_type == "content_block_start":
                         block = getattr(event, "content_block", None)
+                        cut_off_tool_id = None
                         if block and getattr(block, "type", "") == "tool_use":
                             current_tool = {
                                 "id": getattr(block, "id", ""),
@@ -428,6 +543,7 @@ class AnthropicAPI(OpenAIAPIBase):
                                     "arguments": "",
                                 },
                             }
+                            cut_off_tool_id = current_tool["id"]
 
                     elif event_type == "content_block_delta":
                         delta = getattr(event, "delta", None)
@@ -449,8 +565,10 @@ class AnthropicAPI(OpenAIAPIBase):
                             tool_calls.append(current_tool)
                             current_tool = None
 
-                    elif event_type == "message_stop":
-                        finish_reason = "tool_calls" if tool_calls else "stop"
+                    elif event_type == "message_delta":
+                        delta = getattr(event, "delta", None)
+                        stop_reason = getattr(delta, "stop_reason", None) or stop_reason
+                        stop_details = getattr(delta, "stop_details", None) or stop_details
 
         except Exception as exc:
             error_msg = f"[Anthropic API] Streaming exception: {exc}"
@@ -466,20 +584,26 @@ class AnthropicAPI(OpenAIAPIBase):
             }
             return
 
+        if current_tool is not None and stop_reason in _TRUNCATION_STOP_REASONS:
+            tool_calls.append(current_tool)  # never closed; dropped below and counted in the note
+        metrics.add_output_text(tool_call_argument_text(tool_calls))
+        outcome = _resolve_stop(stop_reason, stop_details, tool_calls, cut_off_tool_id, max_tokens)
+
         # Update conversation history
-        self._finalize_anthropic_stream(accumulated_text, tool_calls)
+        self._finalize_anthropic_stream(accumulated_text if outcome.keep_text else "", outcome.tool_calls)
 
         # Prepare tool calls for response
-        ai_tool_calls = self._prepare_tool_calls_for_response(tool_calls)
-        metrics.add_output_text(tool_call_argument_text(tool_calls))
-        resolved_finish_reason = finish_reason or "stop"
+        ai_tool_calls = self._prepare_tool_calls_for_response(outcome.tool_calls)
+        note = _note_suffix(accumulated_text, outcome.note)
+        if note:
+            yield {"type": "token", "text": note}
 
         yield {
             "type": "final",
-            "ai_message": accumulated_text,
+            "ai_message": accumulated_text + note,
             "ai_tool_calls": ai_tool_calls,
-            "finish_reason": resolved_finish_reason,
-            "metrics": dict(self._finish_response_metrics(metrics, resolved_finish_reason, len(ai_tool_calls))),
+            "finish_reason": outcome.finish_reason,
+            "metrics": dict(self._finish_response_metrics(metrics, outcome.finish_reason, len(ai_tool_calls))),
         }
 
     @staticmethod
@@ -509,7 +633,15 @@ class AnthropicAPI(OpenAIAPIBase):
                 metrics.mark_output("reasoning")
 
     def _finalize_anthropic_stream(self, accumulated_text: str, tool_calls: List[Dict[str, Any]]) -> None:
-        """Finalize the streaming response by updating messages."""
+        """Record a reply's text and tool calls in the conversation history.
+
+        A reply with neither (a thinking-only reply, a refusal, or a cut-off with no
+        finished tool call) adds no assistant message: the API rejects empty ones.
+        """
+        if not accumulated_text and not tool_calls:
+            self._clean_conversation_history()
+            return
+
         # Create assistant message
         assistant_message: MessageDict = {"role": "assistant", "content": accumulated_text}
         if tool_calls:
