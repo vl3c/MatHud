@@ -80,6 +80,7 @@ class MathSymbolInput:
         self._input: Any = input_element
         self._recent: List[str] = self._load_recent()
         self._right_alt_down: bool = False
+        self._inserting: bool = False  # True while insert() edits the input
         self._resize_observer: Any = None
         # Kept so destroy() can unbind the same function object.
         self._window_resize_handler: Any = self._on_window_resize
@@ -127,12 +128,16 @@ class MathSymbolInput:
         """
         if start is None or end is None:
             start, end = self._selection()
-        self._input.focus()
-        self._input.setSelectionRange(start, end)
-        if self._exec_insert_text(text) and self._inserted_at(start, text):
-            return
-        self._input.setRangeText(text, start, end, "end")
-        self._dispatch_input_event()
+        self._inserting = True
+        try:
+            self._input.focus()
+            self._input.setSelectionRange(start, end)
+            if self._exec_insert_text(text) and self._inserted_at(start, text):
+                return
+            self._input.setRangeText(text, start, end, "end")
+            self._dispatch_input_event()
+        finally:
+            self._inserting = False
 
     def _exec_insert_text(self, text: str) -> bool:
         """Insert through the browser's editing command so the edit is undoable.
@@ -252,6 +257,9 @@ class MathSymbolInput:
     def _on_input(self, event: Any) -> None:
         if self._is_slash_command():
             self.palette.close()  # the slash-command list takes the space above the input
+        elif not self._inserting:
+            # The user typed: drop the palette's keyboard highlight so Enter sends again.
+            self.palette.clear_keyboard_selection()
         self._refresh_completion()
 
     def _on_caret_moved(self, event: Any) -> None:

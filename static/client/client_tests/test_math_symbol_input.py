@@ -230,6 +230,24 @@ class TestMathSymbolInputKeys(_SymbolInputFixture):
         self.assertTrue(self.key("Enter").defaultPrevented)
         self.assert_value("x" + first, 1 + unit_length(first))
 
+    def test_typing_after_ctrl_up_drops_the_highlight_so_enter_sends(self) -> None:
+        self.assertTrue(self.key("ArrowUp", "ArrowUp", ctrlKey=True).defaultPrevented)
+        self.assertTrue(self.symbols.palette.keyboard_active)
+        self.type_text("hello world")
+        self.assertTrue(self.symbols.palette.visible)
+        self.assertFalse(self.symbols.palette.keyboard_active)
+        self.assertFalse(self.key("Enter").defaultPrevented)
+        self.assert_value("hello world", 11)
+
+    def test_inserting_with_enter_keeps_the_highlight_for_the_next_pick(self) -> None:
+        self.set_value("")
+        self.key("ArrowUp", "ArrowUp", ctrlKey=True)
+        first = self.palette_cells()[0].text
+        self.assertTrue(self.key("Enter").defaultPrevented)
+        self.assertTrue(self.symbols.palette.keyboard_active)
+        self.assertTrue(self.key("Enter").defaultPrevented)
+        self.assert_value(first + first, 2 * unit_length(first))
+
     def test_symbol_handler_defers_to_an_earlier_handler(self) -> None:
         # The slash-command autocomplete is bound first and cancels the keys it uses
         self.symbols.destroy()

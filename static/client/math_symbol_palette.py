@@ -141,6 +141,11 @@ class MathSymbolPalette:
 
     # ----- public API -----
 
+    def clear_keyboard_selection(self) -> None:
+        """Remove the keyboard highlight; the palette stays open for mouse picks."""
+        if self._selection is not None:
+            self._set_selection(None)
+
     def toggle(self, keyboard: bool = False) -> None:
         """Open the palette if closed, close it if open."""
         if self.visible:
