@@ -135,7 +135,9 @@ class TestImageAndSizeHardening(unittest.TestCase):
         return f"data:image/png;base64,{self.SAMPLE_PNG_BASE64}"
 
     def _post_message(self, images: List[str]) -> TestResponse:
-        payload = {"message": json.dumps({"user_message": "hi", "attached_images": images})}
+        # The model routes to the mocked Chat Completions call, so no request leaves the test.
+        prompt = {"user_message": "hi", "attached_images": images, "ai_model": "chat-completions-test-model"}
+        payload = {"message": json.dumps(prompt)}
         return self.client.post("/send_message", json=payload)
 
     def test_too_many_images_rejected(self) -> None:

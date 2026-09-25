@@ -39,6 +39,11 @@ ToolMode = Literal["full", "search"]
 
 TOOL_RESULT_PLACEHOLDER = "Awaiting result..."
 
+# Finish reasons whose tool calls the client runs (see AIInterface._should_run_tools).
+# Tool calls of any other ending (e.g. partial calls of a "length" reply) are not
+# stored, so no placeholder is left waiting for a result that never comes.
+TOOL_CALL_FINISH_REASONS = frozenset({"tool_calls", "function_call"})
+
 PROVIDER_TIMEOUT_MESSAGE = (
     "The AI provider timed out before responding. Please try again or switch to a different model."
 )

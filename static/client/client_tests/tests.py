@@ -266,6 +266,7 @@ from .test_numeric_solver import (
     TestExpressionEvaluation,
 )
 from .test_error_recovery import TestErrorRecovery
+from .test_ai_response_endings import TestAIResponseEndings
 from .test_vision_send_cancellation import TestVisionSendCancellation
 from .test_tts_controller import (
     TestTTSControllerState,
@@ -618,6 +619,7 @@ class Tests:
             TestExpressionEvaluation,
             TestErrorRecovery,
             TestVisionSendCancellation,
+            TestAIResponseEndings,
             TestTTSControllerState,
             TestTTSControllerSettings,
             TestTTSControllerSingleton,

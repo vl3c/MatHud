@@ -309,7 +309,7 @@ Dependencies:
                 // LocalAgent is the default provider: prefer whichever model the
                 // local server currently hosts, since its id is discovered at runtime.
                 var localModels = models['local_agent'];
-                var defaultModel = (localModels && localModels.length > 0) ? localModels[0].id : 'gpt-5.5';
+                var defaultModel = (localModels && localModels.length > 0) ? localModels[0].id : 'gpt-6-sol';
                 var defaultFound = false;
 
                 for (var i = 0; i < groups.length; i++) {

@@ -1,8 +1,8 @@
 """
 MatHud OpenAI Chat Completions API
 
-Chat Completions API implementation for standard GPT models.
-Inherits shared functionality from OpenAIAPIBase.
+Chat Completions API implementation for OpenAI-compatible endpoints
+(OpenRouter builds on it). Inherits shared functionality from OpenAIAPIBase.
 """
 
 from __future__ import annotations
@@ -12,7 +12,13 @@ from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
-from static.openai_api_base import OpenAIAPIBase, MessageDict, StreamEvent, stream_error_user_message
+from static.openai_api_base import (
+    TOOL_CALL_FINISH_REASONS,
+    MessageDict,
+    OpenAIAPIBase,
+    StreamEvent,
+    stream_error_user_message,
+)
 from static.response_metrics import (
     create_stream_requesting_usage,
     reasoning_text_from_delta,
@@ -23,27 +29,102 @@ from static.response_metrics import (
 # Use the shared MatHud logger for file logging
 _logger = logging.getLogger("mathud")
 
+# reasoning_details fields that arrive in fragments when streamed.
+_REASONING_DETAIL_TEXT_FIELDS = ("text", "summary", "data")
+
+
+def normalize_reasoning_details(value: Any) -> List[Dict[str, Any]]:
+    """Return reasoning_details entries as plain dicts (SDK objects are dumped)."""
+    if not isinstance(value, (list, tuple)):
+        return []
+    entries: List[Dict[str, Any]] = []
+    for entry in value:
+        if isinstance(entry, dict):
+            entries.append(dict(entry))
+            continue
+        model_dump = getattr(entry, "model_dump", None)
+        if callable(model_dump):
+            dumped = model_dump()
+            if isinstance(dumped, dict):
+                entries.append(dumped)
+    return entries
+
+
+def accumulate_reasoning_details(chunk_entries: Any, accumulator: List[Dict[str, Any]]) -> None:
+    """Merge streamed reasoning_details entries into ``accumulator``.
+
+    Fragments that share an ``index`` and ``type`` (or have the index and no
+    type) extend one entry: their text fields are concatenated and other fields
+    (id, format, signature) are set once they arrive. Entries without an index
+    are kept as they come.
+    """
+    for entry in normalize_reasoning_details(chunk_entries):
+        target = _find_reasoning_detail(accumulator, entry)
+        if target is None:
+            accumulator.append(entry)
+            continue
+        for key, value in entry.items():
+            if value is None:
+                continue
+            current = target.get(key)
+            if key in _REASONING_DETAIL_TEXT_FIELDS and isinstance(value, str) and isinstance(current, str):
+                target[key] = current + value
+            else:
+                target[key] = value
+
+
+def _find_reasoning_detail(accumulator: List[Dict[str, Any]], entry: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Find the accumulated entry a streamed fragment belongs to, if any.
+
+    A fragment without a ``type`` continues the latest entry with its index.
+    """
+    index = entry.get("index")
+    if not isinstance(index, int):
+        return None
+    entry_type = entry.get("type")
+    for existing in reversed(accumulator):
+        if existing.get("index") == index and (entry_type is None or existing.get("type") == entry_type):
+            return existing
+    return None
+
 
 class OpenAIChatCompletionsAPI(OpenAIAPIBase):
-    """OpenAI Chat Completions API for standard models (GPT-4, GPT-4o, etc.)."""
+    """Chat Completions API for OpenAI-compatible endpoints; OpenRouter subclasses it.
+
+    Every registered OpenAI model is a reasoning model served by the Responses API.
+    """
 
     # After the finish reason only the usage chunk is still expected; stop reading
     # when it arrives, or after this many chunks without it.
     MAX_CHUNKS_AFTER_FINISH = 3
 
+    # Providers that set this keep the response's reasoning_details on the stored
+    # assistant message, so the requests of the same tool-call loop send them back
+    # unchanged (Gemini 3 via OpenRouter needs its thought signatures after a tool
+    # call). A new user prompt drops them from earlier turns.
+    PRESERVE_REASONING_DETAILS = False
+
     # False once the server rejected stream_options (see create_stream_requesting_usage).
     _stream_usage_supported = True
 
-    def _create_assistant_message(self, response_message: Any) -> MessageDict:
-        """Create an assistant message from the API response message."""
+    def _create_assistant_message(self, response_message: Any, include_tool_calls: bool = True) -> MessageDict:
+        """Create an assistant message from the API response message.
+
+        ``include_tool_calls`` is False for a reply whose tool calls will not run.
+        """
         content = getattr(response_message, "content", "")
         assistant_message: MessageDict = {
             "role": "assistant",
             "content": content,
         }
 
+        if self.PRESERVE_REASONING_DETAILS:
+            reasoning_details = normalize_reasoning_details(getattr(response_message, "reasoning_details", None))
+            if reasoning_details:
+                assistant_message["reasoning_details"] = reasoning_details
+
         tool_calls = getattr(response_message, "tool_calls", None)
-        if tool_calls:
+        if tool_calls and include_tool_calls:
             assistant_message["tool_calls"] = [
                 {
                     "id": getattr(tool_call, "id", None),
@@ -55,6 +136,8 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
                 }
                 for tool_call in tool_calls
             ]
+        elif content is None:
+            assistant_message["content"] = ""  # null content is only valid alongside tool calls
 
         return assistant_message
 
@@ -78,17 +161,16 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
             return self._create_error_response()
 
         choice = response.choices[0]
+        finish_reason = getattr(choice, "finish_reason", None)
+        tool_calls = getattr(choice.message, "tool_calls", None)
         record_chat_completions_usage(response, metrics)
-        self._finish_response_metrics(
-            metrics,
-            getattr(choice, "finish_reason", None),
-            len(getattr(choice.message, "tool_calls", None) or []),
-        )
+        self._finish_response_metrics(metrics, finish_reason, len(tool_calls or []))
 
-        assistant_message = self._create_assistant_message(choice.message)
+        runs_tools = finish_reason in TOOL_CALL_FINISH_REASONS
+        assistant_message = self._create_assistant_message(choice.message, include_tool_calls=runs_tools)
         self.messages.append(assistant_message)
 
-        self._append_tool_messages(getattr(choice.message, "tool_calls", None))
+        self._append_tool_messages(tool_calls if runs_tools else None)
         self._clean_conversation_history()
 
         return choice
@@ -102,6 +184,7 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
 
         accumulated_text = ""
         tool_calls_accumulator: Dict[int, Dict[str, Any]] = {}
+        reasoning_details: List[Dict[str, Any]] = []
         finish_reason: Optional[str] = None
         chunks_after_finish = 0
         metrics = self._start_response_metrics("chat_completions")
@@ -137,6 +220,8 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
                 if reasoning_piece:
                     metrics.mark_output("reasoning")
                     metrics.add_output_text(reasoning_piece)
+                if self.PRESERVE_REASONING_DETAILS and delta is not None:
+                    accumulate_reasoning_details(getattr(delta, "reasoning_details", None), reasoning_details)
 
                 content_piece = self._extract_content_piece(delta)
                 if content_piece:
@@ -177,11 +262,12 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
             _logger.warning(f"[OpenAI API] Stream ended with an error after the finish reason: {exc}")
 
         normalized_tool_calls = self._normalize_tool_calls(tool_calls_accumulator)
-        self._finalize_stream(accumulated_text, normalized_tool_calls)
+        resolved_finish_reason = finish_reason or "stop"
+        stored_tool_calls = normalized_tool_calls if resolved_finish_reason in TOOL_CALL_FINISH_REASONS else []
+        self._finalize_stream(accumulated_text, stored_tool_calls, reasoning_details)
 
         ai_tool_calls_json_ready = self._prepare_tool_calls_for_response(normalized_tool_calls)
         metrics.add_output_text(tool_call_argument_text(normalized_tool_calls))
-        resolved_finish_reason = finish_reason or "stop"
 
         yield {
             "type": "final",
@@ -210,9 +296,21 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
             self._apply_tool_call_results(prompt_json)
             return
 
+        if self.PRESERVE_REASONING_DETAILS:
+            self._drop_past_reasoning_details()
         message_content = self._prepare_message_content(full_prompt)
         user_message: MessageDict = {"role": "user", "content": message_content}
         self.messages.append(user_message)
+
+    def _drop_past_reasoning_details(self) -> None:
+        """Remove reasoning_details from the assistant messages of earlier turns.
+
+        They are only needed on the requests of the tool-call loop that produced
+        them, so a new user prompt ends their use instead of resending them forever.
+        """
+        for message in self.messages:
+            if message.get("role") == "assistant":
+                message.pop("reasoning_details", None)
 
     def _extract_choice_from_chunk(self, chunk: Any) -> Optional[Any]:
         """Best-effort extraction of first choice from streaming chunk."""
@@ -339,10 +437,16 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
             )
         return normalized
 
-    def _finalize_stream(self, accumulated_text: str, normalized_tool_calls: List[Dict[str, Any]]) -> None:
+    def _finalize_stream(
+        self,
+        accumulated_text: str,
+        normalized_tool_calls: List[Dict[str, Any]],
+        reasoning_details: Optional[List[Dict[str, Any]]] = None,
+    ) -> None:
         """Finalize the streaming response by updating messages."""
         assistant_message_like = SimpleNamespace(
             content=accumulated_text,
+            reasoning_details=reasoning_details or None,
             tool_calls=[
                 SimpleNamespace(
                     id=tc.get("id"),

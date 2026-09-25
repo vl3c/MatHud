@@ -57,7 +57,7 @@ def update_all_provider_models(app: MatHudFlask, model_id: str) -> None:
 
     Args:
         app: The Flask application instance.
-        model_id: The model identifier string (e.g. ``"gpt-4.1"``).
+        model_id: The model identifier string (e.g. ``"gpt-6-sol"``).
     """
     app.ai_api.set_model(model_id)
     app.responses_api.set_model(model_id)

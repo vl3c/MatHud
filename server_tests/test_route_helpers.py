@@ -149,7 +149,7 @@ class TestUpdateAllProviderModels(unittest.TestCase):
     def test_sets_model_on_both_providers(self) -> None:
         """Both ai_api and responses_api receive set_model with the correct id."""
         app = _make_app()
-        model_id = "gpt-4.1"
+        model_id = "gpt-6-sol"
 
         update_all_provider_models(app, model_id)
 
@@ -186,10 +186,10 @@ class TestGetActiveProvider(unittest.TestCase):
         sentinel_provider = MagicMock(name="resolved_provider")
         mock_get_provider.return_value = sentinel_provider
 
-        result = get_active_provider(app, "gpt-4.1")
+        result = get_active_provider(app, "gpt-6-sol")
 
-        mock_update.assert_called_once_with(app, "gpt-4.1")
-        mock_get_provider.assert_called_once_with(app, "gpt-4.1")
+        mock_update.assert_called_once_with(app, "gpt-6-sol")
+        mock_get_provider.assert_called_once_with(app, "gpt-6-sol")
         self.assertIs(result, sentinel_provider)
 
     @patch("static.route_helpers.update_all_provider_models")

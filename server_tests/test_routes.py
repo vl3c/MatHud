@@ -112,7 +112,10 @@ class TestRoutes(unittest.TestCase):
 
         mock_chat.return_value = MockResponse()
 
-        test_message = {"message": json.dumps({"user_message": "test message", "use_vision": False}), "svg_state": None}
+        # Pin a model that routes to the mocked Chat Completions call; the default model uses
+        # the Responses API, which this test does not mock (it would reach the real provider).
+        prompt = {"user_message": "test message", "use_vision": False, "ai_model": "chat-completions-test-model"}
+        test_message = {"message": json.dumps(prompt), "svg_state": None}
         response = self.client.post("/send_message", json=test_message)
         data = json.loads(response.data)
         self.assertEqual(response.status_code, 200)
@@ -247,8 +250,9 @@ class TestAPIRouting(unittest.TestCase):
 
     def test_standard_model_uses_completions_api(self) -> None:
         """Test that standard models route to Chat Completions API."""
-        # Set a standard model
-        self.app.ai_api.set_model("gpt-4o-mini")
+        # Every OpenAI model is a reasoning model; an ID missing from MODEL_CONFIGS
+        # stands in for a standard OpenAI model on the Chat Completions API.
+        self.app.ai_api.set_model("chat-completions-test-model")
 
         # Check model is not a reasoning model
         model = self.app.ai_api.get_model()
@@ -257,12 +261,12 @@ class TestAPIRouting(unittest.TestCase):
     def test_reasoning_model_identified(self) -> None:
         """Test that reasoning models are correctly identified."""
         # Set a reasoning model
-        self.app.ai_api.set_model("gpt-5.5")
-        self.app.responses_api.set_model("gpt-5.5")
+        self.app.ai_api.set_model("gpt-6-sol")
+        self.app.responses_api.set_model("gpt-6-sol")
 
         # Check both APIs have the model set
-        self.assertEqual(self.app.ai_api.get_model().id, "gpt-5.5")
-        self.assertEqual(self.app.responses_api.get_model().id, "gpt-5.5")
+        self.assertEqual(self.app.ai_api.get_model().id, "gpt-6-sol")
+        self.assertEqual(self.app.responses_api.get_model().id, "gpt-6-sol")
         self.assertTrue(self.app.ai_api.get_model().is_reasoning_model)
 
     @patch.object(OpenAIChatCompletionsAPI, "create_chat_completion_stream")
@@ -281,7 +285,7 @@ class TestAPIRouting(unittest.TestCase):
                 {
                     "user_message": "test",
                     "use_vision": False,
-                    "ai_model": "gpt-4o-mini",  # Standard model
+                    "ai_model": "chat-completions-test-model",  # Not in MODEL_CONFIGS: standard model
                 }
             ),
             "svg_state": None,
@@ -306,14 +310,14 @@ class TestAPIRouting(unittest.TestCase):
         )
 
         # Pre-set the model to a reasoning model
-        self.app.ai_api.model = self.app.ai_api.model.from_identifier("gpt-5.5")
+        self.app.ai_api.model = self.app.ai_api.model.from_identifier("gpt-6-sol")
 
         test_message = {
             "message": json.dumps(
                 {
                     "user_message": "test",
                     "use_vision": False,
-                    "ai_model": "gpt-5.5",  # Reasoning model
+                    "ai_model": "gpt-6-sol",  # Reasoning model
                 }
             ),
             "svg_state": None,
@@ -328,8 +332,9 @@ class TestAPIRouting(unittest.TestCase):
         """Test that all expected models are configured."""
         from static.ai_model import AIModel
 
-        reasoning_models = ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.2"]
-        standard_models = ["gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o-mini"]
+        # Every OpenAI model uses the Responses API; OpenRouter models use Chat Completions.
+        reasoning_models = ["gpt-6-sol", "gpt-6-astra", "gpt-6-luna", "gpt-5.6-sol"]
+        standard_models = ["google/gemini-3.8-flash", "anthropic/claude-opus-5.5", "qwen/qwen3.8-27b:free"]
 
         for model_id in reasoning_models:
             model = AIModel.from_identifier(model_id)
@@ -370,7 +375,9 @@ class TestStreamingResponseFormat(unittest.TestCase):
         )
 
         test_message = {
-            "message": json.dumps({"user_message": "test", "use_vision": False, "ai_model": "gpt-4o-mini"}),
+            "message": json.dumps(
+                {"user_message": "test", "use_vision": False, "ai_model": "chat-completions-test-model"}
+            ),
             "svg_state": None,
         }
 
@@ -405,10 +412,10 @@ class TestStreamingResponseFormat(unittest.TestCase):
         )
 
         # Pre-set the model to a reasoning model
-        self.app.ai_api.model = self.app.ai_api.model.from_identifier("gpt-5.5")
+        self.app.ai_api.model = self.app.ai_api.model.from_identifier("gpt-6-sol")
 
         test_message = {
-            "message": json.dumps({"user_message": "test", "use_vision": False, "ai_model": "gpt-5.5"}),
+            "message": json.dumps({"user_message": "test", "use_vision": False, "ai_model": "gpt-6-sol"}),
             "svg_state": None,
         }
 

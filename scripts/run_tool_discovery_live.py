@@ -12,7 +12,9 @@ from pathlib import Path
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run live tool discovery benchmark")
-    parser.add_argument("--model", default="", help="Optional model id override for search (e.g. gpt-4.1-mini)")
+    parser.add_argument(
+        "--model", default="", help="Optional model id override for search (default: gpt-6-luna, e.g. gpt-6-sol)"
+    )
     parser.add_argument("--limit", type=int, default=0, help="Optional limit for number of cases")
     parser.add_argument(
         "--csv",

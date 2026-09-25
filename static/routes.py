@@ -699,8 +699,8 @@ def register_routes(app: MatHudFlask) -> None:
         """Stream AI response tokens for the provided message payload.
 
         Routes to appropriate API based on model type:
-        - Reasoning models (GPT-5.6, GPT-5.5, GPT-5.2): Uses Responses API with reasoning streaming
-        - Standard models (GPT-4.1 family, GPT-4o mini): Uses Chat Completions API
+        - OpenAI reasoning models (GPT-6, GPT-5.6): Uses Responses API with reasoning streaming
+        - Other models (OpenRouter, Anthropic, local): Use their provider's chat streaming
 
         Returns a newline-delimited JSON stream with events of shape:
         {"type":"reasoning","text":"..."}\n for reasoning tokens (reasoning models only)

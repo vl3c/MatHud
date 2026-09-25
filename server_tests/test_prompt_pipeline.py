@@ -26,7 +26,7 @@ from static.tool_search_service import clear_search_cache
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_payload(msg: str, model: str = "gpt-4.1") -> Dict[str, Any]:
+def _make_payload(msg: str, model: str = "chat-completions-test-model") -> Dict[str, Any]:
     """Build the POST body expected by ``/send_message_stream`` and ``/send_message``."""
     return {
         "message": json.dumps(
@@ -319,7 +319,7 @@ class TestPromptPipelineNonStream(unittest.TestCase):
                 os.environ.pop(key, None)
         clear_search_cache()
 
-    # -- reasoning model (gpt-5.5): uses create_response_stream, consumed via /send_message --
+    # -- reasoning model (gpt-6-sol): uses create_response_stream, consumed via /send_message --
 
     @patch.object(OpenAIResponsesAPI, "create_response_stream")
     def test_reasoning_model_derivative(self, mock_stream: Mock) -> None:
@@ -330,7 +330,7 @@ class TestPromptPipelineNonStream(unittest.TestCase):
                 _tool_call("derive", {"expression": "x^3", "variable": "x"}),
             ],
         )
-        resp = self.client.post("/send_message", json=_make_payload("derivative of x^3", "gpt-5.5"))
+        resp = self.client.post("/send_message", json=_make_payload("derivative of x^3", "gpt-6-sol"))
         data = json.loads(resp.data)
 
         self.assertEqual(resp.status_code, 200)
@@ -342,7 +342,7 @@ class TestPromptPipelineNonStream(unittest.TestCase):
         ]
         self.assertIn("derive", tool_names)
 
-    # -- chat completions model (gpt-4.1): uses create_chat_completion --
+    # -- chat completions model (not in MODEL_CONFIGS): uses create_chat_completion --
 
     @patch.object(OpenAIChatCompletionsAPI, "create_chat_completion")
     def test_chat_completion_circle(self, mock_completion: Mock) -> None:
@@ -353,7 +353,7 @@ class TestPromptPipelineNonStream(unittest.TestCase):
                 ("create_circle", json.dumps({"center_x": 0, "center_y": 0, "radius": 5})),
             ],
         )
-        resp = self.client.post("/send_message", json=_make_payload("draw a circle", "gpt-4.1"))
+        resp = self.client.post("/send_message", json=_make_payload("draw a circle", "chat-completions-test-model"))
         data = json.loads(resp.data)
 
         self.assertEqual(resp.status_code, 200)
@@ -375,7 +375,7 @@ class TestPromptPipelineNonStream(unittest.TestCase):
                 ("analyze_graph", json.dumps({"graph_name": "G1", "algorithm": "bfs"})),
             ],
         )
-        resp = self.client.post("/send_message", json=_make_payload("draw a circle", "gpt-4.1"))
+        resp = self.client.post("/send_message", json=_make_payload("draw a circle", "chat-completions-test-model"))
         data = json.loads(resp.data)
 
         self.assertEqual(resp.status_code, 200)

@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Optional, Tuple, TypedDict
 
 from openai import OpenAI
 
-from static.ai_model import AIModel
+from static.ai_model import PROVIDER_OPENAI, AIModel
 from static.env_config import get_api_key
 from static.functions_definitions import FUNCTIONS, FunctionDefinition
 
@@ -35,6 +35,12 @@ _logger = logging.getLogger("mathud")
 
 # Tools to exclude from search results (meta-tools that shouldn't be recommended)
 EXCLUDED_FROM_SEARCH = frozenset({"search_tools"})
+
+# Model for API tool search when no model is given, and in place of models that
+# cannot run it: the search request sends reasoning_effort "none", which
+# GPT-6 Astra rejects.
+API_SEARCH_FALLBACK_MODEL = "gpt-6-luna"
+_MODELS_REJECTING_NO_REASONING = frozenset({"gpt-6-astra"})
 
 # Destructive tools (delete_*/clear_*/reset_*) rank below every other match unless
 # the query contains one of these words.
@@ -417,6 +423,8 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         """
         self._client = client
         self._client_initialized = client is not None
+        # Without a supplied client the service builds its own for api.openai.com.
+        self._client_supplied = client is not None
         self.default_model = default_model
         self.last_error: Optional[str] = None
         self._last_local_top_score: float = 0.0
@@ -435,6 +443,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
     def client(self, value: OpenAI) -> None:
         self._client = value
         self._client_initialized = True
+        self._client_supplied = True
 
     @staticmethod
     def _initialize_api_key() -> str:
@@ -919,15 +928,14 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
 
         Args:
             query: Description of what the user wants to accomplish.
-            model: AI model to use for matching. Defaults to gpt-4.1-mini.
+            model: AI model to use for matching. Defaults to the instance
+                default model, then to API_SEARCH_FALLBACK_MODEL.
             max_results: Maximum number of tools to return (1-20).
 
         Returns:
             List of matching tool definitions, ordered by relevance.
         """
-        # Use provided model, instance default, or fallback to gpt-4.1-nano.
-        if model is None:
-            model = self.default_model or AIModel.from_identifier("gpt-4.1-nano")
+        model = self._resolve_search_model(model)
 
         # Build the prompt
         tool_descriptions = self.build_tool_descriptions()
@@ -939,28 +947,16 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
 
         try:
             # Call the AI model
-            request_kwargs: Dict[str, Any] = {
-                "model": model.id,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.0,  # Deterministic for consistent results
-            }
-            # OpenAI reasoning models in Chat Completions reject max_tokens
-            # and require max_completion_tokens.
-            if model.is_reasoning_model and model.provider == "openai":
-                request_kwargs["max_completion_tokens"] = 500
-            else:
-                request_kwargs["max_tokens"] = 500
-
+            request_kwargs = self._build_search_request(model, prompt)
             response = self.client.chat.completions.create(**request_kwargs)
 
             # Extract the response content
             content = response.choices[0].message.content
             if not content:
                 _logger.warning("Tool search returned empty response")
-                return []
 
             # Parse the JSON array of tool names
-            tool_names = self._parse_tool_names(content)
+            tool_names = self._parse_tool_names(content) if content else []
             if not tool_names:
                 # Fallback for non-compliant model outputs
                 tool_names = self._fallback_tool_names(query, max_results)
@@ -989,6 +985,37 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
                 if tool is not None:
                     fallback_tools.append(tool)
             return fallback_tools
+
+    def _resolve_search_model(self, model: Optional[AIModel]) -> AIModel:
+        """Pick the model for an API search: the given one, else the instance
+        default, else the fallback. The fallback also replaces any model that
+        rejects reasoning effort "none", and any non-OpenAI model when the
+        service built its own OpenAI client (the active provider, e.g.
+        Anthropic, had no OpenAI-compatible client to pass in)."""
+        if model is None:
+            model = self.default_model
+        if model is None or model.id in _MODELS_REJECTING_NO_REASONING:
+            return AIModel.from_identifier(API_SEARCH_FALLBACK_MODEL)
+        if not self._client_supplied and model.provider != PROVIDER_OPENAI:
+            return AIModel.from_identifier(API_SEARCH_FALLBACK_MODEL)
+        return model
+
+    @staticmethod
+    def _build_search_request(model: AIModel, prompt: str) -> Dict[str, Any]:
+        """Build the Chat Completions keyword arguments for an API search."""
+        request_kwargs: Dict[str, Any] = {
+            "model": model.id,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        if model.is_reasoning_model and model.provider == PROVIDER_OPENAI:
+            # OpenAI reasoning models on Chat Completions reject temperature and
+            # max_tokens; a plain name lookup needs no reasoning.
+            request_kwargs["reasoning_effort"] = "none"
+            request_kwargs["max_completion_tokens"] = 500
+        else:
+            request_kwargs["temperature"] = 0.0  # Deterministic for consistent results
+            request_kwargs["max_tokens"] = 500
+        return request_kwargs
 
     @classmethod
     def _tokenize(cls, text: str) -> List[str]:
