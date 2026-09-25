@@ -10,7 +10,9 @@ These tests require valid API keys to be set in the environment:
 - ANTHROPIC_API_KEY for Anthropic
 - OPENROUTER_API_KEY for OpenRouter
 
-Tests are skipped if the corresponding API key is not available.
+Tests are skipped if the corresponding API key is not available. They make real
+(paid) API calls, so the suite blanks provider keys unless MATHUD_LIVE_TESTS=1 is set
+(see server_tests/conftest.py).
 Tests skip with a warning if the API returns any error (billing, rate limit, etc.).
 """
 
