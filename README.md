@@ -57,9 +57,9 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
    ```
 4. Provide at least one AI provider API key by setting environment variables or creating `.env` in the project root:
    ```env
-   OPENAI_API_KEY=sk-...          # OpenAI models (GPT-5.6, GPT-5.5, GPT-4.1, etc.)
-   ANTHROPIC_API_KEY=sk-ant-...   # Anthropic models (Claude Fable 5, Opus 4.8, Sonnet 5, Haiku 4.5)
-   OPENROUTER_API_KEY=sk-or-...   # OpenRouter models (Gemini, DeepSeek, Llama, etc.)
+   OPENAI_API_KEY=sk-...          # OpenAI models (GPT-6 Sol/Astra/Luna, GPT-5.6 Sol)
+   ANTHROPIC_API_KEY=sk-ant-...   # Anthropic models (Claude Fable 5.1, Opus 5.5, Sonnet 5, Haiku 4.5)
+   OPENROUTER_API_KEY=sk-or-...   # OpenRouter models (Gemini, Grok, Qwen, DeepSeek, free models, etc.)
    ```
    Only models for configured providers will appear in the model dropdown. A local
    `llama-server` needs no key: start one and MatHud picks it up automatically (see
@@ -112,7 +112,7 @@ Licenses are listed in `static/vendor/LICENSES.md`.
 
 ## 5. Configuration and Authentication
 
-1. The server reads configuration from environment variables or `.env` (loaded via `python-dotenv`). Common options:
+1. The server reads configuration from environment variables or `.env` (loaded via `python-dotenv`). It looks for `.env` in the project root, then in the directory above it; a git worktree under `<repo>/.claude/worktrees/<name>` also reads the `.env` above the main checkout. A nearer file wins, and variables that are already set are never overridden. Common options:
    ```env
    OPENAI_API_KEY=sk-...          # OpenAI provider
    ANTHROPIC_API_KEY=sk-ant-...   # Anthropic provider
@@ -242,11 +242,13 @@ MatHud supports four AI providers. The model dropdown dynamically shows only mod
 | Provider | Environment Variable | Models |
 |----------|---------------------|--------|
 | **LocalAgent** | `LOCAL_AGENT_BASE_URL` (optional) | Whichever model the local `llama-server` currently hosts |
-| **OpenAI** | `OPENAI_API_KEY` | GPT-5.6 (Sol/Terra/Luna), GPT-5.5, GPT-5.2, GPT-4.1 family, GPT-4o mini |
-| **Anthropic** | `ANTHROPIC_API_KEY` | Claude Fable 5, Claude Opus 4.8, Claude Sonnet 5, Claude Haiku 4.5 |
-| **OpenRouter** | `OPENROUTER_API_KEY` | Gemini 3.1 Pro/3.5 Flash, DeepSeek V4 Pro, Qwen, GLM, Grok, MiniMax, Llama, Gemma, and more (paid and free tiers) |
+| **OpenAI** | `OPENAI_API_KEY` | GPT-6 Sol (the default when no local model is running), GPT-6 Astra, GPT-6 Luna, GPT-5.6 Sol |
+| **Anthropic** | `ANTHROPIC_API_KEY` | Claude Fable 5.1, Claude Opus 5.5, Claude Sonnet 5, Claude Haiku 4.5 |
+| **OpenRouter** | `OPENROUTER_API_KEY` | Paid: Claude Opus 5.5, Claude Sonnet 5, Gemini 3.8 Flash, Grok 4.7, MiMo V2.6 Pro, GLM 5.3 Flash, DeepSeek V4.1 Flash, Qwen3.8 Max. Free: Qwen3.8 27B, Nemotron 3 Ultra (text only), Gemma 4 31B, Gemma 4 26B A4B, Inkling |
 
 Models without vision support are labeled "(text only)" in the dropdown. When nothing is configured or reachable, the dropdown shows "No API keys configured".
+
+Every OpenAI model is a reasoning model served through the Responses API with an explicit reasoning effort (GPT-6 Luna low, the others medium). Claude Fable 5.1, Opus 5.5 and Sonnet 5 get their effort (Fable low, the others medium) as `output_config.effort`. OpenRouter rate-limits its free models to 20 requests per minute, and to 50 requests per day on accounts with less than $10 of lifetime credits (1000 per day otherwise); a MatHud turn with tool calls makes several requests.
 
 #### LocalAgent (llama.cpp)
 

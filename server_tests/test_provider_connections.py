@@ -63,22 +63,27 @@ class TestOpenAIConnection(unittest.TestCase):
 
     @unittest.skipUnless(has_openai_key(), "OPENAI_API_KEY not set")
     def test_openai_simple_completion(self) -> None:
-        """Test OpenAI connection with a simple question using gpt-4.1-nano (cheapest)."""
-        from static.openai_completions_api import OpenAIChatCompletionsAPI
+        """Test OpenAI connection with a simple question using gpt-6-luna (cheapest).
+
+        Every OpenAI model is a reasoning model served through the Responses API,
+        which MatHud only streams; this checks the final message.
+        """
+        from static.openai_responses_api import OpenAIResponsesAPI
         from static.ai_model import AIModel
 
-        # Use the cheapest OpenAI model, with NO tools to avoid schema issues
-        model = AIModel.from_identifier("gpt-4.1-nano")
-        api = OpenAIChatCompletionsAPI(model=model, max_tokens=50, tools=[])
+        # Use the cheapest OpenAI model, with NO tools to avoid schema issues.
+        # Leave room for the (low effort) reasoning tokens before the answer.
+        model = AIModel.from_identifier("gpt-6-luna")
+        api = OpenAIResponsesAPI(model=model, max_tokens=500, tools=[])
 
         # Simple prompt that should get a short response
         prompt = '{"user_message": "Reply with only the word: hello"}'
 
-        response = api.create_chat_completion(prompt)
+        final_events = [e for e in api.create_response_stream(prompt) if e.get("type") == "final"]
 
         # Verify we got a response
-        self.assertIsNotNone(response)
-        content = getattr(response.message, "content", "")
+        self.assertEqual(len(final_events), 1)
+        content = final_events[0].get("ai_message", "")
         self.assertIsInstance(content, str)
         self.assertGreater(len(content), 0)
 
@@ -140,7 +145,7 @@ class TestOpenRouterConnection(unittest.TestCase):
         discover_providers()
 
         # Use a free OpenRouter model, with NO tools
-        model = AIModel.from_identifier("meta-llama/llama-3.3-70b-instruct:free")
+        model = AIModel.from_identifier("google/gemma-4-31b-it:free")
         api = OpenRouterAPI(model=model, max_tokens=50, tools=[])
 
         # Simple prompt that should get a short response
@@ -170,19 +175,19 @@ class TestProviderStreaming(unittest.TestCase):
 
     @unittest.skipUnless(has_openai_key(), "OPENAI_API_KEY not set")
     def test_openai_streaming(self) -> None:
-        """Test OpenAI streaming with gpt-4.1-nano."""
-        from static.openai_completions_api import OpenAIChatCompletionsAPI
+        """Test OpenAI streaming (Responses API) with gpt-6-luna."""
+        from static.openai_responses_api import OpenAIResponsesAPI
         from static.ai_model import AIModel
 
-        model = AIModel.from_identifier("gpt-4.1-nano")
-        api = OpenAIChatCompletionsAPI(model=model, max_tokens=50, tools=[])
+        model = AIModel.from_identifier("gpt-6-luna")
+        api = OpenAIResponsesAPI(model=model, max_tokens=500, tools=[])
 
         prompt = '{"user_message": "Reply with only the word: hello"}'
 
         tokens = []
         final_event = None
 
-        for event in api.create_chat_completion_stream(prompt):
+        for event in api.create_response_stream(prompt):
             if event.get("type") == "token":
                 tokens.append(event.get("text", ""))
             elif event.get("type") == "final":
@@ -245,7 +250,7 @@ class TestProviderStreaming(unittest.TestCase):
         discover_providers()
 
         # Use a free OpenRouter model
-        model = AIModel.from_identifier("meta-llama/llama-3.3-70b-instruct:free")
+        model = AIModel.from_identifier("google/gemma-4-31b-it:free")
         api = OpenRouterAPI(model=model, max_tokens=50, tools=[])
 
         prompt = '{"user_message": "Reply with only the word: hello"}'

@@ -300,4 +300,4 @@ class TestGetProviderForModel:
             "static.ai_model.AIModel.from_identifier",
             MagicMock(return_value=object()),
         )
-        assert get_provider_for_model("gpt-4o") == "openai"
+        assert get_provider_for_model("gpt-6-sol") == "openai"

@@ -299,6 +299,12 @@ class TestOpenAIChatCompletionsAPIIntegration(unittest.TestCase):
     They are skipped if the key is not available.
     """
 
+    # Every OpenAI model in MODEL_CONFIGS is a reasoning model served by the
+    # Responses API. A live check of this class needs a non-reasoning OpenAI
+    # chat model (reasoning models reject max_tokens), so it names one that
+    # MatHud no longer lists.
+    CHAT_MODEL = "gpt-4o-mini"
+
     @classmethod
     def setUpClass(cls) -> None:
         """Check if API key is available for integration tests."""
@@ -317,7 +323,7 @@ class TestOpenAIChatCompletionsAPIIntegration(unittest.TestCase):
         """Test actual API call with simple prompt (minimal tokens)."""
         api = OpenAIChatCompletionsAPI()
         # Use cheapest model, limit output tokens
-        api.set_model("gpt-4o-mini")
+        api.set_model(self.CHAT_MODEL)
         api.max_tokens = 10
 
         prompt = json.dumps({"user_message": "Say: OK", "use_vision": False})
@@ -330,7 +336,7 @@ class TestOpenAIChatCompletionsAPIIntegration(unittest.TestCase):
     def test_integration_stream_completion(self) -> None:
         """Test actual streaming API call (minimal tokens)."""
         api = OpenAIChatCompletionsAPI()
-        api.set_model("gpt-4o-mini")
+        api.set_model(self.CHAT_MODEL)
         api.max_tokens = 10
 
         prompt = json.dumps({"user_message": "Say: HI", "use_vision": False})
@@ -347,7 +353,7 @@ class TestOpenAIChatCompletionsAPIIntegration(unittest.TestCase):
     def test_integration_response_format(self) -> None:
         """Test that API response has correct format (minimal tokens)."""
         api = OpenAIChatCompletionsAPI()
-        api.set_model("gpt-4o-mini")
+        api.set_model(self.CHAT_MODEL)
         api.max_tokens = 5
 
         prompt = json.dumps({"user_message": "1", "use_vision": False})

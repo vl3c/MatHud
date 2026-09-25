@@ -1,7 +1,7 @@
 """
 MatHud OpenAI Responses API
 
-Responses API implementation for reasoning models (GPT-5.6, GPT-5.5, GPT-5.2).
+Responses API implementation for reasoning models (GPT-6 Sol/Astra/Luna, GPT-5.6 Sol).
 Streams reasoning tokens during the thinking phase.
 """
 
@@ -21,7 +21,7 @@ _logger = logging.getLogger("mathud")
 
 
 class OpenAIResponsesAPI(OpenAIAPIBase):
-    """OpenAI Responses API for reasoning models (GPT-5.6, GPT-5.5, GPT-5.2).
+    """OpenAI Responses API for reasoning models (GPT-6 Sol/Astra/Luna, GPT-5.6 Sol).
 
     Uses `previous_response_id` for multi-turn conversations, allowing OpenAI
     to manage conversation state server-side. This properly handles images
@@ -300,7 +300,8 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         - Uses `previous_response_id` for multi-turn conversations when available,
           allowing OpenAI to manage context server-side (better for images).
         - Some models may not support `reasoning.summary`.
-        - GPT-5.2 defaults to reasoning.effort="none"; MatHud sets effort to "medium" for `gpt-5.2`.
+        - Every OpenAI model sets an explicit effort (GPT-6 Luna "low", the others "medium");
+          GPT-6 Astra rejects effort "none".
         - If the API rejects a reasoning sub-parameter, retry with a reduced set of reasoning params.
         """
         # Determine if we can use previous_response_id for this turn

@@ -19,6 +19,7 @@ if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
 from static.tool_search_service import (
+    API_SEARCH_FALLBACK_MODEL,
     TOOL_CATEGORIES,
     ToolSearchService,
     _TOOL_BY_NAME,
@@ -269,26 +270,57 @@ class TestSearchToolsWithMock:
     def test_search_uses_correct_model(self, service: ToolSearchService, mock_client: MagicMock) -> None:
         """search_tools should use the specified model."""
         self._setup_mock_response(mock_client, '["create_circle"]')
-        model = AIModel.from_identifier("gpt-4.1")
+        model = AIModel.from_identifier("google/gemini-3.8-flash")
 
         service.search_tools("draw", model=model)
 
         call_args = mock_client.chat.completions.create.call_args
-        assert call_args.kwargs.get("model") == "gpt-4.1"
+        assert call_args.kwargs.get("model") == "google/gemini-3.8-flash"
 
-    def test_search_openai_reasoning_model_uses_max_completion_tokens(
+    def test_search_non_reasoning_model_request_shape(self, service: ToolSearchService, mock_client: MagicMock) -> None:
+        """Non-reasoning Chat Completions models get temperature 0 and max_tokens."""
+        self._setup_mock_response(mock_client, '["create_circle"]')
+        model = AIModel.from_identifier("google/gemini-3.8-flash")
+
+        service.search_tools("draw", model=model)
+
+        call_args = mock_client.chat.completions.create.call_args
+        assert call_args.kwargs.get("temperature") == 0.0
+        assert call_args.kwargs.get("max_tokens") == 500
+        assert "max_completion_tokens" not in call_args.kwargs
+        assert "reasoning_effort" not in call_args.kwargs
+
+    def test_search_openai_reasoning_model_request_shape(
         self, service: ToolSearchService, mock_client: MagicMock
     ) -> None:
-        """OpenAI reasoning models should use max_completion_tokens."""
+        """OpenAI reasoning models on Chat Completions get reasoning_effort "none",
+        max_completion_tokens and no temperature."""
         self._setup_mock_response(mock_client, '["create_circle"]')
-        model = AIModel.from_identifier("gpt-5.5")
+        model = AIModel.from_identifier("gpt-6-sol")
 
         service.search_tools("draw", model=model)
 
         call_args = mock_client.chat.completions.create.call_args
-        assert call_args.kwargs.get("model") == "gpt-5.5"
+        assert call_args.kwargs.get("model") == "gpt-6-sol"
+        assert call_args.kwargs.get("reasoning_effort") == "none"
         assert call_args.kwargs.get("max_completion_tokens") == 500
         assert "max_tokens" not in call_args.kwargs
+        assert "temperature" not in call_args.kwargs
+
+    def test_search_replaces_astra_with_fallback_model(self, mock_client: MagicMock) -> None:
+        """GPT-6 Astra rejects reasoning effort "none", so tool search uses the fallback model."""
+        self._setup_mock_response(mock_client, '["create_circle"]')
+        service = ToolSearchService(
+            client=mock_client,
+            default_model=AIModel.from_identifier("gpt-6-astra"),
+        )
+
+        service.search_tools("draw")
+
+        call_args = mock_client.chat.completions.create.call_args
+        assert call_args.kwargs.get("model") == API_SEARCH_FALLBACK_MODEL == "gpt-6-luna"
+        assert call_args.kwargs.get("reasoning_effort") == "none"
+        assert "temperature" not in call_args.kwargs
 
     def test_search_non_openai_reasoning_model_uses_max_tokens(
         self, service: ToolSearchService, mock_client: MagicMock
@@ -314,24 +346,27 @@ class TestSearchToolsWithMock:
         self._setup_mock_response(mock_client, '["create_circle"]')
         service = ToolSearchService(
             client=mock_client,
-            default_model=AIModel.from_identifier("gpt-5.5"),
+            default_model=AIModel.from_identifier("gpt-5.6-sol"),
         )
 
         service.search_tools("draw")
 
         call_args = mock_client.chat.completions.create.call_args
-        assert call_args.kwargs.get("model") == "gpt-5.5"
+        assert call_args.kwargs.get("model") == "gpt-5.6-sol"
         assert call_args.kwargs.get("max_completion_tokens") == 500
         assert "max_tokens" not in call_args.kwargs
 
     def test_search_uses_default_model_when_none(self, service: ToolSearchService, mock_client: MagicMock) -> None:
-        """search_tools should use gpt-4.1-nano when no model specified."""
+        """search_tools should use the gpt-6-luna fallback when no model is specified."""
         self._setup_mock_response(mock_client, '["create_circle"]')
 
         service.search_tools("draw")
 
         call_args = mock_client.chat.completions.create.call_args
-        assert call_args.kwargs.get("model") == "gpt-4.1-nano"
+        assert call_args.kwargs.get("model") == "gpt-6-luna"
+        assert call_args.kwargs.get("reasoning_effort") == "none"
+        assert call_args.kwargs.get("max_completion_tokens") == 500
+        assert "temperature" not in call_args.kwargs
 
 
 class TestSearchToolsFormatted:

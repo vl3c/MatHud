@@ -98,7 +98,7 @@ class AppManager:
 
     Managed Dependencies:
         - OpenAIChatCompletionsAPI: Chat Completions API for standard models
-        - OpenAIResponsesAPI: Responses API for reasoning models (GPT-5.6, GPT-5.5, GPT-5.2)
+        - OpenAIResponsesAPI: Responses API for reasoning models (GPT-6, GPT-5.6)
         - WorkspaceManager: File system operations and workspace organization
         - LogManager: Application-wide logging and debugging support
         - Route Registration: RESTful API endpoint configuration

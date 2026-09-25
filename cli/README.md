@@ -181,7 +181,7 @@ python -m cli.main chat new [--port PORT]
 ```
 
 **Options:**
-- `--model, -m`: AI model (e.g., gpt-5.5, claude-sonnet-5)
+- `--model, -m`: AI model (e.g., gpt-6-sol, claude-sonnet-5)
 - `--vision, -v`: Set `use_vision` (the snapshot is captured by the browser UI, so CLI-sent messages carry no image)
 - `--no-stream`: Wait for complete response
 - `--json`: Output as JSON
