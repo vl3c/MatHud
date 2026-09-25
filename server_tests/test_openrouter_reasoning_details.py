@@ -198,6 +198,22 @@ class TestReasoningDetailsStreamed(unittest.TestCase):
             ],
         )
 
+    def test_accumulate_merges_untyped_fragment_by_index(self) -> None:
+        """A later fragment without a type continues the entry with its index."""
+        accumulator: List[Dict[str, Any]] = []
+        accumulate_reasoning_details([{"type": "reasoning.text", "text": "Need ", "index": 0}], accumulator)
+        accumulate_reasoning_details([{"type": "reasoning.encrypted", "data": "c2ln", "index": 1}], accumulator)
+        accumulate_reasoning_details([{"text": "a circle.", "index": 0}], accumulator)
+        accumulate_reasoning_details([{"data": "bmF0dXJl", "index": 1, "type": None}], accumulator)
+
+        self.assertEqual(
+            accumulator,
+            [
+                {"type": "reasoning.text", "text": "Need a circle.", "index": 0},
+                {"type": "reasoning.encrypted", "data": "c2lnbmF0dXJl", "index": 1},
+            ],
+        )
+
 
 class TestOpenRouterSystemRole(unittest.TestCase):
     def test_non_openai_model_uses_system_role(self) -> None:

@@ -47,9 +47,10 @@ def normalize_reasoning_details(value: Any) -> List[Dict[str, Any]]:
 def accumulate_reasoning_details(chunk_entries: Any, accumulator: List[Dict[str, Any]]) -> None:
     """Merge streamed reasoning_details entries into ``accumulator``.
 
-    Fragments that share an ``index`` and ``type`` extend one entry: their text
-    fields are concatenated and other fields (id, format, signature) are set
-    once they arrive. Entries without an index are kept as they come.
+    Fragments that share an ``index`` and ``type`` (or have the index and no
+    type) extend one entry: their text fields are concatenated and other fields
+    (id, format, signature) are set once they arrive. Entries without an index
+    are kept as they come.
     """
     for entry in normalize_reasoning_details(chunk_entries):
         target = _find_reasoning_detail(accumulator, entry)
@@ -67,12 +68,16 @@ def accumulate_reasoning_details(chunk_entries: Any, accumulator: List[Dict[str,
 
 
 def _find_reasoning_detail(accumulator: List[Dict[str, Any]], entry: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Find the accumulated entry a streamed fragment belongs to, if any."""
+    """Find the accumulated entry a streamed fragment belongs to, if any.
+
+    A fragment without a ``type`` continues the latest entry with its index.
+    """
     index = entry.get("index")
     if not isinstance(index, int):
         return None
-    for existing in accumulator:
-        if existing.get("index") == index and existing.get("type") == entry.get("type"):
+    entry_type = entry.get("type")
+    for existing in reversed(accumulator):
+        if existing.get("index") == index and (entry_type is None or existing.get("type") == entry_type):
             return existing
     return None
 
