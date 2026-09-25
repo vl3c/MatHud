@@ -239,7 +239,7 @@ from .test_slash_commands import (
 from .test_math_symbols import (
     TestMathSymbolTable,
     TestAltShortcutLookup,
-    TestInsertText,
+    TestLatexWordTail,
     TestLatexCompletion,
     TestRecentSymbols,
     TestPaletteGridNavigation,
@@ -604,7 +604,7 @@ class Tests:
             TestStatusCommandOutput,
             TestMathSymbolTable,
             TestAltShortcutLookup,
-            TestInsertText,
+            TestLatexWordTail,
             TestLatexCompletion,
             TestRecentSymbols,
             TestPaletteGridNavigation,
