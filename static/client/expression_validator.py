@@ -763,6 +763,8 @@ class ExpressionValidator(ast.NodeVisitor):
             if ends_operand and not imaginary_literal:
                 parts.append("*")
             token = constants.get(char, char)
+            if char == ExpressionValidator._IMAGINARY_IOTA and python_compatible and not follows_number:
+                token = "1j"  # a bare j is a name in Python; the unit alone is the literal 1j
             parts.append(token)
             following = expression[index + 1 : index + 2]
             continues_name = char not in constants and ExpressionValidator._continues_greek_name(char, following)

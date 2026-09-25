@@ -82,10 +82,13 @@ FIX_CASES: Dict[str, Tuple[str, str]] = {
     "ℯ": ("e", "e"),
     "2ℯ": ("2*e", "2*e"),
     "ℯ^x": ("e**x", "e^x"),
-    "ί": ("j", "i"),
+    "ί": ("1j", "i"),
+    "2.5ί": ("2.5j", "2.5i"),
+    "-ί": ("-1j", "-i"),
     "2ί": ("2j", "2i"),
     "3+4ί": ("3+4j", "3+4i"),
-    "ίx": ("j*x", "i*x"),
+    "ίx": ("1j*x", "i*x"),
+    "xί": ("x*1j", "x*i"),
     # Greek letters stay as variable names, each a single-letter factor
     "θ": ("θ", "θ"),
     "2θ": ("2*θ", "2*θ"),
@@ -232,6 +235,14 @@ class TestFixMathExpressionUnicode(unittest.TestCase):
     def test_imaginary_iota_evaluates_as_complex(self) -> None:
         fixed = ExpressionValidator.fix_math_expression("3+4ί", python_compatible=True)
         self.assertEqual(eval(fixed, {}), complex(3, 4))
+
+    def test_bare_imaginary_iota_evaluates_as_complex(self) -> None:
+        # Regression: a lone ί became the name j (NameError) in Python mode
+        for expression, variables, expected in (("ί", {}, 1j), ("ί*ί", {}, -1), ("2 + ίx", {"x": 3}, 2 + 3j)):
+            with self.subTest(expression=expression):
+                fixed = ExpressionValidator.fix_math_expression(expression, python_compatible=True)
+                ExpressionValidator.validate_expression_tree(fixed)
+                self.assertEqual(eval(fixed, dict(variables)), expected)
 
     def test_ascii_input_is_unchanged(self) -> None:
         for expression in ASCII_SAMPLES:
