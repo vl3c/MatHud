@@ -114,7 +114,7 @@ class LinearAlgebraUtils:
                     "'×' is read only between two names (u×v is cross(u, v)) or two numbers; "
                     "write cross(a, b) for other cross products or * for other products"
                 )
-        return ExpressionValidator.normalize_unicode_math(expression)
+        return str(ExpressionValidator.normalize_unicode_math(expression))
 
     @staticmethod
     def _cross_product(match: re.Match[str]) -> str:

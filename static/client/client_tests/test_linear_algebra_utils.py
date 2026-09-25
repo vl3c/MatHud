@@ -433,7 +433,9 @@ class TestLinearAlgebraUtils(unittest.TestCase):
         # Regression: A⁻¹ and u×v reached math.js as-is and failed to parse
         inverse = LinearAlgebraUtils.evaluate_expression([{"name": "A", "value": [[1, 2], [3, 4]]}], "A⁻¹")
         self.assertEqual(inverse["type"], "matrix")
-        for row, expected_row in zip(inverse["value"], [[-2, 1], [1.5, -0.5]]):
+        inverse_rows: List[List[float]] = inverse["value"]
+        expected_rows: List[List[float]] = [[-2.0, 1.0], [1.5, -0.5]]
+        for row, expected_row in zip(inverse_rows, expected_rows):
             for value, expected in zip(row, expected_row):
                 self.assertAlmostEqual(value, expected)
         objects = [{"name": "u", "value": [1, 0, 0]}, {"name": "v", "value": [0, 1, 0]}]

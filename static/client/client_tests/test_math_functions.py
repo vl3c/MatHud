@@ -1,6 +1,6 @@
 import unittest
 import json
-from typing import List
+from typing import Dict, List, Tuple
 from utils.math_utils import MathUtils
 from drawables_aggregator import Position
 from .simple_mock import SimpleMock
@@ -1217,7 +1217,7 @@ class TestMathFunctions(unittest.TestCase):
         from expression_validator import ExpressionValidator
         from math_symbols import SYMBOLS
 
-        evaluable = {
+        evaluable: Dict[str, Tuple[str, Dict[str, float], float]] = {
             "×": ("3×4", {}, 12),
             "÷": ("6÷4", {}, 1.5),
             "·": ("a·b", {"a": 2, "b": 3}, 6),
