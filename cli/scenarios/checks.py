@@ -160,6 +160,8 @@ _MUTATING_TOOLS = frozenset(
 )
 # Results that claim success without saying what happened (static/client/constants.py successful_call_message).
 GENERIC_SUCCESS_MESSAGES = frozenset({"Call successful!", ""})
+# Wording by which a result admits that a call changed nothing (I4).
+NO_OP_WORDING = re.compile(r"\b(no|not|nothing|already|unchanged|empty)\b", re.IGNORECASE)
 # Tools matching a mutating prefix that do not change the canvas.
 _NON_CANVAS_TOOLS = frozenset({"delete_workspace"})
 # Tools whose "name" argument is a hint for a new object's name (I4 naming rule).
@@ -427,8 +429,9 @@ def validate_check(check: Any) -> list[str]:
                 problems.append(f"relation {relation} takes {expected_count} selectors, got {len(selectors)}")
         if relation == "tangent_to" and isinstance(selectors, list) and len(selectors) == 2:
             target = selectors[1]
-            if isinstance(target, dict) and target.get("type") in FUNCTION_TYPES | {"AnyFunction"} and "x" not in check:
-                problems.append("relation tangent_to a function needs x")
+            is_circle = isinstance(target, dict) and target.get("type") == "Circle"
+            if not is_circle and "x" not in check:
+                problems.append("relation tangent_to anything but a Circle selector needs x")
         if relation == "direction" and not ("parallel_to" in check or "perpendicular_to" in check):
             problems.append("relation direction needs parallel_to or perpendicular_to")
         if relation in _VALUE_RELATIONS and "value" not in check:
@@ -1737,6 +1740,12 @@ def is_generic_success(result: Any) -> bool:
     return isinstance(result, str) and result.strip() in GENERIC_SUCCESS_MESSAGES
 
 
+def says_no_op(result: Any) -> bool:
+    """True when a result says nothing happened ("already exists", "nothing to undo", "not applied", ...)."""
+    text = result if isinstance(result, str) else json.dumps(result, default=str)
+    return NO_OP_WORDING.search(text) is not None and not is_generic_success(result)
+
+
 def _removes_objects(tool: str) -> bool:
     return tool.startswith("delete_") or tool in ("clear_canvas", "load_workspace", "undo", "redo")
 
@@ -1757,14 +1766,18 @@ def _inv_truthful_results(before: CanvasView, after: CanvasView, step: StepData)
     errors = [call_is_error(call) for call in calls]
     if all(errors) and drawables_changed:
         problems.append("every call failed but the canvas changed: " + "; ".join(drawables_changed[:5]))
-    if (
-        not any(errors)
-        and all(_is_mutating(str(c.get("function_name"))) for c in calls)
-        and all(is_generic_success(c.get("result")) for c in calls)
-        and not changed
-    ):
-        names = ", ".join(str(c.get("function_name")) for c in calls)
-        problems.append(f"{names} reported success but changed nothing")
+    if not changed:
+        for call, failed in zip(calls, errors):
+            tool = str(call.get("function_name"))
+            if failed or not _is_mutating(tool):
+                continue
+            result = call.get("result")
+            if is_generic_success(result):
+                problems.append(f"{tool} reported success but the batch changed nothing")
+            elif not says_no_op(result):
+                problems.append(
+                    f"{tool} answered {str(result)[:80]!r} but the batch changed nothing and the result does not say so"
+                )
     before_keys = {obj.key for obj in before.objects}
     added = {obj.name for obj in after.objects if obj.key not in before_keys}
     touched = added | {
@@ -1782,9 +1795,7 @@ def _inv_truthful_results(before: CanvasView, after: CanvasView, step: StepData)
         arguments = call.get("arguments") or {}
         for key in _NAME_HINT_KEYS:
             hint = arguments.get(key)
-            explained = _result_mentions(call.get("result"), added) or (
-                not added and not is_generic_success(call.get("result"))
-            )
+            explained = _result_mentions(call.get("result"), added) or (not added and says_no_op(call.get("result")))
             if isinstance(hint, str) and hint and hint not in touched and not explained:
                 problems.append(
                     f"{tool} asked for {key} {hint!r}, no object got it, and the result "
@@ -1824,6 +1835,9 @@ def _inv_undo_accounting(before: CanvasView, after: CanvasView, step: StepData) 
         return []
     changed = diff_views(before, after, _DERIVED_TOL, inspect=True, include_view=True)
     expected = 1 if changed else 0
+    if not changed and added == 1 and "load_workspace" in tools:
+        # Loading a workspace identical to the canvas is still an explicit, undoable load.
+        return []
     if added != expected:
         what = "changed the canvas" if changed else "changed nothing"
         return [f"batch ({', '.join(tools)}) {what} and added {added} undo entries, expected {expected}"]

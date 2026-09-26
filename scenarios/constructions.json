@@ -109,17 +109,17 @@
             {
               "check": "relation",
               "relation": "tangent_to",
-              "select": [{"type": "Segment", "ends": [[0, 0], [6, 0]]}, "$In"]
+              "select": [{"type": "Segment", "ends": [[0, 0], [6, 0]]}, {"type": "Circle", "center": [2.4076408527535995, 1.4880038797045054], "tol": 1e-06}]
             },
             {
               "check": "relation",
               "relation": "tangent_to",
-              "select": [{"type": "Segment", "ends": [[6, 0], [2, 4]]}, "$In"]
+              "select": [{"type": "Segment", "ends": [[6, 0], [2, 4]]}, {"type": "Circle", "center": [2.4076408527535995, 1.4880038797045054], "tol": 1e-06}]
             },
             {
               "check": "relation",
               "relation": "tangent_to",
-              "select": [{"type": "Segment", "ends": [[2, 4], [0, 0]]}, "$In"]
+              "select": [{"type": "Segment", "ends": [[2, 4], [0, 0]]}, {"type": "Circle", "center": [2.4076408527535995, 1.4880038797045054], "tol": 1e-06}]
             },
             {"check": "max_tool_calls", "max": 4}
           ]

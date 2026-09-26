@@ -599,8 +599,11 @@ class TestValidateCheck:
             {"check": "relation", "relation": "angle_deg", "select": [seg] * 4, "value": 90}
         )
         function = {"type": "Function", "name": "f"}
-        assert "relation tangent_to a function needs x" in validate_check(
+        assert "relation tangent_to anything but a Circle selector needs x" in validate_check(
             {"check": "relation", "relation": "tangent_to", "select": [seg, function]}
+        )
+        assert "relation tangent_to anything but a Circle selector needs x" in validate_check(
+            {"check": "relation", "relation": "tangent_to", "select": [seg, "$C"]}
         )
         assert validate_check({"check": "relation", "relation": "tangent_to", "select": [seg, function], "x": 1}) == []
         assert (
@@ -756,6 +759,33 @@ class TestInvariants:
         bare = StepData(calls=[call("undo", True)])
         assert by_id(invariants(view, view, bare), "I4").status == "fail"
 
+    def test_i4_mixed_no_op_batch_is_judged_per_call(self) -> None:
+        """One truthful no-op must not excuse another call's bare success in the same unchanged batch."""
+        view = CanvasView(state(point("A", 0, 0), circle("A", 2, 0, 0)))
+        step = StepData(
+            calls=[
+                call("update_circle", "Call successful!", name="A(2)", new_color="red"),
+                call(
+                    "create_point", "Point 'A' already exists at (0, 0); no new point was created.", x=0, y=0, name="Z"
+                ),
+            ]
+        )
+        result = by_id(invariants(view, view, step), "I4")
+        assert result.status == "fail"
+        assert "update_circle reported success but the batch changed nothing" in result.message
+        assert "create_point" not in result.message
+
+    def test_i4_success_looking_text_on_a_no_op_fails(self) -> None:
+        view = CanvasView(state(point("A", 0, 0)))
+        step = StepData(calls=[call("update_point", "Point A updated.", point_name="A", new_color="black")])
+        result = by_id(invariants(view, view, step), "I4")
+        assert result.status == "fail" and "does not say so" in result.message
+
+    def test_i4_ignores_read_only_calls_in_an_unchanged_batch(self) -> None:
+        view = CanvasView(state(point("A", 0, 0)))
+        step = StepData(calls=[call("calculate_area", {"value": 2}, expression="ABC")])
+        assert by_id(invariants(view, view, step), "I4").status == "pass"
+
     def test_i4_error_that_changed_the_canvas(self) -> None:
         step = StepData(calls=[call("translate_object", "Error: nope", is_error=True, name="x")])
         before, after = CanvasView(state(point("A", 0, 0))), CanvasView(state(point("A", 1, 0)))
@@ -822,6 +852,17 @@ class TestInvariants:
         # A non-undoable tool that changes drawables (load, regression) still owes one entry.
         loaded = StepData(calls=[call("load_workspace", name="w")], undoable=[False], undo_before=0, undo_after=0)
         assert by_id(invariants(CanvasView(state()), canvas, loaded), "I5").status == "fail"
+
+    def test_i5_allows_one_entry_for_a_load_that_changed_nothing(self) -> None:
+        view = CanvasView(state(*right_triangle()))
+        load = StepData(
+            calls=[call("load_workspace", 'Workspace "w" loaded successfully.', name="w")], undo_before=2, undo_after=3
+        )
+        assert by_id(invariants(view, view, load), "I5").status == "pass"
+        no_entry = StepData(calls=[call("load_workspace", "loaded", name="w")], undo_before=2, undo_after=2)
+        assert by_id(invariants(view, view, no_entry), "I5").status == "pass"
+        two = StepData(calls=[call("load_workspace", "loaded", name="w")], undo_before=2, undo_after=4)
+        assert by_id(invariants(view, view, two), "I5").status == "fail"
 
     def test_i5_counts_view_mode_and_inspection_changes(self) -> None:
         """A batch that changes only the view, the mode or a colour still changed the canvas (as in I4)."""
