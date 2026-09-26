@@ -172,8 +172,9 @@ class ChatUIManager:
                 content_element = html.DIV(Class="chat-content markdown")
                 content_element.innerHTML = parsed_content
             else:
-                # For user messages, keep them as plain text for now
-                content_element = html.SPAN(message, Class="chat-content")
+                # User messages are plain text. Set .text: Brython's html.SPAN(str) parses
+                # the string as HTML, which would run markup from a message or a loaded chat.
+                content_element = self._text_element(html.SPAN, message, "chat-content")
 
             # Assemble the message
             message_container <= sender_label
@@ -208,12 +209,16 @@ class ChatUIManager:
             print(f"Error creating message element: {e}")
             # Fall back to simple paragraph. Escape sender/content before
             # interpolating into innerHTML so raw HTML never executes here.
-            if sender == "AI":
-                content = self._escape_html(message).replace("\n", "<br>")
-                safe_sender = self._escape_html(sender)
-                return html.P(f"<strong>{safe_sender}:</strong> {content}", innerHTML=True)
-            else:
-                return html.P(f"<strong>{sender}:</strong> {message}")
+            content = self._escape_html(message).replace("\n", "<br>")
+            safe_sender = self._escape_html(sender)
+            return html.P(f"<strong>{safe_sender}:</strong> {content}", innerHTML=True)
+
+    @staticmethod
+    def _text_element(factory: Callable[..., Any], text: str, class_name: str) -> Any:
+        """Create an element showing ``text`` literally (never parsed as HTML)."""
+        element = factory(Class=class_name)
+        element.text = text
+        return element
 
     def print_ai_message(
         self,
@@ -311,7 +316,8 @@ class ChatUIManager:
         except Exception as e:
             print(f"Error printing system message: {e}")
             # Fallback to simple paragraph
-            fallback = html.P(f"System: {message}")
+            fallback = html.P()
+            fallback.text = f"System: {message}"
             document["chat-history"] <= fallback
 
     def _create_expandable_content(self, message: str) -> Any:
@@ -375,7 +381,7 @@ class ChatUIManager:
             footer_text = format_metrics_footer(turn_metrics)
             if not footer_text:
                 return
-            footer = html.DIV(footer_text, Class="chat-metrics-footer")
+            footer = self._text_element(html.DIV, footer_text, "chat-metrics-footer")
             footer.attrs["title"] = format_metrics_details(turn_metrics)
             container <= footer
         except Exception as e:
@@ -710,7 +716,7 @@ class ChatUIManager:
     def _insert_restored_tool_log(self, element: Any, tools: list[Dict[str, Any]]) -> None:
         """Add a collapsed tool-call log before the message text, as a live turn shows it."""
         details = html.DETAILS(Class="tool-call-log-dropdown")
-        details <= html.SUMMARY(self._tool_log_summary_text(tools), Class="tool-call-log-summary")
+        details <= self._text_element(html.SUMMARY, self._tool_log_summary_text(tools), "tool-call-log-summary")
         content = html.DIV(Class="tool-call-log-content")
         for tool in tools:
             args = tool.get("args", "")
@@ -734,9 +740,8 @@ class ChatUIManager:
                 continue
         return None
 
-    @staticmethod
-    def _create_restored_note(text: str) -> Any:
-        return html.DIV(text, Class="chat-restored-note")
+    def _create_restored_note(self, text: str) -> Any:
+        return self._text_element(html.DIV, text, "chat-restored-note")
 
     @staticmethod
     def _tool_log_summary_text(tools: list[Dict[str, Any]]) -> str:

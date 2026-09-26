@@ -271,6 +271,7 @@ from .test_chat_persistence import (
     TestChatPersistenceManager,
     TestWorkspaceManagerChat,
 )
+from .test_chat_html_safety import TestChatHtmlSafety, TestMathJaxHrefDisabled
 from .test_turn_metrics import (
     TestTurnAggregation,
     TestFooterFormatting,
@@ -642,6 +643,8 @@ class Tests:
             TestChatUIRecordAndRestore,
             TestChatPersistenceManager,
             TestWorkspaceManagerChat,
+            TestChatHtmlSafety,
+            TestMathJaxHrefDisabled,
             TestTurnAggregation,
             TestFooterFormatting,
             TestTurnMetricsCollector,

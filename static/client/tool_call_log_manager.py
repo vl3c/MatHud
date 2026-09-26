@@ -29,9 +29,9 @@ class ToolCallLogManager:
 
     def __init__(self) -> None:
         self.entries: list[dict[str, Any]] = []
-        self.element: Any | None = None   # <details> element
-        self.summary: Any | None = None   # <summary> element
-        self.content: Any | None = None   # content container div
+        self.element: Any | None = None  # <details> element
+        self.summary: Any | None = None  # <summary> element
+        self.content: Any | None = None  # content container div
 
     # ── State management ────────────────────────────────────────
 
@@ -65,6 +65,17 @@ class ToolCallLogManager:
 
     # ── DOM element creation ────────────────────────────────────
 
+    @staticmethod
+    def _text_span(text: str, class_name: str) -> Any:
+        """Create a span showing ``text`` literally.
+
+        Brython's ``html.SPAN(str)`` parses the string as HTML; tool names, arguments
+        and results come from the model or a loaded workspace, so they are set as text.
+        """
+        span = html.SPAN(Class=class_name)
+        span.text = text
+        return span
+
     def create_entry_element(self, entry: dict[str, Any]) -> Any:
         """Build the DOM element for a single tool call log entry."""
         div = html.DIV(Class="tool-call-entry")
@@ -72,15 +83,15 @@ class ToolCallLogManager:
         is_error = entry.get("is_error", False)
         status_class = "tool-call-status error" if is_error else "tool-call-status success"
         status_char = "\u2717" if is_error else "\u2713"
-        status_span = html.SPAN(status_char, Class=status_class)
+        status_span = self._text_span(status_char, status_class)
         div <= status_span
 
-        name_span = html.SPAN(entry.get("name", ""), Class="tool-call-name")
+        name_span = self._text_span(str(entry.get("name", "")), "tool-call-name")
         div <= name_span
 
         short_args = entry.get("args_display", "")
         full_args = entry.get("args_full", short_args)
-        args_span = html.SPAN(f"({short_args})", Class="tool-call-args")
+        args_span = self._text_span(f"({short_args})", "tool-call-args")
         div <= args_span
 
         # Show error message or result
@@ -91,10 +102,10 @@ class ToolCallLogManager:
         if is_error:
             error_msg = entry.get("error_message", "")
             if error_msg:
-                err_span = html.SPAN(f" \u2192 {error_msg}", Class="tool-call-error-msg")
+                err_span = self._text_span(f" \u2192 {error_msg}", "tool-call-error-msg")
                 div <= err_span
         elif result_display:
-            result_span = html.SPAN(f" \u2192 {result_display}", Class="tool-call-result")
+            result_span = self._text_span(f" \u2192 {result_display}", "tool-call-result")
             div <= result_span
 
         # Click to toggle between truncated and full view
