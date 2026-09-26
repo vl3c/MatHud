@@ -98,6 +98,38 @@ class TestChatHtmlSafety(unittest.TestCase):
         self.assertIsNone(_xss_flag())
 
 
+class _AutocompleteInput:
+    value = "/load "
+
+
+class _AutocompleteHandler:
+    def get_commands_list(self) -> List[Any]:
+        return []
+
+
+class TestAutocompleteHtmlSafety(unittest.TestCase):
+    """Autocomplete entries (workspace names, model ids) are shown as text."""
+
+    def test_entry_name_and_description_stay_text(self) -> None:
+        from browser import html
+        from command_autocomplete import CommandAutocomplete
+
+        autocomplete = CommandAutocomplete(_AutocompleteInput(), _AutocompleteHandler())  # type: ignore[arg-type]
+        autocomplete.popup_element = html.DIV()
+        for payload in PAYLOADS:
+            with self.subTest(payload=payload):
+                autocomplete.filtered_commands = [(f"/load {payload}", f"Load workspace '{payload}'")]
+                autocomplete._render_filtered_commands()
+                item = _children_with_class(autocomplete.popup_element, "command-autocomplete-item")[0]
+                name = _children_with_class(item, "command-name")[0]
+                desc = _children_with_class(item, "command-description")[0]
+                self.assertEqual(len(name.children), 0, name.innerHTML)
+                self.assertEqual(name.text, f"/load {payload}")
+                self.assertEqual(len(desc.children), 0, desc.innerHTML)
+                self.assertEqual(desc.text, f"Load workspace '{payload}'")
+        self.assertIsNone(_xss_flag())
+
+
 class TestMathJaxHrefDisabled(unittest.TestCase):
     """``\\href{javascript:...}`` must not typeset to a link; ordinary math still renders."""
 
@@ -126,12 +158,29 @@ class TestMathJaxHrefDisabled(unittest.TestCase):
         self.assertIsNone(node.querySelector("a"))
         self.assertIsNone(node.querySelector("[href]"))
 
+    def test_require_html_does_not_create_a_link(self) -> None:
+        # \require is removed, so this needs no extension load: a "retry" here would mean
+        # MathJax is fetching the html extension, and fails the test.
+        node = self._mathjax().tex2chtml(
+            "\\require{html}\\href{javascript:void(window.__xss=(window.__xss||0)+1)}{\\text{click}}"
+        )
+        self.assertIsNone(node.querySelector("a"))
+        self.assertIsNone(node.querySelector("[href]"))
+
+    def test_require_html_does_not_enable_class_style_or_id(self) -> None:
+        node = self._mathjax().tex2chtml("\\require{html}\\class{evil}{x}\\cssId{evil}{y}\\style{color:red}{z}")
+        self.assertIsNone(node.querySelector(".evil"))
+        self.assertIsNone(node.querySelector("#evil"))
+
     def test_ordinary_math_still_renders(self) -> None:
         for tex in (
             "\\frac{1}{2}",
             "\\sqrt{x^2+1}",
             "\\begin{pmatrix}1 & 2 \\\\ 3 & 4\\end{pmatrix}",
             "\\text{area} = \\pi r^2",
+            "\\color{red}{x} + y",
+            "\\boldsymbol{v}",
+            "\\cancel{x}",
         ):
             with self.subTest(tex=tex):
                 node = self._typeset(tex)
