@@ -30,7 +30,8 @@ Each library's own license file is kept next to it.
   extensions it can load on demand (`es5/input/tex/extensions/`, loaded by
   `autoload`/`\require`), and the CHTML output fonts (`es5/output/chtml/fonts/woff-v2/`).
   Components that only the MathJax context menu can switch on (SVG output,
-  accessibility explorer and speech rules) are not vendored.
+  accessibility explorer and speech rules) are not vendored; `templates/index.html`
+  hides those menu entries and drops their stored settings.
 - **Inter**: the variable `woff2` subsets. `inter/5.3.0/inter.css` is a small
   hand-written stylesheet (part of MatHud) that declares them as font family
   `Inter`, mirroring the Google Fonts stylesheet the app used before.
