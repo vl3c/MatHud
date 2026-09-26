@@ -296,7 +296,7 @@ backend serving the same OpenAI-compatible API) over `/v1`, and needs no API key
 Local models are used in search-first tool mode and currently receive text only; attached
 images are not forwarded.
 
-Every LocalAgent request sends a reasoning effort as the chat-template variable
+Every LocalAgent request (chat, and the model-based tool search) sends a reasoning effort as the chat-template variable
 `reasoning_effort` (`chat_template_kwargs`), `medium` by default. Without it a reasoning model
 uses its template's default: Qwen3.8 27B then thought for 16,000 tokens (about four minutes)
 on "what is the perimeter of triangle ABC" without answering, and took about 5 s at `medium`.

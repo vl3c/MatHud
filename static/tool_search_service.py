@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Optional, Tuple, TypedDict
 
 from openai import OpenAI
 
-from static.ai_model import PROVIDER_OPENAI, AIModel
+from static.ai_model import PROVIDER_LOCAL_AGENT, PROVIDER_OPENAI, AIModel
 from static.env_config import get_api_key
 from static.functions_definitions import FUNCTIONS, FunctionDefinition
 
@@ -1015,6 +1015,14 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         else:
             request_kwargs["temperature"] = 0.0  # Deterministic for consistent results
             request_kwargs["max_tokens"] = 500
+        if model.provider == PROVIDER_LOCAL_AGENT:
+            # Same reasoning effort as LocalAgent's chat requests; without one a
+            # reasoning model can spend the whole 500 tokens thinking.
+            from static.providers.local import get_configured_reasoning_effort
+
+            effort = get_configured_reasoning_effort()
+            if effort is not None:
+                request_kwargs["extra_body"] = {"chat_template_kwargs": {"reasoning_effort": effort}}
         return request_kwargs
 
     @classmethod

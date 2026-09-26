@@ -860,8 +860,11 @@ _SET_ANSWER_END = re.compile(r"\s\(|;|\s(?:because|since)\b", re.IGNORECASE)
 _NUMBER = re.compile(r"(?<![A-Za-z_.\d])[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?")
 _NAME_TOKEN = re.compile(r"[A-Za-z][A-Za-z0-9_']*(?:\([^()\s]*\))?")
 _NONE_ANSWER = re.compile(r"^\s*(?:none|no points?|nothing|empty|\{\s*\}|∅)\b", re.IGNORECASE)
-# Anywhere in an answer that lists no names: "There are none", "No point lies on it", "∅".
-_SAYS_NONE = re.compile(r"\b(?:none|no points?|nothing|empty)\b|\{\s*\}|∅", re.IGNORECASE)
+# Anywhere in an answer that lists no names: "There are none", "No named points lie on it", "∅".
+_SAYS_NONE = re.compile(
+    r"\b(?:none|nothing|empty|zero)\b|\bno(?:\s+\w+){0,2}?\s+points?\b|\bnot\s+any\b|\{\s*\}|∅", re.IGNORECASE
+)
+_LATEX_TEXT = re.compile(r"\\text\{([^{}]*)\}")
 _NAME_PREFIX = re.compile(
     r"^(?:at\s+)?(?:the\s+)?(?:(?:point|segment|circle|vertex|object|curve|label|colou?r|day|bar|edge|text)\s+)?",
     re.IGNORECASE,
@@ -880,9 +883,9 @@ def extract_answer(reply: str) -> Tuple[str, bool]:
     """The value of the reply's last ``Answer:`` (or ``Final answer:``) line, and whether one was present.
 
     Without one, the last non-empty line is used. An answer line with no value
-    (``**Final Answer:**`` followed by ``$\\boxed{6}$``) takes the next non-empty
-    line. Markdown emphasis, backticks, ``$``, ``\\boxed{...}`` and ``<think>``
-    blocks are ignored.
+    (``**Final Answer:**`` followed by ``$$ \\boxed{6} $$``) takes the first
+    following line that has one. Markdown emphasis, backticks, ``$``, ``\\[``,
+    ``\\boxed{...}``, ``\\text{...}`` and ``<think>`` blocks are ignored.
     """
     text = _THINK_BLOCK.sub("", reply or "")
     lines = [line for line in text.splitlines() if line.strip()]
@@ -890,15 +893,17 @@ def extract_answer(reply: str) -> Tuple[str, bool]:
         match = _ANSWER_LINE.match(lines[index])
         if match:
             value = _clean_answer(match.group("value"))
-            if not value and index + 1 < len(lines):
-                value = _clean_answer(lines[index + 1])
+            for line in lines[index + 1 :]:
+                if value:
+                    break
+                value = _clean_answer(line)
             return value, True
     return (_clean_answer(lines[-1]) if lines else ""), False
 
 
 def _clean_answer(value: str) -> str:
-    value = _unbox(value)
-    for token in ("**", "`", "$", "\\(", "\\)"):
+    value = _LATEX_TEXT.sub(r"\1", _unbox(value))
+    for token in ("**", "`", "$", "\\(", "\\)", "\\[", "\\]"):
         value = value.replace(token, "")
     return value.replace("\u2212", "-").strip()
 
@@ -957,7 +962,9 @@ def _name_candidates(answer: str, keep_parentheses: bool) -> Set[str]:
 
 def _grade_name(answer: str, accepted: Sequence[str]) -> bool:
     keep_parentheses = any("(" in name for name in accepted)
-    return bool(_name_candidates(answer, keep_parentheses) & {name.lower() for name in accepted})
+    names = {name.lower() for name in accepted}
+    names |= {name[::-1].lower() for name in accepted if re.fullmatch(r"[A-Z]{2}", name)}  # segment FE is EF
+    return bool(_name_candidates(answer, keep_parentheses) & names)
 
 
 def parse_name_set(answer: str, vocabulary: Sequence[str]) -> Set[str]:

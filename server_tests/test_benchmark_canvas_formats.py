@@ -169,6 +169,9 @@ class TestGrading(unittest.TestCase):
         self.assertEqual(bench.extract_answer("Work\nAnswer:\n6"), ("6", True))
         self.assertEqual(bench.extract_answer("Work\n**Final Answer:**\n\n$\\boxed{6}$"), ("6", True))
         self.assertEqual(bench.extract_answer("Work\nAnswer:"), ("", True))
+        self.assertEqual(bench.extract_answer("**Final Answer:**\n$$\n\\boxed{6}\n$$"), ("6", True))
+        self.assertEqual(bench.extract_answer("**Final Answer:**\n\\[\n\\boxed{6}\n\\]"), ("6", True))
+        self.assertEqual(bench.extract_answer("Answer: $\\boxed{\\text{A}}$"), ("A", True))
 
     def test_numbers_use_a_tolerance(self) -> None:
         q = question("tc_len_bc")
@@ -213,6 +216,10 @@ class TestGrading(unittest.TestCase):
         self.assertFalse(bench.grade(question("tc_largest_angle"), "B"))
         self.assertTrue(bench.grade(question("mm_right_angle"), "At vertex B"))
         self.assertTrue(bench.grade(question("mm_right_angle"), "At B"))
+        # Segment FE is segment EF; one-letter and longer names are not reversed.
+        self.assertTrue(bench.grade(question("ch_removed"), "FE"))
+        self.assertTrue(bench.grade(question("ch_removed"), "segment FE"))
+        self.assertFalse(bench.grade(question("rd_bar_max"), "irF"))
 
     def test_sets_are_order_insensitive(self) -> None:
         q = question("ch_segments_now")
@@ -222,6 +229,9 @@ class TestGrading(unittest.TestCase):
         self.assertTrue(bench.grade(circle, "None"))
         self.assertTrue(bench.grade(circle, "There are none."))
         self.assertTrue(bench.grade(circle, "No point lies on it"))
+        self.assertTrue(bench.grade(circle, "No named points lie on it."))
+        self.assertTrue(bench.grade(circle, "There are no such points."))
+        self.assertTrue(bench.grade(circle, "No named points (A is the center)"))
         self.assertFalse(bench.grade(circle, "B"))
         # Naming no point is not "none" unless the answer says so.
         self.assertFalse(bench.grade(circle, "unknown"))
