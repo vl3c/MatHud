@@ -164,7 +164,11 @@ class TestRenderTextGolden(unittest.TestCase):
         graph_args = state["UndirectedGraphs"][0]["args"]
         graph_args["preexisting_points"] = ["A"]
         graph_args["preexisting_edges"] = ["AB"]
-        self.assertEqual(render_text(state), render_text(load_scene("weighted_graph")))
+        graph_args["preexisting_edge_labels"] = [{"edge": "AB", "text": "", "visible": False}]
+        plain = load_scene("weighted_graph")
+        self.assertEqual(render_text(state), render_text(plain))
+        self.assertEqual(render_min_json(state), render_min_json(plain))
+        self.assertNotIn("preexisting", render_min_json(state))
 
     def test_duplicate_names_are_flagged_once(self) -> None:
         text = render_text(load_scene("regression_duplicates"))

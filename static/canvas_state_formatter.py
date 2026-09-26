@@ -92,6 +92,10 @@ _RENDER_ONLY_FIELDS = frozenset(
         "reference_scale_factor",
         "geometry_snapshot",
         "resolution",
+        # Graph ownership bookkeeping: which reused drawables delete_graph keeps.
+        "preexisting_points",
+        "preexisting_edges",
+        "preexisting_edge_labels",
     }
 )
 
@@ -698,10 +702,7 @@ def _graph_renderer(bucket: str) -> Renderer:
         if args.get("root"):
             properties.append(f"root {args['root']}")
         header = f"{item.get('name', '?')} = Graph({' '.join(properties)}; vertices {' '.join(vertices) or '(none)'})"
-        # preexisting_* only records which reused drawables delete_graph keeps; not shown to the model.
-        header += _extras_suffix(
-            args, {"segments", "vectors", "isolated_points", "root", "preexisting_points", "preexisting_edges"}
-        )
+        header += _extras_suffix(args, {"segments", "vectors", "isolated_points", "root"})
         return header + f"\n  edges ({len(edges)}): " + (", ".join(edges) if edges else "(none)")
 
     return render
