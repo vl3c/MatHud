@@ -271,7 +271,8 @@ Attributes:
 - `draw(apply_zoom=False)`: Draw all canvas content including coordinate system and drawable objects
 - `clear()`: Clear all drawables from the canvas
 - `reset()`: Reset the canvas to its initial state
-- `archive()`: Archive the current state for undo functionality
+- `archive()`: Archive the current state for undo functionality (inside an undo batch it only marks the batch as changed)
+- `begin_undo_batch()` / `end_undo_batch()`: Group every change between the two calls into one undo step (see Undo Redo Manager)
 - `undo()`: Restores the last archived state from the undo stack
 - `redo()`: Restores the last undone state from the redo stack
 - `get_drawables()`: Get all drawables as a flat list
@@ -305,7 +306,7 @@ Attributes:
 - `construct_incircle(triangle_name, name=None, color=None)`: Construct the inscribed circle (incircle) of a triangle. The incircle is tangent to all three sides.
 - `plot_distribution(name=None, representation="continuous", distribution_type="normal", distribution_params=None, plot_bounds=None, shade_bounds=None, curve_color=None, fill_color=None, fill_opacity=None, bar_count=None)`: Plot a probability distribution. For representation="continuous", `plot_bounds` controls the curve domain, while `shade_bounds` controls the shaded interval under the curve (clamped into `plot_bounds`). For representation="discrete", `plot_bounds` controls the bar span and `shade_bounds` is ignored. Discrete distribution plots create a `DiscretePlot` composite plus derived `Bar` drawables for rendering; derived bars are regenerated on workspace load and may be omitted from serialized canvas state to keep prompts compact.
 - `plot_bars(name=None, values=None, labels_below=None, labels_above=None, bar_spacing=None, bar_width=None, stroke_color=None, fill_color=None, fill_opacity=None, x_start=None, y_base=None)`: Plot a bar chart (`BarsPlot` composite plus derived `Bar` drawables). Derived bars are regenerated on workspace load and may be omitted from serialized canvas state to keep prompts compact.
-- `fit_regression(name=None, x_data=None, y_data=None, model_type="linear", degree=None, plot_bounds=None, curve_color=None, show_points=True, point_color=None)`: Fit a regression model to data and plot the resulting curve. Supported model types: "linear" (y=mx+b), "polynomial" (y=a0+a1*x+...+an*x^n, requires `degree`), "exponential" (y=a*e^(bx), requires positive y), "logarithmic" (y=a+b*ln(x), requires positive x), "power" (y=a*x^b, requires positive x and y), "logistic" (y=L/(1+e^(-k(x-x0)))), and "sinusoidal" (y=a*sin(bx+c)+d, requires at least 4 points). Returns function_name, expression, coefficients, r_squared, model_type, bounds, and optionally point_names. Data points take the next free canvas point names (A, B, C, ..., A', ...), a point that already exists at a data coordinate is reused, and point_names lists the names in data order. Use `delete_function` to remove the curve; delete points individually.
+- `fit_regression(name=None, x_data=None, y_data=None, model_type="linear", degree=None, plot_bounds=None, curve_color=None, show_points=True, point_color=None)`: Fit a regression model to data and plot the resulting curve. Supported model types: "linear" (y=mx+b), "polynomial" (y=a0+a1*x+...+an*x^n, requires `degree`), "exponential" (y=a*e^(bx), requires positive y), "logarithmic" (y=a+b*ln(x), requires positive x), "power" (y=a*x^b, requires positive x and y), "logistic" (y=L/(1+e^(-k(x-x0)))), and "sinusoidal" (y=a*sin(bx+c)+d, requires at least 4 points). Returns function_name, expression, coefficients, r_squared, model_type, bounds, and optionally point_names. Data points take the next free canvas point names (A, B, C, ..., A', ...), a point that already exists at a data coordinate is reused, and point_names lists the names in data order. Use `delete_function` to remove the curve; delete points individually. The curve and the points are one undo step.
 - `compute_descriptive_statistics(data)`: Compute descriptive statistics for a list of numbers. Returns a dictionary with: count, mean, median, mode (list of values; empty if no meaningful mode), standard_deviation (population), variance (population), min, max, q1 (first quartile), q3 (third quartile), iqr (interquartile range), and range. Quartiles use the median-of-halves (exclusive) method. All values must be finite (no Infinity or NaN).
 - `delete_plot(name)`: Delete a plot composite created by plot_distribution/plot_bars, including its derived components.
 - `zoom(center_x, center_y, range_val, range_axis)`: Center the viewport on (center_x, center_y) showing center +/- `range_val` along `range_axis` ('x' or 'y'); the other axis follows the canvas aspect ratio. Delegates to `CoordinateMapper.set_visible_bounds`. Tool: `zoom`
@@ -470,14 +471,14 @@ Manages state archiving, computation tracking, and error handling for function e
 Key Features:
     - Function call validation and execution
     - Result formatting and type consistency
-    - State archiving for undoable operations
+    - One undo step per batch of calls
     - Computation history integration
     - Error handling and exception management
     - Expression evaluation result processing
 
 Processing Flow:
     1. Input validation for function calls and available functions
-    2. State archiving for undoable operations
+    2. An undo batch around calls that can change the canvas, so the batch is one undo step
     3. Individual function call execution with error handling
     4. Result formatting and key generation
     5. Computation history integration (for mathematical operations)
@@ -496,8 +497,17 @@ results with proper formatting and error handling. Integrates with canvas
 computation history for mathematical operations.
 ```
 
+**Undo and result conventions for a tool batch:**
+- A batch that contains at least one undoable call runs inside one undo batch (`canvas.begin_undo_batch()` / `end_undo_batch()`), so one `undo` afterwards restores exactly the state before the batch, and `redo` restores the batch's result. A batch that changed nothing (for example only a delete of a missing object) adds no undo entry and keeps the redo history. After a call that fails or reports that it changed nothing, the batch counts as changed only if an earlier call changed it or the canvas no longer matches the state the batch started from (each live drawable's `get_state()` and the computations, compared as sorted JSON with the same serialization taken when the batch started). So a manager that archives and then fails without changing anything (`delete_angle` of a missing angle, a `translate_object` or `scale_object` that fails) adds no entry and keeps the redo history, while a call that changes part of the canvas and then fails (for example a `create_polygon` with a repeated vertex that leaves points and segments, or a workspace restore that fails partway) leaves one undo entry that restores the state before the batch. An `undo` or `redo` call inside a batch first commits the batch's earlier changes, so it reverts them rather than the step before the batch.
+- Two tools that change the canvas are not in the undoable list and group their own changes: `load_workspace` (through `WorkspaceManager._restore_workspace_state`) and `fit_regression` (curve and data points, through `StatisticsManager.fit_regression`) are each one undo step, alone or inside a larger batch.
+- `create_point` on a spot that already holds a point creates nothing and adds no undo entry. Its result names the existing point, e.g. "Point 'A' already exists at (1, 1); no new point was created. The requested name 'B' was not applied." (the name sentence appears only when a different name was requested, and a requested color is reported as not applied too). It is not a tool error. Tools report such outcomes by returning a `NoChangeResult(message)` (`no_change_result.py`).
+- A delete tool, `undo` or `redo` that returns False changed nothing, and its result says so instead of "Call successful!": deletes return "Error: nothing was deleted; no matching object exists on the canvas." (a tool error, like an update of a missing object), `undo` returns "Nothing to undo: the undo history is empty." and `redo` returns "Nothing to redo: there is no undone change to restore."
+- A result counts as a tool error (`is_error` in the traced calls, the tool-call log, trace replay and turn metrics) when it is a string starting with "Error", a string holding a JSON object with a non-empty "error" field (`solve_numeric` failures), a dict with a non-empty "error" field (e.g. `analyze_graph` on a missing graph), or a `{"type": "error", ...}` payload. A dict whose "error" field is empty, as `search_tools` returns on success, is not an error.
+
 **Key Methods:**
-- `get_results(calls, available_functions, undoable_functions, canvas)`: Process function calls and collect their results
+- `get_results(calls, available_functions, undoable_functions, canvas)`: Process function calls and collect their results (the results dict of `get_results_traced`)
+- `get_results_traced(calls, available_functions, undoable_functions, canvas)`: Execute the batch and return (results, traced calls with timing and `is_error`)
+- `is_error_result(value)`: Return True when a result value reports a failed call
 - `_validate_inputs(calls, available_functions, undoable_functions)`: Validate the input parameters
 - `_prepare_helper_variables(undoable_functions)`: Prepare helper variables needed for processing
 - `_process_function_call(call, available_functions, non_computation_functions, unformattable_functions, canvas, results)`: Process a single function call and update results
@@ -637,7 +647,7 @@ Args:
 - `_create_colored_areas(state)`: Create colored areas from workspace state with boundary resolution
 - `_create_angles(state)`: Create angles from workspace state with vertex/arm dependencies
 - `_restore_computations(state)`: Restore computation history from workspace state
-- `_restore_workspace_state(state)`: Main restoration orchestrator for complete workspace state
+- `_restore_workspace_state(state)`: Main restoration orchestrator for complete workspace state; the whole restore, including the canvas clear, is one undo step, so one `undo` after a load or import restores the objects that were on the canvas before it
 - `_find_rectangle_segments(points)`: Find existing segments that form a rectangle
 - `_get_properly_oriented_rectangle_segments(segments, points)`: Arrange segments in proper rectangle order
 
@@ -2213,9 +2223,13 @@ This class is responsible for:
 
 **Key Methods:**
 - `__init__(canvas)`: Initialize the UndoRedoManager with canvas reference
-- `archive()`: Archive the current canvas state for undo functionality
-- `undo()`: Restore the most recent archived state
-- `redo()`: Restore a previously undone state
+- `archive()`: Archive the current canvas state for undo functionality; ignored while archiving is suspended, and inside a batch it only marks the batch as changed
+- `suspend_archiving()` / `resume_archiving()`: Ignore `archive()` calls during a composite operation that pushes its own baseline with `push_undo_state()`
+- `begin_batch()` / `end_batch()`: Group every change until the matching end into one undo step. Batches nest; the outermost `begin_batch()` captures the baseline, and the outermost `end_batch()` pushes it as one entry if anything called `archive()` or `push_undo_state()` in between. Used for model tool batches and workspace restores.
+- `is_batch_changed()` / `set_batch_changed(changed)`: Read or overwrite the open batch's change mark; ResultProcessor resets the mark after a call that failed or changed nothing
+- `state_differs_from_batch_baseline()`: Return True when the canvas no longer matches the state the open batch started from. It compares a sorted-JSON serialization of the live drawables' `get_state()` and the computations with the same serialization of the live objects taken when the batch started (or after an undo or redo inside it). The deep-copied baseline that undo restores is not compared, because copying rebuilds polygons and recomputes their types. True outside a batch or when a state cannot be serialized, so a change is never dropped
+- `undo()`: Restore the most recent archived state (inside a batch, the batch's earlier changes are committed first)
+- `redo()`: Restore a previously undone state (inside a batch, the batch's earlier changes are committed first, which clears the redo history)
 - `can_undo()`: Check if undo operation is possible
 - `can_redo()`: Check if redo operation is possible
 - `clear()`: Clear all archived states
@@ -2365,7 +2379,7 @@ This class is responsible for:
 - `__init__(canvas, drawables_container, name_generator, dependency_manager, drawable_manager_proxy)`: Initialize the PointManager
 - `get_point(x, y)`: Get a point at the specified coordinates
 - `get_point_by_name(name)`: Get a point by its name
-- `create_point(x, y, name="", extra_graphics=True)`: Create a new point at the specified coordinates. Handles collision detection, name generation, extra graphics, and dependency management.
+- `create_point(x, y, name="", extra_graphics=True)`: Create a new point at the specified coordinates. Handles collision detection, name generation, extra graphics, and dependency management. When a point already occupies the spot it returns that point without archiving.
 - `delete_point(x, y)`: Delete a point at the specified coordinates
 - `delete_point_by_name(name)`: Delete a point by its name
 
@@ -3496,6 +3510,7 @@ Dependencies:
 - `default_font_size`: Default font size for text elements (16)
 - `point_label_font_size`: Font size for point labels (5/8 ratio of default)
 - `successful_call_message`: Success message for function calls ("Call successful!"); canvas-mutating tools still return their value instead when it is a non-empty string or a dict of at most 2000 characters of JSON
+- `nothing_to_undo_message`, `nothing_to_redo_message`, `nothing_deleted_message`: Results of `undo`, `redo` and delete tools that returned False because nothing changed; the delete message starts with "Error:"
 - `double_click_threshold_s`: Maximum time between clicks for double-click detection (0.2 seconds)
 - `DEFAULT_ANGLE_COLOR`: Default color for angle indicators ("blue")
 - `DEFAULT_ANGLE_ARC_SCREEN_RADIUS`: Arc radius in pixels for angle indicators (15)

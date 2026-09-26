@@ -36,6 +36,10 @@ label_text_max_length: int = 160
 label_line_wrap_threshold: int = 40
 default_label_rotation_degrees: float = 0.0
 successful_call_message: str = "Call successful!"
+# Results of history and delete tools that changed nothing (they returned False).
+nothing_to_undo_message: str = "Nothing to undo: the undo history is empty."
+nothing_to_redo_message: str = "Nothing to redo: there is no undone change to restore."
+nothing_deleted_message: str = "Error: nothing was deleted; no matching object exists on the canvas."
 
 # ===== USER INTERACTION CONSTANTS =====
 # Timing and behavior thresholds for user interactions

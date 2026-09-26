@@ -17,6 +17,7 @@ under CPython alike.
 
 from __future__ import annotations
 
+import json
 from typing import Any, Callable, Dict, List, Optional
 
 TURN_METRICS_SCHEMA_VERSION = 1
@@ -73,7 +74,23 @@ def _sum_optional(values: List[Any]) -> Optional[int]:
 
 
 def _is_error_result(result: Any) -> bool:
-    return isinstance(result, str) and result.startswith("Error")
+    """Same rule as ResultProcessor.is_error_result (this module stays free of browser imports)."""
+    if isinstance(result, dict):
+        return bool(result.get("error")) or result.get("type") == "error"
+    if not isinstance(result, str):
+        return False
+    return result.startswith("Error") or _is_json_error_string(result)
+
+
+def _is_json_error_string(result: str) -> bool:
+    """A JSON object string with a non-empty "error" field, as solve_numeric returns on failure."""
+    if not result.lstrip().startswith("{"):
+        return False
+    try:
+        parsed = json.loads(result)
+    except Exception:
+        return False
+    return isinstance(parsed, dict) and _is_error_result(parsed)
 
 
 def short_model_name(model: Any) -> str:

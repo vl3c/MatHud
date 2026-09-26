@@ -1223,7 +1223,12 @@ class WorkspaceManager:
         Args:
             state (dict): Workspace state dictionary containing all object data.
         """
-        self._run_restore_phases(state)
+        # The whole restore, including the canvas clear, is one undo step.
+        self.canvas.begin_undo_batch()
+        try:
+            self._run_restore_phases(state)
+        finally:
+            self.canvas.end_undo_batch()
 
     def _run_restore_phases(self, state: Dict[str, Any]) -> None:
         for phase in self._restore_phases():
@@ -1553,8 +1558,10 @@ class WorkspaceManager:
         on_complete: Callable[[Any], str],
         error_prefix: str,
     ) -> Any:
+        # on_complete is not bound to the "complete" event: the request is synchronous and
+        # _finalize_sync_request calls it once. Binding it too ran it twice, so a load restored
+        # the workspace twice and pushed a second undo entry holding the loaded state.
         req: Any = ajax.Ajax()
-        req.bind("complete", on_complete)
         req.bind("error", lambda e: f"{error_prefix}: {e.text}")
         return req
 
