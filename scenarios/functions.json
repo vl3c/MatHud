@@ -1,0 +1,369 @@
+{
+  "schema": 1,
+  "area": "FN",
+  "title": "Functions, piecewise and parametric curves, tangents and normals",
+  "scenarios": [
+    {
+      "id": "FN-01",
+      "title": "Function with an asymptote and a shaded area",
+      "tags": ["functions", "areas", "asymptotes", "null-arguments"],
+      "smoke": true,
+      "known": ["K10"],
+      "targets": "schema says color is optional but null is rejected",
+      "steps": [
+        {
+          "user": "Plot f(x) = 1/(x-1) from -5 to 5 and shade the area between f and the x-axis from x=2 to x=4.",
+          "reference": [
+            {
+              "tool": "draw_function",
+              "args": {"function_string": "1/(x-1)", "name": "f", "left_bound": -5, "right_bound": 5}
+            },
+            {"tool": "create_colored_area", "args": {"drawable1_name": "f", "left_bound": 2, "right_bound": 4}}
+          ],
+          "checks": [
+            {
+              "check": "attribute",
+              "path": "args.vertical_asymptotes",
+              "select": {"type": "Function", "name": "f"},
+              "eq": [1]
+            },
+            {
+              "check": "relation",
+              "relation": "function_value",
+              "select": [{"type": "Function", "name": "f"}],
+              "x": 3,
+              "y": 0.5
+            },
+            {
+              "check": "exists",
+              "select": {
+                "type": "FunctionsBoundedColoredArea",
+                "where": {"args.func1": "f", "args.func2": "x_axis", "args.left_bound": 2, "args.right_bound": 4}
+              },
+              "known": "K10"
+            },
+            {"check": "no_tool_errors", "known": "K10"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "FN-02",
+      "title": "Shifting a function moves its asymptotes",
+      "tags": ["functions", "transforms", "asymptotes", "derived"],
+      "smoke": false,
+      "known": ["K11"],
+      "targets": "cached analysis not updated by transforms",
+      "invariants": {"I3": "K11"},
+      "setup": {
+        "calls": [
+          {
+            "tool": "draw_function",
+            "args": {"function_string": "1/x", "name": "f", "left_bound": -10, "right_bound": 10}
+          }
+        ]
+      },
+      "steps": [
+        {
+          "user": "Shift f two units right and three up.",
+          "reference": [{"tool": "translate_object", "args": {"name": "f", "x_offset": 2, "y_offset": 3}}],
+          "checks": [
+            {
+              "check": "relation",
+              "relation": "function_value",
+              "select": [{"type": "Function", "name": "f"}],
+              "values": [[3, 4], [4, 3.5]]
+            },
+            {
+              "check": "attribute",
+              "path": "args.vertical_asymptotes",
+              "select": {"type": "Function", "name": "f"},
+              "eq": [2],
+              "known": "K11"
+            },
+            {
+              "check": "attribute",
+              "path": "args.horizontal_asymptotes",
+              "select": {"type": "Function", "name": "f"},
+              "contains": 3,
+              "known": "K11"
+            },
+            {"check": "attribute", "path": "args.left_bound", "select": {"type": "Function", "name": "f"}, "eq": -8},
+            {"check": "attribute", "path": "args.right_bound", "select": {"type": "Function", "name": "f"}, "eq": 12}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "FN-03",
+      "title": "Redefining an existing function name",
+      "tags": ["functions", "update", "asymptotes"],
+      "smoke": false,
+      "known": ["K12"],
+      "targets": "update-in-place path skipping re-analysis",
+      "invariants": {"I3": "K12"},
+      "setup": {
+        "calls": [
+          {
+            "tool": "draw_function",
+            "args": {"function_string": "1/x", "name": "f", "left_bound": -10, "right_bound": 10}
+          }
+        ]
+      },
+      "steps": [
+        {
+          "user": "Actually, make f(x) = x^2 instead.",
+          "reference": [
+            {
+              "tool": "draw_function",
+              "args": {"function_string": "x^2", "name": "f", "left_bound": -10, "right_bound": 10}
+            }
+          ],
+          "checks": [
+            {"check": "count", "select": {"type": "Function", "name": "f"}, "eq": 1},
+            {
+              "check": "relation",
+              "relation": "function_value",
+              "select": [{"type": "Function", "name": "f"}],
+              "x": 2,
+              "y": 4
+            },
+            {
+              "check": "attribute",
+              "path": "args.vertical_asymptotes",
+              "select": {"type": "Function", "name": "f"},
+              "is_null": true,
+              "known": "K12"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "FN-04",
+      "title": "Piecewise function",
+      "tags": ["functions", "piecewise"],
+      "smoke": false,
+      "targets": "piecewise parsing and interval semantics",
+      "steps": [
+        {
+          "user": "Define g(x) = x^2 for x < 0 and g(x) = x for x >= 0.",
+          "reference": [
+            {
+              "tool": "draw_piecewise_function",
+              "args": {
+                "name": "g",
+                "pieces": [
+                  {
+                    "expression": "x^2",
+                    "left": null,
+                    "right": 0,
+                    "left_inclusive": false,
+                    "right_inclusive": false,
+                    "undefined_at": null
+                  },
+                  {
+                    "expression": "x",
+                    "left": 0,
+                    "right": null,
+                    "left_inclusive": true,
+                    "right_inclusive": false,
+                    "undefined_at": null
+                  }
+                ]
+              }
+            }
+          ],
+          "checks": [
+            {"check": "count", "select": {"type": "PiecewiseFunction"}, "eq": 1},
+            {
+              "check": "relation",
+              "relation": "function_value",
+              "select": [{"type": "PiecewiseFunction", "name": "g"}],
+              "values": [[-2, 4], [3, 3], [0, 0]]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "FN-05",
+      "title": "Tangent to a parametric circle",
+      "tags": ["functions", "parametric", "tangents"],
+      "smoke": false,
+      "targets": "tangent math on parametric curves",
+      "steps": [
+        {
+          "user": "Draw the unit circle as a parametric curve x=cos(t), y=sin(t) for t from 0 to 2*pi, then the tangent at t = pi/4.",
+          "reference": [
+            {
+              "tool": "draw_parametric_function",
+              "args": {
+                "x_expression": "cos(t)",
+                "y_expression": "sin(t)",
+                "name": "p",
+                "t_min": 0,
+                "t_max": 6.283185307179586
+              }
+            },
+            {"tool": "draw_tangent_line", "args": {"curve_name": "p", "parameter": 0.7853981633974483}}
+          ],
+          "checks": [
+            {"bind": "T", "select": {"type": "Segment", "only": true}},
+            {
+              "check": "relation",
+              "relation": "midpoint_of",
+              "select": [{"coords": [0.7071067811865476, 0.7071067811865476]}, "$T"],
+              "tol": 1e-06
+            },
+            {"check": "relation", "relation": "direction", "select": ["$T"], "perpendicular_to": [1, 1], "tol": 1e-06}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "FN-06",
+      "title": "Tangent at a vertical asymptote is refused",
+      "tags": ["functions", "tangents", "asymptotes", "precision"],
+      "smoke": false,
+      "known": ["K13"],
+      "targets": "missing asymptote guard in tangent computation",
+      "invariants": {"I7": "K13"},
+      "setup": {
+        "calls": [
+          {
+            "tool": "draw_function",
+            "args": {"function_string": "tan(x)", "name": "t", "left_bound": -4, "right_bound": 4}
+          }
+        ]
+      },
+      "steps": [
+        {
+          "user": "Draw the tangent to t at x = pi/2.",
+          "reference": [{"tool": "draw_tangent_line", "args": {"curve_name": "t", "parameter": 1.5707963267948966}}],
+          "checks": [{"check": "count", "select": {"type": "Segment"}, "eq": 0, "known": "K13"}]
+        }
+      ]
+    },
+    {
+      "id": "FN-07",
+      "title": "Tangent and normal to a parabola, then move the parabola",
+      "tags": ["functions", "tangents", "transforms"],
+      "smoke": false,
+      "targets": "tangent math; static-construction semantics",
+      "steps": [
+        {
+          "user": "Plot y = x^2, then draw its tangent and normal lines at x = 1.",
+          "reference": [
+            {"tool": "draw_function", "args": {"function_string": "x^2", "name": "sq"}},
+            {"tool": "draw_tangent_line", "args": {"curve_name": "sq", "parameter": 1}},
+            {"tool": "draw_normal_line", "args": {"curve_name": "sq", "parameter": 1}}
+          ],
+          "checks": [
+            {"bind": "Tan", "select": {"type": "Segment", "through": [1, 1], "slope": 2, "tol": 1e-06}},
+            {"bind": "Nor", "select": {"type": "Segment", "through": [1, 1], "slope": -0.5, "tol": 1e-06}},
+            {
+              "check": "relation",
+              "relation": "tangent_to",
+              "select": ["$Tan", {"type": "Function", "name": "sq"}],
+              "x": 1,
+              "tol": 1e-06
+            }
+          ]
+        },
+        {"snapshot": "after_t1"},
+        {
+          "user": "Shift the parabola 2 units to the right.",
+          "reference": [{"tool": "translate_object", "args": {"name": "sq", "x_offset": 2, "y_offset": 0}}],
+          "checks": [
+            {
+              "check": "relation",
+              "relation": "function_value",
+              "select": [{"type": "Function", "name": "sq"}],
+              "x": 3,
+              "y": 1
+            },
+            {"check": "unchanged_except", "since": "after_t1", "except": [{"type": "Function", "name": "sq"}]}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "FN-08",
+      "title": "Reversed bounds",
+      "tags": ["functions", "validation"],
+      "smoke": false,
+      "known": ["K12"],
+      "targets": "missing validation (update_function validates, draw_function does not)",
+      "invariants": {"I3": "K12"},
+      "steps": [
+        {
+          "user": "Plot y = x from 5 to -5.",
+          "reference": [
+            {
+              "tool": "draw_function",
+              "args": {"function_string": "x", "name": "g", "left_bound": 5, "right_bound": -5}
+            }
+          ],
+          "checks": [
+            {
+              "check": "attribute",
+              "path": "args.left_bound",
+              "select": {"type": "Function", "name": "g"},
+              "eq": -5,
+              "known": "K12"
+            },
+            {
+              "check": "attribute",
+              "path": "args.right_bound",
+              "select": {"type": "Function", "name": "g"},
+              "eq": 5,
+              "known": "K12"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "FN-09",
+      "title": "Removable discontinuity",
+      "tags": ["functions", "asymptotes", "discontinuities"],
+      "smoke": false,
+      "known": ["K24"],
+      "targets": "hole bookkeeping; asymptote detection from the expression text",
+      "invariants": {"I3": "K24"},
+      "steps": [
+        {
+          "user": "Plot (x^2 - 1)/(x - 1) and mark that it has a hole at x = 1.",
+          "reference": [
+            {
+              "tool": "draw_function",
+              "args": {"function_string": "(x^2 - 1)/(x - 1)", "name": "h", "undefined_at": [1]}
+            }
+          ],
+          "checks": [
+            {
+              "check": "attribute",
+              "path": "args.point_discontinuities",
+              "select": {"type": "Function", "name": "h"},
+              "contains": 1
+            },
+            {
+              "check": "relation",
+              "relation": "function_value",
+              "select": [{"type": "Function", "name": "h"}],
+              "values": [[2, 3], [0, 1]]
+            },
+            {
+              "check": "attribute",
+              "path": "args.vertical_asymptotes",
+              "select": {"type": "Function", "name": "h"},
+              "is_null": true,
+              "known": "K24"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

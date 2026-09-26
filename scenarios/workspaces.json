@@ -1,0 +1,230 @@
+{
+  "schema": 1,
+  "area": "WS",
+  "title": "Workspaces",
+  "scenarios": [
+    {
+      "id": "WS-01",
+      "title": "Round-trip of every object type",
+      "tags": ["workspaces", "persistence", "round-trip"],
+      "smoke": true,
+      "known": ["K5"],
+      "targets": "persistence gaps invisible to get_canvas_state",
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_polygon",
+            "args": {
+              "vertices": [{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 0, "y": 3}],
+              "polygon_type": "triangle",
+              "name": "ABC",
+              "color": "green"
+            }
+          },
+          {"tool": "create_circle", "args": {"center_x": 10, "center_y": 10, "radius": 2, "color": "purple"}},
+          {
+            "tool": "create_ellipse",
+            "args": {
+              "center_x": -8,
+              "center_y": 5,
+              "radius_x": 3,
+              "radius_y": 1.5,
+              "rotation_angle": 30,
+              "color": "orange"
+            }
+          },
+          {
+            "tool": "create_vector",
+            "args": {"origin_x": -5, "origin_y": -5, "tip_x": -2, "tip_y": -1, "color": "red"}
+          },
+          {
+            "tool": "create_label",
+            "args": {"x": 2, "y": 8, "text": "Hello", "color": "blue", "font_size": 18, "rotation_degrees": 15}
+          },
+          {
+            "tool": "draw_function",
+            "args": {
+              "function_string": "1/(x-1)",
+              "name": "f",
+              "left_bound": -5,
+              "right_bound": 5,
+              "color": "red",
+              "undefined_at": [1]
+            }
+          },
+          {
+            "tool": "draw_parametric_function",
+            "args": {
+              "x_expression": "cos(t)",
+              "y_expression": "sin(t)",
+              "name": "pc",
+              "t_min": 0,
+              "t_max": 6.283185307179586,
+              "color": "brown"
+            }
+          },
+          {
+            "tool": "create_angle",
+            "args": {
+              "vx": 0,
+              "vy": 0,
+              "p1x": 4,
+              "p1y": 0,
+              "p2x": 0,
+              "p2y": 3,
+              "angle_name": "alpha",
+              "is_reflex": true
+            }
+          },
+          {
+            "tool": "create_circle_arc",
+            "args": {
+              "point1_x": 12,
+              "point1_y": 10,
+              "point2_x": 10,
+              "point2_y": 12,
+              "circle_name": "D(2)",
+              "use_major_arc": true,
+              "color": "navy"
+            }
+          },
+          {
+            "tool": "create_colored_area",
+            "args": {"drawable1_name": "f", "left_bound": 2, "right_bound": 4, "color": "yellow", "opacity": 0.5}
+          },
+          {
+            "tool": "generate_graph",
+            "args": {
+              "name": "G",
+              "graph_type": "graph",
+              "directed": false,
+              "vertices": [
+                {"name": "U", "x": 20, "y": 0, "color": null, "label": null},
+                {"name": "V", "x": 24, "y": 0, "color": null, "label": null},
+                {"name": "W", "x": 22, "y": 3, "color": null, "label": null}
+              ],
+              "edges": [
+                {"source": 0, "target": 1, "weight": 2, "name": null, "color": null, "directed": null},
+                {"source": 1, "target": 2, "weight": 5, "name": null, "color": null, "directed": null}
+              ]
+            }
+          },
+          {
+            "tool": "plot_bars",
+            "args": {
+              "name": "sales",
+              "values": [3, 5, 2],
+              "labels_below": ["Mon", "Tue", "Wed"],
+              "x_start": 30,
+              "y_base": 0
+            }
+          },
+          {"tool": "set_coordinate_system", "args": {"mode": "polar"}},
+          {"tool": "set_grid_visible", "args": {"visible": false}}
+        ]
+      },
+      "steps": [
+        {
+          "user": "Save this workspace as scn_roundtrip.",
+          "reference": [{"tool": "save_workspace", "args": {"name": "scn_roundtrip"}}],
+          "checks": [{"check": "tool_result", "tool": "save_workspace", "contains": "saved successfully"}]
+        },
+        {
+          "do": [
+            {"tool": "clear_canvas", "args": {}},
+            {"tool": "set_grid_visible", "args": {"visible": true}},
+            {"tool": "set_coordinate_system", "args": {"mode": "cartesian"}}
+          ],
+          "checks": [
+            {"check": "count", "select": {"type": "Point"}, "eq": 0},
+            {"check": "attribute", "path": "mode", "target": "view", "eq": "cartesian"}
+          ]
+        },
+        {
+          "user": "Load the workspace scn_roundtrip.",
+          "reference": [{"tool": "load_workspace", "args": {"name": "scn_roundtrip"}}],
+          "checks": [
+            {"check": "state_equals", "snapshot": "setup", "ignore": ["Angle"]},
+            {"check": "exists", "select": {"type": "Angle", "name": "alpha"}, "known": "K5"},
+            {"check": "state_equals", "snapshot": "setup", "ignore": ["Angle"], "inspect": true, "known": "K5"},
+            {"check": "attribute", "path": "grid_visible.polar", "target": "inspection", "eq": false, "known": "K5"},
+            {"check": "attribute", "path": "mode", "target": "view", "eq": "polar"}
+          ]
+        },
+        {
+          "do": [{"tool": "delete_workspace", "args": {"name": "scn_roundtrip"}}],
+          "checks": [{"check": "tool_result", "tool": "delete_workspace", "contains": "deleted successfully"}]
+        }
+      ]
+    },
+    {
+      "id": "WS-02",
+      "title": "Undo right after a load",
+      "tags": ["workspaces", "undo"],
+      "smoke": false,
+      "known": ["K1"],
+      "targets": "load pushing one undo entry per restored object",
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_polygon",
+            "args": {
+              "vertices": [{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 0, "y": 3}],
+              "polygon_type": "triangle",
+              "name": "ABC"
+            }
+          },
+          {"tool": "save_workspace", "args": {"name": "scn_undo_load"}},
+          {"tool": "clear_canvas", "args": {}},
+          {"tool": "create_point", "args": {"x": 9, "y": 9, "name": "Z"}}
+        ]
+      },
+      "steps": [
+        {
+          "user": "Load scn_undo_load.",
+          "reference": [{"tool": "load_workspace", "args": {"name": "scn_undo_load"}}],
+          "checks": [
+            {"check": "exists", "select": {"type": "Triangle", "vertices": [[0, 0], [4, 0], [0, 3]]}},
+            {"check": "absent", "select": {"type": "Point", "name": "Z"}}
+          ]
+        },
+        {
+          "user": "Undo the load.",
+          "reference": [{"tool": "undo", "args": {}}],
+          "checks": [{"check": "state_equals", "snapshot": "setup", "known": "K1"}]
+        },
+        {"do": [{"tool": "delete_workspace", "args": {"name": "scn_undo_load"}}]}
+      ]
+    },
+    {
+      "id": "WS-03",
+      "title": "Workspace name the user types with spaces",
+      "tags": ["workspaces", "naming"],
+      "smoke": false,
+      "targets": "name validation; model adaptation",
+      "setup": {"calls": [{"tool": "create_point", "args": {"x": 1, "y": 1, "name": "A"}}]},
+      "steps": [
+        {
+          "user": "Save my work as 'my project v2'.",
+          "reference": [{"tool": "save_workspace", "args": {"name": "my_project_v2"}}],
+          "checks": [
+            {"check": "tool_called", "tool": "save_workspace"},
+            {"check": "tool_result", "tool": "save_workspace", "contains": "saved successfully"}
+          ]
+        },
+        {
+          "user": "Which workspaces do I have?",
+          "reference": [{"tool": "list_workspaces", "args": {}}],
+          "checks": [
+            {"check": "tool_result", "tool": "list_workspaces", "contains": "my_project_v2"},
+            {"check": "answer_mentions", "words": ["my_project_v2"]}
+          ]
+        },
+        {
+          "do": [{"tool": "delete_workspace", "args": {"name": "my_project_v2"}}],
+          "checks": [{"check": "tool_result", "tool": "delete_workspace", "contains": "deleted successfully"}]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,187 @@
+{
+  "schema": 1,
+  "area": "NM",
+  "title": "Naming, editing and deleting",
+  "scenarios": [
+    {
+      "id": "NM-01",
+      "title": "Rename and recolour a free point",
+      "tags": ["points", "naming", "update"],
+      "smoke": false,
+      "targets": "edit policy on solitary points",
+      "setup": {"calls": [{"tool": "create_point", "args": {"x": 1, "y": 1, "name": "P"}}]},
+      "steps": [
+        {
+          "user": "Rename P to Q and make it red.",
+          "reference": [{"tool": "update_point", "args": {"point_name": "P", "new_name": "Q", "new_color": "red"}}],
+          "checks": [
+            {"check": "count", "select": {"type": "Point"}, "eq": 1},
+            {"check": "point_at", "select": {"type": "Point", "name": "Q"}, "at": [1, 1]},
+            {"check": "attribute", "path": "inspect.color", "select": {"type": "Point", "name": "Q"}, "eq": "red"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "NM-02",
+      "title": "Renaming a triangle vertex is refused",
+      "tags": ["points", "naming", "errors", "undo"],
+      "smoke": false,
+      "known": ["K1"],
+      "targets": "refusal path; model explanation",
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_polygon",
+            "args": {
+              "vertices": [{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 0, "y": 3}],
+              "polygon_type": "triangle",
+              "name": "ABC"
+            }
+          }
+        ]
+      },
+      "steps": [
+        {
+          "user": "Rename vertex B to P.",
+          "reference": [{"tool": "update_point", "args": {"point_name": "B", "new_name": "P"}}],
+          "checks": [{"check": "state_equals", "snapshot": "setup"}, {"check": "tool_error", "tool": "update_point"}]
+        }
+      ]
+    },
+    {
+      "id": "NM-03",
+      "title": "Delete a point used by segments, then undo",
+      "tags": ["points", "delete", "cascade", "undo"],
+      "smoke": true,
+      "known": ["K1"],
+      "targets": "cascade delete plus undo consistency",
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_polygon",
+            "args": {
+              "vertices": [{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 0, "y": 3}],
+              "polygon_type": "triangle",
+              "name": "ABC"
+            }
+          },
+          {"tool": "create_segment", "args": {"x1": 4, "y1": 0, "x2": 6, "y2": 2}}
+        ]
+      },
+      "steps": [
+        {
+          "user": "Delete point B.",
+          "reference": [{"tool": "delete_point", "args": {"x": 4, "y": 0}}],
+          "checks": [
+            {"check": "absent", "select": {"type": "Point", "at": [4, 0]}},
+            {"check": "absent", "select": {"type": "Segment", "ends": [[0, 0], [4, 0]]}},
+            {"check": "absent", "select": {"type": "Segment", "ends": [[4, 0], [0, 3]]}},
+            {"check": "absent", "select": {"type": "Segment", "ends": [[4, 0], [6, 2]]}},
+            {"check": "count", "select": {"type": "Triangle"}, "eq": 0},
+            {"check": "exists", "select": {"type": "Point", "at": [0, 0]}},
+            {"check": "exists", "select": {"type": "Point", "at": [0, 3]}},
+            {"check": "exists", "select": {"type": "Segment", "ends": [[0, 3], [0, 0]]}},
+            {"check": "exists", "select": {"type": "Point", "at": [6, 2]}}
+          ]
+        },
+        {
+          "do": [{"tool": "undo", "args": {}}],
+          "checks": [{"check": "state_equals", "snapshot": "setup", "known": "K1"}]
+        }
+      ]
+    },
+    {
+      "id": "NM-04",
+      "title": "Deleting something that does not exist",
+      "tags": ["circles", "delete", "results"],
+      "smoke": false,
+      "known": ["K2"],
+      "targets": "untruthful results for no-op deletes",
+      "invariants": {"I4": "K2"},
+      "setup": {"calls": [{"tool": "create_circle", "args": {"center_x": 0, "center_y": 0, "radius": 2}}]},
+      "steps": [
+        {
+          "user": "Delete the circle Z(9).",
+          "reference": [{"tool": "delete_circle", "args": {"name": "Z(9)"}}],
+          "checks": [
+            {"check": "state_equals", "snapshot": "setup"},
+            {"check": "tool_error", "tool": "delete_circle", "known": "K2"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "NM-05",
+      "title": "Name hint after undo",
+      "tags": ["points", "naming", "undo"],
+      "smoke": false,
+      "known": ["K3"],
+      "targets": "name generator state not rewound",
+      "invariants": {"I4": "K3"},
+      "steps": [
+        {
+          "user": "Create point K at (1,1).",
+          "reference": [{"tool": "create_point", "args": {"x": 1, "y": 1, "name": "K"}}]
+        },
+        {"user": "Undo.", "reference": [{"tool": "undo", "args": {}}]},
+        {
+          "user": "Create point K at (3,3).",
+          "reference": [{"tool": "create_point", "args": {"x": 3, "y": 3, "name": "K"}}],
+          "checks": [{"check": "point_at", "select": {"type": "Point", "name": "K"}, "at": [3, 3], "known": "K3"}]
+        }
+      ]
+    },
+    {
+      "id": "NM-06",
+      "title": "Deleting one of two triangles that share an edge",
+      "tags": ["polygons", "delete", "cascade"],
+      "smoke": false,
+      "known": ["K6"],
+      "targets": "cascade deletes through shared edges",
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_polygon",
+            "args": {
+              "vertices": [{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 4, "y": 4}],
+              "polygon_type": "triangle",
+              "name": "ABC"
+            }
+          },
+          {
+            "tool": "create_polygon",
+            "args": {
+              "vertices": [{"x": 0, "y": 0}, {"x": 4, "y": 4}, {"x": 0, "y": 4}],
+              "polygon_type": "triangle",
+              "name": "ACD"
+            }
+          }
+        ]
+      },
+      "steps": [
+        {
+          "user": "Delete triangle ABC.",
+          "reference": [
+            {
+              "tool": "delete_polygon",
+              "args": {
+                "polygon_type": "triangle",
+                "name": "ABC",
+                "vertices": [{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 4, "y": 4}]
+              }
+            }
+          ],
+          "checks": [
+            {"check": "exists", "select": {"type": "Triangle", "vertices": [[0, 0], [4, 4], [0, 4]]}, "known": "K6"},
+            {"check": "exists", "select": {"type": "Segment", "ends": [[0, 0], [4, 4]]}, "known": "K6"},
+            {"check": "exists", "select": {"type": "Segment", "ends": [[4, 4], [0, 4]]}},
+            {"check": "exists", "select": {"type": "Segment", "ends": [[0, 4], [0, 0]]}},
+            {"check": "absent", "select": {"type": "Segment", "ends": [[0, 0], [4, 0]]}},
+            {"check": "absent", "select": {"type": "Segment", "ends": [[4, 0], [4, 4]]}}
+          ]
+        }
+      ]
+    }
+  ]
+}

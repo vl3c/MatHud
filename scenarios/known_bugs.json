@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "note": "Known app bugs (documentation/development/agentic_scenario_testing.md, section 6). A check marked known K<n> is an expected failure (xfail); when it passes it is reported as xpass, 'fixed? K<n>'. invariant_waivers turn an invariant's failures into expected failures in every scenario; remove a waiver when its bug is fixed.",
+  "bugs": {
+    "K1": "A tool batch is not one undo step",
+    "K2": "Tool results say 'Call successful!' when nothing happened",
+    "K3": "Requested names are silently replaced and the replacement is not reported",
+    "K4": "Undo only snapshots drawables (not the view)",
+    "K5": "Workspace round-trips lose colours, custom angle names and grid visibility",
+    "K6": "Deletes cascade into objects that only share parts",
+    "K7": "delete_vector recurses forever when a segment has the same endpoints",
+    "K8": "A cached circle formula goes stale when the centre moves through another object",
+    "K9": "create_circle_arc moves existing points onto the circle",
+    "K10": "create_colored_area and create_region_colored_area reject color: null",
+    "K11": "Translating a function leaves its asymptotes behind",
+    "K12": "draw_function on an existing name skips re-analysis; draw_function never validates bounds",
+    "K13": "No guard for a tangent at a vertical asymptote",
+    "K14": "Coloured-area bounds do not follow a translated function",
+    "K15": "An area between two segments adds points and splits segments",
+    "K16": "Polygon type flags are computed only in the constructor",
+    "K17": "Cached angle values are never refreshed",
+    "K18": "Graph bugs: adjacency-matrix edges always directed; delete_graph deletes reused points",
+    "K19": "Polygon subtypes move and re-order the given vertices",
+    "K20": "Action-trace state_delta is always empty (fixed with the scenario hooks)",
+    "K21": "Errors returned as {\"error\": ...} dicts are not flagged as errors",
+    "K22": "The CLI's canvas commands do nothing (fixed with the scenario hooks)",
+    "K23": "The workspace load URL is not encoded",
+    "K24": "A removable discontinuity is reported as a vertical asymptote",
+    "K25": "Canvas.reset does not reset the polar grid spacing (slow polar rendering after zoom then clear)"
+  },
+  "invariant_waivers": {
+    "I5": "K1"
+  }
+}

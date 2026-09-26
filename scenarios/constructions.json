@@ -1,0 +1,253 @@
+{
+  "schema": 1,
+  "area": "CON",
+  "title": "Constructions",
+  "scenarios": [
+    {
+      "id": "CON-01",
+      "title": "Midpoint is a static snapshot (documented)",
+      "tags": ["constructions", "transforms", "dependencies"],
+      "smoke": true,
+      "targets": "dependent-object update semantics; model recovery from the update_point refusal",
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_polygon",
+            "args": {
+              "vertices": [{"x": 0, "y": 0}, {"x": 6, "y": 0}, {"x": 2, "y": 4}],
+              "polygon_type": "triangle",
+              "name": "ABC"
+            }
+          }
+        ]
+      },
+      "steps": [
+        {
+          "user": "Construct the midpoint of AB.",
+          "reference": [{"tool": "construct_midpoint", "args": {"segment_name": "AB"}}],
+          "checks": [{"bind": "Mid", "select": {"type": "Point", "new_since": "setup", "at": [3, 0]}}]
+        },
+        {
+          "user": "Now move A to (1, 1).",
+          "reference": [{"tool": "translate_object", "args": {"name": "A", "x_offset": 1, "y_offset": 1}}],
+          "checks": [
+            {"check": "point_at", "select": {"type": "Point", "name": "A"}, "at": [1, 1]},
+            {"check": "exists", "select": {"type": "Segment", "ends": [[1, 1], [6, 0]]}},
+            {"check": "exists", "select": {"type": "Segment", "ends": [[2, 4], [1, 1]]}},
+            {"check": "point_at", "select": "$Mid", "at": [3, 0]},
+            {"check": "point_at", "select": {"type": "Point", "name": "B"}, "at": [6, 0]},
+            {"check": "point_at", "select": {"type": "Point", "name": "C"}, "at": [2, 4]},
+            {"check": "tool_called", "tool": "translate_object"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CON-02",
+      "title": "Perpendicular bisector undoes in one step",
+      "tags": ["constructions", "undo"],
+      "smoke": false,
+      "known": ["K1"],
+      "targets": "nested archives in constructions",
+      "steps": [
+        {
+          "user": "Draw AB from (0,0) to (4,0) and its perpendicular bisector.",
+          "reference": [
+            {"tool": "create_segment", "args": {"x1": 0, "y1": 0, "x2": 4, "y2": 0}},
+            {"tool": "construct_perpendicular_bisector", "args": {"segment_name": "AB"}}
+          ],
+          "checks": [
+            {"bind": "PB", "select": {"type": "Segment", "new_since": "start", "contains": [2, 1]}},
+            {
+              "check": "relation",
+              "relation": "perpendicular",
+              "select": ["$PB", {"type": "Segment", "ends": [[0, 0], [4, 0]]}]
+            },
+            {"check": "relation", "relation": "length", "select": ["$PB"], "value": 6}
+          ]
+        },
+        {
+          "do": [{"tool": "undo", "args": {}}],
+          "checks": [{"check": "state_equals", "snapshot": "start", "known": "K1"}]
+        }
+      ]
+    },
+    {
+      "id": "CON-03",
+      "title": "Circumcircle and incircle",
+      "tags": ["constructions", "circles"],
+      "smoke": false,
+      "targets": "construction math; naming of auto-created centres",
+      "steps": [
+        {
+          "user": "Draw the triangle with vertices (0,0), (6,0) and (2,4), then its circumcircle and incircle.",
+          "reference": [
+            {
+              "tool": "create_polygon",
+              "args": {"vertices": [{"x": 0, "y": 0}, {"x": 6, "y": 0}, {"x": 2, "y": 4}], "polygon_type": "triangle"}
+            },
+            {"tool": "construct_circumcircle", "args": {"triangle_name": "ABC"}},
+            {"tool": "construct_incircle", "args": {"triangle_name": "ABC"}}
+          ],
+          "checks": [
+            {"check": "count", "select": {"type": "Circle"}, "eq": 2},
+            {"check": "exists", "select": {"type": "Circle", "center": [3, 1], "radius": 3.1622776601683795}},
+            {
+              "check": "relation",
+              "relation": "point_on_circle",
+              "select": [
+                {"type": "Point", "at": [0, 0]},
+                {"type": "Point", "at": [6, 0]},
+                {"type": "Point", "at": [2, 4]},
+                {"type": "Circle", "center": [3, 1]}
+              ]
+            },
+            {
+              "bind": "In",
+              "select": {"type": "Circle", "center": [2.4076408527535995, 1.4880038797045054], "tol": 1e-06}
+            },
+            {
+              "check": "relation",
+              "relation": "tangent_to",
+              "select": [{"type": "Segment", "ends": [[0, 0], [6, 0]]}, "$In"]
+            },
+            {
+              "check": "relation",
+              "relation": "tangent_to",
+              "select": [{"type": "Segment", "ends": [[6, 0], [2, 4]]}, "$In"]
+            },
+            {
+              "check": "relation",
+              "relation": "tangent_to",
+              "select": [{"type": "Segment", "ends": [[2, 4], [0, 0]]}, "$In"]
+            },
+            {"check": "max_tool_calls", "max": 4}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CON-04",
+      "title": "Perpendicular from a point",
+      "tags": ["constructions"],
+      "smoke": false,
+      "targets": "construction math; single-step undo (this one suspends archiving correctly)",
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_polygon",
+            "args": {
+              "vertices": [{"x": 0, "y": 0}, {"x": 6, "y": 0}, {"x": 2, "y": 4}],
+              "polygon_type": "triangle",
+              "name": "ABC"
+            }
+          }
+        ]
+      },
+      "steps": [
+        {
+          "user": "Drop a perpendicular from C to AB.",
+          "reference": [
+            {"tool": "construct_perpendicular_from_point", "args": {"point_name": "C", "segment_name": "AB"}}
+          ],
+          "checks": [
+            {"check": "count", "select": {"type": "Point", "new_since": "setup"}, "eq": 1},
+            {"bind": "F", "select": {"type": "Point", "new_since": "setup"}},
+            {"check": "point_at", "select": "$F", "at": [2, 0]},
+            {
+              "check": "relation",
+              "relation": "point_on_segment",
+              "select": ["$F", {"type": "Segment", "ends": [[0, 0], [6, 0]]}]
+            },
+            {"bind": "Perp", "select": {"type": "Segment", "new_since": "setup"}},
+            {
+              "check": "relation",
+              "relation": "perpendicular",
+              "select": ["$Perp", {"type": "Segment", "ends": [[0, 0], [6, 0]]}]
+            },
+            {"check": "exists", "select": {"type": "Segment", "ends": [[2, 4], [2, 0]]}}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CON-05",
+      "title": "Parallel line and angle bisector",
+      "tags": ["constructions"],
+      "smoke": false,
+      "targets": "construction math",
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_polygon",
+            "args": {
+              "vertices": [{"x": 0, "y": 0}, {"x": 6, "y": 0}, {"x": 2, "y": 4}],
+              "polygon_type": "triangle",
+              "name": "ABC"
+            }
+          }
+        ]
+      },
+      "steps": [
+        {
+          "user": "Draw a line through C parallel to AB, and bisect the angle at A.",
+          "reference": [
+            {"tool": "construct_parallel_line", "args": {"segment_name": "AB", "point_name": "C"}},
+            {"tool": "construct_angle_bisector", "args": {"vertex_name": "A", "p1_name": "B", "p2_name": "C"}}
+          ],
+          "checks": [
+            {"bind": "Par", "select": {"type": "Segment", "new_since": "setup", "contains": [2, 4]}},
+            {
+              "check": "relation",
+              "relation": "parallel",
+              "select": ["$Par", {"type": "Segment", "ends": [[0, 0], [6, 0]]}]
+            },
+            {"check": "relation", "relation": "length", "select": ["$Par"], "value": 6},
+            {"bind": "Bis", "select": {"type": "Segment", "new_since": "setup", "contains": [0, 0]}},
+            {
+              "check": "relation",
+              "relation": "equal_angles",
+              "select": [
+                "$Bis",
+                {"type": "Segment", "ends": [[0, 0], [6, 0]]},
+                {"type": "Segment", "ends": [[2, 4], [0, 0]]}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CON-06",
+      "title": "Construction asked to reuse an existing name",
+      "tags": ["constructions", "naming"],
+      "smoke": false,
+      "known": ["K3"],
+      "targets": "name collisions in constructions",
+      "invariants": {"I4": "K3"},
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_polygon",
+            "args": {
+              "vertices": [{"x": 0, "y": 0}, {"x": 6, "y": 0}, {"x": 2, "y": 4}],
+              "polygon_type": "triangle",
+              "name": "ABC"
+            }
+          }
+        ]
+      },
+      "steps": [
+        {
+          "user": "Construct the midpoint of BC and call it A.",
+          "reference": [{"tool": "construct_midpoint", "args": {"segment_name": "BC", "name": "A"}}],
+          "checks": [
+            {"check": "point_at", "select": {"type": "Point", "name": "A"}, "at": [0, 0]},
+            {"check": "exists", "select": {"type": "Point", "at": [4, 2]}},
+            {"check": "count", "select": {"type": "Point"}, "eq": 4}
+          ]
+        }
+      ]
+    }
+  ]
+}

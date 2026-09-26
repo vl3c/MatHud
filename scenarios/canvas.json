@@ -1,0 +1,155 @@
+{
+  "schema": 1,
+  "area": "CV",
+  "title": "Canvas operations: view, coordinate systems, undo and redo",
+  "scenarios": [
+    {
+      "id": "CV-01",
+      "title": "Undo a zoom",
+      "tags": ["view", "undo"],
+      "smoke": false,
+      "known": ["K4"],
+      "targets": "view state outside the undo snapshot",
+      "invariants": {"I4": "K4"},
+      "steps": [
+        {
+          "user": "Zoom to x between -2 and 2 around the origin.",
+          "reference": [{"tool": "zoom", "args": {"center_x": 0, "center_y": 0, "range_val": 2, "range_axis": "x"}}],
+          "checks": [
+            {"check": "attribute", "path": "left_bound", "target": "view", "eq": -2},
+            {"check": "attribute", "path": "right_bound", "target": "view", "eq": 2}
+          ]
+        },
+        {
+          "user": "Undo that.",
+          "reference": [{"tool": "undo", "args": {}}],
+          "checks": [{"check": "state_equals", "snapshot": "start", "view": true, "known": "K4"}]
+        }
+      ]
+    },
+    {
+      "id": "CV-02",
+      "title": "Undo a multi-object construction in one step",
+      "tags": ["undo", "redo", "constructions"],
+      "smoke": true,
+      "known": ["K1"],
+      "targets": "undo stack out of sync with tool batches",
+      "steps": [
+        {
+          "user": "Draw triangle ABC with vertices (0,0), (6,0), (2,4) and its circumcircle.",
+          "reference": [
+            {
+              "tool": "create_polygon",
+              "args": {
+                "vertices": [{"x": 0, "y": 0}, {"x": 6, "y": 0}, {"x": 2, "y": 4}],
+                "polygon_type": "triangle",
+                "name": "ABC"
+              }
+            },
+            {"tool": "construct_circumcircle", "args": {"triangle_name": "ABC"}}
+          ],
+          "checks": [
+            {"check": "exists", "select": {"type": "Circle", "center": [3, 1], "radius": 3.1622776601683795}}
+          ]
+        },
+        {"snapshot": "after_t1"},
+        {
+          "user": "Undo that.",
+          "reference": [{"tool": "undo", "args": {}}],
+          "checks": [{"check": "state_equals", "snapshot": "start", "known": "K1"}]
+        },
+        {"do": [{"tool": "redo", "args": {}}], "checks": [{"check": "state_equals", "snapshot": "after_t1"}]}
+      ]
+    },
+    {
+      "id": "CV-03",
+      "title": "Clear, then undo",
+      "tags": ["view", "undo", "clear"],
+      "smoke": false,
+      "known": ["K4"],
+      "targets": "clear resets the view outside undo",
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_polygon",
+            "args": {
+              "vertices": [{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 0, "y": 3}],
+              "polygon_type": "triangle",
+              "name": "ABC"
+            }
+          },
+          {"tool": "create_circle", "args": {"center_x": 10, "center_y": 10, "radius": 2}},
+          {"tool": "zoom", "args": {"center_x": 0, "center_y": 0, "range_val": 10, "range_axis": "x"}}
+        ]
+      },
+      "steps": [
+        {
+          "user": "Clear the canvas.",
+          "reference": [{"tool": "clear_canvas", "args": {}}],
+          "checks": [
+            {"check": "count", "select": {"type": "Point"}, "eq": 0},
+            {"check": "count", "select": {"type": "Polygon"}, "eq": 0},
+            {"check": "count", "select": {"type": "Circle"}, "eq": 0}
+          ]
+        },
+        {
+          "user": "Oops, bring it all back.",
+          "reference": [{"tool": "undo", "args": {}}],
+          "checks": [
+            {"check": "state_equals", "snapshot": "setup"},
+            {"check": "attribute", "path": "left_bound", "target": "view", "eq": -10, "known": "K4"},
+            {"check": "attribute", "path": "right_bound", "target": "view", "eq": 10, "known": "K4"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CV-04",
+      "title": "Undo when there is nothing to undo",
+      "tags": ["undo", "results"],
+      "smoke": false,
+      "known": ["K2"],
+      "targets": "untruthful tool results",
+      "invariants": {"I4": "K2"},
+      "steps": [
+        {
+          "user": "Undo.",
+          "reference": [{"tool": "undo", "args": {}}],
+          "checks": [{"check": "tool_result", "tool": "undo", "ne": "Call successful!", "known": "K2"}]
+        }
+      ]
+    },
+    {
+      "id": "CV-05",
+      "title": "Clearing after a zoom resets the polar grid too",
+      "tags": ["view", "coordinate-systems", "clear"],
+      "smoke": false,
+      "known": ["K25"],
+      "targets": "Canvas.reset resets the Cartesian grid but not the polar grid's zoom-adapted ring spacing, so polar mode after a clear draws thousands of rings (found by the replay suite: WS-01's load took 30 to 57 s after CV-01)",
+      "steps": [
+        {
+          "user": "Zoom to x between -2 and 2 around the origin.",
+          "reference": [{"tool": "zoom", "args": {"center_x": 0, "center_y": 0, "range_val": 2, "range_axis": "x"}}]
+        },
+        {
+          "user": "Clear the canvas and switch to the polar grid.",
+          "reference": [
+            {"tool": "clear_canvas", "args": {}},
+            {"tool": "set_coordinate_system", "args": {"mode": "polar"}}
+          ],
+          "checks": [
+            {"check": "attribute", "path": "left_bound", "target": "view", "same_as": "start"},
+            {"check": "attribute", "path": "mode", "target": "view", "eq": "polar"},
+            {
+              "check": "attribute",
+              "path": "polar_radial_spacing",
+              "target": "inspection",
+              "same_as": "start",
+              "known": "K25"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

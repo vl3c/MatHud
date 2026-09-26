@@ -1,0 +1,626 @@
+{
+  "schema": 1,
+  "area": "GEO",
+  "title": "Points, segments, vectors, polygons, circles, ellipses, arcs, angles and labels",
+  "scenarios": [
+    {
+      "id": "GEO-01",
+      "title": "Three segments close into a triangle",
+      "tags": ["points", "segments", "polygons", "auto-construction"],
+      "smoke": true,
+      "targets": "auto-construction when segments close a loop (`create_drawables_from_new_connections`)",
+      "steps": [
+        {
+          "user": "Draw segments from (0,0) to (4,0), from (4,0) to (0,3) and from (0,3) back to the origin.",
+          "reference": [
+            {"tool": "create_segment", "args": {"x1": 0, "y1": 0, "x2": 4, "y2": 0}},
+            {"tool": "create_segment", "args": {"x1": 4, "y1": 0, "x2": 0, "y2": 3}},
+            {"tool": "create_segment", "args": {"x1": 0, "y1": 3, "x2": 0, "y2": 0}}
+          ],
+          "checks": [
+            {"check": "count", "select": {"type": "Point"}, "eq": 3},
+            {"check": "count", "select": {"type": "Segment"}, "eq": 3},
+            {"check": "exists", "select": {"type": "Triangle", "vertices": [[0, 0], [4, 0], [0, 3]]}},
+            {"check": "attribute", "path": "types", "select": {"type": "Triangle", "only": true}, "contains": "right"},
+            {"check": "max_tool_calls", "max": 4},
+            {"check": "no_tool_errors"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GEO-02",
+      "title": "Requested point name already taken",
+      "tags": ["points", "naming"],
+      "smoke": false,
+      "known": ["K3"],
+      "targets": "silent renaming; tool result hides the real name",
+      "invariants": {"I4": "K3"},
+      "setup": {"calls": [{"tool": "create_point", "args": {"x": 0, "y": 0, "name": "A"}}]},
+      "steps": [
+        {
+          "user": "Add another point called A at (7, 7).",
+          "reference": [{"tool": "create_point", "args": {"x": 7, "y": 7, "name": "A"}}],
+          "checks": [
+            {"check": "count", "select": {"type": "Point", "name": "A"}, "eq": 1},
+            {"check": "point_at", "select": {"type": "Point", "name": "A"}, "at": [0, 0]},
+            {"check": "exists", "select": {"type": "Point", "at": [7, 7]}},
+            {"check": "count", "select": {"type": "Point"}, "eq": 2},
+            {"check": "answer_mentions", "words": ["name"]}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GEO-03",
+      "title": "Creating a point on an occupied spot",
+      "tags": ["points", "naming", "undo"],
+      "smoke": false,
+      "known": ["K1", "K2", "K3"],
+      "targets": "silent reuse of an existing point, dropped name, no-op undo entries",
+      "invariants": {"I4": "K2"},
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_polygon",
+            "args": {
+              "vertices": [{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 0, "y": 3}],
+              "polygon_type": "triangle",
+              "name": "ABC"
+            }
+          }
+        ]
+      },
+      "steps": [
+        {
+          "user": "Put a point Z at (0, 3).",
+          "reference": [{"tool": "create_point", "args": {"x": 0, "y": 3, "name": "Z"}}],
+          "checks": [
+            {"check": "count", "select": {"type": "Point"}, "eq": 3},
+            {"check": "absent", "select": {"type": "Point", "name": "Z"}},
+            {"check": "point_at", "select": {"type": "Point", "name": "C"}, "at": [0, 3]}
+          ]
+        },
+        {"do": [{"tool": "undo", "args": {}}], "checks": [{"check": "state_equals", "snapshot": "setup"}]}
+      ]
+    },
+    {
+      "id": "GEO-04",
+      "title": "Point on a segment splits it; undo is one step",
+      "tags": ["points", "segments", "undo"],
+      "smoke": false,
+      "known": ["K1"],
+      "targets": "segment splitting side effects; undo landing on a half-finished state",
+      "setup": {
+        "calls": [
+          {"tool": "create_segment", "args": {"x1": 0, "y1": 0, "x2": 4, "y2": 0}},
+          {"tool": "create_segment", "args": {"x1": 4, "y1": 0, "x2": 0, "y2": 3}},
+          {"tool": "create_segment", "args": {"x1": 0, "y1": 3, "x2": 0, "y2": 0}}
+        ]
+      },
+      "steps": [
+        {
+          "user": "Mark a point M on segment AB at (2, 0).",
+          "reference": [{"tool": "create_point", "args": {"x": 2, "y": 0, "name": "M"}}],
+          "checks": [
+            {"bind": "M", "select": {"type": "Point", "at": [2, 0]}},
+            {"check": "attribute", "path": "name", "select": "$M", "eq": "M"},
+            {"check": "exists", "select": {"type": "Segment", "ends": [[0, 0], [4, 0]]}},
+            {"check": "exists", "select": {"type": "Segment", "ends": [[2, 0], [0, 0]]}},
+            {"check": "exists", "select": {"type": "Segment", "ends": [[2, 0], [4, 0]]}},
+            {
+              "check": "relation",
+              "relation": "collinear",
+              "select": [
+                {"type": "Segment", "ends": [[2, 0], [0, 0]]},
+                {"type": "Segment", "ends": [[2, 0], [4, 0]]},
+                {"type": "Segment", "ends": [[0, 0], [4, 0]]}
+              ]
+            }
+          ]
+        },
+        {
+          "do": [{"tool": "undo", "args": {}}],
+          "checks": [{"check": "state_equals", "snapshot": "setup", "known": "K1"}]
+        }
+      ]
+    },
+    {
+      "id": "GEO-05",
+      "title": "Huge and tiny coordinates, then zoom to them",
+      "tags": ["points", "precision", "view", "naming"],
+      "smoke": false,
+      "known": ["K3"],
+      "targets": "numeric precision of storage, point matching and the view; multi-letter name coerced to a letter",
+      "invariants": {"I4": "K3"},
+      "steps": [
+        {
+          "user": "Create a point named Far at (1000000000, -0.000000001) and a point at (1e-9, 1e-9), then zoom so the far point is in view with about 10 units on each side.",
+          "reference": [
+            {"tool": "create_point", "args": {"x": 1000000000, "y": -1e-09, "name": "Far"}},
+            {"tool": "create_point", "args": {"x": 1e-09, "y": 1e-09}},
+            {"tool": "zoom", "args": {"center_x": 1000000000, "center_y": 0, "range_val": 10, "range_axis": "x"}}
+          ],
+          "checks": [
+            {
+              "check": "exists",
+              "select": {"type": "Point", "at": [1000000000.0, -1e-09]},
+              "tol": {"abs": 0, "rel": 1e-12}
+            },
+            {"check": "exists", "select": {"type": "Point", "at": [1e-09, 1e-09]}, "tol": {"abs": 1e-15, "rel": 0}},
+            {"check": "count", "select": {"type": "Point"}, "eq": 2},
+            {
+              "check": "attribute",
+              "path": "left_bound",
+              "target": "view",
+              "eq": 999999990.0,
+              "tol": {"abs": 1e-06, "rel": 0}
+            },
+            {
+              "check": "attribute",
+              "path": "right_bound",
+              "target": "view",
+              "eq": 1000000010.0,
+              "tol": {"abs": 1e-06, "rel": 0}
+            },
+            {"check": "exists", "select": {"type": "Point", "name": "Far"}, "known": "K3"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GEO-06",
+      "title": "Segment label: create, then hide",
+      "tags": ["segments", "labels", "update"],
+      "smoke": false,
+      "targets": "update paths that drop unrelated attributes",
+      "steps": [
+        {
+          "user": "Draw a red segment from (-3,-3) to (3,3) with the label 'diag'.",
+          "reference": [
+            {
+              "tool": "create_segment",
+              "args": {
+                "x1": -3,
+                "y1": -3,
+                "x2": 3,
+                "y2": 3,
+                "color": "red",
+                "label_text": "diag",
+                "label_visible": true
+              }
+            }
+          ],
+          "checks": [
+            {"bind": "S", "select": {"type": "Segment", "ends": [[-3, -3], [3, 3]]}},
+            {"check": "attribute", "path": "args.label.text", "select": "$S", "eq": "diag"},
+            {"check": "attribute", "path": "args.label.visible", "select": "$S", "eq": true},
+            {"check": "attribute", "path": "inspect.color", "select": "$S", "eq": "red"}
+          ]
+        },
+        {
+          "user": "Hide that label.",
+          "reference": [{"tool": "update_segment", "args": {"name": "AB", "new_label_visible": false}}],
+          "checks": [
+            {"check": "attribute", "path": "args.label.text", "select": "$S", "eq": "diag"},
+            {"check": "attribute", "path": "args.label.visible", "select": "$S", "eq": false},
+            {"check": "attribute", "path": "inspect.color", "select": "$S", "eq": "red"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GEO-07",
+      "title": "Segment and vector on the same endpoints; delete the vector",
+      "tags": ["segments", "vectors", "delete", "naming"],
+      "smoke": false,
+      "known": ["K7"],
+      "targets": "mutual recursion between vector and segment deletion; cross-type name clash",
+      "steps": [
+        {
+          "user": "Draw a segment from (0,0) to (3,0) and also a vector from (0,0) to (3,0).",
+          "reference": [
+            {"tool": "create_segment", "args": {"x1": 0, "y1": 0, "x2": 3, "y2": 0}},
+            {"tool": "create_vector", "args": {"origin_x": 0, "origin_y": 0, "tip_x": 3, "tip_y": 0}}
+          ],
+          "checks": [
+            {"check": "count", "select": {"type": "Vector"}, "eq": 1},
+            {"check": "count", "select": {"type": "Segment"}, "eq": 1}
+          ]
+        },
+        {
+          "user": "Now delete the vector but keep the segment.",
+          "reference": [{"tool": "delete_vector", "args": {"origin_x": 0, "origin_y": 0, "tip_x": 3, "tip_y": 0}}],
+          "checks": [
+            {"check": "count", "select": {"type": "Vector"}, "eq": 0, "known": "K7"},
+            {"check": "count", "select": {"type": "Segment", "ends": [[0, 0], [3, 0]]}, "eq": 1},
+            {"check": "count", "select": {"type": "Point"}, "eq": 2},
+            {"check": "no_tool_errors", "known": "K7"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GEO-08",
+      "title": "Square given by exact corners",
+      "tags": ["polygons", "subtypes", "precision"],
+      "smoke": false,
+      "known": ["K19"],
+      "targets": "subtype canonicalisation moving user coordinates (currently 1.9999999999999996)",
+      "steps": [
+        {
+          "user": "Draw the square ABCD with corners (0,0), (2,0), (2,2) and (0,2).",
+          "reference": [
+            {
+              "tool": "create_polygon",
+              "args": {
+                "vertices": [{"x": 0, "y": 0}, {"x": 2, "y": 0}, {"x": 2, "y": 2}, {"x": 0, "y": 2}],
+                "polygon_type": "quadrilateral",
+                "subtype": "square",
+                "name": "ABCD"
+              }
+            }
+          ],
+          "checks": [
+            {"check": "exists", "select": {"type": "Rectangle", "vertices": [[0, 0], [2, 0], [2, 2], [0, 2]]}},
+            {
+              "check": "exists",
+              "select": {"type": "Rectangle", "vertices": [[0, 0], [2, 0], [2, 2], [0, 2]]},
+              "tol": {"abs": 0, "rel": 0},
+              "known": "K19"
+            },
+            {
+              "check": "attribute",
+              "path": "types",
+              "select": {"type": "Rectangle", "only": true},
+              "contains": "square"
+            },
+            {
+              "check": "relation",
+              "relation": "equal_length",
+              "select": [
+                {"type": "Segment", "ends": [[0, 0], [2, 0]]},
+                {"type": "Segment", "ends": [[2, 0], [2, 2]]},
+                {"type": "Segment", "ends": [[2, 2], [0, 2]]},
+                {"type": "Segment", "ends": [[0, 2], [0, 0]]}
+              ]
+            },
+            {
+              "check": "relation",
+              "relation": "length",
+              "select": [{"type": "Segment", "ends": [[0, 0], [2, 0]]}],
+              "value": 2
+            },
+            {"check": "point_at", "select": {"type": "Point", "name": "B"}, "at": [2, 0], "known": "K19"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GEO-09",
+      "title": "Regular hexagon from a description",
+      "tags": ["polygons", "model-math"],
+      "smoke": false,
+      "targets": "model computation plus polygon creation; mostly a model-quality scenario",
+      "steps": [
+        {
+          "user": "Draw a regular hexagon centred at the origin with circumradius 3, one vertex on the positive x-axis.",
+          "reference": [
+            {
+              "tool": "create_polygon",
+              "args": {
+                "vertices": [
+                  {"x": 3, "y": 0},
+                  {"x": 1.5, "y": 2.598076211353316},
+                  {"x": -1.5, "y": 2.598076211353316},
+                  {"x": -3, "y": 0},
+                  {"x": -1.5, "y": -2.598076211353316},
+                  {"x": 1.5, "y": -2.598076211353316}
+                ],
+                "polygon_type": "hexagon"
+              }
+            }
+          ],
+          "checks": [
+            {"check": "count", "select": {"type": "Hexagon"}, "eq": 1},
+            {
+              "check": "exists",
+              "select": {
+                "type": "Hexagon",
+                "vertices": [
+                  [3, 0],
+                  [1.5, 2.598076211353],
+                  [-1.5, 2.598076211353],
+                  [-3, 0],
+                  [-1.5, -2.598076211353],
+                  [1.5, -2.598076211353]
+                ],
+                "tol": 1e-06
+              }
+            },
+            {"check": "exists", "select": {"type": "Point", "at": [3, 0]}},
+            {
+              "check": "relation",
+              "relation": "equal_length",
+              "select": [
+                {"type": "Segment", "ends": [[3, 0], [1.5, 2.598076211353]], "tol": 1e-06},
+                {"type": "Segment", "ends": [[1.5, 2.598076211353], [-1.5, 2.598076211353]], "tol": 1e-06},
+                {"type": "Segment", "ends": [[-1.5, 2.598076211353], [-3, 0]], "tol": 1e-06},
+                {"type": "Segment", "ends": [[-3, 0], [-1.5, -2.598076211353]], "tol": 1e-06},
+                {"type": "Segment", "ends": [[-1.5, -2.598076211353], [1.5, -2.598076211353]], "tol": 1e-06},
+                {"type": "Segment", "ends": [[1.5, -2.598076211353], [3, 0]], "tol": 1e-06}
+              ],
+              "tol": 1e-06
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GEO-10",
+      "title": "Move a free circle",
+      "tags": ["circles", "update"],
+      "smoke": false,
+      "targets": "update path of circles, derived formula refresh",
+      "steps": [
+        {
+          "user": "Draw a circle centred at (2, 1) with radius 3.",
+          "reference": [{"tool": "create_circle", "args": {"center_x": 2, "center_y": 1, "radius": 3}}],
+          "checks": [
+            {"bind": "C", "select": {"type": "Circle", "only": true}},
+            {"check": "attribute", "path": "args.radius", "select": "$C", "eq": 3}
+          ]
+        },
+        {
+          "user": "Move it so its centre is at (-1, 4).",
+          "reference": [{"tool": "update_circle", "args": {"name": "A(3)", "new_center_x": -1, "new_center_y": 4}}],
+          "checks": [
+            {"check": "exists", "select": {"type": "Circle", "center": [-1, 4], "radius": 3}},
+            {
+              "check": "attribute",
+              "path": "name",
+              "select": {"type": "Circle", "only": true},
+              "matches": "^A\\(3\\)$"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GEO-11",
+      "title": "Translating a triangle whose vertex is a circle centre",
+      "tags": ["polygons", "circles", "transforms", "derived"],
+      "smoke": false,
+      "known": ["K8"],
+      "targets": "stale cached derived fields after a shared point moves",
+      "invariants": {"I3": "K8"},
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_polygon",
+            "args": {
+              "vertices": [{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 0, "y": 3}],
+              "polygon_type": "triangle",
+              "name": "ABC"
+            }
+          },
+          {"tool": "create_circle", "args": {"center_x": 0, "center_y": 0, "radius": 5}}
+        ]
+      },
+      "steps": [
+        {
+          "user": "Move triangle ABC 10 units to the right.",
+          "reference": [{"tool": "translate_object", "args": {"name": "ABC", "x_offset": 10, "y_offset": 0}}],
+          "checks": [
+            {"check": "moved", "select": {"type": "Point", "name": "A"}, "since": "setup", "by": [10, 0]},
+            {"check": "moved", "select": {"type": "Point", "name": "B"}, "since": "setup", "by": [10, 0]},
+            {"check": "moved", "select": {"type": "Point", "name": "C"}, "since": "setup", "by": [10, 0]},
+            {"check": "exists", "select": {"type": "Circle", "center": [10, 0], "radius": 5}},
+            {
+              "check": "unchanged_except",
+              "since": "setup",
+              "except": [{"type": "Point"}, {"type": "Segment"}, {"type": "Triangle"}, {"type": "Circle"}]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GEO-12",
+      "title": "Ellipse rotation accumulates",
+      "tags": ["ellipses", "transforms"],
+      "smoke": false,
+      "targets": "rotation bookkeeping; ellipse names ignore the requested name (Roadmap known issue)",
+      "steps": [
+        {
+          "user": "Draw an ellipse centred at (-8, 5) with radii 3 and 1.5, rotated 30 degrees.",
+          "reference": [
+            {
+              "tool": "create_ellipse",
+              "args": {"center_x": -8, "center_y": 5, "radius_x": 3, "radius_y": 1.5, "rotation_angle": 30}
+            }
+          ]
+        },
+        {
+          "user": "Rotate it by another 60 degrees.",
+          "reference": [{"tool": "rotate_object", "args": {"name": "A(3, 1.5)", "angle": 60}}],
+          "checks": [
+            {
+              "check": "attribute",
+              "path": "args.rotation_angle",
+              "select": {"type": "Ellipse", "only": true},
+              "eq": 90,
+              "mod": 180
+            },
+            {"check": "attribute", "path": "args.radius_x", "select": {"type": "Ellipse", "only": true}, "eq": 3},
+            {"check": "attribute", "path": "args.radius_y", "select": {"type": "Ellipse", "only": true}, "eq": 1.5},
+            {"check": "exists", "select": {"type": "Ellipse", "center": [-8, 5]}}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GEO-13",
+      "title": "Arc endpoints must not drag existing points",
+      "tags": ["arcs", "side-effects"],
+      "smoke": false,
+      "known": ["K9"],
+      "targets": "constructions mutating unrelated existing points",
+      "setup": {"calls": [{"tool": "create_segment", "args": {"x1": 0, "y1": 0, "x2": 3, "y2": 0}}]},
+      "steps": [
+        {
+          "user": "Draw the minor arc of the circle centred at the origin with radius 5, from (5,0) to (0,5).",
+          "reference": [
+            {
+              "tool": "create_circle_arc",
+              "args": {
+                "point1_x": 3,
+                "point1_y": 0,
+                "point2_x": 0,
+                "point2_y": 5,
+                "center_x": 0,
+                "center_y": 0,
+                "radius": 5,
+                "use_major_arc": false
+              }
+            }
+          ],
+          "checks": [
+            {"check": "point_at", "select": {"type": "Point", "name": "B"}, "at": [3, 0], "known": "K9"},
+            {
+              "check": "relation",
+              "relation": "length",
+              "select": [{"type": "Segment", "name": "AB"}],
+              "value": 3,
+              "known": "K9"
+            },
+            {"check": "count", "select": {"type": "CircleArc"}, "eq": 1},
+            {"check": "exists", "select": {"type": "Point", "at": [0, 5]}}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GEO-14",
+      "title": "Removing an angle marker keeps the triangle",
+      "tags": ["angles", "delete", "cascade"],
+      "smoke": false,
+      "known": ["K6"],
+      "targets": "over-eager cascade deletes",
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_polygon",
+            "args": {
+              "vertices": [{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 0, "y": 3}],
+              "polygon_type": "triangle",
+              "name": "ABC"
+            }
+          }
+        ]
+      },
+      "steps": [
+        {
+          "user": "Mark the angle at A.",
+          "reference": [{"tool": "create_angle", "args": {"vx": 0, "vy": 0, "p1x": 4, "p1y": 0, "p2x": 0, "p2y": 3}}],
+          "checks": [
+            {"check": "count", "select": {"type": "Angle"}, "eq": 1},
+            {"check": "relation", "relation": "angle_deg", "select": [{"type": "Angle", "only": true}], "value": 90},
+            {"check": "attribute", "path": "inspect.vertex", "select": {"type": "Angle", "only": true}, "eq": [0, 0]}
+          ]
+        },
+        {
+          "user": "Remove that angle marker again.",
+          "reference": [{"tool": "delete_angle", "args": {"name": "angle_BAC"}}],
+          "checks": [
+            {"check": "count", "select": {"type": "Angle"}, "eq": 0},
+            {"check": "exists", "select": {"type": "Triangle", "vertices": [[0, 0], [4, 0], [0, 3]]}, "known": "K6"},
+            {"check": "count", "select": {"type": "Segment"}, "eq": 3, "known": "K6"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GEO-15",
+      "title": "Reflex angle",
+      "tags": ["angles", "reflex"],
+      "smoke": false,
+      "targets": "reflex handling in create and in cached values",
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_polygon",
+            "args": {
+              "vertices": [{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 0, "y": 3}],
+              "polygon_type": "triangle",
+              "name": "ABC"
+            }
+          }
+        ]
+      },
+      "steps": [
+        {
+          "user": "Show the reflex angle at B.",
+          "reference": [
+            {
+              "tool": "create_angle",
+              "args": {"vx": 4, "vy": 0, "p1x": 0, "p1y": 0, "p2x": 0, "p2y": 3, "is_reflex": true}
+            }
+          ],
+          "checks": [
+            {"check": "count", "select": {"type": "Angle"}, "eq": 1},
+            {"check": "attribute", "path": "args.is_reflex", "select": {"type": "Angle", "only": true}, "eq": true},
+            {
+              "check": "relation",
+              "relation": "angle_deg",
+              "select": [{"type": "Angle", "only": true}],
+              "value": 323.130102354156,
+              "tol": 1e-06
+            },
+            {
+              "check": "attribute",
+              "path": "inspect.angle_degrees",
+              "select": {"type": "Angle", "only": true},
+              "eq": 323.130102354156,
+              "tol": 1e-06
+            },
+            {"check": "attribute", "path": "inspect.vertex", "select": {"type": "Angle", "only": true}, "eq": [4, 0]}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GEO-16",
+      "title": "Labels with the same name, then edit one",
+      "tags": ["labels", "naming", "update"],
+      "smoke": false,
+      "targets": "label naming and update targeting",
+      "steps": [
+        {
+          "user": "Put a label 'x' at (1,1) called L and a label 'y' at (2,2) also called L.",
+          "reference": [
+            {"tool": "create_label", "args": {"x": 1, "y": 1, "text": "x", "name": "L"}},
+            {"tool": "create_label", "args": {"x": 2, "y": 2, "text": "y", "name": "L"}}
+          ],
+          "checks": [{"check": "count", "select": {"type": "Label"}, "eq": 2}]
+        },
+        {
+          "user": "Change the first label's text to 'hello' and tilt it by 15 degrees.",
+          "reference": [
+            {"tool": "update_label", "args": {"name": "L", "new_text": "hello", "new_rotation_degrees": 15}}
+          ],
+          "checks": [
+            {
+              "check": "exists",
+              "select": {"type": "Label", "at": [1, 1], "where": {"args.text": "hello", "args.rotation_degrees": 15}}
+            },
+            {
+              "check": "exists",
+              "select": {"type": "Label", "at": [2, 2], "where": {"args.text": "y", "args.rotation_degrees": 0}}
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,127 @@
+{
+  "schema": 1,
+  "area": "MC",
+  "title": "Math tools feeding the canvas",
+  "scenarios": [
+    {
+      "id": "MC-01",
+      "title": "Solve, mark the roots, plot the parabola",
+      "tags": ["math", "functions", "points"],
+      "smoke": true,
+      "targets": "chaining a CAS result into drawing",
+      "steps": [
+        {
+          "user": "Solve x^2 - 5x + 6 = 0, mark the roots on the x-axis and plot the parabola.",
+          "reference": [
+            {"tool": "solve", "args": {"equation": "x^2 - 5*x + 6", "variable": "x"}},
+            {"tool": "create_point", "args": {"x": 2, "y": 0}},
+            {"tool": "create_point", "args": {"x": 3, "y": 0}},
+            {"tool": "draw_function", "args": {"function_string": "x^2 - 5*x + 6", "name": "p"}}
+          ],
+          "checks": [
+            {"check": "exists", "select": {"type": "Point", "at": [2, 0]}},
+            {"check": "exists", "select": {"type": "Point", "at": [3, 0]}},
+            {
+              "check": "relation",
+              "relation": "point_on_function",
+              "select": [
+                {"type": "Point", "at": [2, 0]},
+                {"type": "Point", "at": [3, 0]},
+                {"type": "Function", "name": "p"}
+              ]
+            },
+            {"check": "tool_result", "tool": "solve", "has_numbers": [2, 3]},
+            {"check": "max_tool_calls", "max": 6}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "MC-02",
+      "title": "System of equations and the intersection",
+      "tags": ["math", "functions", "points"],
+      "smoke": false,
+      "targets": "chaining; function naming",
+      "steps": [
+        {
+          "user": "Solve x + y = 3 and x - y = 1, draw both lines and mark the intersection.",
+          "reference": [
+            {"tool": "solve_system_of_equations", "args": {"equations": ["x + y = 3", "x - y = 1"]}},
+            {"tool": "draw_function", "args": {"function_string": "3 - x", "name": "l1"}},
+            {"tool": "draw_function", "args": {"function_string": "x - 1", "name": "l2"}},
+            {"tool": "create_point", "args": {"x": 2, "y": 1, "name": "I"}}
+          ],
+          "checks": [
+            {"check": "point_at", "select": {"type": "Point", "name": "I"}, "at": [2, 1]},
+            {
+              "check": "relation",
+              "relation": "point_on_function",
+              "select": [{"type": "Point", "at": [2, 1]}, {"type": "Function", "name": "l1"}]
+            },
+            {
+              "check": "relation",
+              "relation": "point_on_function",
+              "select": [{"type": "Point", "at": [2, 1]}, {"type": "Function", "name": "l2"}]
+            },
+            {"check": "tool_result", "tool": "solve_system_of_equations", "has_numbers": [2, 1]}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "MC-03",
+      "title": "Derivative and tangent agree",
+      "tags": ["math", "functions", "tangents"],
+      "smoke": false,
+      "targets": "CAS and numeric derivative consistency",
+      "steps": [
+        {
+          "user": "What is the derivative of x^3 at x = 1? Draw the curve and its tangent there.",
+          "reference": [
+            {"tool": "derive", "args": {"expression": "x^3", "variable": "x"}},
+            {"tool": "draw_function", "args": {"function_string": "x^3", "name": "cub"}},
+            {"tool": "draw_tangent_line", "args": {"curve_name": "cub", "parameter": 1}}
+          ],
+          "checks": [
+            {"check": "tool_result", "tool": "derive", "matches": "3\\s*\\*?\\s*x\\s*\\^\\s*2"},
+            {"bind": "Tan", "select": {"type": "Segment", "only": true}},
+            {
+              "check": "relation",
+              "relation": "tangent_to",
+              "select": ["$Tan", {"type": "Function", "name": "cub"}],
+              "x": 1,
+              "tol": 1e-06
+            },
+            {"check": "relation", "relation": "slope", "select": ["$Tan"], "value": 3, "tol": 1e-06},
+            {"check": "answer_mentions", "numbers": [3]}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "MC-04",
+      "title": "Polar grid and a point given in polar form",
+      "tags": ["math", "coordinate-systems", "points"],
+      "smoke": false,
+      "targets": "polar mode; units",
+      "steps": [
+        {
+          "user": "Switch to the polar grid and put a point at r = 2, theta = 90 degrees.",
+          "reference": [
+            {"tool": "set_coordinate_system", "args": {"mode": "polar"}},
+            {
+              "tool": "convert_coordinates",
+              "args": {"coord1": 2, "coord2": 1.5707963267948966, "from_system": "polar", "to_system": "cartesian"}
+            },
+            {"tool": "create_point", "args": {"x": 0, "y": 2}}
+          ],
+          "checks": [
+            {"check": "attribute", "path": "mode", "target": "view", "eq": "polar"},
+            {"check": "exists", "select": {"type": "Point", "at": [0, 2]}},
+            {"check": "tool_result", "tool": "convert_coordinates", "path": "y", "eq": 2}
+          ]
+        }
+      ]
+    }
+  ]
+}
