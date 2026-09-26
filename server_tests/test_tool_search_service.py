@@ -384,6 +384,42 @@ class TestSearchToolsWithMock:
         assert call_args.kwargs.get("max_tokens") == 500
         assert "max_completion_tokens" not in call_args.kwargs
 
+    def _local_model(self) -> AIModel:
+        return AIModel(identifier="qwen-local-test", has_vision=False, is_reasoning_model=False, provider="local_agent")
+
+    def test_search_local_model_sends_the_reasoning_effort(
+        self, service: ToolSearchService, mock_client: MagicMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """LocalAgent searches send the same reasoning effort as LocalAgent chat requests."""
+        self._setup_mock_response(mock_client, '["create_circle"]')
+        monkeypatch.setenv("MATHUD_LOCAL_REASONING_EFFORT", "low")
+
+        service.search_tools("draw", model=self._local_model())
+
+        call_args = mock_client.chat.completions.create.call_args
+        assert call_args.kwargs.get("extra_body") == {"chat_template_kwargs": {"reasoning_effort": "low"}}
+        assert call_args.kwargs.get("max_tokens") == 500
+
+    def test_search_local_model_default_effort_sends_none(
+        self, service: ToolSearchService, mock_client: MagicMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._setup_mock_response(mock_client, '["create_circle"]')
+        monkeypatch.setenv("MATHUD_LOCAL_REASONING_EFFORT", "default")
+
+        service.search_tools("draw", model=self._local_model())
+
+        assert "extra_body" not in mock_client.chat.completions.create.call_args.kwargs
+
+    def test_search_other_providers_send_no_template_kwargs(
+        self, service: ToolSearchService, mock_client: MagicMock
+    ) -> None:
+        self._setup_mock_response(mock_client, '["create_circle"]')
+        model = AIModel(identifier="openrouter-test", has_vision=False, is_reasoning_model=False, provider="openrouter")
+
+        service.search_tools("draw", model=model)
+
+        assert "extra_body" not in mock_client.chat.completions.create.call_args.kwargs
+
     def test_search_uses_reasoning_default_model_when_none(self, mock_client: MagicMock) -> None:
         """Default OpenAI reasoning model should be used as configured."""
         self._setup_mock_response(mock_client, '["create_circle"]')

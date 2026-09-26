@@ -127,6 +127,7 @@ Licenses are listed in `static/vendor/LICENSES.md`.
    MATHUD_CANVAS_FORMAT=text       # How the canvas reaches the model: text (default) | min_json | json (original prompt JSON)
    MATHUD_CANVAS_BUDGET_TOKENS=    # Canvas token budget; default 4000 (cloud) / 1500 (local), 0 = unlimited
    LOCAL_AGENT_BASE_URL=http://127.0.0.1:8080  # LocalAgent server (default shown)
+   MATHUD_LOCAL_REASONING_EFFORT=medium  # LocalAgent: low | medium (default) | high | xhigh | max | default (send no effort)
    ```
 2. Authentication rules (`static/app_manager.py`):
    1. When `PORT` is set (typical in hosted deployments), authentication is enforced automatically.
@@ -161,6 +162,14 @@ Developer utilities:
 1. Browser console helper: `window.compareCanvasState()` (development mode) prints full vs summary structures with byte/token metrics.
 2. Log report script: `python scripts/canvas_prompt_telemetry_report.py --mode hybrid --json-out /tmp/canvas_summary_report.json`
 3. Deep-dive rollout notes: `documentation/development/canvas_prompt_summary_rollout.md`
+4. Canvas-format benchmark: `scripts/benchmark_canvas_formats.py` asks models factual questions about the scenes in `server_tests/fixtures/canvas_states/` (coordinates, lengths, graph weights, what a tool batch changed), once per canvas format, and reports accuracy, prompt tokens, latency and cost per model and format. The messages are the ones the app builds (same system prompt, user message and canvas rendering, from the providers' own code), but each question is one non-streamed request without tools, so a `json` model cannot re-fetch the canvas with `get_current_canvas_state`, and OpenRouter `reasoning_details` are not sent back. Questions whose information a format does not send (in `json` the app sends no canvas after a tool batch; LocalAgent's `json` is only an object-count line) are reported as not provided rather than wrong; the headline is accuracy on the static scenes, with the change scene reported separately. Start with a dry run: it writes every prompt to the output directory and prints token and cost estimates without touching the network. A live OpenRouter run needs `OPENROUTER_API_KEY` (environment or `.env`) and costs about $0.10 for the default two-model run (reasoning models may use more); `--max-requests` (default 250) aborts a larger run before anything is sent, and requests are never retried. `--provider local` benchmarks the LocalAgent llama-server instead: no key, every served model unless `--models` picks one, formats `text`, `min_json` and `json` by default (`min_json` is the real structured-format comparison there), reasoning effort `medium` unless `--local-reasoning-effort` sets another (the benchmark ignores `MATHUD_LOCAL_REASONING_EFFORT`), llama-server timings recorded. Each answer is appended to `results.jsonl` as it arrives; `results.json` and `summary.md` are written at the end, also after Ctrl+C, in `logs/canvas_format_benchmark/<time>/` unless `--out` says otherwise. `--regrade <results.json>` re-grades stored answers with the current grader, offline.
+
+```bash
+python scripts/benchmark_canvas_formats.py --dry-run                            # prompts and estimates only
+python scripts/benchmark_canvas_formats.py --formats json text                  # OpenRouter, default models
+python scripts/benchmark_canvas_formats.py --provider local                     # LocalAgent: text, min_json, json
+python scripts/benchmark_canvas_formats.py --regrade logs/canvas_format_benchmark/<time>/results.json
+```
 
 ## 6. Working with MatHud
 
@@ -286,6 +295,16 @@ backend serving the same OpenAI-compatible API) over `/v1`, and needs no API key
 
 Local models are used in search-first tool mode and currently receive text only; attached
 images are not forwarded.
+
+Every LocalAgent request (chat, and the model-based tool search) sends a reasoning effort as the chat-template variable
+`reasoning_effort` (`chat_template_kwargs`), `medium` by default. Without it a reasoning model
+uses its template's default: Qwen3.8 27B then thought for 16,000 tokens (about four minutes)
+on "what is the perimeter of triangle ABC" without answering, and took about 5 s at `medium`.
+Set `MATHUD_LOCAL_REASONING_EFFORT` to `low`, `high`, `xhigh` or `max` to change it, or to
+`default` to send nothing, for a server or template that should not get the field (the model then uses its
+template's default, which does not turn reasoning off). A value in the request takes precedence over one set
+with `--chat-template-kwargs` when llama-server starts, so use `default` to keep a server-side setting.
+llama-server passes the variable to the template, and templates that do not use it ignore it.
 
 ### 6.8 Workspace Management
 

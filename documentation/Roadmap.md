@@ -48,9 +48,10 @@ From the September 2026 project review. Conservative fixes, each with a regressi
 - ~~**Test hygiene:** unregistered client test classes registered.~~
 
 Follow-ups:
-- **Comprehension benchmark for the canvas format** — once a model is reachable, compare `json` vs `text` answers (lengths, names, graph edges, changes after tool calls) per provider; tune the local budget to the model's context size.
+- ~~**Comprehension benchmark for the canvas format**~~ Done: `scripts/benchmark_canvas_formats.py`. On OpenRouter (DeepSeek V4.1 Flash, MiMo V2.6 Pro) both formats answer every static-scene question, and `text` needs about 45% fewer prompt tokens and is faster and cheaper; after a tool batch `json` sends no canvas, so 5 of 8 change questions are not answerable there, while `text` answers all of them. On the local GPU (Qwen3.8 27B, Ternary Bonsai 2 27B, medium reasoning effort) `text` and `min_json` each scored 37 or 38 of 38 static questions and 8 of 8 change questions, with the one miss per model split across the two formats (a reasoning loop that never answered, and one wrong nearest point); the old LocalAgent count line left 40 of 46 questions unanswerable. `min_json` stays as the fallback format. Still open: tune the local budget to the model's context size.
 - One user-visible undo step per AI action (nested manager archives currently create several).
-- Serialize drawable colors/styles (points, segments, vectors, circles, polygons, graphs, function curves) so they survive reload and reach the model.
+- Serialize drawable colors/styles (points, segments, vectors, circles, polygons, graphs, function curves) so they survive reload and reach the model; colours not stored in drawable state are missing from every canvas format, and `text` also omits default colours.
+- OpenAI Responses API keeps earlier turns (including their `<canvas>` blocks) in server-side history via previous_response_id, so MatHud can't strip old canvas blocks there; consider sending the canvas as a separate input item or not chaining responses.
 - `localStorage` mirror of the canvas so an accidental page reload doesn't lose work.
 - Custom names for circles and ellipses (currently always `<center>(<radius>)`; needs a custom-name flag honoured by `regenerate_name()` and `__deepcopy__`).
 - Region boolean operations ignore holes and use only outer boundaries when results are combined further.
@@ -71,7 +72,7 @@ Goal: one command (later one executable) opens a MatHud window; no separate serv
 1. ~~**Per-response metrics** shown in chat and logged: provider, model, latency, time-to-first-token, tokens/s, prompt/completion tokens, number of tool calls, tool errors.~~ Done: footer under each answer, JSON log lines, `window.getMatHudLastTurnMetrics()`.
 2. **Benchmark suite (CLI):** a curated set of math prompts with machine-checkable expectations (canvas state or tool results), run against a list of models; outputs a comparison table (accuracy, tool-call validity, speed). Builds on the existing tool-discovery benchmark and action traces.
 3. **Side-by-side mode:** send the same prompt to two models (pairs naturally with tabs, A3).
-4. **Local-model tuning:** tool descriptions and search-first prompts tuned for small local models; measure with the suite.
+4. **Local-model tuning:** tool descriptions and search-first prompts tuned for small local models; measure with the suite. LocalAgent now sends a reasoning effort (`chat_template_kwargs.reasoning_effort`, default `medium`, `MATHUD_LOCAL_REASONING_EFFORT`): without it Qwen3.8 27B thought to the 16,000-token limit on a trivial question.
 
 ### CAS reliability
 1. Known-answer audit of `derive`, `integrate`, `limit`, `solve`, `simplify`, `factor`, systems against nerdamer (unmaintained).

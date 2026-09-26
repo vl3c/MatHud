@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from abc import ABC, abstractmethod
 from collections.abc import Iterator, Sequence
 from typing import Any, Dict, List, Optional, Set, Type
@@ -51,6 +52,30 @@ TOOL_CAPABLE_MODEL_FAMILIES: Set[str] = {
     "granite3-dense",
     "granite3-moe",
 }
+
+
+# Reasoning effort sent to the server as the chat-template variable ``reasoning_effort``
+# (``chat_template_kwargs``). Without it a reasoning model uses its template's default,
+# which can mean thinking until the token limit on a trivial question. "default" omits
+# the field for templates or servers that do not want it. There is no "none": omitting
+# the field does not turn reasoning off.
+REASONING_EFFORT_ENV = "MATHUD_LOCAL_REASONING_EFFORT"
+REASONING_EFFORTS = ("low", "medium", "high", "xhigh", "max")
+DEFAULT_REASONING_EFFORT = "medium"
+_OMIT_REASONING_EFFORT = ("default",)
+
+
+def get_configured_reasoning_effort() -> Optional[str]:
+    """Return the effort from MATHUD_LOCAL_REASONING_EFFORT (default "medium"), or None to send none."""
+    raw = os.getenv(REASONING_EFFORT_ENV, "").strip().lower()
+    if not raw:
+        return DEFAULT_REASONING_EFFORT
+    if raw in _OMIT_REASONING_EFFORT:
+        return None
+    if raw in REASONING_EFFORTS:
+        return raw
+    _logger.warning("Unknown %s value %r; using %r", REASONING_EFFORT_ENV, raw, DEFAULT_REASONING_EFFORT)
+    return DEFAULT_REASONING_EFFORT
 
 
 def normalize_model_name(model_name: str) -> str:
@@ -186,6 +211,8 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
 
     # False once the server rejected stream_options (see create_stream_requesting_usage).
     _stream_usage_supported = True
+    # Chat-template reasoning effort; None sends none (see MATHUD_LOCAL_REASONING_EFFORT).
+    reasoning_effort: Optional[str] = DEFAULT_REASONING_EFFORT
 
     def __init__(
         self,
@@ -215,6 +242,7 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         self.model: AIModel = model if model is not None else AIModel.from_identifier("local-model")
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.reasoning_effort = get_configured_reasoning_effort()
         # Default to search mode for local LLMs to avoid context overflow
         # (MATHUD_TOOL_EXPOSURE=full exposes every tool instead)
         self._tool_mode = get_configured_tool_mode()
@@ -286,6 +314,18 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         _logger.info(f"Discovered {len(tool_capable)} tool-capable models out of {len(all_models)} total")
         return tool_capable
 
+    def _completion_options(self) -> Dict[str, Any]:
+        """Sampling and reasoning parameters sent with every chat completion request.
+
+        The reasoning effort travels in ``chat_template_kwargs``, which llama-server
+        passes to the model's chat template; templates that do not use the variable
+        ignore it.
+        """
+        options: Dict[str, Any] = {"temperature": self.temperature, "max_tokens": self.max_tokens}
+        if self.reasoning_effort is not None:
+            options["extra_body"] = {"chat_template_kwargs": {"reasoning_effort": self.reasoning_effort}}
+        return options
+
     def reset_conversation(self) -> None:
         """Reset the conversation history."""
         self.messages = [{"role": "system", "content": self._build_system_prompt()}]
@@ -310,8 +350,7 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
                 model=self.model.id,
                 messages=self.messages,
                 tools=list(self.tools) if self.tools else None,
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
+                **self._completion_options(),
             )
             choice = response.choices[0]
         except Exception as e:
@@ -356,8 +395,7 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
                 model=self.model.id,
                 messages=self.messages,
                 tools=list(self.tools) if self.tools else None,
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
+                **self._completion_options(),
                 stream=True,
             )
 
