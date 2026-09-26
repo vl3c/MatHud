@@ -155,6 +155,13 @@ class ToolCallLogManager:
 
     # ── Adding entries ──────────────────────────────────────────
 
+    @staticmethod
+    def _error_message(result_value: Any) -> str:
+        """Text shown for a failed call: the error string, or the error field of an error dict."""
+        if isinstance(result_value, dict):
+            return str(result_value.get("error") or result_value.get("value") or result_value)
+        return str(result_value)
+
     def add_entries(self, tool_calls: list[dict[str, Any]], call_results: dict[str, Any]) -> None:
         """Record tool call entries and update the dropdown UI.
 
@@ -188,8 +195,8 @@ class ToolCallLogManager:
                 result_value = call_results.get(expr_key, call_results.get(result_key, ""))
             else:
                 result_value = call_results.get(result_key, call_results.get(function_name, ""))
-            is_error = isinstance(result_value, str) and result_value.startswith("Error:")
-            error_message = result_value if is_error else ""
+            is_error = ResultProcessor.is_error_result(result_value)
+            error_message = self._error_message(result_value) if is_error else ""
 
             # Full untruncated args for the expanded view
             args_full = ", ".join(f"{k}: {v}" for k, v in args.items() if k != "canvas")

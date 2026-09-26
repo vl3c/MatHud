@@ -354,6 +354,41 @@ class StatisticsManager:
         show_points: Optional[bool],
         point_color: Optional[str],
     ) -> Dict[str, Any]:
+        """Fit a regression model and plot it as one undo step (see ``_fit_and_plot_regression``).
+
+        fit_regression is not in the undoable tool list, because its statistics must reach the
+        model, so it groups the curve and the data points into one undo step itself.
+        """
+        undo_manager = self.canvas.undo_redo_manager
+        undo_manager.begin_batch()
+        try:
+            return self._fit_and_plot_regression(
+                name=name,
+                x_data=x_data,
+                y_data=y_data,
+                model_type=model_type,
+                degree=degree,
+                plot_bounds=plot_bounds,
+                curve_color=curve_color,
+                show_points=show_points,
+                point_color=point_color,
+            )
+        finally:
+            undo_manager.end_batch()
+
+    def _fit_and_plot_regression(
+        self,
+        *,
+        name: Optional[str],
+        x_data: List[float],
+        y_data: List[float],
+        model_type: str,
+        degree: Optional[int],
+        plot_bounds: Optional[Dict[str, Any]],
+        curve_color: Optional[str],
+        show_points: Optional[bool],
+        point_color: Optional[str],
+    ) -> Dict[str, Any]:
         """
         Fit a regression model to data points and plot the resulting curve.
 

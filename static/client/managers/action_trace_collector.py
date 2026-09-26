@@ -237,8 +237,7 @@ class ActionTraceCollector:
                 # Get the single result value (first entry in the dict)
                 if results:
                     new_result = next(iter(results.values()))
-                if isinstance(new_result, str) and new_result.startswith("Error"):
-                    is_error = True
+                is_error = ResultProcessor.is_error_result(new_result)
             except Exception as e:
                 new_result = f"Error: {e}"
                 is_error = True

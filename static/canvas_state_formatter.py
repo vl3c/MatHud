@@ -92,6 +92,10 @@ _RENDER_ONLY_FIELDS = frozenset(
         "reference_scale_factor",
         "geometry_snapshot",
         "resolution",
+        # Graph ownership bookkeeping: which reused drawables delete_graph keeps.
+        "preexisting_points",
+        "preexisting_edges",
+        "edge_label_records",
     }
 )
 

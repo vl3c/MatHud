@@ -324,7 +324,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "delete_vector",
-            "description": "Deletes the vector found at the given coordinates for two points called origin and tip. If only a name is given, search for appropriate point coordinates in the canvas state.",
+            "description": "Deletes the vector found at the given coordinates for two points called origin and tip. If only a name is given, search for appropriate point coordinates in the canvas state. A segment with the same endpoints is a separate object and stays.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -430,7 +430,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "delete_polygon",
-            "description": "Deletes a polygon by name or by matching a set of vertex coordinates. Specify polygon_type to limit the search.",
+            "description": "Deletes a polygon by name or by matching a set of vertex coordinates. Specify polygon_type to limit the search. Its vertex points stay, and so do edges that another polygon, angle, graph or other object still uses.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2116,7 +2116,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "adjacency_matrix": {
                         "type": ["array", "null"],
                         "items": {"type": "array", "items": {"type": "number"}},
-                        "description": "Optional adjacency matrix (weights allowed). Rows/columns follow the order of the provided vertices array (0-based).",
+                        "description": "Optional adjacency matrix (weights allowed). Rows/columns follow the order of the provided vertices array (0-based). Edges follow the graph's direction: for an undirected graph each nonzero pair gives one edge.",
                     },
                 },
                 "required": [
@@ -2138,7 +2138,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "delete_graph",
-            "description": "Deletes a graph or tree and its associated drawables by name.",
+            "description": "Deletes a graph or tree by name, with the vertex points and edges it created unless another object still uses them. Points and edges that existed before the graph and were reused as its vertices or edges stay, with their original labels.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2587,7 +2587,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "delete_angle",
-            "description": "Removes an angle by its name. This will also attempt to remove its constituent segments if they are no longer part of other drawables.",
+            "description": "Removes an angle by its name, with its arm segments unless another polygon, angle, graph or other object still uses them. Points stay.",
             "strict": True,
             "parameters": {
                 "type": "object",

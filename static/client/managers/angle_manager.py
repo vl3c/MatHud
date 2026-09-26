@@ -49,6 +49,7 @@ from drawables.angle import Angle
 from drawables.point import Point
 from drawables.segment import Segment
 from managers.base_drawable_manager import BaseDrawableManager
+from managers.dependency_removal import is_on_canvas, release_segment
 from managers.edit_policy import EditRule
 
 if TYPE_CHECKING:
@@ -317,23 +318,50 @@ class AngleManager(BaseDrawableManager):
                     return angle
         return None
 
-    def delete_angle(self, angle_name: str) -> bool:
+    def delete_angle(self, angle_name: str, delete_unused_arms: bool = True) -> bool:
         """
-        Removes an angle by its name. Also attempts to remove its constituent segments
-        if they are no longer needed by other drawables (handled by SegmentManager).
+        Removes an angle by its name.
+
+        The arm segments are removed too unless something else (a polygon, another
+        angle, a graph or another dependent drawable) still uses them. Points stay.
 
         Args:
             angle_name: The name of the angle to remove.
+            delete_unused_arms: False when the angle is removed because one of its
+                segments or points is being deleted; the other arm then stays.
 
         Returns:
             True if the angle was found and processed for removal, False otherwise.
         """
-        self.canvas.undo_redo_manager.archive()
+        undo_manager = self.canvas.undo_redo_manager
+        undo_manager.archive()
 
         angle_to_delete = self.get_angle_by_name(angle_name)
         if not angle_to_delete:
             return False
 
+        # One archive covers the whole delete; the arm deletes would otherwise archive again.
+        undo_manager.suspend_archiving()
+        try:
+            self._remove_angle(angle_to_delete, angle_name)
+            if delete_unused_arms:
+                self._release_arm_segments(angle_to_delete)
+        finally:
+            undo_manager.resume_archiving()
+
+        if self.canvas.draw_enabled:
+            self.canvas.draw()
+
+        return True
+
+    def _release_arm_segments(self, angle: "Drawable") -> None:
+        """Delete each arm segment that nothing else uses (or hand it to the graphs using it)."""
+        for segment in (getattr(angle, "segment1", None), getattr(angle, "segment2", None)):
+            if segment is not None and is_on_canvas(self.drawables, segment):
+                release_segment(segment, self.drawables, self.dependency_manager, self.segment_manager)
+
+    def _remove_angle(self, angle_to_delete: "Drawable", angle_name: str) -> None:
+        """Remove the angle from the dependency manager and the drawables container."""
         segment1 = angle_to_delete.segment1
         segment2 = angle_to_delete.segment2
         vertex_point = getattr(angle_to_delete, "vertex_point", None)
@@ -368,22 +396,6 @@ class AngleManager(BaseDrawableManager):
                 print(f"AngleManager: Warning - Could not remove angle '{angle_name}' from drawables container.")
         except ValueError:
             print(f"AngleManager: Warning - Angle '{angle_name}' not found in Angles list for direct removal.")
-
-        # 4. Attempt to delete the constituent segments (SegmentManager handles if they are still in use)
-        if segment1 and hasattr(segment1, "point1") and hasattr(segment1, "point2"):
-            self.segment_manager.delete_segment(
-                segment1.point1.x, segment1.point1.y, segment1.point2.x, segment1.point2.y
-            )
-        if segment2 and hasattr(segment2, "point1") and hasattr(segment2, "point2"):
-            self.segment_manager.delete_segment(
-                segment2.point1.x, segment2.point1.y, segment2.point2.x, segment2.point2.y
-            )
-
-        # 5. Draw the canvas
-        if self.canvas.draw_enabled:
-            self.canvas.draw()
-
-        return True
 
     def update_angle(
         self,
@@ -500,7 +512,7 @@ class AngleManager(BaseDrawableManager):
                         print(
                             f"AngleManager: Angle '{angle.name}' became invalid after segment '{updated_segment_name}' update. Error: {e}. Removing angle."
                         )
-                        self.delete_angle(angle.name)  # This will handle its own draw call
+                        self.delete_angle(angle.name, delete_unused_arms=False)  # Draws on its own
                         needs_redraw = True  # Ensure redraw happens even if this one is removed
                 else:
                     print(f"AngleManager: Warning - Angle '{angle.name}' does not have _initialize method for update.")
@@ -539,7 +551,7 @@ class AngleManager(BaseDrawableManager):
                 print(
                     f"AngleManager: Segment '{removed_segment_name}' was removed. Removing dependent angle '{angle_name}'."
                 )
-                self.delete_angle(angle_name)  # This handles its own draw and archive
+                self.delete_angle(angle_name, delete_unused_arms=False)  # Draws and archives on its own
 
             # A final draw might not be necessary if delete_angle always draws and is the last action.
             # if self.canvas.draw_enabled:

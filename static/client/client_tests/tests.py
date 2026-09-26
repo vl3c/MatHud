@@ -11,6 +11,7 @@ from .test_cartesian import TestCartesian2Axis
 from .test_circle import TestCircle
 from .test_circle_arc import TestCircleArc
 from .test_custom_drawable_names import TestCustomDrawableNames
+from .test_delete_cascades import TestDeleteCascades
 from .test_drawable_dependency_manager import TestDrawableDependencyManager
 from .test_drawable_manager import (
     TestDrawableManagerRegionLookup,
@@ -309,6 +310,7 @@ from .test_scenario_hooks import (
     TestToolBatchTraceFailure,
 )
 from .test_result_processor_traced import TestGetResultsTraced
+from .test_tool_batch_results import TestToolBatchUndo, TestToolErrorResults, TestToolNoOpResults
 from .test_base_telemetry import (
     TestBaseTelemetryInit,
     TestBaseTelemetryReset,
@@ -456,6 +458,7 @@ class Tests:
             TestWorkspaceManagerOrchestration,
             TestWorkspacePlotsRestore,
             TestWorkspaceRoundTrip,
+            TestDeleteCascades,
             TestMathFunctions,
             TestNumberTheory,
             TestMathUtilsSolving,
@@ -670,6 +673,9 @@ class Tests:
             TestExportTracesJson,
             TestCompactSummary,
             TestGetResultsTraced,
+            TestToolBatchUndo,
+            TestToolNoOpResults,
+            TestToolErrorResults,
             TestBaseTelemetryInit,
             TestBaseTelemetryReset,
             TestBaseTelemetryBeginFrame,
