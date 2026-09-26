@@ -241,8 +241,9 @@ class VectorManager(BaseDrawableManager):
         Delete a vector by its origin and tip coordinates.
 
         Finds and removes the vector that matches the specified coordinates.
-        Also handles cleanup of the underlying segment if it's not used by
-        other objects. Archives the state for undo functionality.
+        Only the vector is removed: its line is the vector's own internal segment,
+        so a canvas segment on the same endpoints is a separate object and stays.
+        Archives the state for undo functionality.
 
         Args:
             origin_x (float): x-coordinate of the vector origin
@@ -262,17 +263,13 @@ class VectorManager(BaseDrawableManager):
                 # Archive before deletion
                 self.canvas.undo_redo_manager.archive()
 
-                # Remove the vector's segment if it's not used by other objects
-                if hasattr(vector, "segment"):
-                    segment = vector.segment
-                    p1x = segment.point1.x
-                    p1y = segment.point1.y
-                    p2x = segment.point2.x
-                    p2y = segment.point2.y
-                    self.canvas.drawable_manager.delete_segment(p1x, p1y, p2x, p2y)
-
                 # Remove the vector
                 removed = remove_drawable_with_dependencies(self.drawables, self.dependency_manager, vector)
+
+                # The internal segment is not a canvas drawable; drop its now-empty dependency entry.
+                internal_segment = getattr(vector, "segment", None)
+                if removed and internal_segment is not None:
+                    self.dependency_manager.remove_drawable(internal_segment)
 
                 # Redraw
                 if self.canvas.draw_enabled:

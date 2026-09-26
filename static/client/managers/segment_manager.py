@@ -472,7 +472,8 @@ class SegmentManager(BaseDrawableManager):
         Delete all geometric objects that depend on the specified segment.
 
         Handles cascading deletion of dependent objects including child segments,
-        parent segments, vectors, triangles, and rectangles that contain the segment.
+        parent segments, and the polygons that contain the segment. Vectors on the same
+        endpoints are separate objects and are left alone.
         Uses dependency manager for proper relationship tracking.
 
         Args:
@@ -521,7 +522,7 @@ class SegmentManager(BaseDrawableManager):
                         continue
 
                     # Keep this silent for other non-segment children; they are handled by the rest of the deletion
-                    # logic (vectors, triangles, rectangles, etc.).
+                    # logic (angles, polygons, colored areas).
                     continue
 
         # Handle recursive deletion of parents if requested
@@ -540,10 +541,6 @@ class SegmentManager(BaseDrawableManager):
                     )
                 else:
                     print(f"Warning: Parent {parent} of {segment.name} is not a segment, cannot recursively delete.")
-
-        # Delete the segment's vectors using the proxy
-        self.drawable_manager.delete_vector(x1, y1, x2, y2)
-        self.drawable_manager.delete_vector(x2, y2, x1, y1)
 
         # Delete all polygons that contain the segment
         for polygon in list(self.drawables.iter_polygons()):

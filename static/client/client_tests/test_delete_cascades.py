@@ -188,6 +188,46 @@ class TestDeleteCascades(unittest.TestCase):
         self.assertEqual(len(self._drawables("Triangle")), 2)
         self.assertEqual(self._segment_keys(), segments_before)
 
+    # ------------------------------------------------------------------
+    # K7: a vector and a segment on the same endpoints are independent
+    # ------------------------------------------------------------------
+    def _segment_and_vector_on_same_endpoints(self) -> None:
+        self._call("create_segment", x1=0, y1=0, x2=3, y2=0)
+        self._call("create_vector", origin_x=0, origin_y=0, tip_x=3, tip_y=0)
+        self.assertEqual(len(self._drawables("Segment")), 1)
+        self.assertEqual(len(self._drawables("Vector")), 1)
+
+    def test_delete_vector_keeps_segment_on_same_endpoints(self) -> None:
+        self._segment_and_vector_on_same_endpoints()
+        vector = self._drawables("Vector")[0]
+        undo_depth = len(self.canvas.undo_redo_manager.undo_stack)
+
+        self._call("delete_vector", origin_x=0, origin_y=0, tip_x=3, tip_y=0)
+
+        self.assertEqual(self._drawables("Vector"), [])
+        self.assertEqual(self._segment_keys(), [((0, 0), (3, 0))])
+        self.assertEqual(self._point_coords(), [(0, 0), (3, 0)])
+        self.assertLessEqual(len(self.canvas.undo_redo_manager.undo_stack), undo_depth + 2)
+        self._assert_not_tracked([vector])
+
+    def test_delete_segment_keeps_vector_on_same_endpoints(self) -> None:
+        self._segment_and_vector_on_same_endpoints()
+
+        self._call("delete_segment", x1=0, y1=0, x2=3, y2=0)
+
+        self.assertEqual(self._drawables("Segment"), [])
+        self.assertEqual(len(self._drawables("Vector")), 1)
+        self.assertEqual(self._point_coords(), [(0, 0), (3, 0)])
+
+    def test_delete_vector_then_undo_restores_vector(self) -> None:
+        self._segment_and_vector_on_same_endpoints()
+
+        self._call("delete_vector", origin_x=0, origin_y=0, tip_x=3, tip_y=0)
+        self._call("undo")
+
+        self.assertEqual(len(self._drawables("Vector")), 1)
+        self.assertEqual(self._segment_keys(), [((0, 0), (3, 0))])
+
 
 if __name__ == "__main__":
     unittest.main()

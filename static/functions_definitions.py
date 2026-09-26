@@ -324,7 +324,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "delete_vector",
-            "description": "Deletes the vector found at the given coordinates for two points called origin and tip. If only a name is given, search for appropriate point coordinates in the canvas state.",
+            "description": "Deletes the vector found at the given coordinates for two points called origin and tip. If only a name is given, search for appropriate point coordinates in the canvas state. A segment with the same endpoints is a separate object and stays.",
             "strict": True,
             "parameters": {
                 "type": "object",
