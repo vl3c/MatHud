@@ -31,7 +31,7 @@ Dependencies:
          Chat math is untrusted (model output, user text, saved workspaces), so it is
          locked down in layers: no html extension, no \require, no commands that define
          macros or keep state between formulas (\def, \newcommand, \DeclareMathOperator,
-         \definecolor, labels), a length cap, the ui/safe filter (no URLs at all, no
+         \definecolor, labels, \unicode's font), a length cap, the ui/safe filter (no URLs at all, no
          cursor styles), a fontfamily filter, and static/math_output_sanitizer.js, which
          runs as a MathJax render action on every render and re-render (including the
          context menu's scale and accessibility options) and again after each chat typeset
@@ -84,7 +84,41 @@ Dependencies:
         }
     })();
 
+    // \unicode without its font option. MathJax's handler remembers the font of each
+    // code point in a module-private cache, so \unicode[Courier New]{x41} in one message
+    // changed how a later \unicode{x41} rendered. This handler reads the same syntax
+    // (\unicode[h,d][font]{code} or \unicode[font]{code}), ignores the font and keeps
+    // no state; the result is what MathJax builds for \unicode without a font.
+    function mathudUnicode(parser, name) {
+        var tex = MathJax._.input.tex;
+        var first = parser.GetBrackets(name);
+        if (first && first.replace(/ /g, '').match(/^(\d+(\.\d*)?|\.\d+),(\d+(\.\d*)?|\.\d+)$/)) {
+            parser.GetBrackets(name);  // the optional font after the height and depth
+        }
+        var code = tex.ParseUtil.default.trimSpaces(parser.GetArgument(name)).replace(/^0x/, 'x');
+        if (!code.match(/^(x[0-9A-Fa-f]+|[0-9]+)$/)) {
+            throw new tex.TexError.default('BadUnicode', 'Argument to \\unicode must be a number');
+        }
+        var attributes = {};
+        if (parser.stack.env.font) {
+            attributes.mathvariant = parser.stack.env.font;
+        }
+        var node = parser.create('token', 'mtext', attributes, MathJax._.util.Entities.numeric(code));
+        tex.NodeUtil.default.setProperty(node, 'unicode', true);
+        parser.Push(node);
+    }
+    mathudUnicode.isMathud = true;
+
+    function mathudReplaceUnicode() {
+        var map = MathJax._.input.tex.MapHandler.MapHandler.getMap('unicode');
+        var current = map && map.map ? map.map.get('unicode') : null;
+        if (current && !current.func.isMathud) {
+            map.map.set('unicode', new MathJax._.input.tex.Symbol.Macro('unicode', mathudUnicode, []));
+        }
+    }
+
     function mathudRemoveCommands() {
+        mathudReplaceUnicode();
         var maps = MathJax._.input.tex.MapHandler.MapHandler;
         Object.keys(MATHUD_REMOVED_COMMANDS).forEach(function (mapName) {
             var map = maps.getMap(mapName);

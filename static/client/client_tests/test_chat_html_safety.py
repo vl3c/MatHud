@@ -296,11 +296,22 @@ class TestMathJaxHrefDisabled(unittest.TestCase):
         self.assertIn("yellow", styles)
         self.assertIn("red", styles)
 
-    def test_unicode_font_name_is_kept(self) -> None:
-        node = self._require_extension("unicode").tex2chtml("\\unicode[Arial]{x41}")
-        self._assert_renders(node)
-        styles = " ".join(str(el.getAttribute("style") or "") for el in node.querySelectorAll("[style]"))
-        self.assertIn("Arial", styles)
+    def test_unicode_font_option_is_ignored(self) -> None:
+        mathjax = self._require_extension("unicode")
+        for tex in ("\\unicode[Arial]{x41}", "\\unicode[0.8,0.2][Arial]{x41}", "\\unicode{65}", "\\unicode{0x41}"):
+            with self.subTest(tex=tex):
+                node = mathjax.tex2chtml(tex)
+                self._assert_renders(node)
+                self.assertIn("A", str(node.textContent))
+                self.assertNotIn("Arial", _styles_under(node))
+
+    def test_unicode_font_does_not_persist_to_later_formulas(self) -> None:
+        # MathJax's own \unicode cached the font per code point across formulas.
+        mathjax = self._require_extension("unicode")
+        mathjax.tex2chtml("\\unicode[Courier New]{x41}")
+        self.assertNotIn("Courier", _styles_under(mathjax.tex2chtml("\\unicode{x41}")))
+        handler = mathjax._.input.tex.MapHandler.MapHandler.getMap("unicode").map.get("unicode")
+        self.assertTrue(bool(getattr(handler.func, "isMathud", False)), "\\unicode handler was not replaced")
 
     # ── User macros and size limits ─────────────────────────────
 

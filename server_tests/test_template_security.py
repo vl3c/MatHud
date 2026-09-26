@@ -74,6 +74,18 @@ class TestMathJaxConfig(unittest.TestCase):
         # No labels carried from one formula to the next.
         self.assertIn("jax.parseOptions.tags.reset();", config)
 
+    def test_unicode_font_option_is_dropped(self) -> None:
+        """MathJax's \\unicode caches each code point's font across formulas (module-private)."""
+        config = _mathjax_config()
+        self.assertIn("function mathudUnicode(parser, name) {", config)
+        self.assertIn(
+            "map.map.set('unicode', new MathJax._.input.tex.Symbol.Macro('unicode', mathudUnicode, []));", config
+        )
+        # Installed wherever the other commands are removed (startup, after the preload,
+        # before every formula), so it also applies when \unicode is autoloaded later.
+        removal = config[config.index("function mathudRemoveCommands() {") :]
+        self.assertIn("mathudReplaceUnicode();", removal[: removal.index("}")])
+
     def test_long_formulas_are_capped(self) -> None:
         config = _mathjax_config()
         self.assertIn("var MATHUD_MAX_TEX_CHARS = 4000;", config)
