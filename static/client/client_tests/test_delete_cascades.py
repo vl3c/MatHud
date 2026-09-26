@@ -103,17 +103,50 @@ class TestDeleteCascades(unittest.TestCase):
         self._assert_not_tracked([angle])
         self._assert_parents_present(triangle)
 
-    def test_delete_angle_keeps_its_arm_segments(self) -> None:
+    def test_delete_angle_removes_arm_segments_nothing_else_uses(self) -> None:
         self._call("create_angle", vx=0, vy=0, p1x=4, p1y=0, p2x=0, p2y=3)
         angle = self._drawables("Angle")[0]
-        segments_before = self._segment_keys()
-        self.assertEqual(len(segments_before), 2)
+        arms = self._drawables("Segment")
+        self.assertEqual(len(arms), 2)
 
         self._call("delete_angle", name=angle.name)
 
         self.assertEqual(self._drawables("Angle"), [])
+        self.assertEqual(self._drawables("Segment"), [])
+        # Points stay, as with polygons.
+        self.assertEqual(self._point_coords(), [(0, 0), (0, 3), (4, 0)])
+        self._assert_not_tracked([angle] + arms)
+
+    def test_delete_angle_keeps_arm_shared_with_another_angle(self) -> None:
+        self._call("create_angle", vx=0, vy=0, p1x=4, p1y=0, p2x=0, p2y=3)
+        first = self._drawables("Angle")[0]
+        self._call("create_angle", vx=0, vy=0, p1x=4, p1y=0, p2x=-3, p2y=-3)
+        second = [a for a in self._drawables("Angle") if a is not first][0]
+        self.assertEqual(len(self._drawables("Segment")), 3)
+
+        self._call("delete_angle", name=first.name)
+
+        self.assertEqual(self._drawables("Angle"), [second])
+        self.assertEqual(self._segment_keys(), [((-3, -3), (0, 0)), ((0, 0), (4, 0))])
+        self._assert_parents_present(second)
+
+    def test_delete_segment_keeps_other_arm_of_its_angle(self) -> None:
+        self._call("create_angle", vx=0, vy=0, p1x=4, p1y=0, p2x=0, p2y=3)
+
+        self._call("delete_segment", x1=0, y1=0, x2=4, y2=0)
+
+        self.assertEqual(self._drawables("Angle"), [])
+        self.assertEqual(self._segment_keys(), [((0, 0), (0, 3))])
+
+    def test_delete_lone_angle_then_undo_restores_arms(self) -> None:
+        self._call("create_angle", vx=0, vy=0, p1x=4, p1y=0, p2x=0, p2y=3)
+        segments_before = self._segment_keys()
+
+        self._call("delete_angle", name=self._drawables("Angle")[0].name)
+        self._call("undo")
+
+        self.assertEqual(len(self._drawables("Angle")), 1)
         self.assertEqual(self._segment_keys(), segments_before)
-        self.assertEqual(len(self._drawables("Point")), 3)
 
     def test_delete_angle_then_undo_restores_angle(self) -> None:
         self._triangle([(0, 0), (4, 0), (0, 3)], "ABC")
@@ -395,6 +428,203 @@ class TestDeleteCascades(unittest.TestCase):
         self.assertEqual(len(self._drawables("Triangle")), 1)
         self.assertEqual(self._segment_keys(), segments_before)
         self.assertEqual(self._point_coords(), points_before)
+
+    # A lone pre-existing point has no other user, so only the ownership record keeps it.
+    def _lone_point_and_graph_on_it(self) -> Any:
+        self._call("create_point", x=0, y=0, name="K")
+        self._call(
+            "generate_graph",
+            **self._graph_args(
+                vertices=[
+                    {"name": None, "x": 0, "y": 0, "color": None, "label": None},
+                    {"name": None, "x": 5, "y": 5, "color": None, "label": None},
+                ],
+                edges=[{"source": 0, "target": 1, "weight": None, "name": None, "color": None, "directed": None}],
+            ),
+        )
+        return self.canvas.get_point(0, 0)
+
+    def _assert_only_lone_point_left(self) -> None:
+        self.assertIsNone(self.canvas.get_graph("G"))
+        self.assertEqual(self._segment_keys(), [])
+        self.assertEqual([p.name for p in self._drawables("Point")], ["K"])
+
+    def test_delete_graph_keeps_lone_preexisting_point(self) -> None:
+        self._lone_point_and_graph_on_it()
+
+        self._call("delete_graph", name="G")
+
+        self._assert_only_lone_point_left()
+
+    def test_lone_point_ownership_survives_workspace_round_trip(self) -> None:
+        self._lone_point_and_graph_on_it()
+        saved = json.loads(json.dumps(self.workspace_manager._snapshot_persistable_canvas_state()))
+        self.assertEqual(saved["UndirectedGraphs"][0]["args"].get("preexisting_points"), ["K"])
+        self.workspace_manager._restore_workspace_state(json.loads(json.dumps(saved)))
+
+        self._call("delete_graph", name="G")
+
+        self._assert_only_lone_point_left()
+
+    def test_preexisting_record_survives_delete_undo_redo(self) -> None:
+        point = self._lone_point_and_graph_on_it()
+        self.assertTrue(self.canvas.get_graph("G").is_preexisting(point))
+
+        self._call("delete_graph", name="G")
+        self._call("undo")
+        restored_graph = self.canvas.get_graph("G")
+        self.assertIsNotNone(restored_graph)
+        self.assertTrue(restored_graph.is_preexisting(self.canvas.get_point(0, 0)))
+
+        self._call("redo")
+        self._assert_only_lone_point_left()
+
+        self._call("undo")
+        self._call("delete_graph", name="G")
+        self._assert_only_lone_point_left()
+
+    def test_old_graph_without_ownership_record_keeps_used_points(self) -> None:
+        self._triangle_and_graph_on_its_vertex()
+        saved = json.loads(json.dumps(self.workspace_manager._snapshot_persistable_canvas_state()))
+        for item in saved.get("UndirectedGraphs", []):
+            for key in ("preexisting_points", "preexisting_edges", "preexisting_edge_labels"):
+                item["args"].pop(key, None)
+        self.workspace_manager._restore_workspace_state(saved)
+        triangle = self._drawables("Triangle")[0]
+
+        self._call("delete_graph", name="G")
+
+        self._assert_graph_gone_triangle_kept(triangle)
+
+    # Delete order: whichever of polygon and graph goes last removes the shared edge.
+    def _triangle_and_graph_on_its_side(self) -> None:
+        self._triangle([(0, 0), (4, 0), (0, 3)], "ABC")
+        self._call(
+            "generate_graph",
+            **self._graph_args(
+                vertices=[
+                    {"name": None, "x": 0, "y": 0, "color": None, "label": None},
+                    {"name": None, "x": 4, "y": 0, "color": None, "label": None},
+                ],
+                edges=[{"source": 0, "target": 1, "weight": None, "name": None, "color": None, "directed": None}],
+            ),
+        )
+        self.assertEqual(len(self._drawables("Segment")), 3)
+
+    def test_polygon_then_graph_delete_removes_shared_edge(self) -> None:
+        self._triangle_and_graph_on_its_side()
+
+        self._call("delete_polygon", polygon_type="triangle", name="ABC", vertices=None)
+        self.assertEqual(self._segment_keys(), [((0, 0), (4, 0))])
+        self._call("delete_graph", name="G")
+
+        self.assertEqual(self._drawables("Segment"), [])
+        self.assertEqual(self._drawables("Triangle"), [])
+
+    def test_graph_then_polygon_delete_removes_shared_edge(self) -> None:
+        self._triangle_and_graph_on_its_side()
+
+        self._call("delete_graph", name="G")
+        self.assertEqual(len(self._drawables("Segment")), 3)
+        self._call("delete_polygon", polygon_type="triangle", name="ABC", vertices=None)
+
+        self.assertEqual(self._drawables("Segment"), [])
+        self.assertEqual(self._drawables("Triangle"), [])
+
+    # Weight labels on reused edges
+    def test_reused_vector_gets_weight_and_keeps_its_own_label_after_delete(self) -> None:
+        self._call("create_vector", origin_x=0, origin_y=0, tip_x=3, tip_y=0)
+        vector = self._drawables("Vector")[0]
+        self._call(
+            "generate_graph",
+            **self._graph_args(
+                graph_type="dag",
+                directed=True,
+                vertices=[
+                    {"name": None, "x": 0, "y": 0, "color": None, "label": None},
+                    {"name": None, "x": 3, "y": 0, "color": None, "label": None},
+                ],
+                edges=[{"source": 0, "target": 1, "weight": 7, "name": None, "color": None, "directed": None}],
+            ),
+        )
+        self.assertEqual(self._drawables("Vector"), [vector])
+        names = [vector.origin.name, vector.tip.name]
+        result = self._call(
+            "analyze_graph", graph_name="G", operation="shortest_path", params={"start": names[0], "goal": names[1]}
+        )
+        self.assertEqual(result.get("cost"), 7.0)
+
+        self._call("delete_graph", name="G")
+
+        self.assertEqual(self._drawables("Vector"), [vector])
+        self.assertEqual(vector.segment.label.text, "")
+        self.assertNotIn("label", vector.get_state()["args"])
+
+    def test_reused_segment_gets_weight_and_keeps_its_own_label_after_delete(self) -> None:
+        self._triangle([(0, 0), (4, 0), (0, 3)], "ABC")
+        side = self.canvas.get_segment_by_coordinates(0, 0, 4, 0)
+        self._call(
+            "generate_graph",
+            **self._graph_args(
+                vertices=[
+                    {"name": None, "x": 0, "y": 0, "color": None, "label": None},
+                    {"name": None, "x": 4, "y": 0, "color": None, "label": None},
+                ],
+                edges=[{"source": 0, "target": 1, "weight": 5, "name": None, "color": None, "directed": None}],
+            ),
+        )
+        graph = self.canvas.get_graph("G")
+        self.assertEqual([e.get("weight") for e in graph.edges], [5.0])
+        saved = json.loads(json.dumps(self.workspace_manager._snapshot_persistable_canvas_state()))
+        self.workspace_manager._restore_workspace_state(saved)
+        side = self.canvas.get_segment_by_coordinates(0, 0, 4, 0)
+        self.assertEqual(side.label.text, "5")
+
+        self._call("delete_graph", name="G")
+
+        self.assertEqual(len(self._drawables("Triangle")), 1)
+        self.assertEqual(side.label.text, "")
+        self.assertFalse(side.label.visible)
+
+    # Graph-created vertices and edges that something else now uses
+    def _graph_with_vertices_p_and_q(self, name: str = "G") -> None:
+        self._call(
+            "generate_graph",
+            **self._graph_args(
+                name=name,
+                vertices=[
+                    {"name": None, "x": 10, "y": 10, "color": None, "label": None},
+                    {"name": None, "x": 14, "y": 10, "color": None, "label": None},
+                ],
+                edges=[{"source": 0, "target": 1, "weight": None, "name": None, "color": None, "directed": None}],
+            ),
+        )
+
+    def test_delete_graph_keeps_vertices_and_edge_a_triangle_now_uses(self) -> None:
+        self._graph_with_vertices_p_and_q()
+        triangle = self._triangle([(12, 14), (10, 10), (14, 10)], "")
+        self.assertEqual(len(self._drawables("Segment")), 3)
+
+        self._call("delete_graph", name="G")
+
+        self.assertIsNone(self.canvas.get_graph("G"))
+        self.assertEqual(self._drawables("Triangle"), [triangle])
+        self.assertEqual(len(self._drawables("Segment")), 3)
+        self.assertEqual(self._point_coords(), [(10, 10), (12, 14), (14, 10)])
+        self._assert_parents_present(triangle)
+
+    def test_graph_created_edge_passes_to_graph_that_reused_it(self) -> None:
+        self._graph_with_vertices_p_and_q("G")
+        self._graph_with_vertices_p_and_q("H")
+
+        self._call("delete_graph", name="G")
+        self.assertIsNotNone(self.canvas.get_graph("H"))
+        self.assertEqual(self._segment_keys(), [((10, 10), (14, 10))])
+        self.assertEqual(len(self._drawables("Point")), 2)
+
+        self._call("delete_graph", name="H")
+        self.assertEqual(self._drawables("Segment"), [])
+        self.assertEqual(self._drawables("Point"), [])
 
 
 if __name__ == "__main__":

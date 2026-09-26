@@ -430,7 +430,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "delete_polygon",
-            "description": "Deletes a polygon by name or by matching a set of vertex coordinates. Specify polygon_type to limit the search. Its vertex points stay, and so do edges that another polygon, angle or graph still uses.",
+            "description": "Deletes a polygon by name or by matching a set of vertex coordinates. Specify polygon_type to limit the search. Its vertex points stay, and so do edges that another polygon, angle, graph or other object still uses.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2138,7 +2138,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "delete_graph",
-            "description": "Deletes a graph or tree by name, with the vertex points and edges it created. Points and edges that existed before the graph and were reused as its vertices or edges stay.",
+            "description": "Deletes a graph or tree by name, with the vertex points and edges it created unless another object still uses them. Points and edges that existed before the graph and were reused as its vertices or edges stay, with their original labels.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2587,7 +2587,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "delete_angle",
-            "description": "Removes an angle by its name. Only the angle marker is removed; its arm segments and points stay.",
+            "description": "Removes an angle by its name, with its arm segments unless another polygon, angle, graph or other object still uses them. Points stay.",
             "strict": True,
             "parameters": {
                 "type": "object",

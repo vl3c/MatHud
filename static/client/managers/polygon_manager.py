@@ -28,7 +28,7 @@ from drawables.rectangle import Rectangle
 from drawables.triangle import Triangle
 from drawables.position import Position
 from managers.base_drawable_manager import BaseDrawableManager
-from managers.dependency_removal import get_polygon_segments, remove_drawable_with_dependencies
+from managers.dependency_removal import release_segment, remove_drawable_with_dependencies
 from managers.polygon_type import PolygonType
 from managers.edit_policy import EditRule, get_drawable_edit_policy
 from itertools import combinations
@@ -260,8 +260,10 @@ class PolygonManager(BaseDrawableManager):
     def _remove_polygon_and_unused_edges(self, target: "Drawable") -> bool:
         """Remove the polygon, then each edge that no other drawable still uses.
 
-        Vertex points always stay. Edges shared with another polygon, an angle or
-        a graph stay too, so deleting one of two triangles keeps their common side.
+        Vertex points always stay. Edges that another polygon, an angle, a graph or
+        another dependent drawable still uses stay too, so deleting one of two
+        triangles keeps their common side. An edge kept only for a graph passes to
+        that graph, so deleting the graph later removes it.
         """
         # Remove any expression-based region colored areas that reference this polygon by name.
         polygon_name = getattr(target, "name", "")
@@ -276,37 +278,10 @@ class PolygonManager(BaseDrawableManager):
 
         removed = remove_drawable_with_dependencies(self.drawables, self.dependency_manager, target)
         if removed:
-            for segment in self._iter_polygon_segments(target):
-                if self._is_segment_used_by_others(segment):
-                    continue
-                self.segment_manager.delete_segment(
-                    segment.point1.x,
-                    segment.point1.y,
-                    segment.point2.x,
-                    segment.point2.y,
-                )
+            edges = list(self._iter_polygon_segments(target))
+            for segment in edges:
+                release_segment(segment, self.drawables, self.dependency_manager, self.segment_manager, released=edges)
         return bool(removed)
-
-    def _is_segment_used_by_others(self, segment: "Segment") -> bool:
-        """Return True when a polygon, angle or graph still depends on the segment.
-
-        Colored areas and split child segments do not count: they are removed along
-        with the segment, as before. The polygon scan mirrors how SegmentManager
-        finds the polygons it would delete, in case the dependency graph missed one.
-        """
-        for dependent in self.dependency_manager.get_all_children(segment):
-            class_name = dependent.get_class_name() if hasattr(dependent, "get_class_name") else ""
-            if class_name == "Segment" or class_name.endswith("ColoredArea"):
-                continue
-            return True
-
-        x1, y1 = segment.point1.x, segment.point1.y
-        x2, y2 = segment.point2.x, segment.point2.y
-        for polygon in self.drawables.iter_polygons():
-            for edge in get_polygon_segments(polygon):
-                if edge is not None and MathUtils.segment_matches_coordinates(edge, x1, y1, x2, y2):
-                    return True
-        return False
 
     def get_polygon_by_name(
         self,

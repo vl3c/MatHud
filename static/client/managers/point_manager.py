@@ -262,7 +262,8 @@ class PointManager(BaseDrawableManager):
                         f"PointManager: Point at ({x}, {y}) is being deleted. Removing dependent angle '{child.name}'."
                     )
                     if hasattr(self.drawable_manager, "angle_manager") and self.drawable_manager.angle_manager:
-                        self.drawable_manager.angle_manager.delete_angle(child.name)
+                        # The point's segments go with it; leave the angle's arms to that cascade.
+                        self.drawable_manager.angle_manager.delete_angle(child.name, delete_unused_arms=False)
                 if class_name == "CircleArc":
                     print(
                         f"PointManager: Point at ({x}, {y}) is being deleted. Removing dependent circle arc '{child.name}'."

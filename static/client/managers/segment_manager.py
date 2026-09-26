@@ -324,7 +324,8 @@ class SegmentManager(BaseDrawableManager):
                         f"SegmentManager: Segment '{segment.name}' is being deleted. Removing dependent angle '{child.name}'."
                     )
                     if hasattr(self.drawable_manager, "angle_manager") and self.drawable_manager.angle_manager:
-                        self.drawable_manager.angle_manager.delete_angle(child.name)
+                        # The segment is going; the angle's other arm stays.
+                        self.drawable_manager.angle_manager.delete_angle(child.name, delete_unused_arms=False)
 
         # Also notify AngleManager if a segment is about to be removed (for backward compatibility)
         if hasattr(self.drawable_manager, "angle_manager") and self.drawable_manager.angle_manager:
