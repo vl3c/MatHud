@@ -88,6 +88,11 @@ python -m cli.main test client [--port PORT] [--timeout SECONDS] [--start-server
 
 # Run all tests
 python -m cli.main test all [--port PORT]
+
+# Replay the agentic scenario catalogue (scenarios/*.json) in headless Chrome, no model
+python -m cli.main test scenarios --mode replay [--smoke] [--tags TAG,...] [--ids ID|AREA,...] [--port PORT | --start-server] [--out DIR] [--json]
+python -m cli.main test scenarios --dry-run            # validate the scenario files, print the plan
+python -m cli.main test scenarios --regrade RESULTS    # re-check a results.json without a browser
 ```
 
 **Options:**
@@ -98,6 +103,8 @@ python -m cli.main test all [--port PORT]
 - `-k KEYWORD`: Run only tests matching keyword
 - `--screenshot-output, -o`: Screenshot output path (default: `cli/output/test_results_<timestamp>.png`)
 - `--no-screenshot`: Disable automatic screenshot capture
+
+**Scenario tests:** known app bugs (`scenarios/known_bugs.json`) are expected failures (xfail) and a known check that passes is reported as "fixed? K<n>" (xpass); the command exits non-zero only on unexpected failures. `--start-server` gives the server a temporary workspace directory (`MATHUD_WORKSPACES_DIR`); against a running server, scenarios that use workspaces are skipped unless `--allow-workspace-writes` is given. Reports go to `logs/scenario_runs/<time>/`. `--mode live` is not implemented yet. See `documentation/development/agentic_scenario_testing.md`.
 
 **Note:** Client tests automatically capture a screenshot showing test results before the browser closes. Screenshots are saved to `cli/output/` by default.
 
@@ -136,12 +143,14 @@ python -m cli.main canvas zoom [--in|--out|--factor FLOAT] [--port PORT]
 python -m cli.main canvas undo [--port PORT]
 python -m cli.main canvas redo [--port PORT]
 
-# Get canvas state as JSON
-python -m cli.main canvas state [--port PORT] [--pretty]
+# Get canvas state as JSON (--inspect adds colours, undo depth, grid visibility and cached values)
+python -m cli.main canvas state [--port PORT] [--pretty] [--inspect]
 
 # Execute FunctionRegistry function
 python -m cli.main canvas exec FUNCTION_NAME [--args JSON] [--port PORT]
 ```
+
+Each command opens a fresh headless page and goes through the app's scenario hooks (`getMatHudCanvasState`, `runMatHudToolCalls`), so `exec` runs a tool exactly as a model's tool call runs and prints its result.
 
 **Examples:**
 ```bash

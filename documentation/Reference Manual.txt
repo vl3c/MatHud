@@ -43,6 +43,7 @@ This document contains comprehensive documentation extracted from all files in t
 10. Polar Grid System (`polar_grid.py`)
 11. Expression Validator (`expression_validator.py`)
 12. Markdown Parser (`markdown_parser.py`)
+13. Scenario Hooks (`scenario_hooks.py`)
 
 ### Drawable Classes
 1. Base Drawable (`drawables/drawable.py`)
@@ -150,7 +151,8 @@ Note: All drawables are math-only. They do not hold screen-space coordinates and
 ### Testing and Quality Assurance
 1. Client-Side Testing (`client_tests/` and `test_runner.py`)
 2. Server-Side Testing (`server_tests/` and `run_server_tests.py`)
-3. Renderer Performance Harness (`static/client/performance/renderer_performance.py`): deterministic workload runner invoked from the browser console to record draw/pan/zoom timings, DOM node counts, and telemetry. Baseline captures from 2025-11-08/09 report Canvas2D averages (draw 71 ms, pan 155.5 ms, zoom 160 ms) and SVG averages (draw 78 ms, pan 84 ms, zoom 90 ms) using `run_renderer_performance(iterations=2)`.
+3. Scenario Tests (`cli/scenarios/`, `scenarios/`): replayed tool-call chains in the real app, checked by geometry and invariants
+4. Renderer Performance Harness (`static/client/performance/renderer_performance.py`): deterministic workload runner invoked from the browser console to record draw/pan/zoom timings, DOM node counts, and telemetry. Baseline captures from 2025-11-08/09 report Canvas2D averages (draw 71 ms, pan 155.5 ms, zoom 160 ms) and SVG averages (draw 78 ms, pan 84 ms, zoom 90 ms) using `run_renderer_performance(iterations=2)`.
 
 ### Graph and Tree Tools
 1. Graph and tree tools overview (generate, delete, analyze)
@@ -432,6 +434,7 @@ Attributes:
 **Key Methods:**
 - `__init__(canvas)`: Initialize the AI interface with canvas integration and function registry
 - `run_tests()`: Run unit tests for the AIInterface class and return results to the AI
+- `execute_tool_batch(tool_calls, turn_token=None)`: Run one batch of tool calls the way a model's batch runs: `ProcessFunctionCalls.get_results_traced`, result storage, turn metrics and an action trace (stored even when the batch raises). Both model response paths and the `runMatHudToolCalls` scenario hook use it. Returns `call_results`, `traced_calls`, `state_after` and `trace`.
 - `interact_with_ai(event)`: Main entry point for user interactions with the AI system
 - `_create_message_element(sender, message, message_type="normal")`: Create a styled message element with markdown support
 - `_parse_markdown_to_html(text)`: Parse markdown text to HTML using the dedicated markdown parser
@@ -457,6 +460,18 @@ Captures what the user sees on the math canvas as a PNG data URL for vision requ
 - `capture(on_done)`: Composite a white background, the `#math-svg` layer (serialized with `XMLSerializer` and decoded as an image, only when it has content) and the Canvas2D bitmap on top, at the container's CSS-pixel size with the longest side capped at `max_side` (HiDPI bitmaps are scaled down). Calls `on_done` exactly once with the data URL, or None when nothing could be captured (zero-sized container, encode failure, or over the 20 MB server cap). Synchronous when the SVG layer is empty (the Canvas2D renderer draws everything, labels included, on the canvas); otherwise asynchronous, with a 2 s timeout that falls back to the Canvas2D layer alone.
 - `snapshot_size(css_width, css_height, max_side=1280)`: Aspect-preserving output size, never upscaled.
 - Limitation: styles the SVG renderer takes from page CSS (rather than inline attributes) are not applied inside the serialized image.
+
+#### Scenario Hooks (`scenario_hooks.py`)
+
+Browser hooks for the agentic scenario-testing harness (`python -m cli.main test scenarios`; design in `documentation/development/agentic_scenario_testing.md`). `main.py` registers them with `ScenarioHooks(ai_interface).register()`. Like `getMatHudTestResults`, each takes and returns JSON strings; a failure returns `{"status": "error", "error": ...}`.
+
+- `getMatHudCanvasState(optionsJson?)`: `{"state": Canvas.get_canvas_state(), "inspection"?: {...}}`. Options: `inspect` (bool) adds the inspection view; `samples` (`{function_name or "*": [x, ...]}`) and `t_samples` (the same for parametric curves) add function values computed with the app's own evaluator. The inspection view holds, per drawable, `class`, `name`, `color`, the attached `label` (text, visible), angle `angle_degrees`, `raw_angle_degrees`, `is_reflex` and vertex/arm coordinates, polygon `vertices` in order, requested `samples`/`t_samples`, and for functions with listed vertical asymptotes `asymptote_probes` (`[a, f(a - h), f(a + h)]`); globally `undo_depth`, `redo_depth`, `coordinate_mode`, `grid_visible` (cartesian, polar, active), `polar_radial_spacing` and the point-name generator's `name_hints`.
+- `runMatHudToolCalls(callsJson)`: Run one batch through `AIInterface.execute_tool_batch`, the path a model's batch takes (results, turn metrics, action trace). Calls are `[{"function_name", "arguments"}]` or `[{"tool", "args"}]`. Returns `traced` (per call: function name, arguments, result, `is_error`, duration), `undoable` (per call), `state` after the batch, `trace_id`, and `undo_depth_before/after` and `redo_depth_before/after`.
+- `resetMatHudSession(optionsJson?)`: Clear drawables, computations, name-generator state, undo and redo stacks, view, coordinate system (cartesian), grid visibility and polar grid spacing, action traces and turn metrics, without archiving or saving a workspace. Options: `fixture` (a canvas state, or `{"state": ...}`) is restored afterwards and leaves no undo entries; `chat` (default true) clears the chat panel; `conversation` (default false) also POSTs `/new_conversation` (each POST starts a new server session log).
+- `getMatHudTurnStatus()`: `{"processing", "completed_turns", "last_outcome", "requests", "tool_batches", "tool_calls"}`; the last three count the active turn.
+- `sendMatHudMessage(text, modelId?)`: Select the `#ai-model-selector` option `modelId` (error if it is missing), switch vision off and send `text` as the user. Returns `{"status": "started"}` or `{"status": "busy"}`.
+- `stopMatHudTurn()`: `ai_interface.stop_ai_processing()` when a turn is running; `{"status": "stopped"}` or `{"status": "idle"}`.
+- Pure helpers (tested in `client_tests/test_scenario_hooks.py`): `parse_options`, `normalize_tool_calls`, `reset_canvas_session`, `build_inspection`, `describe_drawable`, `turn_status`.
 
 #### Result Processor (`result_processor.py`)
 
@@ -4303,6 +4318,17 @@ The server-side testing uses pytest and focuses on Flask application components 
 In addition to server-specific suites, the runner also executes CPython-based regression tests for client renderer classes located in `server_tests/client_renderer/`, using lightweight browser stubs to exercise `static/client` code directly from pytest.
 
 The server tests are organized in the `server_tests/` directory. For a lightweight environment without the text-to-speech stack, install `requirements-ci.txt` (the CI package list); the TTS tests are then skipped.
+
+#### Scenario Tests (`cli/scenarios/`, `scenarios/`)
+Agentic scenario tests check whole tool-call chains in the real app (design and bug list: `documentation/development/agentic_scenario_testing.md`). Scenario files are JSON under `scenarios/`, one per area, each scenario with setup calls, chat turns with reference tool calls, scripted steps (undo, save, load) and checks; `scenarios/known_bugs.json` lists the known bugs and invariant waivers.
+- `cli/scenarios/model.py`: Loads the files, fills omitted required arguments with null and validates every call with `ToolArgumentValidator` (`load_catalogue`, `complete_call`).
+- `cli/scenarios/geometry.py`: `CanvasView` resolves point references to coordinates; `Tolerance` is absolute plus relative (default 1e-9 each).
+- `cli/scenarios/checks.py`: Selectors, outcome checks, relations and the invariants I1 to I7 that run after every step (unique names, no dangling references, derived fields consistent, truthful results, one undo entry per batch, errors flagged, sane numbers).
+- `cli/scenarios/runner.py`: Replay runner; drives headless Chrome through the scenario hooks with a per-step timeout and browser restart.
+- `cli/scenarios/report.py`: `results.jsonl`, `results.json`, `summary.md`, failure artifacts and `--regrade`.
+- Command: `python -m cli.main test scenarios --mode replay [--smoke] [--tags ...] [--ids ...] [--port N | --start-server] [--out DIR] [--json] [--regrade RESULTS] [--dry-run]`. A check marked `known: K<n>` is an expected failure (xfail), and an xpass ("fixed? K<n>") when it passes; the command exits non-zero only on unexpected failures. `--mode live` is not implemented yet.
+- `MATHUD_WORKSPACES_DIR` moves server workspace storage; `--start-server` points it at a temporary directory so scenario runs never write to `workspaces/`.
+- Pytest suites: `server_tests/test_cli/test_scenario_*.py` (checker on fixture states, loader, runner with a fake browser, and the catalogue gate that validates every reference call).
 
 ### Graph and Tree Tools
 - `generate_graph(name?, graph_type, vertices, edges, adjacency_matrix?, directed?, root?, layout?, placement_box?)`: Programmatically place a graph, tree, or DAG on the canvas.

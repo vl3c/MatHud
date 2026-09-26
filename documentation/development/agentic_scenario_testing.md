@@ -1,10 +1,28 @@
 # Agentic Scenario Testing
 
-Status: design only, nothing here is built yet. Written 2026-09-26 against `main` at `e6996fa`.
+Status: phases 1 to 5 of section 7 are built: the client hooks, the loader and check engine, the catalogue (`scenarios/*.json`), the replay runner and the reports. Live mode (phase 6) and the CI job (phase 7) are next. Written 2026-09-26 against `main` at `e6996fa`; updated the same day to match the implementation (field names, hook options, the check language as built, K20 and K22 fixed, K25 and CV-05 added).
 
 This document proposes a testing framework that closes the agentic loop. A real model gets a natural-language request that needs several chained tool calls. The real app runs those calls in the browser, and the framework checks the resulting canvas. The same scenarios also run with no model at all: each one carries a reference tool-call sequence that the harness replays directly. The main goal is catching app bugs in how objects are created, related, named, updated, transformed, deleted, undone and persisted, which unit tests miss. The second goal is measuring how well models chain tool calls.
 
 The catalogue in section 5 is the main deliverable. Every reference sequence in it was checked against `static/functions_definitions.py` with the server's own `ToolArgumentValidator`, and every one was executed through the app's real tool path in headless Chrome while this design was written (see 4.10). That prototype run found the bugs in section 6.
+
+## How to run
+
+```
+python -m cli.main test scenarios --mode replay --start-server            # the whole catalogue, about 40 s
+python -m cli.main test scenarios --mode replay --smoke --start-server    # the 11 smoke scenarios, about 25 s
+python -m cli.main test scenarios --ids GEO-04,CV --tags undo --port 5000 # a running server; filters combine
+python -m cli.main test scenarios --dry-run                               # validate every file and print the plan
+python -m cli.main test scenarios --regrade logs/scenario_runs/<time>/results.json
+```
+
+1. `--start-server` starts `app.py` on `--port` (or the next free port) with `MATHUD_WORKSPACES_DIR` pointing at a temporary directory, and stops it afterwards. With `--port` alone the server must already run; scenarios that save or load workspaces are then skipped unless `--allow-workspace-writes` is given, because they would use that server's workspace directory.
+2. `--ids` (alias `--only`) takes scenario ids or areas (`GEO-04`, `CV`), `--tags` takes tags; both repeat or take commas. `--mode live` is accepted and refused with "not implemented yet".
+3. Output goes to `--out` (default `logs/scenario_runs/<time>/`): `results.jsonl` (one record per step, appended as it finishes), then `results.json` and `summary.md` (also on Ctrl+C), and `failures/<scenario>__<step>.json` and `.png` for every step with an unexpected failure (`--known-artifacts` adds them for expected failures). `--json` prints the summary as JSON.
+4. Statuses: `pass`, `fail`, `error` (a check that could not be evaluated), `xfail` (a failing check marked `known`), `xpass` (a `known` check that passed: "fixed? K<n>"), `warn` (I1's cross-bucket name clash) and `skip` (answer checks in replay). A scenario is `fail` if any check is `fail` or `error`, else `xpass`, `xfail` or `pass`.
+5. Exit codes: 0 with no unexpected failures, 1 with any `fail` or `error` (including a scenario the browser could not finish), 2 for invalid scenario files or a missing server, 130 when interrupted. Expected failures and xpasses never fail the run.
+6. Adding a scenario: add it to its area file, run it with `--ids`, and give every check that fails because of an app bug `"known": "K<n>"`, with the bug in section 6 and in `scenarios/known_bugs.json`. `server_tests/test_cli/test_scenario_catalogue.py` loads and validates every file in the server suite.
+7. Latest replay (2026-09-26, Windows 11, headless Chrome, `--start-server`): 73 scenarios, 2 pass, 71 xfail, 0 xpass, 0 unexpected failures; checks 1,193 pass, 193 xfail, 6 warn, 9 skip; 39 s including Chrome start-up (about 0.1 to 0.6 s per scenario, 5 s for WS-01's save and load).
 
 ## 1. Summary
 
@@ -104,16 +122,16 @@ These follow the existing pattern: functions on `window` that take and return JS
 
 | Hook | Returns | Notes |
 |---|---|---|
-| `getMatHudCanvasState(optionsJson)` | `{"state": <get_canvas_state()>, "inspection": {...}?}` | `{"inspect": true}` adds, per drawable: class, name, `color`, label visibility, and cached derived values (angle `angle_degrees`, polygon type flags). It also adds `undo_depth`, `redo_depth`, `grid_visible` and the name-generator hints. These are the things `get_canvas_state` does not show (K5, K17). |
-| `runMatHudToolCalls(callsJson)` | `{"traced": [...], "state": ...}` | Runs one batch exactly as a model batch runs: `ProcessFunctionCalls.get_results_traced(calls, ai.available_functions, ai.undoable_functions, canvas)`. It stores an action trace and records the calls into the current turn's metrics, so replay and live leave identical traces. The prototype used `__BRYTHON__.runPythonSource` to do this; the hook replaces that trick. |
+| `getMatHudCanvasState(optionsJson)` | `{"state": <get_canvas_state()>, "inspection": {...}?}` | `{"inspect": true}` adds, per drawable: class, name, `color`, the attached label (text, visible), cached derived values (angle `angle_degrees` and its vertex and arms, polygon vertices in order) and, for functions with listed vertical asymptotes, `asymptote_probes` (`[a, f(a - h), f(a + h)]`). It also adds `undo_depth`, `redo_depth`, `coordinate_mode`, `grid_visible` (cartesian, polar, active), `polar_radial_spacing` and the name-generator hints. These are the things `get_canvas_state` does not show (K5, K17, K25). `samples` (`{name or "*": [x, ...]}`) and `t_samples` add function values computed by the app's own evaluator. |
+| `runMatHudToolCalls(callsJson)` | `{"traced": [...], "undoable": [...], "state": ..., "trace_id", "undo_depth_before", "undo_depth_after", "redo_depth_before", "redo_depth_after"}` | Runs one batch through `AIInterface.execute_tool_batch`, the method both model response paths now use: `ProcessFunctionCalls.get_results_traced(calls, ai.available_functions, ai.undoable_functions, canvas)`, result storage, the current turn's metrics and an action trace, so replay and live leave identical traces. Calls are `{"function_name", "arguments"}` or the scenario form `{"tool", "args"}`. The prototype used `__BRYTHON__.runPythonSource` to do this; the hook replaces that trick. |
 | `sendMatHudMessage(text, modelId)` | `{"status": "started"}`, `"busy"` or `{"status": "error", ...}` | Sets `#ai-model-selector` to `modelId` and fails if that option is missing. Turns vision off unless asked. Then calls `ai_interface.send_user_message(text)`. |
-| `getMatHudTurnStatus()` | `{"processing": bool, "completed_turns": n, "last_outcome": ..., "tool_batches": k, "requests": r}` | "Done" means `processing` is false and `completed_turns` went up. `requests` and `tool_batches` let the harness enforce per-turn caps while a turn runs. The client itself has no tool-loop cap. |
+| `getMatHudTurnStatus()` | `{"processing": bool, "completed_turns": n, "last_outcome": ..., "tool_batches": k, "requests": r, "tool_calls": c}` | "Done" means `processing` is false and `completed_turns` went up. `requests` and `tool_batches` let the harness enforce per-turn caps while a turn runs. The client itself has no tool-loop cap. |
 | `stopMatHudTurn()` | `{"status": ...}` | `ai_interface.stop_ai_processing()`. Used for caps and timeouts. The client's own timeout is 60 s for the first response and 300 s after tool results (`constants.py:66-67`). |
-| `resetMatHudSession(fixtureJson?)` | `{"status": ...}` | Clears the drawables without archiving. Clears the undo and redo stacks, the name-generator state, view, coordinate system (cartesian), grid, traces, metrics and the chat DOM, and POSTs `/new_conversation`. With a fixture, it restores it through `WorkspaceManager`'s restore phases and then clears the undo stack. It never saves a workspace. |
+| `resetMatHudSession(optionsJson?)` | `{"status": ...}` | Clears the drawables without archiving. Clears the undo and redo stacks, computations, the name-generator state, view, coordinate system (cartesian), grid visibility, the polar grid's spacing (which `Canvas.reset` leaves behind, K25), traces and metrics. Options: `fixture` restores a canvas state through `WorkspaceManager`'s restore phases and then clears the undo stack; `chat` (default true) clears the chat DOM; `conversation` (default false) POSTs `/new_conversation`. Replay leaves it off because every POST starts a new server session log and `log_manager.py` keeps only the newest 50. It never saves a workspace. |
 
-The existing `getActionTraces()` / `clearActionTraces()` and `getMatHudLastTurnMetrics()` are used as they are, once `state_delta` is fixed (K20). The CLI's `canvas state` and `canvas exec` commands should switch to `getMatHudCanvasState` and `runMatHudToolCalls` (K22).
+The existing `getActionTraces()` / `clearActionTraces()` and `getMatHudLastTurnMetrics()` are used as they are; `state_delta` now reads real states (K20 fixed). The CLI's canvas commands use the hooks (K22 fixed): `canvas state` reads `getMatHudCanvasState` (`--inspect` adds the inspection view), and `canvas exec`, `clear`, `reset`, `undo`, `redo` and `zoom` run tools through `runMatHudToolCalls`.
 
-One small server change is also needed: a `MATHUD_WORKSPACES_DIR` override for `static/config.py:16`. Workspace tools write into `./workspaces` of the checkout (`static/workspace_manager.py:59-66`), so without the override a scenario run would share that directory with the user's own workspaces. The harness points it at a temporary directory.
+One small server change was also needed, and is done: a `MATHUD_WORKSPACES_DIR` override (`static/config.py`, `get_workspaces_dir`). Workspace tools write into `./workspaces` of the checkout (`static/workspace_manager.py:59-66`), so without the override a scenario run would share that directory with the user's own workspaces. The harness points it at a temporary directory.
 
 ### 4.4 Scenario files
 
@@ -128,7 +146,7 @@ Scenarios are plain JSON under `scenarios/`, one file per area (`scenarios/geome
       "title": "Point on a segment splits it; undo is one step",
       "tags": ["points", "segments", "undo"],
       "smoke": false,
-      "known_bugs": ["K1"],
+      "known": ["K1"],
       "setup": {
         "fixture": null,
         "calls": [
@@ -151,7 +169,7 @@ Scenarios are plain JSON under `scenarios/`, one file per area (`scenarios/geome
           ]
         },
         {"do": [{"tool": "undo", "args": {}}]},
-        {"checks": [{"check": "state_equals", "snapshot": "before", "known_bug": "K1"}]}
+        {"checks": [{"check": "state_equals", "snapshot": "before", "known": "K1"}]}
       ]
     }
   ]
@@ -168,7 +186,9 @@ Rules:
    - `checks`: checks with no action attached.
 3. `setup.fixture` names a canvas-state file, such as one from `server_tests/fixtures/canvas_states/`. `setup.calls` are replayed tool calls. Setup always runs as replay, even in live mode.
 4. `limits` per turn: `max_tool_calls` (a model-quality check), `timeout_s` and `max_requests` (a hard stop through `stopMatHudTurn`).
-5. `known_bugs` and per-check `known_bug` make a check an expected failure. When it passes, the report shows XPASS, so a fixed bug gets its marker removed.
+5. `known` on a check (`"K<n>"`) makes it an expected failure. When it passes, the report shows XPASS ("fixed? K<n>"), so a fixed bug gets its marker removed. `known` on the scenario (a string or a list) lists every bug the scenario touches; the loader requires it to include every check-level mark and waiver. `invariants` (`{"I4": "K3"}`) waives an invariant for that scenario only; global waivers live in `scenarios/known_bugs.json`.
+6. Every scenario gets two snapshots for free: `start` (after the reset and any fixture) and `setup` (after the setup calls). Steps are named `t1`, `t2` (turns), `do1` (scripted), `chk1` (checks only) and `snap1`, unless they set `id`.
+7. Files also carry `"schema": 1` and `"area"`; a scenario may set `tol` (a number or `{"abs", "rel"}`), `targets` (what it aims at) and `allow_large` (switches off I7's magnitude limit).
 
 ### 4.5 The check language
 
@@ -192,7 +212,14 @@ Checks are pure functions of stored data: the state and inspection view after ea
 | `{"type": "Function", "samples": [[x, y], ...]}` | A function whose values match at those x |
 | `{"type": "Circle", "only": true}` | The only object of that type; fails if there are zero or several |
 | `{"type": "Point", "new_since": "before"}` | Objects added since a snapshot |
-| `"$M"` | An object bound earlier with `{"bind": "M", "select": ...}`. Bindings follow the object by identity across steps: its name, or its coordinates when a rename is expected. |
+| `"$M"` | An object bound earlier with `{"bind": "M", "select": ...}`. Bindings follow the object by its bucket and name across steps. |
+| `{"type": "Segment", "contains": [x, y]}`, `"through"`, `"slope"` | A segment containing a point, whose line passes through a point, or with that slope |
+| `{"type": "Vector", "origin": [x, y], "tip": [x, y]}` | Vectors by either end (`ends` is ordered for vectors) |
+| `{"type": "Point", "within": [xmin, ymin, xmax, ymax]}` | Objects whose position lies in a box |
+| `{"type": "Label", "where": {"args.text": "hello", "inspect.color": "red"}}` | Any state or inspection field, by dotted path |
+| `{"coords": [x, y]}` | A literal location, for relations |
+
+`type` is the bucket name without its final `s` (`Point`, `Segment`, `CircleArc`, `FunctionsBoundedColoredArea`, ...), or a family: `Polygon`, `AnyFunction`, `ColoredArea`, `Graph`, `Plot`. Every selector may set its own `tol`.
 
 **Outcome checks.** A failure in live mode is charged to the model, unless the replay fails too:
 
@@ -200,11 +227,12 @@ Checks are pure functions of stored data: the state and inspection view after ea
 |---|---|
 | `exists` / `absent` / `count` | Object selection with `==`, `<=` or `>=` |
 | `point_at` / `moved` | Position, or displacement relative to a snapshot (`{"by": [dx, dy]}`) |
-| `relation` | `point_on_circle`, `point_on_segment`, `point_on_function`, `collinear`, `parallel`, `perpendicular`, `midpoint_of`, `equal_length`, `tangent_to` (line to circle or function), `distance`, `angle_deg`, `area`, `function_value`, `inside` |
-| `attribute` | A state or inspection field: label text and visibility, colour, `is_reflex`, `rotation_angle`, bounds, coordinate system, view bounds |
+| `relation` | `point_on_circle`, `point_on_segment`, `point_on_line`, `point_on_function`, `collinear`, `parallel`, `perpendicular`, `midpoint_of`, `equal_length`, `equal_angles`, `tangent_to` (line to circle or function), `distance`, `length`, `slope`, `direction`, `angle_deg`, `area`, `function_value`, `inside` |
+| `attribute` | A state or inspection field (`path`, e.g. `args.label.visible` or `inspect.color`) of a selected object, or of `"target": "view"`, `"state"` or `"inspection"`. Comparisons: `eq` (with `mod`), `ne`, `lt`, `le`, `gt`, `ge`, `contains`, `not_contains`, `set_eq`, `in`, `matches`, `has_numbers`, `len`, `is_null`; `same_as` compares with the same field at a snapshot |
 | `state_equals` | Equal to a snapshot within tolerance, optionally with `"inspect": true`, `"ignore": [...]` and `"match_names": false`. Used for undo, redo, round-trips and rotate-and-back. |
 | `unchanged_except` | Nothing but the listed selectors changed since a snapshot. Catches side effects such as K9 and K15. |
 | `tool_called` / `tool_not_called` / `max_tool_calls` | Over the turn's executed calls, not counting `search_tools` |
+| `no_tool_errors` / `tool_error` | No call failed / a given call failed (an `Error...` string, a flagged call or an `{"error": ...}` dict) |
 | `tool_result` | A result matches a number (with tolerance), a set of names, or a JSON path, e.g. `analyze_graph` `path == [A,B,C,D]` or `cost == 4` |
 | `answer_mentions` | Numbers or names in the final assistant text. Model quality only. |
 
@@ -220,7 +248,9 @@ Checks are pure functions of stored data: the state and inspection view after ea
 | I6 | Errors are flagged: a result shaped `{"error": ...}` counts as an error even though `ResultProcessor` does not flag it | K21 |
 | I7 | Numbers are sane: no NaN or infinity, and no coordinate above 1e12 in magnitude unless the scenario allows it | K13 |
 
-Some known bugs break an invariant almost everywhere; K1 breaks I5 in nearly every scenario. Such waivers live in one file, `scenarios/known_bugs.json` (for example `{"I5": "K1"}`), and the report counts those failures as known rather than as app failures. When the bug is fixed, the waiver is removed and the invariant becomes a regression guard.
+Some known bugs break an invariant almost everywhere; K1 breaks I5 in nearly every scenario. Such waivers live in one file, `scenarios/known_bugs.json` (`"invariant_waivers": {"I5": "K1"}`), and the report counts those failures as known rather than as app failures. A waived invariant that holds is reported as a pass, never as XPASS, because an invariant can hold in one step and break in the next. When the bug is fixed, the waiver is removed and the invariant becomes a regression guard.
+
+As built, I3 also checks that a circle arc's endpoints lie on its circle and that a function's bounds are ordered, and I4 checks three things: a batch whose calls all failed changed no drawables; a batch of mutating calls that all reported success changed something (drawables, view, colours or grid); and a create call whose requested name no object got names the object it did create in its result. The naming rule is skipped for batches that also delete, clear, load, undo or redo, since an object created and removed in one batch leaves no trace.
 
 **Tolerances.**
 
@@ -236,7 +266,7 @@ Some known bugs break an invariant almost everywhere; K1 breaks I5 in nearly eve
 - No model, no GPU and no network other than localhost.
 - It has two jobs:
   - It is a standalone app regression suite: invariants and outcome checks over realistic call chains.
-  - It validates the scenarios themselves. A new scenario must replay green, or carry a `known_bug` for each failing check, before it is merged. That proves the checks are correct for a known-good call sequence.
+  - It validates the scenarios themselves. A new scenario must replay green, or carry a `known` mark for each failing check, before it is merged. That proves the checks are correct for a known-good call sequence.
 - Measured with the prototype: 2.2 to 3.2 s per scenario including a page reload, and 29 s for 11 scenarios including Chrome start-up. The whole catalogue (72 scenarios) takes about 3 minutes, and less once resets replace reloads.
 
 **Live (`--mode live`).**
@@ -267,10 +297,10 @@ Some known bugs break an invariant almost everywhere; K1 breaks I5 in nearly eve
 
 | Class | Rule |
 |---|---|
-| `app` | Any invariant fails, in any mode; or an outcome check fails in replay and is not marked `known_bug`. |
+| `app` | Any invariant fails, in any mode; or an outcome check fails in replay and is not marked `known`. |
 | `model` | An outcome check fails live, replay passes, and re-executing the live trace reproduces the same failing state. The model's own calls produce the wrong canvas. |
 | `nondeterministic` | Re-executing the live trace does not reproduce the live state, or repeated runs of the same trace differ. This points to app non-determinism (for example force layouts) or to harness timing, and needs investigating. |
-| `known` | A failing check whose `known_bug` is set. When it passes: `XPASS`. |
+| `known` | A failing check marked `known`, or a waived invariant. When a marked check passes: `XPASS`. |
 | `infra` | Turn outcome `error` or `timeout`, llama-server unreachable, provider errors, a browser crash. Not counted in accuracy, like the benchmark's request errors. |
 | `check` | A replay failure right after a scenario was added or edited, caught by the pytest gate that requires the catalogue to replay green. |
 
@@ -346,11 +376,11 @@ Conventions:
 | Graph theory (GR) | 6 | GR-01 |
 | Statistics, plots and regression (ST) | 4 | ST-01 |
 | Math tools feeding the canvas (MC) | 4 | MC-01 |
-| Canvas operations: view, coordinate systems, undo and redo (CV) | 4 | CV-02 |
+| Canvas operations: view, coordinate systems, undo and redo (CV) | 5 | CV-02 |
 | Workspaces (WS) | 3 | WS-01 |
 | Naming, editing and deleting (NM) | 6 | NM-03 |
 | Multi-turn follow-ups (MT) | 4 | MT-01 |
-| **Total** | **72** | **11** |
+| **Total** | **73** | **11** |
 
 The smoke subset has 11 scenarios (18 turns), one for each area except coloured areas, which FN-01 already exercises: GEO-01, CON-01, FN-01, TR-01, GR-01, ST-01, MC-01, CV-02, WS-01, NM-03 and MT-01. It runs in about 40 s in replay and about 6 to 27 minutes live on the local model.
 
@@ -1010,6 +1040,20 @@ The smoke subset has 11 scenarios (18 turns), one for each area except coloured 
 - Targets: untruthful tool results.
 - Known bugs: K2 (expected to fail until fixed; see section 6).
 
+#### CV-05: Clearing after a zoom resets the polar grid too
+
+Added by the first replay run (not part of the original 72).
+
+- Turn 1: "Zoom to x between -2 and 2 around the origin."
+  - Reference: `zoom(center_x=0, center_y=0, range_val=2, range_axis="x")`
+- Turn 2: "Clear the canvas and switch to the polar grid."
+  - Reference: `clear_canvas()`; `set_coordinate_system(mode="polar")`
+- Checks:
+  - after turn 2: the view is the start-up view; the mode is polar
+  - the polar grid's ring spacing equals its start-up value (currently 0.2 instead of 50)
+- Targets: grid state that `Canvas.reset` leaves behind.
+- Known bugs: K25 (expected to fail until fixed; see section 6).
+
 ### 5.10 Workspaces (WS)
 
 #### WS-01: Round-trip of every object type (smoke)
@@ -1017,7 +1061,7 @@ The smoke subset has 11 scenarios (18 turns), one for each area except coloured 
 - Setup (scripted): `create_polygon(vertices=[{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 0, "y": 3}], polygon_type="triangle", name="ABC", color="green")`; `create_circle(center_x=10, center_y=10, radius=2, color="purple")`; `create_ellipse(center_x=-8, center_y=5, radius_x=3, radius_y=1.5, rotation_angle=30, color="orange")`; `create_vector(origin_x=-5, origin_y=-5, tip_x=-2, tip_y=-1, color="red")`; `create_label(x=2, y=8, text="Hello", color="blue", font_size=18, rotation_degrees=15)`; `draw_function(function_string="1/(x-1)", name="f", left_bound=-5, right_bound=5, color="red", undefined_at=[1])`; `draw_parametric_function(x_expression="cos(t)", y_expression="sin(t)", name="pc", t_min=0, t_max=6.28318530718, color="brown")`; `create_angle(vx=0, vy=0, p1x=4, p1y=0, p2x=0, p2y=3, angle_name="alpha", is_reflex=true)`; `create_circle_arc(point1_x=12, point1_y=10, point2_x=10, point2_y=12, circle_name="D(2)", use_major_arc=true, color="navy")`; `create_colored_area(drawable1_name="f", left_bound=2, right_bound=4, color="yellow", opacity=0.5)`; `generate_graph(name="G", graph_type="graph", directed=false, vertices=[{"name": "U", "x": 20, "y": 0, "color": null, "label": null}, {"name": "V", "x": 24, "y": 0, "color": null, "label": null}, {"name": "W", "x": 22, "y": 3, "color": null, "label": null}], edges=[{"source": 0, "target": 1, "weight": 2, "name": null, "color": null, "directed": null}, {"source": 1, "target": 2, "weight": 5, "name": null, "color": null, "directed": null}])`; `plot_bars(name="sales", values=[3, 5, 2], labels_below=["Mon", "Tue", "Wed"], x_start=30, y_base=0)`; `set_coordinate_system(mode="polar")`; `set_grid_visible(visible=false)`
 - Turn 1: "Save this workspace as scn_roundtrip."
   - Reference: `save_workspace(name="scn_roundtrip")`
-- Scripted step: `clear_canvas()`; `set_coordinate_system(mode="cartesian")`; `set_grid_visible(visible=true)`
+- Scripted step: `clear_canvas()`; `set_grid_visible(visible=true)` (still in polar mode, so the load has to hide the polar grid again); `set_coordinate_system(mode="cartesian")`
 - Turn 2: "Load the workspace scn_roundtrip."
   - Reference: `load_workspace(name="scn_roundtrip")`
 - Scripted step: `delete_workspace(name="scn_roundtrip")`
@@ -1212,11 +1256,12 @@ All paths are relative to `static/client/` unless stated otherwise.
 | K17 | **Cached angle values are never refreshed.** `angle_degrees` is set at creation. `handle_segment_updated`, the only refresher, is never called. The renderer draws from the cache. The text canvas format recomputes, so the model and the drawing disagree. | `drawables/angle.py:219-222`; `managers/angle_manager.py:472` (no callers); `rendering/helpers/angle_renderer.py:227` | (observed) The angle at B stays 60° after the shear. | TR-05 |
 | K18 | **Graph bugs.** Adjacency-matrix edges are always created as directed, so an undirected graph gets vectors in both directions and `segments: []`. `delete_graph` deletes every vertex point, including points that existed before and were reused as vertices, and cascades into their triangles. | `managers/graph_manager.py:176-186`; `managers/graph_manager.py:258-264` with reuse at `point_manager.py:152-154` | (observed) The matrix `[[0,1,0],[1,0,2],[0,2,0]]` gives 4 vectors, and `shortest_path` returns `{"path": None}`. A graph with a vertex at an existing triangle vertex (name X dropped, reused as A): `delete_graph` deletes A, AB, CA and the triangle. | GR-03, GR-04 |
 | K19 | **Polygon subtypes move and re-order the given vertices.** Canonicalisation rebuilds the vertices from the subtype. | `managers/polygon_manager.py:144-178` (`canonicalize_rectangle` / `canonicalize_triangle` / `canonicalize_quadrilateral`) | (observed) Square (0,0),(2,0),(2,2),(0,2) is stored as A(0,0) B(0,2) C(2,2) D(2,0) with coordinates `1.9999999999999996`. The equilateral triangle vertices get about 1e-11 of noise. | GEO-08 |
-| K20 | **Action-trace `state_delta` is always empty.** The delta expects buckets of `{name: state}` dicts, but real states hold lists. The unit tests use the invented dict shape. | `managers/action_trace_collector.py:275-287`; `client_tests/test_action_trace_collector.py:17-18` | (observed) Adding point Q gives `{"added": [], "removed": [], "modified": []}`. The server logs this delta with every batch. | (harness) |
+| K20 | **Action-trace `state_delta` is always empty.** The delta expects buckets of `{name: state}` dicts, but real states hold lists. The unit tests use the invented dict shape. | `managers/action_trace_collector.py:275-287`; `client_tests/test_action_trace_collector.py:17-18` | (observed) Adding point Q gives `{"added": [], "removed": [], "modified": []}`. The server logs this delta with every batch. **Fixed** in phase 1: the delta reads list buckets, and a name used by two buckets is keyed `Bucket:name`. | (harness) |
 | K21 | **Errors returned as `{"error": ...}` dicts are not flagged as errors** in traces or turn metrics (`tool_errors`), so the footer and benchmarks under-count tool errors. | `result_processor.py:161`; `turn_metrics.py:75-76`, `:126` | (observed) `analyze_graph` on a missing graph and `inspect_relation` on a missing segment both give `is_error: false`. | GR-03, invariant I6 |
-| K22 | **The CLI's canvas commands do nothing.** They use `window._canvas`, which is never set, and call `get_state`/`reset_view`, which do not exist. | `cli/browser.py:306-359`; `cli/canvas.py:65-295`; `main.py:140`, `:193` | (code) There is no `window._canvas` assignment anywhere in `static/` or `templates/`. `canvas state` returns `{}`, and `canvas clear` prints "Canvas cleared" without clearing anything. | (harness) |
+| K22 | **The CLI's canvas commands do nothing.** They use `window._canvas`, which is never set, and call `get_state`/`reset_view`, which do not exist. | `cli/browser.py:306-359`; `cli/canvas.py:65-295`; `main.py:140`, `:193` | (code) There is no `window._canvas` assignment anywhere in `static/` or `templates/`. `canvas state` returns `{}`, and `canvas clear` prints "Canvas cleared" without clearing anything. **Fixed** in phase 1: the commands use the scenario hooks. | (harness) |
 | K23 | **The load URL is not encoded.** `name="a&x=1"` loads workspace `a`. Low severity. | `workspace_manager.py:1365` | (code) | - |
 | K24 | **A removable discontinuity is reported as a vertical asymptote.** Every zero of a denominator is taken as an asymptote, without checking for cancellation. The Roadmap's "adaptive plotting" item plans to replace this string-based detection. | `utils/math_utils.py:2794-2796` | (observed) `(x^2 - 1)/(x - 1)` lists `vertical_asymptotes: [1]`. | FN-09 |
+| K25 | **`Canvas.reset` does not reset the polar grid.** It resets the Cartesian grid but never calls `PolarGrid.reset()`, so the zoom-adapted ring spacing survives `clear_canvas`, `reset_canvas` and workspace loads (which clear first). After zooming in and clearing, polar mode draws its rings at the old spacing across the default view: thousands of circles per frame. | `canvas.py:422-426` (`_reset_drawables_state`); `polar_grid.py:149-151` (`reset`, no callers) | (observed by the first replay run) After CV-01's zoom to ±2, WS-01's `load_workspace` in polar mode took 30 to 57 s instead of 2 to 5 s; the spacing stays 0.2 instead of 50. The reset hook now resets it, so scenarios stay isolated. | CV-05 |
 
 Other findings from reading the code only, not yet reproduced in the app, each with a scenario that would catch it:
 
@@ -1242,19 +1287,21 @@ Sizes are rough: S is under a day, M is 1 to 3 days, L is 3 to 5 days.
 |---|---|---|---|
 | 1. Client hooks | `static/client/scenario_hooks.py`: the six hooks, pure helpers for the inspection view, registration in `main.py`, Brython tests in `client_tests/test_scenario_hooks.py` (registered in `tests.py`). Fix K20 so action traces carry real deltas. Point `cli/browser.py` and `cli/canvas.py` at the hooks (K22). Add `MATHUD_WORKSPACES_DIR` to `static/config.py`. | M | - |
 | 2. Loader and check engine | Package `cli/scenarios/`: `model.py` (dataclasses, loader, null filling, `ToolArgumentValidator`), `geometry.py` (normalized view, selectors, tolerances), `checks.py` (outcome checks and invariants I1 to I7, all pure). Pytest suites in `server_tests/test_cli/`: the checker on hand-built states, including states copied from section 6's observations, and a gate that validates every file in `scenarios/`. | L | - |
-| 3. Scenario files | Port section 5 into `scenarios/*.json` (12 files), with `known_bug` markers. The prototype's `catalogue.py` data converts almost mechanically. | M | 2 |
+| 3. Scenario files | Port section 5 into `scenarios/*.json` (12 files), with `known` markers. The prototype's `catalogue.py` data converts almost mechanically. | M | 2 |
 | 4. Replay runner | `cli/scenarios/runner.py`: server start with pinned env, browser session, reset, setup, steps, snapshots, per-step timeout, browser restart, screenshots. `test scenarios --mode replay`, `--smoke`, `--only`, `--tags`. First full replay: every non-known check green. | M | 1, 2, 3 |
 | 5. Reporting | `results.jsonl`, `results.json`, `summary.md`, failure artefacts, `--regrade`, `--dry-run`. Move the benchmark's price table and `ResultSink` into a shared module. | M | 4 |
 | 6. Live runner | `sendMatHudMessage` loop, turn caps and stop, local model discovery and the `local_agent` check, the OpenRouter guards, `--repeats`, `retrace` mode and failure classification. The first live smoke run on the local model gives real timings for 4.9. | L | 4, 5 |
 | 7. CI | A `scenario-replay` job in `tests.yml`, non-blocking at first. The pytest gates join `server-tests` straight away. Make the job blocking once it is stable, with XPASS failing it. | S | 4 |
-| 8. Bug fixing | Work through K1 to K24 (K1, K2, K5, K6 and K10 first: they affect every model interaction), removing `known_bug` markers as fixes land. | ongoing | 4 |
+| 8. Bug fixing | Work through K1 to K24 (K1, K2, K5, K6 and K10 first: they affect every model interaction), removing `known` markers as fixes land. | ongoing | 4 |
 
 A reasonable first milestone is phases 1 to 4 with the smoke subset. That already turns section 6 into regression tests.
+
+Status: phases 1 to 5 are done, with the whole catalogue rather than only the smoke subset. Differences from the plan: the benchmark's price table and `ResultSink` were not moved into a shared module (the scenario reports have their own sink; the price table is needed only by live mode); a `grade.py` module shares step grading between the runner and `--regrade`; and the runner resets the session between scenarios, restarting Chrome only after a hang (it retries the scenario once).
 
 ## 8. Open questions
 
 1. **Tolerance for vertex re-ordering (K19).** Should the fix keep the user's order and exact coordinates, or should the check accept any orientation as long as the letter order is documented? The catalogue assumes the former.
-2. **Sampling functions in the checker.** Sampling needs an evaluator that matches the client's expression handling (`^`, implicit multiplication, `pi`). There are two options: record samples in the browser through the inspection hook (the same evaluator as the renderer), or re-implement evaluation in CPython. The first is more faithful; the second makes `--regrade` fully offline. A hybrid is possible: sample in the browser at the x values each check needs, and store the samples.
+2. **Sampling functions in the checker.** Sampling needs an evaluator that matches the client's expression handling (`^`, implicit multiplication, `pi`). There are two options: record samples in the browser through the inspection hook (the same evaluator as the renderer), or re-implement evaluation in CPython. The first is more faithful; the second makes `--regrade` fully offline. A hybrid is possible: sample in the browser at the x values each check needs, and store the samples. **Resolved:** the hybrid is built. The runner grades each step once as a dry run, fetches the samples its checks ask for through `getMatHudCanvasState`, and stores them with the step, so `--regrade` stays offline for the stored x values.
 3. **Should constructions become live** (recomputed when their parents move)? The Reference Manual documents them as static snapshots, and CON-01 and FN-07 pin that. If live constructions are wanted, those checks flip.
 4. **A tool-loop cap in the app itself,** e.g. at most N tool batches per user turn, so a looping model cannot run forever outside the harness.
 5. **Cross-type name uniqueness.** A segment and a vector can both be `AB`, and `translate_object` then takes the first match in layering order. Should names be unique across all types? I1 reports this as a warning until that is decided.
