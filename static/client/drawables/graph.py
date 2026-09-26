@@ -23,6 +23,9 @@ from drawables.drawable import Drawable
 if TYPE_CHECKING:
     from drawables.point import Point
 
+# (edge, original label text, original label visibility, weight text this graph wrote)
+EdgeLabelRecord = Tuple[Drawable, str, bool, Optional[str]]
+
 
 class Graph(Drawable):
     """Abstract graph interface for directed and undirected graphs.
@@ -33,8 +36,8 @@ class Graph(Drawable):
         _isolated_points: List of vertex points not connected by edges.
         _preexisting_points: Vertex points that existed before the graph was created.
         _preexisting_edges: Edge segments or vectors that existed before the graph was created.
-        _original_edge_labels: (edge, text, visible) label of each pre-existing edge the graph
-            relabelled with its weight, restored when the graph is deleted.
+        _original_edge_labels: (edge, text, visible, written) for each pre-existing edge the
+            graph relabelled with its weight: the label it replaced and the weight text it wrote.
         directed: Whether the graph is directed (override in subclass).
     """
 
@@ -50,7 +53,7 @@ class Graph(Drawable):
         # Deleting the graph leaves these on the canvas; it owns every other vertex and edge.
         self._preexisting_points: List["Point"] = []
         self._preexisting_edges: List[Drawable] = []
-        self._original_edge_labels: List[Tuple[Drawable, str, bool]] = []
+        self._original_edge_labels: List[EdgeLabelRecord] = []
 
     @property
     def directed(self) -> bool:
@@ -94,8 +97,8 @@ class Graph(Drawable):
             args["preexisting_edges"] = [getattr(e, "name", "") for e in self._preexisting_edges]
         if self._original_edge_labels:
             args["preexisting_edge_labels"] = [
-                {"edge": getattr(edge, "name", ""), "text": text, "visible": visible}
-                for edge, text, visible in self._original_edge_labels
+                {"edge": getattr(edge, "name", ""), "text": text, "visible": visible, "written": written}
+                for edge, text, visible, written in self._original_edge_labels
             ]
         return {"name": self.name, "args": args}
 
@@ -106,25 +109,40 @@ class Graph(Drawable):
         self,
         points: Iterable["Point"],
         edges: Iterable[Drawable],
-        original_edge_labels: Iterable[Tuple[Drawable, str, bool]] = (),
+        original_edge_labels: Iterable[EdgeLabelRecord] = (),
     ) -> None:
         """Record the vertices and edges that existed before this graph was created.
 
-        ``original_edge_labels`` holds the label each reused edge had before the graph
-        wrote its weight there.
+        ``original_edge_labels`` holds, per reused edge, the label it had before the graph
+        wrote its weight there and the weight text the graph wrote.
         """
         self._preexisting_points = list(points)
         self._preexisting_edges = list(edges)
         self._original_edge_labels = list(original_edge_labels)
 
     @property
-    def original_edge_labels(self) -> List[Tuple[Drawable, str, bool]]:
-        """Labels to restore on pre-existing edges when the graph is deleted."""
+    def original_edge_labels(self) -> List[EdgeLabelRecord]:
+        """Label records of the reused edges this graph relabelled."""
         return list(self._original_edge_labels)
 
+    def label_record(self, edge: Drawable) -> Optional[EdgeLabelRecord]:
+        """Return this graph's label record for the edge, if it relabelled it."""
+        return next((record for record in self._original_edge_labels if record[0] is edge), None)
+
+    def replace_label_original(self, edge: Drawable, text: str, visible: bool) -> None:
+        """Change the label this graph restores on the edge (used when a graph below it is deleted)."""
+        self._original_edge_labels = [
+            (record[0], text, visible, record[3]) if record[0] is edge else record
+            for record in self._original_edge_labels
+        ]
+
     def adopt(self, drawable: Drawable) -> None:
-        """Take ownership of a pre-existing vertex or edge whose creator was deleted."""
-        self._forget_preexisting(drawable)
+        """Take ownership of a pre-existing vertex or edge whose creator was deleted.
+
+        The label record stays: the graph still restores the label it replaced.
+        """
+        self._preexisting_points = [p for p in self._preexisting_points if p is not drawable]
+        self._preexisting_edges = [e for e in self._preexisting_edges if e is not drawable]
 
     def is_preexisting(self, drawable: Drawable) -> bool:
         """Return True if the vertex or edge existed before the graph and is not owned by it."""

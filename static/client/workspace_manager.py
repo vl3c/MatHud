@@ -615,22 +615,31 @@ class WorkspaceManager:
                 graph = Tree(name, root=args.get("root"), segments=segments, isolated_points=isolated_points)
             else:
                 graph = UndirectedGraph(name, segments=segments, isolated_points=isolated_points)
+        graph_edges = list(getattr(graph, "vectors", None) or getattr(graph, "segments", None) or [])
         graph.set_preexisting(
             preexisting_points,
             preexisting_edges,
-            self._resolve_edge_labels(args.get("preexisting_edge_labels"), preexisting_edges),
+            self._resolve_edge_labels(args.get("preexisting_edge_labels"), graph_edges),
         )
         return graph
 
-    def _resolve_edge_labels(self, records: Any, edges: List[Any]) -> List[Tuple[Any, str, bool]]:
-        """Match saved original labels to the restored pre-existing edges by name."""
-        resolved: List[Tuple[Any, str, bool]] = []
+    def _resolve_edge_labels(self, records: Any, edges: List[Any]) -> List[Tuple[Any, str, bool, Optional[str]]]:
+        """Match saved label records to the restored graph edges by name."""
+        resolved: List[Tuple[Any, str, bool, Optional[str]]] = []
         for record in records or []:
             if not isinstance(record, dict):
                 continue
             edge = next((e for e in edges if getattr(e, "name", None) == record.get("edge")), None)
             if edge is not None:
-                resolved.append((edge, str(record.get("text") or ""), bool(record.get("visible"))))
+                written = record.get("written")
+                resolved.append(
+                    (
+                        edge,
+                        str(record.get("text") or ""),
+                        bool(record.get("visible")),
+                        None if written is None else str(written),
+                    )
+                )
         return resolved
 
     def _resolve_named(self, names: Any, lookup: Callable[[str], Any]) -> List[Any]:

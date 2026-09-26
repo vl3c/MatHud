@@ -532,59 +532,142 @@ class TestDeleteCascades(unittest.TestCase):
         self.assertEqual(self._drawables("Triangle"), [])
 
     # Weight labels on reused edges
-    def test_reused_vector_gets_weight_and_keeps_its_own_label_after_delete(self) -> None:
-        self._call("create_vector", origin_x=0, origin_y=0, tip_x=3, tip_y=0)
-        vector = self._drawables("Vector")[0]
+    def _weighted_graph(self, name: str, weight: float, ends: Tuple[Coord, Coord], **overrides: Any) -> None:
         self._call(
             "generate_graph",
             **self._graph_args(
-                graph_type="dag",
-                directed=True,
-                vertices=[
-                    {"name": None, "x": 0, "y": 0, "color": None, "label": None},
-                    {"name": None, "x": 3, "y": 0, "color": None, "label": None},
-                ],
-                edges=[{"source": 0, "target": 1, "weight": 7, "name": None, "color": None, "directed": None}],
+                name=name,
+                vertices=[{"name": None, "x": x, "y": y, "color": None, "label": None} for x, y in ends],
+                edges=[{"source": 0, "target": 1, "weight": weight, "name": None, "color": None, "directed": None}],
+                **overrides,
             ),
         )
+
+    def _path_cost(self, graph_name: str, start: Coord, goal: Coord) -> Any:
+        params = {"start": self.canvas.get_point(*start).name, "goal": self.canvas.get_point(*goal).name}
+        result = self._call("analyze_graph", graph_name=graph_name, operation="shortest_path", params=params)
+        return result.get("cost")
+
+    def _save_and_load(self) -> None:
+        saved = json.loads(json.dumps(self.workspace_manager._snapshot_persistable_canvas_state()))
+        self.workspace_manager._restore_workspace_state(saved)
+
+    def _labelled_triangle_side(self) -> Tuple[Coord, Coord]:
+        """Triangle ABC whose side AB carries the user's own visible label "side"."""
+        self._triangle([(0, 0), (4, 0), (0, 3)], "ABC")
+        side = self.canvas.get_segment_by_coordinates(0, 0, 4, 0)
+        self._call("update_segment", name=side.name, new_label_text="side", new_label_visible=True)
+        return ((0, 0), (4, 0))
+
+    def _label(self, ends: Tuple[Coord, Coord]) -> Tuple[str, bool]:
+        (x1, y1), (x2, y2) = ends
+        label = self.canvas.get_segment_by_coordinates(x1, y1, x2, y2).label
+        return (label.text, bool(label.visible))
+
+    def test_reused_vector_gets_weight_and_gets_its_own_label_back(self) -> None:
+        self._call("create_vector", origin_x=0, origin_y=0, tip_x=3, tip_y=0)
+        vector = self._drawables("Vector")[0]
+        vector.segment.update_label_text("own")
+        vector.segment.set_label_visibility(True)
+        self._weighted_graph("G", 7, ((0, 0), (3, 0)), graph_type="dag", directed=True)
         self.assertEqual(self._drawables("Vector"), [vector])
-        names = [vector.origin.name, vector.tip.name]
-        result = self._call(
-            "analyze_graph", graph_name="G", operation="shortest_path", params={"start": names[0], "goal": names[1]}
-        )
-        self.assertEqual(result.get("cost"), 7.0)
+        self.assertEqual(vector.segment.label.text, "7")
+        self.assertEqual(self._path_cost("G", (0, 0), (3, 0)), 7.0)
 
         self._call("delete_graph", name="G")
 
         self.assertEqual(self._drawables("Vector"), [vector])
-        self.assertEqual(vector.segment.label.text, "")
-        self.assertNotIn("label", vector.get_state()["args"])
+        self.assertEqual(vector.segment.label.text, "own")
+        self.assertTrue(vector.segment.label.visible)
+        self.assertEqual(vector.get_state()["args"].get("label"), {"text": "own", "visible": True})
 
-    def test_reused_segment_gets_weight_and_keeps_its_own_label_after_delete(self) -> None:
-        self._triangle([(0, 0), (4, 0), (0, 3)], "ABC")
-        side = self.canvas.get_segment_by_coordinates(0, 0, 4, 0)
-        self._call(
-            "generate_graph",
-            **self._graph_args(
-                vertices=[
-                    {"name": None, "x": 0, "y": 0, "color": None, "label": None},
-                    {"name": None, "x": 4, "y": 0, "color": None, "label": None},
-                ],
-                edges=[{"source": 0, "target": 1, "weight": 5, "name": None, "color": None, "directed": None}],
-            ),
-        )
-        graph = self.canvas.get_graph("G")
-        self.assertEqual([e.get("weight") for e in graph.edges], [5.0])
-        saved = json.loads(json.dumps(self.workspace_manager._snapshot_persistable_canvas_state()))
-        self.workspace_manager._restore_workspace_state(saved)
-        side = self.canvas.get_segment_by_coordinates(0, 0, 4, 0)
-        self.assertEqual(side.label.text, "5")
+    def test_reused_segment_gets_weight_and_gets_its_own_label_back_after_save_load(self) -> None:
+        ends = self._labelled_triangle_side()
+        self._weighted_graph("G", 5, ends)
+        self.assertEqual([e.get("weight") for e in self.canvas.get_graph("G").edges], [5.0])
+        self._save_and_load()
+        self.assertEqual(self._label(ends), ("5", True))
 
         self._call("delete_graph", name="G")
 
         self.assertEqual(len(self._drawables("Triangle")), 1)
-        self.assertEqual(side.label.text, "")
-        self.assertFalse(side.label.visible)
+        self.assertEqual(self._label(ends), ("side", True))
+
+    def test_deleting_lower_graph_keeps_later_graph_weight(self) -> None:
+        ends = self._labelled_triangle_side()
+        self._weighted_graph("G", 5, ends)
+        self._weighted_graph("H", 7, ends)
+        self.assertEqual(self._path_cost("H", *ends), 7.0)
+
+        self._call("delete_graph", name="G")
+
+        self.assertEqual(self._label(ends), ("7", True))
+        self.assertEqual(self._path_cost("H", *ends), 7.0)
+        self._save_and_load()
+        self.assertEqual(self._path_cost("H", *ends), 7.0)
+
+        self._call("delete_graph", name="H")
+
+        self.assertEqual(self._label(ends), ("side", True))
+
+    def test_deleting_upper_graph_brings_back_lower_graph_weight(self) -> None:
+        ends = self._labelled_triangle_side()
+        self._weighted_graph("G", 5, ends)
+        self._weighted_graph("H", 7, ends)
+
+        self._call("delete_graph", name="H")
+
+        self.assertEqual(self._label(ends), ("5", True))
+        self.assertEqual(self._path_cost("G", *ends), 5.0)
+
+        self._call("delete_graph", name="G")
+
+        self.assertEqual(self._label(ends), ("side", True))
+
+    def test_deleting_middle_graph_keeps_chain_on_created_edge(self) -> None:
+        ends: Tuple[Coord, Coord] = ((10, 10), (14, 10))
+        self._weighted_graph("G", 5, ends)
+        self._weighted_graph("H", 7, ends)
+        self._weighted_graph("K", 9, ends)
+
+        self._call("delete_graph", name="H")
+
+        self.assertEqual(self._label(ends), ("9", True))
+        self.assertEqual(self._path_cost("K", *ends), 9.0)
+
+        self._call("delete_graph", name="K")
+
+        self.assertEqual(self._label(ends), ("5", True))
+        self.assertEqual(self._path_cost("G", *ends), 5.0)
+
+    def test_deleting_creator_graph_keeps_chain_on_its_edge(self) -> None:
+        ends: Tuple[Coord, Coord] = ((10, 10), (14, 10))
+        self._weighted_graph("G", 5, ends)
+        self._weighted_graph("H", 7, ends)
+        self._weighted_graph("K", 9, ends)
+
+        self._call("delete_graph", name="G")
+        self.assertEqual(self._label(ends), ("9", True))
+        self._save_and_load()
+
+        self._call("delete_graph", name="K")
+        self.assertEqual(self._label(ends), ("7", True))
+        self.assertEqual(self._path_cost("H", *ends), 7.0)
+
+        self._call("delete_graph", name="H")
+        self.assertEqual(self._drawables("Segment"), [])
+
+    def test_delete_graph_keeps_label_edited_after_graph_was_created(self) -> None:
+        self._call("create_segment", x1=0, y1=0, x2=4, y2=0, label_text="mine", label_visible=True)
+        ends: Tuple[Coord, Coord] = ((0, 0), (4, 0))
+        self._weighted_graph("G", 5, ends)
+        segment = self.canvas.get_segment_by_coordinates(0, 0, 4, 0)
+        self._call("update_segment", name=segment.name, new_label_text="user-edit")
+        self._save_and_load()
+
+        self._call("delete_graph", name="G")
+
+        self.assertEqual(self._label(ends), ("user-edit", True))
 
     # Graph-created vertices and edges that something else now uses
     def _graph_with_vertices_p_and_q(self, name: str = "G") -> None:
