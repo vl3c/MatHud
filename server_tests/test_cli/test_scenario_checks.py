@@ -574,6 +574,39 @@ class TestValidateCheck:
         )
         assert validate_check({"check": "no_tool_errors", "known": "K1", "tol": 1, "id": "x", "note": "n"}) == []
 
+    def test_required_keys(self) -> None:
+        point_sel = {"type": "Point", "name": "A"}
+        assert "point_at needs at" in validate_check({"check": "point_at", "select": point_sel})
+        assert "point_at needs at as [x, y]" in validate_check({"check": "point_at", "select": point_sel, "at": [1]})
+        assert "moved needs by" in validate_check({"check": "moved", "select": point_sel, "since": "setup"})
+        assert validate_check({"check": "moved", "select": point_sel, "since": "setup", "by": [1, 0]}) == []
+        # Keys with their own messages are reported once.
+        assert validate_check({"check": "state_equals"}) == ["state_equals needs a snapshot name"]
+        assert validate_check({"check": "tool_error"}) == ["tool_error needs a tool"]
+
+    def test_relation_selector_counts_and_tangent_x(self) -> None:
+        seg = {"type": "Segment", "only": True}
+        assert "relation parallel takes 2 selectors, got 1" in validate_check(
+            {"check": "relation", "relation": "parallel", "select": [seg]}
+        )
+        assert "relation length takes 1 selectors, got 2" in validate_check(
+            {"check": "relation", "relation": "length", "select": [seg, seg], "value": 1}
+        )
+        assert "relation point_on_circle takes 2 or more selectors, got 1" in validate_check(
+            {"check": "relation", "relation": "point_on_circle", "select": [seg]}
+        )
+        assert "relation angle_deg takes 1 to 3 selectors, got 4" in validate_check(
+            {"check": "relation", "relation": "angle_deg", "select": [seg] * 4, "value": 90}
+        )
+        function = {"type": "Function", "name": "f"}
+        assert "relation tangent_to a function needs x" in validate_check(
+            {"check": "relation", "relation": "tangent_to", "select": [seg, function]}
+        )
+        assert validate_check({"check": "relation", "relation": "tangent_to", "select": [seg, function], "x": 1}) == []
+        assert (
+            validate_check({"check": "relation", "relation": "tangent_to", "select": [seg, {"type": "Circle"}]}) == []
+        )
+
     def test_relation_parameters(self) -> None:
         segment = {"type": "Segment", "only": True}
         assert "relation direction needs parallel_to or perpendicular_to" in validate_check(
@@ -765,17 +798,35 @@ class TestInvariants:
             undo_after=6,
         )
         result = by_id(invariants(canvas, canvas, archived_anyway), "I5")
-        assert result.status == "fail" and "changed no drawables" in result.message
+        assert result.status == "fail" and "changed nothing" in result.message
         # A non-undoable tool that changes drawables (load, regression) still owes one entry.
         loaded = StepData(calls=[call("load_workspace", name="w")], undoable=[False], undo_before=0, undo_after=0)
         assert by_id(invariants(CanvasView(state()), canvas, loaded), "I5").status == "fail"
 
-    def test_i5_ignores_coordinate_mode_changes(self) -> None:
-        cartesian, polar = CanvasView(state()), CanvasView(state(mode="polar"))
-        step = StepData(
-            calls=[call("set_coordinate_system", mode="polar")], undoable=[False], undo_before=0, undo_after=0
+    def test_i5_counts_view_mode_and_inspection_changes(self) -> None:
+        """A batch that changes only the view, the mode or a colour still changed the canvas (as in I4)."""
+        base = CanvasView(state(point("A", 0, 0)), inspection({"class": "Point", "name": "A", "color": "black"}))
+        zoomed = CanvasView(
+            state(point("A", 0, 0), view={"left_bound": -2, "right_bound": 2, "top_bound": 1, "bottom_bound": -1}),
+            inspection({"class": "Point", "name": "A", "color": "black"}),
         )
-        assert by_id(invariants(cartesian, polar, step), "I5").status == "pass"
+        polar = CanvasView(
+            state(point("A", 0, 0), mode="polar"), inspection({"class": "Point", "name": "A", "color": "black"})
+        )
+        red = CanvasView(state(point("A", 0, 0)), inspection({"class": "Point", "name": "A", "color": "red"}))
+        cases = [
+            (zoomed, call("zoom", center_x=0, center_y=0, range_val=2, range_axis="x")),
+            (polar, call("set_coordinate_system", mode="polar")),
+            (red, call("update_point", point_name="A", new_color="red")),
+        ]
+        for after, batch_call in cases:
+            one_entry = StepData(calls=[batch_call], undoable=[True], undo_before=3, undo_after=4)
+            assert by_id(invariants(base, after, one_entry), "I5").status == "pass", batch_call["function_name"]
+            no_entry = StepData(calls=[batch_call], undoable=[True], undo_before=3, undo_after=3)
+            result = by_id(invariants(base, after, no_entry), "I5")
+            assert result.status == "fail" and "changed the canvas" in result.message, batch_call["function_name"]
+        unchanged = StepData(calls=[call("zoom")], undoable=[True], undo_before=3, undo_after=4)
+        assert "changed nothing" in by_id(invariants(base, base, unchanged), "I5").message
 
     def test_i5_undo_and_redo_simulation(self) -> None:
         view = CanvasView(state())

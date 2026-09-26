@@ -328,6 +328,49 @@ _CHECK_KEYS: dict[str, frozenset[str]] = {
     "answer_mentions": frozenset({"numbers", "words", "names"}),
 }
 _BIND_KEYS = frozenset({"bind", "select", "known", "tol", "id", "note"})
+# Keys each check type must carry.
+_REQUIRED_CHECK_KEYS: dict[str, tuple[str, ...]] = {
+    "exists": ("select",),
+    "absent": ("select",),
+    "count": ("select",),
+    "point_at": ("select", "at"),
+    "moved": ("select", "since", "by"),
+    "relation": ("relation", "select"),
+    "attribute": (),
+    "state_equals": ("snapshot",),
+    "unchanged_except": ("since",),
+    "tool_called": ("tool",),
+    "tool_not_called": ("tool",),
+    "max_tool_calls": ("max",),
+    "no_tool_errors": (),
+    "tool_error": ("tool",),
+    "tool_result": ("tool",),
+    "answer_mentions": (),
+}
+# Required keys whose absence the checks below already report with a specific message.
+_KEYS_WITH_OWN_MESSAGES = frozenset({"select", "snapshot", "since", "tool", "max", "relation"})
+# Number of selectors each relation takes: (minimum, maximum or None for no limit).
+_RELATION_ARITY: dict[str, tuple[int, Optional[int]]] = {
+    "point_on_circle": (2, None),
+    "point_on_segment": (2, None),
+    "point_on_line": (2, None),
+    "point_on_function": (2, None),
+    "collinear": (2, None),
+    "parallel": (2, 2),
+    "perpendicular": (2, 2),
+    "midpoint_of": (2, 2),
+    "equal_length": (2, None),
+    "equal_angles": (3, 3),
+    "tangent_to": (2, 2),
+    "distance": (2, 2),
+    "length": (1, 1),
+    "angle_deg": (1, 3),
+    "area": (1, 1),
+    "function_value": (1, 1),
+    "inside": (2, 2),
+    "slope": (1, 1),
+    "direction": (1, 1),
+}
 # Relations that compare one measured value with "value".
 _VALUE_RELATIONS = frozenset({"distance", "length", "slope", "area", "angle_deg"})
 
@@ -351,6 +394,15 @@ def validate_check(check: Any) -> list[str]:
         return problems + [f"unknown check type {kind!r}"]
     allowed = _COMMON_CHECK_KEYS | _CHECK_KEYS[str(kind)]
     problems.extend(f"unknown key {key!r} for {kind}" for key in sorted(set(check) - allowed))
+    problems.extend(
+        f"{kind} needs {key}"
+        for key in _REQUIRED_CHECK_KEYS[str(kind)]
+        if key not in check and key not in _KEYS_WITH_OWN_MESSAGES
+    )
+    if kind == "point_at" and "at" in check and not _is_pair(check["at"]):
+        problems.append("point_at needs at as [x, y]")
+    if kind == "moved" and "by" in check and not _is_pair(check["by"]):
+        problems.append("moved needs by as [dx, dy]")
     if kind in ("exists", "absent", "count", "point_at", "moved", "attribute") and "select" in check:
         problems.extend(_validate_selector(check["select"]))
     if kind in ("exists", "absent", "count", "point_at", "moved") and "select" not in check:
@@ -365,6 +417,16 @@ def validate_check(check: Any) -> list[str]:
             for selector in selectors:
                 problems.extend(_validate_selector(selector))
         relation = check.get("relation")
+        arity = _RELATION_ARITY.get(str(relation))
+        if arity is not None and isinstance(selectors, list) and selectors:
+            low, high = arity
+            if len(selectors) < low or (high is not None and len(selectors) > high):
+                expected_count = str(low) if low == high else f"{low} or more" if high is None else f"{low} to {high}"
+                problems.append(f"relation {relation} takes {expected_count} selectors, got {len(selectors)}")
+        if relation == "tangent_to" and isinstance(selectors, list) and len(selectors) == 2:
+            target = selectors[1]
+            if isinstance(target, dict) and target.get("type") in FUNCTION_TYPES | {"AnyFunction"} and "x" not in check:
+                problems.append("relation tangent_to a function needs x")
         if relation == "direction" and not ("parallel_to" in check or "perpendicular_to" in check):
             problems.append("relation direction needs parallel_to or perpendicular_to")
         if relation in _VALUE_RELATIONS and "value" not in check:
@@ -1716,11 +1778,13 @@ def _inv_truthful_results(before: CanvasView, after: CanvasView, step: StepData)
 
 
 def _inv_undo_accounting(before: CanvasView, after: CanvasView, step: StepData) -> list[str]:
-    """I5: one undo entry per batch that changed the drawables; none for a batch that changed none.
+    """I5: one undo entry per batch that changed the canvas; none for a batch that changed nothing.
 
     Judged by what happened, not by what the calls reported: a failed call, a
     refused call and a truthful no-op (e.g. creating a point that already
-    exists) must all leave the undo stack alone. Undo and redo batches are
+    exists) must all leave the undo stack alone. "Changed" is judged as in I4:
+    drawables, the view, the coordinate mode and inspection-only fields
+    (colour, label, grid visibility) all count. Undo and redo batches are
     simulated against the stack depths instead.
     """
     if step.undo_before is None or step.undo_after is None:
@@ -1742,10 +1806,10 @@ def _inv_undo_accounting(before: CanvasView, after: CanvasView, step: StepData) 
         if step.undo_after != undo:
             return [f"undo depth went from {step.undo_before} to {step.undo_after}, expected {undo}"]
         return []
-    changed = diff_views(before, after, _DERIVED_TOL, include_mode=False)
+    changed = diff_views(before, after, _DERIVED_TOL, inspect=True, include_view=True)
     expected = 1 if changed else 0
     if added != expected:
-        what = "changed the drawables" if changed else "changed no drawables"
+        what = "changed the canvas" if changed else "changed nothing"
         return [f"batch ({', '.join(tools)}) {what} and added {added} undo entries, expected {expected}"]
     return []
 
