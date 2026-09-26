@@ -422,7 +422,7 @@ class AIInterface:
                     self._enable_send_controls()
                     return
 
-                trace_summary = self._trace_collector.build_compact_summary(batch["trace"])
+                trace_summary = self._trace_summary(batch["trace"])
 
                 # Reset timeout with extended duration - AI needs time to process tool results
                 self._start_response_timeout(use_reasoning_timeout=True)
@@ -453,6 +453,9 @@ class AIInterface:
         scenario hook ``runMatHudToolCalls`` calls this same method, so replayed and
         model batches take one code path.
 
+        Tracing is diagnostic: a failure to build or store the trace is logged and
+        leaves ``trace`` as None; it never fails the batch or the turn.
+
         Returns:
             Dict with ``call_results``, ``traced_calls``, ``state_after`` and ``trace``.
         """
@@ -470,11 +473,12 @@ class AIInterface:
             self._turn_metrics.record_tool_results(traced_calls, turn_token)
         except Exception:
             try:
-                self._store_batch_trace(state_before, traced_calls, t0)
+                self._store_batch_trace(state_before, self.canvas.get_canvas_state(), traced_calls, t0)
             except Exception:
                 pass
             raise
-        state_after, trace = self._store_batch_trace(state_before, traced_calls, t0)
+        state_after = self.canvas.get_canvas_state()
+        trace = self._store_batch_trace(state_before, state_after, traced_calls, t0)
         return {
             "call_results": call_results,
             "traced_calls": traced_calls,
@@ -483,14 +487,37 @@ class AIInterface:
         }
 
     def _store_batch_trace(
-        self, state_before: Dict[str, Any], traced_calls: list[Dict[str, Any]], t0: float
-    ) -> tuple[Dict[str, Any], Dict[str, Any]]:
-        """Build and store the action trace of a batch that started at ``t0``."""
-        state_after = self.canvas.get_canvas_state()
-        total_ms = window.performance.now() - t0
-        trace = self._trace_collector.build_trace(state_before, state_after, traced_calls, total_ms)
-        self._trace_collector.store(trace)
-        return state_after, trace
+        self,
+        state_before: Dict[str, Any],
+        state_after: Dict[str, Any],
+        traced_calls: list[Dict[str, Any]],
+        t0: float,
+    ) -> Optional[Dict[str, Any]]:
+        """Build and store the action trace of a batch that started at ``t0``; None if tracing fails."""
+        try:
+            total_ms = window.performance.now() - t0
+            trace = self._trace_collector.build_trace(state_before, state_after, traced_calls, total_ms)
+            self._trace_collector.store(trace)
+            return cast(Dict[str, Any], trace)
+        except Exception as exc:
+            try:
+                console.warn(f"[MatHud] Could not store the action trace: {exc}")
+            except Exception:
+                pass
+            return None
+
+    def _trace_summary(self, trace: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Compact trace summary for the server log, or None when there is no trace or it cannot be built."""
+        if trace is None:
+            return None
+        try:
+            return cast(Dict[str, Any], self._trace_collector.build_compact_summary(trace))
+        except Exception as exc:
+            try:
+                console.warn(f"[MatHud] Could not summarize the action trace: {exc}")
+            except Exception:
+                pass
+            return None
 
     def _on_stream_error(self, err: Any, turn_token: Optional[int] = None) -> None:
         """Handle streaming errors and re-enable controls."""
@@ -718,7 +745,7 @@ class AIInterface:
                 self._chat_ui.print_ai_message(ai_message)
             try:
                 batch = self.execute_tool_batch(tool_calls, turn_token)
-                trace_summary = self._trace_collector.build_compact_summary(batch["trace"])
+                trace_summary = self._trace_summary(batch["trace"])
 
                 self._send_prompt_to_ai(
                     None,

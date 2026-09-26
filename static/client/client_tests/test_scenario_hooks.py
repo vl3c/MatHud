@@ -223,10 +223,12 @@ class TestScenarioHookEndpoints(unittest.TestCase):
         reply = json.loads(self.hooks.run_tool_calls("not json"))
         self.assertEqual(reply["status"], "error")
 
-    def test_run_tool_calls_records_into_an_active_turn(self) -> None:
+    def test_run_tool_calls_refuses_during_a_chat_turn(self) -> None:
         self.ai._turn_metrics.start_turn("draw")
-        self.hooks.run_tool_calls(json.dumps([_call("create_point", x=0, y=0)]))
-        self.assertEqual(self.ai._turn_metrics.progress()["tool_calls"], 1)
+        reply = json.loads(self.hooks.run_tool_calls(json.dumps([_call("create_point", x=0, y=0)])))
+        self.assertEqual(reply["status"], "busy")
+        self.assertEqual(self.ai._turn_metrics.progress()["tool_calls"], 0)
+        self.assertEqual(self.canvas.get_canvas_state().get("Points", []), [])
 
     def test_get_canvas_state_with_and_without_inspection(self) -> None:
         self.hooks.run_tool_calls(json.dumps([_call("create_point", x=1, y=1, name="Q", color="red")]))
@@ -268,3 +270,75 @@ class TestScenarioHookEndpoints(unittest.TestCase):
     def test_send_message_refuses_while_busy(self) -> None:
         self.ai.is_processing = True
         self.assertEqual(json.loads(self.hooks.send_message("hello")), {"status": "busy"})
+
+
+class _Recorder:
+    """Accepts any method call, recording (name, args)."""
+
+    def __init__(self, **attrs: Any) -> None:
+        self.calls: List[Any] = []
+        for name, value in attrs.items():
+            setattr(self, name, value)
+
+    def __getattr__(self, name: str) -> Any:
+        def record(*args: Any, **kwargs: Any) -> None:
+            self.calls.append((name, args))
+
+        return record
+
+
+class _FailingTraceCollector(ActionTraceCollector):
+    def store(self, trace: Dict[str, Any]) -> None:
+        raise TypeError("'<' not supported between instances of 'int' and 'str'")
+
+
+class TestToolBatchTraceFailure(unittest.TestCase):
+    """A failure while storing the action trace must not end the user's turn."""
+
+    def setUp(self) -> None:
+        self.canvas = Canvas(500, 500, draw_enabled=False)
+        self.ai = _make_ai(self.canvas)
+        self.ai._trace_collector = _FailingTraceCollector()
+        self.ai._stop_requested = False
+        self.sent: List[Any] = []
+        self.ai._tool_call_log = _Recorder()
+        self.ai._chat_ui = _Recorder(stream_container=object(), stream_content=object(), stream_buffer="")
+        self.ai._start_response_timeout = lambda use_reasoning_timeout=False: None
+        self.ai._normalize_stream_event = lambda event: event
+        self.ai._enable_send_controls = lambda: None
+
+        def send(user_message: Any, tool_call_results: Any = None, **kwargs: Any) -> None:
+            self.sent.append((tool_call_results, kwargs.get("action_trace")))
+
+        self.ai._send_prompt_to_ai = send
+
+    def test_execute_tool_batch_returns_without_a_trace(self) -> None:
+        batch = self.ai.execute_tool_batch([_call("create_point", x=1, y=1, name="P")])
+        self.assertIsNone(batch["trace"])
+        self.assertEqual(_point_names(batch["state_after"]), ["P"])
+
+    def test_streamed_turn_continues_with_its_tool_log(self) -> None:
+        calls = [_call("create_point", x=1, y=1, name="P")]
+        self.ai._turn_metrics.start_turn("draw")
+        self.ai._on_stream_final({"finish_reason": "tool_calls", "ai_tool_calls": calls, "ai_message": ""})
+
+        self.assertTrue(self.ai._turn_metrics.is_active)  # still running, not ended as an error
+        self.assertIsNone(self.ai._turn_metrics.last_turn())
+        self.assertEqual([name for name, _ in self.ai._tool_call_log.calls], ["ensure_element", "add_entries"])
+        self.assertEqual(len(self.sent), 1)
+        self.assertIsNone(self.sent[0][1])  # no trace summary to send
+        self.assertEqual(_point_names(self.canvas.get_canvas_state()), ["P"])
+
+    def test_stop_during_tools_still_reports_stopped(self) -> None:
+        self.ai._stop_requested = True
+        self.ai._finalize_stream_message = lambda final_message=None: None
+        messages: List[str] = []
+        self.ai._print_system_message_in_chat = messages.append
+        self.ai._turn_metrics.start_turn("draw")
+        self.ai._on_stream_final(
+            {"finish_reason": "tool_calls", "ai_tool_calls": [_call("create_point", x=1, y=1)], "ai_message": ""}
+        )
+        self.assertFalse(self.ai._turn_metrics.is_active)
+        self.assertEqual(self.ai._turn_metrics.last_turn()["outcome"], "stopped")
+        self.assertEqual(messages, ["Generation stopped."])
+        self.assertEqual(self.sent, [])

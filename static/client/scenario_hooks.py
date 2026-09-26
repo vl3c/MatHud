@@ -89,15 +89,19 @@ class ScenarioHooks:
         """Run one batch through ``AIInterface.execute_tool_batch``, the model's batch path.
 
         Returns the traced calls, the state after the batch, the undo and redo
-        depths before and after, and which calls are undoable.
+        depths before and after, and which calls are undoable. Refused with
+        ``{"status": "busy"}`` while a chat turn runs, so scripted calls never
+        mix into a user turn's canvas or metrics.
         """
         try:
             calls = normalize_tool_calls(json.loads(str(calls_json)))
         except Exception as exc:
             return to_json({"status": "error", "error": f"Invalid tool calls: {exc}"})
+        if self.ai.is_processing or self.ai._turn_metrics.is_active:
+            return to_json({"status": "busy", "error": "a chat turn is running"})
         undo_before, redo_before = undo_depths(self.canvas)
         try:
-            batch = self.ai.execute_tool_batch(calls, self.ai._turn_metrics.turn_token)
+            batch = self.ai.execute_tool_batch(calls, None)
         except Exception as exc:
             undo_after, redo_after = undo_depths(self.canvas)
             return to_json(
@@ -118,7 +122,7 @@ class ScenarioHooks:
                 "traced": batch["traced_calls"],
                 "undoable": [call["function_name"] in undoable for call in calls],
                 "state": batch["state_after"],
-                "trace_id": batch["trace"].get("trace_id"),
+                "trace_id": (batch["trace"] or {}).get("trace_id"),
                 "undo_depth_before": undo_before,
                 "undo_depth_after": undo_after,
                 "redo_depth_before": redo_before,
@@ -168,7 +172,8 @@ class ScenarioHooks:
     def send_message(self, text: Any, model_id: Any = None) -> str:
         """Send ``text`` as the user; ``modelId`` selects an existing model option first.
 
-        Vision is switched off so the request does not depend on a canvas capture.
+        Vision is switched off for this request, so it does not depend on a canvas
+        capture, and the user's toggle is restored once the request is built.
         """
         try:
             if self.ai.is_processing:
@@ -179,9 +184,16 @@ class ScenarioHooks:
                 if str(model_id) not in values:
                     return to_json({"status": "error", "error": f"Model option not found: {model_id}"})
                 selector.value = str(model_id)
-            if "vision-toggle" in document:
-                document["vision-toggle"].checked = False
-            self.ai.send_user_message(str(text))
+            toggle = document["vision-toggle"] if "vision-toggle" in document else None
+            vision_was_on = bool(toggle.checked) if toggle is not None else False
+            if toggle is not None:
+                toggle.checked = False
+            try:
+                # The prompt (including use_vision) is built synchronously inside this call.
+                self.ai.send_user_message(str(text))
+            finally:
+                if toggle is not None:
+                    toggle.checked = vision_was_on
             return to_json({"status": "started"})
         except Exception as exc:
             return to_json({"status": "error", "error": str(exc)})

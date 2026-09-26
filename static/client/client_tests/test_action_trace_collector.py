@@ -105,6 +105,12 @@ class TestComputeStateDeltaCanvasShape(unittest.TestCase):
         delta = ActionTraceCollector.compute_state_delta(before, after)
         self.assertEqual(delta, {"added": [], "removed": [], "modified": []})
 
+    def test_unsortable_or_unserialisable_values_do_not_raise(self) -> None:
+        before = self._state(Points=[{"name": "A", "args": {1: "one", "b": 2}}])
+        after = self._state(Points=[{"name": "A", "args": {1: "one", "b": 3, "obj": object()}}])
+        delta = ActionTraceCollector.compute_state_delta(before, after)
+        self.assertEqual(delta["modified"], ["A"])
+
     def test_same_name_in_two_buckets(self) -> None:
         segment = {"name": "AB", "args": {"p1": "A", "p2": "B"}}
         vector = {"name": "AB", "args": {"origin": "A", "tip": "B"}}

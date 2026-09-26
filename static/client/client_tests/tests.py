@@ -306,6 +306,7 @@ from .test_scenario_hooks import (
     TestScenarioHookHelpers,
     TestScenarioHookCanvas,
     TestScenarioHookEndpoints,
+    TestToolBatchTraceFailure,
 )
 from .test_result_processor_traced import TestGetResultsTraced
 from .test_base_telemetry import (
@@ -663,6 +664,7 @@ class Tests:
             TestScenarioHookHelpers,
             TestScenarioHookCanvas,
             TestScenarioHookEndpoints,
+            TestToolBatchTraceFailure,
             TestBuildTrace,
             TestStoreAndRetrieve,
             TestExportTracesJson,

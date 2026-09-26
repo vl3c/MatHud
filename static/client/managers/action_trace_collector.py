@@ -184,9 +184,9 @@ class ActionTraceCollector:
 
         modified: List[str] = []
         for name in sorted(before_names & after_names):
-            before_json = json.dumps(before_map[name], sort_keys=True)
-            after_json = json.dumps(after_map[name], sort_keys=True)
-            if before_json != after_json:
+            if ActionTraceCollector._stable_json(before_map[name]) != ActionTraceCollector._stable_json(
+                after_map[name]
+            ):
                 modified.append(name)
 
         return {"added": added, "removed": removed, "modified": modified}
@@ -321,6 +321,18 @@ class ActionTraceCollector:
             for category, name, _ in ActionTraceCollector._extract_drawable_entries(state):
                 buckets_by_name.setdefault(name, set()).add(category)
         return {name for name, buckets in buckets_by_name.items() if len(buckets) > 1}
+
+    @staticmethod
+    def _stable_json(value: Any) -> str:
+        """JSON text for comparing drawable states.
+
+        Keys are sorted when possible; values JSON cannot express (or keys of mixed
+        types, which cannot be sorted) fall back to ``str`` without sorting.
+        """
+        try:
+            return json.dumps(value, sort_keys=True)
+        except (TypeError, ValueError):
+            return json.dumps(value, default=str)
 
     @staticmethod
     def _truncate(value: Any) -> Any:
