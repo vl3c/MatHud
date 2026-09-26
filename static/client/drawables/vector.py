@@ -104,6 +104,9 @@ class Vector(Drawable):
         new_vector: Vector = Vector(new_origin, new_tip, color=self.color)
         # Store the newly created vector in the memo dictionary
         memo[id(self)] = new_vector
+        # Copy the internal segment too, so its label (a directed graph's edge weight) survives undo.
+        new_vector.segment = deepcopy(self.segment, memo)
+        new_vector.name = self.name
         return new_vector
 
     def translate(self, x_offset: float, y_offset: float) -> None:

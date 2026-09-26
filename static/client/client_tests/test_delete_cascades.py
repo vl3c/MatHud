@@ -738,6 +738,63 @@ class TestDeleteCascades(unittest.TestCase):
         self.assertEqual(len(self._drawables("Triangle")), 1)
         self.assertEqual(self._label(ends), ("X", True))
 
+    def _weighted_dag(self) -> None:
+        self._call(
+            "generate_graph",
+            **self._graph_args(
+                name="D",
+                graph_type="dag",
+                directed=True,
+                vertices=[
+                    {"name": None, "x": 20, "y": 0, "color": None, "label": None},
+                    {"name": None, "x": 24, "y": 0, "color": None, "label": None},
+                    {"name": None, "x": 22, "y": 3, "color": None, "label": None},
+                ],
+                edges=[
+                    {"source": 0, "target": 1, "weight": 10, "name": None, "color": None, "directed": None},
+                    {"source": 0, "target": 2, "weight": 2, "name": None, "color": None, "directed": None},
+                    {"source": 2, "target": 1, "weight": 3, "name": None, "color": None, "directed": None},
+                ],
+            ),
+        )
+
+    def test_undo_of_unrelated_action_keeps_directed_graph_weights(self) -> None:
+        self._weighted_dag()
+        self.assertEqual(self._path_cost("D", (20, 0), (24, 0)), 5.0)
+
+        self._call("create_point", x=-9, y=-9, name="Z")
+        self._call("undo")
+
+        self.assertEqual(sorted(v.segment.label.text for v in self._drawables("Vector")), ["10", "2", "3"])
+        self.assertEqual(self._path_cost("D", (20, 0), (24, 0)), 5.0)
+        self._call("redo")
+        self.assertEqual(self._path_cost("D", (20, 0), (24, 0)), 5.0)
+
+    def test_directed_chain_delete_with_undo_and_redo(self) -> None:
+        self._call("create_vector", origin_x=0, origin_y=0, tip_x=3, tip_y=0)
+        vector = self._drawables("Vector")[0]
+        vector.segment.update_label_text("own")
+        vector.segment.set_label_visibility(True)
+        ends: Tuple[Coord, Coord] = ((0, 0), (3, 0))
+        self._weighted_graph("G", 5, ends, graph_type="dag", directed=True)
+        self._weighted_graph("H", 7, ends, graph_type="dag", directed=True)
+
+        self._call("delete_graph", name="G")
+        self.assertEqual(self._drawables("Vector")[0].segment.label.text, "7")
+
+        self._call("undo")
+        self.assertIsNotNone(self.canvas.get_graph("G"))
+        self.assertEqual(self._drawables("Vector")[0].segment.label.text, "7")
+        self.assertEqual(self._path_cost("H", *ends), 7.0)
+
+        self._call("redo")
+        self.assertIsNone(self.canvas.get_graph("G"))
+        self.assertEqual(self._path_cost("H", *ends), 7.0)
+
+        self._call("delete_graph", name="H")
+        restored = self._drawables("Vector")[0]
+        self.assertEqual((restored.segment.label.text, restored.segment.label.visible), ("own", True))
+
     # Graph-created vertices and edges that something else now uses
     def _graph_with_vertices_p_and_q(self, name: str = "G") -> None:
         self._call(
