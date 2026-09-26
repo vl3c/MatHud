@@ -14,8 +14,10 @@ Key Features:
     - Computation history preservation and restoration
 
 Workspace Operations:
-    - Save: Serializes current canvas state and sends to server via AJAX
+    - Save: Serializes current canvas state (and the chat transcript) and sends to server via AJAX
     - Load: Requests workspace data from server and restores canvas state
+    - Load with chat: Also replaces the chat and the AI conversation (user loads via /load;
+      the AI's load_workspace tool restores the canvas only)
     - List: Retrieves available workspace names from server storage
     - Delete: Removes workspace files from server persistent storage
 
@@ -68,6 +70,7 @@ from utils.polygon_canonicalizer import (
 
 if TYPE_CHECKING:
     from canvas import Canvas
+    from chat_persistence_manager import ChatPersistenceManager
     from drawables.point import Point
     from drawables.segment import Segment
 
@@ -82,11 +85,17 @@ class WorkspaceManager:
 
     Attributes:
         canvas: The canvas instance to manage workspaces for.
+        chat_persistence: Saves and restores the chat with workspaces (None: canvas only).
     """
 
     def __init__(self, canvas: "Canvas") -> None:
         """Initialize workspace manager with canvas reference."""
         self.canvas: "Canvas" = canvas
+        self.chat_persistence: Optional["ChatPersistenceManager"] = None
+
+    def set_chat_persistence(self, chat_persistence: Optional["ChatPersistenceManager"]) -> None:
+        """Save the chat with workspaces and restore it on user loads (None turns that off)."""
+        self.chat_persistence = chat_persistence
 
     def save_workspace(self, name: Optional[str] = None) -> str:
         """
@@ -124,10 +133,13 @@ class WorkspaceManager:
             return f"Error saving workspace: {str(e)}"
 
     def _build_save_workspace_payload(self, name: Optional[str]) -> Dict[str, Any]:
-        return {
+        payload: Dict[str, Any] = {
             "state": self._snapshot_persistable_canvas_state(),
             "name": name,
         }
+        if self.chat_persistence is not None:
+            payload["chat"] = self.chat_persistence.export_chat_state()
+        return payload
 
     def _snapshot_persistable_canvas_state(self) -> Any:
         state = self.canvas.get_canvas_state()
@@ -1352,15 +1364,37 @@ class WorkspaceManager:
         restores the complete canvas state including all geometric objects
         and computations in the correct dependency order.
 
+        This is the AI's ``load_workspace`` tool, which can run in the middle of a
+        turn, so it restores the canvas only and leaves the chat and the AI
+        conversation alone. When the workspace has a saved chat, the result says
+        so and names the ``/load`` command that restores it.
+
         Args:
             name (str, optional): Name of the workspace to load. If None, loads default.
 
         Returns:
             str: Success or error message from the load operation.
         """
+        return self._load_workspace(name, restore_chat=False)
 
+    def load_workspace_with_chat(self, name: Optional[str] = None) -> str:
+        """
+        Load a workspace the user asked for: the canvas, the chat and the AI conversation.
+
+        The saved chat replaces the current one, as the saved canvas replaces the
+        current canvas; a workspace saved without a chat starts an empty chat.
+
+        Args:
+            name (str, optional): Name of the workspace to load. If None, loads default.
+
+        Returns:
+            str: Success or error message from the load operation.
+        """
+        return self._load_workspace(name, restore_chat=True)
+
+    def _load_workspace(self, name: Optional[str], restore_chat: bool) -> str:
         def on_complete(req: Any) -> str:
-            return self._parse_load_workspace_response(req, name)
+            return self._parse_load_workspace_response(req, name, restore_chat)
 
         url: str = f"/load_workspace?name={name}" if name else "/load_workspace"
         return self._execute_sync_request(
@@ -1370,11 +1404,11 @@ class WorkspaceManager:
             error_prefix="Error loading workspace",
         )
 
-    def _parse_load_workspace_response(self, req: Any, name: Optional[str]) -> str:
+    def _parse_load_workspace_response(self, req: Any, name: Optional[str], restore_chat: bool = False) -> str:
         return self._parse_workspace_response(
             req=req,
             action_gerund="loading",
-            on_success=lambda response: self._build_load_workspace_success_message(response, name),
+            on_success=lambda response: self._build_load_workspace_success_message(response, name, restore_chat),
             exception_prefix="Error loading workspace",
         )
 
@@ -1382,12 +1416,34 @@ class WorkspaceManager:
         self,
         response: Dict[str, Any],
         name: Optional[str],
+        restore_chat: bool = False,
     ) -> str:
         state = self._workspace_state_from_response(response)
         if not state:
             return "Error loading workspace: No state data found in response"
         self._restore_workspace_state(state)
-        return f'Workspace "{name if name else "current"}" loaded successfully.'
+        message = f'Workspace "{name if name else "current"}" loaded successfully.'
+        chat_note = self._restore_or_describe_chat(response, name, restore_chat)
+        return f"{message} {chat_note}" if chat_note else message
+
+    def _restore_or_describe_chat(self, response: Dict[str, Any], name: Optional[str], restore_chat: bool) -> str:
+        chat = self._workspace_chat_from_response(response)
+        if restore_chat and self.chat_persistence is not None:
+            return str(self.chat_persistence.restore_chat_state(chat))
+        return self._describe_unrestored_chat(chat, name)
+
+    def _describe_unrestored_chat(self, chat: Any, name: Optional[str]) -> str:
+        count = self._saved_chat_message_count(chat)
+        if not count:
+            return ""
+        noun = "message" if count == 1 else "messages"
+        command = f"/load {name}" if name else "/load"
+        return f"Its saved chat ({count} {noun}) was not restored; the user can restore it with {command}."
+
+    @staticmethod
+    def _saved_chat_message_count(chat: Any) -> int:
+        messages = chat.get("messages") if isinstance(chat, dict) else None
+        return len(messages) if isinstance(messages, list) else 0
 
     def list_workspaces(self) -> str:
         """
@@ -1479,6 +1535,10 @@ class WorkspaceManager:
 
     def _workspace_state_from_response(self, response: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return cast(Optional[Dict[str, Any]], response.get("data", {}).get("state"))
+
+    def _workspace_chat_from_response(self, response: Dict[str, Any]) -> Any:
+        data = response.get("data")
+        return data.get("chat") if isinstance(data, dict) else None
 
     def _workspace_list_from_response(self, response: Dict[str, Any]) -> List[str]:
         return cast(List[str], response.get("data", []))

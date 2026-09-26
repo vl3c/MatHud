@@ -140,13 +140,13 @@ class SlashCommandHandler:
         )
         commands["save"] = CommandInfo(
             name="save",
-            description="Save workspace",
+            description="Save workspace (canvas and chat)",
             handler=self._cmd_save,
             usage="/save [name]",
         )
         commands["load"] = CommandInfo(
             name="load",
-            description="Load workspace",
+            description="Load workspace (replaces canvas and chat)",
             handler=self._cmd_load,
             usage="/load [name]",
         )
@@ -477,9 +477,9 @@ class SlashCommandHandler:
         return CommandResult(success="success" in result.lower(), message=result)
 
     def _cmd_load(self, args: List[str]) -> CommandResult:
-        """Load a workspace."""
+        """Load a workspace with its saved chat, replacing the canvas and the conversation."""
         name = args[0] if args else None
-        result = self.workspace_manager.load_workspace(name)
+        result = self.workspace_manager.load_workspace_with_chat(name)
         return CommandResult(success="success" in result.lower(), message=result)
 
     def _cmd_workspaces(self, args: List[str]) -> CommandResult:

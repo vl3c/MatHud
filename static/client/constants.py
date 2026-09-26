@@ -68,6 +68,14 @@ REASONING_TIMEOUT_MS: int = 300000  # Extended timeout for reasoning models (5 m
 MAX_ATTACHED_IMAGES: int = 5  # Maximum number of images per message
 IMAGE_SIZE_WARNING_BYTES: int = 10 * 1024 * 1024  # Warning threshold for image size (10MB)
 
+# ===== WORKSPACE CHAT PERSISTENCE CONSTANTS =====
+# Client-side caps for the chat saved with a workspace. They match the server's
+# authoritative caps in static/config.py, so the client never sends more than is kept.
+MAX_SAVED_CHAT_MESSAGES: int = 200  # Oldest messages are dropped first
+MAX_SAVED_CHAT_MESSAGE_CHARS: int = 20000  # Longer messages are cut off
+MAX_SAVED_CHAT_TOTAL_CHARS: int = 400000  # Oldest messages are dropped until the chat fits
+MAX_SAVED_CHAT_TOOL_ENTRIES: int = 30  # Compact tool-call entries kept per assistant message
+
 # ===== ACTION TRACE COLLECTOR CONSTANTS =====
 # Limits for the action trace storage system
 MAX_TRACES: int = 100  # Maximum number of traces kept in FIFO store

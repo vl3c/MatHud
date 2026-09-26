@@ -1815,7 +1815,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "save_workspace",
-            "description": "Saves the current workspace state to a file. If no name is provided, saves to the current workspace file with timestamp. The workspace name MUST only contain alphanumeric characters, underscores, or hyphens (no spaces, dots, slashes, or other special characters).",
+            "description": "Saves the current workspace state (the canvas and the chat conversation so far) to a file. If no name is provided, saves to the current workspace file with timestamp. The workspace name MUST only contain alphanumeric characters, underscores, or hyphens (no spaces, dots, slashes, or other special characters).",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -1834,7 +1834,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "load_workspace",
-            "description": "Loads a workspace from a file. If no name is provided, loads the (most recent) current workspace. The workspace name MUST only contain alphanumeric characters, underscores, or hyphens (no spaces, dots, slashes, or other special characters).",
+            "description": "Loads a workspace's canvas from a file. If no name is provided, loads the (most recent) current workspace. The current chat is kept: a saved chat is only restored when the user types /load <name>. The workspace name MUST only contain alphanumeric characters, underscores, or hyphens (no spaces, dots, slashes, or other special characters).",
             "strict": True,
             "parameters": {
                 "type": "object",

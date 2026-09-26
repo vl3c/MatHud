@@ -3,6 +3,8 @@
 Manages message rendering, streaming token display, markdown parsing,
 and MathJax rendering for the chat interface. Owns all DOM manipulation
 for chat messages (user, AI, system) and the streaming response lifecycle.
+Keeps the conversation's ``ChatTranscript`` (saved with workspaces) and
+rebuilds the chat from a saved one.
 
 Extracted from ``AIInterface`` to reduce god-class complexity while
 preserving the identical public behaviour.
@@ -14,6 +16,7 @@ from typing import Any, Callable, Dict, Optional, cast
 
 from browser import document, html, window
 
+from chat_transcript import ChatTranscript
 from markdown_parser import MarkdownParser
 from message_menu_manager import MessageMenuManager
 from tool_call_log_manager import ToolCallLogManager
@@ -41,6 +44,9 @@ class ChatUIManager:
 
         # Markdown parser
         self.markdown_parser: MarkdownParser = MarkdownParser()
+
+        # User/assistant messages of the conversation, saved with workspaces
+        self.transcript: ChatTranscript = ChatTranscript()
 
         # Streaming state
         self._stream_buffer: str = ""
@@ -209,14 +215,23 @@ class ChatUIManager:
             else:
                 return html.P(f"<strong>{sender}:</strong> {message}")
 
-    def print_ai_message(self, ai_message: str, turn_metrics: Optional[Dict[str, Any]] = None) -> None:
+    def print_ai_message(
+        self,
+        ai_message: str,
+        turn_metrics: Optional[Dict[str, Any]] = None,
+        record: bool = False,
+    ) -> None:
         """Print an AI message to the chat history with markdown support and scroll to bottom.
 
         Args:
             ai_message: The message text (markdown).
             turn_metrics: Optional turn summary shown as a metrics footer (see turn_metrics.py).
+            record: Whether the message is an AI reply to keep in the transcript
+                (not a local notice such as test results or a timeout).
         """
         if ai_message:
+            if record:
+                self.transcript.record_assistant(ai_message)
             message_element = self.create_message_element("AI", ai_message)
             self.append_metrics_footer(message_element, turn_metrics)
             document["chat-history"] <= message_element
@@ -225,13 +240,22 @@ class ChatUIManager:
             # Scroll the chat history to the bottom
             document["chat-history"].scrollTop = document["chat-history"].scrollHeight
 
-    def print_user_message(self, user_message: str, images: Optional[list[str]] = None) -> None:
+    def print_user_message(
+        self,
+        user_message: str,
+        images: Optional[list[str]] = None,
+        record: bool = False,
+    ) -> None:
         """Print a user message to the chat history and scroll to bottom.
 
         Args:
             user_message: The text message from the user
             images: Optional list of image data URLs to display with the message
+            record: Whether the message goes to the AI and belongs in the transcript
+                (slash commands do not)
         """
+        if record:
+            self.transcript.record_user(user_message, len(images) if images else 0)
         # Add the user's message to the chat history with markdown support
         message_element = self.create_message_element("User", user_message, images=images)
         document["chat-history"] <= message_element
@@ -513,6 +537,7 @@ class ChatUIManager:
             # Prefer the accumulated buffer (contains all text across tool calls)
             # Only use final_message as fallback if buffer is empty
             text_to_render = self._stream_buffer if self._stream_buffer.strip() else (final_message or "")
+            self.transcript.record_assistant(text_to_render, self._tool_call_log.entries)
 
             # If we have reasoning content and actual text, create a combined element
             if self._reasoning_buffer and self._stream_message_container is not None:
@@ -639,6 +664,96 @@ class ChatUIManager:
                 # Don't reset _request_start_time here - we want to keep timing across tool calls
         except Exception as e:
             print(f"Error removing empty container: {e}")
+
+    # ── Saved chat restore ───────────────────────────────────────
+
+    def clear_chat(self) -> None:
+        """Remove every chat message and forget the transcript (a new conversation)."""
+        self.reset_streaming_state()
+        self.transcript.clear()
+        self._chat_history_element().clear()
+
+    def restore_transcript(self, chat_state: Any) -> int:
+        """Replace the chat with a saved transcript and return how many messages it shows.
+
+        Anything that is not a saved chat (``None`` for a workspace saved without
+        one) leaves the chat empty. Images were not saved: a note stands in for them.
+        """
+        self.reset_streaming_state()
+        self.transcript.load_state(chat_state)
+        history = self._chat_history_element()
+        history.clear()
+        if self.transcript.truncated:
+            history <= self._create_restored_note(self._omitted_messages_text(self.transcript.truncated))
+        messages = self.transcript.messages
+        for message in messages:
+            history <= self._create_restored_message_element(message)
+        self.render_math()
+        history.scrollTop = history.scrollHeight
+        return len(messages)
+
+    def _chat_history_element(self) -> Any:
+        """Return the chat history container (tests substitute a detached element)."""
+        return document["chat-history"]
+
+    def _create_restored_message_element(self, message: Dict[str, Any]) -> Any:
+        is_user = message.get("role") == "user"
+        element = self.create_message_element("User" if is_user else "AI", message.get("text", ""))
+        images = message.get("images", 0)
+        if images:
+            element <= self._create_restored_note(self._images_not_saved_text(images))
+        tools = message.get("tools")
+        if tools:
+            self._insert_restored_tool_log(element, tools)
+        return element
+
+    def _insert_restored_tool_log(self, element: Any, tools: list[Dict[str, Any]]) -> None:
+        """Add a collapsed tool-call log before the message text, as a live turn shows it."""
+        details = html.DETAILS(Class="tool-call-log-dropdown")
+        details <= html.SUMMARY(self._tool_log_summary_text(tools), Class="tool-call-log-summary")
+        content = html.DIV(Class="tool-call-log-content")
+        for tool in tools:
+            args = tool.get("args", "")
+            content <= self._tool_call_log.create_entry_element(
+                {"name": tool.get("name", ""), "args_display": args, "args_full": args, "is_error": tool.get("error")}
+            )
+        details <= content
+        content_element = self._find_child_with_class(element, "chat-content")
+        if content_element is not None:
+            element.insertBefore(details, content_element)
+        else:
+            element <= details
+
+    @staticmethod
+    def _find_child_with_class(parent: Any, class_name: str) -> Optional[Any]:
+        for child in parent.children:
+            try:
+                if child.classList.contains(class_name):
+                    return child
+            except Exception:
+                continue
+        return None
+
+    @staticmethod
+    def _create_restored_note(text: str) -> Any:
+        return html.DIV(text, Class="chat-restored-note")
+
+    @staticmethod
+    def _tool_log_summary_text(tools: list[Dict[str, Any]]) -> str:
+        count = len(tools)
+        label = f"Used {count} tool" if count == 1 else f"Used {count} tools"
+        failed = sum(1 for tool in tools if tool.get("error"))
+        return f"{label} ({failed} failed)" if failed else label
+
+    @staticmethod
+    def _images_not_saved_text(count: int) -> str:
+        noun = "image" if count == 1 else "images"
+        return f"{count} attached {noun} (not saved with the workspace)"
+
+    @staticmethod
+    def _omitted_messages_text(count: int) -> str:
+        noun = "message was" if count == 1 else "messages were"
+        return f"{count} earlier {noun} not saved with the workspace."
 
     # ── State reset ──────────────────────────────────────────────
 

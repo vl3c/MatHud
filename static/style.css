@@ -841,6 +841,15 @@ input, select, textarea, button {
     opacity: 1;
 }
 
+/* ===== RESTORED CHAT NOTES ===== */
+/* Placeholders in a chat restored from a workspace (images and trimmed messages were not saved) */
+.chat-restored-note {
+    margin-top: 4px;
+    color: var(--text-secondary);
+    font-size: 0.8em;
+    font-style: italic;
+}
+
 /* ===== TOOL CALL LOG STYLING ===== */
 /* Collapsible dropdown showing tool calls executed during an AI turn */
 .tool-call-log-dropdown {
