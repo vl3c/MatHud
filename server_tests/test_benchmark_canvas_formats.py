@@ -97,6 +97,9 @@ class TestQuestions(unittest.TestCase):
         self.assertEqual(question("rd_bar_max").expected, ["Fri"])
         self.assertAlmostEqual(question("rd_fit_slope").expected, 1.8595995550611797)
 
+    def test_closest_point_question_excludes_labels(self) -> None:
+        self.assertIn("named point (not label)", question("mm_closest_to_h").text)
+
     def test_change_questions_follow_the_fixture_diff(self) -> None:
         self.assertEqual(question("ch_removed").expected, ["EF"])
         self.assertEqual(question("ch_moved_point").expected, ["I"])
@@ -115,6 +118,14 @@ class TestGrading(unittest.TestCase):
         self.assertEqual(bench.extract_answer("It is 7.\n\n"), ("It is 7.", False))
         self.assertEqual(bench.extract_answer(""), ("", False))
 
+    def test_extract_answer_accepts_final_answer_lines_and_boxed_values(self) -> None:
+        self.assertEqual(bench.extract_answer("Work.\nFinal Answer: B"), ("B", True))
+        self.assertEqual(bench.extract_answer("**Final answer:** B"), ("B", True))
+        self.assertEqual(bench.extract_answer("\\boxed{D}"), ("D", False))
+        self.assertEqual(bench.extract_answer("Answer: $\\boxed{\\frac{1}{2}}$"), ("\\frac{1}{2}", True))
+        self.assertTrue(bench.grade(question("mm_right_angle"), bench.extract_answer("Final Answer: B")[0]))
+        self.assertTrue(bench.grade(question("mm_closest_to_h"), bench.extract_answer("\\boxed{D}")[0]))
+
     def test_numbers_use_a_tolerance(self) -> None:
         q = question("tc_len_bc")
         self.assertTrue(bench.grade(q, "4.24"))
@@ -124,12 +135,29 @@ class TestGrading(unittest.TestCase):
         self.assertTrue(bench.numbers_close(0.005, 0.0))
         self.assertTrue(bench.grade(question("wg_shortest_a_f"), "12 (A-C-E-F)"))
 
+    def test_numbers_rounded_to_whole_numbers_are_wrong(self) -> None:
+        self.assertAlmostEqual(question("rd_view_top").expected, 20.14256619144603)
+        self.assertFalse(bench.grade(question("rd_view_top"), "20"))
+        self.assertTrue(bench.grade(question("rd_view_top"), "20.14"))
+        self.assertFalse(bench.grade(question("wg_point_b"), "140, 140"))
+        self.assertTrue(bench.grade(question("wg_point_b"), "140.856, 140.856"))
+        self.assertFalse(bench.grade(question("wg_distance_ac"), "280"))
+        self.assertTrue(bench.grade(question("wg_distance_ac"), "281.7"))
+        self.assertTrue(bench.grade(question("mm_point_j"), "3.33, 1.1"))  # 2 decimals of 10/3
+
     def test_ordered_numbers(self) -> None:
         q = question("ch_old_position")
         self.assertTrue(bench.grade(q, "(-1, 0.5)"))
         self.assertTrue(bench.grade(q, "x = −1, y = 0.5"))
         self.assertFalse(bench.grade(q, "(0.5, -1)"))
         self.assertFalse(bench.grade(q, "-1"))
+
+    def test_new_position_takes_the_part_after_an_arrow(self) -> None:
+        q = question("ch_new_position")
+        self.assertTrue(bench.grade(q, "(-1, 0.5) -> (-1, -0.5)"))
+        self.assertTrue(bench.grade(q, "(-1, 0.5) → (-1, -0.5)"))
+        self.assertTrue(bench.grade(q, "(-1, -0.5)"))
+        self.assertFalse(bench.grade(q, "(-1, -0.5) -> (-1, 0.5)"))
 
     def test_names_are_case_insensitive(self) -> None:
         self.assertTrue(bench.grade(question("mm_e1_color"), "Purple."))
@@ -150,6 +178,23 @@ class TestGrading(unittest.TestCase):
         # The article "a" is not point A.
         self.assertTrue(bench.grade(question("ch_on_new_circle"), "Only C lies on a circle of radius 5"))
         self.assertEqual(bench.parse_name_set("points D, E and G", ["D", "E", "G", "AB"]), {"D", "E", "G"})
+
+    def test_set_answers_end_at_an_explanation(self) -> None:
+        self.assertTrue(bench.grade(question("wg_neighbours_f"), "D, E, G (via DF, EF, FG)"))
+        self.assertTrue(bench.grade(question("ch_segments_now"), "AB, BC, AC, GH (EF was removed)"))
+        self.assertTrue(bench.grade(question("ch_segments_now"), "AB, BC, AC, GH; EF is gone"))
+        self.assertTrue(bench.grade(question("ch_on_new_circle"), "C (I is inside)"))
+        self.assertTrue(bench.grade(question("ch_on_new_circle"), "C because |AC| = 5"))
+        self.assertTrue(bench.grade(question("ch_on_new_circle"), "C lies on A(5)"))
+        self.assertFalse(bench.grade(question("ch_on_new_circle"), "C, I"))
+
+    def test_set_vocabulary_holds_only_the_kind_asked_for(self) -> None:
+        points = question("ch_on_new_circle").vocabulary
+        self.assertIn("C", points)
+        self.assertNotIn("A(5)", points)
+        segments = question("ch_segments_now").vocabulary
+        self.assertIn("EF", segments)
+        self.assertNotIn("A", segments)
 
     def test_edges_and_expressions(self) -> None:
         edge = question("wg_lightest_edge_d")

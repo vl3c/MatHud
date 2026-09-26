@@ -360,8 +360,10 @@ class Question:
 
     ``expected`` by kind: number -> float; numbers -> ordered floats; name and
     expression -> accepted spellings; set and edge -> names (order-insensitive).
-    ``vocabulary`` holds the scene's object names, used to pick names out of
-    free-form set answers.
+    ``vocabulary`` holds the names a free-form answer is matched against: the
+    scene's object names, or for set questions only the names of the kind asked
+    for (points, segments). ``after_arrow`` grades only the part after an arrow
+    ("old -> new" answers to a new-position question).
     """
 
     scene: str
@@ -371,12 +373,27 @@ class Question:
     kind: str
     expected: Any
     vocabulary: Tuple[str, ...] = field(default=(), repr=False)
+    after_arrow: bool = field(default=False, repr=False)
 
 
-def _question(scene: Scene, qid: str, category: str, text: str, kind: str, expected: Any) -> Question:
+def _question(
+    scene: Scene,
+    qid: str,
+    category: str,
+    text: str,
+    kind: str,
+    expected: Any,
+    set_of: Optional[str] = None,
+    after_arrow: bool = False,
+) -> Question:
+    """Build a question; ``set_of`` names the state bucket whose names a set answer may contain."""
     assert kind in ANSWER_KINDS, kind
-    vocabulary = set(object_names(scene.state)) | set(object_names(scene.after or {}))
-    return Question(scene.name, qid, category, text, kind, expected, tuple(sorted(vocabulary)))
+    states = [scene.state] + ([scene.after] if scene.after is not None else [])
+    if set_of is not None:
+        vocabulary = {str(item.get("name")) for state in states for item in _items(state, set_of)}
+    else:
+        vocabulary = {name for state in states for name in object_names(state)}
+    return Question(scene.name, qid, category, text, kind, expected, tuple(sorted(vocabulary)), after_arrow)
 
 
 def _triangle_circle_questions(scene: Scene) -> List[Question]:
@@ -423,6 +440,7 @@ def _triangle_circle_questions(scene: Scene) -> List[Question]:
             "center)? List the point names separated by commas, or answer none.",
             "set",
             sorted(points_on_circle(state, "A(3)")),
+            set_of="Points",
         ),
         q(scene, "tc_circle_area", "measurement", "What is the area of circle A(3)?", "number", math.pi * radius**2),
         q(
@@ -518,7 +536,7 @@ def _mixed_medium_questions(scene: Scene) -> List[Question]:
             scene,
             "mm_closest_to_h",
             "multi_hop",
-            "Which named point is closest to point H (not counting H itself)?",
+            "Which named point (not label) is closest to point H (not counting H itself)?",
             "name",
             [unique_extreme(to_h, largest=False)],
         ),
@@ -559,6 +577,7 @@ def _weighted_graph_questions(scene: Scene) -> List[Question]:
             "Which vertices of graph G1 are adjacent to vertex F? List their names separated by commas.",
             "set",
             sorted(neighbours_f),
+            set_of="Points",
         ),
         q(
             scene,
@@ -713,6 +732,7 @@ def _change_questions(scene: Scene) -> List[Question]:
             f"Where is point {moved_name} now? Answer as x, y.",
             "numbers",
             list(new_xy),
+            after_arrow=True,
         ),
         q(scene, "ch_added_name", "change", "What is the name of the circle your edits added?", "name", [added_name]),
         q(
@@ -723,6 +743,7 @@ def _change_questions(scene: Scene) -> List[Question]:
             "List the point names separated by commas, or answer none.",
             "set",
             sorted(points_on_circle(after, added_name)),
+            set_of="Points",
         ),
         q(
             scene,
@@ -739,6 +760,7 @@ def _change_questions(scene: Scene) -> List[Question]:
             "Which segments are on the canvas after your edits? List their names separated by commas.",
             "set",
             sorted(item["name"] for item in _items(after, "Segments")),
+            set_of="Segments",
         ),
     ]
 
@@ -762,7 +784,11 @@ def build_questions(scenes: Sequence[Scene]) -> List[Question]:
 # --------------------------------------------------------------------------- grading (pure)
 
 _THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
-_ANSWER_LINE = re.compile(r"^[\s*_>#-]*answer[\s*_]*:[\s*_]*(?P<value>.*?)[\s*_]*$", re.IGNORECASE)
+_ANSWER_LINE = re.compile(r"^[\s*_>#-]*(?:final\s+)?answer[\s*_]*:[\s*_]*(?P<value>.*?)[\s*_]*$", re.IGNORECASE)
+_BOXED = re.compile(r"\\boxed\s*\{")
+_ARROW = re.compile(r"->|→|=>|⟶")
+# A set answer ends at an explanation: " (", ";", " because", " since" (a name such as A(5) keeps its parentheses).
+_SET_ANSWER_END = re.compile(r"\s\(|;|\s(?:because|since)\b", re.IGNORECASE)
 _NUMBER = re.compile(r"(?<![A-Za-z_.\d])[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?")
 _NAME_TOKEN = re.compile(r"[A-Za-z][A-Za-z0-9_']*(?:\([^()\s]*\))?")
 _NONE_ANSWER = re.compile(r"^\s*(?:none|no points?|nothing|empty|\{\s*\}|∅)\b", re.IGNORECASE)
@@ -770,15 +796,20 @@ _NAME_PREFIX = re.compile(
     r"^(?:the\s+)?(?:point|segment|circle|vertex|object|curve|label|colou?r|day|bar|edge|text)\s+", re.IGNORECASE
 )
 _EXPRESSION_PREFIX = re.compile(r"^(?:[a-z]\w*\(x\)|y)=")
-NUMBER_RELATIVE_TOLERANCE = 1e-2
-NUMBER_ABSOLUTE_TOLERANCE = 1e-2
+# Numbers: relative 2e-3 or absolute 5e-3. The text format shows 6 significant
+# digits, so an answer read off the canvas is within ~5e-6; the relative bound
+# still accepts 3-4 significant figures (281.7 for 281.71) and the absolute one
+# any rounding to 2 decimals (3.33 for 10/3, values near 0), while whole-number
+# guesses such as 20 for 20.14 or 280 for 281.71 fail.
+NUMBER_RELATIVE_TOLERANCE = 2e-3
+NUMBER_ABSOLUTE_TOLERANCE = 5e-3
 
 
 def extract_answer(reply: str) -> Tuple[str, bool]:
-    """The value of the reply's last ``Answer:`` line, and whether such a line was present.
+    """The value of the reply's last ``Answer:`` (or ``Final answer:``) line, and whether one was present.
 
     Without one, the last non-empty line is used. Markdown emphasis, backticks,
-    ``$`` and ``<think>`` blocks are ignored.
+    ``$``, ``\\boxed{...}`` and ``<think>`` blocks are ignored.
     """
     text = _THINK_BLOCK.sub("", reply or "")
     lines = [line for line in text.splitlines() if line.strip()]
@@ -790,9 +821,24 @@ def extract_answer(reply: str) -> Tuple[str, bool]:
 
 
 def _clean_answer(value: str) -> str:
+    value = _unbox(value)
     for token in ("**", "`", "$", "\\(", "\\)"):
         value = value.replace(token, "")
     return value.replace("\u2212", "-").strip()
+
+
+def _unbox(value: str) -> str:
+    """Replace each ``\\boxed{...}`` with its content (nested braces allowed)."""
+    while True:
+        match = _BOXED.search(value)
+        if match is None:
+            return value
+        depth, end = 1, match.end()
+        while end < len(value) and depth:
+            depth += {"{": 1, "}": -1}.get(value[end], 0)
+            end += 1
+        inner = value[match.end() : end - 1] if depth == 0 else value[match.end() :]
+        value = value[: match.start()] + inner + value[end:]
 
 
 def parse_numbers(text: str) -> List[float]:
@@ -857,7 +903,9 @@ def parse_name_set(answer: str, vocabulary: Sequence[str]) -> Set[str]:
 
 
 def _grade_set(answer: str, expected: Sequence[str], vocabulary: Sequence[str]) -> bool:
-    return {name.lower() for name in parse_name_set(answer, vocabulary)} == {name.lower() for name in expected}
+    end = _SET_ANSWER_END.search(answer)
+    listed = answer[: end.start()] if end is not None and end.start() > 0 else answer
+    return {name.lower() for name in parse_name_set(listed, vocabulary)} == {name.lower() for name in expected}
 
 
 def _grade_edge(answer: str, expected: Sequence[str]) -> bool:
@@ -882,6 +930,8 @@ def grade(question: Question, answer: str) -> bool:
     if question.kind == "number":
         return _grade_number(answer, float(question.expected))
     if question.kind == "numbers":
+        if question.after_arrow:
+            answer = _ARROW.split(answer)[-1]
         return _grade_numbers(answer, [float(v) for v in question.expected])
     if question.kind == "name":
         return _grade_name(answer, question.expected)
