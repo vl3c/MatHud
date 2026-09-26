@@ -2,19 +2,25 @@
 Tests for the LocalAgent local LLM provider.
 
 Covers base URL resolution, server availability, model discovery from
-``/v1/models`` and registry self-registration in
-static/providers/local/local_agent_api.py. Every HTTP call is faked; no network,
-no .env files and no API keys are involved.
+``/v1/models``, registry self-registration in
+static/providers/local/local_agent_api.py, and the reasoning effort sent with
+every chat completion (asserted on the HTTP request body). Every HTTP call is
+faked; no network, no .env files and no API keys are involved.
 """
 
 from __future__ import annotations
 
+import json
+import logging
 import sys
 from typing import Any, Dict, List, Optional
 
+import httpx2
 import pytest
+from openai import OpenAI
 
-from static.providers.local import LocalProviderRegistry
+from static.ai_model import AIModel
+from static.providers.local import REASONING_EFFORT_ENV, LocalProviderRegistry
 from static.providers.local.local_agent_api import (
     PROVIDER_KEY,
     LocalAgentAPI,
@@ -61,6 +67,7 @@ class FakeRequests:
 def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Start every test without a configured base URL override."""
     monkeypatch.delenv(LocalAgentAPI.ENV_VAR, raising=False)
+    monkeypatch.delenv(REASONING_EFFORT_ENV, raising=False)
 
 
 @pytest.fixture
@@ -287,3 +294,90 @@ class TestRegistration:
         """The base URL contract is declared as class attributes."""
         assert LocalAgentAPI.ENV_VAR == "LOCAL_AGENT_BASE_URL"
         assert LocalAgentAPI.DEFAULT_URL == "http://127.0.0.1:8080"
+
+
+class RecordingServer:
+    """Mocked llama-server transport recording each chat completion request body."""
+
+    def __init__(self) -> None:
+        self.bodies: List[Dict[str, Any]] = []
+
+    def handle(self, request: httpx2.Request) -> httpx2.Response:
+        body = json.loads(request.content)
+        self.bodies.append(body)
+        if body.get("stream"):
+            chunk = {
+                "id": "c",
+                "object": "chat.completion.chunk",
+                "created": 0,
+                "model": "m",
+                "choices": [{"index": 0, "delta": {"content": "ok"}, "finish_reason": "stop"}],
+            }
+            sse = f"data: {json.dumps(chunk)}\n\ndata: [DONE]\n\n"
+            return httpx2.Response(200, headers={"content-type": "text/event-stream"}, text=sse)
+        completion = {
+            "id": "c",
+            "object": "chat.completion",
+            "created": 0,
+            "model": "m",
+            "choices": [
+                {"index": 0, "message": {"role": "assistant", "content": "ok"}, "finish_reason": "stop"},
+            ],
+        }
+        return httpx2.Response(200, json=completion)
+
+
+def _api_for(server: RecordingServer) -> LocalAgentAPI:
+    api = LocalAgentAPI(model=AIModel("qwen3.8-27b", has_vision=False, provider="local_agent"), tools=[])
+    http_client = httpx2.Client(transport=httpx2.MockTransport(server.handle))
+    api.client = OpenAI(api_key="k", base_url="http://mock/v1", http_client=http_client, max_retries=0)
+    return api
+
+
+def _send_both(api: LocalAgentAPI) -> None:
+    """One non-streamed and one streamed request."""
+    api.create_chat_completion(json.dumps({"user_message": "hi"}))
+    list(api.create_chat_completion_stream(json.dumps({"user_message": "again"})))
+
+
+class TestReasoningEffort:
+    """chat_template_kwargs.reasoning_effort on every request (MATHUD_LOCAL_REASONING_EFFORT)."""
+
+    def test_default_effort_is_medium_in_both_request_paths(self) -> None:
+        server = RecordingServer()
+        _send_both(_api_for(server))
+        assert len(server.bodies) == 2
+        assert not server.bodies[0].get("stream")
+        assert server.bodies[1]["stream"] is True
+        for body in server.bodies:
+            assert body["chat_template_kwargs"] == {"reasoning_effort": "medium"}
+            assert body["temperature"] == 0.2
+            assert body["max_tokens"] == 16000
+
+    @pytest.mark.parametrize("raw, expected", [("low", "low"), (" HIGH ", "high"), ("xhigh", "xhigh"), ("max", "max")])
+    def test_env_override(self, monkeypatch: pytest.MonkeyPatch, raw: str, expected: str) -> None:
+        monkeypatch.setenv(REASONING_EFFORT_ENV, raw)
+        server = RecordingServer()
+        _send_both(_api_for(server))
+        assert [body["chat_template_kwargs"] for body in server.bodies] == [{"reasoning_effort": expected}] * 2
+
+    @pytest.mark.parametrize("raw", ["default", "none", "None"])
+    def test_default_or_none_omits_the_field(self, monkeypatch: pytest.MonkeyPatch, raw: str) -> None:
+        monkeypatch.setenv(REASONING_EFFORT_ENV, raw)
+        server = RecordingServer()
+        _send_both(_api_for(server))
+        assert len(server.bodies) == 2
+        assert all("chat_template_kwargs" not in body for body in server.bodies)
+
+    def test_invalid_value_warns_and_uses_the_default(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        monkeypatch.setenv(REASONING_EFFORT_ENV, "turbo")
+        with caplog.at_level(logging.WARNING, logger="mathud"):
+            api = _api_for(RecordingServer())
+        assert api.reasoning_effort == "medium"
+        assert any(REASONING_EFFORT_ENV in record.getMessage() for record in caplog.records)
+
+    def test_empty_value_uses_the_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv(REASONING_EFFORT_ENV, "  ")
+        assert _api_for(RecordingServer()).reasoning_effort == "medium"
