@@ -34,7 +34,10 @@ Dependencies:
             inlineMath: [['\\(', '\\)']],
             displayMath: [['$$', '$$']],
             processEscapes: true,
-            processEnvironments: true
+            processEnvironments: true,
+            // No html extension: its \href{javascript:...} would turn chat text
+            // (live or loaded from a workspace) into a clickable script link.
+            autoload: { html: [] }
         },
         options: {
             skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
