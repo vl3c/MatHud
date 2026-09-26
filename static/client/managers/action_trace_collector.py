@@ -327,12 +327,17 @@ class ActionTraceCollector:
         """JSON text for comparing drawable states.
 
         Keys are sorted when possible; values JSON cannot express (or keys of mixed
-        types, which cannot be sorted) fall back to ``str`` without sorting.
+        types, which cannot be sorted) fall back to ``str`` without sorting, and
+        anything that still fails to serialize compares by ``repr``.
         """
         try:
             return json.dumps(value, sort_keys=True)
-        except (TypeError, ValueError):
+        except Exception:
+            pass
+        try:
             return json.dumps(value, default=str)
+        except Exception:
+            return repr(value)
 
     @staticmethod
     def _truncate(value: Any) -> Any:
