@@ -1575,7 +1575,9 @@ class WorkspaceManager:
         error_prefix: str,
     ) -> Any:
         req: Any = ajax.Ajax()
-        req.bind("complete", on_complete)
+        # No "complete" handler: a synchronous request completes inside send(), and
+        # _finalize_sync_request then runs on_complete once. Binding it as well ran it
+        # twice, restoring a loaded workspace twice.
         req.bind("error", lambda e: f"{error_prefix}: {e.text}")
         return req
 
