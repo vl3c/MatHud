@@ -237,6 +237,10 @@ class TestGrading(unittest.TestCase):
         self.assertFalse(bench.grade(circle, "unknown"))
         self.assertFalse(bench.grade(circle, "I cannot determine this from the data."))
         self.assertFalse(bench.grade(circle, "Let me compute the distance from the center to each point..."))
+        self.assertFalse(bench.grade(circle, "I have no idea which points lie on it"))
+        self.assertFalse(bench.grade(circle, "No information about points is given"))
+        self.assertFalse(bench.grade(circle, "The distance is non-zero for all of them"))
+        self.assertTrue(bench.grade(circle, "Zero points"))
         # Segment CA is segment AC.
         self.assertTrue(bench.grade(q, "AB, BC, CA, GH"))
         # The article "a" is not point A.

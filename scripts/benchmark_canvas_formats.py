@@ -861,8 +861,11 @@ _NUMBER = re.compile(r"(?<![A-Za-z_.\d])[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?
 _NAME_TOKEN = re.compile(r"[A-Za-z][A-Za-z0-9_']*(?:\([^()\s]*\))?")
 _NONE_ANSWER = re.compile(r"^\s*(?:none|no points?|nothing|empty|\{\s*\}|∅)\b", re.IGNORECASE)
 # Anywhere in an answer that lists no names: "There are none", "No named points lie on it", "∅".
+# Only listed qualifiers may sit between "no" and "points": "I have no idea which points" is not none.
 _SAYS_NONE = re.compile(
-    r"\b(?:none|nothing|empty|zero)\b|\bno(?:\s+\w+){0,2}?\s+points?\b|\bnot\s+any\b|\{\s*\}|∅", re.IGNORECASE
+    r"\b(?:none|nothing|empty)\b|(?<!-)\bzero\b"
+    r"|\bno(?:\s+(?:other|such|named|given|labell?ed|additional|further|of\s+the))*\s+points?\b|\{\s*\}|∅",
+    re.IGNORECASE,
 )
 _LATEX_TEXT = re.compile(r"\\text\{([^{}]*)\}")
 _NAME_PREFIX = re.compile(
