@@ -440,6 +440,13 @@ class CommandAutocomplete:
         except Exception as e:
             print(f"Error updating selection visual: {e}")
 
+    @staticmethod
+    def _text_span(text: str, class_name: str) -> Any:
+        """Create a span showing ``text`` literally (never parsed as HTML)."""
+        span = html.SPAN(Class=class_name)
+        span.text = text
+        return span
+
     def _render_filtered_commands(self) -> None:
         """Render the filtered commands in the popup."""
         if self.popup_element is None:
@@ -456,11 +463,10 @@ class CommandAutocomplete:
                 if index == self.selected_index:
                     item.classList.add("selected")
 
-                # Command name span
-                cmd_name = html.SPAN(cmd, Class="command-name")
-
-                # Description span
-                cmd_desc = html.SPAN(desc, Class="command-description")
+                # Name and description are set as text: html.SPAN(str) parses HTML, and
+                # entries include workspace names from /list_workspaces and model ids.
+                cmd_name = self._text_span(cmd, "command-name")
+                cmd_desc = self._text_span(desc, "command-description")
 
                 item <= cmd_name
                 item <= cmd_desc

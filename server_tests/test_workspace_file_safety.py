@@ -155,6 +155,16 @@ class TestWorkspaceFileSafety(unittest.TestCase):
         self.assertTrue(os.path.exists(self._path("keep.json.bak")))
         self.assertEqual(self.manager.list_workspaces(), ["keep"])
 
+    def test_list_workspaces_skips_names_load_would_reject(self) -> None:
+        """Files whose names fail _is_safe_workspace_name are not listed (the /load autocomplete shows them)."""
+        self.assertTrue(self.manager.save_workspace(_state("A"), "good_name-1"))
+        # Legal file names on Windows too, but not valid workspace names.
+        for unsafe in ("has space", "semi;colon", "paren(x)", "amp&lt"):
+            with open(self._path(f"{unsafe}.json"), "w", encoding="utf-8") as f:
+                json.dump({"metadata": {"name": unsafe}, "state": {}}, f)
+            self.assertFalse(self.manager._is_safe_workspace_name(unsafe))
+        self.assertEqual(self.manager.list_workspaces(), ["good_name-1"])
+
     def test_deleted_workspace_cannot_be_loaded(self) -> None:
         self.assertTrue(self.manager.save_workspace(_state("A"), "ws"))
         self.assertTrue(self.manager.delete_workspace("ws"))

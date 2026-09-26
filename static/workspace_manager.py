@@ -371,6 +371,10 @@ class WorkspaceManager:
                 name_without_extension = filename[:-5]
                 if name_without_extension.startswith("current_workspace_"):
                     continue
+                # Only list names that load_workspace accepts (the client shows them in
+                # the /load autocomplete, so markup-like file names never reach it).
+                if not self._is_safe_workspace_name(name_without_extension):
+                    continue
 
                 file_path = os.path.join(target_dir, filename)
                 try:
