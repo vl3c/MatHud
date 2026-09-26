@@ -27,14 +27,37 @@ Dependencies:
     <!-- Inter font, served locally from static/vendor (see static/vendor/LICENSES.md) -->
     <link href="{{ url_for('static', filename='vendor/inter/5.3.0/inter.css') }}" rel="stylesheet">
     
-    <!-- MathJax configuration for LaTeX mathematical notation rendering -->
+    <!-- MathJax configuration for LaTeX mathematical notation rendering.
+         Chat math is untrusted (model output, user text, saved workspaces), so it is
+         locked down in layers: no html extension, no \require, the ui/safe filter
+         (no URLs at all, no cursor styles), a fontfamily filter, and after each typeset
+         static/math_output_sanitizer.js (see ChatUIManager.render_math). -->
     <script>
+    // Font names only: letters, digits, spaces, commas, quotes and hyphens. \mmlToken's
+    // fontfamily and \unicode's font option are otherwise pasted into the style unchecked
+    // (e.g. "x;position:fixed;..." makes a full-page overlay, or loads a url()).
+    var MATHUD_SAFE_FONT_FAMILY = /^[\w\s,'"-]*$/;
     window.MathJax = {
-        // ui/safe filters what typeset math may carry: javascript:/data: hrefs, and
-        // style, class and id values (\mmlToken and \bbox can set them from base TeX,
-        // e.g. an invisible full-page link). It resolves to the vendored
-        // es5/ui/safe.js, relative to tex-mml-chtml.js, like the TeX extensions.
+        // ui/safe filters what typeset math may carry: hrefs, and style, class and id
+        // values (\mmlToken and \bbox can set them from base TeX). It resolves to the
+        // vendored es5/ui/safe.js, relative to tex-mml-chtml.js, like the TeX extensions.
         loader: { load: ['ui/safe'] },
+        startup: {
+            // Nothing is typeset outside ChatUIManager.render_math, which sanitises the output.
+            typeset: false,
+            ready: function () {
+                MathJax.startup.defaultReady();
+                var safe = MathJax.startup.document.safe;
+                safe.filterMethods.filterFontFamily = function (_safe, family) {
+                    return typeof family === 'string' && MATHUD_SAFE_FONT_FAMILY.test(family) ? family : null;
+                };
+                safe.filterAttributes.set('fontfamily', 'filterFontFamily');
+                // Load the commonly used autoloaded extensions up front (small vendored
+                // files), so typesetting never waits on MathJax's retry-and-load path.
+                MathJax.loader.load('[tex]/color', '[tex]/bbox', '[tex]/boldsymbol', '[tex]/cancel', '[tex]/unicode')
+                    .catch(function () {});
+            }
+        },
         tex: {
             inlineMath: [['\\(', '\\)']],
             displayMath: [['$$', '$$']],
@@ -47,11 +70,20 @@ Dependencies:
             autoload: { html: [] }
         },
         options: {
-            skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+            skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
+            // No URLs at all: ui/safe's protocol check lets a tab or control character
+            // inside "javascript:" through, and http(s)/file links are unwanted anyway.
+            // Cursor styles can load url() images, so they are dropped too.
+            safeOptions: {
+                allow: { URLs: 'none' },
+                safeStyles: { cursor: false }
+            }
         }
     };
     </script>
     <script id="MathJax-script" async src="{{ url_for('static', filename='vendor/mathjax/3.2.2/es5/tex-mml-chtml.js') }}"></script>
+    <!-- Backstop for typeset chat math: strips links, overlays and foreign ids/classes -->
+    <script src="{{ url_for('static', filename='math_output_sanitizer.js') }}"></script>
     
     <!-- Brython Python runtime and mathematical libraries, vendored in static/vendor (pinned by scripts/vendor_js_libs.py) -->
     <script src="{{ url_for('static', filename='vendor/mathjs/14.5.2/math.min.js') }}"></script>

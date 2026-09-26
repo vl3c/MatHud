@@ -7,11 +7,15 @@ import unittest
 from pathlib import Path
 
 INDEX_HTML = Path(__file__).resolve().parent.parent / "templates" / "index.html"
+STATIC_DIR = INDEX_HTML.parent.parent / "static"
 
 
 def _mathjax_config() -> str:
+    """The inline <script> block that configures MathJax."""
     template = INDEX_HTML.read_text(encoding="utf-8")
-    return template[template.index("window.MathJax = {") : template.index("</script>")]
+    config_at = template.index("window.MathJax = {")
+    start = template.rindex("<script>", 0, config_at)
+    return template[start : template.index("</script>", config_at)]
 
 
 class TestMathJaxConfig(unittest.TestCase):
@@ -43,6 +47,28 @@ class TestMathJaxConfig(unittest.TestCase):
             re.search(r"packages:\s*\{\s*'\[-\]':\s*\[\s*'require'\s*\]\s*\}", config),
             config,
         )
+
+    def test_safe_options_allow_no_urls_and_no_cursor(self) -> None:
+        """ui/safe's protocol check misses a tab inside "javascript:"; no URLs at all is safe."""
+        config = _mathjax_config()
+        self.assertIsNotNone(re.search(r"allow:\s*\{\s*URLs:\s*'none'\s*\}", config), config)
+        self.assertIsNotNone(re.search(r"safeStyles:\s*\{\s*cursor:\s*false\s*\}", config), config)
+
+    def test_fontfamily_is_filtered(self) -> None:
+        """fontfamily (\\mmlToken, \\unicode's font) is pasted into the style unless filtered."""
+        config = _mathjax_config()
+        self.assertIn("safe.filterAttributes.set('fontfamily', 'filterFontFamily')", config)
+        self.assertIn("var MATHUD_SAFE_FONT_FAMILY = /^[\\w\\s,'\"-]*$/;", config)
+        # The filter is installed after the default startup has created the document.
+        self.assertLess(config.index("MathJax.startup.defaultReady()"), config.index("filterAttributes.set"))
+
+    def test_page_is_not_typeset_outside_the_sanitised_chat_path(self) -> None:
+        self.assertRegex(_mathjax_config(), r"typeset:\s*false")
+
+    def test_output_sanitizer_is_loaded(self) -> None:
+        template = INDEX_HTML.read_text(encoding="utf-8")
+        self.assertIn("url_for('static', filename='math_output_sanitizer.js')", template)
+        self.assertTrue((STATIC_DIR / "math_output_sanitizer.js").is_file())
 
 
 if __name__ == "__main__":

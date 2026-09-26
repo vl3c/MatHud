@@ -1,0 +1,180 @@
+// Output sanitiser for MathJax-typeset chat math (the backstop layer).
+//
+// Chat text comes from the model, the user and saved workspaces, so math in it is
+// untrusted TeX. The MathJax configuration in templates/index.html is the first line
+// of defence (no html extension, no \require, the ui/safe filter with URLs off, a
+// fontfamily filter). This file is the second: after each typeset, it walks the output
+// of every mjx-container and removes anything math never needs:
+//   - links: <a> elements are unwrapped; href, xlink:href and src attributes removed;
+//   - event-handler attributes (on*);
+//   - ids that do not start with "mjx-", and classes MathJax does not use itself;
+//   - style declarations that could overlay the page or load or run anything:
+//     position other than static/relative, large or non-length offsets (top, left,
+//     right, bottom, inset), viewport units, z-index, cursor, content, and any value
+//     with url(), image-set(), expression(), javascript: or @import.
+// MathJax's own inline layout (position: relative with offsets of a fraction of an
+// em, transforms, widths, margins) and colours, backgrounds without url(), borders,
+// padding and font settings stay, so legitimate math looks the same. Content that is
+// not fixed-positioned cannot leave the chat panel, which clips its overflow.
+//
+// Timing: a url() in a style can be requested before this runs, so the MathJax
+// configuration has to block network access on its own; this layer only guarantees
+// the rendered result is inert (no links, overlays or foreign ids/classes).
+(function () {
+    "use strict";
+
+    var BLOCKED_PROPERTY = /^(z-index|cursor|content|behavior|-moz-binding)$/i;
+    var OFFSET_PROPERTY = /^(top|left|right|bottom|inset(-.*)?)$/i;
+    // MathJax's own offsets are a fraction of an em or 0px; anything else is dropped.
+    var SMALL_OFFSET = /^-?(\d*\.?\d+(em|ex)|\d{0,2}(\.\d+)?px|0)$/i;
+    var ALLOWED_POSITION = /^(static|relative)$/i;
+    var URL_CAPABLE_PROPERTY = /^(background|border-image|list-style|mask|-webkit-mask|filter|src)/i;
+    var DANGEROUS_VALUE = /url\s*\(|image-set\s*\(|expression\s*\(|javascript\s*:|@import/i;
+    var VIEWPORT_UNIT = /\d(vw|vh|vmin|vmax|svh|lvh|dvh|svw|lvw|dvw)\b/i;
+    var ALLOWED_CLASS = /^(mjx-|MJX|MathJax|CtxtMenu_|TEX-)/;
+    var ALLOWED_ID = /^mjx-/;
+    var LINK_ATTRIBUTES = ["href", "xlink:href", "src", "action", "formaction"];
+    var MAX_OFFSET_EM = 10;
+
+    function isSmallOffset(value) {
+        if (!SMALL_OFFSET.test(value)) {
+            return false;
+        }
+        return !/(em|ex)$/i.test(value) || Math.abs(parseFloat(value)) <= MAX_OFFSET_EM;
+    }
+
+    function isBlockedDeclaration(name, value, positionAllowed) {
+        if (BLOCKED_PROPERTY.test(name) || DANGEROUS_VALUE.test(value) || VIEWPORT_UNIT.test(value)) {
+            return true;
+        }
+        if (name.toLowerCase() === "position") {
+            return !positionAllowed;
+        }
+        if (OFFSET_PROPERTY.test(name)) {
+            // Offsets of an element whose position was dropped go too.
+            return !positionAllowed || !isSmallOffset(value.trim());
+        }
+        return URL_CAPABLE_PROPERTY.test(name) && /url\s*\(/i.test(value);
+    }
+
+    function sanitizeStyle(element) {
+        var raw = element.getAttribute("style");
+        if (raw === null) {
+            return;
+        }
+        var style = element.style;
+        var position = style.getPropertyValue("position").trim();
+        var positionAllowed = !position || ALLOWED_POSITION.test(position);
+        for (var i = style.length - 1; i >= 0; i--) {
+            var name = style[i];
+            if (isBlockedDeclaration(name, style.getPropertyValue(name), positionAllowed)) {
+                style.removeProperty(name);
+            }
+        }
+        // Re-serialise from the parsed declarations, dropping text the browser ignored.
+        var cleaned = style.cssText;
+        if (!cleaned || DANGEROUS_VALUE.test(cleaned)) {
+            element.removeAttribute("style");
+        } else if (cleaned !== raw) {
+            element.setAttribute("style", cleaned);
+        }
+    }
+
+    function sanitizeClasses(element) {
+        if (!element.hasAttribute("class")) {
+            return;
+        }
+        var kept = [];
+        var names = element.getAttribute("class").split(/\s+/);
+        for (var i = 0; i < names.length; i++) {
+            if (names[i] && ALLOWED_CLASS.test(names[i])) {
+                kept.push(names[i]);
+            }
+        }
+        if (kept.length) {
+            element.setAttribute("class", kept.join(" "));
+        } else {
+            element.removeAttribute("class");
+        }
+    }
+
+    function sanitizeAttributes(element) {
+        for (var i = 0; i < LINK_ATTRIBUTES.length; i++) {
+            element.removeAttribute(LINK_ATTRIBUTES[i]);
+        }
+        var attributes = Array.prototype.slice.call(element.attributes);
+        for (var j = 0; j < attributes.length; j++) {
+            var name = attributes[j].name.toLowerCase();
+            if (name.indexOf("on") === 0 || name.slice(-4) === "href") {
+                element.removeAttribute(attributes[j].name);
+            }
+        }
+        var id = element.getAttribute("id");
+        if (id !== null && !ALLOWED_ID.test(id)) {
+            element.removeAttribute("id");
+        }
+        sanitizeClasses(element);
+        sanitizeStyle(element);
+    }
+
+    function unwrapLinks(container) {
+        var links = container.querySelectorAll("a");
+        for (var i = 0; i < links.length; i++) {
+            var link = links[i];
+            var parent = link.parentNode;
+            if (!parent) {
+                continue;
+            }
+            while (link.firstChild) {
+                parent.insertBefore(link.firstChild, link);
+            }
+            parent.removeChild(link);
+        }
+    }
+
+    function sanitizeContainer(container) {
+        unwrapLinks(container);
+        sanitizeAttributes(container);
+        var elements = container.querySelectorAll("*");
+        for (var i = 0; i < elements.length; i++) {
+            sanitizeAttributes(elements[i]);
+        }
+    }
+
+    // Sanitise every mjx-container inside root (or root itself when it is one).
+    function sanitize(root) {
+        if (!root || !root.querySelectorAll) {
+            return 0;
+        }
+        var containers = Array.prototype.slice.call(root.querySelectorAll("mjx-container"));
+        if (root.tagName && root.tagName.toLowerCase() === "mjx-container") {
+            containers.unshift(root);
+        }
+        for (var i = 0; i < containers.length; i++) {
+            sanitizeContainer(containers[i]);
+        }
+        return containers.length;
+    }
+
+    // Typeset root with MathJax, then sanitise its math. Resolves to the number of
+    // containers sanitised; never rejects (a failed typeset still gets sanitised).
+    function typesetAndSanitize(root) {
+        var mathjax = window.MathJax;
+        if (!mathjax || typeof mathjax.typesetPromise !== "function") {
+            return Promise.resolve(sanitize(root));
+        }
+        return mathjax.typesetPromise([root]).then(
+            function () {
+                return sanitize(root);
+            },
+            function () {
+                return sanitize(root);
+            }
+        );
+    }
+
+    window.MatHudMathSafety = {
+        sanitize: sanitize,
+        typesetAndSanitize: typesetAndSanitize,
+    };
+})();

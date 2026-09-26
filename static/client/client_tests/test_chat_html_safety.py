@@ -3,9 +3,12 @@
 Brython's ``html.SPAN(str)`` parses its string argument as HTML, so user messages,
 tool names, arguments and results are set with ``.text``. These tests restore a
 chat carrying HTML payloads (as a tampered workspace file could) and render the
-same payloads live, then check that no element was created from them. They also
-check that MathJax does not load its html extension, whose ``\\href`` would make
-``javascript:`` links out of chat math.
+same payloads live, then check that no element was created from them.
+
+Chat math is untrusted TeX. TestMathJaxHrefDisabled checks the MathJax configuration
+(no links, overlays, url() requests or foreign ids/classes from any TeX command), and
+TestMathOutputSanitizer checks the output sanitiser that runs after every chat
+typeset (static/math_output_sanitizer.js) on hand-built DOM.
 """
 
 from __future__ import annotations
@@ -13,7 +16,7 @@ from __future__ import annotations
 import unittest
 from typing import Any, Dict, List
 
-from browser import window
+from browser import document, window
 
 from tool_call_log_manager import ToolCallLogManager
 from .simple_mock import get_class_attr
@@ -130,22 +133,38 @@ class TestAutocompleteHtmlSafety(unittest.TestCase):
         self.assertIsNone(_xss_flag())
 
 
+XSS_JS = "window.__xss=(window.__xss||0)+1"
+OVERLAY = "position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:99999;opacity:0"
+# \mmlToken href values that plain ui/safe let through (control characters inside the
+# scheme are not recognised as javascript:) or that are simply unwanted in chat math.
+HREF_PAYLOADS = {
+    "tab inside scheme": f"java\tscript:{XSS_JS}",
+    "tab before colon": f"javascript\t:{XSS_JS}",
+    "control character prefix": f"\x01javascript:{XSS_JS}",
+    "https": "https://example.invalid/p",
+    "protocol-relative": "//example.invalid/p",
+    "file": "file:///C:/Windows/win.ini",
+}
+# Extension-backed cases skipped in this run; test_zz_no_extension_case_was_skipped fails on any.
+_SKIPPED_EXTENSION_CASES: List[str] = []
+
+
 class TestMathJaxHrefDisabled(unittest.TestCase):
-    """Chat math must not become links, overlays or styled/identified elements.
+    """Chat math must not become links, overlays, network requests or foreign ids/classes.
 
-    Covers ``\\href`` (html extension off, ``\\require`` removed) and what base TeX can
-    still set, ``\\mmlToken`` attributes and ``\\bbox`` styles, which the ``ui/safe``
-    component filters. Ordinary math must still render.
+    Layer A, the MathJax configuration in templates/index.html, is tested here with the
+    raw output of ``tex2chtml`` (no sanitiser): the html extension is off and ``\\require``
+    removed, ui/safe allows no URLs and no cursor styles, and fontfamily (also set by
+    ``\\unicode``'s font option) is filtered. Layer B, the output sanitiser, is tested
+    on its own in TestMathOutputSanitizer.
 
-    The harness is synchronous, so these tests use ``tex2chtml``. For TeX that needs an
-    autoloaded extension that is not loaded yet, a synchronous call throws "MathJax
-    retry", and a second call while that load is pending can break the extension for
-    the rest of the page (a TypeError, or the command left undefined). So these tests
-    never typeset extension-backed TeX before the extension's component is loaded:
-    ``_require_extension`` checks ``MathJax._.input.tex.<name>`` without typesetting and
-    skips the case until then. ``_preload_extensions`` starts loading the extensions
-    asynchronously when this module is imported, so they are normally ready by the time
-    the class runs. Math that needs no extension is always typeset strictly.
+    The harness is synchronous, so these tests use ``tex2chtml``. A synchronous call
+    during a pending extension autoload can break that extension for the rest of the
+    page, so extension-backed TeX is typeset only once ``_require_extension`` sees the
+    extension's component loaded (``MathJax._.input.tex.<name>``, checked without
+    typesetting). The page preloads the extensions these tests use when MathJax starts
+    (startup.ready in templates/index.html), so in the suite none should be skipped;
+    ``test_zz_no_extension_case_was_skipped`` runs last and fails if any was.
     """
 
     def _mathjax(self) -> Any:
@@ -158,11 +177,13 @@ class TestMathJaxHrefDisabled(unittest.TestCase):
         """Return MathJax once TeX extension ``name`` is loaded; skip (without typesetting) before."""
         mathjax = self._mathjax()
         if not _extension_loaded(mathjax, name):
+            _SKIPPED_EXTENSION_CASES.append(f"{self.id()} ({name})")
+            print(f"[TestMathJaxHrefDisabled] skipped: MathJax extension {name!r} not loaded yet")
             self.skipTest(f"MathJax TeX extension {name!r} is not loaded yet")
         return mathjax
 
     def _assert_inert(self, node: Any) -> None:
-        """No link, no fixed positioning, no external url(), no id or class ``evil``."""
+        """No link, no fixed positioning, no url(), no cursor, no id or class ``evil``."""
         self.assertIsNone(node.querySelector("a"))
         self.assertIsNone(node.querySelector("[href]"))
         self.assertIsNone(node.querySelector("#evil"))
@@ -171,24 +192,78 @@ class TestMathJaxHrefDisabled(unittest.TestCase):
             style = str(element.getAttribute("style") or "")
             self.assertNotIn("fixed", style)
             self.assertNotIn("url(", style)
+            self.assertNotIn("cursor", style)
 
     def _assert_renders(self, node: Any) -> None:
         self.assertIsNone(node.querySelector("mjx-merror"))
         self.assertIsNone(node.querySelector("[data-mjx-error]"))
 
+    # ── Configuration ───────────────────────────────────────────
+
     def test_safe_extension_is_loaded(self) -> None:
         self.assertTrue(bool(self._mathjax()._.ui.safe), "ui/safe is not loaded")
 
-    def test_mmltoken_href_is_removed(self) -> None:
-        node = self._mathjax().tex2chtml("\\mmlToken{mi}[href=javascript:window.__xss=(window.__xss||0)+1]{x}")
+    def test_safe_options_block_urls_and_cursor(self) -> None:
+        options = self._mathjax().startup.document.safe.options
+        self.assertEqual(options.allow.URLs, "none")
+        self.assertFalse(bool(options.safeStyles.cursor))
+
+    def test_html_extension_is_not_autoloaded(self) -> None:
+        autoload = self._mathjax().config.tex.autoload
+        self.assertEqual(len(autoload.html), 0)
+
+    # ── Links ───────────────────────────────────────────────────
+
+    def test_href_does_not_create_a_link(self) -> None:
+        # Strict: with the html extension off, \href needs no load; a "retry" fails the test.
+        node = self._mathjax().tex2chtml(f"\\href{{javascript:{XSS_JS}}}{{\\text{{click}}}}")
         self._assert_inert(node)
 
+    def test_require_html_does_not_create_a_link(self) -> None:
+        # Strict: \require is removed, so a "retry" here would mean the html extension loads.
+        node = self._mathjax().tex2chtml(f"\\require{{html}}\\href{{javascript:{XSS_JS}}}{{\\text{{click}}}}")
+        self._assert_inert(node)
+
+    def test_require_html_does_not_enable_class_style_or_id(self) -> None:
+        node = self._mathjax().tex2chtml("\\require{html}\\class{evil}{x}\\cssId{evil}{y}\\style{color:red}{z}")
+        self._assert_inert(node)
+
+    def test_mmltoken_hrefs_are_removed(self) -> None:
+        for label, href in HREF_PAYLOADS.items():
+            with self.subTest(href=label):
+                self._assert_inert(self._mathjax().tex2chtml(f"\\mmlToken{{mi}}[href={href}]{{x}}"))
+
+    # ── Overlays, styles and requests ───────────────────────────
+
     def test_mmltoken_full_page_link_overlay_is_removed(self) -> None:
-        node = self._mathjax().tex2chtml(
-            "\\mmlToken{mtext}[href=javascript:window.__xss=(window.__xss||0)+1,"
-            "style='position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:99999;opacity:0']{x}"
+        node = self._mathjax().tex2chtml(f"\\mmlToken{{mtext}}[href=javascript:{XSS_JS},style='{OVERLAY}']{{x}}")
+        self._assert_inert(node)
+
+    def test_fontfamily_overlay_is_removed(self) -> None:
+        node = self._mathjax().tex2chtml(f"\\mmlToken{{mi}}[fontfamily='x;{OVERLAY}']{{x}}")
+        self._assert_inert(node)
+
+    def test_fontfamily_overlay_with_tab_href_is_removed(self) -> None:
+        node = self._mathjax().tex2chtml(f"\\mmlToken{{mi}}[href=java\tscript:{XSS_JS},fontfamily='x;{OVERLAY}']{{x}}")
+        self._assert_inert(node)
+
+    def test_unicode_font_overlay_is_removed(self) -> None:
+        node = self._require_extension("unicode").tex2chtml(
+            f"\\unicode[x;{OVERLAY};background:url(//example.invalid/u)]{{x41}}"
         )
         self._assert_inert(node)
+
+    def test_cursor_url_is_removed(self) -> None:
+        node = self._mathjax().tex2chtml("\\mmlToken{mi}[style='cursor:url(https://example.invalid/c.png),auto']{x}")
+        self._assert_inert(node)
+
+    def test_mathcolor_and_mathbackground_cannot_inject_styles(self) -> None:
+        for attribute in ("mathcolor", "mathbackground"):
+            with self.subTest(attribute=attribute):
+                node = self._mathjax().tex2chtml(
+                    f"\\mmlToken{{mi}}[{attribute}='red;{OVERLAY};background:url(//example.invalid/m)']{{x}}"
+                )
+                self._assert_inert(node)
 
     def test_mmltoken_id_and_class_are_removed(self) -> None:
         self._assert_inert(self._mathjax().tex2chtml("\\mmlToken{mi}[id=evil,class=evil]{x}"))
@@ -199,28 +274,7 @@ class TestMathJaxHrefDisabled(unittest.TestCase):
         )
         self._assert_inert(node)
 
-    def test_html_extension_is_not_autoloaded(self) -> None:
-        autoload = self._mathjax().config.tex.autoload
-        self.assertEqual(len(autoload.html), 0)
-
-    def test_href_does_not_create_a_link(self) -> None:
-        # Strict: with the html extension off, \href needs no load; a "retry" fails the test.
-        node = self._mathjax().tex2chtml("\\href{javascript:window.__xss=1}{\\text{click}}")
-        self.assertIsNone(node.querySelector("a"))
-        self.assertIsNone(node.querySelector("[href]"))
-
-    def test_require_html_does_not_create_a_link(self) -> None:
-        # Strict: \require is removed, so a "retry" here would mean the html extension loads.
-        node = self._mathjax().tex2chtml(
-            "\\require{html}\\href{javascript:void(window.__xss=(window.__xss||0)+1)}{\\text{click}}"
-        )
-        self.assertIsNone(node.querySelector("a"))
-        self.assertIsNone(node.querySelector("[href]"))
-
-    def test_require_html_does_not_enable_class_style_or_id(self) -> None:
-        node = self._mathjax().tex2chtml("\\require{html}\\class{evil}{x}\\cssId{evil}{y}\\style{color:red}{z}")
-        self.assertIsNone(node.querySelector(".evil"))
-        self.assertIsNone(node.querySelector("#evil"))
+    # ── Ordinary math ───────────────────────────────────────────
 
     def test_bundled_math_still_renders(self) -> None:
         for tex in BUNDLED_MATH:
@@ -239,6 +293,161 @@ class TestMathJaxHrefDisabled(unittest.TestCase):
         self.assertIn("yellow", styles)
         self.assertIn("red", styles)
 
+    def test_unicode_font_name_is_kept(self) -> None:
+        node = self._require_extension("unicode").tex2chtml("\\unicode[Arial]{x41}")
+        self._assert_renders(node)
+        styles = " ".join(str(el.getAttribute("style") or "") for el in node.querySelectorAll("[style]"))
+        self.assertIn("Arial", styles)
+
+    def test_zz_no_extension_case_was_skipped(self) -> None:
+        """Runs last (alphabetical order): extension-backed cases must not be skipped silently."""
+        self._mathjax()
+        self.assertEqual(_SKIPPED_EXTENSION_CASES, [], "extension-backed MathJax tests were skipped")
+
+
+class TestMathOutputSanitizer(unittest.TestCase):
+    """Layer B, static/math_output_sanitizer.js, on hand-built DOM (no MathJax needed)."""
+
+    def setUp(self) -> None:
+        safety = getattr(window, "MatHudMathSafety", None)
+        if safety is None:
+            self.fail("static/math_output_sanitizer.js is not loaded")
+        self.safety = safety
+        self.root = document.createElement("div")
+
+    def _container(self, inner_html: str) -> Any:
+        container = document.createElement("mjx-container")
+        container.setAttribute("class", "MathJax CtxtMenu_Attached_0")
+        container.innerHTML = inner_html
+        self.root.appendChild(container)
+        return container
+
+    def test_unwraps_links_and_keeps_their_content(self) -> None:
+        container = self._container(
+            '<mjx-math><a href="javascript:alert(1)"><mjx-mi class="mjx-i">x</mjx-mi></a></mjx-math>'
+        )
+        self.assertEqual(self.safety.sanitize(self.root), 1)
+        self.assertIsNone(container.querySelector("a"))
+        self.assertIsNotNone(container.querySelector("mjx-mi"))
+        self.assertEqual(container.textContent, "x")
+
+    def test_removes_link_and_event_attributes(self) -> None:
+        container = self._container(
+            '<mjx-mi href="java\tscript:x" src="//e.invalid/i" onclick="x()" onmouseover="x()">x</mjx-mi>'
+            '<svg><use xlink:href="//e.invalid/s#a"></use></svg>'
+        )
+        self.safety.sanitize(self.root)
+        for element in container.querySelectorAll("*"):
+            names = [attr.name for attr in element.attributes]
+            for name in names:
+                self.assertFalse(name.lower().startswith("on"), name)
+                self.assertFalse(name.lower().endswith("href"), name)
+                self.assertNotEqual(name.lower(), "src")
+
+    def test_keeps_only_mathjax_ids_and_classes(self) -> None:
+        container = self._container(
+            '<mjx-mi id="evil" class="evil mjx-i TEX-I">x</mjx-mi><mjx-mo id="mjx-eqn-1" class="also-evil">y</mjx-mo>'
+        )
+        self.safety.sanitize(self.root)
+        mi = container.querySelector("mjx-mi")
+        mo = container.querySelector("mjx-mo")
+        self.assertFalse(mi.hasAttribute("id"))
+        self.assertEqual(mi.getAttribute("class"), "mjx-i TEX-I")
+        self.assertEqual(mo.getAttribute("id"), "mjx-eqn-1")
+        self.assertFalse(mo.hasAttribute("class"))
+        self.assertEqual(container.getAttribute("class"), "MathJax CtxtMenu_Attached_0")
+
+    def test_drops_positioning_cursor_and_url_styles_keeps_the_rest(self) -> None:
+        container = self._container(
+            '<mjx-mi style="position: fixed; top: 0; left: 0; z-index: 99999; cursor: pointer; '
+            "background: url(//e.invalid/b); color: red; background-color: yellow; "
+            'border: 2px solid red; padding: 5px; font-weight: bold; width: 3em">x</mjx-mi>'
+            "<mjx-mo style=\"content: 'x'; list-style-image: url(//e.invalid/l)\">y</mjx-mo>"
+        )
+        self.safety.sanitize(self.root)
+        style = container.querySelector("mjx-mi").style
+        for prop in ("position", "top", "left", "z-index", "cursor"):
+            self.assertEqual(str(style.getPropertyValue(prop)), "", prop)
+        mi_style = str(container.querySelector("mjx-mi").getAttribute("style"))
+        self.assertNotIn("url(", mi_style)
+        self.assertEqual(str(style.getPropertyValue("color")), "red")
+        self.assertEqual(str(style.getPropertyValue("background-color")), "yellow")
+        self.assertIn("solid", str(style.getPropertyValue("border")))
+        self.assertEqual(str(style.getPropertyValue("padding")), "5px")
+        self.assertEqual(str(style.getPropertyValue("font-weight")), "bold")
+        self.assertEqual(str(style.getPropertyValue("width")), "3em")
+        self.assertFalse(container.querySelector("mjx-mo").hasAttribute("style"))
+
+    def test_keeps_mathjax_relative_layout_but_not_large_offsets_or_viewport_sizes(self) -> None:
+        container = self._container(
+            '<mjx-box style="position: relative; top: -0.2em; left: 0.278em; transform: rotate(-0.7rad)">a</mjx-box>'
+            '<mjx-box style="position: relative; top: -5000px; left: -100em">b</mjx-box>'
+            '<mjx-box style="position: absolute; top: 0.1em">c</mjx-box>'
+            '<mjx-box style="width: 100vw; height: 100vh; margin-left: 0.5em">d</mjx-box>'
+        )
+        self.safety.sanitize(self.root)
+        boxes = container.querySelectorAll("mjx-box")
+        kept = boxes[0].style
+        self.assertEqual(str(kept.getPropertyValue("position")), "relative")
+        self.assertEqual(str(kept.getPropertyValue("top")), "-0.2em")
+        self.assertEqual(str(kept.getPropertyValue("left")), "0.278em")
+        self.assertIn("rotate", str(kept.getPropertyValue("transform")))
+        moved = boxes[1].style
+        self.assertEqual(str(moved.getPropertyValue("position")), "relative")
+        self.assertEqual(str(moved.getPropertyValue("top")), "")
+        self.assertEqual(str(moved.getPropertyValue("left")), "")
+        self.assertFalse(boxes[2].hasAttribute("style"), "absolute position and its offset are dropped")
+        sized = boxes[3].style
+        self.assertEqual(str(sized.getPropertyValue("width")), "")
+        self.assertEqual(str(sized.getPropertyValue("height")), "")
+        self.assertEqual(str(sized.getPropertyValue("margin-left")), "0.5em")
+
+    def test_leaves_content_outside_math_alone(self) -> None:
+        outside = document.createElement("span")
+        outside.setAttribute("id", "user-note")
+        outside.setAttribute("style", "position: relative")
+        self.root.appendChild(outside)
+        self.assertEqual(self.safety.sanitize(self.root), 0)
+        self.assertEqual(outside.getAttribute("id"), "user-note")
+        self.assertEqual(outside.getAttribute("style"), "position: relative")
+
+    def test_is_a_no_op_on_legitimate_math(self) -> None:
+        mathjax = getattr(window, "MathJax", None)
+        if mathjax is None or not hasattr(mathjax, "tex2chtml"):
+            self.skipTest("MathJax is not ready")
+        cases = list(BUNDLED_MATH) + [tex for name, tex in EXTENSION_MATH if _extension_loaded(mathjax, name)]
+        for tex in cases:
+            with self.subTest(tex=tex):
+                holder = document.createElement("div")
+                holder.appendChild(mathjax.tex2chtml(tex))
+                before = holder.innerHTML
+                self.safety.sanitize(holder)
+                self.assertEqual(holder.innerHTML, before)
+
+    def test_render_math_goes_through_the_sanitizer(self) -> None:
+        from chat_ui_manager import ChatUIManager
+        from message_menu_manager import MessageMenuManager
+
+        calls: List[Any] = []
+        history = document.createElement("div")
+
+        class _Safety:
+            def typesetAndSanitize(self, root: Any) -> None:
+                calls.append(root)
+
+        class _UI(ChatUIManager):
+            def _chat_history_element(self) -> Any:
+                return history
+
+        original = window.MatHudMathSafety
+        window.MatHudMathSafety = _Safety()
+        try:
+            _UI(message_menu=MessageMenuManager(), tool_call_log=ToolCallLogManager()).render_math()
+        finally:
+            window.MatHudMathSafety = original
+        self.assertEqual(len(calls), 1)
+        self.assertIs(calls[0], history)
+
 
 # Math that tex-mml-chtml.js typesets without loading anything.
 BUNDLED_MATH = (
@@ -248,13 +457,15 @@ BUNDLED_MATH = (
     "\\text{area} = \\pi r^2",
     "\\mathbb{R}",
 )
-# (extension, TeX) for math whose extension is autoloaded on first use.
+# (extension, TeX) for math whose extension is autoloaded; the page preloads these.
 EXTENSION_MATH = (
     ("color", "\\color{red}{x} + \\textcolor{blue}{y}"),
     ("boldsymbol", "\\boldsymbol{v}"),
     ("cancel", "\\cancel{x}"),
     ("bbox", "\\bbox[yellow]{x}"),
     ("bbox", "\\bbox[5px]{x}"),
+    ("bbox", "\\bbox[5px,border:2px solid red]{x}"),
+    ("unicode", "\\unicode[Arial]{x41}"),
 )
 
 
@@ -264,16 +475,3 @@ def _extension_loaded(mathjax: Any, name: str) -> bool:
         return bool(getattr(mathjax._.input.tex, name, None))
     except Exception:
         return False
-
-
-def _preload_extensions() -> None:
-    """Start loading the EXTENSION_MATH extensions asynchronously (see the class docstring)."""
-    try:
-        mathjax = getattr(window, "MathJax", None)
-        if mathjax is not None and hasattr(mathjax, "tex2chtmlPromise"):
-            mathjax.tex2chtmlPromise(" ".join(tex for _, tex in EXTENSION_MATH))
-    except Exception:
-        pass
-
-
-_preload_extensions()

@@ -129,12 +129,19 @@ class ChatUIManager:
         return cast(str, self.markdown_parser.parse(text))
 
     def render_math(self) -> None:
-        """Trigger MathJax rendering for newly added content."""
+        """Typeset math in the chat history, then sanitise the output.
+
+        Chat math is untrusted, so typesetting always goes through
+        ``window.MatHudMathSafety.typesetAndSanitize`` (static/math_output_sanitizer.js),
+        which strips links, overlays and foreign ids/classes from MathJax's output. If
+        the sanitiser is missing, math is left as plain TeX text rather than typeset
+        without it.
+        """
         try:
-            # Check if MathJax is available
-            if hasattr(window, "MathJax") and hasattr(window.MathJax, "typesetPromise"):
-                # Re-render math in the chat history
-                window.MathJax.typesetPromise([document["chat-history"]])
+            safety = getattr(window, "MatHudMathSafety", None)
+            if safety is None or not hasattr(window, "MathJax"):
+                return
+            safety.typesetAndSanitize(self._chat_history_element())
         except Exception:
             # MathJax not available or error occurred, continue silently
             pass
