@@ -150,7 +150,7 @@ python -m cli.main canvas state [--port PORT] [--pretty] [--inspect]
 python -m cli.main canvas exec FUNCTION_NAME [--args JSON] [--port PORT]
 ```
 
-Each command opens a fresh headless page and goes through the app's scenario hooks (`getMatHudCanvasState`, `runMatHudToolCalls`), so `exec` runs a tool exactly as a model's tool call runs and prints its result.
+These commands are one-shot: each opens its own fresh headless page, so it starts from an empty canvas and cannot reach the canvas in your browser (`canvas undo` on a fresh page says so instead of pretending there was nothing to undo). They go through the app's scenario hooks (`getMatHudCanvasState`, `runMatHudToolCalls`), so `exec` runs a tool exactly as a model's tool call runs and prints its result.
 
 **Examples:**
 ```bash

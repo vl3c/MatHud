@@ -1,5 +1,11 @@
 """Canvas operation commands for the MatHud CLI.
 
+Each command opens its own headless page on the running server, so it starts
+from an empty canvas and nothing it draws outlives the command: these commands
+check how a tool behaves (``exec`` prints exactly what a model would get); they
+do not edit the canvas in the user's browser. For multi-step runs use the
+scenario runner (``python -m cli.main test scenarios``).
+
 Provides commands for interacting with the MatHud canvas via browser automation.
 """
 
@@ -13,6 +19,12 @@ import click
 from cli.browser import BrowserAutomation
 from cli.config import DEFAULT_PORT
 from cli.server import ServerManager
+
+
+ONE_SHOT_EMPTY = (
+    "Nothing to {action}: each canvas command opens a fresh page, so its canvas starts empty "
+    "(the command cannot reach the canvas in your browser)."
+)
 
 
 def ensure_browser_ready(port: int, headless: bool = True) -> tuple[bool, Optional[BrowserAutomation], str]:
@@ -88,7 +100,7 @@ def _zoom_arguments(state: dict[str, Any], factor: float) -> dict[str, Any]:
 
 @click.group()
 def canvas() -> None:
-    """Interact with the MatHud canvas."""
+    """Run canvas tools on a fresh headless page (one-shot: each command starts with an empty canvas)."""
     pass
 
 
@@ -109,7 +121,7 @@ def clear(port: int) -> None:
 
     try:
         _run_tool(browser, "clear_canvas")
-        click.echo(click.style("Canvas cleared", fg="green"))
+        click.echo(click.style("Canvas cleared (on this command's fresh page)", fg="green"))
     except Exception as e:
         click.echo(click.style(f"Error: {e}", fg="red"), err=True)
         raise SystemExit(1)
@@ -134,7 +146,7 @@ def reset(port: int) -> None:
 
     try:
         _run_tool(browser, "reset_canvas")
-        click.echo(click.style("Canvas view reset", fg="green"))
+        click.echo(click.style("Canvas view reset (on this command's fresh page)", fg="green"))
     except Exception as e:
         click.echo(click.style(f"Error: {e}", fg="red"), err=True)
         raise SystemExit(1)
@@ -162,7 +174,7 @@ def undo(port: int) -> None:
         if int(reply.get("undo_depth_before") or 0) > 0:
             click.echo(click.style("Undo successful", fg="green"))
         else:
-            click.echo(click.style("Nothing to undo", fg="yellow"))
+            click.echo(click.style(ONE_SHOT_EMPTY.format(action="undo"), fg="yellow"))
     except Exception as e:
         click.echo(click.style(f"Error: {e}", fg="red"), err=True)
         raise SystemExit(1)
@@ -190,7 +202,7 @@ def redo(port: int) -> None:
         if int(reply.get("redo_depth_before") or 0) > 0:
             click.echo(click.style("Redo successful", fg="green"))
         else:
-            click.echo(click.style("Nothing to redo", fg="yellow"))
+            click.echo(click.style(ONE_SHOT_EMPTY.format(action="redo"), fg="yellow"))
     except Exception as e:
         click.echo(click.style(f"Error: {e}", fg="red"), err=True)
         raise SystemExit(1)

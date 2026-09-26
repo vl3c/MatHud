@@ -71,7 +71,7 @@ Goal: one command (later one executable) opens a MatHud window; no separate serv
 ### Model workbench
 1. ~~**Per-response metrics** shown in chat and logged: provider, model, latency, time-to-first-token, tokens/s, prompt/completion tokens, number of tool calls, tool errors.~~ Done: footer under each answer, JSON log lines, `window.getMatHudLastTurnMetrics()`.
 2. **Benchmark suite (CLI):** *(in progress)* a curated set of math prompts with machine-checkable expectations (canvas state or tool results), run against a list of models; outputs a comparison table (accuracy, tool-call validity, speed). Builds on the existing tool-discovery benchmark and action traces. Design: `documentation/development/agentic_scenario_testing.md`.
-   - ~~**Replay mode**~~ Done: `python -m cli.main test scenarios --mode replay` runs the 73-scenario catalogue in `scenarios/` through the app's real tool path in headless Chrome with no model (about 75 s), checks every step by geometry and invariants, and reports known bugs K1 to K25 as expected failures.
+   - ~~**Replay mode**~~ Done: `python -m cli.main test scenarios --mode replay` runs the 73-scenario catalogue in `scenarios/` through the app's real tool path in headless Chrome with no model (about 45 s), checks every step by geometry and invariants, and reports known bugs K1 to K25 as expected failures.
    - **Live mode** (next): send the prompts to LocalAgent or OpenRouter through `sendMatHudMessage`, with per-turn caps, spend guards, `--repeats`, trace re-execution and failure classification.
    - **CI job:** a non-blocking `scenario-replay` job next to `client-tests`.
 3. **Side-by-side mode:** send the same prompt to two models (pairs naturally with tabs, A3).
