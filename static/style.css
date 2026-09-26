@@ -486,6 +486,7 @@ input, select, textarea, button {
 #chat-history mjx-container[jax="CHTML"]:not([display="true"]) {
     display: inline-block;
     contain: paint;
+    overflow-clip-margin: 0.5em; /* italic and accent overhang (\mathit{ff}, \vec{f}, \overrightarrow{f}: 0.41em) */
 }
 
 #chat-history mjx-container[jax="CHTML"][display="true"] {
