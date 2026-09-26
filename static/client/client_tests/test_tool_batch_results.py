@@ -19,6 +19,7 @@ from turn_metrics import aggregate_turn
 from workspace_manager import WorkspaceManager
 
 TRIANGLE_VERTICES: List[Dict[str, float]] = [{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 0, "y": 3}]
+TRIANGLE_VERTICES_ISOSCELES: List[Dict[str, float]] = [{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 2, "y": 3}]
 
 
 class _ToolBatchTestCase(unittest.TestCase):
@@ -237,6 +238,46 @@ class TestToolBatchUndo(_ToolBatchTestCase):
         self.assertEqual(self.snapshot(), before)
         self.run_single("redo")
         self.assertEqual(self.snapshot(), partial)
+
+    def assert_no_op_batch_after_transform_adds_no_entry(
+        self, polygon_type: str, vertices: List[Dict[str, float]], transform: Tuple[str, Dict[str, Any]]
+    ) -> None:
+        """A transform that changes a polygon's classification, then a batch of one no-op call.
+
+        The live polygon keeps its creation-time types while a deep copy recomputes them, so
+        the no-op batch must be compared against the live objects, not the copied baseline.
+        No redo can be pending here: an undo or redo replaces the live objects with copies.
+        """
+        self.run_single("create_polygon", vertices=vertices, polygon_type=polygon_type)
+        before_transform = self.snapshot()
+        name = before_transform[polygon_type.capitalize()][0]
+        transform_name, transform_args = transform
+        self.assertEqual(self.run_single(transform_name, name=name, **transform_args), successful_call_message)
+        after_transform = self.snapshot()
+        depth = self.undo_depth()
+        redo_depth = self.redo_depth()
+
+        self.run_single("delete_angle", name="nope")
+
+        self.assertEqual(self.undo_depth(), depth)
+        self.assertEqual(self.redo_depth(), redo_depth)
+        self.assertEqual(self.snapshot(), after_transform)
+        self.run_single("undo")
+        self.assertEqual(self.snapshot(), before_transform)
+
+    def test_no_op_batch_after_scaling_a_square_adds_no_entry(self) -> None:
+        self.assert_no_op_batch_after_transform_adds_no_entry(
+            "rectangle",
+            [{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 4, "y": 4}, {"x": 0, "y": 4}],
+            ("scale_object", {"sx": 2, "sy": 1, "cx": 0, "cy": 0}),
+        )
+
+    def test_no_op_batch_after_shearing_an_isosceles_triangle_adds_no_entry(self) -> None:
+        self.assert_no_op_batch_after_transform_adds_no_entry(
+            "triangle",
+            TRIANGLE_VERTICES_ISOSCELES,
+            ("shear_object", {"axis": "horizontal", "factor": 1, "cx": 0, "cy": 0}),
+        )
 
     def test_polygon_that_fails_after_creating_parts_stays_undoable(self) -> None:
         self.canvas.create_point(9, 9, name="Z")

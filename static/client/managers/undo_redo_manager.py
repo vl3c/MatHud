@@ -73,6 +73,7 @@ class UndoRedoManager:
         self._archive_suspension_depth: int = 0
         self._batch_depth: int = 0
         self._batch_baseline: Optional[Dict[str, Any]] = None
+        self._batch_signature: Optional[str] = None
         self._batch_changed: bool = False
 
     def archive(self) -> None:
@@ -133,8 +134,7 @@ class UndoRedoManager:
         Batches nest; only the outermost one captures the baseline and pushes the entry.
         """
         if self._batch_depth == 0:
-            self._batch_baseline = self.capture_state()
-            self._batch_changed = False
+            self._start_batch_from_current_state()
         self._batch_depth += 1
 
     def end_batch(self) -> None:
@@ -145,6 +145,7 @@ class UndoRedoManager:
         if self._batch_depth == 0:
             self._commit_batch()
             self._batch_baseline = None
+            self._batch_signature = None
 
     def is_batch_changed(self) -> bool:
         """Return True when the open batch has recorded a change."""
@@ -158,18 +159,30 @@ class UndoRedoManager:
     def state_differs_from_batch_baseline(self) -> bool:
         """Return True when the canvas no longer matches the open batch's baseline.
 
-        Compares each drawable's ``get_state()`` and the computations, serialized as
-        sorted JSON. Outside a batch, or when a state cannot be serialized, the canvas is
+        Compares each live drawable's ``get_state()`` and the computations, serialized as
+        sorted JSON, with the same serialization of the live objects taken when the batch
+        started. The deep-copied baseline is not used: copying rebuilds some drawables (a
+        polygon recomputes its types), so it can serialize differently from the unchanged
+        live objects. Outside a batch, or when a state cannot be serialized, the canvas is
         assumed to differ so that a change is never dropped from the undo history.
         """
-        if self._batch_depth == 0 or self._batch_baseline is None:
+        if self._batch_depth == 0 or self._batch_signature is None:
             return True
+        current = self._live_signature()
+        return current is None or current != self._batch_signature
+
+    def _start_batch_from_current_state(self) -> None:
+        """Take the batch baseline (what undo restores) and the live signature (what comparisons use)."""
+        self._batch_baseline = self.capture_state()
+        self._batch_signature = self._live_signature()
+        self._batch_changed = False
+
+    def _live_signature(self) -> Optional[str]:
+        """Serialized live state, or None when it cannot be serialized."""
         try:
-            baseline = self._serialize_state(self._batch_baseline)
-            current = self._serialize_state(self._live_state())
+            return self._serialize_state(self._live_state())
         except Exception:
-            return True
-        return baseline != current
+            return None
 
     def _live_state(self) -> Dict[str, Any]:
         """The live drawables and computations, without copying (for comparison only)."""
@@ -199,8 +212,7 @@ class UndoRedoManager:
     def _rebase_batch(self) -> None:
         """After an undo or redo inside a batch, later changes start from the restored state."""
         if self._batch_depth > 0:
-            self._batch_baseline = self.capture_state()
-            self._batch_changed = False
+            self._start_batch_from_current_state()
 
     def undo(self) -> bool:
         """
