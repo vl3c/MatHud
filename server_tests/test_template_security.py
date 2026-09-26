@@ -28,7 +28,7 @@ class TestMathJaxConfig(unittest.TestCase):
     def test_html_extension_is_not_autoloaded(self) -> None:
         config = _mathjax_config()
         self.assertRegex(config, r"tex:\s*\{")
-        self.assertIsNotNone(re.search(r"autoload:\s*\{\s*html:\s*\[\s*\]\s*\}", config), config)
+        self.assertIsNotNone(re.search(r"autoload:\s*\{\s*html:\s*\[\s*\]\s*[,}]", config), config)
 
     def test_safe_extension_is_loaded_from_vendor(self) -> None:
         """ui/safe filters href/style/class/id that base TeX (\\mmlToken, \\bbox) can still set."""
@@ -40,13 +40,45 @@ class TestMathJaxConfig(unittest.TestCase):
         self.assertTrue((vendored / "ui" / "safe.js").is_file())
         self.assertNotRegex(config, r"paths\s*:", "a custom path would stop ui/safe resolving to the vendor folder")
 
-    def test_require_package_is_removed(self) -> None:
-        """Without this, \\require{html} loads the extension despite the autoload setting."""
+    def test_require_and_newcommand_packages_are_removed(self) -> None:
+        """No \\require{html}, and no user macros (\\def amplification, lasting redefinitions)."""
         config = _mathjax_config()
         self.assertIsNotNone(
-            re.search(r"packages:\s*\{\s*'\[-\]':\s*\[\s*'require'\s*\]\s*\}", config),
+            re.search(r"packages:\s*\{\s*'\[-\]':\s*\[\s*'require',\s*'newcommand'\s*\]\s*\}", config),
             config,
         )
+
+    def test_user_macros_cannot_come_back_through_autoload_or_dependencies(self) -> None:
+        config = _mathjax_config()
+        self.assertIsNotNone(
+            re.search(r"autoload:\s*\{\s*html:\s*\[\s*\],\s*newcommand:\s*\[\s*\],\s*extpfeil:\s*\[\s*\]\s*\}", config),
+            config,
+        )
+        self.assertIn("getMap('Newcommand-macros')", config)
+        self.assertIn("userMacros.map.clear()", config)
+        self.assertRegex(config, r"maxMacros:\s*1000")
+
+    def test_long_formulas_are_capped(self) -> None:
+        config = _mathjax_config()
+        self.assertIn("var MATHUD_MAX_TEX_CHARS = 4000;", config)
+        self.assertIn("jax.preFilters.add(", config)
+
+    def test_sanitizer_runs_as_a_render_action(self) -> None:
+        """Re-renders (e.g. from the MathJax context menu) must go through the sanitiser too."""
+        config = _mathjax_config()
+        self.assertIn("renderActions: {", config)
+        self.assertIn("mathudSanitize: [", config)
+        self.assertIn("var MATHUD_SANITIZE_PRIORITY = 201;", config)
+        self.assertIn("window.MatHudMathSafety.sanitize(math.typesetRoot)", config)
+
+    def test_chat_math_is_contained_to_its_own_box(self) -> None:
+        css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
+        inline = css[css.index('#chat-history mjx-container[jax="CHTML"]:not([display="true"])') :]
+        self.assertIn("contain: paint;", inline[: inline.index("}")])
+        display = css[css.index('#chat-history mjx-container[jax="CHTML"][display="true"]') :]
+        block = display[: display.index("}")]
+        self.assertIn("contain: paint;", block)
+        self.assertIn("overflow-x: auto;", block)
 
     def test_safe_options_allow_no_urls_and_no_cursor(self) -> None:
         """ui/safe's protocol check misses a tab inside "javascript:"; no URLs at all is safe."""

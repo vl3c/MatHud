@@ -131,11 +131,12 @@ class ChatUIManager:
     def render_math(self) -> None:
         """Typeset math in the chat history, then sanitise the output.
 
-        Chat math is untrusted, so typesetting always goes through
-        ``window.MatHudMathSafety.typesetAndSanitize`` (static/math_output_sanitizer.js),
-        which strips links, overlays and foreign ids/classes from MathJax's output. If
-        the sanitiser is missing, math is left as plain TeX text rather than typeset
-        without it.
+        Chat math is untrusted. The sanitiser (static/math_output_sanitizer.js) strips
+        links, overlays and foreign ids/classes from MathJax's output; it runs as a
+        MathJax render action on every render and re-render, and
+        ``window.MatHudMathSafety.typesetAndSanitize`` runs it again over the whole
+        chat after this typeset. If the sanitiser is missing, math is left as plain
+        TeX text rather than typeset without it.
         """
         try:
             safety = getattr(window, "MatHudMathSafety", None)

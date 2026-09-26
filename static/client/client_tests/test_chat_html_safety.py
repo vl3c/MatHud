@@ -145,7 +145,8 @@ HREF_PAYLOADS = {
     "protocol-relative": "//example.invalid/p",
     "file": "file:///C:/Windows/win.ini",
 }
-# Extension-backed cases skipped in this run; test_zz_no_extension_case_was_skipped fails on any.
+# MathJax cases skipped in this run (MathJax missing, or an extension not loaded yet);
+# test_zz_no_extension_case_was_skipped fails on any.
 _SKIPPED_EXTENSION_CASES: List[str] = []
 
 
@@ -164,12 +165,14 @@ class TestMathJaxHrefDisabled(unittest.TestCase):
     extension's component loaded (``MathJax._.input.tex.<name>``, checked without
     typesetting). The page preloads the extensions these tests use when MathJax starts
     (startup.ready in templates/index.html), so in the suite none should be skipped;
-    ``test_zz_no_extension_case_was_skipped`` runs last and fails if any was.
+    ``test_zz_no_extension_case_was_skipped`` runs last and fails if any was, or if
+    MathJax itself is missing (so a MathJax load failure cannot pass as skips).
     """
 
     def _mathjax(self) -> Any:
-        mathjax = getattr(window, "MathJax", None)
-        if mathjax is None or not hasattr(mathjax, "tex2chtml"):
+        mathjax = _ready_mathjax()
+        if mathjax is None:
+            _SKIPPED_EXTENSION_CASES.append(f"{self.id()} (MathJax not ready)")
             self.skipTest("MathJax is not ready")
         return mathjax
 
@@ -299,10 +302,93 @@ class TestMathJaxHrefDisabled(unittest.TestCase):
         styles = " ".join(str(el.getAttribute("style") or "") for el in node.querySelectorAll("[style]"))
         self.assertIn("Arial", styles)
 
+    # ── User macros and size limits ─────────────────────────────
+
+    def test_user_macros_cannot_amplify_output(self) -> None:
+        # \def-nested macros once expanded this to 90k nodes and ~2 s of blocking.
+        amplified = "\\def\\a{" + "x" * 100 + "}\\def\\b{" + "\\a" * 30 + "}\\def\\c{" + "\\b" * 30 + "}\\c"
+        started = window.performance.now()
+        node = self._mathjax().tex2chtml(" ".join([amplified] * 8))
+        elapsed_ms = window.performance.now() - started
+        self.assertLess(len(node.querySelectorAll("*")), 20000)
+        self.assertLess(elapsed_ms, 1500)
+
+    def test_user_macro_commands_are_undefined(self) -> None:
+        mathjax = self._mathjax()
+        # Undefined commands render as their own name (noundefined); environments as an error.
+        for tex, shown in (
+            ("\\def\\zz{D}\\zz", "\\def"),
+            ("\\newcommand{\\zz}{D}\\zz", "\\newcommand"),
+            ("\\renewcommand{\\pi}{D}\\pi", "\\renewcommand"),
+            ("\\let\\pi=D\\pi", "\\let"),
+            ("\\newenvironment{zz}{D}{}\\begin{zz}x\\end{zz}", "Unknown environment"),
+        ):
+            with self.subTest(tex=tex):
+                self.assertIn(shown, str(mathjax.tex2chtml(tex).textContent))
+        # Removed from newcommand's own command map, so an extension that depends on
+        # newcommand (e.g. action) cannot bring them back.
+        user_macros = mathjax._.input.tex.MapHandler.MapHandler.getMap("Newcommand-macros")
+        self.assertEqual(int(user_macros.map.size), 0)
+
+    def test_macro_redefinition_does_not_persist(self) -> None:
+        mathjax = self._mathjax()
+        mathjax.tex2chtml("\\def\\pi{3}")
+        mathjax.tex2chtml("\\renewcommand{\\pi}{3}")
+        self.assertEqual(str(mathjax.tex2chtml("\\pi").textContent), "π")
+
+    def test_long_formula_is_replaced_by_a_note(self) -> None:
+        mathjax = self._mathjax()
+        self.assertIn("formula too long", str(mathjax.tex2chtml("x+" * 2500).textContent))
+        self._assert_renders(mathjax.tex2chtml("x+" * 1000))
+
+    # ── Render action and containment (the chat path) ───────────
+
+    def test_sanitizer_is_a_render_action_and_survives_rerender(self) -> None:
+        mathjax = self._mathjax()
+        document_ = mathjax.startup.document
+        action_ids = [str(action.item.id) for action in document_.renderActions]
+        self.assertIn("mathudSanitize", action_ids)
+        holder = document.createElement("div")
+        holder.innerHTML = "\\(\\raise{50em}{R}\\)"
+        document.body.appendChild(holder)
+        try:
+            mathjax.typeset([holder])  # plain MathJax typeset, without typesetAndSanitize
+            self.assertNotIn("-50em", _styles_under(holder))
+            document_.rerender()  # what the context menu's renderer/scale/accessibility options do
+            self.assertNotIn("-50em", _styles_under(holder))
+        finally:
+            mathjax.typesetClear([holder])
+            holder.remove()
+
+    def test_chat_math_is_painted_only_inside_its_box(self) -> None:
+        mathjax = self._mathjax()
+        history = document.getElementById("chat-history")
+        if history is None:
+            self.fail("#chat-history is missing")
+        holder = document.createElement("div")
+        holder.innerHTML = '<span class="chat-content">\\(\\smash{\\raise{9em}{\\raise{9em}{R}}}\\) $$x$$</span>'
+        history.appendChild(holder)
+        try:
+            mathjax.typeset([holder])
+            # Top-level formulas only (not MathJax's hidden assistive copies).
+            inline, display = holder.querySelectorAll("span.chat-content > mjx-container")
+            inline_style = window.getComputedStyle(inline)
+            self.assertIn("paint", str(inline_style.contain))
+            self.assertEqual(str(inline_style.display), "inline-block")
+            display_style = window.getComputedStyle(display)
+            self.assertIn("paint", str(display_style.contain))
+            self.assertEqual(str(display_style.overflowX), "auto")
+            # The raised glyph lies outside its container's box, where it is not painted.
+            glyph = inline.querySelector("mjx-c").getBoundingClientRect()
+            self.assertLess(glyph.bottom, inline.getBoundingClientRect().top)
+        finally:
+            mathjax.typesetClear([holder])
+            holder.remove()
+
     def test_zz_no_extension_case_was_skipped(self) -> None:
-        """Runs last (alphabetical order): extension-backed cases must not be skipped silently."""
-        self._mathjax()
-        self.assertEqual(_SKIPPED_EXTENSION_CASES, [], "extension-backed MathJax tests were skipped")
+        """Runs last (alphabetical order): no MathJax case may be skipped silently."""
+        self.assertIsNotNone(_ready_mathjax(), "MathJax is not loaded: window.MathJax.tex2chtml is missing")
+        self.assertEqual(_SKIPPED_EXTENSION_CASES, [], "MathJax tests were skipped")
 
 
 class TestMathOutputSanitizer(unittest.TestCase):
@@ -377,6 +463,17 @@ class TestMathOutputSanitizer(unittest.TestCase):
         self.assertEqual(str(style.getPropertyValue("font-weight")), "bold")
         self.assertEqual(str(style.getPropertyValue("width")), "3em")
         self.assertFalse(container.querySelector("mjx-mo").hasAttribute("style"))
+
+    def test_drops_every_viewport_and_container_query_unit(self) -> None:
+        units = ["vw", "vh", "vi", "vb", "vmin", "vmax", "svw", "svh", "svi", "svb", "lvw", "lvh", "lvi", "lvb"]
+        units += ["dvw", "dvh", "dvi", "dvb", "cqw", "cqh", "cqi", "cqb", "cqmin", "cqmax"]
+        for unit in units:
+            with self.subTest(unit=unit):
+                container = self._container(f'<mjx-box style="width: 50{unit}; margin-left: 0.5em">x</mjx-box>')
+                self.safety.sanitize(self.root)
+                style = container.querySelector("mjx-box").style
+                self.assertEqual(str(style.getPropertyValue("width")), "", unit)
+                self.assertEqual(str(style.getPropertyValue("margin-left")), "0.5em")
 
     def test_keeps_mathjax_relative_layout_but_not_large_offsets_or_viewport_sizes(self) -> None:
         container = self._container(
@@ -475,3 +572,16 @@ def _extension_loaded(mathjax: Any, name: str) -> bool:
         return bool(getattr(mathjax._.input.tex, name, None))
     except Exception:
         return False
+
+
+def _ready_mathjax() -> Any:
+    """window.MathJax once it can typeset (tex2chtml exists), else None."""
+    mathjax = getattr(window, "MathJax", None)
+    if mathjax is None or not hasattr(mathjax, "tex2chtml"):
+        return None
+    return mathjax
+
+
+def _styles_under(root: Any) -> str:
+    """All inline style text of the MathJax output under root."""
+    return " ".join(str(element.getAttribute("style") or "") for element in root.querySelectorAll("[style]"))

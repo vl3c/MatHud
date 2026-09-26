@@ -29,21 +29,35 @@ Dependencies:
     
     <!-- MathJax configuration for LaTeX mathematical notation rendering.
          Chat math is untrusted (model output, user text, saved workspaces), so it is
-         locked down in layers: no html extension, no \require, the ui/safe filter
-         (no URLs at all, no cursor styles), a fontfamily filter, and after each typeset
-         static/math_output_sanitizer.js (see ChatUIManager.render_math). -->
+         locked down in layers: no html extension, no \require, no user macros
+         (\def, \newcommand), a length cap, the ui/safe filter (no URLs at all, no cursor
+         styles), a fontfamily filter, and static/math_output_sanitizer.js, which runs as a
+         MathJax render action on every render and re-render (including the context menu's)
+         and again after each chat typeset (ChatUIManager.render_math). -->
     <script>
     // Font names only: letters, digits, spaces, commas, quotes and hyphens. \mmlToken's
     // fontfamily and \unicode's font option are otherwise pasted into the style unchecked
     // (e.g. "x;position:fixed;..." makes a full-page overlay, or loads a url()).
     var MATHUD_SAFE_FONT_FAMILY = /^[\w\s,'"-]*$/;
+    // Longest TeX expression typeset; longer ones show a short note instead, so one
+    // message cannot block the page with a huge formula.
+    var MATHUD_MAX_TEX_CHARS = 4000;
+    // Render-action priority: just after MathJax inserts the output (STATE.INSERTED = 200).
+    var MATHUD_SANITIZE_PRIORITY = 201;
+
+    function mathudSanitizeMathItem(math) {
+        if (window.MatHudMathSafety && math && math.typesetRoot) {
+            window.MatHudMathSafety.sanitize(math.typesetRoot);
+        }
+    }
+
     window.MathJax = {
         // ui/safe filters what typeset math may carry: hrefs, and style, class and id
         // values (\mmlToken and \bbox can set them from base TeX). It resolves to the
         // vendored es5/ui/safe.js, relative to tex-mml-chtml.js, like the TeX extensions.
         loader: { load: ['ui/safe'] },
         startup: {
-            // Nothing is typeset outside ChatUIManager.render_math, which sanitises the output.
+            // The page is only typeset through ChatUIManager.render_math.
             typeset: false,
             ready: function () {
                 MathJax.startup.defaultReady();
@@ -52,6 +66,24 @@ Dependencies:
                     return typeof family === 'string' && MATHUD_SAFE_FONT_FAMILY.test(family) ? family : null;
                 };
                 safe.filterAttributes.set('fontfamily', 'filterFontFamily');
+                // No user macros, even if an extension that depends on newcommand (such as
+                // action, for \mathtip) is loaded later and brings its configuration back:
+                // the commands themselves are removed from newcommand's command map.
+                var userMacros = MathJax._.input.tex.MapHandler.MapHandler.getMap('Newcommand-macros');
+                if (userMacros && userMacros.map) {
+                    userMacros.map.clear();
+                }
+                MathJax.startup.document.inputJax.forEach(function (jax) {
+                    if (jax.name === 'TeX') {
+                        // TeX preFilters run before parsing and see the source as args.math.math.
+                        jax.preFilters.add(function (args) {
+                            var math = args.math;
+                            if (math && typeof math.math === 'string' && math.math.length > MATHUD_MAX_TEX_CHARS) {
+                                math.math = '\\text{[formula too long to display]}';
+                            }
+                        });
+                    }
+                });
                 // Load the commonly used autoloaded extensions up front (small vendored
                 // files), so typesetting never waits on MathJax's retry-and-load path.
                 MathJax.loader.load('[tex]/color', '[tex]/bbox', '[tex]/boldsymbol', '[tex]/cancel', '[tex]/unicode')
@@ -66,11 +98,35 @@ Dependencies:
             // No html extension: its \href{javascript:...} would turn chat text
             // (live or loaded from a workspace) into a clickable script link.
             // Removing "require" stops \require{html} from loading it explicitly.
-            packages: { '[-]': ['require'] },
-            autoload: { html: [] }
+            // Removing "newcommand" drops \def, \newcommand, \renewcommand and
+            // \newenvironment: nested user macros multiply output (a few hundred
+            // characters can block the tab for seconds), and a redefinition such as
+            // \def\pi{3} would carry over into later messages. autoload would otherwise
+            // load newcommand again on the first \def or \newcommand, and extpfeil (rare
+            // arrows such as \xtwoheadrightarrow, plus \Newextarrow) depends on it.
+            packages: { '[-]': ['require', 'newcommand'] },
+            autoload: { html: [], newcommand: [], extpfeil: [] },
+            // Built-in macro expansions per expression (MathJax's default is 10000).
+            maxMacros: 1000
         },
         options: {
             skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
+            // Sanitise every rendered formula right after insertion, on first render and
+            // on every re-render (the context menu's renderer, scale and accessibility
+            // options re-render). Not run for MathJax.tex2chtml() conversions, which the
+            // app does not use (the tests use them to check the configuration alone).
+            renderActions: {
+                mathudSanitize: [
+                    MATHUD_SANITIZE_PRIORITY,
+                    function (doc) {
+                        for (var item of doc.math) {
+                            mathudSanitizeMathItem(item);
+                        }
+                    },
+                    mathudSanitizeMathItem,
+                    false
+                ]
+            },
             // No URLs at all: ui/safe's protocol check lets a tab or control character
             // inside "javascript:" through, and http(s)/file links are unwanted anyway.
             // Cursor styles can load url() images, so they are dropped too.
