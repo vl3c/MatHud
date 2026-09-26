@@ -71,3 +71,59 @@ class TestUndoRedoManager(unittest.TestCase):
         self.canvas.computations[0]["result"] = 99
 
         self.assertEqual(snapshot["computations"][0]["result"], 1)
+
+    def test_batch_collapses_archives_into_one_entry_with_the_baseline(self) -> None:
+        self.canvas.computations = ["before"]
+        self.manager.redo_stack = [{"drawables": {}, "computations": []}]
+
+        self.manager.begin_batch()
+        self.canvas.computations = ["during"]
+        self.manager.archive()
+        self.manager.archive()
+        self.manager.push_undo_state({"drawables": {}, "computations": ["inner"]})
+        self.assertEqual(self.manager.undo_stack, [])
+        self.manager.end_batch()
+
+        self.assertEqual(len(self.manager.undo_stack), 1)
+        self.assertEqual(self.manager.undo_stack[0]["computations"], ["before"])
+        self.assertEqual(self.manager.redo_stack, [])
+
+    def test_batch_without_changes_adds_no_entry(self) -> None:
+        self.manager.redo_stack = [{"drawables": {}, "computations": []}]
+
+        self.manager.begin_batch()
+        self.manager.end_batch()
+
+        self.assertEqual(self.manager.undo_stack, [])
+        self.assertEqual(len(self.manager.redo_stack), 1)
+
+    def test_nested_batches_commit_once_at_the_outermost_end(self) -> None:
+        self.manager.begin_batch()
+        self.manager.begin_batch()
+        self.manager.archive()
+        self.manager.end_batch()
+        self.assertEqual(self.manager.undo_stack, [])
+
+        self.manager.end_batch()
+        self.assertEqual(len(self.manager.undo_stack), 1)
+
+    def test_undo_inside_a_batch_reverts_the_batch_changes_so_far(self) -> None:
+        self.canvas.computations = ["before"]
+        self.manager.begin_batch()
+        self.canvas.computations = ["during"]
+        self.manager.archive()
+
+        self.assertTrue(self.manager.undo())
+        self.manager.end_batch()
+
+        self.assertEqual(self.manager.undo_stack, [])
+        self.assertEqual(len(self.manager.redo_stack), 1)
+
+    def test_archive_outside_a_batch_is_unchanged(self) -> None:
+        self.manager.begin_batch()
+        self.manager.end_batch()
+
+        self.manager.archive()
+        self.manager.archive()
+
+        self.assertEqual(len(self.manager.undo_stack), 2)

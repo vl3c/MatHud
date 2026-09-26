@@ -1184,7 +1184,12 @@ class WorkspaceManager:
         Args:
             state (dict): Workspace state dictionary containing all object data.
         """
-        self._run_restore_phases(state)
+        # The whole restore, including the canvas clear, is one undo step.
+        self.canvas.begin_undo_batch()
+        try:
+            self._run_restore_phases(state)
+        finally:
+            self.canvas.end_undo_batch()
 
     def _run_restore_phases(self, state: Dict[str, Any]) -> None:
         for phase in self._restore_phases():

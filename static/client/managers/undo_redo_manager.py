@@ -43,7 +43,7 @@ Error Recovery:
 from __future__ import annotations
 
 import copy
-from typing import TYPE_CHECKING, Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -70,15 +70,22 @@ class UndoRedoManager:
         self.undo_stack: List[Dict[str, Any]] = []
         self.redo_stack: List[Dict[str, Any]] = []
         self._archive_suspension_depth: int = 0
+        self._batch_depth: int = 0
+        self._batch_baseline: Optional[Dict[str, Any]] = None
+        self._batch_changed: bool = False
 
     def archive(self) -> None:
         """
         Archives the current state of the canvas for undo operations.
 
         This method should be called whenever a change is made to the canvas
-        that should be undoable.
+        that should be undoable. Inside an undo batch it only records that the
+        batch changed something; the batch pushes one entry when it ends.
         """
         if self._archive_suspension_depth > 0:
+            return
+        if self._batch_depth > 0:
+            self._batch_changed = True
             return
         self.push_undo_state(self.capture_state())
 
@@ -90,7 +97,14 @@ class UndoRedoManager:
         }
 
     def push_undo_state(self, state: Dict[str, Any]) -> None:
-        """Push a prior state onto the undo stack and clear redo history."""
+        """Push a prior state onto the undo stack and clear redo history.
+
+        Inside an undo batch the batch's own baseline is kept instead, so a
+        composite operation within the batch does not add a separate entry.
+        """
+        if self._batch_depth > 0:
+            self._batch_changed = True
+            return
         self.undo_stack.append(copy.deepcopy(state))
         self.redo_stack = []
 
@@ -112,13 +126,50 @@ class UndoRedoManager:
         if self._archive_suspension_depth > 0:
             self._archive_suspension_depth -= 1
 
+    def begin_batch(self) -> None:
+        """Start grouping every change until the matching end_batch() into one undo step.
+
+        Batches nest; only the outermost one captures the baseline and pushes the entry.
+        """
+        if self._batch_depth == 0:
+            self._batch_baseline = self.capture_state()
+            self._batch_changed = False
+        self._batch_depth += 1
+
+    def end_batch(self) -> None:
+        """Close a batch; the outermost close pushes one undo entry if anything changed."""
+        if self._batch_depth == 0:
+            return
+        self._batch_depth -= 1
+        if self._batch_depth == 0:
+            self._commit_batch()
+            self._batch_baseline = None
+
+    def _commit_batch(self) -> None:
+        """Push the batch baseline as one undo entry when the batch changed something."""
+        if not self._batch_changed or self._batch_baseline is None:
+            return
+        self.undo_stack.append(self._batch_baseline)
+        self.redo_stack = []
+        self._batch_changed = False
+
+    def _rebase_batch(self) -> None:
+        """After an undo or redo inside a batch, later changes start from the restored state."""
+        if self._batch_depth > 0:
+            self._batch_baseline = self.capture_state()
+            self._batch_changed = False
+
     def undo(self) -> bool:
         """
         Restores the last archived state from the undo stack.
 
+        Inside a batch, changes made earlier in the batch are committed first, so
+        undo reverts them rather than the step before the batch.
+
         Returns:
             bool: True if an undo was performed, False otherwise
         """
+        self._commit_batch()
         if not self.undo_stack:
             return False
 
@@ -143,15 +194,20 @@ class UndoRedoManager:
         # This ensures a complete state reset
         self.canvas.draw()
 
+        self._rebase_batch()
         return True
 
     def redo(self) -> bool:
         """
         Restores the last undone state from the redo stack.
 
+        Inside a batch, changes made earlier in the batch are committed first,
+        which clears the redo history as any new change does.
+
         Returns:
             bool: True if a redo was performed, False otherwise
         """
+        self._commit_batch()
         if not self.redo_stack:
             return False
 
@@ -176,6 +232,7 @@ class UndoRedoManager:
         # This ensures a complete state reset
         self.canvas.draw()
 
+        self._rebase_batch()
         return True
 
     def can_undo(self) -> bool:

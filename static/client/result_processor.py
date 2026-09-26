@@ -7,14 +7,14 @@ Manages state archiving, computation tracking, and error handling for function e
 Key Features:
     - Function call validation and execution
     - Result formatting and type consistency
-    - State archiving for undoable operations
+    - One undo step per batch of calls
     - Computation history integration
     - Error handling and exception management
     - Expression evaluation result processing
 
 Processing Flow:
     1. Input validation for function calls and available functions
-    2. State archiving for undoable operations
+    2. An undo batch around calls that can change the canvas, so the batch is one undo step
     3. Individual function call execution with error handling
     4. Result formatting and key generation
     5. Computation history integration (for mathematical operations)
@@ -71,30 +71,7 @@ class ResultProcessor:
         Returns:
             Dictionary mapping function call strings to their results
         """
-        ResultProcessor._validate_inputs(calls, available_functions, undoable_functions)
-
-        results: Dict[str, Any] = {}  # Use a dictionary for results
-        non_computation_functions: Tuple[str, ...]
-        unformattable_functions: Tuple[str, ...]
-        non_computation_functions, unformattable_functions = ResultProcessor._prepare_helper_variables(
-            undoable_functions
-        )
-
-        # Archive once at the start and then suspend archiving while calling undoable functions
-        contains_undoable_function: bool = any(call.get("function_name", "") in undoable_functions for call in calls)
-        if contains_undoable_function:
-            canvas.archive()
-
-        # Process each function call
-        for call in calls:
-            try:
-                ResultProcessor._process_function_call(
-                    call, available_functions, non_computation_functions, unformattable_functions, canvas, results
-                )
-            except Exception as e:
-                function_name: str = call.get("function_name", "")
-                ResultProcessor._handle_exception(e, function_name, results, call.get("arguments", {}))
-
+        results, _ = ResultProcessor.get_results_traced(calls, available_functions, undoable_functions, canvas)
         return results
 
     @staticmethod
@@ -128,52 +105,84 @@ class ResultProcessor:
             undoable_functions
         )
 
-        # Archive once at the start (same as get_results)
-        contains_undoable_function: bool = any(call.get("function_name", "") in undoable_functions for call in calls)
-        if contains_undoable_function:
-            canvas.archive()
-
-        for seq, call in enumerate(calls):
-            function_name = call.get("function_name", "")
-            args = call.get("arguments", {})
-            # Sanitize arguments for trace: exclude canvas ref, guard against non-dict
-            if isinstance(args, dict):
-                sanitized_args = {k: v for k, v in args.items() if k != "canvas"}
-            else:
-                sanitized_args = {"_raw": args}
-
-            t0 = window.performance.now()
-            # Collect this call's result separately so it can be reported per call
-            call_results: Dict[str, Any] = {}
-            try:
-                ResultProcessor._process_function_call(
-                    call,
-                    available_functions,
-                    non_computation_functions,
-                    unformattable_functions,
-                    canvas,
-                    call_results,
+        # One tool batch is one undo step: inside the batch, archives only mark it as changed
+        batch_is_undoable: bool = ResultProcessor._contains_undoable_function(calls, undoable_functions)
+        if batch_is_undoable:
+            canvas.begin_undo_batch()
+        try:
+            for seq, call in enumerate(calls):
+                traced_call = ResultProcessor._run_traced_call(
+                    seq, call, available_functions, non_computation_functions, unformattable_functions, canvas, results
                 )
-            except Exception as e:
-                ResultProcessor._handle_exception(e, function_name, call_results, args)
-            results.update(call_results)
-            result_key, result_value = next(iter(call_results.items()), (function_name, None))
-            is_error = isinstance(result_value, str) and result_value.startswith("Error")
-
-            duration_ms = window.performance.now() - t0
-            traced_calls.append(
-                {
-                    "seq": seq,
-                    "function_name": function_name,
-                    "arguments": sanitized_args,
-                    "result_key": result_key,
-                    "result": result_value,
-                    "is_error": is_error,
-                    "duration_ms": round(duration_ms, 2),
-                }
-            )
+                traced_calls.append(traced_call)
+                ResultProcessor._mark_undoable_change(traced_call, undoable_functions, canvas)
+        finally:
+            if batch_is_undoable:
+                canvas.end_undo_batch()
 
         return results, traced_calls
+
+    @staticmethod
+    def _contains_undoable_function(calls: List[Dict[str, Any]], undoable_functions: Tuple[str, ...]) -> bool:
+        """Return True when any call in the batch can change the canvas."""
+        return any(call.get("function_name", "") in undoable_functions for call in calls)
+
+    @staticmethod
+    def _run_traced_call(
+        seq: int,
+        call: Dict[str, Any],
+        available_functions: Dict[str, Any],
+        non_computation_functions: Tuple[str, ...],
+        unformattable_functions: Tuple[str, ...],
+        canvas: "Canvas",
+        results: Dict[str, Any],
+    ) -> "TracedCall":
+        """Execute one call, add its result to ``results`` and return its trace record."""
+        function_name = call.get("function_name", "")
+        args = call.get("arguments", {})
+        # Sanitize arguments for trace: exclude canvas ref, guard against non-dict
+        if isinstance(args, dict):
+            sanitized_args = {k: v for k, v in args.items() if k != "canvas"}
+        else:
+            sanitized_args = {"_raw": args}
+
+        t0 = window.performance.now()
+        # Collect this call's result separately so it can be reported per call
+        call_results: Dict[str, Any] = {}
+        try:
+            ResultProcessor._process_function_call(
+                call,
+                available_functions,
+                non_computation_functions,
+                unformattable_functions,
+                canvas,
+                call_results,
+            )
+        except Exception as e:
+            ResultProcessor._handle_exception(e, function_name, call_results, args)
+        results.update(call_results)
+        result_key, result_value = next(iter(call_results.items()), (function_name, None))
+        is_error = isinstance(result_value, str) and result_value.startswith("Error")
+
+        duration_ms = window.performance.now() - t0
+        return {
+            "seq": seq,
+            "function_name": function_name,
+            "arguments": sanitized_args,
+            "result_key": result_key,
+            "result": result_value,
+            "is_error": is_error,
+            "duration_ms": round(duration_ms, 2),
+        }
+
+    @staticmethod
+    def _mark_undoable_change(traced_call: "TracedCall", undoable_functions: Tuple[str, ...], canvas: "Canvas") -> None:
+        """Count a successful undoable call as a change of the batch, even if it did not archive itself.
+
+        Inside the batch ``canvas.archive()`` only marks the batch as changed; it pushes no entry.
+        """
+        if traced_call["function_name"] in undoable_functions and not traced_call["is_error"]:
+            canvas.archive()
 
     @staticmethod
     def build_tool_call_results(calls: List[Dict[str, Any]], traced_calls: List["TracedCall"]) -> List[Dict[str, Any]]:

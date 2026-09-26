@@ -429,6 +429,14 @@ class Canvas:
         """Archive the current state for undo functionality"""
         self.undo_redo_manager.archive()
 
+    def begin_undo_batch(self) -> None:
+        """Group every change until end_undo_batch() into one undo step."""
+        self.undo_redo_manager.begin_batch()
+
+    def end_undo_batch(self) -> None:
+        """Close the undo batch opened by begin_undo_batch()."""
+        self.undo_redo_manager.end_batch()
+
     def undo(self) -> bool:
         """Restores the last archived state from the undo stack"""
         return bool(self.undo_redo_manager.undo())
