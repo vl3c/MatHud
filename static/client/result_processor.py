@@ -411,11 +411,11 @@ class ResultProcessor:
         if result is not False:
             return None
         if function_name == "undo":
-            return nothing_to_undo_message
+            return str(nothing_to_undo_message)
         if function_name == "redo":
-            return nothing_to_redo_message
+            return str(nothing_to_redo_message)
         if function_name.startswith("delete_"):
-            return nothing_deleted_message
+            return str(nothing_deleted_message)
         return None
 
     @staticmethod
