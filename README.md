@@ -127,6 +127,7 @@ Licenses are listed in `static/vendor/LICENSES.md`.
    MATHUD_CANVAS_FORMAT=text       # How the canvas reaches the model: text (default) | min_json | json (original prompt JSON)
    MATHUD_CANVAS_BUDGET_TOKENS=    # Canvas token budget; default 4000 (cloud) / 1500 (local), 0 = unlimited
    LOCAL_AGENT_BASE_URL=http://127.0.0.1:8080  # LocalAgent server (default shown)
+   MATHUD_LOCAL_REASONING_EFFORT=medium  # LocalAgent: low | medium (default) | high | xhigh | max | default (send none)
    ```
 2. Authentication rules (`static/app_manager.py`):
    1. When `PORT` is set (typical in hosted deployments), authentication is enforced automatically.
@@ -293,6 +294,14 @@ backend serving the same OpenAI-compatible API) over `/v1`, and needs no API key
 
 Local models are used in search-first tool mode and currently receive text only; attached
 images are not forwarded.
+
+Every LocalAgent request sends a reasoning effort as the chat-template variable
+`reasoning_effort` (`chat_template_kwargs`), `medium` by default. Without it a reasoning model
+uses its template's default: Qwen3.8 27B then thought for 16,000 tokens (about four minutes)
+on "what is the perimeter of triangle ABC" without answering, and took about 5 s at `medium`.
+Set `MATHUD_LOCAL_REASONING_EFFORT` to `low`, `high`, `xhigh` or `max` to change it, or to
+`default` (or `none`) to send nothing, for a server or template that should not get the field.
+llama-server passes the variable to the template, and templates that do not use it ignore it.
 
 ### 6.8 Workspace Management
 
