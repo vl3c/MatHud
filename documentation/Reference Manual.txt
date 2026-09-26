@@ -668,6 +668,14 @@ Saves the chat with workspaces and restores it when the user loads one.
 
 **When chats are replaced:** only the user's `/load` replaces the chat (as the loaded canvas replaces the current canvas). The AI's `load_workspace` tool restores the canvas only: replacing the chat and the server history in the middle of a turn would break the running tool loop. Saving, from `/save`, the `save_workspace` tool or New Conversation's automatic save, always includes the chat so far; a save made by the AI during a turn holds the user's request of that turn but not the reply still being written.
 
+**Chat content is untrusted:** a saved chat is data from a file, and live chat holds model output, so nothing in it may become markup, links or script:
+- User messages, tool names, arguments, results and errors, autocomplete entries and restored-chat notes are set as element text (Brython's `html.SPAN(str)` would parse HTML). Assistant text goes through `MarkdownParser`, which escapes HTML and drops unsafe link schemes.
+- Math is locked down in layers. The MathJax configuration in `templates/index.html` has no html extension (`autoload.html = []`) and no `require` package. It loads `ui/safe` (vendored `es5/ui/safe.js`) with `allow.URLs = 'none'` and cursor styles off, and adds a `fontfamily` filter (font names only; it also covers `\unicode`'s font option). With these settings `\href`, `\mmlToken` attributes, `\bbox` and `\unicode` cannot make links, overlays or network requests. The page is not typeset at startup, and the color, bbox, boldsymbol, cancel and unicode extensions are preloaded.
+- `ChatUIManager.render_math` typesets only through `window.MatHudMathSafety.typesetAndSanitize` (`static/math_output_sanitizer.js`), and leaves math untypeset if that script is missing. After each typeset the sanitiser walks every `mjx-container`:
+  - unwraps `<a>`, and removes `href`/`xlink:href`/`src` and `on*` attributes, ids not starting with `mjx-` and classes MathJax does not use;
+  - drops style declarations that could overlay the page or fetch anything: position other than static/relative, large or non-length offsets, viewport units, `z-index`, `cursor`, `content`, and any `url()`, `image-set()`, `expression()`, `javascript:` or `@import`.
+  - MathJax's own output passes through unchanged, and the chat panel clips anything that is not fixed-positioned.
+
 #### Cartesian System (`cartesian_system_2axis.py`)
 
 **File Header:**
