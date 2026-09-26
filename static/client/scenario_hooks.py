@@ -151,8 +151,9 @@ class ScenarioHooks:
                 clear_undo_history(self.canvas)
             self.ai._trace_collector.clear()
             self.ai._turn_metrics.clear()
-            if options.get("chat", True) and "chat-history" in document:
-                document["chat-history"].clear()
+            if options.get("chat", True):
+                # clear_chat also forgets the saved-chat transcript and the typeset math.
+                self.ai._chat_ui.clear_chat()
             if options.get("conversation"):
                 req = ajax.ajax()
                 req.open("POST", "/new_conversation", True)
