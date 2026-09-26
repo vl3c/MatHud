@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, cast
 
+from no_change_result import NoChangeResult
 from utils.math_utils import MathUtils
 from process_function_calls import ProcessFunctionCalls
 
@@ -69,6 +70,43 @@ class FunctionRegistry:
             return {"error": f"Invalid conversion: {from_system} to {to_system}"}
 
     @staticmethod
+    def _create_point_tool(canvas: "Canvas") -> Callable[..., Any]:
+        """Build the create_point tool: canvas.create_point, but an occupied spot is reported, not hidden.
+
+        When a point already exists at (x, y) nothing is created, so the tool returns a
+        NoChangeResult naming the existing point instead of reporting a new one.
+        """
+
+        def create_point(
+            x: float, y: float, name: str = "", color: Optional[str] = None, extra_graphics: bool = True
+        ) -> Any:
+            existing = canvas.get_point(x, y)
+            if existing is not None:
+                return NoChangeResult(FunctionRegistry._existing_point_message(existing, name, color))
+            return canvas.create_point(x, y, name, color=color, extra_graphics=extra_graphics)
+
+        return create_point
+
+    @staticmethod
+    def _existing_point_message(point: Any, requested_name: Optional[str], requested_color: Optional[str]) -> str:
+        """Say that a point already occupies the spot, and which requested properties were not applied."""
+        message = (
+            f"Point '{point.name}' already exists at ({FunctionRegistry._format_coordinate(point.x)}, "
+            f"{FunctionRegistry._format_coordinate(point.y)}); no new point was created."
+        )
+        if requested_name and requested_name != point.name:
+            message += f" The requested name '{requested_name}' was not applied."
+        if requested_color:
+            message += " The requested color was not applied."
+        return message
+
+    @staticmethod
+    def _format_coordinate(value: Any) -> str:
+        """``1.0 -> '1'``, ``2.5 -> '2.5'``."""
+        text = repr(float(value))
+        return text[:-2] if text.endswith(".0") else text
+
+    @staticmethod
     def get_available_functions(
         canvas: "Canvas", workspace_manager: "WorkspaceManager", ai_interface: Optional["AIInterface"] = None
     ) -> Dict[str, Any]:
@@ -99,7 +137,7 @@ class FunctionRegistry:
                 ),
             },
             # ===== POINT OPERATIONS =====
-            "create_point": canvas.create_point,
+            "create_point": FunctionRegistry._create_point_tool(canvas),
             "delete_point": canvas.delete_point,
             "update_point": canvas.update_point,
             # ===== SEGMENT OPERATIONS =====

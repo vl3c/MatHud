@@ -28,7 +28,7 @@ from drawables.rectangle import Rectangle
 from drawables.triangle import Triangle
 from drawables.position import Position
 from managers.base_drawable_manager import BaseDrawableManager
-from managers.dependency_removal import remove_drawable_with_dependencies
+from managers.dependency_removal import release_segment, remove_drawable_with_dependencies
 from managers.polygon_type import PolygonType
 from managers.edit_policy import EditRule, get_drawable_edit_policy
 from itertools import combinations
@@ -243,8 +243,28 @@ class PolygonManager(BaseDrawableManager):
         if target is None:
             return False
 
-        self.canvas.undo_redo_manager.archive()
+        undo_manager = self.canvas.undo_redo_manager
+        undo_manager.archive()
+        # One archive covers the whole delete; the segment deletes below would otherwise archive again.
+        undo_manager.suspend_archiving()
+        try:
+            removed = self._remove_polygon_and_unused_edges(target)
+        finally:
+            undo_manager.resume_archiving()
 
+        if self.canvas.draw_enabled:
+            self.canvas.draw()
+
+        return bool(removed)
+
+    def _remove_polygon_and_unused_edges(self, target: "Drawable") -> bool:
+        """Remove the polygon, then each edge that no other drawable still uses.
+
+        Vertex points always stay. Edges that another polygon, an angle, a graph or
+        another dependent drawable still uses stay too, so deleting one of two
+        triangles keeps their common side. An edge kept only for a graph passes to
+        that graph, so deleting the graph later removes it.
+        """
         # Remove any expression-based region colored areas that reference this polygon by name.
         polygon_name = getattr(target, "name", "")
         if polygon_name and hasattr(self.drawable_manager, "delete_region_expression_colored_areas_referencing_name"):
@@ -258,17 +278,9 @@ class PolygonManager(BaseDrawableManager):
 
         removed = remove_drawable_with_dependencies(self.drawables, self.dependency_manager, target)
         if removed:
-            for segment in self._iter_polygon_segments(target):
-                self.segment_manager.delete_segment(
-                    segment.point1.x,
-                    segment.point1.y,
-                    segment.point2.x,
-                    segment.point2.y,
-                )
-
-        if self.canvas.draw_enabled:
-            self.canvas.draw()
-
+            edges = list(self._iter_polygon_segments(target))
+            for segment in edges:
+                release_segment(segment, self.drawables, self.dependency_manager, self.segment_manager, released=edges)
         return bool(removed)
 
     def get_polygon_by_name(

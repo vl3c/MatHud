@@ -12,6 +12,8 @@ Categories:
 
 from __future__ import annotations
 
+import os
+
 # ===== WORKSPACE MANAGEMENT CONSTANTS =====
 # Directory and versioning for workspace persistence
 WORKSPACES_DIR: str = "workspaces"
@@ -37,6 +39,18 @@ MAX_SAVED_CHAT_TOOL_ARGS_CHARS: int = 120
 MAX_RESTORED_HISTORY_MESSAGES: int = 40
 MAX_RESTORED_HISTORY_MESSAGE_CHARS: int = 8_000
 MAX_RESTORED_HISTORY_CHARS: int = 40_000
+
+# Environment variable that moves workspace storage elsewhere. Test harnesses
+# (the scenario runner) point it at a temporary directory so their saves never
+# touch the user's workspaces.
+WORKSPACES_DIR_ENV: str = "MATHUD_WORKSPACES_DIR"
+
+
+def get_workspaces_dir() -> str:
+    """Return the workspace directory: ``MATHUD_WORKSPACES_DIR`` when set, else ``WORKSPACES_DIR``."""
+    override = os.environ.get(WORKSPACES_DIR_ENV, "").strip()
+    return override or WORKSPACES_DIR
+
 
 # ===== REQUEST SIZE & IMAGE VALIDATION CONSTANTS =====
 # Server-side hard caps enforced independently of the (advisory) client-side

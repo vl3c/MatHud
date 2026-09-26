@@ -30,6 +30,8 @@ class TestPolygonManager(unittest.TestCase):
             undo_redo_manager=SimpleMock(
                 name="UndoRedoMock",
                 archive=SimpleMock(),
+                suspend_archiving=SimpleMock(),
+                resume_archiving=SimpleMock(),
             ),
         )
 
@@ -41,6 +43,7 @@ class TestPolygonManager(unittest.TestCase):
         self.dependency_manager = SimpleMock(
             name="DependencyManagerMock",
             analyze_drawable_for_dependencies=SimpleMock(),
+            get_all_children=lambda drawable: set(),
         )
         self.point_manager = SimpleMock(
             name="PointManagerMock",

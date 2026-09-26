@@ -517,3 +517,9 @@ def all_cmd(port: int, with_auth: bool, start_server: bool, skip_lint: bool) -> 
     )
     if results.get("screenshot"):
         click.echo(f"\nScreenshot saved to: {results['screenshot']}")
+
+
+# Scenario tests live in their own package (cli/scenarios/); registered here so they run as `test scenarios`.
+from cli.scenarios.command import scenarios_cmd  # noqa: E402
+
+test.add_command(scenarios_cmd)

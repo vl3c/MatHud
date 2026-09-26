@@ -20,7 +20,14 @@ from drawables.directed_graph import DirectedGraph
 from drawables.undirected_graph import UndirectedGraph
 from drawables.tree import Tree
 from geometry.graph_state import GraphEdgeDescriptor, GraphState, GraphVertexDescriptor, TreeState
-from managers.dependency_removal import remove_drawable_with_dependencies
+from managers.dependency_removal import (
+    GRAPH_CLASS_NAMES,
+    find_point_users,
+    hand_over_to_graphs,
+    is_on_canvas,
+    release_segment,
+    remove_drawable_with_dependencies,
+)
 from utils.graph_layout import layout_vertices
 from utils.graph_utils import Edge, GraphUtils
 
@@ -36,6 +43,10 @@ if TYPE_CHECKING:
     from managers.segment_manager import SegmentManager
     from managers.vector_manager import VectorManager
     from name_generator.drawable import DrawableNameGenerator
+
+
+# See drawables.graph.EdgeLabelRecord.
+LabelRecord = Tuple[Any, str, bool, Optional[str], Optional[int], bool]
 
 
 class GraphManager:
@@ -65,6 +76,12 @@ class GraphManager:
     def create_graph(self, state: GraphState) -> Graph:
         self.canvas.undo_redo_manager.archive()
 
+        # Vertices and edges may reuse drawables already on the canvas; the graph must not own those.
+        existing_drawables: List[Any] = (
+            list(self.drawables.Points) + list(self.drawables.Segments) + list(self.drawables.Vectors)
+        )
+        existing_ids = {id(drawable) for drawable in existing_drawables}
+
         vertex_positions = self._resolve_positions(state)
         vertex_name_map: Dict[str, str] = {}
         id_to_point: Dict[str, Point] = {}
@@ -77,6 +94,8 @@ class GraphManager:
 
         segments_created: List["Segment"] = []
         vectors_created: List["Vector"] = []
+        original_labels: List[LabelRecord] = []
+        label_seq = self._next_label_seq()
         is_tree = isinstance(state, TreeState)
         for edge in state.edges:
             edge_directed = state.directed if is_tree else None
@@ -85,6 +104,10 @@ class GraphManager:
                 segments_created.append(segment_obj)
             if vector_obj:
                 vectors_created.append(vector_obj)
+            edge_obj = segment_obj or vector_obj
+            if edge_obj is not None and edge.weight is not None:
+                preexisting = id(edge_obj) in existing_ids
+                self._apply_weight_label(edge_obj, str(edge.weight), preexisting, original_labels, label_seq)
 
         if is_tree:
             # Translate internal vertex ID to actual point name for root
@@ -110,9 +133,24 @@ class GraphManager:
                     isolated_points=list(id_to_point.values()),
                 )
 
+        graph.set_preexisting(
+            self._unique_preexisting(list(id_to_point.values()), existing_ids),
+            self._unique_preexisting(segments_created + vectors_created, existing_ids),
+            original_labels,
+        )
+
         self.drawables.add(graph)
         self.dependency_manager.analyze_drawable_for_dependencies(graph)
         return graph
+
+    @staticmethod
+    def _unique_preexisting(drawables: List[Any], existing_ids: set[int]) -> List[Any]:
+        """Return the drawables whose ids were on the canvas before, without duplicates."""
+        result: List[Any] = []
+        for drawable in drawables:
+            if id(drawable) in existing_ids and not any(item is drawable for item in result):
+                result.append(drawable)
+        return result
 
     def build_graph_state(
         self,
@@ -169,23 +207,12 @@ class GraphManager:
                 )
             )
 
-        if adjacency_matrix and not edges:
-            n = len(adjacency_matrix)
-            for i in range(n):
-                for j in range(n):
-                    weight = adjacency_matrix[i][j]
-                    if weight and i < len(id_list) and j < len(id_list):
-                        edge_descriptors.append(
-                            GraphEdgeDescriptor(
-                                f"m{i}_{j}",
-                                id_list[i],
-                                id_list[j],
-                                weight=float(weight),
-                                directed=True,
-                            )
-                        )
-
         resolved_directed = directed if directed is not None else graph_type in ("dag", "directed")
+
+        if adjacency_matrix and not edges:
+            # Trees are always undirected, so their matrix is read like an undirected graph's.
+            matrix_directed = resolved_directed and graph_type != "tree"
+            edge_descriptors.extend(self._edges_from_adjacency_matrix(adjacency_matrix, id_list, matrix_directed))
 
         resolved_root: Optional[str] = None
         if root is not None:
@@ -233,40 +260,176 @@ class GraphManager:
         if existing is None:
             return False
 
-        point_names: set[str] = set()
+        undo_manager = self.canvas.undo_redo_manager
+        undo_manager.archive()
+        # One archive covers the whole delete; the edge and point deletes below would otherwise archive again.
+        undo_manager.suspend_archiving()
+        try:
+            removed = self._delete_graph_and_owned_drawables(existing)
+        finally:
+            undo_manager.resume_archiving()
 
-        if isinstance(existing, DirectedGraph):
-            vectors: List["Vector"] = list(existing.vectors)
-            for vector in vectors:
-                self.vector_manager.delete_vector(vector.origin.x, vector.origin.y, vector.tip.x, vector.tip.y)
-                point_names.add(vector.origin.name)
-                point_names.add(vector.tip.name)
-        else:
-            segments: List["Segment"] = list(getattr(existing, "segments", []))
-            for segment in segments:
-                self.segment_manager.delete_segment(
-                    segment.point1.x,
-                    segment.point1.y,
-                    segment.point2.x,
-                    segment.point2.y,
-                    delete_children=True,
-                    delete_parents=False,
-                )
-                point_names.add(segment.point1.name)
-                point_names.add(segment.point2.name)
-
-        # Also remove isolated points tracked on the graph
-        isolated_pts = getattr(existing, "_isolated_points", [])
-        for p in isolated_pts:
-            point_names.add(getattr(p, "name", ""))
-
-        for v_name in point_names:
-            self.point_manager.delete_point_by_name(v_name)
-
-        removed = remove_drawable_with_dependencies(self.drawables, self.dependency_manager, existing)
         if removed and self.canvas.draw_enabled:
             self.canvas.draw()
         return bool(removed)
+
+    def _delete_graph_and_owned_drawables(self, graph: Graph) -> bool:
+        """Delete the graph with the vertices and edges it created that nothing else uses.
+
+        Points and edges that existed before the graph (reused as vertices or edges)
+        stay, with their original labels back. So do graph-created ones that another
+        object (a triangle built on a vertex, another graph, ...) now uses; when only
+        other graphs use them, those graphs take ownership.
+        """
+        is_directed = isinstance(graph, DirectedGraph)
+        edges: List[Any] = list(graph.vectors) if is_directed else list(getattr(graph, "segments", []))
+        vertex_points: List["Point"] = []
+        for point in self._edge_endpoints(edges) + list(getattr(graph, "_isolated_points", [])):
+            if not any(item is point for item in vertex_points):
+                vertex_points.append(point)
+
+        self._release_weight_labels(graph)
+        if not remove_drawable_with_dependencies(self.drawables, self.dependency_manager, graph):
+            return False
+
+        for edge in edges:
+            if graph.is_preexisting(edge) or not is_on_canvas(self.drawables, edge):
+                continue
+            if is_directed:
+                self._release_vector(edge)
+            else:
+                release_segment(edge, self.drawables, self.dependency_manager, self.segment_manager)
+
+        for point in vertex_points:
+            if graph.is_preexisting(point) or not is_on_canvas(self.drawables, point):
+                continue
+            users = find_point_users(point, self.drawables, self.dependency_manager)
+            if users:
+                hand_over_to_graphs(point, users)
+            elif getattr(point, "name", ""):
+                self.point_manager.delete_point_by_name(point.name)
+        return True
+
+    @staticmethod
+    def _edge_endpoints(edges: List[Any]) -> List["Point"]:
+        points: List["Point"] = []
+        for edge in edges:
+            if hasattr(edge, "origin"):
+                points.extend([edge.origin, edge.tip])
+            else:
+                points.extend([edge.point1, edge.point2])
+        return points
+
+    def _release_vector(self, vector: "Vector") -> None:
+        """Delete a graph-created vector unless something else still uses it."""
+        users = [d for d in self.dependency_manager.get_all_children(vector) if is_on_canvas(self.drawables, d)]
+        if users:
+            hand_over_to_graphs(vector, users)
+            return
+        self.vector_manager.delete_vector(vector.origin.x, vector.origin.y, vector.tip.x, vector.tip.y)
+
+    @staticmethod
+    def _label_holder(edge: Any) -> Any:
+        """Return the segment carrying the edge's label (a vector's internal segment)."""
+        if edge.get_class_name() == "Vector":
+            return edge.segment
+        return edge
+
+    def _apply_weight_label(
+        self,
+        edge: Any,
+        label_text: str,
+        preexisting: bool,
+        original_labels: List[LabelRecord],
+        label_seq: int,
+    ) -> None:
+        """Show the edge weight as a label and record what it replaced.
+
+        New segments already got their label on creation; new vectors and reused edges
+        get it here. A created edge records an empty original and is never restored.
+        """
+        holder = self._label_holder(edge)
+        label = getattr(holder, "label", None)
+        original = (str(getattr(label, "text", "") or ""), bool(getattr(label, "visible", False)))
+        if preexisting or edge.get_class_name() == "Vector":
+            try:
+                holder.update_label_text(label_text)
+                holder.set_label_visibility(True)
+            except Exception:
+                return
+        if not preexisting:
+            original = ("", False)
+        # Record the text as the label stores it, so a later comparison matches exactly.
+        written = str(getattr(getattr(holder, "label", None), "text", "") or "")
+        for index, record in enumerate(original_labels):
+            if record[0] is edge:
+                original_labels[index] = (edge, record[1], record[2], written, record[4], record[5])
+                return
+        original_labels.append((edge, original[0], original[1], written, label_seq, not preexisting))
+
+    def _next_label_seq(self) -> int:
+        """Return a creation sequence number above every graph's on the canvas."""
+        seqs = [g.label_seq for g in self._all_graphs() if g.label_seq is not None]
+        return (max(seqs) if seqs else 0) + 1
+
+    def _release_weight_labels(self, graph: Graph) -> None:
+        """Undo this graph's weight labels without touching labels written after them.
+
+        Graphs that write a weight on the same edge form a chain ordered by creation;
+        each records the label it replaced. When a graph leaves, the next graph created
+        after it whose recorded original is this graph's weight inherits this graph's
+        original. Otherwise, on an edge the graph reused, the original comes back if the
+        edge still shows this graph's weight; a label changed since stays. On an edge
+        the graph created, the weight stays for whatever keeps the edge.
+        """
+        others = [g for g in self._all_graphs() if g is not graph]
+        for edge, text, visible, written, seq, created in graph.original_edge_labels:
+            if written is None or not is_on_canvas(self.drawables, edge):
+                continue
+            successor = self._next_in_label_chain(edge, others, written, seq)
+            if successor is not None:
+                successor.replace_label_original(edge, text, visible)
+            elif not created:
+                self._restore_label_if_unchanged(edge, text, visible, written)
+
+    @staticmethod
+    def _next_in_label_chain(edge: Any, graphs: List[Graph], written: str, seq: Optional[int]) -> Optional[Graph]:
+        """Return the graph that relabelled the edge right after the one that wrote ``written``.
+
+        Only graphs created later count. Records from older saves have no sequence;
+        they match on the label text alone.
+        """
+        best: Optional[Graph] = None
+        best_seq: Optional[int] = None
+        for other in graphs:
+            record = other.label_record(edge)
+            if record is None or record[1] != written:
+                continue
+            other_seq = record[4]
+            if seq is not None and other_seq is not None:
+                if other_seq <= seq or (best_seq is not None and other_seq >= best_seq):
+                    continue
+                best, best_seq = other, other_seq
+            elif best is None:
+                best = other
+        return best
+
+    def _restore_label_if_unchanged(self, edge: Any, text: str, visible: bool, written: str) -> None:
+        holder = self._label_holder(edge)
+        current = str(getattr(getattr(holder, "label", None), "text", "") or "")
+        if current != written:
+            return
+        try:
+            holder.update_label_text(text)
+            holder.set_label_visibility(visible)
+        except Exception:
+            pass
+
+    def _all_graphs(self) -> List[Graph]:
+        graphs: List[Graph] = []
+        for class_name in GRAPH_CLASS_NAMES:
+            graphs.extend(self.drawables.get_by_class_name(class_name))  # type: ignore[arg-type]
+        return graphs
 
     def get_graph(self, name: str) -> Optional[Graph]:
         for graph in self.drawables.get_by_class_name("Graph"):
@@ -338,6 +501,40 @@ class GraphManager:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+    @staticmethod
+    def _edges_from_adjacency_matrix(
+        adjacency_matrix: List[List[float]], id_list: List[str], directed: bool
+    ) -> List[GraphEdgeDescriptor]:
+        """Build edge descriptors from a weighted adjacency matrix.
+
+        Directed graphs get one edge per nonzero entry. Undirected graphs get one edge per
+        vertex pair, read from the upper triangle (or the lower one where the upper is zero).
+        Edges take their direction from the graph.
+        """
+        descriptors: List[GraphEdgeDescriptor] = []
+        n = min(len(adjacency_matrix), len(id_list))
+        for i in range(n):
+            for j in range(n):
+                if directed:
+                    weight = GraphManager._matrix_entry(adjacency_matrix, i, j)
+                elif j > i:
+                    weight = GraphManager._matrix_entry(adjacency_matrix, i, j) or GraphManager._matrix_entry(
+                        adjacency_matrix, j, i
+                    )
+                else:
+                    continue
+                if weight:
+                    descriptors.append(
+                        GraphEdgeDescriptor(f"m{i}_{j}", id_list[i], id_list[j], weight=float(weight), directed=None)
+                    )
+        return descriptors
+
+    @staticmethod
+    def _matrix_entry(matrix: List[List[float]], row: int, col: int) -> float:
+        if row < len(matrix) and col < len(matrix[row]):
+            return matrix[row][col]
+        return 0
+
     def _create_vertex_point(self, vertex: GraphVertexDescriptor, coords: Tuple[float, float]) -> "Point":
         """Create the point for a vertex, honouring its requested name when valid and unused."""
         requested_name = self._resolve_requested_vertex_name(vertex.name)
@@ -432,6 +629,7 @@ class GraphManager:
             label_text = str(edge.weight)
 
         if directed:
+            # create_graph writes the weight label, after saving a reused vector's own label.
             vector_name = edge.name or ""
             vector = self.vector_manager.create_vector_from_points(
                 source_point,
@@ -439,12 +637,6 @@ class GraphManager:
                 name=vector_name,
                 color=color_value,
             )
-            if label_text:
-                try:
-                    vector.segment.update_label_text(label_text)
-                    vector.segment.set_label_visibility(True)
-                except Exception:
-                    pass
             segment: Optional["Segment"] = None
         else:
             segment = self.segment_manager.create_segment_from_points(

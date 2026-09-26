@@ -1,0 +1,177 @@
+{
+  "schema": 1,
+  "area": "AR",
+  "title": "Coloured areas and regions",
+  "scenarios": [
+    {
+      "id": "AR-01",
+      "title": "Shaded area follows its function",
+      "tags": ["areas", "functions", "transforms", "dependencies"],
+      "smoke": false,
+      "known": ["K14"],
+      "targets": "dependents of functions not updated by transforms",
+      "setup": {
+        "calls": [
+          {
+            "tool": "draw_function",
+            "args": {"function_string": "x^2", "name": "f", "left_bound": -3, "right_bound": 3}
+          },
+          {
+            "tool": "create_colored_area",
+            "args": {"drawable1_name": "f", "left_bound": 0, "right_bound": 2, "color": "orange", "opacity": 0.4}
+          }
+        ]
+      },
+      "steps": [
+        {
+          "user": "Move f three units to the right, shading included.",
+          "reference": [{"tool": "translate_object", "args": {"name": "f", "x_offset": 3, "y_offset": 0}}],
+          "checks": [
+            {
+              "check": "relation",
+              "relation": "function_value",
+              "select": [{"type": "Function", "name": "f"}],
+              "x": 3,
+              "y": 0
+            },
+            {
+              "check": "attribute",
+              "path": "args.left_bound",
+              "select": {"type": "FunctionsBoundedColoredArea", "only": true},
+              "eq": 3,
+              "known": "K14"
+            },
+            {
+              "check": "attribute",
+              "path": "args.right_bound",
+              "select": {"type": "FunctionsBoundedColoredArea", "only": true},
+              "eq": 5,
+              "known": "K14"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "AR-02",
+      "title": "Area between two segments has no side effects",
+      "tags": ["areas", "segments", "side-effects"],
+      "smoke": false,
+      "known": ["K15"],
+      "targets": "hidden geometry created by an area tool",
+      "setup": {
+        "calls": [
+          {"tool": "create_segment", "args": {"x1": 0, "y1": 0, "x2": 4, "y2": 0}},
+          {"tool": "create_segment", "args": {"x1": 1, "y1": 2, "x2": 3, "y2": 2}}
+        ]
+      },
+      "steps": [
+        {
+          "user": "Shade the region between segments AB and CD.",
+          "reference": [
+            {
+              "tool": "create_colored_area",
+              "args": {"drawable1_name": "AB", "drawable2_name": "CD", "color": "pink", "opacity": 0.3}
+            }
+          ],
+          "checks": [
+            {"check": "count", "select": {"type": "SegmentsBoundedColoredArea"}, "eq": 1},
+            {
+              "check": "unchanged_except",
+              "since": "setup",
+              "except": [{"type": "SegmentsBoundedColoredArea"}],
+              "known": "K15"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "AR-03",
+      "title": "Fill a square and report its area",
+      "tags": ["areas", "polygons", "transforms"],
+      "smoke": false,
+      "targets": "region areas bound to polygons",
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_polygon",
+            "args": {
+              "vertices": [{"x": 0, "y": 0}, {"x": 2, "y": 0}, {"x": 2, "y": 2}, {"x": 0, "y": 2}],
+              "polygon_type": "quadrilateral",
+              "subtype": "square",
+              "name": "ABCD"
+            }
+          }
+        ]
+      },
+      "steps": [
+        {
+          "user": "Fill the square pink and tell me its area.",
+          "reference": [
+            {"tool": "create_region_colored_area", "args": {"rectangle_name": "ABCD", "color": "pink"}},
+            {"tool": "calculate_area", "args": {"expression": "ABCD"}}
+          ],
+          "checks": [
+            {"check": "count", "select": {"type": "ClosedShapeColoredArea"}, "eq": 1},
+            {"check": "tool_result", "tool": "calculate_area", "path": "value", "eq": 4},
+            {"check": "answer_mentions", "numbers": [4]}
+          ]
+        },
+        {
+          "user": "Move the square 5 units right.",
+          "reference": [{"tool": "translate_object", "args": {"name": "ABCD", "x_offset": 5, "y_offset": 0}}],
+          "checks": [
+            {
+              "check": "attribute",
+              "path": "args.geometry_snapshot.polygon_coords",
+              "select": {"type": "ClosedShapeColoredArea", "only": true},
+              "contains": [5, 0]
+            },
+            {
+              "check": "attribute",
+              "path": "args.geometry_snapshot.polygon_coords",
+              "select": {"type": "ClosedShapeColoredArea", "only": true},
+              "contains": [7, 2]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "AR-04",
+      "title": "Circle minus triangle",
+      "tags": ["areas", "regions", "null-arguments"],
+      "smoke": false,
+      "known": ["K10"],
+      "targets": "boolean region expressions; names in expressions",
+      "setup": {
+        "calls": [
+          {"tool": "create_circle", "args": {"center_x": 0, "center_y": 0, "radius": 5}},
+          {
+            "tool": "create_polygon",
+            "args": {
+              "vertices": [{"x": -1, "y": -1}, {"x": 2, "y": -1}, {"x": 0, "y": 2}],
+              "polygon_type": "triangle"
+            }
+          }
+        ]
+      },
+      "steps": [
+        {
+          "user": "Shade the part of the circle outside the triangle and tell me its area.",
+          "reference": [
+            {"tool": "create_region_colored_area", "args": {"expression": "A(5) - BCD"}},
+            {"tool": "calculate_area", "args": {"expression": "A(5) - BCD"}}
+          ],
+          "checks": [
+            {"check": "tool_result", "tool": "calculate_area", "path": "value", "eq": 74.03981633974483, "tol": 0.001},
+            {"check": "count", "select": {"type": "ColoredArea"}, "eq": 1, "known": "K10"},
+            {"check": "no_tool_errors", "known": "K10"},
+            {"check": "answer_mentions", "numbers": [74.04]}
+          ]
+        }
+      ]
+    }
+  ]
+}

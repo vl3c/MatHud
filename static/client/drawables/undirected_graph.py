@@ -84,6 +84,7 @@ class UndirectedGraph(Graph):
 
     def remove_segment(self, segment: "Segment") -> bool:
         """Remove a segment reference from this graph."""
+        self._forget_preexisting(segment)
         if segment in self._segments:
             self._segments.remove(segment)
             self._invalidate_cache()
@@ -118,5 +119,6 @@ class UndirectedGraph(Graph):
             segments=deepcopy(self._segments, memo),
             isolated_points=deepcopy(self._isolated_points, memo),
         )
+        self._copy_preexisting_to(copied, memo)
         memo[id(self)] = copied
         return copied

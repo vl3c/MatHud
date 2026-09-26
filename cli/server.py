@@ -221,6 +221,7 @@ class ServerManager:
         *,
         auto_increment_port: bool = False,
         max_port_tries: int = 10,
+        extra_env: Optional[dict[str, str]] = None,
     ) -> tuple[bool, str]:
         """Start the Flask server in the background.
 
@@ -228,6 +229,8 @@ class ServerManager:
             wait: If True, wait for the server to be ready before returning.
             auto_increment_port: If True, try next ports when requested port is occupied.
             max_port_tries: Maximum number of next ports to try when auto incrementing.
+            extra_env: Environment variables to set for the server process
+                (e.g. ``MATHUD_WORKSPACES_DIR`` for test runs).
 
         Returns:
             Tuple of (success, message).
@@ -283,6 +286,8 @@ class ServerManager:
         # Force non-debug server mode for CLI-managed processes without
         # triggering deployment-mode auth behaviors.
         env["MATHUD_NON_DEBUG"] = "1"
+        if extra_env:
+            env.update(extra_env)
 
         # Start server as background process
         # Use CREATE_NEW_PROCESS_GROUP on Windows, start_new_session on Unix

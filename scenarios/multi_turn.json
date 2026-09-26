@@ -1,0 +1,225 @@
+{
+  "schema": 1,
+  "area": "MT",
+  "title": "Multi-turn follow-ups",
+  "scenarios": [
+    {
+      "id": "MT-01",
+      "title": "Build, move, measure, undo",
+      "tags": ["multi-turn", "transforms", "undo"],
+      "smoke": true,
+      "known": ["K16"],
+      "targets": "multi-turn reference resolution; undo accounting across read-only turns",
+      "invariants": {"I3": "K16"},
+      "steps": [
+        {
+          "user": "Draw a triangle with vertices A(0,0), B(4,0) and C(0,3).",
+          "reference": [
+            {
+              "tool": "create_polygon",
+              "args": {
+                "vertices": [{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 0, "y": 3}],
+                "polygon_type": "triangle",
+                "name": "ABC"
+              }
+            }
+          ]
+        },
+        {
+          "user": "Now move A to (1,1).",
+          "reference": [{"tool": "translate_object", "args": {"name": "A", "x_offset": 1, "y_offset": 1}}],
+          "checks": [
+            {"check": "point_at", "select": {"type": "Point", "name": "A"}, "at": [1, 1]},
+            {"check": "point_at", "select": {"type": "Point", "name": "B"}, "at": [4, 0]},
+            {"check": "point_at", "select": {"type": "Point", "name": "C"}, "at": [0, 3]}
+          ]
+        },
+        {
+          "user": "What is the area of the triangle now?",
+          "reference": [{"tool": "calculate_area", "args": {"expression": "ABC"}}],
+          "checks": [
+            {"check": "tool_result", "tool": "calculate_area", "path": "value", "eq": 2.5},
+            {"check": "answer_mentions", "numbers": [2.5]}
+          ]
+        },
+        {
+          "user": "Undo the move.",
+          "reference": [{"tool": "undo", "args": {}}],
+          "checks": [{"check": "point_at", "select": {"type": "Point", "name": "A"}, "at": [0, 0]}]
+        }
+      ]
+    },
+    {
+      "id": "MT-02",
+      "title": "Function, derivative, shading, deletion",
+      "tags": ["multi-turn", "functions", "areas", "delete"],
+      "smoke": false,
+      "targets": "dependent cleanup on delete",
+      "steps": [
+        {
+          "user": "Plot sin(x).",
+          "reference": [{"tool": "draw_function", "args": {"function_string": "sin(x)", "name": "f"}}]
+        },
+        {
+          "user": "Add its derivative in red.",
+          "reference": [{"tool": "draw_function", "args": {"function_string": "cos(x)", "name": "g", "color": "red"}}]
+        },
+        {
+          "user": "Shade between them from 0 to pi.",
+          "reference": [
+            {
+              "tool": "create_colored_area",
+              "args": {
+                "drawable1_name": "f",
+                "drawable2_name": "g",
+                "left_bound": 0,
+                "right_bound": 3.141592653589793,
+                "color": "lightgreen",
+                "opacity": 0.3
+              }
+            }
+          ],
+          "checks": [
+            {
+              "check": "exists",
+              "select": {"type": "FunctionsBoundedColoredArea", "where": {"args.func1": "f", "args.func2": "g"}}
+            }
+          ]
+        },
+        {
+          "user": "Delete the derivative.",
+          "reference": [{"tool": "delete_function", "args": {"name": "g"}}],
+          "checks": [
+            {"check": "absent", "select": {"type": "Function", "name": "g"}},
+            {"check": "exists", "select": {"type": "Function", "name": "f"}},
+            {"check": "count", "select": {"type": "ColoredArea"}, "eq": 0}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "MT-03",
+      "title": "Graph edit changes the answer",
+      "tags": ["multi-turn", "graphs", "delete"],
+      "smoke": false,
+      "targets": "graph and canvas staying in sync after a segment delete",
+      "setup": {
+        "calls": [
+          {
+            "tool": "generate_graph",
+            "args": {
+              "name": "G1",
+              "graph_type": "graph",
+              "directed": false,
+              "vertices": [
+                {"name": "A", "x": 0, "y": 0, "color": null, "label": null},
+                {"name": "B", "x": 4, "y": 0, "color": null, "label": null},
+                {"name": "C", "x": 4, "y": 4, "color": null, "label": null},
+                {"name": "D", "x": 0, "y": 4, "color": null, "label": null}
+              ],
+              "edges": [
+                {"source": 0, "target": 1, "weight": 1, "name": null, "color": null, "directed": null},
+                {"source": 1, "target": 2, "weight": 2, "name": null, "color": null, "directed": null},
+                {"source": 0, "target": 2, "weight": 4, "name": null, "color": null, "directed": null},
+                {"source": 2, "target": 3, "weight": 1, "name": null, "color": null, "directed": null}
+              ]
+            }
+          }
+        ]
+      },
+      "steps": [
+        {
+          "user": "Shortest path from A to D in G1?",
+          "reference": [
+            {
+              "tool": "analyze_graph",
+              "args": {
+                "graph_name": "G1",
+                "operation": "shortest_path",
+                "params": {
+                  "start": "A",
+                  "goal": "D",
+                  "root": null,
+                  "a": null,
+                  "b": null,
+                  "new_root": null,
+                  "x": null,
+                  "y": null
+                }
+              }
+            }
+          ],
+          "checks": [
+            {"check": "tool_result", "tool": "analyze_graph", "path": "cost", "eq": 4},
+            {"check": "tool_result", "tool": "analyze_graph", "path": "path", "eq": ["A", "B", "C", "D"]}
+          ]
+        },
+        {
+          "user": "Remove the edge between B and C and ask again.",
+          "reference": [
+            {"tool": "delete_segment", "args": {"x1": 4, "y1": 0, "x2": 4, "y2": 4}},
+            {
+              "tool": "analyze_graph",
+              "args": {
+                "graph_name": "G1",
+                "operation": "shortest_path",
+                "params": {
+                  "start": "A",
+                  "goal": "D",
+                  "root": null,
+                  "a": null,
+                  "b": null,
+                  "new_root": null,
+                  "x": null,
+                  "y": null
+                }
+              }
+            }
+          ],
+          "checks": [
+            {"check": "absent", "select": {"type": "Segment", "ends": [[4, 0], [4, 4]]}},
+            {"check": "exists", "select": {"type": "UndirectedGraph"}},
+            {"check": "tool_result", "tool": "analyze_graph", "path": "cost", "eq": 5},
+            {"check": "tool_result", "tool": "analyze_graph", "path": "path", "eq": ["A", "C", "D"]}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "MT-04",
+      "title": "Pronouns across turns",
+      "tags": ["multi-turn", "circles", "update", "transforms"],
+      "smoke": false,
+      "targets": "multi-turn reference resolution; renamed circles after scaling",
+      "steps": [
+        {
+          "user": "Draw a circle at the origin with radius 2.",
+          "reference": [{"tool": "create_circle", "args": {"center_x": 0, "center_y": 0, "radius": 2}}]
+        },
+        {
+          "user": "Make it red.",
+          "reference": [{"tool": "update_circle", "args": {"name": "A(2)", "new_color": "red"}}]
+        },
+        {
+          "user": "Move it to (3,3).",
+          "reference": [{"tool": "update_circle", "args": {"name": "A(2)", "new_center_x": 3, "new_center_y": 3}}]
+        },
+        {
+          "user": "And double its size.",
+          "reference": [{"tool": "scale_object", "args": {"name": "A(2)", "sx": 2, "sy": 2, "cx": 3, "cy": 3}}],
+          "checks": [
+            {"check": "count", "select": {"type": "Circle"}, "eq": 1},
+            {"check": "exists", "select": {"type": "Circle", "center": [3, 3], "radius": 4}},
+            {"check": "attribute", "path": "inspect.color", "select": {"type": "Circle", "only": true}, "eq": "red"},
+            {
+              "check": "attribute",
+              "path": "name",
+              "select": {"type": "Circle", "only": true},
+              "matches": "^A\\(4\\)$"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

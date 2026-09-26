@@ -145,13 +145,13 @@ class PointManager(BaseDrawableManager):
         Returns:
             Point: The newly created point
         """
-        # Archive before creation for undo functionality
-        self.canvas.undo_redo_manager.archive()
-
-        # Check if a point already exists at these coordinates
+        # Check if a point already exists at these coordinates (nothing changes, so no archive)
         existing_point = self.get_point(x, y)
         if existing_point:
             return existing_point
+
+        # Archive before creation for undo functionality
+        self.canvas.undo_redo_manager.archive()
 
         # Generate a name
         name = self.name_generator.generate_point_name(name)
@@ -262,7 +262,8 @@ class PointManager(BaseDrawableManager):
                         f"PointManager: Point at ({x}, {y}) is being deleted. Removing dependent angle '{child.name}'."
                     )
                     if hasattr(self.drawable_manager, "angle_manager") and self.drawable_manager.angle_manager:
-                        self.drawable_manager.angle_manager.delete_angle(child.name)
+                        # The point's segments go with it; leave the angle's arms to that cascade.
+                        self.drawable_manager.angle_manager.delete_angle(child.name, delete_unused_arms=False)
                 if class_name == "CircleArc":
                     print(
                         f"PointManager: Point at ({x}, {y}) is being deleted. Removing dependent circle arc '{child.name}'."

@@ -11,6 +11,7 @@ from .test_cartesian import TestCartesian2Axis
 from .test_circle import TestCircle
 from .test_circle_arc import TestCircleArc
 from .test_custom_drawable_names import TestCustomDrawableNames
+from .test_delete_cascades import TestDeleteCascades
 from .test_drawable_dependency_manager import TestDrawableDependencyManager
 from .test_drawable_manager import (
     TestDrawableManagerRegionLookup,
@@ -308,12 +309,20 @@ from .ai_result_formatter import AITestResult
 from .test_series import TestSeries
 from .test_action_trace_collector import (
     TestComputeStateDelta,
+    TestComputeStateDeltaCanvasShape,
     TestBuildTrace,
     TestStoreAndRetrieve,
     TestExportTracesJson,
     TestCompactSummary,
 )
+from .test_scenario_hooks import (
+    TestScenarioHookHelpers,
+    TestScenarioHookCanvas,
+    TestScenarioHookEndpoints,
+    TestToolBatchTraceFailure,
+)
 from .test_result_processor_traced import TestGetResultsTraced
+from .test_tool_batch_results import TestToolBatchUndo, TestToolErrorResults, TestToolNoOpResults
 from .test_base_telemetry import (
     TestBaseTelemetryInit,
     TestBaseTelemetryReset,
@@ -461,6 +470,7 @@ class Tests:
             TestWorkspaceManagerOrchestration,
             TestWorkspacePlotsRestore,
             TestWorkspaceRoundTrip,
+            TestDeleteCascades,
             TestMathFunctions,
             TestNumberTheory,
             TestMathUtilsSolving,
@@ -673,11 +683,19 @@ class Tests:
             TestTTSControllerErrorHandling,
             TestSeries,
             TestComputeStateDelta,
+            TestComputeStateDeltaCanvasShape,
+            TestScenarioHookHelpers,
+            TestScenarioHookCanvas,
+            TestScenarioHookEndpoints,
+            TestToolBatchTraceFailure,
             TestBuildTrace,
             TestStoreAndRetrieve,
             TestExportTracesJson,
             TestCompactSummary,
             TestGetResultsTraced,
+            TestToolBatchUndo,
+            TestToolNoOpResults,
+            TestToolErrorResults,
             TestBaseTelemetryInit,
             TestBaseTelemetryReset,
             TestBaseTelemetryBeginFrame,
