@@ -73,6 +73,9 @@ def _sum_optional(values: List[Any]) -> Optional[int]:
 
 
 def _is_error_result(result: Any) -> bool:
+    """Same rule as ResultProcessor.is_error_result (this module stays free of browser imports)."""
+    if isinstance(result, dict):
+        return bool(result.get("error")) or result.get("type") == "error"
     return isinstance(result, str) and result.startswith("Error")
 
 

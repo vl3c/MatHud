@@ -302,7 +302,7 @@ from .test_action_trace_collector import (
     TestCompactSummary,
 )
 from .test_result_processor_traced import TestGetResultsTraced
-from .test_tool_batch_results import TestToolBatchUndo, TestToolNoOpResults
+from .test_tool_batch_results import TestToolBatchUndo, TestToolErrorResults, TestToolNoOpResults
 from .test_base_telemetry import (
     TestBaseTelemetryInit,
     TestBaseTelemetryReset,
@@ -661,6 +661,7 @@ class Tests:
             TestGetResultsTraced,
             TestToolBatchUndo,
             TestToolNoOpResults,
+            TestToolErrorResults,
             TestBaseTelemetryInit,
             TestBaseTelemetryReset,
             TestBaseTelemetryBeginFrame,

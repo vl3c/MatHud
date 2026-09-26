@@ -14,6 +14,8 @@ from canvas import Canvas
 from constants import successful_call_message
 from function_registry import FunctionRegistry
 from process_function_calls import ProcessFunctionCalls
+from tool_call_log_manager import ToolCallLogManager
+from turn_metrics import aggregate_turn
 from workspace_manager import WorkspaceManager
 
 TRIANGLE_VERTICES: List[Dict[str, float]] = [{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 0, "y": 3}]
@@ -232,6 +234,55 @@ class TestToolNoOpResults(_ToolBatchTestCase):
 
         self.assertEqual(self.run_single("undo"), successful_call_message)
         self.assertEqual(self.run_single("redo"), successful_call_message)
+
+
+class TestToolErrorResults(_ToolBatchTestCase):
+    """K21: results shaped {"error": ...} are flagged as tool errors."""
+
+    def test_error_dict_from_a_tool_is_flagged(self) -> None:
+        _, traced = self.run_batch(("analyze_graph", {"graph_name": "missing", "operation": "shortest_path"}))
+
+        self.assertIsInstance(traced[0]["result"], dict)
+        self.assertTrue(traced[0]["is_error"])
+
+    def test_dict_with_empty_error_field_is_not_flagged(self) -> None:
+        self.available_functions["lookup"] = lambda: {"tools": [], "error": None}
+
+        _, traced = self.run_batch(("lookup", {}))
+
+        self.assertFalse(traced[0]["is_error"])
+
+    def test_typed_error_payload_is_flagged(self) -> None:
+        self.available_functions["invert"] = lambda: {"type": "error", "value": "Error: singular matrix"}
+
+        _, traced = self.run_batch(("invert", {}))
+
+        self.assertTrue(traced[0]["is_error"])
+
+    def test_error_string_is_still_flagged(self) -> None:
+        _, traced = self.run_batch(("no_such_tool", {}))
+
+        self.assertTrue(traced[0]["is_error"])
+
+    def test_tool_call_log_marks_error_dicts_as_failed(self) -> None:
+        calls = [{"function_name": "analyze_graph", "arguments": {"graph_name": "g"}}]
+        results = {"analyze_graph(graph_name:g)": {"error": "Graph not found or spec missing"}}
+        log = ToolCallLogManager()
+
+        log.add_entries(calls, results)
+
+        self.assertTrue(log.entries[0]["is_error"])
+        self.assertIn("Graph not found", log.entries[0]["error_message"])
+
+    def test_turn_metrics_count_error_dicts(self) -> None:
+        tool_results = [
+            {"function_name": "analyze_graph", "result": {"error": "Graph not found"}, "is_error": False},
+            {"function_name": "search_tools", "result": {"tools": [], "error": None}, "is_error": False},
+        ]
+
+        turn = aggregate_turn([], tool_results, None, "stop")
+
+        self.assertEqual(turn["tool_errors"], 1)
 
 
 if __name__ == "__main__":

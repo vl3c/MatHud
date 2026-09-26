@@ -167,7 +167,7 @@ class ResultProcessor:
             ResultProcessor._handle_exception(e, function_name, call_results, args)
         results.update(call_results)
         result_key, result_value = next(iter(call_results.items()), (function_name, None))
-        is_error = isinstance(result_value, str) and result_value.startswith("Error")
+        is_error = ResultProcessor.is_error_result(result_value)
 
         duration_ms = window.performance.now() - t0
         return {
@@ -179,6 +179,20 @@ class ResultProcessor:
             "is_error": is_error,
             "duration_ms": round(duration_ms, 2),
         }
+
+    @staticmethod
+    def is_error_result(value: Any) -> bool:
+        """Return True for a failed call's result.
+
+        Failures come back as ``"Error..."`` strings, as dicts with a non-empty ``"error"``
+        field (e.g. ``analyze_graph`` on a missing graph), or as ``{"type": "error", ...}``
+        payloads. A dict whose ``"error"`` field is empty (``search_tools``) is a success.
+        """
+        if isinstance(value, str):
+            return value.startswith("Error")
+        if isinstance(value, dict):
+            return bool(value.get("error")) or value.get("type") == "error"
+        return False
 
     @staticmethod
     def _mark_undoable_change(traced_call: "TracedCall", undoable_functions: Tuple[str, ...], canvas: "Canvas") -> None:
