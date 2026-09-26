@@ -122,8 +122,8 @@ class BrowserSession:
         browser = self.browser
         script_timeout = int(self.timeout_s) + 5
         reply: dict[str, Any] = self.call(lambda: browser.call_hook(name, *args, timeout=script_timeout))
-        if reply.get("status") == "error":
-            raise HookError(f"{name}: {reply.get('error')}")
+        if reply.get("status") in ("error", "busy"):
+            raise HookError(f"{name}: {reply.get('status')}: {reply.get('error')}")
         return reply
 
     def screenshot(self, path: Path) -> bool:
@@ -200,6 +200,7 @@ class ReplayRunner:
                 self._recover(restart=True)
                 if attempts <= self.options.retries:
                     self.log(f"  {scenario.id}: {exc}; restarting the browser and retrying")
+                    self.sink.discard_attempt(scenario.id, attempts, str(exc))
                     continue
             except HookError as exc:
                 outcome.infra_error = f"hook error: {exc}"
@@ -306,6 +307,7 @@ class ReplayRunner:
             "inspection": data.inspection,
             "results": [result.to_dict() for result in results],
             "duration_s": round(duration, 3),
+            "attempt": outcome.attempts,
         }
         statuses = {result.status for result in results}
         if statuses & {"fail", "error"} or (self.options.known_artifacts and "xfail" in statuses):
@@ -322,8 +324,9 @@ class ReplayRunner:
         state_path.write_text(
             json.dumps({"state": data.state, "inspection": data.inspection}, indent=1), encoding="utf-8"
         )
-        artifacts["state"] = str(state_path)
+        # Paths relative to the output directory, so the reports still resolve after a move.
+        artifacts["state"] = state_path.relative_to(self.sink.out_dir).as_posix()
         png = base.with_suffix(".png")
         if self.session.screenshot(png):
-            artifacts["screenshot"] = str(png)
+            artifacts["screenshot"] = png.relative_to(self.sink.out_dir).as_posix()
         return artifacts

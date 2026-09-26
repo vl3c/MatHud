@@ -111,7 +111,9 @@ def scenarios_cmd(
     catalogue = _load(scenarios_dir)
 
     if regrade_path:
-        summary, target = regrade(Path(regrade_path), catalogue)
+        filtered = smoke or bool(_split(tags)) or bool(_split(ids))
+        wanted = {s.id for s in catalogue.select(smoke=smoke, tags=_split(tags), ids=_split(ids))} if filtered else None
+        summary, target = regrade(Path(regrade_path), catalogue, wanted)
         _print_summary(summary, as_json, Path(target).parent, regraded=True)
         raise SystemExit(summary["exit_code"])
 
@@ -236,17 +238,22 @@ def _print_summary(summary: dict[str, Any], as_json: bool, out_dir: Path, regrad
     click.echo()
     click.echo(click.style(f"=== {title} ===", bold=True))
     click.echo(
-        f"Scenarios: {summary['scenarios']} - {sc['pass']} pass, {sc['xfail']} xfail, {sc['xpass']} xpass, "
+        f"Scenarios: {summary['scenarios']} - {sc['pass']} pass, {sc['xfail']} xfail, {sc['waived']} waived, "
+        f"{sc['xpass']} xpass, "
         f"{sc['fail']} fail, {sc['error']} error, {sc['skipped']} skipped"
     )
     click.echo(
         f"Checks: {cc['pass']} pass, {cc['xfail']} xfail, {cc['xpass']} xpass, {cc['fail']} fail, "
-        f"{cc['error']} error, {cc['warn']} warn, {cc['skip']} skip"
+        f"{cc['error']} error, {cc['warn']} warn, {cc['skip']} skip, {cc['unrecorded']} unrecorded"
     )
     if "duration_s" in summary:
         click.echo(f"Run time: {summary['duration_s']} s")
     for scenario_id, bugs in summary.get("xpass", {}).items():
         click.echo(click.style(f"  fixed? {scenario_id}: {', '.join(bugs)}", fg="yellow"))
+    for entry in summary.get("unused_waivers", []):
+        click.echo(click.style(f"  waiver {entry} unused in this run (fixed?)", fg="yellow"))
+    if summary.get("unrecorded"):
+        click.echo(click.style(f"  not evaluated (data not recorded): {', '.join(summary['unrecorded'])}", fg="yellow"))
     if summary["unexpected"]:
         click.echo(click.style(f"Unexpected failures: {', '.join(summary['unexpected'])}", fg="red"))
     else:
