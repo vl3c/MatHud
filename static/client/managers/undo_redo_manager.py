@@ -43,6 +43,7 @@ Error Recovery:
 from __future__ import annotations
 
 import copy
+import json
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
@@ -153,6 +154,39 @@ class UndoRedoManager:
         """Overwrite the open batch's change mark, e.g. to drop the mark of a call that failed."""
         if self._batch_depth > 0:
             self._batch_changed = changed
+
+    def state_differs_from_batch_baseline(self) -> bool:
+        """Return True when the canvas no longer matches the open batch's baseline.
+
+        Compares each drawable's ``get_state()`` and the computations, serialized as
+        sorted JSON. Outside a batch, or when a state cannot be serialized, the canvas is
+        assumed to differ so that a change is never dropped from the undo history.
+        """
+        if self._batch_depth == 0 or self._batch_baseline is None:
+            return True
+        try:
+            baseline = self._serialize_state(self._batch_baseline)
+            current = self._serialize_state(self._live_state())
+        except Exception:
+            return True
+        return baseline != current
+
+    def _live_state(self) -> Dict[str, Any]:
+        """The live drawables and computations, without copying (for comparison only)."""
+        return {
+            "drawables": self.canvas.drawable_manager.drawables._drawables,
+            "computations": self.canvas.computations,
+        }
+
+    @staticmethod
+    def _serialize_state(state: Dict[str, Any]) -> str:
+        drawables = {
+            bucket: [drawable.get_state() for drawable in items]
+            for bucket, items in state["drawables"].items()
+            if items
+        }
+        payload = {"drawables": drawables, "computations": state.get("computations", [])}
+        return json.dumps(payload, sort_keys=True, default=str)
 
     def _commit_batch(self) -> None:
         """Push the batch baseline as one undo entry when the batch changed something."""

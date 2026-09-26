@@ -237,15 +237,25 @@ class ResultProcessor:
     ) -> None:
         """Update the undo batch's change mark after one call.
 
-        A call that failed or changed nothing gets back the mark the batch had before it, which
-        drops the mark of a manager that archived and then failed while keeping earlier calls'
-        changes. A successful undoable call marks the batch changed even if it did not archive
-        itself (inside the batch ``canvas.archive()`` only sets the mark).
+        A successful undoable call marks the batch changed even if it did not archive itself
+        (inside the batch ``canvas.archive()`` only sets the mark). After a call that failed or
+        changed nothing, the batch is marked changed only if it already was, or if the canvas
+        no longer matches the batch baseline: a manager that archived and then failed without
+        changing anything adds no entry, while a change left behind by a failed call stays
+        undoable.
         """
         if traced_call["is_error"] or changed_nothing:
-            canvas.set_undo_batch_changed(changed_before)
+            ResultProcessor._reset_mark_after_unchanged_call(changed_before, canvas)
         elif traced_call["function_name"] in undoable_functions:
             canvas.archive()
+
+    @staticmethod
+    def _reset_mark_after_unchanged_call(changed_before: bool, canvas: "Canvas") -> None:
+        """Keep the mark only if the batch changed earlier or the call left a partial change behind.
+
+        With no change recorded before the call, the batch baseline is the state before the call.
+        """
+        canvas.set_undo_batch_changed(changed_before or canvas.state_differs_from_undo_batch_baseline())
 
     @staticmethod
     def build_tool_call_results(calls: List[Dict[str, Any]], traced_calls: List["TracedCall"]) -> List[Dict[str, Any]]:

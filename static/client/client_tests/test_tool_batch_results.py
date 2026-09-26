@@ -224,6 +224,75 @@ class TestToolBatchUndo(_ToolBatchTestCase):
         self.run_single("redo")
         self.assertIn("Q(9.0, 9.0)", self.snapshot()["Point"])
 
+    def assert_partial_change_is_one_undo_step(
+        self, before: Dict[str, List[str]], traced: List[Dict[str, Any]]
+    ) -> None:
+        """The failed call left a change behind; it is one undo entry that undo and redo move across."""
+        self.assertTrue(traced[-1]["is_error"])
+        partial = self.snapshot()
+        self.assertNotEqual(partial, before)
+        self.assertEqual(self.undo_depth(), 1)
+
+        self.run_single("undo")
+        self.assertEqual(self.snapshot(), before)
+        self.run_single("redo")
+        self.assertEqual(self.snapshot(), partial)
+
+    def test_polygon_that_fails_after_creating_parts_stays_undoable(self) -> None:
+        self.canvas.create_point(9, 9, name="Z")
+        self.canvas.undo_redo_manager.clear()
+        before = self.snapshot()
+
+        _, traced = self.run_batch(
+            ("create_polygon", {"vertices": [[0, 0], [0, 0], [2, 3]], "polygon_type": "triangle"})
+        )
+
+        self.assert_partial_change_is_one_undo_step(before, traced)
+
+    def test_distribution_that_fails_after_drawing_its_curve_stays_undoable(self) -> None:
+        before = self.snapshot()
+
+        _, traced = self.run_batch(
+            (
+                "plot_distribution",
+                {
+                    "name": "P",
+                    "representation": "continuous",
+                    "distribution_type": "normal",
+                    "distribution_params": {"mean": 0.0, "sigma": 1.0},
+                    "plot_bounds": {"left_bound": -4.0, "right_bound": 4.0},
+                    "shade_bounds": {"left_bound": 5.0, "right_bound": 6.0},
+                    "curve_color": None,
+                    "fill_color": None,
+                    "fill_opacity": None,
+                    "bar_count": None,
+                },
+            )
+        )
+
+        self.assert_partial_change_is_one_undo_step(before, traced)
+
+    def test_workspace_restore_that_fails_partway_stays_undoable(self) -> None:
+        self.build_triangle()
+        saved = json.loads(json.dumps(self.workspace_manager._snapshot_persistable_canvas_state()))
+        self.run_batch(("clear_canvas", {}), ("create_point", {"x": 9, "y": 9, "name": "Z"}))
+        before_load = self.snapshot()
+        depth = self.undo_depth()
+
+        def fail_late(_: Dict[str, Any]) -> None:
+            raise ValueError("restore failed")
+
+        self.workspace_manager._restore_computations = fail_late  # type: ignore[method-assign]
+        self.available_functions["load_broken"] = lambda: self.workspace_manager._restore_workspace_state(saved)
+
+        _, traced = self.run_batch(("delete_angle", {"name": "nope"}), ("load_broken", {}))
+
+        self.assertTrue(traced[1]["is_error"])
+        self.assertIn("Triangle", self.snapshot())
+        self.assertEqual(self.undo_depth(), depth + 1)
+        self.run_single("undo")
+        self.assertEqual(self.snapshot(), before_load)
+
     def test_failed_call_keeps_the_entry_of_an_earlier_change_in_the_batch(self) -> None:
         self.run_batch(("create_point", {"x": 1, "y": 1, "name": "A"}), ("delete_angle", {"name": "nope"}))
 

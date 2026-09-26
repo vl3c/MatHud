@@ -130,6 +130,17 @@ class TestUndoRedoManager(unittest.TestCase):
 
         self.assertEqual(self.manager.undo_stack, [])
 
+    def test_state_comparison_with_the_batch_baseline(self) -> None:
+        self.assertTrue(self.manager.state_differs_from_batch_baseline())
+        self.canvas.computations = [{"expression": "x", "result": 1}]
+        self.manager.begin_batch()
+        self.assertFalse(self.manager.state_differs_from_batch_baseline())
+
+        self.canvas.computations = [{"expression": "x", "result": 2}]
+
+        self.assertTrue(self.manager.state_differs_from_batch_baseline())
+        self.manager.end_batch()
+
     def test_archive_outside_a_batch_is_unchanged(self) -> None:
         self.manager.begin_batch()
         self.manager.end_batch()

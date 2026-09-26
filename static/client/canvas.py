@@ -445,6 +445,10 @@ class Canvas:
         """Overwrite the open undo batch's change mark."""
         self.undo_redo_manager.set_batch_changed(changed)
 
+    def state_differs_from_undo_batch_baseline(self) -> bool:
+        """Return True when the canvas no longer matches the state the open undo batch started from."""
+        return self.undo_redo_manager.state_differs_from_batch_baseline()
+
     def undo(self) -> bool:
         """Restores the last archived state from the undo stack"""
         return bool(self.undo_redo_manager.undo())
