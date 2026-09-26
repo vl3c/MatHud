@@ -30,6 +30,11 @@ Dependencies:
     <!-- MathJax configuration for LaTeX mathematical notation rendering -->
     <script>
     window.MathJax = {
+        // ui/safe filters what typeset math may carry: javascript:/data: hrefs, and
+        // style, class and id values (\mmlToken and \bbox can set them from base TeX,
+        // e.g. an invisible full-page link). It resolves to the vendored
+        // es5/ui/safe.js, relative to tex-mml-chtml.js, like the TeX extensions.
+        loader: { load: ['ui/safe'] },
         tex: {
             inlineMath: [['\\(', '\\)']],
             displayMath: [['$$', '$$']],

@@ -24,7 +24,9 @@ Each library's own license file is kept next to it.
   CPython distribution.
 - **math.js**: `math.min.js`.
 - **nerdamer**: `nerdamer.core.js` plus the `Algebra`, `Calculus`, `Solve` and `Extra` add-ons.
-- **MathJax**: only the `es5/tex-mml-chtml.js` combined component, the TeX
+- **MathJax**: only the `es5/tex-mml-chtml.js` combined component, the `es5/ui/safe.js`
+  component (loaded by the page's `loader.load` to filter unsafe href, style, class and id
+  values in typeset math), the TeX
   extensions it can load on demand (`es5/input/tex/extensions/`, loaded by
   `autoload`/`\require`), and the CHTML output fonts (`es5/output/chtml/fonts/woff-v2/`).
   Components that only the MathJax context menu can switch on (SVG output,

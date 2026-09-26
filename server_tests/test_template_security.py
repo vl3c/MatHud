@@ -26,6 +26,16 @@ class TestMathJaxConfig(unittest.TestCase):
         self.assertRegex(config, r"tex:\s*\{")
         self.assertIsNotNone(re.search(r"autoload:\s*\{\s*html:\s*\[\s*\]\s*\}", config), config)
 
+    def test_safe_extension_is_loaded_from_vendor(self) -> None:
+        """ui/safe filters href/style/class/id that base TeX (\\mmlToken, \\bbox) can still set."""
+        config = _mathjax_config()
+        self.assertIsNotNone(re.search(r"loader:\s*\{\s*load:\s*\[\s*'ui/safe'\s*\]\s*\}", config), config)
+        # [mathjax] resolves to the folder of tex-mml-chtml.js, so ui/safe must sit next to it.
+        vendored = INDEX_HTML.parent.parent / "static" / "vendor" / "mathjax" / "3.2.2" / "es5"
+        self.assertTrue((vendored / "tex-mml-chtml.js").is_file())
+        self.assertTrue((vendored / "ui" / "safe.js").is_file())
+        self.assertNotRegex(config, r"paths\s*:", "a custom path would stop ui/safe resolving to the vendor folder")
+
     def test_require_package_is_removed(self) -> None:
         """Without this, \\require{html} loads the extension despite the autoload setting."""
         config = _mathjax_config()
