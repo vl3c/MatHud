@@ -1,9 +1,10 @@
 """Tests for scripts/benchmark_canvas_formats.py (canvas-format comprehension benchmark).
 
-Covers question generation and ground truths, the pure grading functions, that
-prompts are the provider's own rendering per format, the dry run with the
-network blocked, and the live paths (OpenRouter and LocalAgent) with a mocked
-OpenAI client.
+Covers question generation and ground truths, the pure grading functions, which
+questions each format provides, that prompts are the provider's own rendering per
+format, the reports, the dry run and re-grading with the network blocked, and the
+live paths (OpenRouter and LocalAgent) with a mocked OpenAI client, including
+results saved as they arrive and on an interruption.
 """
 
 from __future__ import annotations
@@ -109,6 +110,44 @@ class TestQuestions(unittest.TestCase):
         self.assertEqual(question("ch_on_new_circle").expected, ["C"])
         self.assertEqual(question("ch_segments_now").expected, ["AB", "AC", "BC", "GH"])
         self.assertIn("EF", question("ch_removed").vocabulary)
+
+
+class TestProvidedInformation(unittest.TestCase):
+    def provided(self, provider: str, fmt: str) -> List[str]:
+        return [q.qid for q in QUESTIONS if bench.is_provided(provider, fmt, q)]
+
+    def test_text_and_min_json_provide_every_question(self) -> None:
+        for provider in bench.PROVIDERS:
+            for fmt in ("text", "min_json"):
+                self.assertEqual(len(self.provided(provider, fmt)), len(QUESTIONS), (provider, fmt))
+
+    def test_openrouter_json_sends_no_canvas_after_the_tool_batch(self) -> None:
+        provided = self.provided("openrouter", "json")
+        change = [qid for qid in provided if qid.startswith("ch_")]
+        self.assertEqual(change, ["ch_moved_point", "ch_new_position", "ch_new_circle_area"])
+        static = [q.qid for q in QUESTIONS if q.scene != bench.CHANGE_SCENE]
+        self.assertTrue(set(static) <= set(provided))
+
+    def test_local_json_provides_counts_and_tool_arguments_only(self) -> None:
+        provided = self.provided("local", "json")
+        self.assertEqual(
+            provided,
+            [
+                "tc_segment_count",
+                "mm_point_count",
+                "rd_point_count",
+                "ch_moved_point",
+                "ch_new_position",
+                "ch_new_circle_area",
+            ],
+        )
+
+    def test_format_labels(self) -> None:
+        self.assertEqual(bench.format_label("local", "json"), "json (count line only, legacy LocalAgent)")
+        self.assertEqual(bench.format_label("openrouter", "json"), "json")
+        for provider in bench.PROVIDERS:
+            for fmt in ("json", "min_json", "text"):
+                self.assertIn((provider, fmt), bench.FORMAT_DESCRIPTIONS)
 
 
 class TestGrading(unittest.TestCase):
@@ -255,7 +294,32 @@ class TestPrompts(PromptEnv):
         request = self.request("openrouter", "text", "tc_len_bc")
         self.assertEqual(request.request_kwargs, {"max_tokens": 16000})
         local = self.request("local", "text", "tc_len_bc", model="local-model")
-        self.assertEqual(local.request_kwargs, {"max_tokens": 16000, "temperature": 0.2})
+        self.assertEqual(
+            local.request_kwargs,
+            {
+                "max_tokens": 16000,
+                "temperature": 0.2,
+                "extra_body": {"chat_template_kwargs": {"reasoning_effort": "medium"}},
+            },
+        )
+
+    def test_local_requests_use_the_providers_request_options(self) -> None:
+        with patch.dict(os.environ, {"MATHUD_CANVAS_FORMAT": "text"}):
+            api = LocalAgentAPI(model=AIModel.from_identifier("local-model"))
+        self.assertEqual(
+            self.request("local", "text", "tc_len_bc", "local-model").request_kwargs, api._completion_options()
+        )
+
+    def test_local_reasoning_effort_is_pinned_unless_overridden(self) -> None:
+        q = [question("tc_len_bc")]
+        with patch.dict(os.environ, {"MATHUD_LOCAL_REASONING_EFFORT": "max"}):  # e.g. from a local .env
+            pinned, _ = bench.build_requests("local", ["m"], ["text"], SCENES, q, None, True)
+            low, _ = bench.build_requests("local", ["m"], ["text"], SCENES, q, None, True, "low")
+            omitted, _ = bench.build_requests("local", ["m"], ["text"], SCENES, q, None, True, "default")
+            self.assertEqual(os.environ["MATHUD_LOCAL_REASONING_EFFORT"], "max")
+        self.assertEqual(pinned[0].request_kwargs["extra_body"]["chat_template_kwargs"]["reasoning_effort"], "medium")
+        self.assertEqual(low[0].request_kwargs["extra_body"]["chat_template_kwargs"]["reasoning_effort"], "low")
+        self.assertNotIn("extra_body", omitted[0].request_kwargs)
 
     def test_change_scene_text_reports_the_canvas_changes(self) -> None:
         scene = SCENE_BY_NAME[bench.CHANGE_SCENE]
@@ -383,12 +447,18 @@ class TestLiveOpenRouterMocked(unittest.TestCase):
             self.assertEqual(attempts, [])
             results = json.loads((Path(tmp) / "results.json").read_text(encoding="utf-8"))
             summary_md = (Path(tmp) / "summary.md").read_text(encoding="utf-8")
-        self.assertIn("## Overall", output)
+        self.assertIn("## Static scenes (headline)", output)
+        self.assertIn("## Change scene (after a tool batch)", summary_md)
+        self.assertIn("What each format sends:", summary_md)
         self.assertIn("| deepseek/deepseek-v4.1-flash | json |", summary_md)
         self.assertIn("| deepseek/deepseek-v4.1-flash | text |", summary_md)
         self.assertIn("## Wrong answers", summary_md)
         per_scene = len([q for q in QUESTIONS if q.scene == "weighted_graph"])
         self.assertEqual(len(results["results"]), 2 * per_scene)
+        # Question-major, formats interleaved.
+        order = [(r["qid"], r["format"]) for r in results["results"]]
+        self.assertEqual(order[:4], [("wg_edge_count", "json"), ("wg_edge_count", "text")] + order[2:4])
+        self.assertEqual([r["job"] for r in results["results"]], list(range(2 * per_scene)))
         by_id = {(r["format"], r["qid"]): r for r in results["results"]}
         self.assertTrue(by_id[("text", "wg_shortest_a_f")]["correct"])
         self.assertTrue(by_id[("json", "wg_edge_count")]["correct"])  # 12 edges as well
@@ -402,7 +472,7 @@ class TestLiveOpenRouterMocked(unittest.TestCase):
             self.assertNotIn("temperature", call)
             self.assertEqual(call["model"], "deepseek/deepseek-v4.1-flash")
             self.assertEqual(call["max_tokens"], 16000)
-        self.assertEqual(self.client.options[0], {"timeout": 180.0})
+        self.assertEqual(self.client.options[0], {"timeout": 180.0, "max_retries": 0})
 
     def test_request_errors_are_recorded_not_raised(self) -> None:
         self.completions.create = lambda **kwargs: (_ for _ in ()).throw(RuntimeError("boom"))  # type: ignore[method-assign]
@@ -412,6 +482,29 @@ class TestLiveOpenRouterMocked(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertTrue(all(r["error"] == "RuntimeError: boom" and not r["correct"] for r in results["results"]))
         self.assertEqual(results["summary"][0]["errors"], len(results["results"]))
+
+    def test_results_are_saved_as_they_arrive_and_on_an_interruption(self) -> None:
+        replies = iter(["Answer: 3", "Answer: 3"])
+
+        def create(**kwargs: Any) -> Any:
+            reply = next(replies, None)
+            if reply is None:
+                raise KeyboardInterrupt
+            self.completions.reply = reply
+            return FakeCompletions.create(self.completions, **kwargs)
+
+        self.completions.create = create  # type: ignore[method-assign]
+        args = ["--models", "m/x", "--formats", "text", "--scenes", "triangle_circle", "--concurrency", "1"]
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(KeyboardInterrupt):
+                run_main(args + ["--out", tmp])
+            lines = (Path(tmp) / "results.jsonl").read_text(encoding="utf-8").splitlines()
+            results = json.loads((Path(tmp) / "results.json").read_text(encoding="utf-8"))
+            summary_md = (Path(tmp) / "summary.md").read_text(encoding="utf-8")
+        self.assertEqual([json.loads(line)["qid"] for line in lines], ["tc_point_c", "tc_len_bc"])
+        self.assertEqual(len(results["results"]), 2)
+        self.assertEqual(results["config"]["completed_requests"], 2)
+        self.assertIn("Interrupted: 2 of", summary_md)
 
     def test_max_requests_aborts_before_sending(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -450,11 +543,18 @@ class TestLiveLocalMocked(unittest.TestCase):
         self.assertEqual(get.call_args.args[0], "http://127.0.0.1:9999/v1/models")
         self.assertEqual(openai_cls.call_args.kwargs["base_url"], "http://127.0.0.1:9999/v1")
         self.assertIn("Models: qwen-test", output)
-        self.assertEqual(client.options[0], {"timeout": 900.0})
+        self.assertEqual(client.options[0], {"timeout": 900.0, "max_retries": 0})
+        self.assertEqual(results["config"]["formats"], ["text", "min_json", "json"])
+        self.assertEqual(results["config"]["local_reasoning_effort"], "medium")
         for call in completions.calls:
             self.assertEqual(call["model"], "qwen-test")
             self.assertEqual(call["temperature"], 0.2)
+            self.assertEqual(call["extra_body"], {"chat_template_kwargs": {"reasoning_effort": "medium"}})
             self.assertNotIn("tools", call)
+        by_format = {row["format"]: row for row in results["summary"]}
+        self.assertEqual(by_format["json"]["static"]["provided"], 1)  # only the segment count
+        self.assertEqual(by_format["json"]["static"]["not_provided"], 8)
+        self.assertEqual(by_format["min_json"]["static"]["not_provided"], 0)
         first = results["results"][0]
         self.assertEqual(first["output_tokens_per_s"], 42.5)
         self.assertEqual(first["server_timings"]["predicted_n"], 50)
@@ -468,6 +568,108 @@ class TestLiveLocalMocked(unittest.TestCase):
             if c["messages"][-1]["content"].startswith("<canvas>")
         )
         self.assertIn("A(3) = Circle(center A, r 3)", text_prompt)
+        self.assertIn("json (count line only, legacy LocalAgent)", output)
+
+    def test_local_reasoning_effort_option(self) -> None:
+        completions = FakeCompletions("Answer: 6")
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch.object(bench.env_config, "load_env_files"),
+            patch("openai.OpenAI", return_value=FakeClient(completions)),
+        ):
+            args = ["--provider", "local", "--models", "qwen-test", "--formats", "text", "--scenes", "triangle_circle"]
+            code, output = run_main(args + ["--local-reasoning-effort", "low", "--out", tmp])
+            code_none, _ = run_main(args + ["--local-reasoning-effort", "none", "--out", tmp])
+        self.assertEqual((code, code_none), (0, 0))
+        self.assertIn("LocalAgent reasoning effort: low", output)
+        per_run = len([q for q in QUESTIONS if q.scene == "triangle_circle"])
+        efforts = [c.get("extra_body", {}).get("chat_template_kwargs") for c in completions.calls]
+        self.assertEqual(efforts, [{"reasoning_effort": "low"}] * per_run + [None] * per_run)
+
+    def test_reasoning_effort_option_needs_the_local_provider(self) -> None:
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            bench.parse_args(["--local-reasoning-effort", "low"])
+
+
+class TestReports(unittest.TestCase):
+    @staticmethod
+    def result(qid: str, fmt: str, correct: bool, provided: bool = True, error: Optional[str] = None) -> Dict[str, Any]:
+        q = question(qid)
+        return {
+            "model": "m",
+            "format": fmt,
+            "scene": q.scene,
+            "qid": qid,
+            "category": q.category,
+            "question": q.text,
+            "expected": q.expected,
+            "answer": "",
+            "provided": provided,
+            "correct": correct,
+            "error": error,
+            "answer_line": True,
+        }
+
+    def test_static_and_change_scenes_are_reported_apart(self) -> None:
+        results = [
+            self.result("tc_len_bc", "json", True),
+            self.result("tc_area_abc", "json", False, error="Timeout"),
+            self.result("tc_point_c", "json", False),
+            self.result("ch_moved_point", "json", True),
+            self.result("ch_removed", "json", False, provided=False),
+            self.result("ch_added_name", "json", True, provided=False),
+        ]
+        (row,) = bench.summarize(results)
+        self.assertEqual(row["accuracy"], round(1 / 3, 4))
+        self.assertEqual(row["static"]["accuracy_excluding_errors"], 0.5)
+        self.assertEqual(row["static"]["errors"], 1)
+        self.assertEqual(row["change"]["correct"], 1)
+        self.assertEqual(row["change"]["provided"], 1)
+        self.assertEqual(row["change"]["not_provided"], 2)
+        self.assertEqual(row["change"]["not_provided_correct"], 1)
+        self.assertNotIn("change", row["by_category"])
+        markdown = bench.render_markdown(
+            {"provider": "openrouter", "models": ["m"], "formats": ["json"], "repeats": 1, "questions": 6},
+            [row],
+            results,
+        )
+        self.assertIn("| m | json | 33.3% | 1/3 | 50.0% | 1 | 0 (0) |", markdown)
+        self.assertIn("| m | json | 100.0% | 1/1 | 100.0% | 0 | 2 (1) |", markdown)
+        self.assertIn("n/p 0/1", markdown)
+        self.assertIn("## Wrong answers to provided questions (2)", markdown)
+        self.assertNotIn("ch_removed: ", markdown.split("## Wrong answers")[1])
+
+    def test_rows_follow_the_configured_order(self) -> None:
+        results = [self.result("tc_len_bc", fmt, True) for fmt in ("text", "json", "min_json")]
+        rows = bench.summarize(results, ["m"], ["json", "min_json", "text"])
+        self.assertEqual([row["format"] for row in rows], ["json", "min_json", "text"])
+
+
+class TestRegrade(unittest.TestCase):
+    def test_regrade_rewrites_grades_and_summary_without_network(self) -> None:
+        stored = [
+            {**TestReports.result("mm_right_angle", "json", False), "reply": "**Final answer:** B"},
+            {**TestReports.result("rd_view_top", "json", True), "reply": "Answer: 20"},
+            {**TestReports.result("ch_removed", "json", False), "reply": "Answer: segment"},
+            {**TestReports.result("ch_removed", "text", True), "reply": "Answer: EF"},
+        ]
+        config = {"provider": "openrouter", "models": ["m"], "formats": ["json", "text"], "repeats": 1}
+        with tempfile.TemporaryDirectory() as tmp, network_blocked() as attempts:
+            source = Path(tmp) / "results.json"
+            source.write_text(json.dumps({"config": config, "results": stored}), encoding="utf-8")
+            code, output = run_main(["--regrade", str(source), "--out", str(Path(tmp) / "regraded")])
+            regraded = json.loads((Path(tmp) / "regraded" / "results_regraded.json").read_text(encoding="utf-8"))
+            summary_md = (Path(tmp) / "regraded" / "summary.md").read_text(encoding="utf-8")
+        self.assertEqual(code, 0)
+        self.assertEqual(attempts, [])
+        self.assertIn("Re-graded at", summary_md)
+        by_key = {(r["qid"], r["format"]): r for r in regraded["results"]}
+        self.assertTrue(by_key[("mm_right_angle", "json")]["correct"])
+        self.assertEqual(by_key[("mm_right_angle", "json")]["answer"], "B")
+        self.assertFalse(by_key[("rd_view_top", "json")]["correct"])
+        self.assertFalse(by_key[("ch_removed", "json")]["provided"])
+        self.assertTrue(by_key[("ch_removed", "text")]["provided"])
+        self.assertIn("Static scenes (headline)", output)
 
 
 if __name__ == "__main__":

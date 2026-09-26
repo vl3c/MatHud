@@ -7,31 +7,43 @@ Asks models factual questions about the canvas-state fixtures in
 they answer when the canvas reaches them in each ``MATHUD_CANVAS_FORMAT``
 (``json``, ``min_json``, ``text``).
 
-Every prompt is built by the provider's own code, exactly as the app builds it:
-the system prompt (``build_developer_message`` plus the search-mode paragraph),
-the user message (prompt JSON in ``json`` format, ``<canvas>`` block plus text
-otherwise; object counts for LocalAgent in ``json``), and for the change scene
-the continuation request after a tool batch (tool results, followed in
-``text``/``min_json`` by ``[canvas changes]``; in ``json`` the app sends no
-canvas at all there, since the state is stripped from history after the first
-completion). Questions are sent without tools, one per request.
+The messages are built by the providers' own code, as the app builds them: the
+system prompt (``build_developer_message`` plus the search-mode paragraph), the
+user message (prompt JSON in ``json`` format, ``<canvas>`` block plus text
+otherwise; only an object-count line for LocalAgent in ``json``), and for the
+change scene the continuation request after a tool batch (tool results,
+followed in ``text``/``min_json`` by ``[canvas changes]``; in ``json`` the app
+sends no canvas at all there, since the state is stripped from history after
+the first completion). Unlike the app, requests are not streamed, carry no tools
+(so a ``json`` model cannot re-fetch the canvas with get_current_canvas_state)
+and send no OpenRouter ``reasoning_details``; LocalAgent requests carry the
+provider's own sampling and reasoning-effort parameters.
 
 Ground truths are computed from the fixtures, and answers are graded by the pure
 functions below (numbers with a tolerance, sets order-insensitive, names
-case-insensitive).
+case-insensitive). Questions whose information a format does not send (see
+``provided_info``) are reported as "not provided" instead of counting toward
+accuracy; the headline figure is the accuracy on the static scenes, with the
+change scene reported separately.
 
 Usage examples:
   python scripts/benchmark_canvas_formats.py --dry-run
   python scripts/benchmark_canvas_formats.py --models deepseek/deepseek-v4.1-flash xiaomi/mimo-v2.6-pro \\
       --formats json text
-  python scripts/benchmark_canvas_formats.py --provider local --formats text json
+  python scripts/benchmark_canvas_formats.py --provider local
+  python scripts/benchmark_canvas_formats.py --regrade logs/canvas_format_benchmark/<time>/results.json
 
 ``--provider openrouter`` (default) needs OPENROUTER_API_KEY (loaded from the
 environment or .env like the app does). ``--provider local`` targets the
-LocalAgent llama-server (LOCAL_AGENT_BASE_URL, default http://127.0.0.1:8080)
-and uses every model it serves unless ``--models`` picks one. ``--dry-run``
-builds and writes every prompt and prints token and cost estimates without any
-network access.
+LocalAgent llama-server (LOCAL_AGENT_BASE_URL, default http://127.0.0.1:8080),
+uses every model it serves unless ``--models`` picks one, and compares
+``text``, ``min_json`` and ``json`` by default (``min_json`` is the real structured
+JSON LocalAgent can send; its ``json`` is only the legacy count line).
+``--dry-run`` builds and writes every prompt and prints token and cost
+estimates without any network access. Each answer is appended to
+``results.jsonl`` as it arrives; ``results.json`` and ``summary.md`` are written
+at the end, also when the run is interrupted. ``--regrade`` re-grades a
+``results.json`` with the current grader, without network access.
 """
 
 from __future__ import annotations
@@ -43,12 +55,13 @@ import math
 import os
 import re
 import sys
-from concurrent.futures import ThreadPoolExecutor
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Callable, Dict, FrozenSet, Iterator, List, Mapping, Optional, Sequence, Set, Tuple, Union
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
@@ -59,6 +72,7 @@ from static.ai_model import AIModel  # noqa: E402
 from static.canvas_state_formatter import CANVAS_FORMATS, CanvasFormat  # noqa: E402
 from static.client.constants import successful_call_message  # noqa: E402
 from static.openai_api_base import CANVAS_BUDGET_ENV, CANVAS_FORMAT_ENV, TOOL_EXPOSURE_ENV, OpenAIAPIBase  # noqa: E402
+from static.providers.local import REASONING_EFFORT_ENV, REASONING_EFFORTS  # noqa: E402
 from static.providers.local.local_agent_api import LocalAgentAPI  # noqa: E402
 from static.providers.openrouter_api import OpenRouterAPI  # noqa: E402
 from static.response_metrics import ResponseMetricsTracker, record_chat_completions_usage  # noqa: E402
@@ -69,7 +83,11 @@ FIXTURES_DIR = REPO_ROOT / "server_tests" / "fixtures" / "canvas_states"
 PROVIDERS = ("openrouter", "local")
 DEFAULT_OPENROUTER_MODELS = ("deepseek/deepseek-v4.1-flash", "xiaomi/mimo-v2.6-pro")
 LOCAL_PLACEHOLDER_MODEL = "local-model"
-DEFAULT_FORMATS: Tuple[CanvasFormat, ...] = ("json", "text")
+DEFAULT_FORMATS: Dict[str, Tuple[CanvasFormat, ...]] = {
+    "openrouter": ("json", "text"),
+    "local": ("text", "min_json", "json"),
+}
+LOCAL_REASONING_EFFORT_CHOICES = REASONING_EFFORTS + ("default", "none")
 DEFAULT_MAX_REQUESTS = 250
 DEFAULT_TIMEOUT_S = {"openrouter": 180.0, "local": 900.0}
 DEFAULT_CONCURRENCY = {"openrouter": 4, "local": 1}
@@ -85,10 +103,12 @@ ESTIMATED_COMPLETION_TOKENS = 400
 
 # Provider settings the benchmark pins while it builds prompts, so a local .env
 # cannot change them: each provider's defaults apply (search tool mode, hybrid
-# json summaries, canvas budget 4000 cloud / 1500 local unless --canvas-budget).
+# json summaries, canvas budget 4000 cloud / 1500 local unless --canvas-budget,
+# LocalAgent reasoning effort medium unless --local-reasoning-effort).
 _PINNED_ENV_VARS = (
     TOOL_EXPOSURE_ENV,
     CANVAS_BUDGET_ENV,
+    REASONING_EFFORT_ENV,
     OpenAIAPIBase.CANVAS_SUMMARY_MODE_ENV,
     OpenAIAPIBase.CANVAS_HYBRID_MAX_BYTES_ENV,
     OpenAIAPIBase.CANVAS_SUMMARY_TELEMETRY_ENV,
@@ -353,6 +373,14 @@ def object_names(state: Mapping[str, Any]) -> Tuple[str, ...]:
 
 ANSWER_KINDS = ("number", "numbers", "name", "set", "edge", "expression")
 
+# Information a question needs, and which formats send it (see provided_info).
+INFO_CANVAS = "canvas"  # the scene's objects with names and coordinates (change scene: before the edits)
+INFO_COUNTS = "counts"  # how many objects of each type
+INFO_CHANGES = "changes"  # what the tool batch changed, with names ("[canvas changes]")
+INFO_TOOL_ARGS = "tool_args"  # the arguments of the tool calls in the history
+INFO_KINDS = frozenset({INFO_CANVAS, INFO_COUNTS, INFO_CHANGES, INFO_TOOL_ARGS})
+_COUNT_NEEDS = ({INFO_COUNTS}, {INFO_CANVAS})
+
 
 @dataclass(frozen=True)
 class Question:
@@ -362,8 +390,10 @@ class Question:
     expression -> accepted spellings; set and edge -> names (order-insensitive).
     ``vocabulary`` holds the names a free-form answer is matched against: the
     scene's object names, or for set questions only the names of the kind asked
-    for (points, segments). ``after_arrow`` grades only the part after an arrow
-    ("old -> new" answers to a new-position question).
+    for (points, segments). ``needs`` lists alternative sets of information (see
+    ``INFO_*``), any one of which is enough to answer; a format that sends none
+    of them leaves the question "not provided". ``after_arrow`` grades only the
+    part after an arrow ("old -> new" answers to a new-position question).
     """
 
     scene: str
@@ -373,6 +403,7 @@ class Question:
     kind: str
     expected: Any
     vocabulary: Tuple[str, ...] = field(default=(), repr=False)
+    needs: Tuple[FrozenSet[str], ...] = field(default=(frozenset({INFO_CANVAS}),), repr=False)
     after_arrow: bool = field(default=False, repr=False)
 
 
@@ -383,17 +414,29 @@ def _question(
     text: str,
     kind: str,
     expected: Any,
+    needs: Sequence[Set[str]] = (),
     set_of: Optional[str] = None,
     after_arrow: bool = False,
 ) -> Question:
     """Build a question; ``set_of`` names the state bucket whose names a set answer may contain."""
     assert kind in ANSWER_KINDS, kind
+    assert all(option <= INFO_KINDS for option in needs), needs
     states = [scene.state] + ([scene.after] if scene.after is not None else [])
     if set_of is not None:
         vocabulary = {str(item.get("name")) for state in states for item in _items(state, set_of)}
     else:
         vocabulary = {name for state in states for name in object_names(state)}
-    return Question(scene.name, qid, category, text, kind, expected, tuple(sorted(vocabulary)), after_arrow)
+    return Question(
+        scene.name,
+        qid,
+        category,
+        text,
+        kind,
+        expected,
+        tuple(sorted(vocabulary)),
+        tuple(frozenset(option) for option in needs) or (frozenset({INFO_CANVAS}),),
+        after_arrow,
+    )
 
 
 def _triangle_circle_questions(scene: Scene) -> List[Question]:
@@ -450,6 +493,7 @@ def _triangle_circle_questions(scene: Scene) -> List[Question]:
             "How many segments are on the canvas?",
             "number",
             float(len(_items(state, "Segments"))),
+            needs=_COUNT_NEEDS,
         ),
         q(
             scene,
@@ -521,6 +565,7 @@ def _mixed_medium_questions(scene: Scene) -> List[Question]:
             "How many points are on the canvas?",
             "number",
             float(len(point_list(state))),
+            needs=_COUNT_NEEDS,
         ),
         q(scene, "mm_e1_color", "style", "What color is the parametric curve e1?", "name", [str(e1_args["color"])]),
         q(scene, "mm_ac_label", "style", "What is the label text of segment AC?", "name", [str(ac_label)]),
@@ -634,7 +679,15 @@ def _regression_duplicates_questions(scene: Scene) -> List[Question]:
     highest = max(points, key=lambda item: item[1][1])
     q = _question
     return [
-        q(scene, "rd_point_count", "count", "How many points are on the canvas?", "number", float(len(points))),
+        q(
+            scene,
+            "rd_point_count",
+            "count",
+            "How many points are on the canvas?",
+            "number",
+            float(len(points)),
+            needs=_COUNT_NEEDS,
+        ),
         q(
             scene,
             "rd_named_f_count",
@@ -708,6 +761,7 @@ def _change_questions(scene: Scene) -> List[Question]:
             "Which object did your edits remove? Answer with its name.",
             "name",
             [removed_name],
+            needs=[{INFO_CHANGES}, {INFO_CANVAS, INFO_TOOL_ARGS}],
         ),
         q(
             scene,
@@ -716,6 +770,7 @@ def _change_questions(scene: Scene) -> List[Question]:
             "Which point did your edits move? Answer with its name.",
             "name",
             [moved_name],
+            needs=[{INFO_TOOL_ARGS}],
         ),
         q(
             scene,
@@ -724,6 +779,7 @@ def _change_questions(scene: Scene) -> List[Question]:
             f"Where was point {moved_name} before your edits? Answer as x, y.",
             "numbers",
             list(old_xy),
+            needs=[{INFO_CANVAS}, {INFO_CHANGES}],
         ),
         q(
             scene,
@@ -732,9 +788,18 @@ def _change_questions(scene: Scene) -> List[Question]:
             f"Where is point {moved_name} now? Answer as x, y.",
             "numbers",
             list(new_xy),
+            needs=[{INFO_TOOL_ARGS}],
             after_arrow=True,
         ),
-        q(scene, "ch_added_name", "change", "What is the name of the circle your edits added?", "name", [added_name]),
+        q(
+            scene,
+            "ch_added_name",
+            "change",
+            "What is the name of the circle your edits added?",
+            "name",
+            [added_name],
+            needs=[{INFO_CHANGES}],
+        ),
         q(
             scene,
             "ch_on_new_circle",
@@ -743,6 +808,7 @@ def _change_questions(scene: Scene) -> List[Question]:
             "List the point names separated by commas, or answer none.",
             "set",
             sorted(points_on_circle(after, added_name)),
+            needs=[{INFO_CHANGES}, {INFO_CANVAS, INFO_TOOL_ARGS}],
             set_of="Points",
         ),
         q(
@@ -752,6 +818,7 @@ def _change_questions(scene: Scene) -> List[Question]:
             "What is the area of the circle your edits added?",
             "number",
             math.pi * radius**2,
+            needs=[{INFO_TOOL_ARGS}],
         ),
         q(
             scene,
@@ -760,6 +827,7 @@ def _change_questions(scene: Scene) -> List[Question]:
             "Which segments are on the canvas after your edits? List their names separated by commas.",
             "set",
             sorted(item["name"] for item in _items(after, "Segments")),
+            needs=[{INFO_CANVAS, INFO_TOOL_ARGS}, {INFO_CANVAS, INFO_CHANGES}],
             set_of="Segments",
         ),
     ]
@@ -944,12 +1012,65 @@ def grade(question: Question, answer: str) -> bool:
     raise ValueError(f"unknown answer kind {question.kind!r}")
 
 
+# --------------------------------------------------------------------------- what each format sends
+
+_STATIC_INFO = frozenset({INFO_CANVAS, INFO_COUNTS})
+_CHANGE_INFO = frozenset({INFO_CANVAS, INFO_COUNTS, INFO_CHANGES, INFO_TOOL_ARGS})
+
+
+def provided_info(provider: str, canvas_format: str, change_scene: bool) -> FrozenSet[str]:
+    """The information (``INFO_*``) a request of this provider and format carries.
+
+    text / min_json: the canvas with the question; after a tool batch the tool
+    calls plus ``[canvas changes]``. OpenRouter json: the prompt JSON with the
+    canvas; after a tool batch only the tool calls (the app strips the state from
+    history after the first completion). LocalAgent json: an object-count line
+    only, and after a tool batch the tool calls.
+    """
+    if canvas_format != "json":
+        return _CHANGE_INFO if change_scene else _STATIC_INFO
+    if change_scene:
+        return frozenset({INFO_TOOL_ARGS, INFO_COUNTS}) if provider == "local" else frozenset({INFO_TOOL_ARGS})
+    return frozenset({INFO_COUNTS}) if provider == "local" else _STATIC_INFO
+
+
+def is_provided(provider: str, canvas_format: str, question: Question) -> bool:
+    """Whether the format sends enough information to answer ``question``."""
+    info = provided_info(provider, canvas_format, question.scene == CHANGE_SCENE)
+    return any(option <= info for option in question.needs)
+
+
+def format_label(provider: str, canvas_format: str) -> str:
+    """Format name for reports (LocalAgent's json is only a count line)."""
+    if provider == "local" and canvas_format == "json":
+        return "json (count line only, legacy LocalAgent)"
+    return canvas_format
+
+
+FORMAT_DESCRIPTIONS: Dict[Tuple[str, str], str] = {
+    ("openrouter", "text"): "a `<canvas>` block with one object per line and computed facts in the user message; "
+    "after a tool batch, `[canvas changes]` in the last tool result",
+    ("openrouter", "min_json"): "the `<canvas>` block as compact JSON; after a tool batch, `[canvas changes]`",
+    ("openrouter", "json"): "the whole prompt JSON with `canvas_state`; after a tool batch no canvas at all "
+    "(the state is stripped from history), only the tool calls and their results",
+    ("local", "text"): "a `<canvas>` block with one object per line and computed facts in front of the user text; "
+    "after a tool batch, `[canvas changes]` in the last tool result",
+    ("local", "min_json"): "the `<canvas>` block as compact JSON (the real structured JSON LocalAgent can send); "
+    "after a tool batch, `[canvas changes]`",
+    ("local", "json"): "the user text plus a `[Canvas: 3 Points, ...]` object-count line only (legacy LocalAgent); "
+    "after a tool batch, only the tool calls and their results",
+}
+
+
 # --------------------------------------------------------------------------- prompts (the app's own code)
 
 
 @contextmanager
 def prompt_environment(
-    canvas_format: CanvasFormat, canvas_budget: Optional[int], placeholder_key: bool
+    canvas_format: CanvasFormat,
+    canvas_budget: Optional[int],
+    placeholder_key: bool,
+    local_reasoning_effort: Optional[str] = None,
 ) -> Iterator[None]:
     """Pin the provider settings read while prompts are built, restoring the environment afterwards.
 
@@ -960,6 +1081,8 @@ def prompt_environment(
     overrides[CANVAS_FORMAT_ENV] = canvas_format
     if canvas_budget is not None:
         overrides[CANVAS_BUDGET_ENV] = str(canvas_budget)
+    if local_reasoning_effort is not None:
+        overrides[REASONING_EFFORT_ENV] = local_reasoning_effort
     if placeholder_key and not os.environ.get(_OPENROUTER_KEY_ENV):
         overrides[_OPENROUTER_KEY_ENV] = "dry-run-placeholder"
     saved = {name: os.environ.get(name) for name in overrides}
@@ -1113,14 +1236,18 @@ class PreparedRequest:
     messages: List[JsonDict]
     estimated_prompt_tokens: int
     request_kwargs: JsonDict
+    provided: bool = True
 
 
 def request_kwargs(api: Provider) -> JsonDict:
-    """Sampling parameters the provider sends (no tools): LocalAgent sends its temperature, OpenRouter none."""
-    kwargs: JsonDict = {"max_tokens": api.max_tokens}
+    """Request parameters the provider sends (no tools).
+
+    LocalAgent: its own ``_completion_options`` (temperature, max_tokens and the
+    reasoning effort in ``chat_template_kwargs``). OpenRouter: max_tokens only.
+    """
     if isinstance(api, LocalAgentAPI):
-        kwargs["temperature"] = api.temperature
-    return kwargs
+        return copy.deepcopy(api._completion_options())
+    return {"max_tokens": api.max_tokens}
 
 
 def build_requests(
@@ -1131,6 +1258,7 @@ def build_requests(
     questions: Sequence[Question],
     canvas_budget: Optional[int],
     dry_run: bool,
+    local_reasoning_effort: Optional[str] = None,
 ) -> Tuple[List[PreparedRequest], Dict[Tuple[str, str], Provider]]:
     """Build every (model, format, question) request, and the provider instance per (model, format)."""
     scene_by_name = {scene.name: scene for scene in scenes}
@@ -1138,7 +1266,7 @@ def build_requests(
     providers: Dict[Tuple[str, str], Provider] = {}
     for model in models:
         for canvas_format in formats:
-            with prompt_environment(canvas_format, canvas_budget, placeholder_key=dry_run):
+            with prompt_environment(canvas_format, canvas_budget, dry_run, local_reasoning_effort):
                 api = create_provider(provider, model)
                 providers[(model, canvas_format)] = api
                 for question in questions:
@@ -1151,6 +1279,7 @@ def build_requests(
                             messages=messages,
                             estimated_prompt_tokens=estimate_prompt_tokens(messages),
                             request_kwargs=request_kwargs(api),
+                            provided=is_provided(provider, canvas_format, question),
                         )
                     )
     return requests, providers
@@ -1188,6 +1317,7 @@ def send_request(client: Any, provider: str, request: PreparedRequest, repeat: i
         "question": question.text,
         "kind": question.kind,
         "expected": question.expected,
+        "provided": request.provided,
         "reply": reply,
         "answer": answer,
         "answer_line": has_answer_line,
@@ -1204,30 +1334,130 @@ def send_request(client: Any, provider: str, request: PreparedRequest, repeat: i
     }
 
 
+def order_jobs(requests: Sequence[PreparedRequest], repeats: int) -> List[Tuple[PreparedRequest, int]]:
+    """Jobs question-major, models and formats interleaved within each question, repeats last.
+
+    Drift over the run (provider load, a server warming up) then spreads over
+    every format instead of lining up with one of them.
+    """
+    positions: Dict[str, Dict[str, int]] = {"qid": {}, "model": {}, "format": {}}
+    for request in requests:
+        positions["qid"].setdefault(request.question.qid, len(positions["qid"]))
+        positions["model"].setdefault(request.model, len(positions["model"]))
+        positions["format"].setdefault(request.canvas_format, len(positions["format"]))
+    ordered = sorted(
+        requests,
+        key=lambda r: (
+            positions["qid"][r.question.qid],
+            positions["model"][r.model],
+            positions["format"][r.canvas_format],
+        ),
+    )
+    return [(request, repeat) for repeat in range(repeats) for request in ordered]
+
+
+class ResultSink:
+    """Collects results from worker threads, appending each to a JSON-lines file as it arrives."""
+
+    def __init__(self, jsonl_path: Optional[Path] = None) -> None:
+        self._results: List[JsonDict] = []
+        self._lock = threading.Lock()
+        self._path = jsonl_path
+        if jsonl_path is not None:
+            jsonl_path.write_text("", encoding="utf-8")
+
+    def add(self, result: JsonDict) -> None:
+        with self._lock:
+            self._results.append(result)
+            if self._path is not None:
+                with open(self._path, "a", encoding="utf-8") as handle:
+                    handle.write(json.dumps(result, ensure_ascii=False) + "\n")
+
+    def results(self) -> List[JsonDict]:
+        """The results so far, in job order."""
+        with self._lock:
+            return sorted(self._results, key=lambda result: int(result.get("job", 0)))
+
+
 def run_live(
     provider: str,
     requests: Sequence[PreparedRequest],
     clients: Mapping[Tuple[str, str], Any],
     repeats: int,
     concurrency: int,
+    sink: Optional[ResultSink] = None,
     log: Callable[[str], None] = print,
 ) -> List[JsonDict]:
-    jobs = [(request, repeat) for repeat in range(repeats) for request in requests]
-    results: List[Optional[JsonDict]] = [None] * len(jobs)
+    """Send every job (see order_jobs) and return the results in job order.
+
+    Each result goes to ``sink`` as soon as it arrives. On an interruption the
+    queued jobs are dropped (requests in flight still finish into the sink).
+    """
+    jobs = order_jobs(requests, repeats)
+    sink = sink if sink is not None else ResultSink()
 
     def run(index: int) -> None:
         request, repeat = jobs[index]
         result = send_request(clients[(request.model, request.canvas_format)], provider, request, repeat)
-        results[index] = result
+        result["job"] = index
+        sink.add(result)
         status = "ERROR" if result["error"] else ("ok" if result["correct"] else "wrong")
+        if not request.provided:
+            status += " (not provided)"
         log(
             f"[{index + 1}/{len(jobs)}] {request.model} {request.canvas_format} {request.question.qid}: "
             f"{status} ({result['latency_s']}s)"
         )
 
-    with ThreadPoolExecutor(max_workers=max(1, concurrency)) as pool:
-        list(pool.map(run, range(len(jobs))))
-    return [result for result in results if result is not None]
+    pool = ThreadPoolExecutor(max_workers=max(1, concurrency))
+    try:
+        for future in as_completed([pool.submit(run, index) for index in range(len(jobs))]):
+            future.result()
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+    return sink.results()
+
+
+# --------------------------------------------------------------------------- re-grading
+
+
+def regrade_results(results: Sequence[Mapping[str, Any]], provider: str) -> List[JsonDict]:
+    """Stored results re-graded with the current grader (answer extraction, grading, "provided").
+
+    Results whose question no longer exists keep their stored grade.
+    """
+    questions = {question.qid: question for question in build_questions(load_scenes())}
+    regraded: List[JsonDict] = []
+    for stored in results:
+        result = dict(stored)
+        question = questions.get(str(result.get("qid")))
+        if question is not None:
+            answer, has_answer_line = extract_answer(str(result.get("reply") or ""))
+            result["answer"] = answer
+            result["answer_line"] = has_answer_line
+            result["correct"] = not result.get("error") and grade(question, answer)
+            result["provided"] = is_provided(provider, str(result.get("format")), question)
+        regraded.append(result)
+    return regraded
+
+
+def regrade_file(results_path: Path, out_dir: Optional[Path]) -> Tuple[Path, str]:
+    """Re-grade a results.json; writes results_regraded.json and summary.md (default: next to it)."""
+    data = json.loads(results_path.read_text(encoding="utf-8"))
+    config: JsonDict = dict(data.get("config") or {})
+    config["regraded_at"] = datetime.now().isoformat(timespec="seconds")
+    config["regraded_from"] = str(results_path)
+    results = regrade_results(data.get("results") or [], str(config.get("provider", "openrouter")))
+    rows = summarize(results, config.get("models"), config.get("formats"))
+    markdown = render_markdown(config, rows, results)
+    target = out_dir or results_path.parent
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "results_regraded.json").write_text(
+        json.dumps({"config": config, "summary": rows, "results": results}, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    (target / "summary.md").write_text(markdown, encoding="utf-8")
+    return target, markdown
 
 
 # --------------------------------------------------------------------------- summaries
@@ -1248,30 +1478,77 @@ def result_cost(result: Mapping[str, Any]) -> Optional[float]:
     return (prompt * prices[0] + completion * prices[1]) / 1_000_000
 
 
-def summarize(results: Sequence[Mapping[str, Any]]) -> List[JsonDict]:
-    """Per model x format: accuracy (overall, per scene, per category), token, latency and error figures."""
+def _provided(result: Mapping[str, Any]) -> bool:
+    return bool(result.get("provided", True))
+
+
+def _ratio(numerator: int, denominator: int) -> Optional[float]:
+    return round(numerator / denominator, 4) if denominator else None
+
+
+def outcome(items: Sequence[Mapping[str, Any]]) -> JsonDict:
+    """Accuracy over the questions the format provides; not-provided ones are counted apart.
+
+    ``accuracy`` counts request errors as wrong answers; ``accuracy_excluding_errors``
+    leaves errored requests out.
+    """
+    provided = [item for item in items if _provided(item)]
+    not_provided = [item for item in items if not _provided(item)]
+    correct = sum(1 for item in provided if item["correct"])
+    errors = sum(1 for item in provided if item.get("error"))
+    return {
+        "correct": correct,
+        "provided": len(provided),
+        "errors": errors,
+        "accuracy": _ratio(correct, len(provided)),
+        "accuracy_excluding_errors": _ratio(correct, len(provided) - errors),
+        "not_provided": len(not_provided),
+        "not_provided_correct": sum(1 for item in not_provided if item["correct"]),
+    }
+
+
+def _order_key(values: Optional[Sequence[str]], value: str) -> Tuple[int, str]:
+    listed = list(values or [])
+    return (listed.index(value) if value in listed else len(listed), value)
+
+
+def summarize(
+    results: Sequence[Mapping[str, Any]],
+    models: Optional[Sequence[str]] = None,
+    formats: Optional[Sequence[str]] = None,
+) -> List[JsonDict]:
+    """Per model x format (in the given order): static-scene and change-scene outcomes, tokens, latency, cost.
+
+    ``accuracy`` is the headline figure: static-scene accuracy over provided questions.
+    """
     groups: Dict[Tuple[str, str], List[Mapping[str, Any]]] = {}
     for result in results:
         groups.setdefault((str(result["model"]), str(result["format"])), []).append(result)
     rows: List[JsonDict] = []
-    for (model, canvas_format), items in groups.items():
-        correct = sum(1 for item in items if item["correct"])
+    for model, canvas_format in sorted(
+        groups, key=lambda key: (_order_key(models, key[0]), _order_key(formats, key[1]))
+    ):
+        items = groups[(model, canvas_format)]
+        static = [item for item in items if item["scene"] != CHANGE_SCENE]
         costs = [result_cost(item) for item in items]
+        static_outcome = outcome(static)
         rows.append(
             {
                 "model": model,
                 "format": canvas_format,
                 "requests": len(items),
-                "correct": correct,
-                "accuracy": round(correct / len(items), 4) if items else 0.0,
-                "by_scene": _accuracy_by(items, "scene"),
-                "by_category": _accuracy_by(items, "category"),
+                "accuracy": static_outcome["accuracy"],
+                "static": static_outcome,
+                "change": outcome([item for item in items if item["scene"] == CHANGE_SCENE]),
+                "by_scene": _outcome_by(items, "scene"),
+                "by_category": _outcome_by(static, "category"),
+                "change_by_question": _outcome_by([item for item in items if item["scene"] == CHANGE_SCENE], "qid"),
                 "mean_prompt_tokens": _mean([item.get("prompt_tokens") for item in items]),
                 "mean_estimated_prompt_tokens": _mean([item.get("estimated_prompt_tokens") for item in items]),
                 "mean_completion_tokens": _mean([item.get("completion_tokens") for item in items]),
                 "mean_latency_s": _mean([item.get("latency_s") for item in items]),
                 "mean_output_tokens_per_s": _mean([item.get("output_tokens_per_s") for item in items]),
-                "answer_line_rate": round(sum(1 for item in items if item.get("answer_line")) / len(items), 4),
+                "answer_line_rate": _ratio(sum(1 for item in items if item.get("answer_line")), len(items)),
                 "errors": sum(1 for item in items if item.get("error")),
                 "cost_usd": round(sum(c for c in costs if c is not None), 6)
                 if any(c is not None for c in costs)
@@ -1281,14 +1558,11 @@ def summarize(results: Sequence[Mapping[str, Any]]) -> List[JsonDict]:
     return rows
 
 
-def _accuracy_by(items: Sequence[Mapping[str, Any]], key: str) -> Dict[str, JsonDict]:
-    buckets: Dict[str, List[bool]] = {}
+def _outcome_by(items: Sequence[Mapping[str, Any]], key: str) -> Dict[str, JsonDict]:
+    buckets: Dict[str, List[Mapping[str, Any]]] = {}
     for item in items:
-        buckets.setdefault(str(item[key]), []).append(bool(item["correct"]))
-    return {
-        name: {"correct": sum(flags), "total": len(flags), "accuracy": round(sum(flags) / len(flags), 4)}
-        for name, flags in buckets.items()
-    }
+        buckets.setdefault(str(item[key]), []).append(item)
+    return {name: outcome(group) for name, group in buckets.items()}
 
 
 def _fmt(value: Any, digits: int = 1) -> str:
@@ -1299,45 +1573,115 @@ def _fmt(value: Any, digits: int = 1) -> str:
     return str(value)
 
 
+def _pct(value: Optional[float]) -> str:
+    return "-" if value is None else f"{value * 100:.1f}%"
+
+
 def _cell(text: Any) -> str:
     return str(text).replace("|", "\\|").replace("\n", " ")
+
+
+def _outcome_cell(result: Optional[Mapping[str, Any]]) -> str:
+    """``correct/provided``, plus ``n/p`` (and how many of those were right anyway) for not-provided ones."""
+    if result is None:
+        return "-"
+    parts = []
+    if result["provided"]:
+        parts.append(f"{result['correct']}/{result['provided']}")
+    if result["not_provided"]:
+        parts.append(f"n/p {result['not_provided_correct']}/{result['not_provided']}")
+    return " ".join(parts) or "-"
+
+
+def _summary_header(config: Mapping[str, Any]) -> List[str]:
+    provider = str(config.get("provider", "openrouter"))
+    formats = [str(f) for f in config.get("formats", [])]
+    lines = [
+        "# Canvas format benchmark",
+        "",
+        f"- Provider: {provider}; models: {', '.join(config.get('models', []))}",
+        f"- Formats: {', '.join(format_label(provider, f) for f in formats)}; repeats: {config.get('repeats')}; "
+        f"questions: {config.get('questions')}",
+        f"- Run at {config.get('started_at')}; prices as of {config.get('prices_as_of', PRICES_AS_OF)} "
+        "(USD per 1M tokens in/out)",
+    ]
+    if config.get("local_reasoning_effort") is not None or provider == "local":
+        lines.append(f"- LocalAgent reasoning effort: {config.get('local_reasoning_effort') or 'not sent'}")
+    if config.get("completed_requests") is not None and config.get("completed_requests") != config.get(
+        "planned_requests"
+    ):
+        lines.append(
+            f"- Interrupted: {config.get('completed_requests')} of {config.get('planned_requests')} requests completed"
+        )
+    if config.get("regraded_at"):
+        lines.append(f"- Re-graded at {config['regraded_at']} with the current grader")
+    lines += ["", "What each format sends:", ""]
+    for canvas_format in formats:
+        description = FORMAT_DESCRIPTIONS.get((provider, canvas_format), "")
+        lines.append(f"- `{format_label(provider, canvas_format)}`: {description}")
+    lines += [
+        "",
+        "Questions are asked without tools, one per request. Accuracy counts only questions whose information the "
+        "format sends; the others are listed as n/p (not provided), with how many were answered right anyway. "
+        "Accuracy counts request errors as wrong; 'excl. errors' leaves errored requests out.",
+    ]
+    return lines
 
 
 def render_markdown(
     config: Mapping[str, Any], rows: Sequence[Mapping[str, Any]], results: Sequence[Mapping[str, Any]]
 ) -> str:
-    lines = [
-        "# Canvas format benchmark",
+    provider = str(config.get("provider", "openrouter"))
+
+    def label(row: Mapping[str, Any]) -> str:
+        return f"| {row['model']} | {format_label(provider, str(row['format']))} |"
+
+    lines = _summary_header(config)
+    for title, key in (("Static scenes (headline)", "static"), ("Change scene (after a tool batch)", "change")):
+        lines += [
+            "",
+            f"## {title}",
+            "",
+            "| Model | Format | Accuracy | Correct | Excl. errors | Errors | Not provided (right anyway) |",
+            "|---|---|---|---|---|---|---|",
+        ]
+        for row in rows:
+            result = row[key]
+            lines.append(
+                f"{label(row)} {_pct(result['accuracy'])} | {result['correct']}/{result['provided']} "
+                f"| {_pct(result['accuracy_excluding_errors'])} | {result['errors']} "
+                f"| {result['not_provided']} ({result['not_provided_correct']}) |"
+            )
+    change_qids = [question.qid for question in build_questions(load_scenes([CHANGE_SCENE]))]
+    if any(row["change_by_question"] for row in rows):
+        lines += ["", "Change scene by question (correct/provided; n/p = not provided in the format):", ""]
+        lines += ["| Model | Format | " + " | ".join(change_qids) + " |", "|---|---|" + "---|" * len(change_qids)]
+        for row in rows:
+            cells = [_outcome_cell(row["change_by_question"].get(qid)) for qid in change_qids]
+            lines.append(f"{label(row)} " + " | ".join(cells) + " |")
+    lines += [
         "",
-        f"- Provider: {config['provider']}; models: {', '.join(config['models'])}",
-        f"- Formats: {', '.join(config['formats'])}; repeats: {config['repeats']}; questions: {config['questions']}",
-        f"- Run at {config['started_at']}; prices as of {PRICES_AS_OF} (USD per 1M tokens in/out)",
+        "## Tokens, speed and cost (all requests)",
         "",
-        "## Overall",
-        "",
-        "| Model | Format | Accuracy | Correct | Mean prompt tok | Mean est. prompt tok | Mean completion tok "
-        "| Mean latency s | Output tok/s | Answer line | Errors | Cost USD |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| Model | Format | Requests | Mean prompt tok | Mean est. prompt tok | Mean completion tok | Mean latency s "
+        "| Output tok/s | Answer line | Errors | Cost USD |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for row in rows:
         lines.append(
-            f"| {row['model']} | {row['format']} | {row['accuracy'] * 100:.1f}% | {row['correct']}/{row['requests']} "
-            f"| {_fmt(row['mean_prompt_tokens'])} | {_fmt(row['mean_estimated_prompt_tokens'])} "
-            f"| {_fmt(row['mean_completion_tokens'])} | {_fmt(row['mean_latency_s'], 2)} "
-            f"| {_fmt(row['mean_output_tokens_per_s'])} | {row['answer_line_rate'] * 100:.0f}% | {row['errors']} "
-            f"| {_fmt(row['cost_usd'], 4)} |"
+            f"{label(row)} {row['requests']} | {_fmt(row['mean_prompt_tokens'])} "
+            f"| {_fmt(row['mean_estimated_prompt_tokens'])} | {_fmt(row['mean_completion_tokens'])} "
+            f"| {_fmt(row['mean_latency_s'], 2)} | {_fmt(row['mean_output_tokens_per_s'])} "
+            f"| {_pct(row['answer_line_rate'])} | {row['errors']} | {_fmt(row['cost_usd'], 4)} |"
         )
-    for title, key in (("Accuracy by scene", "by_scene"), ("Accuracy by category", "by_category")):
+    for title, key in (("Accuracy by scene", "by_scene"), ("Static accuracy by category", "by_category")):
         names = sorted({name for row in rows for name in row[key]})
         lines += ["", f"## {title}", "", "| Model | Format | " + " | ".join(names) + " |"]
         lines.append("|---|---|" + "---|" * len(names))
         for row in rows:
-            cells = [
-                f"{row[key][name]['correct']}/{row[key][name]['total']}" if name in row[key] else "-" for name in names
-            ]
-            lines.append(f"| {row['model']} | {row['format']} | " + " | ".join(cells) + " |")
-    wrong = [result for result in results if not result["correct"]]
-    lines += ["", f"## Wrong answers ({len(wrong)})", ""]
+            lines.append(f"{label(row)} " + " | ".join(_outcome_cell(row[key].get(name)) for name in names) + " |")
+    wrong = [result for result in results if not result["correct"] and _provided(result)]
+    lines += ["", f"## Wrong answers to provided questions ({len(wrong)})", ""]
     if wrong:
         lines += ["| Model | Format | Question | Expected | Answer |", "|---|---|---|---|---|"]
         for result in wrong:
@@ -1368,6 +1712,7 @@ def write_prompts(requests: Sequence[PreparedRequest], out_dir: Path) -> Path:
             "question": question.text,
             "kind": question.kind,
             "expected": question.expected,
+            "provided": request.provided,
             "estimated_prompt_tokens": request.estimated_prompt_tokens,
             "request_kwargs": request.request_kwargs,
             "messages": request.messages,
@@ -1445,18 +1790,36 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         + ", ".join(DEFAULT_OPENROUTER_MODELS)
         + "; local default: every model the llama-server serves.",
     )
-    parser.add_argument("--formats", nargs="+", choices=CANVAS_FORMATS, default=list(DEFAULT_FORMATS))
+    parser.add_argument(
+        "--formats",
+        nargs="+",
+        choices=CANVAS_FORMATS,
+        default=None,
+        help="Canvas formats (default: json text for OpenRouter; text min_json json for local, where json is "
+        "the legacy object-count line and min_json the structured format)",
+    )
     parser.add_argument("--scenes", nargs="+", choices=SCENE_NAMES, default=list(SCENE_NAMES))
     parser.add_argument("--repeats", type=int, default=1, help="Times each question is asked (default 1)")
     parser.add_argument("--dry-run", action="store_true", help="Build and write prompts only; no network access")
     parser.add_argument(
-        "--out", type=Path, default=None, help="Output directory (default logs/canvas_format_benchmark/<time>)"
+        "--regrade",
+        type=Path,
+        default=None,
+        metavar="RESULTS_JSON",
+        help="Re-grade a results.json with the current grader and write summary.md (no network access)",
+    )
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=None,
+        help="Output directory (default logs/canvas_format_benchmark/<time>; with --regrade, the results' directory)",
     )
     parser.add_argument(
         "--max-requests",
         type=int,
         default=DEFAULT_MAX_REQUESTS,
-        help=f"Abort before sending when the run needs more requests (default {DEFAULT_MAX_REQUESTS})",
+        help=f"Abort before sending when the run needs more requests (default {DEFAULT_MAX_REQUESTS}); "
+        "requests are never retried",
     )
     parser.add_argument(
         "--canvas-budget",
@@ -1464,11 +1827,22 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         default=None,
         help="MATHUD_CANVAS_BUDGET_TOKENS for the canvas block (default: provider default, 0 = unlimited)",
     )
+    parser.add_argument(
+        "--local-reasoning-effort",
+        choices=LOCAL_REASONING_EFFORT_CHOICES,
+        default=None,
+        help="MATHUD_LOCAL_REASONING_EFFORT for LocalAgent requests (default: the app's default, medium; "
+        "default/none sends no effort)",
+    )
     parser.add_argument("--timeout", type=float, default=None, help="Per-request timeout in seconds")
     parser.add_argument("--concurrency", type=int, default=None, help="Parallel requests (default 4 cloud, 1 local)")
     args = parser.parse_args(argv)
     if args.repeats < 1:
         parser.error("--repeats must be at least 1")
+    if args.local_reasoning_effort is not None and args.provider != "local":
+        parser.error("--local-reasoning-effort applies to --provider local only")
+    if args.formats is None:
+        args.formats = list(DEFAULT_FORMATS[args.provider])
     return args
 
 
@@ -1486,8 +1860,34 @@ def resolve_models(args: argparse.Namespace) -> List[str]:
     return served
 
 
+def _use_utf8_output() -> None:
+    """Print answers with any characters on Windows consoles (cp1252 by default)."""
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if callable(reconfigure):
+        reconfigure(encoding="utf-8", errors="replace")
+
+
+def _write_live_results(out_dir: Path, config: JsonDict, results: List[JsonDict]) -> str:
+    config["completed_requests"] = len(results)
+    rows = summarize(results, config["models"], config["formats"])
+    markdown = render_markdown(config, rows, results)
+    (out_dir / "results.json").write_text(
+        json.dumps({"config": config, "summary": rows, "results": results}, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    (out_dir / "summary.md").write_text(markdown, encoding="utf-8")
+    return markdown
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
+    _use_utf8_output()
     args = parse_args(argv)
+    if args.regrade is not None:
+        target, markdown = regrade_file(args.regrade, args.out)
+        print(markdown)
+        print(f"Re-graded summary written to {target}")
+        return 0
+
     started_at = datetime.now()
     out_dir: Path = args.out or REPO_ROOT / "logs" / "canvas_format_benchmark" / started_at.strftime("%Y%m%d-%H%M%S")
 
@@ -1521,15 +1921,22 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     mode = "dry run" if args.dry_run else "live"
     print(f"Canvas format benchmark ({mode}, provider {args.provider})")
     print(f"Models: {', '.join(models)}")
-    print(f"Formats: {', '.join(formats)}; scenes: {len(scenes)}; questions: {len(questions)}; repeats: {args.repeats}")
+    print(
+        f"Formats: {', '.join(format_label(args.provider, f) for f in formats)}; scenes: {len(scenes)}; "
+        f"questions: {len(questions)}; repeats: {args.repeats}"
+    )
     print(f"Planned requests: {planned} (max {args.max_requests})")
     if planned > args.max_requests and not args.dry_run:
         print(f"Aborting: {planned} requests exceed --max-requests {args.max_requests}. Nothing was sent.")
         return 2
 
     requests, providers = build_requests(
-        args.provider, models, formats, scenes, questions, args.canvas_budget, args.dry_run
+        args.provider, models, formats, scenes, questions, args.canvas_budget, args.dry_run, args.local_reasoning_effort
     )
+    local_apis = [api for api in providers.values() if isinstance(api, LocalAgentAPI)]
+    if local_apis:
+        config["local_reasoning_effort"] = local_apis[0].reasoning_effort
+        print(f"LocalAgent reasoning effort: {config['local_reasoning_effort'] or 'not sent'}")
     out_dir.mkdir(parents=True, exist_ok=True)
     prompts_dir = write_prompts(requests, out_dir)
 
@@ -1545,18 +1952,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     timeout = args.timeout or DEFAULT_TIMEOUT_S[args.provider]
     concurrency = args.concurrency or DEFAULT_CONCURRENCY[args.provider]
-    clients = {key: api.client.with_options(timeout=timeout) for key, api in providers.items()}
-    results = run_live(args.provider, requests, clients, args.repeats, concurrency)
-    rows = summarize(results)
-    markdown = render_markdown(config, rows, results)
-    (out_dir / "results.json").write_text(
-        json.dumps({"config": config, "summary": rows, "results": results}, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
-    (out_dir / "summary.md").write_text(markdown, encoding="utf-8")
-    print()
-    print(markdown)
-    print(f"Results written to {out_dir}")
+    # No SDK retries: every request sent is one counted by --max-requests.
+    clients = {key: api.client.with_options(timeout=timeout, max_retries=0) for key, api in providers.items()}
+    sink = ResultSink(out_dir / "results.jsonl")
+    try:
+        run_live(args.provider, requests, clients, args.repeats, concurrency, sink)
+    finally:
+        # Also on Ctrl+C: keep every answer received so far.
+        markdown = _write_live_results(out_dir, config, sink.results())
+        print()
+        print(markdown)
+        print(f"Results written to {out_dir}")
     return 0
 
 
