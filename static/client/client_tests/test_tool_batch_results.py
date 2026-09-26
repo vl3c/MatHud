@@ -188,6 +188,56 @@ class TestToolBatchUndo(_ToolBatchTestCase):
         self.canvas.undo()
         self.assertEqual(self.snapshot(), before_load)
 
+    def redo_depth(self) -> int:
+        return len(self.canvas.undo_redo_manager.redo_stack)
+
+    def create_angle_and_pending_redo(self) -> str:
+        """Create an angle, then undo a later point so a redo is pending; return the angle's name."""
+        self.run_single("create_angle", vx=0, vy=0, p1x=4, p1y=0, p2x=0, p2y=4)
+        angle_name = self.snapshot()["Angle"][0]
+        self.run_single("create_point", x=9, y=9, name="Q")
+        self.run_single("undo")
+        self.assertEqual(self.redo_depth(), 1)
+        return angle_name
+
+    def test_missing_angle_delete_adds_no_entry_and_keeps_redo(self) -> None:
+        self.create_angle_and_pending_redo()
+        depth = self.undo_depth()
+
+        result = self.run_single("delete_angle", name="nope")
+
+        self.assertTrue(str(result).startswith("Error:"))
+        self.assertEqual(self.undo_depth(), depth)
+        self.assertEqual(self.redo_depth(), 1)
+
+    def test_failing_translate_adds_no_entry_and_keeps_redo(self) -> None:
+        angle_name = self.create_angle_and_pending_redo()
+        depth = self.undo_depth()
+        before = self.snapshot()
+
+        _, traced = self.run_batch(("translate_object", {"name": angle_name, "x_offset": 1, "y_offset": 0}))
+
+        self.assertTrue(traced[0]["is_error"])
+        self.assertEqual(self.snapshot(), before)
+        self.assertEqual(self.undo_depth(), depth)
+        self.assertEqual(self.redo_depth(), 1)
+        self.run_single("redo")
+        self.assertIn("Q(9.0, 9.0)", self.snapshot()["Point"])
+
+    def test_failed_call_keeps_the_entry_of_an_earlier_change_in_the_batch(self) -> None:
+        self.run_batch(("create_point", {"x": 1, "y": 1, "name": "A"}), ("delete_angle", {"name": "nope"}))
+
+        self.assertEqual(self.undo_depth(), 1)
+        self.run_single("undo")
+        self.assertEqual(self.snapshot(), {})
+
+    def test_change_after_a_failed_call_in_the_batch_still_adds_an_entry(self) -> None:
+        self.run_batch(("delete_angle", {"name": "nope"}), ("create_point", {"x": 1, "y": 1, "name": "A"}))
+
+        self.assertEqual(self.undo_depth(), 1)
+        self.run_single("undo")
+        self.assertEqual(self.snapshot(), {})
+
 
 class TestToolNoOpResults(_ToolBatchTestCase):
     """K2: tool results do not claim success when nothing happened."""
@@ -229,6 +279,33 @@ class TestToolNoOpResults(_ToolBatchTestCase):
         self.assertNotEqual(result, successful_call_message)
         self.assertIn("Nothing to redo", str(result))
 
+    def test_create_point_on_an_occupied_spot_names_the_existing_point(self) -> None:
+        self.run_single("create_point", x=1, y=1, name="A")
+        depth = self.undo_depth()
+
+        _, traced = self.run_batch(("create_point", {"x": 1, "y": 1, "name": "B", "color": None}))
+
+        self.assertEqual(
+            traced[0]["result"],
+            "Point 'A' already exists at (1, 1); no new point was created. The requested name 'B' was not applied.",
+        )
+        self.assertFalse(traced[0]["is_error"])
+        self.assertEqual(self.undo_depth(), depth)
+        self.assertEqual(self.snapshot(), {"Point": ["A(1.0, 1.0)"]})
+
+    def test_create_point_with_the_existing_name_does_not_mention_the_name(self) -> None:
+        self.run_single("create_point", x=2.5, y=-1, name="A")
+
+        result = self.run_single("create_point", x=2.5, y=-1, name="A")
+
+        self.assertEqual(result, "Point 'A' already exists at (2.5, -1); no new point was created.")
+
+    def test_create_point_on_a_free_spot_still_reports_success(self) -> None:
+        result = self.run_single("create_point", x=1, y=1, name="A")
+
+        self.assertEqual(result, successful_call_message)
+        self.assertEqual(self.undo_depth(), 1)
+
     def test_undo_and_redo_with_history_still_report_success(self) -> None:
         self.run_single("create_point", x=1, y=1)
 
@@ -258,6 +335,28 @@ class TestToolErrorResults(_ToolBatchTestCase):
         _, traced = self.run_batch(("invert", {}))
 
         self.assertTrue(traced[0]["is_error"])
+
+    def test_json_error_string_from_solve_numeric_is_flagged(self) -> None:
+        _, traced = self.run_batch(("solve_numeric", {"equations": []}))
+
+        self.assertIsInstance(traced[0]["result"], str)
+        self.assertIn('"error"', traced[0]["result"])
+        self.assertTrue(traced[0]["is_error"])
+
+    def test_json_string_without_error_is_not_flagged(self) -> None:
+        _, traced = self.run_batch(("solve_numeric", {"equations": ["x - 2"]}))
+
+        self.assertFalse(traced[0]["is_error"])
+
+    def test_turn_metrics_count_json_error_strings(self) -> None:
+        tool_results = [
+            {"function_name": "solve_numeric", "result": '{"solutions": [], "error": "No equations provided."}'},
+            {"function_name": "solve_numeric", "result": '{"solutions": [2.0], "method": "newton_raphson"}'},
+        ]
+
+        turn = aggregate_turn([], tool_results, None, "stop")
+
+        self.assertEqual(turn["tool_errors"], 1)
 
     def test_error_string_is_still_flagged(self) -> None:
         _, traced = self.run_batch(("no_such_tool", {}))

@@ -437,6 +437,14 @@ class Canvas:
         """Close the undo batch opened by begin_undo_batch()."""
         self.undo_redo_manager.end_batch()
 
+    def is_undo_batch_changed(self) -> bool:
+        """Return True when the open undo batch has recorded a change."""
+        return self.undo_redo_manager.is_batch_changed()
+
+    def set_undo_batch_changed(self, changed: bool) -> None:
+        """Overwrite the open undo batch's change mark."""
+        self.undo_redo_manager.set_batch_changed(changed)
+
     def undo(self) -> bool:
         """Restores the last archived state from the undo stack"""
         return bool(self.undo_redo_manager.undo())

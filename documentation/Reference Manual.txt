@@ -498,9 +498,10 @@ computation history for mathematical operations.
 ```
 
 **Undo and result conventions for a tool batch:**
-- A batch that contains at least one undoable call runs inside one undo batch (`canvas.begin_undo_batch()` / `end_undo_batch()`), so one `undo` afterwards restores exactly the state before the batch, and `redo` restores the batch's result. A batch that changed nothing (for example only a delete of a missing object) adds no undo entry. An `undo` or `redo` call inside a batch first commits the batch's earlier changes, so it reverts them rather than the step before the batch.
+- A batch that contains at least one undoable call runs inside one undo batch (`canvas.begin_undo_batch()` / `end_undo_batch()`), so one `undo` afterwards restores exactly the state before the batch, and `redo` restores the batch's result. A batch that changed nothing (for example only a delete of a missing object) adds no undo entry and keeps the redo history. A call that fails or reports that it changed nothing gets back the batch's change mark from before the call, so a manager that archives and then fails (`delete_angle` of a missing angle, a `translate_object` or `scale_object` that fails) adds no entry, while changes made by other calls in the batch still do. An `undo` or `redo` call inside a batch first commits the batch's earlier changes, so it reverts them rather than the step before the batch.
+- `create_point` on a spot that already holds a point creates nothing and adds no undo entry. Its result names the existing point, e.g. "Point 'A' already exists at (1, 1); no new point was created. The requested name 'B' was not applied." (the name sentence appears only when a different name was requested, and a requested color is reported as not applied too). It is not a tool error. Tools report such outcomes by returning a `NoChangeResult(message)` (`no_change_result.py`).
 - A delete tool, `undo` or `redo` that returns False changed nothing, and its result says so instead of "Call successful!": deletes return "Error: nothing was deleted; no matching object exists on the canvas." (a tool error, like an update of a missing object), `undo` returns "Nothing to undo: the undo history is empty." and `redo` returns "Nothing to redo: there is no undone change to restore."
-- A result counts as a tool error (`is_error` in the traced calls, the tool-call log, trace replay and turn metrics) when it is a string starting with "Error", a dict with a non-empty "error" field (e.g. `analyze_graph` on a missing graph), or a `{"type": "error", ...}` payload. A dict whose "error" field is empty, as `search_tools` returns on success, is not an error.
+- A result counts as a tool error (`is_error` in the traced calls, the tool-call log, trace replay and turn metrics) when it is a string starting with "Error", a string holding a JSON object with a non-empty "error" field (`solve_numeric` failures), a dict with a non-empty "error" field (e.g. `analyze_graph` on a missing graph), or a `{"type": "error", ...}` payload. A dict whose "error" field is empty, as `search_tools` returns on success, is not an error.
 
 **Key Methods:**
 - `get_results(calls, available_functions, undoable_functions, canvas)`: Process function calls and collect their results (the results dict of `get_results_traced`)
@@ -2224,6 +2225,7 @@ This class is responsible for:
 - `archive()`: Archive the current canvas state for undo functionality; ignored while archiving is suspended, and inside a batch it only marks the batch as changed
 - `suspend_archiving()` / `resume_archiving()`: Ignore `archive()` calls during a composite operation that pushes its own baseline with `push_undo_state()`
 - `begin_batch()` / `end_batch()`: Group every change until the matching end into one undo step. Batches nest; the outermost `begin_batch()` captures the baseline, and the outermost `end_batch()` pushes it as one entry if anything called `archive()` or `push_undo_state()` in between. Used for model tool batches and workspace restores.
+- `is_batch_changed()` / `set_batch_changed(changed)`: Read or overwrite the open batch's change mark; ResultProcessor restores the mark after a call that failed or changed nothing
 - `undo()`: Restore the most recent archived state (inside a batch, the batch's earlier changes are committed first)
 - `redo()`: Restore a previously undone state (inside a batch, the batch's earlier changes are committed first, which clears the redo history)
 - `can_undo()`: Check if undo operation is possible
@@ -2375,7 +2377,7 @@ This class is responsible for:
 - `__init__(canvas, drawables_container, name_generator, dependency_manager, drawable_manager_proxy)`: Initialize the PointManager
 - `get_point(x, y)`: Get a point at the specified coordinates
 - `get_point_by_name(name)`: Get a point by its name
-- `create_point(x, y, name="", extra_graphics=True)`: Create a new point at the specified coordinates. Handles collision detection, name generation, extra graphics, and dependency management.
+- `create_point(x, y, name="", extra_graphics=True)`: Create a new point at the specified coordinates. Handles collision detection, name generation, extra graphics, and dependency management. When a point already occupies the spot it returns that point without archiving.
 - `delete_point(x, y)`: Delete a point at the specified coordinates
 - `delete_point_by_name(name)`: Delete a point by its name
 

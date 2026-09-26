@@ -119,6 +119,17 @@ class TestUndoRedoManager(unittest.TestCase):
         self.assertEqual(self.manager.undo_stack, [])
         self.assertEqual(len(self.manager.redo_stack), 1)
 
+    def test_batch_change_mark_can_be_reset(self) -> None:
+        self.assertFalse(self.manager.is_batch_changed())
+        self.manager.begin_batch()
+        self.manager.archive()
+        self.assertTrue(self.manager.is_batch_changed())
+
+        self.manager.set_batch_changed(False)
+        self.manager.end_batch()
+
+        self.assertEqual(self.manager.undo_stack, [])
+
     def test_archive_outside_a_batch_is_unchanged(self) -> None:
         self.manager.begin_batch()
         self.manager.end_batch()

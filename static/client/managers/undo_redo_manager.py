@@ -145,6 +145,15 @@ class UndoRedoManager:
             self._commit_batch()
             self._batch_baseline = None
 
+    def is_batch_changed(self) -> bool:
+        """Return True when the open batch has recorded a change."""
+        return self._batch_depth > 0 and self._batch_changed
+
+    def set_batch_changed(self, changed: bool) -> None:
+        """Overwrite the open batch's change mark, e.g. to drop the mark of a call that failed."""
+        if self._batch_depth > 0:
+            self._batch_changed = changed
+
     def _commit_batch(self) -> None:
         """Push the batch baseline as one undo entry when the batch changed something."""
         if not self._batch_changed or self._batch_baseline is None:

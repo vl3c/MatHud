@@ -37,6 +37,7 @@ from constants import (
     nothing_to_undo_message,
     successful_call_message,
 )
+from no_change_result import NoChangeResult
 
 # Largest JSON-serialized return value of a canvas-mutating tool passed back to the model;
 # larger values are replaced by the success message to keep token usage bounded.
@@ -116,11 +117,15 @@ class ResultProcessor:
             canvas.begin_undo_batch()
         try:
             for seq, call in enumerate(calls):
-                traced_call = ResultProcessor._run_traced_call(
+                changed_before: bool = batch_is_undoable and canvas.is_undo_batch_changed()
+                traced_call, changed_nothing = ResultProcessor._run_traced_call(
                     seq, call, available_functions, non_computation_functions, unformattable_functions, canvas, results
                 )
                 traced_calls.append(traced_call)
-                ResultProcessor._mark_undoable_change(traced_call, undoable_functions, canvas)
+                if batch_is_undoable:
+                    ResultProcessor._record_batch_change(
+                        traced_call, changed_nothing, changed_before, undoable_functions, canvas
+                    )
         finally:
             if batch_is_undoable:
                 canvas.end_undo_batch()
@@ -141,8 +146,11 @@ class ResultProcessor:
         unformattable_functions: Tuple[str, ...],
         canvas: "Canvas",
         results: Dict[str, Any],
-    ) -> "TracedCall":
-        """Execute one call, add its result to ``results`` and return its trace record."""
+    ) -> Tuple["TracedCall", bool]:
+        """Execute one call, add its result to ``results`` and return its trace record.
+
+        The flag is True when the call reported that it changed nothing (see ``_changed_nothing``).
+        """
         function_name = call.get("function_name", "")
         args = call.get("arguments", {})
         # Sanitize arguments for trace: exclude canvas ref, guard against non-dict
@@ -154,8 +162,9 @@ class ResultProcessor:
         t0 = window.performance.now()
         # Collect this call's result separately so it can be reported per call
         call_results: Dict[str, Any] = {}
+        raw_result: Any = None
         try:
-            ResultProcessor._process_function_call(
+            raw_result = ResultProcessor._process_function_call(
                 call,
                 available_functions,
                 non_computation_functions,
@@ -170,7 +179,7 @@ class ResultProcessor:
         is_error = ResultProcessor.is_error_result(result_value)
 
         duration_ms = window.performance.now() - t0
-        return {
+        traced_call: TracedCall = {
             "seq": seq,
             "function_name": function_name,
             "arguments": sanitized_args,
@@ -179,6 +188,15 @@ class ResultProcessor:
             "is_error": is_error,
             "duration_ms": round(duration_ms, 2),
         }
+        return traced_call, ResultProcessor._changed_nothing(function_name, raw_result)
+
+    @staticmethod
+    def _changed_nothing(function_name: str, raw_result: Any) -> bool:
+        """True for a NoChangeResult, or a delete, undo or redo that returned False."""
+        return (
+            isinstance(raw_result, NoChangeResult)
+            or ResultProcessor._no_op_message(function_name, raw_result) is not None
+        )
 
     @staticmethod
     def is_error_result(value: Any) -> bool:
@@ -189,18 +207,44 @@ class ResultProcessor:
         payloads. A dict whose ``"error"`` field is empty (``search_tools``) is a success.
         """
         if isinstance(value, str):
-            return value.startswith("Error")
+            return value.startswith("Error") or ResultProcessor._is_json_error_string(value)
         if isinstance(value, dict):
-            return bool(value.get("error")) or value.get("type") == "error"
+            return ResultProcessor._is_error_dict(value)
         return False
 
     @staticmethod
-    def _mark_undoable_change(traced_call: "TracedCall", undoable_functions: Tuple[str, ...], canvas: "Canvas") -> None:
-        """Count a successful undoable call as a change of the batch, even if it did not archive itself.
+    def _is_error_dict(value: Dict[str, Any]) -> bool:
+        return bool(value.get("error")) or value.get("type") == "error"
 
-        Inside the batch ``canvas.archive()`` only marks the batch as changed; it pushes no entry.
+    @staticmethod
+    def _is_json_error_string(value: str) -> bool:
+        """True for a JSON object string with a non-empty "error" field (``solve_numeric`` failures)."""
+        if not value.lstrip().startswith("{"):
+            return False
+        try:
+            parsed = json.loads(value)
+        except Exception:
+            return False
+        return isinstance(parsed, dict) and ResultProcessor._is_error_dict(parsed)
+
+    @staticmethod
+    def _record_batch_change(
+        traced_call: "TracedCall",
+        changed_nothing: bool,
+        changed_before: bool,
+        undoable_functions: Tuple[str, ...],
+        canvas: "Canvas",
+    ) -> None:
+        """Update the undo batch's change mark after one call.
+
+        A call that failed or changed nothing gets back the mark the batch had before it, which
+        drops the mark of a manager that archived and then failed while keeping earlier calls'
+        changes. A successful undoable call marks the batch changed even if it did not archive
+        itself (inside the batch ``canvas.archive()`` only sets the mark).
         """
-        if traced_call["function_name"] in undoable_functions and not traced_call["is_error"]:
+        if traced_call["is_error"] or changed_nothing:
+            canvas.set_undo_batch_changed(changed_before)
+        elif traced_call["function_name"] in undoable_functions:
             canvas.archive()
 
     @staticmethod
@@ -249,7 +293,7 @@ class ResultProcessor:
         unformattable_functions: Tuple[str, ...],
         canvas: "Canvas",
         results: Dict[str, Any],
-    ) -> None:
+    ) -> Any:
         """
         Process a single function call and update results.
 
@@ -260,12 +304,15 @@ class ResultProcessor:
             unformattable_functions: Tuple of function names that return standard success message
             canvas: Canvas instance for adding computations
             results: Dictionary to update with the results
+
+        Returns:
+            The function's raw return value (None when the function does not exist)
         """
         function_name: str = call.get("function_name", "")
 
         # Check if function exists
         if not ResultProcessor._is_function_available(function_name, available_functions, results):
-            return
+            return None
 
         # Execute the function
         args: Dict[str, Any] = call.get("arguments", {})
@@ -278,6 +325,7 @@ class ResultProcessor:
         ResultProcessor._process_result(
             function_name, args, result, key, unformattable_functions, non_computation_functions, canvas, results
         )
+        return result
 
     @staticmethod
     def _is_function_available(
@@ -332,12 +380,15 @@ class ResultProcessor:
     def _handle_unformattable_function(function_name: str, key: str, result: Any, results: Dict[str, Any]) -> None:
         """Handle result for unformattable functions.
 
-        A delete, undo or redo that returned False changed nothing and says so. Small
-        string/dict return values (e.g. generated names or graph state) are passed through
-        so the model can use them; anything else becomes the success message.
+        A NoChangeResult reports its message, and a delete, undo or redo that returned False
+        changed nothing and says so. Small string/dict return values (e.g. generated names or
+        graph state) are passed through so the model can use them; anything else becomes the
+        success message.
         """
         no_op_message = ResultProcessor._no_op_message(function_name, result)
-        if no_op_message is not None:
+        if isinstance(result, NoChangeResult):
+            results[key] = result.message
+        elif no_op_message is not None:
             results[key] = no_op_message
         elif ResultProcessor._is_small_passthrough_result(result):
             results[key] = result
