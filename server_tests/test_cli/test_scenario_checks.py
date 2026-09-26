@@ -386,6 +386,16 @@ class TestOutcomeChecks:
         assert run(check, view, step=live).status == "pass"
         assert run({**check, "numbers": [3]}, view, step=live).status == "fail"
 
+    def test_known_check_that_crashes_is_an_error_not_xfail(self) -> None:
+        broken = {
+            "check": "relation",
+            "relation": "distance",
+            "select": [{"type": "Point", "name": "A"}],
+            "known": "K1",
+        }
+        result = run(broken, self.view)
+        assert result.status == "error" and result.unexpected
+
     def test_malformed_check_is_an_error(self) -> None:
         result = run(
             {"check": "attribute", "select": {"type": "Point", "name": "A"}, "path": "args", "lt": 3}, self.view
@@ -511,7 +521,7 @@ class TestRelations:
         assert self.status(rel("function_value", {"type": "Function", "name": "f"}, x=2, y=4)) == "pass"
         assert self.status(rel("function_value", {"type": "Function", "name": "f"}, values=[[1, 1], [2, 5]])) == "fail"
         pending = run(rel("function_value", {"type": "Function", "name": "f"}, x=3, y=9), self.view)
-        assert pending.status == "skip" and "needs function samples" in pending.message
+        assert pending.status == "unrecorded" and "not recorded" in pending.message
         assert self.view.requests.x == {"f": {3.0}}
 
     def test_point_on_function(self) -> None:
@@ -550,6 +560,38 @@ class TestValidateCheck:
             in validate_check({"check": "relation", "relation": "near", "select": [{"type": "Point"}]})[0]
         )
         assert "state_equals needs a snapshot name" in validate_check({"check": "state_equals"})
+
+    def test_unknown_keys_are_rejected(self) -> None:
+        assert validate_check({"check": "exists", "select": {"type": "Point"}, "kown": "K1"}) == [
+            "unknown key 'kown' for exists"
+        ]
+        assert "unknown key 'eq' for point_at" in validate_check(
+            {"check": "point_at", "select": {"type": "Point"}, "at": [0, 0], "eq": 1}
+        )
+        assert "unknown key 'names' for bind" in validate_check({"bind": "M", "select": {"type": "Point"}, "names": 1})
+        assert "unknown key 'snapshots' for state_equals" in validate_check(
+            {"check": "state_equals", "snapshot": "s", "snapshots": "t"}
+        )
+        assert validate_check({"check": "no_tool_errors", "known": "K1", "tol": 1, "id": "x", "note": "n"}) == []
+
+    def test_relation_parameters(self) -> None:
+        segment = {"type": "Segment", "only": True}
+        assert "relation direction needs parallel_to or perpendicular_to" in validate_check(
+            {"check": "relation", "relation": "direction", "select": [segment]}
+        )
+        assert (
+            validate_check({"check": "relation", "relation": "direction", "select": [segment], "parallel_to": [1, 0]})
+            == []
+        )
+        assert "relation length needs a value" in validate_check(
+            {"check": "relation", "relation": "length", "select": [segment]}
+        )
+        assert "relation function_value needs x and y, or values" in validate_check(
+            {"check": "relation", "relation": "function_value", "select": [{"type": "Function"}], "x": 1}
+        )
+        assert "unknown selector key 'at_'" in validate_check(
+            {"check": "unchanged_except", "since": "s", "except": [{"type": "Point", "at_": [0, 0]}]}
+        )
 
 
 # ----------------------------------------------------------------------
@@ -690,10 +732,13 @@ class TestInvariants:
 
     def test_i5_undo_accounting_k1(self) -> None:
         view = CanvasView(state())
+        triangle_view = CanvasView(state(*right_triangle()))
         three = StepData(calls=[call("create_segment")] * 3, undoable=[True] * 3, undo_before=0, undo_after=17)
-        result = by_id(invariants(view, view, three), "I5")
+        result = by_id(invariants(view, triangle_view, three), "I5")
         assert result.status == "fail" and "added 17 undo entries, expected 1" in result.message
-        assert by_id(invariants(view, view, three, {"I5": "K1"}), "I5").status == "xfail"
+        assert by_id(invariants(view, triangle_view, three, {"I5": "K1"}), "I5").status == "xfail"
+        one = StepData(calls=[call("create_segment")] * 3, undoable=[True] * 3, undo_before=0, undo_after=1)
+        assert by_id(invariants(view, triangle_view, one), "I5").status == "pass"
         failed = StepData(
             calls=[call("scale_object", "Error: no", is_error=True)], undoable=[True], undo_before=3, undo_after=4
         )
@@ -702,6 +747,35 @@ class TestInvariants:
             calls=[call("calculate_area", {"value": 2})], undoable=[False], undo_before=2, undo_after=2
         )
         assert by_id(invariants(view, view, read_only), "I5").status == "pass"
+
+    def test_i5_judges_by_what_changed_not_by_what_was_reported(self) -> None:
+        canvas = CanvasView(state(*right_triangle()))
+        # A truthful no-op create (the point already exists and the result says so) must add no entry.
+        truthful_no_op = StepData(
+            calls=[call("create_point", "C already exists at (0, 3)", x=0, y=3)],
+            undoable=[True],
+            undo_before=5,
+            undo_after=5,
+        )
+        assert by_id(invariants(canvas, canvas, truthful_no_op), "I5").status == "pass"
+        archived_anyway = StepData(
+            calls=[call("create_point", "C already exists at (0, 3)", x=0, y=3)],
+            undoable=[True],
+            undo_before=5,
+            undo_after=6,
+        )
+        result = by_id(invariants(canvas, canvas, archived_anyway), "I5")
+        assert result.status == "fail" and "changed no drawables" in result.message
+        # A non-undoable tool that changes drawables (load, regression) still owes one entry.
+        loaded = StepData(calls=[call("load_workspace", name="w")], undoable=[False], undo_before=0, undo_after=0)
+        assert by_id(invariants(CanvasView(state()), canvas, loaded), "I5").status == "fail"
+
+    def test_i5_ignores_coordinate_mode_changes(self) -> None:
+        cartesian, polar = CanvasView(state()), CanvasView(state(mode="polar"))
+        step = StepData(
+            calls=[call("set_coordinate_system", mode="polar")], undoable=[False], undo_before=0, undo_after=0
+        )
+        assert by_id(invariants(cartesian, polar, step), "I5").status == "pass"
 
     def test_i5_undo_and_redo_simulation(self) -> None:
         view = CanvasView(state())

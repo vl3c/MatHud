@@ -81,7 +81,11 @@
             {"check": "point_at", "select": {"type": "Point", "name": "C"}, "at": [0, 3]}
           ]
         },
-        {"do": [{"tool": "undo", "args": {}}], "checks": [{"check": "state_equals", "snapshot": "setup"}]}
+        {
+          "do": [{"tool": "undo", "args": {}}],
+          "note": "The refused create must add no undo entry, so this undo removes the setup batch.",
+          "checks": [{"check": "state_equals", "snapshot": "start", "known": "K1"}]
+        }
       ]
     },
     {

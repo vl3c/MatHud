@@ -163,8 +163,6 @@ _NON_CANVAS_TOOLS = frozenset({"delete_workspace"})
 # Tools whose "name" argument is a hint for a new object's name (I4 naming rule).
 _NAMING_PREFIXES = ("create_", "construct_", "draw_", "generate_", "plot_", "fit_")
 _NAME_HINT_KEYS = ("name", "angle_name")
-# Non-undoable tools that should still add exactly one undo entry (I5).
-_ONE_UNDO_ENTRY_TOOLS = frozenset({"load_workspace", "fit_regression"})
 
 
 class SelectorError(Exception):
@@ -196,6 +194,7 @@ class CheckResult:
     known: Optional[str] = None
     warning: bool = False
     error: bool = False
+    unrecorded: bool = False
     message: str = ""
     expected: Any = None
     actual: Any = None
@@ -203,20 +202,25 @@ class CheckResult:
 
     @property
     def status(self) -> str:
-        """pass, fail, xfail, xpass, warn, skip or error.
+        """pass, fail, xfail, xpass, warn, skip, unrecorded or error.
 
         A known bug turns a failure into xfail and a pass into xpass, except for
         invariant waivers, which never report xpass (an invariant can hold in one
-        step and break in the next).
+        step and break in the next). A check that could not be evaluated is an
+        error even when it is marked known: a crash is not the bug's failure.
+        ``unrecorded`` means the check needs data the run did not store (a
+        function sample, when regrading); rerun the replay to evaluate it.
         """
-        if self.passed is None and not self.error:
+        if self.error:
+            return "error"
+        if self.unrecorded:
+            return "unrecorded"
+        if self.passed is None:
             return "skip"
         if self.known:
             if self.passed:
                 return "pass" if self.kind == "invariant" else "xpass"
             return "xfail"
-        if self.error:
-            return "error"
         if self.warning and not self.passed:
             return "warn"
         return "pass" if self.passed else "fail"
@@ -302,6 +306,32 @@ def call_is_error(call: dict[str, Any]) -> bool:
 # ----------------------------------------------------------------------
 
 
+# Keys every check may carry, and the keys each check type accepts on top of them.
+_COMMON_CHECK_KEYS = frozenset({"check", "known", "tol", "id", "note"})
+_RELATION_PARAMS = frozenset({"value", "x", "y", "values", "h", "slope_tol", "parallel_to", "perpendicular_to"})
+_CHECK_KEYS: dict[str, frozenset[str]] = {
+    "exists": frozenset({"select"}),
+    "absent": frozenset({"select"}),
+    "count": frozenset({"select", "mod"}) | COMPARISON_OPS,
+    "point_at": frozenset({"select", "at"}),
+    "moved": frozenset({"select", "since", "by"}),
+    "relation": frozenset({"relation", "select"}) | _RELATION_PARAMS,
+    "attribute": frozenset({"select", "target", "path", "same_as", "mod"}) | COMPARISON_OPS,
+    "state_equals": frozenset({"snapshot", "ignore", "inspect", "view", "match_names"}),
+    "unchanged_except": frozenset({"since", "except"}),
+    "tool_called": frozenset({"tool"}),
+    "tool_not_called": frozenset({"tool"}),
+    "max_tool_calls": frozenset({"max"}),
+    "no_tool_errors": frozenset(),
+    "tool_error": frozenset({"tool", "index"}),
+    "tool_result": frozenset({"tool", "path", "index", "mod"}) | COMPARISON_OPS,
+    "answer_mentions": frozenset({"numbers", "words", "names"}),
+}
+_BIND_KEYS = frozenset({"bind", "select", "known", "tol", "id", "note"})
+# Relations that compare one measured value with "value".
+_VALUE_RELATIONS = frozenset({"distance", "length", "slope", "area", "angle_deg"})
+
+
 def validate_check(check: Any) -> list[str]:
     """Structural problems with one check definition (empty when fine)."""
     if not isinstance(check, dict):
@@ -311,6 +341,7 @@ def validate_check(check: Any) -> list[str]:
     if known is not None and (not isinstance(known, str) or not KNOWN_BUG_PATTERN.match(known)):
         problems.append(f"known must look like K<n>, got {known!r}")
     if "bind" in check:
+        problems.extend(f"unknown key {key!r} for bind" for key in sorted(set(check) - _BIND_KEYS))
         if not isinstance(check["bind"], str) or not check["bind"]:
             problems.append("bind needs a name")
         problems.extend(_validate_selector(check.get("select")))
@@ -318,6 +349,8 @@ def validate_check(check: Any) -> list[str]:
     kind = check.get("check")
     if kind not in CHECK_TYPES:
         return problems + [f"unknown check type {kind!r}"]
+    allowed = _COMMON_CHECK_KEYS | _CHECK_KEYS[str(kind)]
+    problems.extend(f"unknown key {key!r} for {kind}" for key in sorted(set(check) - allowed))
     if kind in ("exists", "absent", "count", "point_at", "moved", "attribute") and "select" in check:
         problems.extend(_validate_selector(check["select"]))
     if kind in ("exists", "absent", "count", "point_at", "moved") and "select" not in check:
@@ -331,6 +364,16 @@ def validate_check(check: Any) -> list[str]:
         else:
             for selector in selectors:
                 problems.extend(_validate_selector(selector))
+        relation = check.get("relation")
+        if relation == "direction" and not ("parallel_to" in check or "perpendicular_to" in check):
+            problems.append("relation direction needs parallel_to or perpendicular_to")
+        if relation in _VALUE_RELATIONS and "value" not in check:
+            problems.append(f"relation {relation} needs a value")
+        if relation == "function_value" and not ("values" in check or ("x" in check and "y" in check)):
+            problems.append("relation function_value needs x and y, or values")
+    if kind == "unchanged_except":
+        for selector in check.get("except") or []:
+            problems.extend(_validate_selector(selector))
     if kind == "state_equals" and not isinstance(check.get("snapshot"), str):
         problems.append("state_equals needs a snapshot name")
     if kind in ("moved", "unchanged_except") and not isinstance(check.get("since"), str):
@@ -731,7 +774,8 @@ def evaluate_check(check: dict[str, Any], ctx: CheckContext, check_id: str) -> C
                 result.actual = outcome
     except MissingSample as exc:
         result.passed = None
-        result.message = f"needs function samples: {exc}"
+        result.unrecorded = True
+        result.message = f"needs a function sample that was not recorded: {exc}"
     except CheckFailure as exc:
         result.passed = False
         result.message = str(exc)
@@ -1276,6 +1320,7 @@ def diff_views(
     inspect: bool = False,
     include_view: bool = False,
     match_names: bool = True,
+    include_mode: bool = True,
 ) -> list[str]:
     """Human-readable differences between two views' drawables (empty when equal).
 
@@ -1314,7 +1359,7 @@ def diff_views(
             differences.append(f"missing {sig}")
         for sig in sorted(set(new_sigs) - set(old_sigs)):
             differences.append(f"extra {sig}")
-    if (before.coordinate_mode or "cartesian") != (after.coordinate_mode or "cartesian"):
+    if include_mode and (before.coordinate_mode or "cartesian") != (after.coordinate_mode or "cartesian"):
         differences.append(f"coordinate mode {before.coordinate_mode} -> {after.coordinate_mode}")
     if include_view and not values_equal(after.view_bounds, before.view_bounds, tol):
         differences.append(f"view {before.view_bounds} -> {after.view_bounds}")
@@ -1355,7 +1400,7 @@ def run_invariants(
         ("I2", lambda: (_inv_references(after), [])),
         ("I3", lambda: (_inv_derived(after), [])),
         ("I4", lambda: (_inv_truthful_results(before, after, step), [])),
-        ("I5", lambda: (_inv_undo_accounting(step), [])),
+        ("I5", lambda: (_inv_undo_accounting(before, after, step), [])),
         ("I6", lambda: (_inv_errors_flagged(step), [])),
         ("I7", lambda: (_inv_sane_numbers(after, allow_large), [])),
     ]
@@ -1670,8 +1715,14 @@ def _inv_truthful_results(before: CanvasView, after: CanvasView, step: StepData)
     return problems
 
 
-def _inv_undo_accounting(step: StepData) -> list[str]:
-    """I5: one undo entry per batch that changed something undoable; none for failures."""
+def _inv_undo_accounting(before: CanvasView, after: CanvasView, step: StepData) -> list[str]:
+    """I5: one undo entry per batch that changed the drawables; none for a batch that changed none.
+
+    Judged by what happened, not by what the calls reported: a failed call, a
+    refused call and a truthful no-op (e.g. creating a point that already
+    exists) must all leave the undo stack alone. Undo and redo batches are
+    simulated against the stack depths instead.
+    """
     if step.undo_before is None or step.undo_after is None:
         return []
     calls = step.counted_calls
@@ -1691,15 +1742,11 @@ def _inv_undo_accounting(step: StepData) -> list[str]:
         if step.undo_after != undo:
             return [f"undo depth went from {step.undo_before} to {step.undo_after}, expected {undo}"]
         return []
-    undoable = step.undoable if len(step.undoable) == len(step.calls) else [False] * len(step.calls)
-    flags = [flag for call, flag in zip(step.calls, undoable) if call.get("function_name") not in ("search_tools",)]
-    succeeded = [
-        (flag or tool in _ONE_UNDO_ENTRY_TOOLS) and not call_is_error(call)
-        for call, flag, tool in zip(calls, flags, tools)
-    ]
-    expected = 1 if any(succeeded) else 0
+    changed = diff_views(before, after, _DERIVED_TOL, include_mode=False)
+    expected = 1 if changed else 0
     if added != expected:
-        return [f"batch ({', '.join(tools)}) added {added} undo entries, expected {expected}"]
+        what = "changed the drawables" if changed else "changed no drawables"
+        return [f"batch ({', '.join(tools)}) {what} and added {added} undo entries, expected {expected}"]
     return []
 
 
