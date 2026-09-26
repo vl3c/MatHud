@@ -309,6 +309,7 @@ class TurnMetricsCollector:
         self._user_message: Optional[str] = None
         self._requests: List[Dict[str, Any]] = []
         self._tool_results: List[Dict[str, Any]] = []
+        self._tool_batches = 0
 
     @property
     def is_active(self) -> bool:
@@ -332,6 +333,7 @@ class TurnMetricsCollector:
         self._user_message = user_message
         self._requests = []
         self._tool_results = []
+        self._tool_batches = 0
 
     def record_request(self, metrics: Any, turn_token: Optional[int] = None) -> None:
         """Add one request's ``metrics`` from a final stream event.
@@ -346,6 +348,7 @@ class TurnMetricsCollector:
         """Add the tool calls the client executed for this turn."""
         if not self._accepts(turn_token) or not isinstance(traced_calls, list):
             return
+        self._tool_batches += 1
         for call in traced_calls:
             if isinstance(call, dict):
                 self._tool_results.append(
@@ -376,6 +379,21 @@ class TurnMetricsCollector:
         if len(self._history) > self._max_history:
             self._history = self._history[-self._max_history :]
         return summary
+
+    @property
+    def completed_turns(self) -> int:
+        """Number of turns finished so far (not capped by the history size)."""
+        return self._next_turn_id - 1
+
+    def progress(self) -> Dict[str, int]:
+        """Requests, tool batches and tool calls recorded so far in the active turn (zeros when idle)."""
+        if not self._active:
+            return {"requests": 0, "tool_batches": 0, "tool_calls": 0}
+        return {
+            "requests": len(self._requests),
+            "tool_batches": self._tool_batches,
+            "tool_calls": len(self._tool_results),
+        }
 
     def last_turn(self) -> Optional[Dict[str, Any]]:
         """The most recently completed turn, or None."""

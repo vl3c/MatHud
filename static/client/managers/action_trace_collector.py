@@ -9,7 +9,7 @@ most recent trace to keep memory usage predictable.
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
 from browser import window
 from constants import MAX_RESULT_STR_LEN, MAX_TRACES
@@ -172,8 +172,9 @@ class ActionTraceCollector:
         The delta contains lists of drawable names that were added, removed,
         or modified between the two snapshots.
         """
-        before_map = ActionTraceCollector._extract_drawable_map(before)
-        after_map = ActionTraceCollector._extract_drawable_map(after)
+        qualified = ActionTraceCollector._names_in_several_buckets(before, after)
+        before_map = ActionTraceCollector._extract_drawable_map(before, qualified)
+        after_map = ActionTraceCollector._extract_drawable_map(after, qualified)
 
         before_names = set(before_map.keys())
         after_names = set(after_map.keys())
@@ -273,18 +274,53 @@ class ActionTraceCollector:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _extract_drawable_map(state: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract {drawable_name: serialized_state} from a canvas state dict."""
-        result: Dict[str, Any] = {}
+    def _extract_drawable_entries(state: Dict[str, Any]) -> List[Tuple[str, str, Any]]:
+        """Return ``(bucket, name, drawable_state)`` for every drawable in a canvas state.
+
+        Canvas states hold each bucket as a list of ``{"name": ..., "args": ...}``
+        dicts (``Canvas.get_canvas_state``); a ``{name: state}`` dict bucket is
+        accepted too. Non-drawable entries (the view, the coordinate system and
+        computations) are skipped.
+        """
+        entries: List[Tuple[str, str, Any]] = []
         if not isinstance(state, dict):
-            return result
+            return entries
         for category, drawables in state.items():
-            if not isinstance(drawables, dict):
+            if category == "computations":
                 continue
-            for name, drawable_state in drawables.items():
-                if isinstance(drawable_state, dict):
-                    result[name] = drawable_state
+            if isinstance(drawables, dict):
+                for name, drawable_state in drawables.items():
+                    if isinstance(drawable_state, dict):
+                        entries.append((category, str(name), drawable_state))
+            elif isinstance(drawables, list):
+                for drawable_state in drawables:
+                    if isinstance(drawable_state, dict) and "name" in drawable_state:
+                        entries.append((category, str(drawable_state["name"]), drawable_state))
+        return entries
+
+    @staticmethod
+    def _extract_drawable_map(state: Dict[str, Any], qualified_names: Optional[Set[str]] = None) -> Dict[str, Any]:
+        """Extract {drawable_name: serialized_state} from a canvas state dict.
+
+        Names in ``qualified_names`` (used by more than one bucket, like a segment
+        and a vector both named ``AB``) are keyed as ``"Bucket:name"`` so neither
+        hides the other.
+        """
+        qualified = qualified_names or set()
+        result: Dict[str, Any] = {}
+        for category, name, drawable_state in ActionTraceCollector._extract_drawable_entries(state):
+            key = f"{category}:{name}" if name in qualified else name
+            result[key] = drawable_state
         return result
+
+    @staticmethod
+    def _names_in_several_buckets(*states: Dict[str, Any]) -> Set[str]:
+        """Names that appear in more than one bucket across ``states``."""
+        buckets_by_name: Dict[str, Set[str]] = {}
+        for state in states:
+            for category, name, _ in ActionTraceCollector._extract_drawable_entries(state):
+                buckets_by_name.setdefault(name, set()).add(category)
+        return {name for name, buckets in buckets_by_name.items() if len(buckets) > 1}
 
     @staticmethod
     def _truncate(value: Any) -> Any:

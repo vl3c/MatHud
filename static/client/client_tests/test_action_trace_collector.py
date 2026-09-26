@@ -63,6 +63,57 @@ class TestComputeStateDelta(unittest.TestCase):
         self.assertEqual(delta, {"added": [], "removed": [], "modified": []})
 
 
+class TestComputeStateDeltaCanvasShape(unittest.TestCase):
+    """Deltas over real canvas states, whose buckets are lists of {name, args} (K20)."""
+
+    VIEW = {"left_bound": -10, "right_bound": 10, "top_bound": 10, "bottom_bound": -10}
+
+    def _state(self, **buckets: Any) -> Dict[str, Any]:
+        state: Dict[str, Any] = {
+            "Cartesian_System_Visibility": dict(self.VIEW),
+            "coordinate_system": {"mode": "cartesian"},
+        }
+        state.update(buckets)
+        return state
+
+    def test_added_point(self) -> None:
+        before = self._state(Points=[{"name": "A", "args": {"position": {"x": 0, "y": 0}}}])
+        after = self._state(
+            Points=[
+                {"name": "A", "args": {"position": {"x": 0, "y": 0}}},
+                {"name": "Q", "args": {"position": {"x": 1, "y": 1}}},
+            ]
+        )
+        delta = ActionTraceCollector.compute_state_delta(before, after)
+        self.assertEqual(delta, {"added": ["Q"], "removed": [], "modified": []})
+
+    def test_removed_and_modified(self) -> None:
+        before = self._state(
+            Points=[{"name": "A", "args": {"position": {"x": 0, "y": 0}}}],
+            Circles=[{"name": "A(2)", "args": {"center": "A", "radius": 2}}],
+        )
+        after = self._state(Points=[{"name": "A", "args": {"position": {"x": 5, "y": 0}}}])
+        delta = ActionTraceCollector.compute_state_delta(before, after)
+        self.assertEqual(delta, {"added": [], "removed": ["A(2)"], "modified": ["A"]})
+
+    def test_view_and_mode_are_not_drawables(self) -> None:
+        before = self._state()
+        after = self._state()
+        after["Cartesian_System_Visibility"]["left_bound"] = -2
+        after["coordinate_system"] = {"mode": "polar"}
+        after["computations"] = [{"expression": "1+1", "result": 2}]
+        delta = ActionTraceCollector.compute_state_delta(before, after)
+        self.assertEqual(delta, {"added": [], "removed": [], "modified": []})
+
+    def test_same_name_in_two_buckets(self) -> None:
+        segment = {"name": "AB", "args": {"p1": "A", "p2": "B"}}
+        vector = {"name": "AB", "args": {"origin": "A", "tip": "B"}}
+        before = self._state(Segments=[segment])
+        after = self._state(Segments=[segment], Vectors=[vector])
+        delta = ActionTraceCollector.compute_state_delta(before, after)
+        self.assertEqual(delta, {"added": ["Vectors:AB"], "removed": [], "modified": []})
+
+
 class TestBuildTrace(unittest.TestCase):
     """Verify build_trace produces correct structure."""
 

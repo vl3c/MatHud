@@ -255,6 +255,64 @@ class TestCanvasCommands:
         assert "state" in result.output
         assert "exec" in result.output
 
+    def _ready_browser(self, reply: dict) -> MagicMock:
+        browser = MagicMock()
+        browser.run_tool_calls.return_value = reply
+        browser.get_canvas_state.return_value = {
+            "Cartesian_System_Visibility": {"left_bound": -10, "right_bound": 10, "top_bound": 5, "bottom_bound": -5}
+        }
+        return browser
+
+    def test_clear_runs_clear_canvas_tool(self) -> None:
+        """canvas clear runs the clear_canvas tool through runMatHudToolCalls (K22)."""
+        browser = self._ready_browser({"status": "ok", "traced": [{"result": "ok", "is_error": False}]})
+        with patch("cli.canvas.ensure_browser_ready", return_value=(True, browser, "")):
+            result = CliRunner().invoke(cli, ["canvas", "clear"])
+
+        assert result.exit_code == 0
+        browser.run_tool_calls.assert_called_once_with([{"function_name": "clear_canvas", "arguments": {}}])
+
+    def test_undo_reports_nothing_to_undo_from_depth(self) -> None:
+        browser = self._ready_browser({"status": "ok", "traced": [], "undo_depth_before": 0})
+        with patch("cli.canvas.ensure_browser_ready", return_value=(True, browser, "")):
+            result = CliRunner().invoke(cli, ["canvas", "undo"])
+
+        assert "Nothing to undo" in result.output
+
+    def test_undo_reports_success_from_depth(self) -> None:
+        browser = self._ready_browser({"status": "ok", "traced": [], "undo_depth_before": 2})
+        with patch("cli.canvas.ensure_browser_ready", return_value=(True, browser, "")):
+            result = CliRunner().invoke(cli, ["canvas", "undo"])
+
+        assert "Undo successful" in result.output
+
+    def test_tool_error_fails_the_command(self) -> None:
+        browser = self._ready_browser({"status": "ok", "traced": [{"result": "Error: boom", "is_error": True}]})
+        with patch("cli.canvas.ensure_browser_ready", return_value=(True, browser, "")):
+            result = CliRunner().invoke(cli, ["canvas", "reset"])
+
+        assert result.exit_code == 1
+        assert "boom" in result.output
+
+    def test_zoom_scales_the_current_view(self) -> None:
+        browser = self._ready_browser({"status": "ok", "traced": []})
+        with patch("cli.canvas.ensure_browser_ready", return_value=(True, browser, "")):
+            result = CliRunner().invoke(cli, ["canvas", "zoom", "--factor", "2"])
+
+        assert result.exit_code == 0
+        call = browser.run_tool_calls.call_args[0][0][0]
+        assert call["function_name"] == "zoom"
+        assert call["arguments"] == {"center_x": 0.0, "center_y": 0.0, "range_val": 5.0, "range_axis": "x"}
+
+    def test_state_inspect_uses_snapshot(self) -> None:
+        browser = self._ready_browser({})
+        browser.get_canvas_snapshot.return_value = {"state": {}, "inspection": {"undo_depth": 0}}
+        with patch("cli.canvas.ensure_browser_ready", return_value=(True, browser, "")):
+            result = CliRunner().invoke(cli, ["canvas", "state", "--inspect"])
+
+        assert result.exit_code == 0
+        assert '"undo_depth": 0' in result.output
+
 
 class TestWorkspaceCommands:
     """Test workspace subcommands."""

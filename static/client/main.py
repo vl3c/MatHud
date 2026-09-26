@@ -24,6 +24,7 @@ from browser import document, window
 from canvas import Canvas
 from canvas_event_handler import CanvasEventHandler
 from math_symbol_input import MathSymbolInput
+from scenario_hooks import ScenarioHooks
 
 # Module-level reference for programmatic test access
 _ai_interface: Optional[AIInterface] = None
@@ -221,6 +222,9 @@ def main() -> None:
     # Expose state-comparison helper for debugging summary design.
     # Usage: window.compareCanvasState()
     window.compareCanvasState = _ai_interface.compare_canvas_state
+    # Scenario-testing hooks (getMatHudCanvasState, runMatHudToolCalls, resetMatHudSession, ...)
+    # used by `python -m cli.main test scenarios`; see scenario_hooks.py.
+    ScenarioHooks(_ai_interface).register()
 
 
 # Run the main function when the script loads

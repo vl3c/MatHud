@@ -296,10 +296,16 @@ from .ai_result_formatter import AITestResult
 from .test_series import TestSeries
 from .test_action_trace_collector import (
     TestComputeStateDelta,
+    TestComputeStateDeltaCanvasShape,
     TestBuildTrace,
     TestStoreAndRetrieve,
     TestExportTracesJson,
     TestCompactSummary,
+)
+from .test_scenario_hooks import (
+    TestScenarioHookHelpers,
+    TestScenarioHookCanvas,
+    TestScenarioHookEndpoints,
 )
 from .test_result_processor_traced import TestGetResultsTraced
 from .test_base_telemetry import (
@@ -653,6 +659,10 @@ class Tests:
             TestTTSControllerErrorHandling,
             TestSeries,
             TestComputeStateDelta,
+            TestComputeStateDeltaCanvasShape,
+            TestScenarioHookHelpers,
+            TestScenarioHookCanvas,
+            TestScenarioHookEndpoints,
             TestBuildTrace,
             TestStoreAndRetrieve,
             TestExportTracesJson,

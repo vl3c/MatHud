@@ -22,7 +22,7 @@ import time
 from datetime import datetime
 from typing import Dict, List, Optional, TypedDict, Union, cast
 
-from static.config import CURRENT_WORKSPACE_SCHEMA_VERSION, WORKSPACES_DIR
+from static.config import CURRENT_WORKSPACE_SCHEMA_VERSION, get_workspaces_dir
 
 # Previous version of an overwritten workspace is kept as "<name>.json.bak".
 BACKUP_SUFFIX = ".bak"
@@ -56,13 +56,14 @@ class WorkspaceManager:
     security validation and JSON-based state storage with metadata.
     """
 
-    def __init__(self, workspaces_dir: str = WORKSPACES_DIR):
+    def __init__(self, workspaces_dir: Optional[str] = None):
         """Initialize the workspace manager.
 
         Args:
-            workspaces_dir: Base directory for storing workspaces
+            workspaces_dir: Base directory for storing workspaces. Defaults to
+                ``MATHUD_WORKSPACES_DIR`` when set, else ``workspaces``.
         """
-        self.workspaces_dir = os.path.abspath(workspaces_dir)
+        self.workspaces_dir = os.path.abspath(workspaces_dir if workspaces_dir is not None else get_workspaces_dir())
         self.ensure_workspaces_dir()
 
     def _is_safe_workspace_name(self, name: Optional[str]) -> bool:

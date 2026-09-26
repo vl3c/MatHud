@@ -407,53 +407,22 @@ class AIInterface:
 
             # Processing tool calls - keep the "Thinking..." container visible
             # It will be removed/updated when the final response arrives
-            state_before = self.canvas.get_canvas_state()
-            t0 = window.performance.now()
-            traced_calls: list[Dict[str, Any]] = []
             try:
-                call_results, traced_calls = ProcessFunctionCalls.get_results_traced(
-                    ai_tool_calls,
-                    self.available_functions,
-                    self.undoable_functions,
-                    self.canvas,
-                )
-                self._store_results_in_canvas_state(call_results)
-                self._turn_metrics.record_tool_results(traced_calls, turn_token)
+                batch = self.execute_tool_batch(ai_tool_calls, turn_token)
+                call_results = batch["call_results"]
                 if self._chat_ui.stream_container is None:
                     self._chat_ui.ensure_stream_element()
                 self._tool_call_log.ensure_element(self._chat_ui.stream_container, self._chat_ui.stream_content)
                 self._tool_call_log.add_entries(ai_tool_calls, call_results)
 
                 if self._stop_requested:
-                    # Still capture trace for the executed tool calls
-                    try:
-                        state_after = self.canvas.get_canvas_state()
-                        total_ms = window.performance.now() - t0
-                        trace = self._trace_collector.build_trace(
-                            state_before,
-                            state_after,
-                            traced_calls,
-                            total_ms,
-                        )
-                        self._trace_collector.store(trace)
-                    except Exception:
-                        pass
                     self._turn_metrics.finish_turn("stopped", turn_token)
                     self._finalize_stream_message()
                     self._print_system_message_in_chat("Generation stopped.")
                     self._enable_send_controls()
                     return
 
-                state_after = self.canvas.get_canvas_state()
-                total_ms = window.performance.now() - t0
-                trace = self._trace_collector.build_trace(
-                    state_before,
-                    state_after,
-                    traced_calls,
-                    total_ms,
-                )
-                self._trace_collector.store(trace)
-                trace_summary = self._trace_collector.build_compact_summary(trace)
+                trace_summary = self._trace_collector.build_compact_summary(batch["trace"])
 
                 # Reset timeout with extended duration - AI needs time to process tool results
                 self._start_response_timeout(use_reasoning_timeout=True)
@@ -462,24 +431,11 @@ class AIInterface:
                     self._chat_ui.needs_continuation_separator = True
                 self._send_prompt_to_ai(
                     None,
-                    json.dumps(ProcessFunctionCalls.build_tool_call_results(ai_tool_calls, traced_calls)),
-                    canvas_state=state_after,
+                    json.dumps(ProcessFunctionCalls.build_tool_call_results(ai_tool_calls, batch["traced_calls"])),
+                    canvas_state=batch["state_after"],
                     action_trace=trace_summary,
                 )
             except Exception as e:
-                # Always capture trace even on partial failure
-                try:
-                    state_after = self.canvas.get_canvas_state()
-                    total_ms = window.performance.now() - t0
-                    trace = self._trace_collector.build_trace(
-                        state_before,
-                        state_after,
-                        traced_calls,
-                        total_ms,
-                    )
-                    self._trace_collector.store(trace)
-                except Exception:
-                    pass
                 print(f"Error processing streamed tool calls: {e}")
                 self._turn_metrics.finish_turn("error", turn_token)
                 self._enable_send_controls()
@@ -487,6 +443,54 @@ class AIInterface:
             print(f"Error handling stream final: {e}")
             self._turn_metrics.finish_turn("error", turn_token)
             self._enable_send_controls()
+
+    def execute_tool_batch(self, tool_calls: Any, turn_token: Optional[int] = None) -> Dict[str, Any]:
+        """Run one batch of tool calls the way a model's batch runs.
+
+        Executes the calls through ``ProcessFunctionCalls.get_results_traced``, stores
+        the results, records them in the current turn's metrics and stores an action
+        trace, also when execution raises (the exception is then re-raised). The
+        scenario hook ``runMatHudToolCalls`` calls this same method, so replayed and
+        model batches take one code path.
+
+        Returns:
+            Dict with ``call_results``, ``traced_calls``, ``state_after`` and ``trace``.
+        """
+        state_before = self.canvas.get_canvas_state()
+        t0 = window.performance.now()
+        traced_calls: list[Dict[str, Any]] = []
+        try:
+            call_results, traced_calls = ProcessFunctionCalls.get_results_traced(
+                tool_calls,
+                self.available_functions,
+                self.undoable_functions,
+                self.canvas,
+            )
+            self._store_results_in_canvas_state(call_results)
+            self._turn_metrics.record_tool_results(traced_calls, turn_token)
+        except Exception:
+            try:
+                self._store_batch_trace(state_before, traced_calls, t0)
+            except Exception:
+                pass
+            raise
+        state_after, trace = self._store_batch_trace(state_before, traced_calls, t0)
+        return {
+            "call_results": call_results,
+            "traced_calls": traced_calls,
+            "state_after": state_after,
+            "trace": trace,
+        }
+
+    def _store_batch_trace(
+        self, state_before: Dict[str, Any], traced_calls: list[Dict[str, Any]], t0: float
+    ) -> tuple[Dict[str, Any], Dict[str, Any]]:
+        """Build and store the action trace of a batch that started at ``t0``."""
+        state_after = self.canvas.get_canvas_state()
+        total_ms = window.performance.now() - t0
+        trace = self._trace_collector.build_trace(state_before, state_after, traced_calls, total_ms)
+        self._trace_collector.store(trace)
+        return state_after, trace
 
     def _on_stream_error(self, err: Any, turn_token: Optional[int] = None) -> None:
         """Handle streaming errors and re-enable controls."""
@@ -712,49 +716,17 @@ class AIInterface:
             # Text sent with the calls (e.g. a cut-off note) is shown before they run.
             if isinstance(ai_message, str) and ai_message.strip():
                 self._chat_ui.print_ai_message(ai_message)
-            state_before = self.canvas.get_canvas_state()
-            t0 = window.performance.now()
-            traced_calls: list[Dict[str, Any]] = []
             try:
-                call_results, traced_calls = ProcessFunctionCalls.get_results_traced(
-                    tool_calls,
-                    self.available_functions,
-                    self.undoable_functions,
-                    self.canvas,
-                )
-                self._store_results_in_canvas_state(call_results)
-                self._turn_metrics.record_tool_results(traced_calls, turn_token)
-
-                state_after = self.canvas.get_canvas_state()
-                total_ms = window.performance.now() - t0
-                trace = self._trace_collector.build_trace(
-                    state_before,
-                    state_after,
-                    traced_calls,
-                    total_ms,
-                )
-                self._trace_collector.store(trace)
-                trace_summary = self._trace_collector.build_compact_summary(trace)
+                batch = self.execute_tool_batch(tool_calls, turn_token)
+                trace_summary = self._trace_collector.build_compact_summary(batch["trace"])
 
                 self._send_prompt_to_ai(
                     None,
-                    json.dumps(ProcessFunctionCalls.build_tool_call_results(tool_calls, traced_calls)),
-                    canvas_state=state_after,
+                    json.dumps(ProcessFunctionCalls.build_tool_call_results(tool_calls, batch["traced_calls"])),
+                    canvas_state=batch["state_after"],
                     action_trace=trace_summary,
                 )
             except Exception as e:
-                try:
-                    state_after = self.canvas.get_canvas_state()
-                    total_ms = window.performance.now() - t0
-                    trace = self._trace_collector.build_trace(
-                        state_before,
-                        state_after,
-                        traced_calls,
-                        total_ms,
-                    )
-                    self._trace_collector.store(trace)
-                except Exception:
-                    pass
                 print(f"Error processing tool calls: {e}")
                 traceback.print_exc()
                 self._turn_metrics.finish_turn("error", turn_token)
