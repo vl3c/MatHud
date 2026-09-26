@@ -303,60 +303,85 @@ class BrowserAutomation:
         self.driver.set_script_timeout(timeout)
         return self.driver.execute_async_script(script)
 
-    def get_canvas_state(self) -> dict[str, Any]:
-        """Get the current canvas state as a dictionary.
-
-        Returns:
-            Canvas state dictionary.
-        """
-        result = self.execute_js("return window._canvas ? JSON.stringify(window._canvas.get_state()) : null")
-        if result:
-            parsed: dict[str, Any] = json.loads(result)
-            return parsed
-        return {}
-
-    def call_canvas_method(self, method: str, *args: Any) -> Any:
-        """Call a method on the canvas object.
+    def call_hook(self, name: str, *args: Any, timeout: int = 30) -> dict[str, Any]:
+        """Call one of the app's ``window.*MatHud*`` JSON hooks and parse its reply.
 
         Args:
-            method: Method name to call.
-            *args: Arguments to pass to the method.
+            name: Hook name on ``window``, e.g. ``getMatHudCanvasState``.
+            *args: Arguments passed to the hook (strings, usually JSON).
+            timeout: Script timeout in seconds.
 
         Returns:
-            The result of the method call.
+            The parsed JSON reply.
+
+        Raises:
+            RuntimeError: If the hook is missing or does not return a JSON object.
         """
-        args_json = json.dumps(args)
-        script = f"""
-            if (window._canvas && typeof window._canvas.{method} === 'function') {{
-                const args = {args_json};
-                return window._canvas.{method}(...args);
-            }}
-            return null;
+        script = f"return typeof window.{name} === 'function' ? window.{name}.apply(null, arguments) : null"
+        result = self.execute_js(script, *args, timeout=timeout)
+        if not result:
+            raise RuntimeError(f"window.{name} is not available")
+        parsed = json.loads(result)
+        if not isinstance(parsed, dict):
+            raise RuntimeError(f"window.{name} returned {type(parsed).__name__}, expected an object")
+        return parsed
+
+    def get_canvas_snapshot(self, options: Optional[dict[str, Any]] = None, timeout: int = 30) -> dict[str, Any]:
+        """Return ``{"state": ..., "inspection": ...?}`` from ``getMatHudCanvasState``.
+
+        Args:
+            options: Hook options, e.g. ``{"inspect": True, "samples": {"f": [1, 2]}}``.
+            timeout: Script timeout in seconds.
         """
-        return self.execute_js(script)
+        return self.call_hook("getMatHudCanvasState", json.dumps(options or {}), timeout=timeout)
+
+    def get_canvas_state(self) -> dict[str, Any]:
+        """Get the current canvas state (``Canvas.get_canvas_state``) as a dictionary.
+
+        Returns:
+            Canvas state dictionary, or ``{}`` when the hook is unavailable.
+        """
+        try:
+            payload = self.get_canvas_snapshot()
+        except RuntimeError:
+            return {}
+        state = payload.get("state")
+        return state if isinstance(state, dict) else {}
+
+    def run_tool_calls(self, calls: list[dict[str, Any]], timeout: int = 60) -> dict[str, Any]:
+        """Run one tool batch through ``runMatHudToolCalls``, the path a model's batch takes.
+
+        Args:
+            calls: ``[{"function_name": ..., "arguments": {...}}]`` (or ``{"tool", "args"}``).
+            timeout: Script timeout in seconds.
+
+        Returns:
+            The hook reply: ``traced`` calls, ``state`` after the batch and undo depths.
+        """
+        return self.call_hook("runMatHudToolCalls", json.dumps(calls), timeout=timeout)
+
+    def reset_session(self, options: Optional[dict[str, Any]] = None, timeout: int = 30) -> dict[str, Any]:
+        """Reset canvas, undo history, traces, metrics and chat through ``resetMatHudSession``."""
+        return self.call_hook("resetMatHudSession", json.dumps(options or {}), timeout=timeout)
 
     def call_function_registry(self, function_name: str, args: dict) -> Any:
-        """Call a function via the FunctionRegistry.
+        """Execute one AI tool as a single-call batch and return its result.
 
         Args:
-            function_name: Name of the function to call.
+            function_name: Name of the tool to call.
             args: Dictionary of arguments.
 
         Returns:
-            The result of the function call.
+            The tool's result value (the value a model would see).
+
+        Raises:
+            RuntimeError: If the batch could not run.
         """
-        args_json = json.dumps(args)
-        script = f"""
-            if (window._canvas && window._canvas.function_registry) {{
-                const func = window._canvas.function_registry.get('{function_name}');
-                if (func) {{
-                    const args = {args_json};
-                    return func(args);
-                }}
-            }}
-            return null;
-        """
-        return self.execute_js(script)
+        reply = self.run_tool_calls([{"function_name": function_name, "arguments": args}])
+        if reply.get("status") != "ok":
+            raise RuntimeError(str(reply.get("error", "tool call failed")))
+        traced = reply.get("traced") or []
+        return traced[0].get("result") if traced else None
 
     def capture_screenshot(self, output_path: str, full_page: bool = True) -> bool:
         """Capture a screenshot of the browser.

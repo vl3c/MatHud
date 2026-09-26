@@ -220,18 +220,21 @@ class TestBrowserAutomationGetCanvasState:
     """Test BrowserAutomation.get_canvas_state method."""
 
     def test_get_canvas_state_returns_dict(self) -> None:
-        """get_canvas_state returns parsed JSON."""
+        """get_canvas_state returns the state from getMatHudCanvasState."""
         browser = BrowserAutomation()
         mock_driver = MagicMock()
-        mock_driver.execute_script.return_value = '{"points": [], "segments": []}'
+        mock_driver.execute_script.return_value = '{"state": {"Points": [], "Segments": []}}'
         browser.driver = mock_driver
 
         result = browser.get_canvas_state()
 
-        assert result == {"points": [], "segments": []}
+        assert result == {"Points": [], "Segments": []}
+        script = mock_driver.execute_script.call_args[0][0]
+        assert "getMatHudCanvasState" in script
+        assert "_canvas" not in script
 
     def test_get_canvas_state_empty(self) -> None:
-        """get_canvas_state returns empty dict when no result."""
+        """get_canvas_state returns empty dict when the hook is missing."""
         browser = BrowserAutomation()
         mock_driver = MagicMock()
         mock_driver.execute_script.return_value = None
@@ -240,6 +243,63 @@ class TestBrowserAutomationGetCanvasState:
         result = browser.get_canvas_state()
 
         assert result == {}
+
+
+class TestBrowserAutomationHooks:
+    """Test the scenario-hook wrappers (runMatHudToolCalls and friends)."""
+
+    def _browser(self, reply: str) -> tuple[BrowserAutomation, MagicMock]:
+        browser = BrowserAutomation()
+        mock_driver = MagicMock()
+        mock_driver.execute_script.return_value = reply
+        browser.driver = mock_driver
+        return browser, mock_driver
+
+    def test_call_hook_passes_arguments(self) -> None:
+        browser, driver = self._browser('{"status": "ok"}')
+
+        assert browser.call_hook("resetMatHudSession", '{"x": 1}') == {"status": "ok"}
+        args = driver.execute_script.call_args[0]
+        assert "window.resetMatHudSession.apply(null, arguments)" in args[0]
+        assert args[1] == '{"x": 1}'
+
+    def test_call_hook_missing_raises(self) -> None:
+        browser, _ = self._browser("")
+        with pytest.raises(RuntimeError, match="not available"):
+            browser.call_hook("runMatHudToolCalls", "[]")
+
+    def test_call_hook_non_object_raises(self) -> None:
+        browser, _ = self._browser("[1, 2]")
+        with pytest.raises(RuntimeError, match="expected an object"):
+            browser.call_hook("getMatHudTurnStatus")
+
+    def test_run_tool_calls_sends_json(self) -> None:
+        browser, driver = self._browser('{"status": "ok", "traced": []}')
+        calls = [{"function_name": "create_point", "arguments": {"x": 1, "y": 2}}]
+
+        browser.run_tool_calls(calls)
+
+        assert (
+            driver.execute_script.call_args[0][1]
+            == '[{"function_name": "create_point", "arguments": {"x": 1, "y": 2}}]'
+        )
+
+    def test_call_function_registry_returns_result(self) -> None:
+        browser, _ = self._browser('{"status": "ok", "traced": [{"result": "Call successful!"}]}')
+        assert browser.call_function_registry("create_point", {"x": 1, "y": 2}) == "Call successful!"
+
+    def test_call_function_registry_error_raises(self) -> None:
+        browser, _ = self._browser('{"status": "error", "error": "Invalid tool calls: boom"}')
+        with pytest.raises(RuntimeError, match="boom"):
+            browser.call_function_registry("create_point", {})
+
+    def test_get_canvas_snapshot_sends_options(self) -> None:
+        browser, driver = self._browser('{"state": {}, "inspection": {"undo_depth": 0}}')
+
+        payload = browser.get_canvas_snapshot({"inspect": True})
+
+        assert payload["inspection"] == {"undo_depth": 0}
+        assert driver.execute_script.call_args[0][1] == '{"inspect": true}'
 
 
 class TestBrowserAutomationTestMethods:

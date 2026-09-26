@@ -1,0 +1,228 @@
+{
+  "schema": 1,
+  "area": "TR",
+  "title": "Transforms",
+  "scenarios": [
+    {
+      "id": "TR-01",
+      "title": "Translate one of two triangles that share an edge",
+      "tags": ["transforms", "polygons", "shared-points"],
+      "smoke": true,
+      "known": ["K16"],
+      "targets": "double-moving shared vertices; stale derived data",
+      "invariants": {"I3": "K16"},
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_polygon",
+            "args": {
+              "vertices": [{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 4, "y": 4}],
+              "polygon_type": "triangle",
+              "name": "ABC"
+            }
+          },
+          {
+            "tool": "create_polygon",
+            "args": {
+              "vertices": [{"x": 0, "y": 0}, {"x": 4, "y": 4}, {"x": 0, "y": 4}],
+              "polygon_type": "triangle",
+              "name": "ACD"
+            }
+          }
+        ]
+      },
+      "steps": [
+        {
+          "user": "Move triangle ABC up by 2.",
+          "reference": [{"tool": "translate_object", "args": {"name": "ABC", "x_offset": 0, "y_offset": 2}}],
+          "checks": [
+            {"check": "point_at", "select": {"type": "Point", "name": "A"}, "at": [0, 2]},
+            {"check": "point_at", "select": {"type": "Point", "name": "B"}, "at": [4, 2]},
+            {"check": "point_at", "select": {"type": "Point", "name": "C"}, "at": [4, 6]},
+            {"check": "point_at", "select": {"type": "Point", "name": "D"}, "at": [0, 4]},
+            {"check": "exists", "select": {"type": "Triangle", "vertices": [[0, 2], [4, 6], [0, 4]]}}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "TR-02",
+      "title": "Rotate about a point and back",
+      "tags": ["transforms", "round-trip"],
+      "smoke": false,
+      "targets": "rotation math; round-trip drift",
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_polygon",
+            "args": {
+              "vertices": [{"x": 1, "y": 0}, {"x": 3, "y": 0}, {"x": 1, "y": 2}],
+              "polygon_type": "triangle",
+              "name": "ABC"
+            }
+          }
+        ]
+      },
+      "steps": [
+        {
+          "user": "Rotate triangle ABC by 90 degrees around the origin.",
+          "reference": [{"tool": "rotate_object", "args": {"name": "ABC", "angle": 90, "center_x": 0, "center_y": 0}}],
+          "checks": [
+            {"check": "point_at", "select": {"type": "Point", "name": "A"}, "at": [0, 1]},
+            {"check": "point_at", "select": {"type": "Point", "name": "B"}, "at": [0, 3]},
+            {"check": "point_at", "select": {"type": "Point", "name": "C"}, "at": [-2, 1]}
+          ]
+        },
+        {
+          "user": "Rotate it back.",
+          "reference": [
+            {"tool": "rotate_object", "args": {"name": "ABC", "angle": -90, "center_x": 0, "center_y": 0}}
+          ],
+          "checks": [{"check": "state_equals", "snapshot": "setup"}]
+        }
+      ]
+    },
+    {
+      "id": "TR-03",
+      "title": "Reflect across a named segment",
+      "tags": ["transforms", "reflection"],
+      "smoke": false,
+      "targets": "reflection math; axis resolution",
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_polygon",
+            "args": {
+              "vertices": [{"x": 1, "y": 0}, {"x": 3, "y": 0}, {"x": 1, "y": 2}],
+              "polygon_type": "triangle",
+              "name": "ABC"
+            }
+          },
+          {"tool": "create_segment", "args": {"x1": -5, "y1": -5, "x2": 5, "y2": 5}}
+        ]
+      },
+      "steps": [
+        {
+          "user": "Reflect triangle ABC across segment DE.",
+          "reference": [{"tool": "reflect_object", "args": {"name": "ABC", "axis": "segment", "segment_name": "DE"}}],
+          "checks": [
+            {"check": "point_at", "select": {"type": "Point", "name": "A"}, "at": [0, 1]},
+            {"check": "point_at", "select": {"type": "Point", "name": "B"}, "at": [0, 3]},
+            {"check": "point_at", "select": {"type": "Point", "name": "C"}, "at": [2, 1]},
+            {"check": "exists", "select": {"type": "Segment", "ends": [[-5, -5], [5, 5]]}},
+            {"check": "point_at", "select": {"type": "Point", "name": "D"}, "at": [-5, -5]},
+            {"check": "point_at", "select": {"type": "Point", "name": "E"}, "at": [5, 5]}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "TR-04",
+      "title": "Non-uniform scaling of a circle is refused cleanly",
+      "tags": ["transforms", "circles", "errors", "undo"],
+      "smoke": false,
+      "targets": "failed calls leaving undo entries; error wording",
+      "setup": {"calls": [{"tool": "create_circle", "args": {"center_x": 0, "center_y": 0, "radius": 2}}]},
+      "steps": [
+        {
+          "user": "Stretch the circle horizontally by a factor of 2.",
+          "reference": [{"tool": "scale_object", "args": {"name": "A(2)", "sx": 2, "sy": 1, "cx": 0, "cy": 0}}],
+          "checks": [{"check": "tool_error", "tool": "scale_object"}, {"check": "state_equals", "snapshot": "setup"}]
+        }
+      ]
+    },
+    {
+      "id": "TR-05",
+      "title": "Shear updates angle markers and triangle types",
+      "tags": ["transforms", "angles", "derived"],
+      "smoke": false,
+      "known": ["K16", "K17"],
+      "targets": "stale cached classifications and angle values",
+      "invariants": {"I3": "K16"},
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_polygon",
+            "args": {
+              "vertices": [{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 2, "y": 3.4641016151377544}],
+              "polygon_type": "triangle",
+              "name": "ABC",
+              "subtype": "equilateral"
+            }
+          },
+          {
+            "tool": "create_angle",
+            "args": {"vx": 4, "vy": 0, "p1x": 0, "p1y": 0, "p2x": 2, "p2y": 3.4641016151377544}
+          }
+        ]
+      },
+      "steps": [
+        {
+          "user": "Shear triangle ABC horizontally with factor 1 about the origin.",
+          "reference": [
+            {"tool": "shear_object", "args": {"name": "ABC", "axis": "horizontal", "factor": 1, "cx": 0, "cy": 0}}
+          ],
+          "checks": [
+            {
+              "check": "point_at",
+              "select": {"type": "Point", "name": "C"},
+              "at": [5.464101615138, 3.464101615138],
+              "tol": 1e-09
+            },
+            {"check": "point_at", "select": {"type": "Point", "name": "A"}, "at": [0, 0]},
+            {"check": "point_at", "select": {"type": "Point", "name": "B"}, "at": [4, 0]},
+            {
+              "check": "attribute",
+              "path": "types",
+              "select": {"type": "Triangle", "only": true},
+              "not_contains": "equilateral",
+              "known": "K16"
+            },
+            {
+              "check": "attribute",
+              "path": "inspect.angle_degrees",
+              "select": {"type": "Angle", "only": true},
+              "eq": 112.91133691901508,
+              "tol": 1e-06,
+              "known": "K17"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "TR-06",
+      "title": "Transforming an unsupported type fails without side effects",
+      "tags": ["transforms", "arcs", "errors", "undo"],
+      "smoke": false,
+      "targets": "archive before validation",
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_circle_arc",
+            "args": {
+              "point1_x": 20,
+              "point1_y": 0,
+              "point2_x": 10,
+              "point2_y": 10,
+              "center_x": 10,
+              "center_y": 0,
+              "radius": 10,
+              "use_major_arc": false
+            }
+          }
+        ]
+      },
+      "steps": [
+        {
+          "user": "Move the arc up by one unit.",
+          "reference": [{"tool": "translate_object", "args": {"name": "ArcMin_AB", "x_offset": 0, "y_offset": 1}}],
+          "checks": [
+            {"check": "tool_error", "tool": "translate_object"},
+            {"check": "state_equals", "snapshot": "setup"}
+          ]
+        }
+      ]
+    }
+  ]
+}
