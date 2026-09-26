@@ -165,6 +165,11 @@ class TestGrading(unittest.TestCase):
         self.assertTrue(bench.grade(question("mm_right_angle"), bench.extract_answer("Final Answer: B")[0]))
         self.assertTrue(bench.grade(question("mm_closest_to_h"), bench.extract_answer("\\boxed{D}")[0]))
 
+    def test_extract_answer_reads_the_value_on_the_line_after_an_empty_answer_line(self) -> None:
+        self.assertEqual(bench.extract_answer("Work\nAnswer:\n6"), ("6", True))
+        self.assertEqual(bench.extract_answer("Work\n**Final Answer:**\n\n$\\boxed{6}$"), ("6", True))
+        self.assertEqual(bench.extract_answer("Work\nAnswer:"), ("", True))
+
     def test_numbers_use_a_tolerance(self) -> None:
         q = question("tc_len_bc")
         self.assertTrue(bench.grade(q, "4.24"))
@@ -206,6 +211,8 @@ class TestGrading(unittest.TestCase):
         self.assertTrue(bench.grade(question("rd_bar_max"), "Fri (22)"))
         self.assertFalse(bench.grade(question("ch_added_name"), "A(3)"))
         self.assertFalse(bench.grade(question("tc_largest_angle"), "B"))
+        self.assertTrue(bench.grade(question("mm_right_angle"), "At vertex B"))
+        self.assertTrue(bench.grade(question("mm_right_angle"), "At B"))
 
     def test_sets_are_order_insensitive(self) -> None:
         q = question("ch_segments_now")
@@ -213,7 +220,15 @@ class TestGrading(unittest.TestCase):
         self.assertFalse(bench.grade(q, "AB, BC, AC, EF, GH"))
         circle = question("tc_on_circle")
         self.assertTrue(bench.grade(circle, "None"))
+        self.assertTrue(bench.grade(circle, "There are none."))
+        self.assertTrue(bench.grade(circle, "No point lies on it"))
         self.assertFalse(bench.grade(circle, "B"))
+        # Naming no point is not "none" unless the answer says so.
+        self.assertFalse(bench.grade(circle, "unknown"))
+        self.assertFalse(bench.grade(circle, "I cannot determine this from the data."))
+        self.assertFalse(bench.grade(circle, "Let me compute the distance from the center to each point..."))
+        # Segment CA is segment AC.
+        self.assertTrue(bench.grade(q, "AB, BC, CA, GH"))
         # The article "a" is not point A.
         self.assertTrue(bench.grade(question("ch_on_new_circle"), "Only C lies on a circle of radius 5"))
         self.assertEqual(bench.parse_name_set("points D, E and G", ["D", "E", "G", "AB"]), {"D", "E", "G"})
@@ -579,7 +594,7 @@ class TestLiveLocalMocked(unittest.TestCase):
         ):
             args = ["--provider", "local", "--models", "qwen-test", "--formats", "text", "--scenes", "triangle_circle"]
             code, output = run_main(args + ["--local-reasoning-effort", "low", "--out", tmp])
-            code_none, _ = run_main(args + ["--local-reasoning-effort", "none", "--out", tmp])
+            code_none, _ = run_main(args + ["--local-reasoning-effort", "default", "--out", tmp])
         self.assertEqual((code, code_none), (0, 0))
         self.assertIn("LocalAgent reasoning effort: low", output)
         per_run = len([q for q in QUESTIONS if q.scene == "triangle_circle"])
@@ -659,7 +674,8 @@ class TestRegrade(unittest.TestCase):
             source.write_text(json.dumps({"config": config, "results": stored}), encoding="utf-8")
             code, output = run_main(["--regrade", str(source), "--out", str(Path(tmp) / "regraded")])
             regraded = json.loads((Path(tmp) / "regraded" / "results_regraded.json").read_text(encoding="utf-8"))
-            summary_md = (Path(tmp) / "regraded" / "summary.md").read_text(encoding="utf-8")
+            summary_md = (Path(tmp) / "regraded" / "summary_regraded.md").read_text(encoding="utf-8")
+            self.assertFalse((Path(tmp) / "regraded" / "summary.md").exists())
         self.assertEqual(code, 0)
         self.assertEqual(attempts, [])
         self.assertIn("Re-graded at", summary_md)

@@ -4021,7 +4021,7 @@ which returns only models for available providers.
 **Request parameters:** every request, streamed or not, sends `temperature` (0.2), `max_tokens` (16000) and, unless disabled, `chat_template_kwargs: {"reasoning_effort": <effort>}` (built by `_completion_options()`). llama-server passes chat-template kwargs to the model's template; templates that do not use `reasoning_effort` ignore it. Without an effort a reasoning model falls back to its template default, which for Qwen3.8 27B meant thinking up to the token limit on trivial questions.
 
 **Environment:**
-- `MATHUD_LOCAL_REASONING_EFFORT`: `low` | `medium` (default) | `high` | `xhigh` | `max`; `default` or `none` omits the field. Unknown values log a warning and use `medium`. Read when the provider is created (`get_configured_reasoning_effort()`).
+- `MATHUD_LOCAL_REASONING_EFFORT`: `low` | `medium` (default) | `high` | `xhigh` | `max`; `default` omits the field (the template's default then applies; it does not turn reasoning off, and it keeps a value set with llama-server's `--chat-template-kwargs`, which a request value would override). Other values, `none` included, log a warning and use `medium`. Read when the provider is created (`get_configured_reasoning_effort()`).
 - `MATHUD_CANVAS_FORMAT` / `MATHUD_CANVAS_BUDGET_TOKENS`: local defaults are `text` and 1500 tokens. In `json` format LocalAgent sends only the user text plus a `[Canvas: 3 Points, ...]` count line.
 
 ### Slash Command Handler (`static/client/slash_command_handler.py`)

@@ -87,7 +87,7 @@ DEFAULT_FORMATS: Dict[str, Tuple[CanvasFormat, ...]] = {
     "openrouter": ("json", "text"),
     "local": ("text", "min_json", "json"),
 }
-LOCAL_REASONING_EFFORT_CHOICES = REASONING_EFFORTS + ("default", "none")
+LOCAL_REASONING_EFFORT_CHOICES = REASONING_EFFORTS + ("default",)
 DEFAULT_MAX_REQUESTS = 250
 DEFAULT_TIMEOUT_S = {"openrouter": 180.0, "local": 900.0}
 DEFAULT_CONCURRENCY = {"openrouter": 4, "local": 1}
@@ -860,8 +860,11 @@ _SET_ANSWER_END = re.compile(r"\s\(|;|\s(?:because|since)\b", re.IGNORECASE)
 _NUMBER = re.compile(r"(?<![A-Za-z_.\d])[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?")
 _NAME_TOKEN = re.compile(r"[A-Za-z][A-Za-z0-9_']*(?:\([^()\s]*\))?")
 _NONE_ANSWER = re.compile(r"^\s*(?:none|no points?|nothing|empty|\{\s*\}|∅)\b", re.IGNORECASE)
+# Anywhere in an answer that lists no names: "There are none", "No point lies on it", "∅".
+_SAYS_NONE = re.compile(r"\b(?:none|no points?|nothing|empty)\b|\{\s*\}|∅", re.IGNORECASE)
 _NAME_PREFIX = re.compile(
-    r"^(?:the\s+)?(?:point|segment|circle|vertex|object|curve|label|colou?r|day|bar|edge|text)\s+", re.IGNORECASE
+    r"^(?:at\s+)?(?:the\s+)?(?:(?:point|segment|circle|vertex|object|curve|label|colou?r|day|bar|edge|text)\s+)?",
+    re.IGNORECASE,
 )
 _EXPRESSION_PREFIX = re.compile(r"^(?:[a-z]\w*\(x\)|y)=")
 # Numbers: relative 2e-3 or absolute 5e-3. The text format shows 6 significant
@@ -876,15 +879,20 @@ NUMBER_ABSOLUTE_TOLERANCE = 5e-3
 def extract_answer(reply: str) -> Tuple[str, bool]:
     """The value of the reply's last ``Answer:`` (or ``Final answer:``) line, and whether one was present.
 
-    Without one, the last non-empty line is used. Markdown emphasis, backticks,
-    ``$``, ``\\boxed{...}`` and ``<think>`` blocks are ignored.
+    Without one, the last non-empty line is used. An answer line with no value
+    (``**Final Answer:**`` followed by ``$\\boxed{6}$``) takes the next non-empty
+    line. Markdown emphasis, backticks, ``$``, ``\\boxed{...}`` and ``<think>``
+    blocks are ignored.
     """
     text = _THINK_BLOCK.sub("", reply or "")
     lines = [line for line in text.splitlines() if line.strip()]
-    for line in reversed(lines):
-        match = _ANSWER_LINE.match(line)
+    for index in range(len(lines) - 1, -1, -1):
+        match = _ANSWER_LINE.match(lines[index])
         if match:
-            return _clean_answer(match.group("value")), True
+            value = _clean_answer(match.group("value"))
+            if not value and index + 1 < len(lines):
+                value = _clean_answer(lines[index + 1])
+            return value, True
     return (_clean_answer(lines[-1]) if lines else ""), False
 
 
@@ -967,13 +975,19 @@ def parse_name_set(answer: str, vocabulary: Sequence[str]) -> Set[str]:
             found.add(token)
         elif len(token) > 1 and token.lower() in by_lower:
             found.add(by_lower[token.lower()])
+        elif len(token) == 2 and token[::-1] in vocabulary:
+            found.add(token[::-1])  # segment CA is segment AC
     return found
 
 
 def _grade_set(answer: str, expected: Sequence[str], vocabulary: Sequence[str]) -> bool:
     end = _SET_ANSWER_END.search(answer)
     listed = answer[: end.start()] if end is not None and end.start() > 0 else answer
-    return {name.lower() for name in parse_name_set(listed, vocabulary)} == {name.lower() for name in expected}
+    found = parse_name_set(listed, vocabulary)
+    if not found and not expected:
+        # Naming no point counts as "none" only when the answer says so: "unknown" or a cut-off reply is wrong.
+        return bool(_SAYS_NONE.search(listed))
+    return {name.lower() for name in found} == {name.lower() for name in expected}
 
 
 def _grade_edge(answer: str, expected: Sequence[str]) -> bool:
@@ -1442,7 +1456,7 @@ def regrade_results(results: Sequence[Mapping[str, Any]], provider: str) -> List
 
 
 def regrade_file(results_path: Path, out_dir: Optional[Path]) -> Tuple[Path, str]:
-    """Re-grade a results.json; writes results_regraded.json and summary.md (default: next to it)."""
+    """Re-grade a results.json; writes results_regraded.json and summary_regraded.md (default: next to it)."""
     data = json.loads(results_path.read_text(encoding="utf-8"))
     config: JsonDict = dict(data.get("config") or {})
     config["regraded_at"] = datetime.now().isoformat(timespec="seconds")
@@ -1456,7 +1470,7 @@ def regrade_file(results_path: Path, out_dir: Optional[Path]) -> Tuple[Path, str
         json.dumps({"config": config, "summary": rows, "results": results}, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
-    (target / "summary.md").write_text(markdown, encoding="utf-8")
+    (target / "summary_regraded.md").write_text(markdown, encoding="utf-8")
     return target, markdown
 
 
@@ -1806,7 +1820,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         type=Path,
         default=None,
         metavar="RESULTS_JSON",
-        help="Re-grade a results.json with the current grader and write summary.md (no network access)",
+        help="Re-grade a results.json with the current grader and write summary_regraded.md (no network access)",
     )
     parser.add_argument(
         "--out",
@@ -1832,7 +1846,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         choices=LOCAL_REASONING_EFFORT_CHOICES,
         default=None,
         help="MATHUD_LOCAL_REASONING_EFFORT for LocalAgent requests (default: the app's default, medium; "
-        "default/none sends no effort)",
+        "default sends no effort)",
     )
     parser.add_argument("--timeout", type=float, default=None, help="Per-request timeout in seconds")
     parser.add_argument("--concurrency", type=int, default=None, help="Parallel requests (default 4 cloud, 1 local)")

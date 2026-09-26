@@ -361,18 +361,20 @@ class TestReasoningEffort:
         _send_both(_api_for(server))
         assert [body["chat_template_kwargs"] for body in server.bodies] == [{"reasoning_effort": expected}] * 2
 
-    @pytest.mark.parametrize("raw", ["default", "none", "None"])
-    def test_default_or_none_omits_the_field(self, monkeypatch: pytest.MonkeyPatch, raw: str) -> None:
+    @pytest.mark.parametrize("raw", ["default", "Default"])
+    def test_default_omits_the_field(self, monkeypatch: pytest.MonkeyPatch, raw: str) -> None:
         monkeypatch.setenv(REASONING_EFFORT_ENV, raw)
         server = RecordingServer()
         _send_both(_api_for(server))
         assert len(server.bodies) == 2
         assert all("chat_template_kwargs" not in body for body in server.bodies)
 
+    # "none" is not a way to turn reasoning off (omitting the field leaves the template default).
+    @pytest.mark.parametrize("raw", ["turbo", "none"])
     def test_invalid_value_warns_and_uses_the_default(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, raw: str
     ) -> None:
-        monkeypatch.setenv(REASONING_EFFORT_ENV, "turbo")
+        monkeypatch.setenv(REASONING_EFFORT_ENV, raw)
         with caplog.at_level(logging.WARNING, logger="mathud"):
             api = _api_for(RecordingServer())
         assert api.reasoning_effort == "medium"

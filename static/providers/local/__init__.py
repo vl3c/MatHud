@@ -56,12 +56,13 @@ TOOL_CAPABLE_MODEL_FAMILIES: Set[str] = {
 
 # Reasoning effort sent to the server as the chat-template variable ``reasoning_effort``
 # (``chat_template_kwargs``). Without it a reasoning model uses its template's default,
-# which can mean thinking until the token limit on a trivial question. "default" or
-# "none" omits the field for templates or servers that do not want it.
+# which can mean thinking until the token limit on a trivial question. "default" omits
+# the field for templates or servers that do not want it. There is no "none": omitting
+# the field does not turn reasoning off.
 REASONING_EFFORT_ENV = "MATHUD_LOCAL_REASONING_EFFORT"
 REASONING_EFFORTS = ("low", "medium", "high", "xhigh", "max")
 DEFAULT_REASONING_EFFORT = "medium"
-_OMIT_REASONING_EFFORT = ("default", "none")
+_OMIT_REASONING_EFFORT = ("default",)
 
 
 def get_configured_reasoning_effort() -> Optional[str]:

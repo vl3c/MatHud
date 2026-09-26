@@ -55,7 +55,7 @@ PORT=5000                  # Set by hosting platforms to indicate deployed mode
 SECRET_KEY=override-me     # Optional: otherwise random key generated per launch
 TOOL_SEARCH_MODE=hybrid    # Tool discovery: local | api | hybrid (default: hybrid)
 LOCAL_AGENT_BASE_URL=http://127.0.0.1:8080  # LocalAgent llama-server (default shown)
-MATHUD_LOCAL_REASONING_EFFORT=medium  # LocalAgent chat_template_kwargs.reasoning_effort: low|medium|high|xhigh|max, default = send none
+MATHUD_LOCAL_REASONING_EFFORT=medium  # LocalAgent chat_template_kwargs.reasoning_effort: low|medium|high|xhigh|max; unset = medium; default = omit the field
 MATHUD_TOOL_EXPOSURE=search  # search: search_tools + essentials up front (default) | full: every tool
 MATHUD_CANVAS_FORMAT=text    # Canvas in prompts: text (default) | min_json | json (legacy prompt JSON)
 MATHUD_CANVAS_BUDGET_TOKENS= # Canvas block cap; default 4000 (cloud) / 1500 (local), 0 = unlimited
