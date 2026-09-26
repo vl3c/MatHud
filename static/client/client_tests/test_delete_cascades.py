@@ -487,7 +487,7 @@ class TestDeleteCascades(unittest.TestCase):
         self._triangle_and_graph_on_its_vertex()
         saved = json.loads(json.dumps(self.workspace_manager._snapshot_persistable_canvas_state()))
         for item in saved.get("UndirectedGraphs", []):
-            for key in ("preexisting_points", "preexisting_edges", "preexisting_edge_labels"):
+            for key in ("preexisting_points", "preexisting_edges", "edge_label_records"):
                 item["args"].pop(key, None)
         self.workspace_manager._restore_workspace_state(saved)
         triangle = self._drawables("Triangle")[0]
@@ -668,6 +668,75 @@ class TestDeleteCascades(unittest.TestCase):
         self._call("delete_graph", name="G")
 
         self.assertEqual(self._label(ends), ("user-edit", True))
+
+    def test_chain_that_returns_to_an_earlier_weight_keeps_order(self) -> None:
+        ends = self._labelled_triangle_side()
+        self._weighted_graph("G1", 5, ends)
+        self._weighted_graph("G2", 7, ends)
+        self._weighted_graph("G3", 5, ends)
+        self._save_and_load()
+
+        self._call("delete_graph", name="G3")
+
+        self.assertEqual(self._label(ends), ("7", True))
+        self.assertEqual(self._path_cost("G2", *ends), 7.0)
+
+        self._call("delete_graph", name="G1")
+
+        self.assertEqual(self._label(ends), ("7", True))
+        self.assertEqual(self._path_cost("G2", *ends), 7.0)
+
+        self._call("delete_graph", name="G2")
+
+        self.assertEqual(self._label(ends), ("side", True))
+
+    def test_user_label_equal_to_a_later_weight_is_not_taken_for_the_chain(self) -> None:
+        self._call("create_segment", x1=0, y1=0, x2=4, y2=0, label_text="7", label_visible=False)
+        ends: Tuple[Coord, Coord] = ((0, 0), (4, 0))
+        self._weighted_graph("G1", 3, ends)
+        self._weighted_graph("G2", 7, ends)
+
+        self._call("delete_graph", name="G2")
+
+        self.assertEqual(self._label(ends), ("3", True))
+        self.assertEqual(self._path_cost("G1", *ends), 3.0)
+
+        self._call("delete_graph", name="G1")
+
+        self.assertEqual(self._label(ends), ("7", False))
+
+    def test_chain_records_without_sequence_fall_back_to_label_text(self) -> None:
+        ends = self._labelled_triangle_side()
+        self._weighted_graph("G", 5, ends)
+        self._weighted_graph("H", 7, ends)
+        saved = json.loads(json.dumps(self.workspace_manager._snapshot_persistable_canvas_state()))
+        for item in saved.get("UndirectedGraphs", []):
+            for record in item["args"].get("edge_label_records", []):
+                record.pop("seq", None)
+        self.workspace_manager._restore_workspace_state(saved)
+
+        self._call("delete_graph", name="G")
+
+        self.assertEqual(self._label(ends), ("7", True))
+        self._call("delete_graph", name="H")
+        self.assertEqual(self._label(ends), ("side", True))
+
+    def test_user_edit_on_created_edge_survives_its_creator_and_later_graph(self) -> None:
+        ends: Tuple[Coord, Coord] = ((10, 10), (14, 10))
+        self._weighted_graph("G0", 5, ends)
+        edge = self.canvas.get_segment_by_coordinates(10, 10, 14, 10)
+        self._call("update_segment", name=edge.name, new_label_text="X")
+        self._weighted_graph("G1", 8, ends)
+
+        self._call("delete_graph", name="G0")
+
+        self.assertEqual(self._label(ends), ("8", True))
+        self._triangle([(12, 14), (10, 10), (14, 10)], "")
+
+        self._call("delete_graph", name="G1")
+
+        self.assertEqual(len(self._drawables("Triangle")), 1)
+        self.assertEqual(self._label(ends), ("X", True))
 
     # Graph-created vertices and edges that something else now uses
     def _graph_with_vertices_p_and_q(self, name: str = "G") -> None:

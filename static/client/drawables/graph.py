@@ -23,8 +23,10 @@ from drawables.drawable import Drawable
 if TYPE_CHECKING:
     from drawables.point import Point
 
-# (edge, original label text, original label visibility, weight text this graph wrote)
-EdgeLabelRecord = Tuple[Drawable, str, bool, Optional[str]]
+# One weight label a graph wrote on an edge:
+# (edge, label text it replaced, that label's visibility, weight text it wrote,
+#  creation sequence of the graph (None in older saves), True if the graph created the edge).
+EdgeLabelRecord = Tuple[Drawable, str, bool, Optional[str], Optional[int], bool]
 
 
 class Graph(Drawable):
@@ -36,8 +38,8 @@ class Graph(Drawable):
         _isolated_points: List of vertex points not connected by edges.
         _preexisting_points: Vertex points that existed before the graph was created.
         _preexisting_edges: Edge segments or vectors that existed before the graph was created.
-        _original_edge_labels: (edge, text, visible, written) for each pre-existing edge the
-            graph relabelled with its weight: the label it replaced and the weight text it wrote.
+        _original_edge_labels: EdgeLabelRecord per edge the graph wrote a weight label on.
+            Graphs relabelling the same edge form a chain ordered by creation sequence.
         directed: Whether the graph is directed (override in subclass).
     """
 
@@ -96,9 +98,16 @@ class Graph(Drawable):
         if self._preexisting_edges:
             args["preexisting_edges"] = [getattr(e, "name", "") for e in self._preexisting_edges]
         if self._original_edge_labels:
-            args["preexisting_edge_labels"] = [
-                {"edge": getattr(edge, "name", ""), "text": text, "visible": visible, "written": written}
-                for edge, text, visible, written in self._original_edge_labels
+            args["edge_label_records"] = [
+                {
+                    "edge": getattr(edge, "name", ""),
+                    "text": text,
+                    "visible": visible,
+                    "written": written,
+                    "seq": seq,
+                    "created": created,
+                }
+                for edge, text, visible, written, seq, created in self._original_edge_labels
             ]
         return {"name": self.name, "args": args}
 
@@ -113,8 +122,8 @@ class Graph(Drawable):
     ) -> None:
         """Record the vertices and edges that existed before this graph was created.
 
-        ``original_edge_labels`` holds, per reused edge, the label it had before the graph
-        wrote its weight there and the weight text the graph wrote.
+        ``original_edge_labels`` holds, per edge the graph wrote a weight on, the label
+        the edge had before and the weight text the graph wrote.
         """
         self._preexisting_points = list(points)
         self._preexisting_edges = list(edges)
@@ -122,8 +131,14 @@ class Graph(Drawable):
 
     @property
     def original_edge_labels(self) -> List[EdgeLabelRecord]:
-        """Label records of the reused edges this graph relabelled."""
+        """Label records of the edges this graph wrote weights on."""
         return list(self._original_edge_labels)
+
+    @property
+    def label_seq(self) -> Optional[int]:
+        """Creation sequence of this graph among graphs that wrote weight labels, if known."""
+        seqs = [record[4] for record in self._original_edge_labels if record[4] is not None]
+        return seqs[0] if seqs else None
 
     def label_record(self, edge: Drawable) -> Optional[EdgeLabelRecord]:
         """Return this graph's label record for the edge, if it relabelled it."""
@@ -132,7 +147,7 @@ class Graph(Drawable):
     def replace_label_original(self, edge: Drawable, text: str, visible: bool) -> None:
         """Change the label this graph restores on the edge (used when a graph below it is deleted)."""
         self._original_edge_labels = [
-            (record[0], text, visible, record[3]) if record[0] is edge else record
+            (record[0], text, visible, record[3], record[4], record[5]) if record[0] is edge else record
             for record in self._original_edge_labels
         ]
 

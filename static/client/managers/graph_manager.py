@@ -45,6 +45,10 @@ if TYPE_CHECKING:
     from name_generator.drawable import DrawableNameGenerator
 
 
+# See drawables.graph.EdgeLabelRecord.
+LabelRecord = Tuple[Any, str, bool, Optional[str], Optional[int], bool]
+
+
 class GraphManager:
     def __init__(
         self,
@@ -90,7 +94,8 @@ class GraphManager:
 
         segments_created: List["Segment"] = []
         vectors_created: List["Vector"] = []
-        original_labels: List[Tuple[Any, str, bool, Optional[str]]] = []
+        original_labels: List[LabelRecord] = []
+        label_seq = self._next_label_seq()
         is_tree = isinstance(state, TreeState)
         for edge in state.edges:
             edge_directed = state.directed if is_tree else None
@@ -101,7 +106,8 @@ class GraphManager:
                 vectors_created.append(vector_obj)
             edge_obj = segment_obj or vector_obj
             if edge_obj is not None and edge.weight is not None:
-                self._apply_weight_label(edge_obj, str(edge.weight), id(edge_obj) in existing_ids, original_labels)
+                preexisting = id(edge_obj) in existing_ids
+                self._apply_weight_label(edge_obj, str(edge.weight), preexisting, original_labels, label_seq)
 
         if is_tree:
             # Translate internal vertex ID to actual point name for root
@@ -282,7 +288,7 @@ class GraphManager:
             if not any(item is point for item in vertex_points):
                 vertex_points.append(point)
 
-        self._release_weight_labels(graph, edges)
+        self._release_weight_labels(graph)
         if not remove_drawable_with_dependencies(self.drawables, self.dependency_manager, graph):
             return False
 
@@ -334,82 +340,90 @@ class GraphManager:
         edge: Any,
         label_text: str,
         preexisting: bool,
-        original_labels: List[Tuple[Any, str, bool, Optional[str]]],
+        original_labels: List[LabelRecord],
+        label_seq: int,
     ) -> None:
-        """Show the edge weight as a label, remembering a reused edge's own label first.
+        """Show the edge weight as a label and record what it replaced.
 
-        New segments already got their label on creation; new vectors get it here.
+        New segments already got their label on creation; new vectors and reused edges
+        get it here. A created edge records an empty original and is never restored.
         """
-        is_vector = edge.get_class_name() == "Vector"
-        if not preexisting and not is_vector:
-            return
         holder = self._label_holder(edge)
         label = getattr(holder, "label", None)
         original = (str(getattr(label, "text", "") or ""), bool(getattr(label, "visible", False)))
-        try:
-            holder.update_label_text(label_text)
-            holder.set_label_visibility(True)
-        except Exception:
-            return
+        if preexisting or edge.get_class_name() == "Vector":
+            try:
+                holder.update_label_text(label_text)
+                holder.set_label_visibility(True)
+            except Exception:
+                return
         if not preexisting:
-            return
+            original = ("", False)
         # Record the text as the label stores it, so a later comparison matches exactly.
         written = str(getattr(getattr(holder, "label", None), "text", "") or "")
         for index, record in enumerate(original_labels):
             if record[0] is edge:
-                original_labels[index] = (edge, record[1], record[2], written)
+                original_labels[index] = (edge, record[1], record[2], written, record[4], record[5])
                 return
-        original_labels.append((edge, original[0], original[1], written))
+        original_labels.append((edge, original[0], original[1], written, label_seq, not preexisting))
 
-    def _release_weight_labels(self, graph: Graph, edges: List[Any]) -> None:
+    def _next_label_seq(self) -> int:
+        """Return a creation sequence number above every graph's on the canvas."""
+        seqs = [g.label_seq for g in self._all_graphs() if g.label_seq is not None]
+        return (max(seqs) if seqs else 0) + 1
+
+    def _release_weight_labels(self, graph: Graph) -> None:
         """Undo this graph's weight labels without touching labels written after them.
 
-        Graphs that reuse an edge form a chain: each records the label it replaced.
-        When a graph leaves, the graph stacked directly on it inherits its original
-        label; if none is, and the edge still shows this graph's weight, the original
-        label comes back. A label changed since (by the user or a later graph) stays.
+        Graphs that write a weight on the same edge form a chain ordered by creation;
+        each records the label it replaced. When a graph leaves, the next graph created
+        after it whose recorded original is this graph's weight inherits this graph's
+        original. Otherwise, on an edge the graph reused, the original comes back if the
+        edge still shows this graph's weight; a label changed since stays. On an edge
+        the graph created, the weight stays for whatever keeps the edge.
         """
         others = [g for g in self._all_graphs() if g is not graph]
-        recorded: List[Any] = []
-        for edge, text, visible, written in graph.original_edge_labels:
-            recorded.append(edge)
-            self._release_weight_label(edge, others, text, visible, written, restore=True)
-        for edge in edges:
-            if graph.is_preexisting(edge) or any(item is edge for item in recorded):
+        for edge, text, visible, written, seq, created in graph.original_edge_labels:
+            if written is None or not is_on_canvas(self.drawables, edge):
                 continue
-            # This graph created the edge with its weight; later graphs recorded that weight.
-            written = self._lowest_recorded_original(edge, others)
-            if written is not None:
-                self._release_weight_label(edge, others, "", False, written, restore=False)
-
-    def _release_weight_label(
-        self, edge: Any, others: List[Graph], text: str, visible: bool, written: Optional[str], restore: bool
-    ) -> None:
-        if written is None or not is_on_canvas(self.drawables, edge):
-            return
-        for other in others:
-            record = other.label_record(edge)
-            if record is not None and record[1] == written:
-                other.replace_label_original(edge, text, visible)
-                return
-        holder = self._label_holder(edge)
-        current = str(getattr(getattr(holder, "label", None), "text", "") or "")
-        if restore and current == written:
-            try:
-                holder.update_label_text(text)
-                holder.set_label_visibility(visible)
-            except Exception:
-                pass
+            successor = self._next_in_label_chain(edge, others, written, seq)
+            if successor is not None:
+                successor.replace_label_original(edge, text, visible)
+            elif not created:
+                self._restore_label_if_unchanged(edge, text, visible, written)
 
     @staticmethod
-    def _lowest_recorded_original(edge: Any, graphs: List[Graph]) -> Optional[str]:
-        """Return the original label of the lowest graph in the edge's relabelling chain."""
-        records = [record for record in (g.label_record(edge) for g in graphs) if record is not None]
-        written = [record[3] for record in records]
-        for record in records:
-            if record[1] not in written:
-                return record[1]
-        return None
+    def _next_in_label_chain(edge: Any, graphs: List[Graph], written: str, seq: Optional[int]) -> Optional[Graph]:
+        """Return the graph that relabelled the edge right after the one that wrote ``written``.
+
+        Only graphs created later count. Records from older saves have no sequence;
+        they match on the label text alone.
+        """
+        best: Optional[Graph] = None
+        best_seq: Optional[int] = None
+        for other in graphs:
+            record = other.label_record(edge)
+            if record is None or record[1] != written:
+                continue
+            other_seq = record[4]
+            if seq is not None and other_seq is not None:
+                if other_seq <= seq or (best_seq is not None and other_seq >= best_seq):
+                    continue
+                best, best_seq = other, other_seq
+            elif best is None:
+                best = other
+        return best
+
+    def _restore_label_if_unchanged(self, edge: Any, text: str, visible: bool, written: str) -> None:
+        holder = self._label_holder(edge)
+        current = str(getattr(getattr(holder, "label", None), "text", "") or "")
+        if current != written:
+            return
+        try:
+            holder.update_label_text(text)
+            holder.set_label_visibility(visible)
+        except Exception:
+            pass
 
     def _all_graphs(self) -> List[Graph]:
         graphs: List[Graph] = []

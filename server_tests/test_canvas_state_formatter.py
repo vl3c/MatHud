@@ -164,7 +164,9 @@ class TestRenderTextGolden(unittest.TestCase):
         graph_args = state["UndirectedGraphs"][0]["args"]
         graph_args["preexisting_points"] = ["A"]
         graph_args["preexisting_edges"] = ["AB"]
-        graph_args["preexisting_edge_labels"] = [{"edge": "AB", "text": "", "visible": False}]
+        graph_args["edge_label_records"] = [
+            {"edge": "AB", "text": "", "visible": False, "written": "4", "seq": 1, "created": True}
+        ]
         plain = load_scene("weighted_graph")
         self.assertEqual(render_text(state), render_text(plain))
         self.assertEqual(render_min_json(state), render_min_json(plain))

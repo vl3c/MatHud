@@ -619,27 +619,33 @@ class WorkspaceManager:
         graph.set_preexisting(
             preexisting_points,
             preexisting_edges,
-            self._resolve_edge_labels(args.get("preexisting_edge_labels"), graph_edges),
+            self._resolve_edge_labels(args.get("edge_label_records"), graph_edges),
         )
         return graph
 
-    def _resolve_edge_labels(self, records: Any, edges: List[Any]) -> List[Tuple[Any, str, bool, Optional[str]]]:
+    def _resolve_edge_labels(
+        self, records: Any, edges: List[Any]
+    ) -> List[Tuple[Any, str, bool, Optional[str], Optional[int], bool]]:
         """Match saved label records to the restored graph edges by name."""
-        resolved: List[Tuple[Any, str, bool, Optional[str]]] = []
+        resolved: List[Tuple[Any, str, bool, Optional[str], Optional[int], bool]] = []
         for record in records or []:
             if not isinstance(record, dict):
                 continue
             edge = next((e for e in edges if getattr(e, "name", None) == record.get("edge")), None)
-            if edge is not None:
-                written = record.get("written")
-                resolved.append(
-                    (
-                        edge,
-                        str(record.get("text") or ""),
-                        bool(record.get("visible")),
-                        None if written is None else str(written),
-                    )
+            if edge is None:
+                continue
+            written = record.get("written")
+            seq = record.get("seq")
+            resolved.append(
+                (
+                    edge,
+                    str(record.get("text") or ""),
+                    bool(record.get("visible")),
+                    None if written is None else str(written),
+                    int(seq) if isinstance(seq, (int, float)) and not isinstance(seq, bool) else None,
+                    bool(record.get("created")),
                 )
+            )
         return resolved
 
     def _resolve_named(self, names: Any, lookup: Callable[[str], Any]) -> List[Any]:
