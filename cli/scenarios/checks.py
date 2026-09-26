@@ -158,6 +158,8 @@ _MUTATING_TOOLS = frozenset(
         "load_workspace",
     }
 )
+# Results that claim success without saying what happened (static/client/constants.py successful_call_message).
+GENERIC_SUCCESS_MESSAGES = frozenset({"Call successful!", ""})
 # Tools matching a mutating prefix that do not change the canvas.
 _NON_CANVAS_TOOLS = frozenset({"delete_workspace"})
 # Tools whose "name" argument is a hint for a new object's name (I4 naming rule).
@@ -1724,6 +1726,17 @@ def _is_mutating(tool: str) -> bool:
     return tool in _MUTATING_TOOLS or tool.startswith(_MUTATING_PREFIXES)
 
 
+def is_generic_success(result: Any) -> bool:
+    """True for results that say only "it worked" (the generic message, True, or nothing).
+
+    A tool that changed nothing but explains why (e.g. "Point 'C' already exists")
+    told the truth; only a bare success claim is suspect.
+    """
+    if result is None or result is True:
+        return True
+    return isinstance(result, str) and result.strip() in GENERIC_SUCCESS_MESSAGES
+
+
 def _removes_objects(tool: str) -> bool:
     return tool.startswith("delete_") or tool in ("clear_canvas", "load_workspace", "undo", "redo")
 
@@ -1744,7 +1757,12 @@ def _inv_truthful_results(before: CanvasView, after: CanvasView, step: StepData)
     errors = [call_is_error(call) for call in calls]
     if all(errors) and drawables_changed:
         problems.append("every call failed but the canvas changed: " + "; ".join(drawables_changed[:5]))
-    if not any(errors) and all(_is_mutating(str(c.get("function_name"))) for c in calls) and not changed:
+    if (
+        not any(errors)
+        and all(_is_mutating(str(c.get("function_name"))) for c in calls)
+        and all(is_generic_success(c.get("result")) for c in calls)
+        and not changed
+    ):
         names = ", ".join(str(c.get("function_name")) for c in calls)
         problems.append(f"{names} reported success but changed nothing")
     before_keys = {obj.key for obj in before.objects}
@@ -1764,12 +1782,10 @@ def _inv_truthful_results(before: CanvasView, after: CanvasView, step: StepData)
         arguments = call.get("arguments") or {}
         for key in _NAME_HINT_KEYS:
             hint = arguments.get(key)
-            if (
-                isinstance(hint, str)
-                and hint
-                and hint not in touched
-                and not _result_mentions(call.get("result"), added)
-            ):
+            explained = _result_mentions(call.get("result"), added) or (
+                not added and not is_generic_success(call.get("result"))
+            )
+            if isinstance(hint, str) and hint and hint not in touched and not explained:
                 problems.append(
                     f"{tool} asked for {key} {hint!r}, no object got it, and the result "
                     f"({str(call.get('result'))[:80]!r}) does not name what was created ({', '.join(sorted(added)) or 'nothing'})"

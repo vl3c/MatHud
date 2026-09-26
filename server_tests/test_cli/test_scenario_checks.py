@@ -736,6 +736,26 @@ class TestInvariants:
         result = by_id(invariants(view, view, step), "I4")
         assert result.status == "fail" and "changed nothing" in result.message
 
+    def test_i4_truthful_no_op_passes(self) -> None:
+        """Results that explain why nothing changed are truthful (as returned once K2 and K3 are fixed)."""
+        view = CanvasView(state(*right_triangle()))
+        occupied = StepData(
+            calls=[
+                call(
+                    "create_point",
+                    "Point 'C' already exists at (0, 3); no new point was created. The requested name 'Z' was not applied.",
+                    x=0,
+                    y=3,
+                    name="Z",
+                )
+            ]
+        )
+        assert by_id(invariants(view, view, occupied), "I4").status == "pass"
+        empty_undo = StepData(calls=[call("undo", "Nothing to undo: the undo history is empty.")])
+        assert by_id(invariants(view, view, empty_undo), "I4").status == "pass"
+        bare = StepData(calls=[call("undo", True)])
+        assert by_id(invariants(view, view, bare), "I4").status == "fail"
+
     def test_i4_error_that_changed_the_canvas(self) -> None:
         step = StepData(calls=[call("translate_object", "Error: nope", is_error=True, name="x")])
         before, after = CanvasView(state(point("A", 0, 0))), CanvasView(state(point("A", 1, 0)))
