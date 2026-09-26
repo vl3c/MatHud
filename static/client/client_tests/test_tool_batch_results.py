@@ -7,7 +7,6 @@ same path a model tool batch takes, against a real canvas.
 from __future__ import annotations
 
 import json
-import random
 import unittest
 from typing import Any, Dict, List, Tuple
 
@@ -294,36 +293,73 @@ class TestToolBatchUndo(_ToolBatchTestCase):
         self.run_single("undo")
         self.assertEqual(self.snapshot(), before_load)
 
-    def save_triangle_workspace(self) -> str:
-        """Save a triangle to a temporary server workspace, then leave only point Z on the canvas."""
-        name = f"undo_batch_test_{random.randint(0, 10**9)}"
+    def serve_triangle_workspace(self) -> None:
+        """Make the load_workspace tool load a triangle without any workspace file on the server.
+
+        The load still builds, sends and finalizes a real synchronous Ajax request (where a
+        load used to run its handler twice), but to the read-only /list_workspaces route, and
+        the saved triangle state stands in for the response's state. Nothing is written to
+        the server's workspaces folder. The canvas is left holding only point Z.
+        """
         self.build_triangle()
-        saved = str(self.run_single("save_workspace", name=name))
-        if saved.startswith("Error"):
-            self.skipTest(f"workspace server unavailable: {saved}")
-        self.addCleanup(self.workspace_manager.delete_workspace, name)
+        saved = json.loads(json.dumps(self.workspace_manager._snapshot_persistable_canvas_state()))
+        send_real_request = WorkspaceManager._open_and_send_sync_request
+        state_from_response = WorkspaceManager._workspace_state_from_response
+
+        def send_read_only_request(manager: WorkspaceManager, req: Any, method: str, url: str) -> None:
+            send_real_request(manager, req, "GET", "/list_workspaces")
+
+        def served_state(manager: WorkspaceManager, response: Dict[str, Any]) -> Dict[str, Any]:
+            return saved
+
+        # Patched on the class (restored after the test): Brython resolves self-method calls
+        # inside WorkspaceManager on the class, so instance attributes would not take effect.
+        WorkspaceManager._open_and_send_sync_request = send_read_only_request  # type: ignore[method-assign]
+        WorkspaceManager._workspace_state_from_response = served_state  # type: ignore[method-assign,assignment]
+        self.addCleanup(setattr, WorkspaceManager, "_open_and_send_sync_request", send_real_request)
+        self.addCleanup(setattr, WorkspaceManager, "_workspace_state_from_response", state_from_response)
         self.run_batch(("clear_canvas", {}), ("create_point", {"x": 9, "y": 9, "name": "Z"}))
-        return name
+
+    def load_triangle(self, *calls: Tuple[str, Dict[str, Any]]) -> Dict[str, Any]:
+        """Run the batch ending in load_workspace and check that the load succeeded."""
+        _, traced = self.run_batch(*calls, ("load_workspace", {"name": "served"}))
+        load = traced[-1]
+        self.assertIn("loaded successfully", str(load["result"]))
+        return load
+
+    def test_sync_workspace_request_runs_its_handler_once(self) -> None:
+        calls: List[Any] = []
+
+        def on_complete(req: Any) -> str:
+            calls.append(req)
+            return "done"
+
+        result = self.workspace_manager._execute_sync_request(
+            method="GET", url="/list_workspaces", on_complete=on_complete, error_prefix="Error listing workspaces"
+        )
+
+        self.assertEqual(result, "done")
+        self.assertEqual(len(calls), 1)
 
     def test_tool_load_workspace_is_one_undo_step(self) -> None:
-        name = self.save_triangle_workspace()
+        self.serve_triangle_workspace()
         before_load = self.snapshot()
         depth = self.undo_depth()
 
-        result = self.run_single("load_workspace", name=name)
+        load = self.load_triangle()
 
-        self.assertIn("loaded successfully", str(result))
+        self.assertIn("loaded successfully", str(load["result"]))
         self.assertIn("Triangle", self.snapshot())
         self.assertEqual(self.undo_depth(), depth + 1)
         self.run_single("undo")
         self.assertEqual(self.snapshot(), before_load)
 
     def test_tool_load_workspace_in_an_undoable_batch_is_one_undo_step(self) -> None:
-        name = self.save_triangle_workspace()
+        self.serve_triangle_workspace()
         before_batch = self.snapshot()
         depth = self.undo_depth()
 
-        self.run_batch(("delete_angle", {"name": "nope"}), ("load_workspace", {"name": name}))
+        self.load_triangle(("delete_angle", {"name": "nope"}))
 
         self.assertIn("Triangle", self.snapshot())
         self.assertEqual(self.undo_depth(), depth + 1)
