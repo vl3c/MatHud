@@ -161,6 +161,13 @@ Developer utilities:
 1. Browser console helper: `window.compareCanvasState()` (development mode) prints full vs summary structures with byte/token metrics.
 2. Log report script: `python scripts/canvas_prompt_telemetry_report.py --mode hybrid --json-out /tmp/canvas_summary_report.json`
 3. Deep-dive rollout notes: `documentation/development/canvas_prompt_summary_rollout.md`
+4. Canvas-format benchmark: `scripts/benchmark_canvas_formats.py` asks models factual questions about the scenes in `server_tests/fixtures/canvas_states/` (coordinates, lengths, graph weights, what a tool batch changed), once per canvas format, and reports accuracy, prompt tokens, latency and cost per model and format. The prompts are built by the providers' own code, exactly as the app sends them, and the questions go out without tools. Start with a dry run: it writes every prompt to the output directory and prints token and cost estimates without touching the network. A live OpenRouter run needs `OPENROUTER_API_KEY` (environment or `.env`) and costs a few cents for the two default models; `--max-requests` (default 250) aborts a larger run before anything is sent. `--provider local` benchmarks the LocalAgent llama-server instead: no key, every served model unless `--models` picks one, llama-server timings recorded. Results (`results.json`, `summary.md`) go to `logs/canvas_format_benchmark/<time>/` unless `--out` says otherwise.
+
+```bash
+python scripts/benchmark_canvas_formats.py --dry-run                            # prompts and estimates only
+python scripts/benchmark_canvas_formats.py --formats json text                  # OpenRouter, default models
+python scripts/benchmark_canvas_formats.py --provider local --formats text json # LocalAgent llama-server
+```
 
 ## 6. Working with MatHud
 
