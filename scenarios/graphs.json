@@ -1,0 +1,335 @@
+{
+  "schema": 1,
+  "area": "GR",
+  "title": "Graph theory",
+  "scenarios": [
+    {
+      "id": "GR-01",
+      "title": "Weighted graph and shortest path",
+      "tags": ["graphs", "analysis"],
+      "smoke": true,
+      "targets": "graph construction and analysis agree with the canvas",
+      "steps": [
+        {
+          "user": "Create an undirected weighted graph G1 with vertices A(0,0), B(4,0), C(4,4), D(0,4) and edges A-B (1), B-C (2), A-C (4), C-D (1). What is the shortest path from A to D?",
+          "reference": [
+            {
+              "tool": "generate_graph",
+              "args": {
+                "name": "G1",
+                "graph_type": "graph",
+                "directed": false,
+                "vertices": [
+                  {"name": "A", "x": 0, "y": 0, "color": null, "label": null},
+                  {"name": "B", "x": 4, "y": 0, "color": null, "label": null},
+                  {"name": "C", "x": 4, "y": 4, "color": null, "label": null},
+                  {"name": "D", "x": 0, "y": 4, "color": null, "label": null}
+                ],
+                "edges": [
+                  {"source": 0, "target": 1, "weight": 1, "name": null, "color": null, "directed": null},
+                  {"source": 1, "target": 2, "weight": 2, "name": null, "color": null, "directed": null},
+                  {"source": 0, "target": 2, "weight": 4, "name": null, "color": null, "directed": null},
+                  {"source": 2, "target": 3, "weight": 1, "name": null, "color": null, "directed": null}
+                ]
+              }
+            },
+            {
+              "tool": "analyze_graph",
+              "args": {
+                "graph_name": "G1",
+                "operation": "shortest_path",
+                "params": {
+                  "start": "A",
+                  "goal": "D",
+                  "root": null,
+                  "a": null,
+                  "b": null,
+                  "new_root": null,
+                  "x": null,
+                  "y": null
+                }
+              }
+            }
+          ],
+          "checks": [
+            {"check": "count", "select": {"type": "UndirectedGraph"}, "eq": 1},
+            {"check": "count", "select": {"type": "Point"}, "eq": 4},
+            {"check": "count", "select": {"type": "Segment"}, "eq": 4},
+            {
+              "check": "exists",
+              "select": {"type": "Segment", "ends": [[0, 0], [4, 0]], "where": {"args.label.text": "1"}}
+            },
+            {
+              "check": "exists",
+              "select": {"type": "Segment", "ends": [[4, 0], [4, 4]], "where": {"args.label.text": "2"}}
+            },
+            {
+              "check": "exists",
+              "select": {"type": "Segment", "ends": [[0, 0], [4, 4]], "where": {"args.label.text": "4"}}
+            },
+            {
+              "check": "exists",
+              "select": {"type": "Segment", "ends": [[4, 4], [0, 4]], "where": {"args.label.text": "1"}}
+            },
+            {"check": "tool_result", "tool": "analyze_graph", "path": "path", "eq": ["A", "B", "C", "D"]},
+            {"check": "tool_result", "tool": "analyze_graph", "path": "cost", "eq": 4},
+            {"check": "answer_mentions", "numbers": [4]}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GR-02",
+      "title": "DAG and topological order",
+      "tags": ["graphs", "directed", "analysis"],
+      "smoke": false,
+      "targets": "directed graph construction",
+      "steps": [
+        {
+          "user": "Make a DAG D1 with vertices P, Q, R and edges P->Q, P->R, R->Q, then topologically sort it.",
+          "reference": [
+            {
+              "tool": "generate_graph",
+              "args": {
+                "name": "D1",
+                "graph_type": "dag",
+                "directed": true,
+                "vertices": [
+                  {"name": "P", "x": 10, "y": 0, "color": null, "label": null},
+                  {"name": "Q", "x": 14, "y": 0, "color": null, "label": null},
+                  {"name": "R", "x": 12, "y": 3, "color": null, "label": null}
+                ],
+                "edges": [
+                  {"source": 0, "target": 1, "weight": null, "name": null, "color": null, "directed": null},
+                  {"source": 0, "target": 2, "weight": null, "name": null, "color": null, "directed": null},
+                  {"source": 2, "target": 1, "weight": null, "name": null, "color": null, "directed": null}
+                ]
+              }
+            },
+            {"tool": "analyze_graph", "args": {"graph_name": "D1", "operation": "topological_sort"}}
+          ],
+          "checks": [
+            {"check": "count", "select": {"type": "DirectedGraph"}, "eq": 1},
+            {"check": "count", "select": {"type": "Vector"}, "eq": 3},
+            {"check": "tool_result", "tool": "analyze_graph", "path": "order", "eq": ["P", "R", "Q"]}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GR-03",
+      "title": "Undirected graph from an adjacency matrix",
+      "tags": ["graphs", "adjacency-matrix"],
+      "smoke": false,
+      "targets": "adjacency-matrix edges forced to directed",
+      "steps": [
+        {
+          "user": "Build an undirected graph M from the adjacency matrix [[0,1,0],[1,0,2],[0,2,0]] placed in the box x 20..26, y 0..6.",
+          "reference": [
+            {
+              "tool": "generate_graph",
+              "args": {
+                "name": "M",
+                "graph_type": "graph",
+                "directed": false,
+                "layout": "circular",
+                "placement_box": {"x": 20, "y": 0, "width": 6, "height": 6},
+                "vertices": [
+                  {"name": null, "x": null, "y": null, "color": null, "label": null},
+                  {"name": null, "x": null, "y": null, "color": null, "label": null},
+                  {"name": null, "x": null, "y": null, "color": null, "label": null}
+                ],
+                "edges": [],
+                "adjacency_matrix": [[0, 1, 0], [1, 0, 2], [0, 2, 0]]
+              }
+            }
+          ],
+          "checks": [
+            {"check": "count", "select": {"type": "Point", "within": [20, 0, 26, 6]}, "eq": 3},
+            {"check": "count", "select": {"type": "UndirectedGraph"}, "eq": 1},
+            {"check": "count", "select": {"type": "Vector"}, "eq": 0},
+            {"check": "count", "select": {"type": "Segment"}, "eq": 2}
+          ]
+        },
+        {
+          "user": "What is the shortest path between the two end vertices?",
+          "reference": [
+            {
+              "tool": "analyze_graph",
+              "args": {
+                "graph_name": "M",
+                "operation": "shortest_path",
+                "params": {
+                  "start": "A",
+                  "goal": "C",
+                  "root": null,
+                  "a": null,
+                  "b": null,
+                  "new_root": null,
+                  "x": null,
+                  "y": null
+                }
+              }
+            }
+          ],
+          "checks": [{"check": "tool_result", "tool": "analyze_graph", "path": "cost", "eq": 3}]
+        }
+      ]
+    },
+    {
+      "id": "GR-04",
+      "title": "Deleting a graph keeps pre-existing points",
+      "tags": ["graphs", "delete", "cascade"],
+      "smoke": false,
+      "targets": "graph deletion cascading into unrelated objects",
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_polygon",
+            "args": {"vertices": [{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 0, "y": 3}], "polygon_type": "triangle"}
+          }
+        ]
+      },
+      "steps": [
+        {
+          "user": "Create graph G with a vertex X at (0,0) and a vertex Y at (8,8), joined by an edge of weight 1.",
+          "reference": [
+            {
+              "tool": "generate_graph",
+              "args": {
+                "name": "G",
+                "graph_type": "graph",
+                "directed": false,
+                "vertices": [
+                  {"name": "X", "x": 0, "y": 0, "color": null, "label": null},
+                  {"name": "Y", "x": 8, "y": 8, "color": null, "label": null}
+                ],
+                "edges": [{"source": 0, "target": 1, "weight": 1, "name": null, "color": null, "directed": null}]
+              }
+            }
+          ],
+          "checks": [
+            {"check": "count", "select": {"type": "Point", "at": [0, 0]}, "eq": 1},
+            {"check": "tool_result", "tool": "generate_graph", "path": "args.isolated_points", "contains": "A"}
+          ]
+        },
+        {
+          "user": "Delete graph G.",
+          "reference": [{"tool": "delete_graph", "args": {"name": "G"}}],
+          "checks": [
+            {"check": "exists", "select": {"type": "Triangle", "vertices": [[0, 0], [4, 0], [0, 3]]}},
+            {"check": "count", "select": {"type": "Segment"}, "eq": 3},
+            {"check": "absent", "select": {"type": "Point", "at": [8, 8]}},
+            {"check": "absent", "select": {"type": "UndirectedGraph"}}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GR-05",
+      "title": "Tree levels",
+      "tags": ["graphs", "trees", "analysis"],
+      "smoke": false,
+      "targets": "tree construction and analysis",
+      "steps": [
+        {
+          "user": "Draw a tree T rooted at R with children A and B; A has children C and D. Then give me the levels.",
+          "reference": [
+            {
+              "tool": "generate_graph",
+              "args": {
+                "name": "T",
+                "graph_type": "tree",
+                "directed": false,
+                "vertices": [
+                  {"name": "R", "x": 0, "y": 10, "color": null, "label": null},
+                  {"name": "A", "x": -3, "y": 7, "color": null, "label": null},
+                  {"name": "B", "x": 3, "y": 7, "color": null, "label": null},
+                  {"name": "C", "x": -4, "y": 4, "color": null, "label": null},
+                  {"name": "D", "x": -2, "y": 4, "color": null, "label": null}
+                ],
+                "edges": [
+                  {"source": 0, "target": 1, "weight": null, "name": null, "color": null, "directed": null},
+                  {"source": 0, "target": 2, "weight": null, "name": null, "color": null, "directed": null},
+                  {"source": 1, "target": 3, "weight": null, "name": null, "color": null, "directed": null},
+                  {"source": 1, "target": 4, "weight": null, "name": null, "color": null, "directed": null}
+                ],
+                "root": "R"
+              }
+            },
+            {
+              "tool": "analyze_graph",
+              "args": {
+                "graph_name": "T",
+                "operation": "levels",
+                "params": {
+                  "start": null,
+                  "goal": null,
+                  "root": "R",
+                  "a": null,
+                  "b": null,
+                  "new_root": null,
+                  "x": null,
+                  "y": null
+                }
+              }
+            }
+          ],
+          "checks": [
+            {"check": "count", "select": {"type": "Tree"}, "eq": 1},
+            {"check": "count", "select": {"type": "Point"}, "eq": 5},
+            {"check": "count", "select": {"type": "Segment"}, "eq": 4},
+            {"check": "tool_result", "tool": "analyze_graph", "path": "levels", "eq": [["R"], ["A", "B"], ["C", "D"]]}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GR-06",
+      "title": "Minimum spanning tree weight",
+      "tags": ["graphs", "analysis"],
+      "smoke": false,
+      "targets": "analysis over label weights",
+      "setup": {
+        "calls": [
+          {
+            "tool": "generate_graph",
+            "args": {
+              "name": "G1",
+              "graph_type": "graph",
+              "directed": false,
+              "vertices": [
+                {"name": "A", "x": 0, "y": 0, "color": null, "label": null},
+                {"name": "B", "x": 4, "y": 0, "color": null, "label": null},
+                {"name": "C", "x": 4, "y": 4, "color": null, "label": null},
+                {"name": "D", "x": 0, "y": 4, "color": null, "label": null}
+              ],
+              "edges": [
+                {"source": 0, "target": 1, "weight": 1, "name": null, "color": null, "directed": null},
+                {"source": 1, "target": 2, "weight": 2, "name": null, "color": null, "directed": null},
+                {"source": 0, "target": 2, "weight": 4, "name": null, "color": null, "directed": null},
+                {"source": 2, "target": 3, "weight": 1, "name": null, "color": null, "directed": null}
+              ]
+            }
+          }
+        ]
+      },
+      "steps": [
+        {
+          "user": "Find the minimum spanning tree of G1 and its total weight.",
+          "reference": [{"tool": "analyze_graph", "args": {"graph_name": "G1", "operation": "mst"}}],
+          "checks": [
+            {
+              "check": "tool_result",
+              "tool": "analyze_graph",
+              "path": "highlight_vectors",
+              "set_eq": ["AB", "BC", "CD"]
+            },
+            {"check": "tool_result", "tool": "analyze_graph", "path": "connected", "eq": true},
+            {"check": "answer_mentions", "numbers": [4]}
+          ]
+        }
+      ]
+    }
+  ]
+}

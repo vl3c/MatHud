@@ -1,0 +1,176 @@
+{
+  "schema": 1,
+  "area": "ST",
+  "title": "Statistics, plots and regression",
+  "scenarios": [
+    {
+      "id": "ST-01",
+      "title": "Normal distribution with shading, then remove it",
+      "tags": ["statistics", "plots", "delete", "undo"],
+      "smoke": true,
+      "targets": "composite plot bookkeeping; atomic undo",
+      "steps": [
+        {
+          "user": "Plot a normal distribution with mean 0 and sigma 1 and shade from -1 to 1.",
+          "reference": [
+            {
+              "tool": "plot_distribution",
+              "args": {
+                "name": "nd",
+                "representation": "continuous",
+                "distribution_type": "normal",
+                "distribution_params": {"mean": 0, "sigma": 1},
+                "shade_bounds": {"left_bound": -1, "right_bound": 1}
+              }
+            }
+          ],
+          "checks": [
+            {"check": "count", "select": {"type": "ContinuousPlot"}, "eq": 1},
+            {
+              "check": "relation",
+              "relation": "function_value",
+              "select": [{"type": "Function", "only": true}],
+              "x": 0,
+              "y": 0.3989422804014327,
+              "tol": 1e-09
+            },
+            {
+              "check": "exists",
+              "select": {
+                "type": "FunctionsBoundedColoredArea",
+                "where": {"args.left_bound": -1, "args.right_bound": 1}
+              }
+            }
+          ]
+        },
+        {
+          "user": "Remove the plot.",
+          "reference": [{"tool": "delete_plot", "args": {"name": "nd"}}],
+          "checks": [
+            {"check": "count", "select": {"type": "ContinuousPlot"}, "eq": 0},
+            {"check": "count", "select": {"type": "Function"}, "eq": 0},
+            {"check": "count", "select": {"type": "ColoredArea"}, "eq": 0}
+          ]
+        },
+        {
+          "do": [{"tool": "undo", "args": {}}],
+          "checks": [
+            {"check": "count", "select": {"type": "ContinuousPlot"}, "eq": 1},
+            {"check": "count", "select": {"type": "Function"}, "eq": 1},
+            {"check": "count", "select": {"type": "FunctionsBoundedColoredArea"}, "eq": 1}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ST-02",
+      "title": "Bar chart",
+      "tags": ["statistics", "plots"],
+      "smoke": false,
+      "targets": "plot composites",
+      "steps": [
+        {
+          "user": "Plot a bar chart of sales: Mon 3, Tue 5, Wed 2, starting at x = 30.",
+          "reference": [
+            {
+              "tool": "plot_bars",
+              "args": {
+                "name": "sales",
+                "values": [3, 5, 2],
+                "labels_below": ["Mon", "Tue", "Wed"],
+                "x_start": 30,
+                "y_base": 0
+              }
+            }
+          ],
+          "checks": [
+            {"check": "count", "select": {"type": "BarsPlot"}, "eq": 1},
+            {
+              "check": "attribute",
+              "path": "args.values",
+              "select": {"type": "BarsPlot", "only": true},
+              "eq": [3, 5, 2]
+            },
+            {
+              "check": "attribute",
+              "path": "args.labels_below",
+              "select": {"type": "BarsPlot", "only": true},
+              "eq": ["Mon", "Tue", "Wed"]
+            },
+            {"check": "absent", "select": {"type": "Bar"}}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ST-03",
+      "title": "Linear regression over an existing point",
+      "tags": ["statistics", "regression", "points"],
+      "smoke": false,
+      "known": ["K27"],
+      "targets": "regression math; reuse of existing points",
+      "setup": {"calls": [{"tool": "create_point", "args": {"x": 1, "y": 3, "name": "A"}}]},
+      "steps": [
+        {
+          "user": "Fit a line to the data (1,3), (2,5), (3,7), (4,9) and show the points.",
+          "reference": [
+            {
+              "tool": "fit_regression",
+              "args": {
+                "name": "fit1",
+                "x_data": [1, 2, 3, 4],
+                "y_data": [3, 5, 7, 9],
+                "model_type": "linear",
+                "show_points": true
+              }
+            }
+          ],
+          "checks": [
+            {"check": "tool_result", "tool": "fit_regression", "path": "coefficients.m", "eq": 2},
+            {"check": "tool_result", "tool": "fit_regression", "path": "coefficients.b", "eq": 1},
+            {"check": "tool_result", "tool": "fit_regression", "path": "r_squared", "eq": 1},
+            {
+              "check": "relation",
+              "relation": "function_value",
+              "select": [{"type": "Function", "name": "fit1"}],
+              "x": 0,
+              "y": 1
+            },
+            {"check": "exists", "select": {"type": "Point", "at": [1, 3]}},
+            {"check": "exists", "select": {"type": "Point", "at": [2, 5]}},
+            {"check": "exists", "select": {"type": "Point", "at": [3, 7]}},
+            {"check": "exists", "select": {"type": "Point", "at": [4, 9]}},
+            {"check": "count", "select": {"type": "Point"}, "eq": 4},
+            {"check": "tool_result", "tool": "fit_regression", "path": "point_names", "eq": ["A", "B", "C", "D"]},
+            {"check": "tool_result", "tool": "fit_regression", "matches": "(?i)reus|existing", "known": "K27"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ST-04",
+      "title": "Descriptive statistics answer",
+      "tags": ["statistics", "read-only"],
+      "smoke": false,
+      "targets": "non-canvas tool; model reporting",
+      "steps": [
+        {
+          "user": "Give me the mean, median and standard deviation of 10, 20, 30, 40, 50.",
+          "reference": [{"tool": "compute_descriptive_statistics", "args": {"data": [10, 20, 30, 40, 50]}}],
+          "checks": [
+            {"check": "tool_result", "tool": "compute_descriptive_statistics", "path": "mean", "eq": 30},
+            {"check": "tool_result", "tool": "compute_descriptive_statistics", "path": "median", "eq": 30},
+            {
+              "check": "tool_result",
+              "tool": "compute_descriptive_statistics",
+              "path": "standard_deviation",
+              "eq": 14.142135623730951
+            },
+            {"check": "state_equals", "snapshot": "start"},
+            {"check": "answer_mentions", "numbers": [30, 14.14]}
+          ]
+        }
+      ]
+    }
+  ]
+}

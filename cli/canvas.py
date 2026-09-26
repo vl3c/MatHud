@@ -1,18 +1,30 @@
 """Canvas operation commands for the MatHud CLI.
 
+Each command opens its own headless page on the running server, so it starts
+from an empty canvas and nothing it draws outlives the command: these commands
+check how a tool behaves (``exec`` prints exactly what a model would get); they
+do not edit the canvas in the user's browser. For multi-step runs use the
+scenario runner (``python -m cli.main test scenarios``).
+
 Provides commands for interacting with the MatHud canvas via browser automation.
 """
 
 from __future__ import annotations
 
 import json
-from typing import Optional
+from typing import Any, Optional
 
 import click
 
 from cli.browser import BrowserAutomation
 from cli.config import DEFAULT_PORT
 from cli.server import ServerManager
+
+
+ONE_SHOT_EMPTY = (
+    "Nothing to {action}: each canvas command opens a fresh page, so its canvas starts empty "
+    "(the command cannot reach the canvas in your browser)."
+)
 
 
 def ensure_browser_ready(port: int, headless: bool = True) -> tuple[bool, Optional[BrowserAutomation], str]:
@@ -48,9 +60,47 @@ def ensure_browser_ready(port: int, headless: bool = True) -> tuple[bool, Option
         return False, None, str(e)
 
 
+def _run_tool(browser: BrowserAutomation, name: str, args: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    """Run one AI tool as a single-call batch through ``runMatHudToolCalls``.
+
+    Returns:
+        The hook reply (traced call, state, undo and redo depths).
+
+    Raises:
+        RuntimeError: If the batch could not run or the tool returned an error.
+    """
+    reply = browser.run_tool_calls([{"function_name": name, "arguments": args or {}}])
+    if reply.get("status") != "ok":
+        raise RuntimeError(str(reply.get("error", f"{name} failed")))
+    traced = reply.get("traced") or []
+    if traced and traced[0].get("is_error"):
+        raise RuntimeError(str(traced[0].get("result")))
+    return reply
+
+
+def _zoom_arguments(state: dict[str, Any], factor: float) -> dict[str, Any]:
+    """``zoom`` tool arguments that scale the current view by ``factor`` around its centre.
+
+    A factor above 1 zooms in (the visible x range shrinks by that factor).
+    """
+    if factor <= 0:
+        raise ValueError("Zoom factor must be positive")
+    view = state.get("Cartesian_System_Visibility") or {}
+    left = float(view.get("left_bound", -10.0))
+    right = float(view.get("right_bound", 10.0))
+    top = float(view.get("top_bound", 10.0))
+    bottom = float(view.get("bottom_bound", -10.0))
+    return {
+        "center_x": (left + right) / 2.0,
+        "center_y": (top + bottom) / 2.0,
+        "range_val": (right - left) / 2.0 / factor,
+        "range_axis": "x",
+    }
+
+
 @click.group()
 def canvas() -> None:
-    """Interact with the MatHud canvas."""
+    """Run canvas tools on a fresh headless page (one-shot: each command starts with an empty canvas)."""
     pass
 
 
@@ -70,8 +120,8 @@ def clear(port: int) -> None:
         raise SystemExit(1)
 
     try:
-        browser.call_canvas_method("clear")
-        click.echo(click.style("Canvas cleared", fg="green"))
+        _run_tool(browser, "clear_canvas")
+        click.echo(click.style("Canvas cleared (on this command's fresh page)", fg="green"))
     except Exception as e:
         click.echo(click.style(f"Error: {e}", fg="red"), err=True)
         raise SystemExit(1)
@@ -95,8 +145,8 @@ def reset(port: int) -> None:
         raise SystemExit(1)
 
     try:
-        browser.call_canvas_method("reset_view")
-        click.echo(click.style("Canvas view reset", fg="green"))
+        _run_tool(browser, "reset_canvas")
+        click.echo(click.style("Canvas view reset (on this command's fresh page)", fg="green"))
     except Exception as e:
         click.echo(click.style(f"Error: {e}", fg="red"), err=True)
         raise SystemExit(1)
@@ -120,11 +170,11 @@ def undo(port: int) -> None:
         raise SystemExit(1)
 
     try:
-        result = browser.call_canvas_method("undo")
-        if result:
+        reply = _run_tool(browser, "undo")
+        if int(reply.get("undo_depth_before") or 0) > 0:
             click.echo(click.style("Undo successful", fg="green"))
         else:
-            click.echo(click.style("Nothing to undo", fg="yellow"))
+            click.echo(click.style(ONE_SHOT_EMPTY.format(action="undo"), fg="yellow"))
     except Exception as e:
         click.echo(click.style(f"Error: {e}", fg="red"), err=True)
         raise SystemExit(1)
@@ -148,11 +198,11 @@ def redo(port: int) -> None:
         raise SystemExit(1)
 
     try:
-        result = browser.call_canvas_method("redo")
-        if result:
+        reply = _run_tool(browser, "redo")
+        if int(reply.get("redo_depth_before") or 0) > 0:
             click.echo(click.style("Redo successful", fg="green"))
         else:
-            click.echo(click.style("Nothing to redo", fg="yellow"))
+            click.echo(click.style(ONE_SHOT_EMPTY.format(action="redo"), fg="yellow"))
     except Exception as e:
         click.echo(click.style(f"Error: {e}", fg="red"), err=True)
         raise SystemExit(1)
@@ -189,7 +239,7 @@ def zoom(port: int, zoom_in: bool, zoom_out: bool, factor: Optional[float]) -> N
         raise SystemExit(1)
 
     try:
-        browser.call_canvas_method("zoom", factor)
+        _run_tool(browser, "zoom", _zoom_arguments(browser.get_canvas_state(), factor))
         direction = "in" if factor > 1 else "out"
         click.echo(click.style(f"Zoomed {direction} (factor: {factor})", fg="green"))
     except Exception as e:
@@ -208,7 +258,8 @@ def zoom(port: int, zoom_in: bool, zoom_out: bool, factor: Optional[float]) -> N
     help=f"Server port (default: {DEFAULT_PORT})",
 )
 @click.option("--pretty", is_flag=True, help="Pretty-print JSON output")
-def state(port: int, pretty: bool) -> None:
+@click.option("--inspect", is_flag=True, help="Include the inspection view (colours, undo depth, grid, cached values)")
+def state(port: int, pretty: bool, inspect: bool) -> None:
     """Output the current canvas state as JSON."""
     success, browser, error = ensure_browser_ready(port)
     if not success or browser is None:
@@ -216,7 +267,7 @@ def state(port: int, pretty: bool) -> None:
         raise SystemExit(1)
 
     try:
-        canvas_state = browser.get_canvas_state()
+        canvas_state = browser.get_canvas_snapshot({"inspect": True}) if inspect else browser.get_canvas_state()
         if pretty:
             click.echo(json.dumps(canvas_state, indent=2))
         else:
@@ -253,7 +304,7 @@ def exec_func(function_name: str, args_json: Optional[str], port: int, pretty: b
 
       mathud canvas exec create_point --args '{"x": 5, "y": 3, "name": "A"}'
 
-      mathud canvas exec draw_function --args '{"expression": "x**2", "x_min": -5, "x_max": 5}'
+      mathud canvas exec draw_function --args '{"function_string": "x^2", "name": "f", "left_bound": -5, "right_bound": 5}'
     """
     # Parse arguments
     args = {}
