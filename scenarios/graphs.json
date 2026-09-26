@@ -121,7 +121,6 @@
       "title": "Undirected graph from an adjacency matrix",
       "tags": ["graphs", "adjacency-matrix"],
       "smoke": false,
-      "known": ["K18"],
       "targets": "adjacency-matrix edges forced to directed",
       "steps": [
         {
@@ -148,8 +147,8 @@
           "checks": [
             {"check": "count", "select": {"type": "Point", "within": [20, 0, 26, 6]}, "eq": 3},
             {"check": "count", "select": {"type": "UndirectedGraph"}, "eq": 1},
-            {"check": "count", "select": {"type": "Vector"}, "eq": 0, "known": "K18"},
-            {"check": "count", "select": {"type": "Segment"}, "eq": 2, "known": "K18"}
+            {"check": "count", "select": {"type": "Vector"}, "eq": 0},
+            {"check": "count", "select": {"type": "Segment"}, "eq": 2}
           ]
         },
         {
@@ -173,7 +172,7 @@
               }
             }
           ],
-          "checks": [{"check": "tool_result", "tool": "analyze_graph", "path": "cost", "eq": 3, "known": "K18"}]
+          "checks": [{"check": "tool_result", "tool": "analyze_graph", "path": "cost", "eq": 3}]
         }
       ]
     },
@@ -182,7 +181,6 @@
       "title": "Deleting a graph keeps pre-existing points",
       "tags": ["graphs", "delete", "cascade"],
       "smoke": false,
-      "known": ["K18"],
       "targets": "graph deletion cascading into unrelated objects",
       "setup": {
         "calls": [
@@ -219,8 +217,8 @@
           "user": "Delete graph G.",
           "reference": [{"tool": "delete_graph", "args": {"name": "G"}}],
           "checks": [
-            {"check": "exists", "select": {"type": "Triangle", "vertices": [[0, 0], [4, 0], [0, 3]]}, "known": "K18"},
-            {"check": "count", "select": {"type": "Segment"}, "eq": 3, "known": "K18"},
+            {"check": "exists", "select": {"type": "Triangle", "vertices": [[0, 0], [4, 0], [0, 3]]}},
+            {"check": "count", "select": {"type": "Segment"}, "eq": 3},
             {"check": "absent", "select": {"type": "Point", "at": [8, 8]}},
             {"check": "absent", "select": {"type": "UndirectedGraph"}}
           ]

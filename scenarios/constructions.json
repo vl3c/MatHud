@@ -47,7 +47,6 @@
       "title": "Perpendicular bisector undoes in one step",
       "tags": ["constructions", "undo"],
       "smoke": false,
-      "known": ["K1"],
       "targets": "nested archives in constructions",
       "steps": [
         {
@@ -66,10 +65,7 @@
             {"check": "relation", "relation": "length", "select": ["$PB"], "value": 6}
           ]
         },
-        {
-          "do": [{"tool": "undo", "args": {}}],
-          "checks": [{"check": "state_equals", "snapshot": "start", "known": "K1"}]
-        }
+        {"do": [{"tool": "undo", "args": {}}], "checks": [{"check": "state_equals", "snapshot": "start"}]}
       ]
     },
     {
@@ -109,17 +105,26 @@
             {
               "check": "relation",
               "relation": "tangent_to",
-              "select": [{"type": "Segment", "ends": [[0, 0], [6, 0]]}, {"type": "Circle", "center": [2.4076408527535995, 1.4880038797045054], "tol": 1e-06}]
+              "select": [
+                {"type": "Segment", "ends": [[0, 0], [6, 0]]},
+                {"type": "Circle", "center": [2.4076408527535995, 1.4880038797045054], "tol": 1e-06}
+              ]
             },
             {
               "check": "relation",
               "relation": "tangent_to",
-              "select": [{"type": "Segment", "ends": [[6, 0], [2, 4]]}, {"type": "Circle", "center": [2.4076408527535995, 1.4880038797045054], "tol": 1e-06}]
+              "select": [
+                {"type": "Segment", "ends": [[6, 0], [2, 4]]},
+                {"type": "Circle", "center": [2.4076408527535995, 1.4880038797045054], "tol": 1e-06}
+              ]
             },
             {
               "check": "relation",
               "relation": "tangent_to",
-              "select": [{"type": "Segment", "ends": [[2, 4], [0, 0]]}, {"type": "Circle", "center": [2.4076408527535995, 1.4880038797045054], "tol": 1e-06}]
+              "select": [
+                {"type": "Segment", "ends": [[2, 4], [0, 0]]},
+                {"type": "Circle", "center": [2.4076408527535995, 1.4880038797045054], "tol": 1e-06}
+              ]
             },
             {"check": "max_tool_calls", "max": 4}
           ]

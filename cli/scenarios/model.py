@@ -124,6 +124,7 @@ class Catalogue:
     scenarios: list[Scenario]
     bugs: dict[str, str] = field(default_factory=dict)
     invariant_waivers: dict[str, str] = field(default_factory=dict)
+    fixed: dict[str, str] = field(default_factory=dict)
 
     def select(
         self,
@@ -416,6 +417,22 @@ def load_file(path: Path, problems: list[str]) -> list[Scenario]:
     return scenarios
 
 
+def load_fixed_bugs(directory: Path, problems: list[str]) -> dict[str, str]:
+    """``{K<n>: where it was fixed}`` from ``known_bugs.json`` ("fixed"), empty when absent."""
+    path = directory / KNOWN_BUGS_FILE
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError:
+        return {}
+    fixed = data.get("fixed", {}) if isinstance(data, dict) else {}
+    if not isinstance(fixed, dict) or not all(KNOWN_BUG_PATTERN.match(str(k)) for k in fixed):
+        problems.append(f"{KNOWN_BUGS_FILE}: fixed must map K<n> to where it was fixed")
+        return {}
+    return {str(k): str(v) for k, v in fixed.items()}
+
+
 def load_known_bugs(directory: Path, problems: list[str]) -> tuple[dict[str, str], dict[str, str]]:
     """``(bugs, invariant_waivers)`` from ``known_bugs.json`` (empty when the file is absent)."""
     path = directory / KNOWN_BUGS_FILE
@@ -453,6 +470,7 @@ def load_catalogue(directory: Optional[Path] = None) -> Catalogue:
     directory = directory or SCENARIOS_DIR
     problems: list[str] = []
     bugs, waivers = load_known_bugs(directory, problems)
+    fixed = load_fixed_bugs(directory, problems)
     scenarios: list[Scenario] = []
     for path in sorted(directory.glob("*.json")):
         if path.name == KNOWN_BUGS_FILE:
@@ -467,11 +485,17 @@ def load_catalogue(directory: Optional[Path] = None) -> Catalogue:
             unknown = sorted(scenario.all_known() - set(bugs))
             if unknown:
                 problems.append(f"{scenario.file} {scenario.id}: known bugs not in {KNOWN_BUGS_FILE}: {unknown}")
+        stale = sorted(scenario.all_known() & set(fixed))
+        if stale:
+            problems.append(f"{scenario.file} {scenario.id}: marks bugs listed as fixed: {stale}")
     scenarios.sort(key=_catalogue_order)
     if bugs:
         unknown_waivers = sorted(set(waivers.values()) - set(bugs))
         if unknown_waivers:
             problems.append(f"{KNOWN_BUGS_FILE}: waivers name unknown bugs {unknown_waivers}")
+    fixed_waivers = sorted(set(waivers.values()) & set(fixed))
+    if fixed_waivers:
+        problems.append(f"{KNOWN_BUGS_FILE}: waivers name fixed bugs {fixed_waivers}")
     if problems:
         raise ScenarioError(problems)
-    return Catalogue(scenarios=scenarios, bugs=bugs, invariant_waivers=waivers)
+    return Catalogue(scenarios=scenarios, bugs=bugs, invariant_waivers=waivers, fixed=fixed)

@@ -162,7 +162,6 @@
       "title": "Undo right after a load",
       "tags": ["workspaces", "undo"],
       "smoke": false,
-      "known": ["K1"],
       "targets": "load pushing one undo entry per restored object",
       "setup": {
         "calls": [
@@ -191,7 +190,7 @@
         {
           "user": "Undo the load.",
           "reference": [{"tool": "undo", "args": {}}],
-          "checks": [{"check": "state_equals", "snapshot": "setup", "known": "K1"}]
+          "checks": [{"check": "state_equals", "snapshot": "setup"}]
         },
         {"do": [{"tool": "delete_workspace", "args": {"name": "scn_undo_load"}}]}
       ]

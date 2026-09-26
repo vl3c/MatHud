@@ -121,7 +121,6 @@
       "title": "Non-uniform scaling of a circle is refused cleanly",
       "tags": ["transforms", "circles", "errors", "undo"],
       "smoke": false,
-      "known": ["K1"],
       "targets": "failed calls leaving undo entries; error wording",
       "setup": {"calls": [{"tool": "create_circle", "args": {"center_x": 0, "center_y": 0, "radius": 2}}]},
       "steps": [
@@ -196,7 +195,6 @@
       "title": "Transforming an unsupported type fails without side effects",
       "tags": ["transforms", "arcs", "errors", "undo"],
       "smoke": false,
-      "known": ["K1"],
       "targets": "archive before validation",
       "setup": {
         "calls": [

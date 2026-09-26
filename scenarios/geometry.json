@@ -56,9 +56,8 @@
       "title": "Creating a point on an occupied spot",
       "tags": ["points", "naming", "undo"],
       "smoke": false,
-      "known": ["K1", "K2", "K3"],
+      "known": ["K3"],
       "targets": "silent reuse of an existing point, dropped name, no-op undo entries",
-      "invariants": {"I4": "K2"},
       "setup": {
         "calls": [
           {
@@ -84,7 +83,7 @@
         {
           "do": [{"tool": "undo", "args": {}}],
           "note": "The refused create must add no undo entry, so this undo removes the setup batch.",
-          "checks": [{"check": "state_equals", "snapshot": "start", "known": "K1"}]
+          "checks": [{"check": "state_equals", "snapshot": "start"}]
         }
       ]
     },
@@ -93,7 +92,6 @@
       "title": "Point on a segment splits it; undo is one step",
       "tags": ["points", "segments", "undo"],
       "smoke": false,
-      "known": ["K1"],
       "targets": "segment splitting side effects; undo landing on a half-finished state",
       "setup": {
         "calls": [
@@ -123,10 +121,7 @@
             }
           ]
         },
-        {
-          "do": [{"tool": "undo", "args": {}}],
-          "checks": [{"check": "state_equals", "snapshot": "setup", "known": "K1"}]
-        }
+        {"do": [{"tool": "undo", "args": {}}], "checks": [{"check": "state_equals", "snapshot": "setup"}]}
       ]
     },
     {
@@ -218,7 +213,6 @@
       "title": "Segment and vector on the same endpoints; delete the vector",
       "tags": ["segments", "vectors", "delete", "naming"],
       "smoke": false,
-      "known": ["K7"],
       "targets": "mutual recursion between vector and segment deletion; cross-type name clash",
       "steps": [
         {
@@ -236,10 +230,10 @@
           "user": "Now delete the vector but keep the segment.",
           "reference": [{"tool": "delete_vector", "args": {"origin_x": 0, "origin_y": 0, "tip_x": 3, "tip_y": 0}}],
           "checks": [
-            {"check": "count", "select": {"type": "Vector"}, "eq": 0, "known": "K7"},
+            {"check": "count", "select": {"type": "Vector"}, "eq": 0},
             {"check": "count", "select": {"type": "Segment", "ends": [[0, 0], [3, 0]]}, "eq": 1},
             {"check": "count", "select": {"type": "Point"}, "eq": 2},
-            {"check": "no_tool_errors", "known": "K7"}
+            {"check": "no_tool_errors"}
           ]
         }
       ]
@@ -509,7 +503,6 @@
       "title": "Removing an angle marker keeps the triangle",
       "tags": ["angles", "delete", "cascade"],
       "smoke": false,
-      "known": ["K6"],
       "targets": "over-eager cascade deletes",
       "setup": {
         "calls": [
@@ -538,8 +531,8 @@
           "reference": [{"tool": "delete_angle", "args": {"name": "angle_BAC"}}],
           "checks": [
             {"check": "count", "select": {"type": "Angle"}, "eq": 0},
-            {"check": "exists", "select": {"type": "Triangle", "vertices": [[0, 0], [4, 0], [0, 3]]}, "known": "K6"},
-            {"check": "count", "select": {"type": "Segment"}, "eq": 3, "known": "K6"}
+            {"check": "exists", "select": {"type": "Triangle", "vertices": [[0, 0], [4, 0], [0, 3]]}},
+            {"check": "count", "select": {"type": "Segment"}, "eq": 3}
           ]
         }
       ]

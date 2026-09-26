@@ -62,3 +62,12 @@ def test_known_bugs_are_declared() -> None:
     for scenario in catalogue.scenarios:
         assert scenario.all_known() <= set(catalogue.bugs), scenario.id
     assert set(catalogue.invariant_waivers.values()) <= set(catalogue.bugs)
+
+
+def test_fixed_bugs_are_not_marked() -> None:
+    """Bugs fixed on main (vl3c/MatHud#72, #73) are regression guards, never expected failures."""
+    catalogue = load_catalogue()
+    assert {"K1", "K2", "K6", "K7", "K18", "K21"} <= set(catalogue.fixed)
+    for scenario in catalogue.scenarios:
+        assert not scenario.all_known() & set(catalogue.fixed), scenario.id
+    assert not catalogue.invariant_waivers, "the global I5:K1 waiver went away with the K1 fix"

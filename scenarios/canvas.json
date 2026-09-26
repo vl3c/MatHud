@@ -32,7 +32,6 @@
       "title": "Undo a multi-object construction in one step",
       "tags": ["undo", "redo", "constructions"],
       "smoke": true,
-      "known": ["K1"],
       "targets": "undo stack out of sync with tool batches",
       "steps": [
         {
@@ -56,7 +55,7 @@
         {
           "user": "Undo that.",
           "reference": [{"tool": "undo", "args": {}}],
-          "checks": [{"check": "state_equals", "snapshot": "start", "known": "K1"}]
+          "checks": [{"check": "state_equals", "snapshot": "start"}]
         },
         {"do": [{"tool": "redo", "args": {}}], "checks": [{"check": "state_equals", "snapshot": "after_t1"}]}
       ]
@@ -108,14 +107,12 @@
       "title": "Undo when there is nothing to undo",
       "tags": ["undo", "results"],
       "smoke": false,
-      "known": ["K2"],
       "targets": "untruthful tool results",
-      "invariants": {"I4": "K2"},
       "steps": [
         {
           "user": "Undo.",
           "reference": [{"tool": "undo", "args": {}}],
-          "checks": [{"check": "tool_result", "tool": "undo", "ne": "Call successful!", "known": "K2"}]
+          "checks": [{"check": "tool_result", "tool": "undo", "ne": "Call successful!"}]
         }
       ]
     },
@@ -147,6 +144,48 @@
               "same_as": "start",
               "known": "K25"
             }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CV-06",
+      "title": "Repeating a change that is already in effect is a no-op",
+      "tags": ["view", "circles", "update", "undo", "results"],
+      "smoke": false,
+      "known": ["K26"],
+      "targets": "tools that succeed without changing anything must say so and must not add an undo entry",
+      "invariants": {"I4": "K26", "I5": "K26"},
+      "setup": {
+        "calls": [
+          {"tool": "create_circle", "args": {"center_x": 0, "center_y": 0, "radius": 2, "color": "red"}},
+          {"tool": "zoom", "args": {"center_x": 0, "center_y": 0, "range_val": 2, "range_axis": "x"}}
+        ]
+      },
+      "steps": [
+        {
+          "user": "Make the circle red.",
+          "reference": [{"tool": "update_circle", "args": {"name": "A(2)", "new_color": "red"}}],
+          "checks": [
+            {"check": "state_equals", "snapshot": "setup", "inspect": true, "view": true},
+            {"check": "attribute", "target": "inspection", "path": "undo_depth", "same_as": "setup", "known": "K26"},
+            {"check": "tool_result", "tool": "update_circle", "ne": "Call successful!", "known": "K26"}
+          ]
+        },
+        {"snapshot": "after_colour"},
+        {
+          "user": "Zoom to x between -2 and 2 around the origin.",
+          "reference": [{"tool": "zoom", "args": {"center_x": 0, "center_y": 0, "range_val": 2, "range_axis": "x"}}],
+          "checks": [
+            {"check": "state_equals", "snapshot": "setup", "inspect": true, "view": true},
+            {
+              "check": "attribute",
+              "target": "inspection",
+              "path": "undo_depth",
+              "same_as": "after_colour",
+              "known": "K26"
+            },
+            {"check": "tool_result", "tool": "zoom", "ne": "Call successful!", "known": "K26"}
           ]
         }
       ]

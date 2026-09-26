@@ -8,9 +8,7 @@
       "title": "Normal distribution with shading, then remove it",
       "tags": ["statistics", "plots", "delete", "undo"],
       "smoke": true,
-      "known": ["K1"],
       "targets": "composite plot bookkeeping; atomic undo",
-      "invariants": {"I2": "K1"},
       "steps": [
         {
           "user": "Plot a normal distribution with mean 0 and sigma 1 and shade from -1 to 1.",
@@ -59,7 +57,7 @@
           "checks": [
             {"check": "count", "select": {"type": "ContinuousPlot"}, "eq": 1},
             {"check": "count", "select": {"type": "Function"}, "eq": 1},
-            {"check": "count", "select": {"type": "FunctionsBoundedColoredArea"}, "eq": 1, "known": "K1"}
+            {"check": "count", "select": {"type": "FunctionsBoundedColoredArea"}, "eq": 1}
           ]
         }
       ]
@@ -109,7 +107,7 @@
       "title": "Linear regression over an existing point",
       "tags": ["statistics", "regression", "points"],
       "smoke": false,
-      "known": ["K2"],
+      "known": ["K27"],
       "targets": "regression math; reuse of existing points",
       "setup": {"calls": [{"tool": "create_point", "args": {"x": 1, "y": 3, "name": "A"}}]},
       "steps": [
@@ -144,7 +142,7 @@
             {"check": "exists", "select": {"type": "Point", "at": [4, 9]}},
             {"check": "count", "select": {"type": "Point"}, "eq": 4},
             {"check": "tool_result", "tool": "fit_regression", "path": "point_names", "eq": ["A", "B", "C", "D"]},
-            {"check": "tool_result", "tool": "fit_regression", "matches": "(?i)reus|existing", "known": "K2"}
+            {"check": "tool_result", "tool": "fit_regression", "matches": "(?i)reus|existing", "known": "K27"}
           ]
         }
       ]

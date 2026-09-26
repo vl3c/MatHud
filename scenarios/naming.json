@@ -27,7 +27,6 @@
       "title": "Renaming a triangle vertex is refused",
       "tags": ["points", "naming", "errors", "undo"],
       "smoke": false,
-      "known": ["K1"],
       "targets": "refusal path; model explanation",
       "setup": {
         "calls": [
@@ -54,7 +53,6 @@
       "title": "Delete a point used by segments, then undo",
       "tags": ["points", "delete", "cascade", "undo"],
       "smoke": true,
-      "known": ["K1"],
       "targets": "cascade delete plus undo consistency",
       "setup": {
         "calls": [
@@ -85,10 +83,7 @@
             {"check": "exists", "select": {"type": "Point", "at": [6, 2]}}
           ]
         },
-        {
-          "do": [{"tool": "undo", "args": {}}],
-          "checks": [{"check": "state_equals", "snapshot": "setup", "known": "K1"}]
-        }
+        {"do": [{"tool": "undo", "args": {}}], "checks": [{"check": "state_equals", "snapshot": "setup"}]}
       ]
     },
     {
@@ -96,18 +91,13 @@
       "title": "Deleting something that does not exist",
       "tags": ["circles", "delete", "results"],
       "smoke": false,
-      "known": ["K2"],
       "targets": "untruthful results for no-op deletes",
-      "invariants": {"I4": "K2"},
       "setup": {"calls": [{"tool": "create_circle", "args": {"center_x": 0, "center_y": 0, "radius": 2}}]},
       "steps": [
         {
           "user": "Delete the circle Z(9).",
           "reference": [{"tool": "delete_circle", "args": {"name": "Z(9)"}}],
-          "checks": [
-            {"check": "state_equals", "snapshot": "setup"},
-            {"check": "tool_error", "tool": "delete_circle", "known": "K2"}
-          ]
+          "checks": [{"check": "state_equals", "snapshot": "setup"}, {"check": "tool_error", "tool": "delete_circle"}]
         }
       ]
     },
@@ -137,7 +127,6 @@
       "title": "Deleting one of two triangles that share an edge",
       "tags": ["polygons", "delete", "cascade"],
       "smoke": false,
-      "known": ["K6"],
       "targets": "cascade deletes through shared edges",
       "setup": {
         "calls": [
@@ -173,8 +162,8 @@
             }
           ],
           "checks": [
-            {"check": "exists", "select": {"type": "Triangle", "vertices": [[0, 0], [4, 4], [0, 4]]}, "known": "K6"},
-            {"check": "exists", "select": {"type": "Segment", "ends": [[0, 0], [4, 4]]}, "known": "K6"},
+            {"check": "exists", "select": {"type": "Triangle", "vertices": [[0, 0], [4, 4], [0, 4]]}},
+            {"check": "exists", "select": {"type": "Segment", "ends": [[0, 0], [4, 4]]}},
             {"check": "exists", "select": {"type": "Segment", "ends": [[4, 4], [0, 4]]}},
             {"check": "exists", "select": {"type": "Segment", "ends": [[0, 4], [0, 0]]}},
             {"check": "absent", "select": {"type": "Segment", "ends": [[0, 0], [4, 0]]}},

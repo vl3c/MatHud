@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "note": "Known app bugs (documentation/development/agentic_scenario_testing.md, section 6). A check marked known K<n> is an expected failure (xfail); when it passes it is reported as xpass, 'fixed? K<n>'. invariant_waivers turn an invariant's failures into expected failures in every scenario; remove a waiver when its bug is fixed.",
+  "note": "Known app bugs (documentation/development/agentic_scenario_testing.md, section 6). A check marked known K<n> is an expected failure (xfail); when it passes it is reported as xpass, 'fixed? K<n>'. invariant_waivers turn an invariant's failures into expected failures in every scenario. Bugs listed under fixed must not be marked known anywhere: their checks are regression guards.",
   "bugs": {
     "K1": "A tool batch is not one undo step",
     "K2": "Tool results say 'Call successful!' when nothing happened",
@@ -26,9 +26,19 @@
     "K22": "The CLI's canvas commands do nothing (fixed with the scenario hooks)",
     "K23": "The workspace load URL is not encoded",
     "K24": "A removable discontinuity is reported as a vertical asymptote",
-    "K25": "Canvas.reset does not reset the polar grid spacing (slow polar rendering after zoom then clear)"
+    "K25": "Canvas.reset does not reset the polar grid spacing (slow polar rendering after zoom then clear)",
+    "K26": "A change already in effect (same colour, same zoom) reports success and adds an undo entry",
+    "K27": "fit_regression lists reused existing points as if it created them"
   },
-  "invariant_waivers": {
-    "I5": "K1"
-  }
+  "fixed": {
+    "K1": "vl3c/MatHud#73",
+    "K2": "vl3c/MatHud#73",
+    "K6": "vl3c/MatHud#72",
+    "K7": "vl3c/MatHud#72",
+    "K18": "vl3c/MatHud#72",
+    "K20": "claude/scenario-tests (scenario hooks)",
+    "K21": "vl3c/MatHud#73",
+    "K22": "claude/scenario-tests (scenario hooks)"
+  },
+  "invariant_waivers": {}
 }

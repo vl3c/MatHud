@@ -201,6 +201,19 @@ class TestLoadCatalogue:
         catalogue = load_catalogue(tmp_path)
         assert catalogue.waivers_for(catalogue.scenarios[0]) == {"I5": "K2"}
 
+    def test_marks_and_waivers_of_fixed_bugs_are_refused(self, tmp_path: Path) -> None:
+        steps = [{"checks": [{"check": "no_tool_errors", "known": "K1"}]}]
+        write_catalogue(
+            tmp_path,
+            [scenario(steps=steps, known=["K1"])],
+            {"bugs": {"K1": "undo"}, "fixed": {"K1": "vl3c/MatHud#73"}, "invariant_waivers": {"I5": "K1"}},
+        )
+        with pytest.raises(ScenarioError) as info:
+            load_catalogue(tmp_path)
+        text = "\n".join(info.value.problems)
+        assert "marks bugs listed as fixed: ['K1']" in text
+        assert "waivers name fixed bugs ['K1']" in text
+
     def test_duplicate_ids_and_unknown_bugs(self, tmp_path: Path) -> None:
         write_catalogue(tmp_path, [scenario(), scenario(known=["K9"])], {"bugs": {"K1": "a"}})
         with pytest.raises(ScenarioError) as info:
