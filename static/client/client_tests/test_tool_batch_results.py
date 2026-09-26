@@ -7,6 +7,7 @@ same path a model tool batch takes, against a real canvas.
 from __future__ import annotations
 
 import json
+import random
 import unittest
 from typing import Any, Dict, List, Tuple
 
@@ -292,6 +293,70 @@ class TestToolBatchUndo(_ToolBatchTestCase):
         self.assertEqual(self.undo_depth(), depth + 1)
         self.run_single("undo")
         self.assertEqual(self.snapshot(), before_load)
+
+    def save_triangle_workspace(self) -> str:
+        """Save a triangle to a temporary server workspace, then leave only point Z on the canvas."""
+        name = f"undo_batch_test_{random.randint(0, 10**9)}"
+        self.build_triangle()
+        saved = str(self.run_single("save_workspace", name=name))
+        if saved.startswith("Error"):
+            self.skipTest(f"workspace server unavailable: {saved}")
+        self.addCleanup(self.workspace_manager.delete_workspace, name)
+        self.run_batch(("clear_canvas", {}), ("create_point", {"x": 9, "y": 9, "name": "Z"}))
+        return name
+
+    def test_tool_load_workspace_is_one_undo_step(self) -> None:
+        name = self.save_triangle_workspace()
+        before_load = self.snapshot()
+        depth = self.undo_depth()
+
+        result = self.run_single("load_workspace", name=name)
+
+        self.assertIn("loaded successfully", str(result))
+        self.assertIn("Triangle", self.snapshot())
+        self.assertEqual(self.undo_depth(), depth + 1)
+        self.run_single("undo")
+        self.assertEqual(self.snapshot(), before_load)
+
+    def test_tool_load_workspace_in_an_undoable_batch_is_one_undo_step(self) -> None:
+        name = self.save_triangle_workspace()
+        before_batch = self.snapshot()
+        depth = self.undo_depth()
+
+        self.run_batch(("delete_angle", {"name": "nope"}), ("load_workspace", {"name": name}))
+
+        self.assertIn("Triangle", self.snapshot())
+        self.assertEqual(self.undo_depth(), depth + 1)
+        self.run_single("undo")
+        self.assertEqual(self.snapshot(), before_batch)
+
+    def test_fit_regression_is_one_undo_step(self) -> None:
+        self.run_single("create_point", x=9, y=9, name="Z")
+        before = self.snapshot()
+        depth = self.undo_depth()
+
+        _, traced = self.run_batch(
+            (
+                "fit_regression",
+                {
+                    "name": "fit1",
+                    "x_data": [1, 2, 3, 4],
+                    "y_data": [3, 5, 7, 9],
+                    "model_type": "linear",
+                    "degree": None,
+                    "plot_bounds": None,
+                    "curve_color": None,
+                    "show_points": True,
+                    "point_color": None,
+                },
+            )
+        )
+
+        self.assertFalse(traced[0]["is_error"])
+        self.assertIn("r_squared", traced[0]["result"])
+        self.assertEqual(self.undo_depth(), depth + 1)
+        self.run_single("undo")
+        self.assertEqual(self.snapshot(), before)
 
     def test_failed_call_keeps_the_entry_of_an_earlier_change_in_the_batch(self) -> None:
         self.run_batch(("create_point", {"x": 1, "y": 1, "name": "A"}), ("delete_angle", {"name": "nope"}))

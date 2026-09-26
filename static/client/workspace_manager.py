@@ -1519,8 +1519,10 @@ class WorkspaceManager:
         on_complete: Callable[[Any], str],
         error_prefix: str,
     ) -> Any:
+        # on_complete is not bound to the "complete" event: the request is synchronous and
+        # _finalize_sync_request calls it once. Binding it too ran it twice, so a load restored
+        # the workspace twice and pushed a second undo entry holding the loaded state.
         req: Any = ajax.Ajax()
-        req.bind("complete", on_complete)
         req.bind("error", lambda e: f"{error_prefix}: {e.text}")
         return req
 
