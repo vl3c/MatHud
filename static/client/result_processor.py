@@ -27,11 +27,16 @@ Dependencies:
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, Dict, List, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from browser import window
 
-from constants import successful_call_message
+from constants import (
+    nothing_deleted_message,
+    nothing_to_redo_message,
+    nothing_to_undo_message,
+    successful_call_message,
+)
 
 # Largest JSON-serialized return value of a canvas-mutating tool passed back to the model;
 # larger values are replaced by the success message to keep token usage bounded.
@@ -297,7 +302,7 @@ class ResultProcessor:
         """Process the result based on function type and update results dictionary."""
         if function_name in unformattable_functions:
             # Handle unformattable functions (return success message)
-            ResultProcessor._handle_unformattable_function(key, result, results)
+            ResultProcessor._handle_unformattable_function(function_name, key, result, results)
         elif function_name == "evaluate_expression" and "expression" in args:
             # Handle expression evaluation
             ResultProcessor._handle_expression_evaluation(
@@ -310,16 +315,33 @@ class ResultProcessor:
             )
 
     @staticmethod
-    def _handle_unformattable_function(key: str, result: Any, results: Dict[str, Any]) -> None:
+    def _handle_unformattable_function(function_name: str, key: str, result: Any, results: Dict[str, Any]) -> None:
         """Handle result for unformattable functions.
 
-        Small string/dict return values (e.g. generated names or graph state) are passed
-        through so the model can use them; anything else becomes the success message.
+        A delete, undo or redo that returned False changed nothing and says so. Small
+        string/dict return values (e.g. generated names or graph state) are passed through
+        so the model can use them; anything else becomes the success message.
         """
-        if ResultProcessor._is_small_passthrough_result(result):
+        no_op_message = ResultProcessor._no_op_message(function_name, result)
+        if no_op_message is not None:
+            results[key] = no_op_message
+        elif ResultProcessor._is_small_passthrough_result(result):
             results[key] = result
         else:
             results[key] = successful_call_message
+
+    @staticmethod
+    def _no_op_message(function_name: str, result: Any) -> Optional[str]:
+        """Message for a delete, undo or redo whose False return means nothing happened."""
+        if result is not False:
+            return None
+        if function_name == "undo":
+            return nothing_to_undo_message
+        if function_name == "redo":
+            return nothing_to_redo_message
+        if function_name.startswith("delete_"):
+            return nothing_deleted_message
+        return None
 
     @staticmethod
     def _is_small_passthrough_result(result: Any) -> bool:

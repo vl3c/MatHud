@@ -1,4 +1,4 @@
-"""Regression tests for model tool batches: undo granularity.
+"""Regression tests for model tool batches: undo granularity and truthful results.
 
 Every test runs tool calls through ``ProcessFunctionCalls.get_results_traced``, the
 same path a model tool batch takes, against a real canvas.
@@ -11,6 +11,7 @@ import unittest
 from typing import Any, Dict, List, Tuple
 
 from canvas import Canvas
+from constants import successful_call_message
 from function_registry import FunctionRegistry
 from process_function_calls import ProcessFunctionCalls
 from workspace_manager import WorkspaceManager
@@ -125,6 +126,14 @@ class TestToolBatchUndo(_ToolBatchTestCase):
         self.run_single("undo")
         self.assertEqual(self.snapshot(), before)
 
+    def test_batch_with_only_a_no_op_adds_no_undo_entry(self) -> None:
+        self.run_single("create_circle", center_x=0, center_y=0, radius=2)
+        depth = self.undo_depth()
+
+        self.run_single("delete_circle", name="nope")
+
+        self.assertEqual(self.undo_depth(), depth)
+
     def test_undo_then_create_in_one_batch_undoes_the_previous_batch(self) -> None:
         self.run_single("create_point", x=1, y=1, name="A")
 
@@ -176,6 +185,53 @@ class TestToolBatchUndo(_ToolBatchTestCase):
         self.assertEqual(self.undo_depth(), depth + 1)
         self.canvas.undo()
         self.assertEqual(self.snapshot(), before_load)
+
+
+class TestToolNoOpResults(_ToolBatchTestCase):
+    """K2: tool results do not claim success when nothing happened."""
+
+    def test_deleting_a_missing_circle_is_not_reported_as_success(self) -> None:
+        self.run_single("create_circle", center_x=0, center_y=0, radius=2)
+
+        _, traced = self.run_batch(("delete_circle", {"name": "nope"}))
+
+        result = traced[0]["result"]
+        self.assertNotEqual(result, successful_call_message)
+        self.assertTrue(str(result).startswith("Error:"))
+        self.assertTrue(traced[0]["is_error"])
+        self.assertEqual(len(self.snapshot().get("Circle", [])), 1)
+
+    def test_deleting_a_point_at_an_empty_spot_is_not_reported_as_success(self) -> None:
+        result = self.run_single("delete_point", x=7, y=7)
+
+        self.assertTrue(str(result).startswith("Error:"))
+
+    def test_deleting_an_existing_circle_still_reports_success(self) -> None:
+        circle = self.canvas.create_circle(0, 0, 2)
+
+        result = self.run_single("delete_circle", name=circle.name)
+
+        self.assertEqual(result, successful_call_message)
+        self.assertNotIn("Circle", self.snapshot())
+
+    def test_undo_with_empty_history_says_nothing_was_undone(self) -> None:
+        _, traced = self.run_batch(("undo", {}))
+
+        result = traced[0]["result"]
+        self.assertNotEqual(result, successful_call_message)
+        self.assertIn("Nothing to undo", str(result))
+
+    def test_redo_with_empty_history_says_nothing_was_redone(self) -> None:
+        result = self.run_single("redo")
+
+        self.assertNotEqual(result, successful_call_message)
+        self.assertIn("Nothing to redo", str(result))
+
+    def test_undo_and_redo_with_history_still_report_success(self) -> None:
+        self.run_single("create_point", x=1, y=1)
+
+        self.assertEqual(self.run_single("undo"), successful_call_message)
+        self.assertEqual(self.run_single("redo"), successful_call_message)
 
 
 if __name__ == "__main__":
