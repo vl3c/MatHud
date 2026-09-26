@@ -72,7 +72,7 @@ class _DetachedChatUI(ChatUIManager):
     def _chat_history_element(self) -> Any:
         return self.history
 
-    def render_math(self) -> None:
+    def render_math(self, root: Optional[Any] = None) -> None:
         pass
 
 

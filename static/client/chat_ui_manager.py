@@ -128,23 +128,33 @@ class ChatUIManager:
         """Parse markdown text to HTML using the dedicated markdown parser."""
         return cast(str, self.markdown_parser.parse(text))
 
-    def render_math(self) -> None:
-        """Typeset math in the chat history, then sanitise the output.
+    def render_math(self, root: Optional[Any] = None) -> None:
+        """Typeset math in ``root`` (a message just added; default: the whole chat).
 
+        Typesetting only the new message keeps the cost per message flat in long chats.
         Chat math is untrusted. The sanitiser (static/math_output_sanitizer.js) strips
         links, overlays and foreign ids/classes from MathJax's output; it runs as a
         MathJax render action on every render and re-render, and
-        ``window.MatHudMathSafety.typesetAndSanitize`` runs it again over the whole
-        chat after this typeset. If the sanitiser is missing, math is left as plain
-        TeX text rather than typeset without it.
+        ``window.MatHudMathSafety.typesetAndSanitize`` runs it again over ``root`` after
+        this typeset. If the sanitiser is missing, math is left as plain TeX text rather
+        than typeset without it.
         """
         try:
             safety = getattr(window, "MatHudMathSafety", None)
             if safety is None or not hasattr(window, "MathJax"):
                 return
-            safety.typesetAndSanitize(self._chat_history_element())
+            safety.typesetAndSanitize(root if root is not None else self._chat_history_element())
         except Exception:
             # MathJax not available or error occurred, continue silently
+            pass
+
+    def _forget_chat_math(self, history: Any) -> None:
+        """Drop MathJax's records of the chat's formulas before the chat is emptied."""
+        try:
+            mathjax = getattr(window, "MathJax", None)
+            if mathjax is not None and hasattr(mathjax, "typesetClear"):
+                mathjax.typesetClear([history])
+        except Exception:
             pass
 
     # ── Message element creation ─────────────────────────────────
@@ -249,7 +259,7 @@ class ChatUIManager:
             self.append_metrics_footer(message_element, turn_metrics)
             document["chat-history"] <= message_element
             # Trigger MathJax rendering for new content
-            self.render_math()
+            self.render_math(message_element)
             # Scroll the chat history to the bottom
             document["chat-history"].scrollTop = document["chat-history"].scrollHeight
 
@@ -273,7 +283,7 @@ class ChatUIManager:
         message_element = self.create_message_element("User", user_message, images=images)
         document["chat-history"] <= message_element
         # Trigger MathJax rendering for new content
-        self.render_math()
+        self.render_math(message_element)
         # Scroll the chat history to the bottom
         document["chat-history"].scrollTop = document["chat-history"].scrollHeight
 
@@ -317,7 +327,7 @@ class ChatUIManager:
             document["chat-history"] <= message_container
 
             # Trigger MathJax rendering for new content
-            self.render_math()
+            self.render_math(message_container)
 
             # Scroll to bottom
             document["chat-history"].scrollTop = document["chat-history"].scrollHeight
@@ -582,7 +592,7 @@ class ChatUIManager:
                             except Exception:
                                 pass
 
-                    self.render_math()
+                    self.render_math(self._stream_message_container)
                     document["chat-history"].scrollTop = document["chat-history"].scrollHeight
                 else:
                     # Reasoning but no text content - remove the empty container
@@ -595,7 +605,7 @@ class ChatUIManager:
                         parsed_content = self.parse_markdown(text_to_render)
                         self._stream_content_element.innerHTML = parsed_content
                         self._stream_content_element.classList.add("markdown")
-                    self.render_math()
+                    self.render_math(self._stream_message_container)
                     document["chat-history"].scrollTop = document["chat-history"].scrollHeight
                 else:
                     # No reasoning or tool log, use standard finalization
@@ -611,7 +621,7 @@ class ChatUIManager:
                     else:
                         history <= final_element
 
-                    self.render_math()
+                    self.render_math(final_element)
                     history.scrollTop = history.scrollHeight
             else:
                 # No text content at all - remove any empty container
@@ -685,7 +695,9 @@ class ChatUIManager:
         """Remove every chat message and forget the transcript (a new conversation)."""
         self.reset_streaming_state()
         self.transcript.clear()
-        self._chat_history_element().clear()
+        history = self._chat_history_element()
+        self._forget_chat_math(history)
+        history.clear()
 
     def restore_transcript(self, chat_state: Any) -> int:
         """Replace the chat with a saved transcript and return how many messages it shows.
@@ -696,6 +708,7 @@ class ChatUIManager:
         self.reset_streaming_state()
         self.transcript.load_state(chat_state)
         history = self._chat_history_element()
+        self._forget_chat_math(history)
         history.clear()
         if self.transcript.truncated:
             history <= self._create_restored_note(self._omitted_messages_text(self.transcript.truncated))

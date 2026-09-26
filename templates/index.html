@@ -29,11 +29,13 @@ Dependencies:
     
     <!-- MathJax configuration for LaTeX mathematical notation rendering.
          Chat math is untrusted (model output, user text, saved workspaces), so it is
-         locked down in layers: no html extension, no \require, no user macros
-         (\def, \newcommand), a length cap, the ui/safe filter (no URLs at all, no cursor
-         styles), a fontfamily filter, and static/math_output_sanitizer.js, which runs as a
-         MathJax render action on every render and re-render (including the context menu's)
-         and again after each chat typeset (ChatUIManager.render_math). -->
+         locked down in layers: no html extension, no \require, no commands that define
+         macros or keep state between formulas (\def, \newcommand, \DeclareMathOperator,
+         \definecolor, labels), a length cap, the ui/safe filter (no URLs at all, no
+         cursor styles), a fontfamily filter, and static/math_output_sanitizer.js, which
+         runs as a MathJax render action on every render and re-render (including the
+         context menu's scale and accessibility options) and again after each chat typeset
+         (ChatUIManager.render_math). Only TeX is read: the MathML input is removed. -->
     <script>
     // Font names only: letters, digits, spaces, commas, quotes and hyphens. \mmlToken's
     // fontfamily and \unicode's font option are otherwise pasted into the style unchecked
@@ -42,13 +44,84 @@ Dependencies:
     // Longest TeX expression typeset; longer ones show a short note instead, so one
     // message cannot block the page with a huge formula.
     var MATHUD_MAX_TEX_CHARS = 4000;
-    // Render-action priority: just after MathJax inserts the output (STATE.INSERTED = 200).
+    // Render-action priority and item state: just after MathJax inserts the output
+    // (STATE.INSERTED = 200). A formula at this state has been sanitised; MathJax resets
+    // the state when it re-renders, so re-rendered output is sanitised again.
     var MATHUD_SANITIZE_PRIORITY = 201;
+    // Commands removed from MathJax's command maps (map name -> commands): they define
+    // macros, operators or colours that would change how later messages render, and
+    // nested definitions multiply the output (\DeclareMathOperator parses each level
+    // with a fresh parser, so tex.maxMacros never trips).
+    var MATHUD_REMOVED_COMMANDS = {
+        'Newcommand-macros': ['def', 'let', 'newcommand', 'renewcommand', 'newenvironment', 'renewenvironment'],
+        'AMSmath-macros': ['DeclareMathOperator'],
+        'color': ['definecolor']
+    };
+    // Context-menu settings kept from localStorage. The others (renderer, the
+    // accessibility explorer, collapsible math, language) need MathJax components this
+    // app does not vendor: a stored {"renderer": "SVG"} made every later typeset hang.
+    var MATHUD_MENU_SETTINGS_KEPT = ['texHints', 'semantics', 'zoom', 'zscale', 'alt', 'cmd', 'ctrl', 'shift', 'scale', 'inTabOrder', 'assistiveMml'];
+    // Menu entries hidden for the same reason (Accessibility keeps "In tab order" and
+    // "Include hidden MathML").
+    var MATHUD_MENU_HIDDEN = ['Renderer', 'Language', 'Activate', 'Speech', 'Highlight', 'Magnification', 'Semantic Info', 'Collapsible', 'AutoCollapse'];
+
+    (function keepOnlyVendoredMenuSettings() {
+        var key = 'MathJax-Menu-Settings';
+        try {
+            var raw = window.localStorage.getItem(key);
+            if (!raw) {
+                return;
+            }
+            var stored = JSON.parse(raw), kept = {};
+            MATHUD_MENU_SETTINGS_KEPT.forEach(function (name) {
+                if (stored && Object.prototype.hasOwnProperty.call(stored, name)) {
+                    kept[name] = stored[name];
+                }
+            });
+            window.localStorage.setItem(key, JSON.stringify(kept));
+        } catch (e) {
+            try { window.localStorage.removeItem(key); } catch (ignored) {}
+        }
+    })();
+
+    function mathudRemoveCommands() {
+        var maps = MathJax._.input.tex.MapHandler.MapHandler;
+        Object.keys(MATHUD_REMOVED_COMMANDS).forEach(function (mapName) {
+            var map = maps.getMap(mapName);
+            if (map && map.map) {
+                MATHUD_REMOVED_COMMANDS[mapName].forEach(function (name) { map.map.delete(name); });
+            }
+        });
+        // Operators declared before the command was removed (belt and braces).
+        var declared = maps.getMap('ams-declare-ops');
+        if (declared && declared.map) {
+            declared.map.clear();
+        }
+    }
 
     function mathudSanitizeMathItem(math) {
         if (window.MatHudMathSafety && math && math.typesetRoot) {
             window.MatHudMathSafety.sanitize(math.typesetRoot);
         }
+    }
+
+    function mathudHideMenuEntries() {
+        var menu = MathJax.startup.document.menu;
+        if (!menu || !menu.menu) {
+            return;
+        }
+        // Top-level entries and one level of submenus (Settings, Accessibility).
+        var items = menu.menu.items.slice();
+        menu.menu.items.forEach(function (item) {
+            if (item.submenu && item.submenu.items) {
+                items = items.concat(item.submenu.items);
+            }
+        });
+        items.forEach(function (item) {
+            if (item && MATHUD_MENU_HIDDEN.indexOf(item.id) !== -1) {
+                item.hide();
+            }
+        });
     }
 
     window.MathJax = {
@@ -61,19 +134,22 @@ Dependencies:
             typeset: false,
             ready: function () {
                 MathJax.startup.defaultReady();
-                var safe = MathJax.startup.document.safe;
+                var doc = MathJax.startup.document;
+                MathJax._.core.MathItem.newState('MATHUDSANITIZED', MATHUD_SANITIZE_PRIORITY);
+                // Chat math is TeX only. The MathML input would also pick up the hidden
+                // <math> copy (assistive MathML) inside every earlier formula each time the
+                // chat is typeset, so formulas multiplied and long chats slowed to seconds
+                // per message.
+                doc.inputJax = doc.inputJax.filter(function (jax) { return jax.name !== 'MathML'; });
+                var safe = doc.safe;
                 safe.filterMethods.filterFontFamily = function (_safe, family) {
                     return typeof family === 'string' && MATHUD_SAFE_FONT_FAMILY.test(family) ? family : null;
                 };
                 safe.filterAttributes.set('fontfamily', 'filterFontFamily');
-                // No user macros, even if an extension that depends on newcommand (such as
-                // action, for \mathtip) is loaded later and brings its configuration back:
-                // the commands themselves are removed from newcommand's command map.
-                var userMacros = MathJax._.input.tex.MapHandler.MapHandler.getMap('Newcommand-macros');
-                if (userMacros && userMacros.map) {
-                    userMacros.map.clear();
-                }
-                MathJax.startup.document.inputJax.forEach(function (jax) {
+                // Removed from the command maps themselves, so an extension that depends on
+                // newcommand (such as action, for \mathtip) cannot bring \def back.
+                mathudRemoveCommands();
+                doc.inputJax.forEach(function (jax) {
                     if (jax.name === 'TeX') {
                         // TeX preFilters run before parsing and see the source as args.math.math.
                         jax.preFilters.add(function (args) {
@@ -81,12 +157,18 @@ Dependencies:
                             if (math && typeof math.math === 'string' && math.math.length > MATHUD_MAX_TEX_CHARS) {
                                 math.math = '\\text{[formula too long to display]}';
                             }
+                            // Each formula starts clean: no commands an extension loaded
+                            // since added back, and no labels left by earlier formulas.
+                            mathudRemoveCommands();
+                            jax.parseOptions.tags.reset();
                         });
                     }
                 });
+                mathudHideMenuEntries();
                 // Load the commonly used autoloaded extensions up front (small vendored
                 // files), so typesetting never waits on MathJax's retry-and-load path.
                 MathJax.loader.load('[tex]/color', '[tex]/bbox', '[tex]/boldsymbol', '[tex]/cancel', '[tex]/unicode')
+                    .then(mathudRemoveCommands)
                     .catch(function () {});
             }
         },
@@ -112,18 +194,27 @@ Dependencies:
         options: {
             skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
             // Sanitise every rendered formula right after insertion, on first render and
-            // on every re-render (the context menu's renderer, scale and accessibility
-            // options re-render). Not run for MathJax.tex2chtml() conversions, which the
-            // app does not use (the tests use them to check the configuration alone).
+            // on every re-render (the context menu's scale and accessibility options
+            // re-render). Formulas already at the MATHUDSANITIZED state are skipped, so a
+            // typeset only walks new or re-rendered output. Not run for
+            // MathJax.tex2chtml() conversions, which the app does not use (the tests use
+            // them to check the configuration alone).
             renderActions: {
                 mathudSanitize: [
                     MATHUD_SANITIZE_PRIORITY,
                     function (doc) {
+                        var sanitized = MathJax._.core.MathItem.STATE.MATHUDSANITIZED;
                         for (var item of doc.math) {
-                            mathudSanitizeMathItem(item);
+                            if (item.state() < sanitized) {
+                                mathudSanitizeMathItem(item);
+                                item.state(sanitized);
+                            }
                         }
                     },
-                    mathudSanitizeMathItem,
+                    function (math) {
+                        mathudSanitizeMathItem(math);
+                        math.state(MathJax._.core.MathItem.STATE.MATHUDSANITIZED);
+                    },
                     false
                 ]
             },

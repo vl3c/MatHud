@@ -313,6 +313,20 @@ class TestMathJaxHrefDisabled(unittest.TestCase):
         self.assertLess(len(node.querySelectorAll("*")), 20000)
         self.assertLess(elapsed_ms, 1500)
 
+    def test_declare_math_operator_cannot_amplify_output(self) -> None:
+        # Each \DeclareMathOperator level is parsed by a fresh sub-parser, so maxMacros
+        # never tripped: six levels in ~320 characters once gave 1.2M nodes and 7 s.
+        tex = "\\DeclareMathOperator{\\a}{" + "x" * 10 + "}"
+        previous = "a"
+        for name in "bcdef":
+            tex += "\\DeclareMathOperator{\\" + name + "}{" + ("\\" + previous + " ") * 10 + "}"
+            previous = name
+        started = window.performance.now()
+        node = self._mathjax().tex2chtml(tex + "\\" + previous)
+        elapsed_ms = window.performance.now() - started
+        self.assertLess(len(node.querySelectorAll("*")), 20000)
+        self.assertLess(elapsed_ms, 1500)
+
     def test_user_macro_commands_are_undefined(self) -> None:
         mathjax = self._mathjax()
         # Undefined commands render as their own name (noundefined); environments as an error.
@@ -322,19 +336,44 @@ class TestMathJaxHrefDisabled(unittest.TestCase):
             ("\\renewcommand{\\pi}{D}\\pi", "\\renewcommand"),
             ("\\let\\pi=D\\pi", "\\let"),
             ("\\newenvironment{zz}{D}{}\\begin{zz}x\\end{zz}", "Unknown environment"),
+            ("\\DeclareMathOperator{\\zz}{D}\\zz", "\\DeclareMathOperator"),
+            ("\\DeclareMathOperator*{\\zz}{D}\\zz", "\\DeclareMathOperator"),
         ):
             with self.subTest(tex=tex):
                 self.assertIn(shown, str(mathjax.tex2chtml(tex).textContent))
-        # Removed from newcommand's own command map, so an extension that depends on
+        # Removed from the command maps themselves, so an extension that depends on
         # newcommand (e.g. action) cannot bring them back.
-        user_macros = mathjax._.input.tex.MapHandler.MapHandler.getMap("Newcommand-macros")
-        self.assertEqual(int(user_macros.map.size), 0)
+        maps = mathjax._.input.tex.MapHandler.MapHandler
+        self.assertEqual(int(maps.getMap("Newcommand-macros").map.size), 0)
+        self.assertFalse(bool(maps.getMap("AMSmath-macros").map.has("DeclareMathOperator")))
+
+    def test_definecolor_is_undefined(self) -> None:
+        mathjax = self._require_extension("color")
+        self.assertIn("\\definecolor", str(mathjax.tex2chtml("\\definecolor{red}{rgb}{0,1,0}").textContent))
+        self.assertFalse(bool(mathjax._.input.tex.MapHandler.MapHandler.getMap("color").map.has("definecolor")))
 
     def test_macro_redefinition_does_not_persist(self) -> None:
         mathjax = self._mathjax()
         mathjax.tex2chtml("\\def\\pi{3}")
         mathjax.tex2chtml("\\renewcommand{\\pi}{3}")
+        mathjax.tex2chtml("\\DeclareMathOperator{\\pi}{BAD}\\pi")
+        mathjax.tex2chtml("\\DeclareMathOperator*{\\sin}{cos}")
+        mathjax.tex2chtml("\\DeclareMathOperator{\\frac}{F}")
         self.assertEqual(str(mathjax.tex2chtml("\\pi").textContent), "π")
+        self.assertIn("sin", str(mathjax.tex2chtml("\\sin x").textContent))
+        self.assertEqual(str(mathjax.tex2chtml("\\frac{1}{2}").textContent), "12")
+
+    def test_colour_definitions_do_not_persist(self) -> None:
+        mathjax = self._require_extension("color")
+        mathjax.tex2chtml("\\definecolor{red}{rgb}{0,1,0}")
+        styles = _styles_under(mathjax.tex2chtml("\\color{red}{x}"))
+        self.assertIn("color: red", styles)
+        self.assertNotIn("0, 255, 0", styles)
+
+    def test_labels_do_not_persist(self) -> None:
+        mathjax = self._mathjax()
+        mathjax.tex2chtml("\\label{mathud-eq} x")
+        self.assertNotIn("multiply defined", str(mathjax.tex2chtml("\\label{mathud-eq} y").textContent))
 
     def test_long_formula_is_replaced_by_a_note(self) -> None:
         mathjax = self._mathjax()
@@ -375,6 +414,7 @@ class TestMathJaxHrefDisabled(unittest.TestCase):
             inline_style = window.getComputedStyle(inline)
             self.assertIn("paint", str(inline_style.contain))
             self.assertEqual(str(inline_style.display), "inline-block")
+            self.assertNotEqual(str(inline_style.overflowClipMargin), "0px", "accents and italics need a clip margin")
             display_style = window.getComputedStyle(display)
             self.assertIn("paint", str(display_style.contain))
             self.assertEqual(str(display_style.overflowX), "auto")
@@ -384,6 +424,51 @@ class TestMathJaxHrefDisabled(unittest.TestCase):
         finally:
             mathjax.typesetClear([holder])
             holder.remove()
+
+    def test_chat_reads_tex_only(self) -> None:
+        # The MathML input would re-typeset the hidden assistive MathML of every earlier
+        # formula on each chat typeset.
+        input_jax = [str(jax.name) for jax in self._mathjax().startup.document.inputJax]
+        self.assertEqual(input_jax, ["TeX"])
+
+    def test_typesetting_messages_one_at_a_time_stays_linear(self) -> None:
+        """20 messages typeset one by one, as the chat does: no nested copies, bounded time."""
+        mathjax = self._mathjax()
+        safety = window.MatHudMathSafety
+        holder = document.createElement("div")
+        document.body.appendChild(holder)
+        per_message_ms: List[float] = []
+        try:
+            for index in range(20):
+                message = document.createElement("div")
+                message.innerHTML = (
+                    f"<p>\\(\\frac{{a_{index}}}{{b}}\\), \\(\\sqrt{{x+{index}}}\\) and \\(\\sum_k k\\)</p>"
+                    f"<p>$$\\int_0^{{{index}}} f(x)\\,dx$$</p>"
+                )
+                holder.appendChild(message)
+                started = window.performance.now()
+                mathjax.typeset([holder])  # the chat typesets the whole history each time
+                safety.sanitize(holder, True)
+                per_message_ms.append(window.performance.now() - started)
+            self.assertEqual(len(holder.querySelectorAll("mjx-container mjx-container")), 0)
+            self.assertEqual(len(holder.querySelectorAll("mjx-container")), 80)
+            self.assertLess(max(per_message_ms), 500, per_message_ms)
+            self.assertLess(sum(per_message_ms), 5000, per_message_ms)
+        finally:
+            mathjax.typesetClear([holder])
+            holder.remove()
+
+    def test_menu_hides_entries_needing_unvendored_components(self) -> None:
+        menu = self._mathjax().startup.document.menu
+        self.assertEqual(str(menu.settings.renderer), "CHTML")
+        items = list(menu.menu.items)
+        for item in list(items):
+            submenu = getattr(item, "submenu", None)  # separators have none
+            if submenu:
+                items.extend(submenu.items)
+        hidden = {str(item.id) for item in items if getattr(item, "id", None) and item.isHidden()}
+        for entry in ("Renderer", "Language", "Activate", "Collapsible", "AutoCollapse"):
+            self.assertIn(entry, hidden)
 
     def test_zz_no_extension_case_was_skipped(self) -> None:
         """Runs last (alphabetical order): no MathJax case may be skipped silently."""
@@ -519,7 +604,20 @@ class TestMathOutputSanitizer(unittest.TestCase):
                 holder.appendChild(mathjax.tex2chtml(tex))
                 before = holder.innerHTML
                 self.safety.sanitize(holder)
+                # Only the "sanitised" marker is added to the container.
+                holder.querySelector("mjx-container").removeAttribute("data-mathud-sanitized")
                 self.assertEqual(holder.innerHTML, before)
+
+    def test_skip_sanitized_leaves_marked_containers_alone(self) -> None:
+        marked = self._container('<mjx-mi style="position: fixed">a</mjx-mi>')
+        self.assertEqual(self.safety.sanitize(self.root), 1)
+        self.assertTrue(marked.hasAttribute("data-mathud-sanitized"))
+        # A later backstop pass (typesetAndSanitize) skips it and cleans only new output.
+        fresh = self._container('<mjx-mi style="position: fixed">b</mjx-mi>')
+        self.assertEqual(self.safety.sanitize(self.root, True), 1)
+        self.assertFalse(fresh.querySelector("mjx-mi").hasAttribute("style"))
+        # A full pass (the render action's) sanitises marked containers again.
+        self.assertEqual(self.safety.sanitize(self.root), 2)
 
     def test_render_math_goes_through_the_sanitizer(self) -> None:
         from chat_ui_manager import ChatUIManager
@@ -536,14 +634,18 @@ class TestMathOutputSanitizer(unittest.TestCase):
             def _chat_history_element(self) -> Any:
                 return history
 
+        new_message = document.createElement("div")
         original = window.MatHudMathSafety
         window.MatHudMathSafety = _Safety()
         try:
-            _UI(message_menu=MessageMenuManager(), tool_call_log=ToolCallLogManager()).render_math()
+            ui = _UI(message_menu=MessageMenuManager(), tool_call_log=ToolCallLogManager())
+            ui.render_math()
+            ui.render_math(new_message)  # a message just added: only it is typeset
         finally:
             window.MatHudMathSafety = original
-        self.assertEqual(len(calls), 1)
+        self.assertEqual(len(calls), 2)
         self.assertIs(calls[0], history)
+        self.assertIs(calls[1], new_message)
 
 
 # Math that tex-mml-chtml.js typesets without loading anything.

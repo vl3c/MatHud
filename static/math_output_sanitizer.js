@@ -148,8 +148,15 @@
         }
     }
 
-    // Sanitise every mjx-container inside root (or root itself when it is one).
-    function sanitize(root) {
+    // Set on each container this file has sanitised. TeX cannot put it on an
+    // mjx-container (MathJax creates the container; ui/safe filters data- attributes).
+    var SANITIZED_MARKER = "data-mathud-sanitized";
+
+    // Sanitise every mjx-container inside root (or root itself when it is one). With
+    // skipSanitized, containers already carrying the marker are left alone: the render
+    // action has sanitised them, and sanitises them again whenever MathJax re-renders.
+    // Returns the number of containers sanitised.
+    function sanitize(root, skipSanitized) {
         if (!root || !root.querySelectorAll) {
             return 0;
         }
@@ -157,25 +164,32 @@
         if (root.tagName && root.tagName.toLowerCase() === "mjx-container") {
             containers.unshift(root);
         }
+        var count = 0;
         for (var i = 0; i < containers.length; i++) {
+            if (skipSanitized && containers[i].hasAttribute(SANITIZED_MARKER)) {
+                continue;
+            }
             sanitizeContainer(containers[i]);
+            containers[i].setAttribute(SANITIZED_MARKER, "");
+            count++;
         }
-        return containers.length;
+        return count;
     }
 
-    // Typeset root with MathJax, then sanitise its math. Resolves to the number of
-    // containers sanitised; never rejects (a failed typeset still gets sanitised).
+    // Typeset root with MathJax, then sanitise any of its math the render action has
+    // not (belt and braces). Resolves to the number of containers sanitised in this
+    // pass; never rejects (a failed typeset still gets sanitised).
     function typesetAndSanitize(root) {
         var mathjax = window.MathJax;
         if (!mathjax || typeof mathjax.typesetPromise !== "function") {
-            return Promise.resolve(sanitize(root));
+            return Promise.resolve(sanitize(root, true));
         }
         return mathjax.typesetPromise([root]).then(
             function () {
-                return sanitize(root);
+                return sanitize(root, true);
             },
             function () {
-                return sanitize(root);
+                return sanitize(root, true);
             }
         );
     }
