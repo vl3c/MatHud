@@ -50,7 +50,8 @@ From the September 2026 project review. Conservative fixes, each with a regressi
 Follow-ups:
 - **Comprehension benchmark for the canvas format** — once a model is reachable, compare `json` vs `text` answers (lengths, names, graph edges, changes after tool calls) per provider; tune the local budget to the model's context size.
 - One user-visible undo step per AI action (nested manager archives currently create several).
-- Serialize drawable colors/styles (points, segments, vectors, circles, polygons, graphs, function curves) so they survive reload and reach the model.
+- Serialize drawable colors/styles (points, segments, vectors, circles, polygons, graphs, function curves) so they survive reload and reach the model; until then colours and styles are also missing from the model's canvas text.
+- OpenAI Responses API keeps earlier turns (including their `<canvas>` blocks) in server-side history via previous_response_id, so MatHud can't strip old canvas blocks there; consider sending the canvas as a separate input item or not chaining responses.
 - `localStorage` mirror of the canvas so an accidental page reload doesn't lose work.
 - Custom names for circles and ellipses (currently always `<center>(<radius>)`; needs a custom-name flag honoured by `regenerate_name()` and `__deepcopy__`).
 - Region boolean operations ignore holes and use only outer boundaries when results are combined further.
