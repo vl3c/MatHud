@@ -554,7 +554,7 @@ server_tests/
    a. User requests save (e.g., via AI prompt "save workspace my_work").
    b. AI responds with a tool call: `{"function_name": "save_workspace", "arguments": {"name": "my_work"}}`.
    c. Client `AIInterface` processes this via `ProcessFunctionCalls.get_results`.
-   d. The client-side `WorkspaceManager` posts the current canvas state to `/save_workspace`.
-   e. The server-side `WorkspaceManager` validates the name and writes the JSON atomically to `workspaces/<name>.json`, keeping any previous version as `<name>.json.bak`.
-2. **Load Workspace**: the client requests `/load_workspace`, and the client-side `WorkspaceManager` rebuilds the drawables on the canvas from the returned state.
+   d. The client-side `WorkspaceManager` posts the current canvas state, with the chat transcript (`ChatPersistenceManager.export_chat_state()`), to `/save_workspace`.
+   e. The server-side `WorkspaceManager` validates the name, sanitizes and caps the chat (`static/workspace_chat.py`) and writes the JSON atomically to `workspaces/<name>.json`, keeping any previous version as `<name>.json.bak`.
+2. **Load Workspace**: the client requests `/load_workspace`, and the client-side `WorkspaceManager` rebuilds the drawables on the canvas from the returned state. When the user loads with `/load`, it then replaces the chat with the returned `chat` and posts it to `/restore_conversation`, which rebuilds a plain-text AI history for every provider. The AI's `load_workspace` tool restores the canvas only, so a load in the middle of a turn leaves the chat and the running conversation alone.
 3. **Delete Workspace**: the client posts `{"name": ...}` as JSON to `/delete_workspace`; the server moves the file to `workspaces/.trash/`.

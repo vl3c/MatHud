@@ -585,8 +585,10 @@ Key Features:
     - Computation history preservation and restoration
 
 Workspace Operations:
-    - Save: Serializes current canvas state and sends to server via AJAX
+    - Save: Serializes current canvas state (and the chat transcript) and sends to server via AJAX
     - Load: Requests workspace data from server and restores canvas state
+    - Load with chat: Also replaces the chat and the AI conversation (user loads via /load;
+      the AI's load_workspace tool restores the canvas only)
     - List: Retrieves available workspace names from server storage
     - Delete: Removes workspace files from server persistent storage
 
@@ -622,8 +624,10 @@ Args:
 
 **Key Methods:**
 - `__init__(canvas)`: Initialize workspace manager with canvas reference
-- `save_workspace(name=None)`: Save the current workspace state to server via AJAX
-- `load_workspace(name=None)`: Load and restore workspace state from server
+- `set_chat_persistence(chat_persistence)`: Attach the `ChatPersistenceManager` (set by `AIInterface`); without one, workspaces are canvas-only
+- `save_workspace(name=None)`: Save the current workspace state to server via AJAX, with the chat transcript as `chat` when chat persistence is attached
+- `load_workspace(name=None)`: Load and restore the canvas from the server. This is the AI's `load_workspace` tool, which can run in the middle of a turn, so it leaves the chat and the AI conversation alone; when the workspace has a saved chat, the result says so and names the `/load <name>` command that restores it
+- `load_workspace_with_chat(name=None)`: The user's `/load`: restore the canvas, then replace the chat and the AI conversation with the saved chat (a workspace without one starts an empty chat) and append "Restored N chat messages." to the result
 - `list_workspaces()`: Retrieve list of available workspace names from server
 - `delete_workspace(name)`: Remove workspace from server persistent storage
 - `_create_points(state)`: Create points from workspace state during restoration
@@ -640,6 +644,29 @@ Args:
 - `_restore_workspace_state(state)`: Main restoration orchestrator for complete workspace state
 - `_find_rectangle_segments(points)`: Find existing segments that form a rectangle
 - `_get_properly_oriented_rectangle_segments(segments, points)`: Arrange segments in proper rectangle order
+
+#### Chat Persistence (`chat_transcript.py`, `chat_persistence_manager.py`)
+
+Saves the chat with workspaces and restores it when the user loads one.
+
+**What is saved:** the user and assistant messages of the AI conversation, as raw markdown text (re-rendered on load). A user message counts its attached images (`images`); the image data is not saved, and the restored chat shows "N attached image(s) (not saved with the workspace)". An assistant message keeps compact tool-call entries (`tools`: name, short arguments, error flag), shown as a collapsed "Used N tools" log. Slash commands, system notes, test output, reasoning text and metrics footers are not saved. The saved chat looks like `{"messages": [{"role": "user", "text": ..., "images": 1}, {"role": "assistant", "text": ..., "tools": [...]}], "truncated": 0}`.
+
+**Size caps** (`constants.py`, mirrored and enforced again by the server in `static/config.py`): at most 200 messages and 400,000 characters in total, the oldest messages dropped first and counted in `truncated` (the restored chat starts with "N earlier messages were not saved with the workspace."); at most 20,000 characters per message and 30 tool entries per assistant message.
+
+**`ChatTranscript` (`chat_transcript.py`, no browser imports):**
+- `record_user(text, image_count=0)` / `record_assistant(text, tool_entries=None)`: Record a message (empty ones are skipped; caps applied)
+- `messages` / `truncated`: Copies of the recorded messages, and how many older ones were dropped
+- `to_state()` / `load_state(state)`: The JSON saved with a workspace, and replacing the transcript with one (invalid messages are skipped; anything that is not a chat empties it)
+- `compact_tool_entries(entries)`: Reduce `ToolCallLogManager` entries to name, short args and error flag
+- `clear()`: Forget every message
+
+**Recording (`ChatUIManager.transcript`):** `print_user_message(..., record=True)` for messages sent to the AI, `print_ai_message(..., record=True)` for non-streamed replies, and `finalize_stream()` for streamed replies (the text shown, with the turn's tool-call log). `restore_transcript(chat_state)` replaces the chat DOM with a saved transcript and returns the number of messages shown; `clear_chat()` (New Conversation, `/new`) empties the chat and the transcript.
+
+**`ChatPersistenceManager` (`chat_persistence_manager.py`):**
+- `export_chat_state()`: The transcript to save with a workspace
+- `restore_chat_state(chat_state)`: Replace the chat with a saved one and `POST /restore_conversation` (`{"chat", "ai_model"}`) so the server rebuilds the AI conversation from it; returns the sentence appended to the load result ("Restored N chat messages.", or that the workspace had no saved chat, plus a warning when the server could not restore the conversation)
+
+**When chats are replaced:** only the user's `/load` replaces the chat (as the loaded canvas replaces the current canvas). The AI's `load_workspace` tool restores the canvas only: replacing the chat and the server history in the middle of a turn would break the running tool loop. Saving, from `/save`, the `save_workspace` tool or New Conversation's automatic save, always includes the chat so far; a save made by the AI during a turn holds the user's request of that turn but not the reply still being written.
 
 #### Cartesian System (`cartesian_system_2axis.py`)
 
@@ -3684,8 +3711,18 @@ Attributes:
 
 **Key Methods:**
 - `__init__(workspaces_dir=WORKSPACES_DIR)`: Initialize the workspace manager with base directory
-- `save_workspace(state, name=None, test_dir=None)`: Save workspace state to file with metadata. Writes are atomic (temporary file in the same directory, then `os.replace`), and the previous version of an overwritten workspace is kept as `<name>.json.bak`
+- `save_workspace(state, name=None, test_dir=None, chat=None)`: Save workspace state to file with metadata, plus the chat transcript as `chat` when one with messages is given (validated and size-capped by `sanitize_chat_record`). Writes are atomic (temporary file in the same directory, then `os.replace`), and the previous version of an overwritten workspace is kept as `<name>.json.bak`
 - `load_workspace(name=None, test_dir=None)`: Load workspace state from file
+- `load_workspace_record(name=None, test_dir=None)`: Load the whole normalized record: `metadata`, `state` and, when the file has a valid one, the sanitized `chat`
+- Schema versions (`CURRENT_WORKSPACE_SCHEMA_VERSION` in `static/config.py`): 1 is `{"metadata", "state"}`; 2 (current) adds the optional `chat`. Older files, including legacy files whose top level is the state itself, load without a chat; files from a newer version are rejected
+
+### Workspace Chat Persistence (`static/workspace_chat.py`)
+
+Pure module that validates the chat saved with a workspace and rebuilds an AI conversation history from it. The provider-side history itself is never saved: it holds canvas blocks, tool-call protocol messages and provider-specific state (such as the Responses API's `previous_response_id`) that do not survive a restart or a model switch.
+
+**Key Functions:**
+- `sanitize_chat_record(raw)`: Return `{"messages", "truncated"}` keeping only valid user/assistant messages (`text`, optional `images` count and `tools` entries), truncating long texts and dropping the oldest messages over `MAX_SAVED_CHAT_MESSAGES` (200) or `MAX_SAVED_CHAT_TOTAL_CHARS` (400,000); `None` when `raw` is not a chat
+- `build_restored_history(chat)`: Turn a saved chat into plain-text `{"role", "content"}` turns: image placeholders become a note in the user text, a tool-only reply becomes "(Used tools: ...)", consecutive turns of one role are merged, and only the newest turns within `MAX_RESTORED_HISTORY_MESSAGES` (40), `MAX_RESTORED_HISTORY_MESSAGE_CHARS` (8,000) and `MAX_RESTORED_HISTORY_CHARS` (40,000, roughly 10k tokens) are kept. The history starts with a user turn and ends with an assistant turn; when anything was left out, the first turn starts with "(Earlier messages of this conversation were omitted.)"
 - `list_workspaces(test_dir=None)`: List saved workspace names (backups, temp files and the trash directory are skipped)
 - `delete_workspace(name, test_dir=None)`: Move the workspace file to `workspaces/.trash/` under a timestamped name; returns False for unsafe or missing names
 
@@ -3715,6 +3752,7 @@ for both Chat Completions and Responses APIs.
 - `create_chat_completion(full_prompt)` / `create_chat_completion_stream(full_prompt)`: Send a prompt (implemented by subclasses)
 - `record_tool_call_result(tool_call_id, content)`: Write one tool result into its placeholder tool message
 - `reset_conversation()`: Clear history and the last canvas state shown to the model
+- `restore_conversation(history)`: Reset, then append restored plain-text `{"role", "content"}` turns (from `build_restored_history`); subclasses' own reset state (such as `previous_response_id`) is cleared by their `reset_conversation`
 - `add_partial_assistant_message(content)`: Keep a partially streamed reply in history
 - `_prepare_message_content(full_prompt)`: Build the user message content for the configured canvas format (private)
 - `_append_canvas_changes(canvas_state)`: Append the post-batch canvas report to the last tool message (private)
@@ -3897,8 +3935,10 @@ Dependencies:
 
 **Key Routes:**
 - `@app.route('/')`: Main application page serving the mathematical visualization interface
-- `@app.route('/save_workspace', methods=['POST'])`: Save current workspace state to file
-- `@app.route('/load_workspace', methods=['GET'])`: Load workspace state from file
+- `@app.route('/save_workspace', methods=['POST'])`: Save current workspace state to file (JSON body `{"state", "name", "chat"}`; `chat` is optional and must be an object)
+- `@app.route('/load_workspace', methods=['GET'])`: Load workspace state from file; returns `{"state", "chat"}` (`chat` is `null` for workspaces saved without one). It does not change the AI conversation
+- `@app.route('/restore_conversation', methods=['POST'])`: Replace the AI conversation history of every provider instance (plus the provider of `ai_model`, created if needed) with one rebuilt from a saved chat (JSON body `{"chat", "ai_model"}`; a `null` chat starts an empty conversation). Requires a JSON content type (415 otherwise), like `/delete_workspace`
+- `@app.route('/new_conversation', methods=['POST'])`: Reset the AI conversation history of every provider instance
 - `@app.route('/list_workspaces', methods=['GET'])`: List all saved workspaces
 - `@app.route('/delete_workspace', methods=['POST'])`: Delete workspace by name (JSON body `{"name": ...}`; deleted files move to `.trash/`)
 - `@app.route('/send_message', methods=['POST'])`: Process AI chat messages with tool calling support (`/send_message_stream` streams the same); both enforce `MAX_IMAGE_BASE64_BYTES` on attached images and on the vision `canvas_snapshot` (`validate_canvas_snapshot`)
@@ -4045,6 +4085,7 @@ Key Features:
 - Essential: `/help`, `/undo`, `/redo`, `/clear`, `/reset`, `/save`, `/load`, `/workspaces`
 - Canvas/View: `/fit`, `/zoom`, `/grid`, `/axes`, `/polar`, `/cartesian`, `/status`
 - Utility: `/vision`, `/test`, `/export`, `/import`, `/list`, `/new`, `/model`, `/image`
+- `/save [name]` saves the canvas and the chat; `/load [name]` replaces both the canvas and the chat (and the AI conversation) with the saved ones (see Chat Persistence). `/export` and `/import` stay canvas-only
 
 **Key Methods:**
 - `is_slash_command(message)`: Check if a message starts with `/`

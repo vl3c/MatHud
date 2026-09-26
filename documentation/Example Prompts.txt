@@ -168,6 +168,8 @@ Save the current workspace as 'MyFirstProject'.
 Load the workspace named 'CalculusHomework'.
 List all saved workspaces.
 Delete the workspace 'OldDraft'.
+(Saving keeps the chat with the canvas. When the assistant loads a workspace it restores the
+canvas only; type /load <name> to bring back the saved chat as well.)
 
 # Slash Commands (local, no AI)
 /help                    Show all available commands
@@ -176,8 +178,9 @@ Delete the workspace 'OldDraft'.
 /redo                    Redo the last undone action
 /clear                   Clear all objects from canvas
 /reset                   Reset view to default
-/save MyProject          Save workspace with a name
-/load MyProject          Load a named workspace
+/save MyProject          Save workspace (canvas and chat) with a name
+/load MyProject          Load a named workspace, replacing the canvas and the chat
+                         (the assistant can continue the restored conversation)
 /workspaces              List all saved workspaces
 /fit                     Fit view to show all objects
 /zoom in                 Zoom in
