@@ -33,9 +33,10 @@ from static.config import (
 )
 from static.openai_api_base import OpenAIAPIBase, get_configured_tool_mode
 from static.providers import ProviderRegistry, create_provider_instance, is_local_provider
-from static.route_helpers import get_active_provider, reset_tools_for_all_providers
+from static.route_helpers import conversation_apis, get_active_provider, reset_tools_for_all_providers
 from static.tool_call_processor import ProcessedToolCall, ToolCallProcessor
 from static.tts_manager import get_tts_manager
+from static.workspace_chat import build_restored_history, sanitize_chat_record
 
 F = TypeVar("F", bound=Callable[..., ResponseReturnValue])
 
@@ -673,7 +674,7 @@ def register_routes(app: MatHudFlask) -> None:
     @app.route("/save_workspace", methods=["POST"])
     @require_auth
     def save_workspace_route() -> ResponseReturnValue:
-        """Save the current workspace state."""
+        """Save the current workspace state, with the chat transcript when one is sent."""
         try:
             data = request.get_json(silent=True)
             if not isinstance(data, dict):
@@ -681,11 +682,14 @@ def register_routes(app: MatHudFlask) -> None:
 
             state = data.get("state")
             name = data.get("name")
+            chat = data.get("chat")
 
             if name is not None and not isinstance(name, str):
                 return AppManager.make_response(message="Workspace name must be a string", status="error", code=400)
+            if chat is not None and not isinstance(chat, dict):
+                return AppManager.make_response(message="Workspace chat must be an object", status="error", code=400)
 
-            success = app.workspace_manager.save_workspace(state, name)
+            success = app.workspace_manager.save_workspace(state, name, chat=chat)
             if success:
                 return AppManager.make_response(message="Workspace saved successfully")
             else:
@@ -866,12 +870,17 @@ def register_routes(app: MatHudFlask) -> None:
     @app.route("/load_workspace", methods=["GET"])
     @require_auth
     def load_workspace_route() -> ResponseReturnValue:
-        """Load a workspace state."""
+        """Load a workspace state and its saved chat (``null`` when it has none).
+
+        Loading has no effect on the AI conversation; the client restores it
+        separately through ``/restore_conversation`` when the user loads a workspace.
+        """
         try:
             name = request.args.get("name")
-            state = app.workspace_manager.load_workspace(name)
+            record = app.workspace_manager.load_workspace_record(name)
+            chat = cast(Optional[JsonValue], record.get("chat"))
 
-            return AppManager.make_response(data={"state": state})
+            return AppManager.make_response(data={"state": record["state"], "chat": chat})
         except FileNotFoundError as e:
             return AppManager.make_response(message=str(e), status="error", code=404)
         except Exception as e:
@@ -923,6 +932,33 @@ def register_routes(app: MatHudFlask) -> None:
                 provider.reset_conversation()
             app.log_manager.log_new_session()
             return AppManager.make_response(message="New conversation started.")
+        except Exception as e:
+            return AppManager.make_response(message=str(e), status="error", code=500)
+
+    @app.route("/restore_conversation", methods=["POST"])
+    @require_auth
+    def restore_conversation_route() -> ResponseReturnValue:
+        """Replace the AI conversation history with one rebuilt from a saved chat.
+
+        Expects a JSON body ``{"chat": <saved chat or null>, "ai_model": <optional id>}``.
+        A null chat starts an empty conversation. Like ``/delete_workspace``, it needs a
+        JSON content type so other sites cannot trigger it with simple cross-site requests.
+        """
+        try:
+            if not request.is_json:
+                return AppManager.make_response(message="Expected a JSON request body", status="error", code=415)
+            data = request.get_json(silent=True)
+            if not isinstance(data, dict):
+                return AppManager.make_response(message="Invalid request body", status="error", code=400)
+            model_id = data.get("ai_model")
+            history = build_restored_history(sanitize_chat_record(data.get("chat")))
+            for api in conversation_apis(app, model_id if isinstance(model_id, str) else None):
+                api.restore_conversation(history)
+            app.log_manager.log_new_session()
+            return AppManager.make_response(
+                message="Conversation restored.",
+                data={"restored_turns": len(history)},
+            )
         except Exception as e:
             return AppManager.make_response(message=str(e), status="error", code=500)
 
