@@ -25,6 +25,8 @@ class TestGraphManager(unittest.TestCase):
             undo_redo_manager=SimpleMock(
                 name="UndoRedoMock",
                 archive=SimpleMock(),
+                suspend_archiving=SimpleMock(),
+                resume_archiving=SimpleMock(),
             ),
         )
 
@@ -471,6 +473,49 @@ class TestGraphManager(unittest.TestCase):
 
         self.assertTrue(removed)
         self.dependency_manager.remove_drawable.assert_called_once_with(graph)
+
+    def _matrix_edges(self, graph_type: str, directed: Any, matrix: List[List[float]]) -> List[tuple]:
+        state = self.graph_manager.build_graph_state(
+            name="matrix_test",
+            graph_type=graph_type,
+            vertices=[],
+            edges=[],
+            adjacency_matrix=matrix,
+            directed=directed,
+            root=None,
+            layout=None,
+            placement_box=None,
+            metadata=None,
+        )
+        return [(e.source, e.target, e.weight, e.directed) for e in state.edges]
+
+    def test_undirected_matrix_gives_one_edge_per_pair(self) -> None:
+        matrix = [[0, 1, 0], [1, 0, 2], [0, 2, 0]]
+        self.assertEqual(
+            self._matrix_edges("graph", False, matrix),
+            [("v0", "v1", 1.0, None), ("v1", "v2", 2.0, None)],
+        )
+
+    def test_undirected_matrix_reads_lower_triangle_when_upper_is_empty(self) -> None:
+        matrix = [[0, 0, 0], [3, 0, 0], [0, 4, 0]]
+        self.assertEqual(
+            self._matrix_edges("graph", None, matrix),
+            [("v0", "v1", 3.0, None), ("v1", "v2", 4.0, None)],
+        )
+
+    def test_directed_matrix_gives_one_edge_per_entry(self) -> None:
+        matrix = [[0, 1], [5, 0]]
+        self.assertEqual(
+            self._matrix_edges("dag", None, matrix),
+            [("v0", "v1", 1.0, None), ("v1", "v0", 5.0, None)],
+        )
+
+    def test_tree_matrix_is_read_as_undirected(self) -> None:
+        matrix = [[0, 1, 1], [1, 0, 0], [1, 0, 0]]
+        self.assertEqual(
+            self._matrix_edges("tree", True, matrix),
+            [("v0", "v1", 1.0, None), ("v0", "v2", 1.0, None)],
+        )
 
     def _use_real_name_generator(self) -> None:
         from name_generator.drawable import DrawableNameGenerator

@@ -88,6 +88,7 @@ class DirectedGraph(Graph):
 
     def remove_vector(self, vector: "Vector") -> bool:
         """Remove a vector reference from this graph."""
+        self._forget_preexisting(vector)
         if vector in self._vectors:
             self._vectors.remove(vector)
             self._invalidate_cache()
@@ -122,5 +123,6 @@ class DirectedGraph(Graph):
             vectors=deepcopy(self._vectors, memo),
             isolated_points=deepcopy(self._isolated_points, memo),
         )
+        self._copy_preexisting_to(copied, memo)
         memo[id(self)] = copied
         return copied

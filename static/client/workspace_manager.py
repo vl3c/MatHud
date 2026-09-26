@@ -600,14 +600,53 @@ class WorkspaceManager:
     def _build_graph_from_state(self, state_key: str, name: str, args: Dict[str, Any]) -> Any:
         # Older saves lack isolated_points; edges alone still rebuild the graph.
         isolated_points = self._resolve_named(args.get("isolated_points"), self.canvas.get_point_by_name)
+        # Older saves lack preexisting_points/edges; the graph then owns all its vertices and edges.
+        preexisting_points = self._resolve_named(args.get("preexisting_points"), self.canvas.get_point_by_name)
+        graph: Any
         if state_key == "DirectedGraphs":
             vector_manager = self.canvas.drawable_manager.vector_manager
             vectors = self._resolve_named(args.get("vectors"), vector_manager.get_vector_by_name)
-            return DirectedGraph(name, vectors=vectors, isolated_points=isolated_points)
-        segments = self._resolve_named(args.get("segments"), self.canvas.get_segment_by_name)
-        if state_key == "Trees":
-            return Tree(name, root=args.get("root"), segments=segments, isolated_points=isolated_points)
-        return UndirectedGraph(name, segments=segments, isolated_points=isolated_points)
+            preexisting_edges = self._resolve_named(args.get("preexisting_edges"), vector_manager.get_vector_by_name)
+            graph = DirectedGraph(name, vectors=vectors, isolated_points=isolated_points)
+        else:
+            segments = self._resolve_named(args.get("segments"), self.canvas.get_segment_by_name)
+            preexisting_edges = self._resolve_named(args.get("preexisting_edges"), self.canvas.get_segment_by_name)
+            if state_key == "Trees":
+                graph = Tree(name, root=args.get("root"), segments=segments, isolated_points=isolated_points)
+            else:
+                graph = UndirectedGraph(name, segments=segments, isolated_points=isolated_points)
+        graph_edges = list(getattr(graph, "vectors", None) or getattr(graph, "segments", None) or [])
+        graph.set_preexisting(
+            preexisting_points,
+            preexisting_edges,
+            self._resolve_edge_labels(args.get("edge_label_records"), graph_edges),
+        )
+        return graph
+
+    def _resolve_edge_labels(
+        self, records: Any, edges: List[Any]
+    ) -> List[Tuple[Any, str, bool, Optional[str], Optional[int], bool]]:
+        """Match saved label records to the restored graph edges by name."""
+        resolved: List[Tuple[Any, str, bool, Optional[str], Optional[int], bool]] = []
+        for record in records or []:
+            if not isinstance(record, dict):
+                continue
+            edge = next((e for e in edges if getattr(e, "name", None) == record.get("edge")), None)
+            if edge is None:
+                continue
+            written = record.get("written")
+            seq = record.get("seq")
+            resolved.append(
+                (
+                    edge,
+                    str(record.get("text") or ""),
+                    bool(record.get("visible")),
+                    None if written is None else str(written),
+                    int(seq) if isinstance(seq, (int, float)) and not isinstance(seq, bool) else None,
+                    bool(record.get("created")),
+                )
+            )
+        return resolved
 
     def _resolve_named(self, names: Any, lookup: Callable[[str], Any]) -> List[Any]:
         resolved: List[Any] = []
