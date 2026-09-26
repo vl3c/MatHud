@@ -271,7 +271,8 @@ Attributes:
 - `draw(apply_zoom=False)`: Draw all canvas content including coordinate system and drawable objects
 - `clear()`: Clear all drawables from the canvas
 - `reset()`: Reset the canvas to its initial state
-- `archive()`: Archive the current state for undo functionality
+- `archive()`: Archive the current state for undo functionality (inside an undo batch it only marks the batch as changed)
+- `begin_undo_batch()` / `end_undo_batch()`: Group every change between the two calls into one undo step (see Undo Redo Manager)
 - `undo()`: Restores the last archived state from the undo stack
 - `redo()`: Restores the last undone state from the redo stack
 - `get_drawables()`: Get all drawables as a flat list
@@ -470,14 +471,14 @@ Manages state archiving, computation tracking, and error handling for function e
 Key Features:
     - Function call validation and execution
     - Result formatting and type consistency
-    - State archiving for undoable operations
+    - One undo step per batch of calls
     - Computation history integration
     - Error handling and exception management
     - Expression evaluation result processing
 
 Processing Flow:
     1. Input validation for function calls and available functions
-    2. State archiving for undoable operations
+    2. An undo batch around calls that can change the canvas, so the batch is one undo step
     3. Individual function call execution with error handling
     4. Result formatting and key generation
     5. Computation history integration (for mathematical operations)
@@ -496,8 +497,15 @@ results with proper formatting and error handling. Integrates with canvas
 computation history for mathematical operations.
 ```
 
+**Undo and result conventions for a tool batch:**
+- A batch that contains at least one undoable call runs inside one undo batch (`canvas.begin_undo_batch()` / `end_undo_batch()`), so one `undo` afterwards restores exactly the state before the batch, and `redo` restores the batch's result. A batch that changed nothing (for example only a delete of a missing object) adds no undo entry. An `undo` or `redo` call inside a batch first commits the batch's earlier changes, so it reverts them rather than the step before the batch.
+- A delete tool, `undo` or `redo` that returns False changed nothing, and its result says so instead of "Call successful!": deletes return "Error: nothing was deleted; no matching object exists on the canvas." (a tool error, like an update of a missing object), `undo` returns "Nothing to undo: the undo history is empty." and `redo` returns "Nothing to redo: there is no undone change to restore."
+- A result counts as a tool error (`is_error` in the traced calls, the tool-call log, trace replay and turn metrics) when it is a string starting with "Error", a dict with a non-empty "error" field (e.g. `analyze_graph` on a missing graph), or a `{"type": "error", ...}` payload. A dict whose "error" field is empty, as `search_tools` returns on success, is not an error.
+
 **Key Methods:**
-- `get_results(calls, available_functions, undoable_functions, canvas)`: Process function calls and collect their results
+- `get_results(calls, available_functions, undoable_functions, canvas)`: Process function calls and collect their results (the results dict of `get_results_traced`)
+- `get_results_traced(calls, available_functions, undoable_functions, canvas)`: Execute the batch and return (results, traced calls with timing and `is_error`)
+- `is_error_result(value)`: Return True when a result value reports a failed call
 - `_validate_inputs(calls, available_functions, undoable_functions)`: Validate the input parameters
 - `_prepare_helper_variables(undoable_functions)`: Prepare helper variables needed for processing
 - `_process_function_call(call, available_functions, non_computation_functions, unformattable_functions, canvas, results)`: Process a single function call and update results
@@ -637,7 +645,7 @@ Args:
 - `_create_colored_areas(state)`: Create colored areas from workspace state with boundary resolution
 - `_create_angles(state)`: Create angles from workspace state with vertex/arm dependencies
 - `_restore_computations(state)`: Restore computation history from workspace state
-- `_restore_workspace_state(state)`: Main restoration orchestrator for complete workspace state
+- `_restore_workspace_state(state)`: Main restoration orchestrator for complete workspace state; the whole restore, including the canvas clear, is one undo step, so one `undo` after a load or import restores the objects that were on the canvas before it
 - `_find_rectangle_segments(points)`: Find existing segments that form a rectangle
 - `_get_properly_oriented_rectangle_segments(segments, points)`: Arrange segments in proper rectangle order
 
@@ -2213,9 +2221,11 @@ This class is responsible for:
 
 **Key Methods:**
 - `__init__(canvas)`: Initialize the UndoRedoManager with canvas reference
-- `archive()`: Archive the current canvas state for undo functionality
-- `undo()`: Restore the most recent archived state
-- `redo()`: Restore a previously undone state
+- `archive()`: Archive the current canvas state for undo functionality; ignored while archiving is suspended, and inside a batch it only marks the batch as changed
+- `suspend_archiving()` / `resume_archiving()`: Ignore `archive()` calls during a composite operation that pushes its own baseline with `push_undo_state()`
+- `begin_batch()` / `end_batch()`: Group every change until the matching end into one undo step. Batches nest; the outermost `begin_batch()` captures the baseline, and the outermost `end_batch()` pushes it as one entry if anything called `archive()` or `push_undo_state()` in between. Used for model tool batches and workspace restores.
+- `undo()`: Restore the most recent archived state (inside a batch, the batch's earlier changes are committed first)
+- `redo()`: Restore a previously undone state (inside a batch, the batch's earlier changes are committed first, which clears the redo history)
 - `can_undo()`: Check if undo operation is possible
 - `can_redo()`: Check if redo operation is possible
 - `clear()`: Clear all archived states
@@ -3496,6 +3506,7 @@ Dependencies:
 - `default_font_size`: Default font size for text elements (16)
 - `point_label_font_size`: Font size for point labels (5/8 ratio of default)
 - `successful_call_message`: Success message for function calls ("Call successful!"); canvas-mutating tools still return their value instead when it is a non-empty string or a dict of at most 2000 characters of JSON
+- `nothing_to_undo_message`, `nothing_to_redo_message`, `nothing_deleted_message`: Results of `undo`, `redo` and delete tools that returned False because nothing changed; the delete message starts with "Error:"
 - `double_click_threshold_s`: Maximum time between clicks for double-click detection (0.2 seconds)
 - `DEFAULT_ANGLE_COLOR`: Default color for angle indicators ("blue")
 - `DEFAULT_ANGLE_ARC_SCREEN_RADIUS`: Arc radius in pixels for angle indicators (15)
