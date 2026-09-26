@@ -1930,7 +1930,7 @@ This class coordinates specialized managers for each drawable type:
 - `update_vector(name, new_color=None)`: Update a vector's color
 - `get_polygon_by_vertices(vertices, polygon_type="triangle")`: Get a triangle by its vertex coordinates
 - `create_polygon(vertices, polygon_type="triangle", name="", extra_graphics=True)`: Create a triangle from three points
-- `delete_polygon(polygon_type="triangle", vertices=[...])`: Delete a triangle by its vertex coordinates
+- `delete_polygon(polygon_type="triangle", vertices=[...])`: Delete a triangle by its vertex coordinates (vertex points stay; so do edges another polygon, angle or graph still uses)
 - `update_polygon(name, polygon_type="triangle", new_color=None)`: Update a triangle's color
 - `get_function(name)`: Get a function by its name
 - `draw_function(function_string, name, left_bound=None, right_bound=None)`: Draw a function on the canvas
@@ -2507,7 +2507,7 @@ State Management:
 **Key Methods:**
 - `get_polygon_by_vertices(vertices, polygon_type="triangle")`: Get a triangle by its vertex coordinates
 - `create_polygon(vertices, polygon_type="triangle", name="", extra_graphics=True)`: Create a triangle from three points
-- `delete_polygon(polygon_type="triangle", vertices=[...])`: Delete a triangle by its vertex coordinates
+- `delete_polygon(polygon_type="triangle", vertices=[...])`: Delete a triangle by its vertex coordinates (vertex points stay; so do edges another polygon, angle or graph still uses)
 - `create_new_triangles_from_connected_segments()`: Automatically detect and create triangles from connected segments
 
 #### Rectangle Operations (Polygon Manager)
@@ -2837,7 +2837,7 @@ This class is responsible for:
 - `get_angle_by_name(name)`: Retrieves an Angle by its unique name
 - `get_angle_by_segments(segment1, segment2, is_reflex_filter=None)`: Retrieves an Angle by its two defining Segment objects
 - `get_angle_by_points(vertex_point, arm1_point, arm2_point, is_reflex_filter=None)`: Retrieves an Angle by its three defining Point objects
-- `delete_angle(angle_name)`: Delete an angle by name with dependency cleanup
+- `delete_angle(angle_name)`: Delete an angle by name; its arm segments and points stay
 - `update_angle(angle_name, new_color=None)`: Update angle properties like color
 - `handle_segment_updated(updated_segment_name)`: Handle updates when constituent segments change
 - `handle_segment_removed(removed_segment_name)`: Handle cleanup when constituent segments are deleted

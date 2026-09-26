@@ -319,8 +319,10 @@ class AngleManager(BaseDrawableManager):
 
     def delete_angle(self, angle_name: str) -> bool:
         """
-        Removes an angle by its name. Also attempts to remove its constituent segments
-        if they are no longer needed by other drawables (handled by SegmentManager).
+        Removes an angle by its name.
+
+        An angle is a measurement of existing segments, so only the angle itself is
+        removed; its arm segments and points stay on the canvas.
 
         Args:
             angle_name: The name of the angle to remove.
@@ -369,17 +371,7 @@ class AngleManager(BaseDrawableManager):
         except ValueError:
             print(f"AngleManager: Warning - Angle '{angle_name}' not found in Angles list for direct removal.")
 
-        # 4. Attempt to delete the constituent segments (SegmentManager handles if they are still in use)
-        if segment1 and hasattr(segment1, "point1") and hasattr(segment1, "point2"):
-            self.segment_manager.delete_segment(
-                segment1.point1.x, segment1.point1.y, segment1.point2.x, segment1.point2.y
-            )
-        if segment2 and hasattr(segment2, "point1") and hasattr(segment2, "point2"):
-            self.segment_manager.delete_segment(
-                segment2.point1.x, segment2.point1.y, segment2.point2.x, segment2.point2.y
-            )
-
-        # 5. Draw the canvas
+        # 4. Draw the canvas
         if self.canvas.draw_enabled:
             self.canvas.draw()
 

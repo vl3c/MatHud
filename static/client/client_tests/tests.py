@@ -11,6 +11,7 @@ from .test_cartesian import TestCartesian2Axis
 from .test_circle import TestCircle
 from .test_circle_arc import TestCircleArc
 from .test_custom_drawable_names import TestCustomDrawableNames
+from .test_delete_cascades import TestDeleteCascades
 from .test_drawable_dependency_manager import TestDrawableDependencyManager
 from .test_drawable_manager import (
     TestDrawableManagerRegionLookup,
@@ -449,6 +450,7 @@ class Tests:
             TestWorkspaceManagerOrchestration,
             TestWorkspacePlotsRestore,
             TestWorkspaceRoundTrip,
+            TestDeleteCascades,
             TestMathFunctions,
             TestNumberTheory,
             TestMathUtilsSolving,

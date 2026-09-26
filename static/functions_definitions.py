@@ -430,7 +430,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "delete_polygon",
-            "description": "Deletes a polygon by name or by matching a set of vertex coordinates. Specify polygon_type to limit the search.",
+            "description": "Deletes a polygon by name or by matching a set of vertex coordinates. Specify polygon_type to limit the search. Its vertex points stay, and so do edges that another polygon, angle or graph still uses.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2587,7 +2587,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "delete_angle",
-            "description": "Removes an angle by its name. This will also attempt to remove its constituent segments if they are no longer part of other drawables.",
+            "description": "Removes an angle by its name. Only the angle marker is removed; its arm segments and points stay.",
             "strict": True,
             "parameters": {
                 "type": "object",
