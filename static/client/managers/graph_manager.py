@@ -65,6 +65,12 @@ class GraphManager:
     def create_graph(self, state: GraphState) -> Graph:
         self.canvas.undo_redo_manager.archive()
 
+        # Vertices and edges may reuse drawables already on the canvas; the graph must not own those.
+        existing_drawables: List[Any] = (
+            list(self.drawables.Points) + list(self.drawables.Segments) + list(self.drawables.Vectors)
+        )
+        existing_ids = {id(drawable) for drawable in existing_drawables}
+
         vertex_positions = self._resolve_positions(state)
         vertex_name_map: Dict[str, str] = {}
         id_to_point: Dict[str, Point] = {}
@@ -110,9 +116,23 @@ class GraphManager:
                     isolated_points=list(id_to_point.values()),
                 )
 
+        graph.set_preexisting(
+            self._unique_preexisting(list(id_to_point.values()), existing_ids),
+            self._unique_preexisting(segments_created + vectors_created, existing_ids),
+        )
+
         self.drawables.add(graph)
         self.dependency_manager.analyze_drawable_for_dependencies(graph)
         return graph
+
+    @staticmethod
+    def _unique_preexisting(drawables: List[Any], existing_ids: set[int]) -> List[Any]:
+        """Return the drawables whose ids were on the canvas before, without duplicates."""
+        result: List[Any] = []
+        for drawable in drawables:
+            if id(drawable) in existing_ids and not any(item is drawable for item in result):
+                result.append(drawable)
+        return result
 
     def build_graph_state(
         self,
@@ -169,23 +189,12 @@ class GraphManager:
                 )
             )
 
-        if adjacency_matrix and not edges:
-            n = len(adjacency_matrix)
-            for i in range(n):
-                for j in range(n):
-                    weight = adjacency_matrix[i][j]
-                    if weight and i < len(id_list) and j < len(id_list):
-                        edge_descriptors.append(
-                            GraphEdgeDescriptor(
-                                f"m{i}_{j}",
-                                id_list[i],
-                                id_list[j],
-                                weight=float(weight),
-                                directed=True,
-                            )
-                        )
-
         resolved_directed = directed if directed is not None else graph_type in ("dag", "directed")
+
+        if adjacency_matrix and not edges:
+            # Trees are always undirected, so their matrix is read like an undirected graph's.
+            matrix_directed = resolved_directed and graph_type != "tree"
+            edge_descriptors.extend(self._edges_from_adjacency_matrix(adjacency_matrix, id_list, matrix_directed))
 
         resolved_root: Optional[str] = None
         if root is not None:
@@ -233,40 +242,63 @@ class GraphManager:
         if existing is None:
             return False
 
-        point_names: set[str] = set()
+        undo_manager = self.canvas.undo_redo_manager
+        undo_manager.archive()
+        # One archive covers the whole delete; the edge and point deletes below would otherwise archive again.
+        undo_manager.suspend_archiving()
+        try:
+            removed = self._delete_graph_and_owned_drawables(existing)
+        finally:
+            undo_manager.resume_archiving()
 
-        if isinstance(existing, DirectedGraph):
-            vectors: List["Vector"] = list(existing.vectors)
-            for vector in vectors:
-                self.vector_manager.delete_vector(vector.origin.x, vector.origin.y, vector.tip.x, vector.tip.y)
-                point_names.add(vector.origin.name)
-                point_names.add(vector.tip.name)
-        else:
-            segments: List["Segment"] = list(getattr(existing, "segments", []))
-            for segment in segments:
-                self.segment_manager.delete_segment(
-                    segment.point1.x,
-                    segment.point1.y,
-                    segment.point2.x,
-                    segment.point2.y,
-                    delete_children=True,
-                    delete_parents=False,
-                )
-                point_names.add(segment.point1.name)
-                point_names.add(segment.point2.name)
-
-        # Also remove isolated points tracked on the graph
-        isolated_pts = getattr(existing, "_isolated_points", [])
-        for p in isolated_pts:
-            point_names.add(getattr(p, "name", ""))
-
-        for v_name in point_names:
-            self.point_manager.delete_point_by_name(v_name)
-
-        removed = remove_drawable_with_dependencies(self.drawables, self.dependency_manager, existing)
         if removed and self.canvas.draw_enabled:
             self.canvas.draw()
         return bool(removed)
+
+    def _delete_graph_and_owned_drawables(self, graph: Graph) -> bool:
+        """Delete the graph with the vertices and edges it created.
+
+        Points and edges that existed before the graph (reused as vertices or edges)
+        stay, along with everything built on them.
+        """
+        vertex_points: List["Point"] = []
+
+        def add_vertex(point: "Point") -> None:
+            if not any(item is point for item in vertex_points):
+                vertex_points.append(point)
+
+        if isinstance(graph, DirectedGraph):
+            vectors: List["Vector"] = list(graph.vectors)
+            for vector in vectors:
+                add_vertex(vector.origin)
+                add_vertex(vector.tip)
+                if not graph.is_preexisting(vector):
+                    self.vector_manager.delete_vector(vector.origin.x, vector.origin.y, vector.tip.x, vector.tip.y)
+        else:
+            segments: List["Segment"] = list(getattr(graph, "segments", []))
+            for segment in segments:
+                add_vertex(segment.point1)
+                add_vertex(segment.point2)
+                if not graph.is_preexisting(segment):
+                    self.segment_manager.delete_segment(
+                        segment.point1.x,
+                        segment.point1.y,
+                        segment.point2.x,
+                        segment.point2.y,
+                        delete_children=True,
+                        delete_parents=False,
+                    )
+
+        # Also remove isolated points tracked on the graph
+        for point in list(getattr(graph, "_isolated_points", [])):
+            add_vertex(point)
+
+        for point in vertex_points:
+            point_name = getattr(point, "name", "")
+            if point_name and not graph.is_preexisting(point):
+                self.point_manager.delete_point_by_name(point_name)
+
+        return remove_drawable_with_dependencies(self.drawables, self.dependency_manager, graph)
 
     def get_graph(self, name: str) -> Optional[Graph]:
         for graph in self.drawables.get_by_class_name("Graph"):
@@ -338,6 +370,40 @@ class GraphManager:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+    @staticmethod
+    def _edges_from_adjacency_matrix(
+        adjacency_matrix: List[List[float]], id_list: List[str], directed: bool
+    ) -> List[GraphEdgeDescriptor]:
+        """Build edge descriptors from a weighted adjacency matrix.
+
+        Directed graphs get one edge per nonzero entry. Undirected graphs get one edge per
+        vertex pair, read from the upper triangle (or the lower one where the upper is zero).
+        Edges take their direction from the graph.
+        """
+        descriptors: List[GraphEdgeDescriptor] = []
+        n = min(len(adjacency_matrix), len(id_list))
+        for i in range(n):
+            for j in range(n):
+                if directed:
+                    weight = GraphManager._matrix_entry(adjacency_matrix, i, j)
+                elif j > i:
+                    weight = GraphManager._matrix_entry(adjacency_matrix, i, j) or GraphManager._matrix_entry(
+                        adjacency_matrix, j, i
+                    )
+                else:
+                    continue
+                if weight:
+                    descriptors.append(
+                        GraphEdgeDescriptor(f"m{i}_{j}", id_list[i], id_list[j], weight=float(weight), directed=None)
+                    )
+        return descriptors
+
+    @staticmethod
+    def _matrix_entry(matrix: List[List[float]], row: int, col: int) -> float:
+        if row < len(matrix) and col < len(matrix[row]):
+            return matrix[row][col]
+        return 0
+
     def _create_vertex_point(self, vertex: GraphVertexDescriptor, coords: Tuple[float, float]) -> "Point":
         """Create the point for a vertex, honouring its requested name when valid and unused."""
         requested_name = self._resolve_requested_vertex_name(vertex.name)

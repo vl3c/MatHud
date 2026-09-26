@@ -6,8 +6,9 @@ processor the AI uses, so it covers the argument handling of the tools too.
 
 from __future__ import annotations
 
+import json
 import unittest
-from typing import Any, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 from canvas import Canvas
 from function_registry import FunctionRegistry
@@ -227,6 +228,173 @@ class TestDeleteCascades(unittest.TestCase):
 
         self.assertEqual(len(self._drawables("Vector")), 1)
         self.assertEqual(self._segment_keys(), [((0, 0), (3, 0))])
+
+    # ------------------------------------------------------------------
+    # K18: adjacency matrix direction and graph ownership on delete
+    # ------------------------------------------------------------------
+    def _graph_args(self, **overrides: Any) -> Dict[str, Any]:
+        args: Dict[str, Any] = {
+            "name": "G",
+            "graph_type": "graph",
+            "directed": False,
+            "root": None,
+            "layout": None,
+            "placement_box": None,
+            "vertices": [],
+            "edges": [],
+            "adjacency_matrix": None,
+        }
+        args.update(overrides)
+        return args
+
+    def _matrix_graph_args(self, directed: bool) -> Dict[str, Any]:
+        empty_vertex = {"name": None, "x": None, "y": None, "color": None, "label": None}
+        return self._graph_args(
+            name="M",
+            directed=directed,
+            layout="circular",
+            placement_box={"x": 20, "y": 0, "width": 6, "height": 6},
+            vertices=[dict(empty_vertex) for _ in range(3)],
+            adjacency_matrix=[[0, 1, 0], [1, 0, 2], [0, 2, 0]],
+        )
+
+    def test_undirected_adjacency_matrix_creates_undirected_edges(self) -> None:
+        self._call("generate_graph", **self._matrix_graph_args(directed=False))
+
+        graph = self.canvas.get_graph("M")
+        self.assertEqual(graph.get_class_name(), "UndirectedGraph")
+        self.assertEqual(self._drawables("Vector"), [])
+        self.assertEqual(len(self._drawables("Segment")), 2)
+        self.assertEqual(sorted(e.get("weight") for e in graph.edges), [1.0, 2.0])
+        for x, y in self._point_coords():
+            self.assertTrue(20 <= x <= 26 and 0 <= y <= 6, f"Vertex ({x}, {y}) outside the placement box")
+
+        names = [p.name for p in graph._isolated_points]
+        result = self._call(
+            "analyze_graph",
+            graph_name="M",
+            operation="shortest_path",
+            params={"start": names[0], "goal": names[2]},
+        )
+        self.assertEqual(result.get("path"), names)
+        self.assertEqual(result.get("cost"), 3.0)
+
+    def test_directed_adjacency_matrix_keeps_one_vector_per_entry(self) -> None:
+        self._call("generate_graph", **self._matrix_graph_args(directed=True))
+
+        graph = self.canvas.get_graph("M")
+        self.assertEqual(graph.get_class_name(), "DirectedGraph")
+        self.assertEqual(len(self._drawables("Vector")), 4)
+        self.assertEqual(self._drawables("Segment"), [])
+
+    def _triangle_and_graph_on_its_vertex(self) -> Any:
+        triangle = self._triangle([(0, 0), (4, 0), (0, 3)], "ABC")
+        self._call(
+            "generate_graph",
+            **self._graph_args(
+                vertices=[
+                    {"name": "X", "x": 0, "y": 0, "color": None, "label": None},
+                    {"name": "Y", "x": 8, "y": 8, "color": None, "label": None},
+                ],
+                edges=[{"source": 0, "target": 1, "weight": 1, "name": None, "color": None, "directed": None}],
+            ),
+        )
+        self.assertEqual(len(self._drawables("Segment")), 4)
+        return triangle
+
+    def _assert_graph_gone_triangle_kept(self, triangle: Any) -> None:
+        self.assertIsNone(self.canvas.get_graph("G"))
+        self.assertEqual(self._drawables("Triangle"), [triangle])
+        self.assertEqual(self._segment_keys(), [((0, 0), (0, 3)), ((0, 0), (4, 0)), ((0, 3), (4, 0))])
+        self.assertEqual(self._point_coords(), [(0, 0), (0, 3), (4, 0)])
+        self._assert_parents_present(triangle)
+
+    def test_delete_graph_keeps_preexisting_vertex_and_its_triangle(self) -> None:
+        triangle = self._triangle_and_graph_on_its_vertex()
+        graph = self.canvas.get_graph("G")
+        graph_edges = list(graph.segments)
+        created_point = self.canvas.get_point(8, 8)
+
+        self._call("delete_graph", name="G")
+
+        self._assert_graph_gone_triangle_kept(triangle)
+        self._assert_not_tracked([graph, created_point] + graph_edges)
+
+    def test_delete_graph_keeps_preexisting_edge(self) -> None:
+        triangle = self._triangle([(0, 0), (4, 0), (0, 3)], "ABC")
+        self._call(
+            "generate_graph",
+            **self._graph_args(
+                vertices=[
+                    {"name": None, "x": 0, "y": 0, "color": None, "label": None},
+                    {"name": None, "x": 4, "y": 0, "color": None, "label": None},
+                    {"name": None, "x": 9, "y": 9, "color": None, "label": None},
+                ],
+                edges=[
+                    {"source": 0, "target": 1, "weight": None, "name": None, "color": None, "directed": None},
+                    {"source": 1, "target": 2, "weight": None, "name": None, "color": None, "directed": None},
+                ],
+            ),
+        )
+        self.assertEqual(len(self._drawables("Segment")), 4)
+
+        self._call("delete_graph", name="G")
+
+        self._assert_graph_gone_triangle_kept(triangle)
+
+    def test_delete_graph_still_removes_its_own_vertices(self) -> None:
+        self._call(
+            "generate_graph",
+            **self._graph_args(
+                vertices=[
+                    {"name": "P", "x": 10, "y": 10, "color": None, "label": None},
+                    {"name": "Q", "x": 12, "y": 10, "color": None, "label": None},
+                    {"name": "R", "x": 11, "y": 12, "color": None, "label": None},
+                ],
+                edges=[{"source": 0, "target": 1, "weight": None, "name": None, "color": None, "directed": None}],
+            ),
+        )
+
+        self._call("delete_graph", name="G")
+
+        self.assertIsNone(self.canvas.get_graph("G"))
+        self.assertEqual(self._drawables("Point"), [])
+        self.assertEqual(self._drawables("Segment"), [])
+
+    def test_delete_graph_ownership_survives_workspace_round_trip(self) -> None:
+        self._triangle_and_graph_on_its_vertex()
+        saved = json.loads(json.dumps(self.workspace_manager._snapshot_persistable_canvas_state()))
+        self.workspace_manager._restore_workspace_state(json.loads(json.dumps(saved)))
+        restored = json.loads(json.dumps(self.workspace_manager._snapshot_persistable_canvas_state()))
+        self.assertEqual(restored.get("UndirectedGraphs"), saved.get("UndirectedGraphs"))
+        triangle = self._drawables("Triangle")[0]
+
+        self._call("delete_graph", name="G")
+
+        self._assert_graph_gone_triangle_kept(triangle)
+
+    def test_delete_graph_ownership_survives_undo(self) -> None:
+        self._triangle_and_graph_on_its_vertex()
+        self._call("create_point", x=-5, y=-5, name="Z")
+        self._call("undo")
+        triangle = self._drawables("Triangle")[0]
+
+        self._call("delete_graph", name="G")
+
+        self._assert_graph_gone_triangle_kept(triangle)
+
+    def test_delete_graph_then_undo_restores_graph(self) -> None:
+        self._triangle_and_graph_on_its_vertex()
+        segments_before = self._segment_keys()
+        points_before = self._point_coords()
+
+        self._call("delete_graph", name="G")
+        self._call("undo")
+
+        self.assertIsNotNone(self.canvas.get_graph("G"))
+        self.assertEqual(len(self._drawables("Triangle")), 1)
+        self.assertEqual(self._segment_keys(), segments_before)
+        self.assertEqual(self._point_coords(), points_before)
 
 
 if __name__ == "__main__":

@@ -600,14 +600,23 @@ class WorkspaceManager:
     def _build_graph_from_state(self, state_key: str, name: str, args: Dict[str, Any]) -> Any:
         # Older saves lack isolated_points; edges alone still rebuild the graph.
         isolated_points = self._resolve_named(args.get("isolated_points"), self.canvas.get_point_by_name)
+        # Older saves lack preexisting_points/edges; the graph then owns all its vertices and edges.
+        preexisting_points = self._resolve_named(args.get("preexisting_points"), self.canvas.get_point_by_name)
+        graph: Any
         if state_key == "DirectedGraphs":
             vector_manager = self.canvas.drawable_manager.vector_manager
             vectors = self._resolve_named(args.get("vectors"), vector_manager.get_vector_by_name)
-            return DirectedGraph(name, vectors=vectors, isolated_points=isolated_points)
-        segments = self._resolve_named(args.get("segments"), self.canvas.get_segment_by_name)
-        if state_key == "Trees":
-            return Tree(name, root=args.get("root"), segments=segments, isolated_points=isolated_points)
-        return UndirectedGraph(name, segments=segments, isolated_points=isolated_points)
+            preexisting_edges = self._resolve_named(args.get("preexisting_edges"), vector_manager.get_vector_by_name)
+            graph = DirectedGraph(name, vectors=vectors, isolated_points=isolated_points)
+        else:
+            segments = self._resolve_named(args.get("segments"), self.canvas.get_segment_by_name)
+            preexisting_edges = self._resolve_named(args.get("preexisting_edges"), self.canvas.get_segment_by_name)
+            if state_key == "Trees":
+                graph = Tree(name, root=args.get("root"), segments=segments, isolated_points=isolated_points)
+            else:
+                graph = UndirectedGraph(name, segments=segments, isolated_points=isolated_points)
+        graph.set_preexisting(preexisting_points, preexisting_edges)
+        return graph
 
     def _resolve_named(self, names: Any, lookup: Callable[[str], Any]) -> List[Any]:
         resolved: List[Any] = []

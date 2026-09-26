@@ -8,13 +8,15 @@ Key Features:
     - Abstract interface for vertex and edge access
     - Adjacency matrix generation
     - Isolated point management for vertices without edges
+    - Tracking of pre-existing points and edges the graph reuses but does not own
     - Serialization support for workspace persistence
 """
 
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from copy import deepcopy
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional
 
 from drawables.drawable import Drawable
 
@@ -29,6 +31,8 @@ class Graph(Drawable):
 
     Attributes:
         _isolated_points: List of vertex points not connected by edges.
+        _preexisting_points: Vertex points that existed before the graph was created.
+        _preexisting_edges: Edge segments or vectors that existed before the graph was created.
         directed: Whether the graph is directed (override in subclass).
     """
 
@@ -41,6 +45,9 @@ class Graph(Drawable):
     ) -> None:
         super().__init__(name=name, is_renderable=is_renderable)
         self._isolated_points: List["Point"] = list(isolated_points or [])
+        # Deleting the graph leaves these on the canvas; it owns every other vertex and edge.
+        self._preexisting_points: List["Point"] = []
+        self._preexisting_edges: List[Drawable] = []
 
     @property
     def directed(self) -> bool:
@@ -73,16 +80,42 @@ class Graph(Drawable):
 
     def get_state(self) -> Dict[str, Any]:
         """Return minimal state for serialization. Subclasses add edge references."""
-        return {
-            "name": self.name,
-            "args": {
-                # Vertex points tracked outside edges; needed to restore edge-less vertices.
-                "isolated_points": [getattr(p, "name", "") for p in self._isolated_points],
-            },
+        args: Dict[str, Any] = {
+            # Vertex points tracked outside edges; needed to restore edge-less vertices.
+            "isolated_points": [getattr(p, "name", "") for p in self._isolated_points],
         }
+        # Written only when the graph reuses existing drawables, so other saves are unchanged.
+        if self._preexisting_points:
+            args["preexisting_points"] = [getattr(p, "name", "") for p in self._preexisting_points]
+        if self._preexisting_edges:
+            args["preexisting_edges"] = [getattr(e, "name", "") for e in self._preexisting_edges]
+        return {"name": self.name, "args": args}
+
+    # ------------------------------------------------------------------
+    # Ownership of reused drawables
+    # ------------------------------------------------------------------
+    def set_preexisting(self, points: Iterable["Point"], edges: Iterable[Drawable]) -> None:
+        """Record the vertices and edges that existed before this graph was created."""
+        self._preexisting_points = list(points)
+        self._preexisting_edges = list(edges)
+
+    def is_preexisting(self, drawable: Drawable) -> bool:
+        """Return True if the vertex or edge existed before the graph and is not owned by it."""
+        tracked = self._preexisting_points + self._preexisting_edges
+        return any(item is drawable for item in tracked)
+
+    def _forget_preexisting(self, drawable: Drawable) -> None:
+        self._preexisting_points = [p for p in self._preexisting_points if p is not drawable]
+        self._preexisting_edges = [e for e in self._preexisting_edges if e is not drawable]
+
+    def _copy_preexisting_to(self, copied: "Graph", memo: Dict[int, Any]) -> None:
+        """Carry the ownership records into a deep copy (used by undo snapshots)."""
+        copied._preexisting_points = deepcopy(self._preexisting_points, memo)
+        copied._preexisting_edges = deepcopy(self._preexisting_edges, memo)
 
     def remove_point(self, point: "Point") -> bool:
         """Remove an isolated point reference from this graph."""
+        self._forget_preexisting(point)
         if point in self._isolated_points:
             self._isolated_points.remove(point)
             return True

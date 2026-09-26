@@ -159,6 +159,13 @@ class TestRenderTextGolden(unittest.TestCase):
         )
         self.assertEqual(render_text(load_scene("weighted_graph")), expected)
 
+    def test_graph_ownership_fields_are_not_rendered(self) -> None:
+        state = load_scene("weighted_graph")
+        graph_args = state["UndirectedGraphs"][0]["args"]
+        graph_args["preexisting_points"] = ["A"]
+        graph_args["preexisting_edges"] = ["AB"]
+        self.assertEqual(render_text(state), render_text(load_scene("weighted_graph")))
+
     def test_duplicate_names_are_flagged_once(self) -> None:
         text = render_text(load_scene("regression_duplicates"))
         lines = text.splitlines()

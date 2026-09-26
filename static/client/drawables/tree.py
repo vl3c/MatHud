@@ -60,5 +60,6 @@ class Tree(UndirectedGraph):
             segments=deepcopy(self._segments, memo),
             isolated_points=deepcopy(self._isolated_points, memo),
         )
+        self._copy_preexisting_to(copied, memo)
         memo[id(self)] = copied
         return copied

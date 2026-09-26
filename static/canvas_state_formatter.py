@@ -698,7 +698,10 @@ def _graph_renderer(bucket: str) -> Renderer:
         if args.get("root"):
             properties.append(f"root {args['root']}")
         header = f"{item.get('name', '?')} = Graph({' '.join(properties)}; vertices {' '.join(vertices) or '(none)'})"
-        header += _extras_suffix(args, {"segments", "vectors", "isolated_points", "root"})
+        # preexisting_* only records which reused drawables delete_graph keeps; not shown to the model.
+        header += _extras_suffix(
+            args, {"segments", "vectors", "isolated_points", "root", "preexisting_points", "preexisting_edges"}
+        )
         return header + f"\n  edges ({len(edges)}): " + (", ".join(edges) if edges else "(none)")
 
     return render

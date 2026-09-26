@@ -2116,7 +2116,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "adjacency_matrix": {
                         "type": ["array", "null"],
                         "items": {"type": "array", "items": {"type": "number"}},
-                        "description": "Optional adjacency matrix (weights allowed). Rows/columns follow the order of the provided vertices array (0-based).",
+                        "description": "Optional adjacency matrix (weights allowed). Rows/columns follow the order of the provided vertices array (0-based). Edges follow the graph's direction: for an undirected graph each nonzero pair gives one edge.",
                     },
                 },
                 "required": [
@@ -2138,7 +2138,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "delete_graph",
-            "description": "Deletes a graph or tree and its associated drawables by name.",
+            "description": "Deletes a graph or tree by name, with the vertex points and edges it created. Points and edges that existed before the graph and were reused as its vertices or edges stay.",
             "strict": True,
             "parameters": {
                 "type": "object",

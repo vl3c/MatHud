@@ -155,7 +155,7 @@ Note: All drawables are math-only. They do not hold screen-space coordinates and
 ### Graph and Tree Tools
 1. Graph and tree tools overview (generate, delete, analyze)
 2. `generate_graph`: Create a graph/tree/DAG with optional layout and weights
-3. `delete_graph`: Remove a graph/tree and its associated drawables
+3. `delete_graph`: Remove a graph/tree with the vertices and edges it created
 4. `analyze_graph`: Run graph and tree analysis operations (shortest path including negative directed weights, MST or spanning forest, topological sort, BFS/DFS, etc.)
 
 ---
@@ -4306,7 +4306,7 @@ The server tests are organized in the `server_tests/` directory. For a lightweig
 
 ### Graph and Tree Tools
 - `generate_graph(name?, graph_type, vertices, edges, adjacency_matrix?, directed?, root?, layout?, placement_box?)`: Programmatically place a graph, tree, or DAG on the canvas.
-- `delete_graph(name)`: Remove a graph/tree and its associated points, edges, and weight labels.
+- `delete_graph(name)`: Remove a graph/tree with the points, edges, and weight labels it created. Points and edges that existed before the graph and were reused as its vertices or edges stay, along with anything built on them.
 - `analyze_graph(operation, graph_name, params?)`: Analyze an existing graph by name (must already exist on canvas).
 
 Notes:
@@ -4318,7 +4318,7 @@ Notes:
 Key behaviors:
 1. **Graph types**: `graph` (general), `tree` (rooted), `dag` (directed acyclic graph).
 2. **Vertices**: You can provide explicit coordinates per vertex, or omit them and let the layout engine place vertices automatically.
-3. **Edges**: Edges reference vertices by index (0-based) in the provided vertices list. If you provide an adjacency matrix instead, row/column order follows that same vertex order.
+3. **Edges**: Edges reference vertices by index (0-based) in the provided vertices list. If you provide an adjacency matrix instead, row/column order follows that same vertex order. Matrix edges follow the graph's direction: an undirected graph (or tree) gets one segment per nonzero vertex pair, a directed graph one vector per nonzero entry.
 4. **Vertex names**: A requested vertex `name` (e.g. `GA`) is used as given when it is not already taken by another point; otherwise a name is generated.
 5. **Placement box**: `placement_box` is in math coordinates (y increases upward). It constrains the layout so the graph lands in a predictable region.
 6. **Layout**: `layout` is a hint. Supported modes include `tree`/`hierarchical`, `radial`, `circular`, `grid`, and `force`. Trees default to a top-down tree layout unless you explicitly request `radial`.
