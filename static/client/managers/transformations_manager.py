@@ -104,6 +104,9 @@ class TransformationsManager:
         return name
 
     def _gather_moved_points(self, drawable: Any) -> List[Any]:
+        """Points a transform moves: a polygon's vertices, or a point itself."""
+        if self._get_class_name(drawable) == "Point":
+            return [drawable]
         get_vertices = getattr(drawable, "get_vertices", None)
         if callable(get_vertices):
             try:
@@ -141,9 +144,10 @@ class TransformationsManager:
         """Refresh formulas, names, and caches after a transform."""
         class_name = self._get_class_name(drawable)
 
-        # moved_points is non-empty only for drawables with get_vertices()
+        # moved_points is non-empty for drawables with get_vertices()
         # (all Polygon subclasses: Triangle, Rectangle, Quadrilateral,
-        # Pentagon, Hexagon, etc.) — no hard-coded class name set needed.
+        # Pentagon, Hexagon, etc.) and for a Point, whose segments and
+        # dependants need the same refresh.
         if moved_points:
             self._refresh_polygon_dependencies(drawable, moved_points)
         elif class_name == "Circle":
@@ -195,13 +199,7 @@ class TransformationsManager:
         # Archive current state for undo/redo AFTER finding the object but BEFORE modifying it
         self.canvas.undo_redo_manager.archive()
 
-        moved_points: List[Any] = []
-        get_vertices = getattr(drawable, "get_vertices", None)
-        if callable(get_vertices):
-            try:
-                moved_points = list(get_vertices())
-            except Exception:
-                moved_points = []
+        moved_points = self._gather_moved_points(drawable)
 
         # Apply translation using the drawable's translate method
         # (All drawable objects should implement this method)
@@ -277,8 +275,7 @@ class TransformationsManager:
         except Exception as e:
             raise ValueError(f"Error rotating drawable: {str(e)}")
 
-        if arbitrary_center:
-            self._refresh_dependencies_after_transform(drawable, moved_points)
+        self._refresh_dependencies_after_transform(drawable, moved_points)
 
         self._redraw()
         return True
@@ -458,14 +455,12 @@ class TransformationsManager:
     def _refresh_circle_dependencies(self, circle: Any) -> None:
         dependency_manager = getattr(self.canvas, "dependency_manager", None)
         drawables = self._gather_dependency_children({circle}, dependency_manager)
-        circle.circle_formula = circle._calculate_circle_algebraic_formula()
         circle.regenerate_name()
         self._invalidate_drawables([circle] + list(drawables))
 
     def _refresh_ellipse_dependencies(self, ellipse: Any) -> None:
         dependency_manager = getattr(self.canvas, "dependency_manager", None)
         drawables = self._gather_dependency_children({ellipse}, dependency_manager)
-        ellipse.ellipse_formula = ellipse._calculate_ellipse_algebraic_formula()
         ellipse.regenerate_name()
         self._invalidate_drawables([ellipse] + list(drawables))
 

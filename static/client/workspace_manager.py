@@ -64,10 +64,8 @@ from drawables.tree import Tree
 from drawables.undirected_graph import UndirectedGraph
 from utils.math_utils import MathUtils
 from managers.polygon_type import PolygonType
-from utils.polygon_canonicalizer import (
-    PolygonCanonicalizationError,
-    canonicalize_rectangle,
-)
+from utils.geometry_utils import GeometryUtils
+from utils.polygon_subtype_checks import cyclic_vertex_order
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -156,12 +154,20 @@ class WorkspaceManager:
             pass
         return state
 
+    def _restore_items(self, bucket: str, items: Any, restore: Callable[[Dict[str, Any]], None]) -> None:
+        """Restore each saved item on its own, so one bad item never aborts the rest of the restore."""
+        for item_state in items or []:
+            try:
+                restore(item_state)
+            except Exception as exc:
+                name = item_state.get("name", "") if isinstance(item_state, dict) else ""
+                print(f"Warning: Could not restore {bucket} item '{name}': {exc}")
+
     def _create_points(self, state: Dict[str, Any]) -> None:
         """Create points from workspace state."""
         if "Points" not in state:
             return
-        for item_state in state["Points"]:
-            self._restore_point(item_state)
+        self._restore_items("Points", state["Points"], self._restore_point)
 
     def _restore_point(self, item_state: Dict[str, Any]) -> None:
         self.canvas.create_point(
@@ -266,8 +272,7 @@ class WorkspaceManager:
         """Create segments from workspace state."""
         if "Segments" not in state:
             return
-        for item_state in state["Segments"]:
-            self._restore_segment(item_state)
+        self._restore_items("Segments", state["Segments"], self._restore_segment)
 
     def _restore_segment(self, item_state: Dict[str, Any]) -> None:
         args = item_state.get("args", {})
@@ -394,8 +399,7 @@ class WorkspaceManager:
         """Create vectors from workspace state."""
         if "Vectors" not in state:
             return
-        for item_state in state["Vectors"]:
-            self._restore_vector(item_state)
+        self._restore_items("Vectors", state["Vectors"], self._restore_vector)
 
     def _restore_vector(self, item_state: Dict[str, Any]) -> None:
         origin_point_name, tip_point_name = self._get_vector_point_names(item_state)
@@ -457,8 +461,7 @@ class WorkspaceManager:
         """Create triangles from workspace state."""
         if "Triangles" not in state:
             return
-        for item_state in state["Triangles"]:
-            self._restore_triangle(item_state)
+        self._restore_items("Triangles", state["Triangles"], self._restore_triangle)
 
     def _restore_triangle(self, item_state: Dict[str, Any]) -> None:
         p1: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["p1"])
@@ -482,8 +485,7 @@ class WorkspaceManager:
         if "Rectangles" not in state:
             return
 
-        for item_state in state["Rectangles"]:
-            self._restore_rectangle(item_state)
+        self._restore_items("Rectangles", state["Rectangles"], self._restore_rectangle)
 
     def _restore_rectangle(self, item_state: Dict[str, Any]) -> None:
         rect_name: str = item_state.get("name", "UnnamedRectangle")
@@ -498,13 +500,13 @@ class WorkspaceManager:
             self._warn_rectangle_missing_points(rect_name, missing_names)
             return
 
-        resolved_vertices = self._resolve_rectangle_vertices(points, rect_name)
-        if resolved_vertices is None:
-            return
-
+        # Restore the saved vertices verbatim, in cyclic order. A rectangle that a transform turned
+        # into another quadrilateral comes back as a quadrilateral rather than a different rectangle.
+        vertices = cyclic_vertex_order([(point.x, point.y) for point in points if point is not None])
+        polygon_type = PolygonType.RECTANGLE if GeometryUtils.is_rectangle(vertices) else PolygonType.QUADRILATERAL
         self.canvas.create_polygon(
-            resolved_vertices,
-            polygon_type=PolygonType.RECTANGLE,
+            vertices,
+            polygon_type=polygon_type,
             name=rect_name,
             color=self._saved_color(item_state),
             extra_graphics=False,
@@ -530,46 +532,6 @@ class WorkspaceManager:
             args.get("p3"),
             args.get("p4"),
         ]
-
-    def _resolve_rectangle_vertices(
-        self,
-        points: List[Optional["Point"]],
-        rect_name: str,
-    ) -> Optional[List[Tuple[float, float]]]:
-        try:
-            return self._canonicalize_rectangle_vertices(points)
-        except PolygonCanonicalizationError:
-            return self._canonicalize_rectangle_from_diagonal(points, rect_name)
-
-    def _canonicalize_rectangle_vertices(self, points: List[Optional["Point"]]) -> List[Tuple[float, float]]:
-        return cast(
-            List[Tuple[float, float]],
-            canonicalize_rectangle(
-                [(point.x, point.y) for point in points if point is not None],
-                construction_mode="vertices",
-            ),
-        )
-
-    def _canonicalize_rectangle_from_diagonal(
-        self,
-        points: List[Optional["Point"]],
-        rect_name: str,
-    ) -> Optional[List[Tuple[float, float]]]:
-        p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, rect_name)
-        if not p_diag1 or not p_diag2:
-            print(f"Warning: Could not determine diagonal points for rectangle '{rect_name}'. Skipping.")
-            return None
-        try:
-            return cast(
-                Optional[List[Tuple[float, float]]],
-                canonicalize_rectangle(
-                    [(p_diag1.x, p_diag1.y), (p_diag2.x, p_diag2.y)],
-                    construction_mode="diagonal",
-                ),
-            )
-        except PolygonCanonicalizationError:
-            print(f"Warning: Unable to canonicalize rectangle '{rect_name}' from supplied coordinates. Skipping.")
-            return None
 
     # Polygon buckets whose state stores ordered vertex names p1..pN.
     _ORDERED_POLYGON_RESTORE_TYPES: Tuple[Tuple[str, PolygonType], ...] = (
@@ -704,8 +666,7 @@ class WorkspaceManager:
         """Create circles from workspace state."""
         if "Circles" not in state:
             return
-        for item_state in state["Circles"]:
-            self._restore_circle(item_state)
+        self._restore_items("Circles", state["Circles"], self._restore_circle)
 
     def _restore_circle(self, item_state: Dict[str, Any]) -> None:
         center_point: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["center"])
@@ -723,8 +684,7 @@ class WorkspaceManager:
         """Create ellipses from workspace state."""
         if "Ellipses" not in state:
             return
-        for item_state in state["Ellipses"]:
-            self._restore_ellipse(item_state)
+        self._restore_items("Ellipses", state["Ellipses"], self._restore_ellipse)
 
     def _restore_ellipse(self, item_state: Dict[str, Any]) -> None:
         center_point: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["center"])
@@ -744,8 +704,7 @@ class WorkspaceManager:
         """Create functions from workspace state."""
         if "Functions" not in state:
             return
-        for item_state in state["Functions"]:
-            self._restore_function(item_state)
+        self._restore_items("Functions", state["Functions"], self._restore_function)
 
     def _restore_function(self, item_state: Dict[str, Any]) -> None:
         self.canvas.draw_function(
@@ -761,8 +720,7 @@ class WorkspaceManager:
         """Create piecewise functions from workspace state."""
         if "PiecewiseFunctions" not in state:
             return
-        for item_state in state["PiecewiseFunctions"]:
-            self._restore_piecewise_function(item_state)
+        self._restore_items("PiecewiseFunctions", state["PiecewiseFunctions"], self._restore_piecewise_function)
 
     def _restore_piecewise_function(self, item_state: Dict[str, Any]) -> None:
         pieces = item_state["args"].get("pieces", [])
@@ -776,8 +734,7 @@ class WorkspaceManager:
         """Create parametric functions from workspace state."""
         if "ParametricFunctions" not in state:
             return
-        for item_state in state["ParametricFunctions"]:
-            self._restore_parametric_function(item_state)
+        self._restore_items("ParametricFunctions", state["ParametricFunctions"], self._restore_parametric_function)
 
     def _restore_parametric_function(self, item_state: Dict[str, Any]) -> None:
         args = item_state.get("args", {})

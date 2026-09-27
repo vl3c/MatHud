@@ -307,8 +307,8 @@ def build_inspection(
 ) -> Dict[str, Any]:
     """Attributes the canvas state omits, for checks and invariants.
 
-    Per drawable: class, name, colour, attached label, and cached derived
-    values (angle degrees, polygon vertices in order). Globally: undo and redo
+    Per drawable: class, name, colour, attached label, and derived values
+    (angle degrees, polygon vertices in order). Globally: undo and redo
     depths, grid visibility, the coordinate-system mode and the point-name
     generator's hints. Functions get the requested samples and a probe of
     every listed vertical asymptote.

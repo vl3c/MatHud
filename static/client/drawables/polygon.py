@@ -27,6 +27,7 @@ from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 from drawables.drawable import Drawable
 from drawables.point import Point
+from utils.geometry_utils import GeometryUtils
 
 
 class Polygon(Drawable):
@@ -84,14 +85,34 @@ class Polygon(Drawable):
             point.rotate_around(angle_deg, cx, cy)
 
     # ------------------------------------------------------------------
-    # Type metadata caching
+    # Type metadata
     # ------------------------------------------------------------------
 
-    def _set_type_flags(self, flags: Dict[str, bool]) -> None:
-        self._type_flags: Dict[str, bool] = dict(flags)
+    def _compute_type_flags(self) -> Dict[str, bool]:
+        """Classify the current vertex positions (regular/irregular by default)."""
+        return GeometryUtils.polygon_flags(getattr(self, "_points", []))
+
+    def _type_flag_points(self) -> List[Point]:
+        """The points whose positions determine the type flags."""
+        return list(getattr(self, "_points", []))
 
     def get_type_flags(self) -> Dict[str, bool]:
-        return dict(getattr(self, "_type_flags", {}))
+        """Classification flags for the current vertex positions.
+
+        Memoised on the vertex coordinates, so they are recomputed whenever a vertex
+        moves (transforms, point moves) and never go stale. A degenerate polygon
+        (overlapping vertices) has no flags.
+        """
+        key = tuple(coordinate for point in self._type_flag_points() for coordinate in (point.x, point.y))
+        cached = getattr(self, "_type_flags_cache", None)
+        if cached is not None and cached[0] == key:
+            return dict(cached[1])
+        try:
+            flags = dict(self._compute_type_flags())
+        except ValueError:
+            flags = {}
+        self._type_flags_cache: Tuple[Tuple[float, ...], Dict[str, bool]] = (key, flags)
+        return dict(flags)
 
     def _set_base_type_labels(self, labels: Iterable[str]) -> None:
         sanitized: List[str] = []

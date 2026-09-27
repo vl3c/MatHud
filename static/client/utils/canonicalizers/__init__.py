@@ -1,12 +1,10 @@
 """Polygon canonicalization utilities for vertex normalization.
 
-This package provides canonicalization routines that transform arbitrary
-vertex lists into well-formed polygon representations.
+This package builds rectangle corners from a diagonal pair or a noisy vertex list.
+create_polygon does not use it: it keeps the given vertices (utils/polygon_subtype_checks.py).
 
 Key Features:
-    - Triangle canonicalization with subtype support (equilateral, isosceles, right)
-    - Quadrilateral canonicalization with subtype support (rectangle, square, parallelogram)
-    - Point deduplication and CCW ordering
+    - Rectangle and square canonicalization
     - Best-fit algorithms preserving user-specified anchors
 """
 
@@ -20,12 +18,7 @@ from .common import (
     nearest_point,
     point_like_to_tuple,
 )
-from .quadrilateral import (
-    QuadrilateralCanonicalizer,
-    canonicalize_quadrilateral,
-    canonicalize_rectangle,
-)
-from .triangle import TriangleCanonicalizer, canonicalize_triangle
+from .quadrilateral import QuadrilateralCanonicalizer, canonicalize_rectangle
 
 __all__ = [
     "PointLike",
@@ -35,8 +28,5 @@ __all__ = [
     "contains_point",
     "nearest_point",
     "QuadrilateralCanonicalizer",
-    "TriangleCanonicalizer",
-    "canonicalize_quadrilateral",
     "canonicalize_rectangle",
-    "canonicalize_triangle",
 ]

@@ -11,7 +11,7 @@ Key Features:
     - Pure math model; renderer applies screen scaling and rotation transforms
 
 Mathematical Properties:
-    - ellipse_formula: Algebraic equation coefficients
+    - ellipse_formula: Algebraic equation string, computed from the current geometry
     - Center point tracking through Point object
     - Renderer-agnostic; no viewport scaling stored in model
     - Rotation angle preservation and application
@@ -46,7 +46,7 @@ class Ellipse(Drawable):
         radius_x (float): Horizontal radius in mathematical coordinate units
         radius_y (float): Vertical radius in mathematical coordinate units
         rotation_angle (float): Rotation angle in degrees for ellipse orientation
-        ellipse_formula (dict): Algebraic ellipse equation coefficients
+        ellipse_formula (str): Algebraic ellipse equation, computed from the current geometry
     """
 
     def __init__(
@@ -70,17 +70,23 @@ class Ellipse(Drawable):
         self.radius_x: float = radius_x
         self.radius_y: float = radius_y
         self.rotation_angle: float = rotation_angle  # Initialize with provided angle
-        self.ellipse_formula: Dict[str, float] = self._calculate_ellipse_algebraic_formula()
         super().__init__(name=self._generate_default_name(), color=color)
 
     def get_class_name(self) -> str:
         return "Ellipse"
 
-    def _calculate_ellipse_algebraic_formula(self) -> Dict[str, float]:
+    @property
+    def ellipse_formula(self) -> str:
+        """Algebraic ellipse equation, computed from the current centre, radii and rotation.
+
+        Computed on each access so it follows the centre when another object moves it.
+        """
+        return self._calculate_ellipse_algebraic_formula()
+
+    def _calculate_ellipse_algebraic_formula(self) -> str:
         x: float = self.center.x
         y: float = self.center.y
-        result: Any = MathUtils.get_ellipse_formula(x, y, self.radius_x, self.radius_y, self.rotation_angle)
-        return cast(Dict[str, float], result)
+        return str(MathUtils.get_ellipse_formula(x, y, self.radius_x, self.radius_y, self.rotation_angle))
 
     def get_state(self) -> Dict[str, Any]:
         """Return the state of the ellipse including rotation"""
@@ -113,7 +119,6 @@ class Ellipse(Drawable):
     def translate(self, x_offset: float, y_offset: float) -> None:
         self.center.x += x_offset
         self.center.y += y_offset
-        self.ellipse_formula = self._calculate_ellipse_algebraic_formula()
         self.regenerate_name()
 
     def reflect(self, axis: str, a: float = 0, b: float = 0, c: float = 0) -> None:
@@ -131,7 +136,6 @@ class Ellipse(Drawable):
             if denom >= 1e-18:
                 line_angle_deg = math.degrees(math.atan2(-a, b))
                 self.rotation_angle = (2 * line_angle_deg - self.rotation_angle) % 360
-        self.ellipse_formula = self._calculate_ellipse_algebraic_formula()
         self.regenerate_name()
 
     def scale(self, sx: float, sy: float, cx: float, cy: float) -> None:
@@ -155,7 +159,6 @@ class Ellipse(Drawable):
         else:
             self.radius_x = abs(self.radius_x * sx)
             self.radius_y = abs(self.radius_y * sy)
-        self.ellipse_formula = self._calculate_ellipse_algebraic_formula()
         self.regenerate_name()
 
     def shear(self, axis: str, factor: float, cx: float, cy: float) -> None:
@@ -170,16 +173,12 @@ class Ellipse(Drawable):
         """Rotate the ellipse around an arbitrary point (cx, cy)."""
         self.center.rotate_around(angle_deg, cx, cy)
         self.rotation_angle = (self.rotation_angle + angle_deg) % 360
-        self.ellipse_formula = self._calculate_ellipse_algebraic_formula()
         self.regenerate_name()
 
     def rotate(self, angle: float) -> Tuple[bool, Optional[str]]:
         """Rotate the ellipse around its center by the given angle in degrees"""
         # Update rotation angle (keep it between 0 and 360 degrees)
         self.rotation_angle = (self.rotation_angle + angle) % 360
-
-        # Update ellipse formula if needed
-        self.ellipse_formula = self._calculate_ellipse_algebraic_formula()
 
         # Return tuple (should_proceed, message) to match interface
         return True, None
@@ -189,27 +188,23 @@ class Ellipse(Drawable):
         self.color = str(color)
 
     def update_center_position(self, x: float, y: float) -> None:
-        """Move the ellipse center and refresh cached state."""
+        """Move the ellipse center and refresh its name."""
         self.center.update_position(x, y)
-        self.ellipse_formula = self._calculate_ellipse_algebraic_formula()
         self.regenerate_name()
 
     def update_radius_x(self, radius_x: float) -> None:
         """Update the horizontal radius."""
         self.radius_x = float(radius_x)
-        self.ellipse_formula = self._calculate_ellipse_algebraic_formula()
         self.regenerate_name()
 
     def update_radius_y(self, radius_y: float) -> None:
         """Update the vertical radius."""
         self.radius_y = float(radius_y)
-        self.ellipse_formula = self._calculate_ellipse_algebraic_formula()
         self.regenerate_name()
 
     def update_rotation_angle(self, rotation_angle: float) -> None:
         """Set the rotation angle directly."""
         self.rotation_angle = float(rotation_angle) % 360
-        self.ellipse_formula = self._calculate_ellipse_algebraic_formula()
 
     def _generate_default_name(self) -> str:
         return f"{self.center.name}({self._format_radius(self.radius_x)}, {self._format_radius(self.radius_y)})"

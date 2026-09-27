@@ -22,6 +22,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, cast
 
 import no_op_tools
+from creation_report import CreationReport
 from no_change_result import NoChangeResult
 from utils.math_utils import MathUtils
 from process_function_calls import ProcessFunctionCalls
@@ -102,6 +103,55 @@ class FunctionRegistry:
         return message
 
     @staticmethod
+    def _create_with_notes(
+        canvas: "Canvas",
+        tool_name: str,
+        arguments: Dict[str, Any],
+        create: Callable[..., Any],
+        manager_name: str,
+        notes_name: str,
+    ) -> Any:
+        """Run a create tool; when its manager left notes, return the creation report followed by them.
+
+        Without notes the drawable is returned and ResultProcessor reports it as usual.
+        """
+        snapshot = CreationReport.take_snapshot(canvas, tool_name, arguments)
+        created = create(**arguments)
+        manager = getattr(canvas.drawable_manager, manager_name, None)
+        notes = list(getattr(manager, notes_name, None) or [])
+        if created is None or not notes:
+            return created
+        outcome = CreationReport.describe(tool_name, arguments, created, snapshot)
+        lead = outcome.message if outcome is not None else f"Created '{getattr(created, 'name', '')}'."
+        return lead + " " + " ".join(notes)
+
+    @staticmethod
+    def _create_polygon_tool(canvas: "Canvas") -> Callable[..., Any]:
+        """Build the create_polygon tool: canvas.create_polygon, but vertices moved to fit a subtype are reported."""
+
+        def create_polygon(**arguments: Any) -> Any:
+            return FunctionRegistry._create_with_notes(
+                canvas, "create_polygon", arguments, canvas.create_polygon, "polygon_manager", "last_adjustment_notes"
+            )
+
+        return create_polygon
+
+    @staticmethod
+    def _create_circle_arc_tool(canvas: "Canvas") -> Callable[..., Any]:
+        """Build the create_circle_arc tool: canvas.create_circle_arc, but a replaced endpoint is reported.
+
+        An existing point off the circle is never moved; the arc gets a point at its
+        projection instead, and the tool result says which point it used.
+        """
+
+        def create_circle_arc(**arguments: Any) -> Any:
+            return FunctionRegistry._create_with_notes(
+                canvas, "create_circle_arc", arguments, canvas.create_circle_arc, "arc_manager", "last_endpoint_notes"
+            )
+
+        return create_circle_arc
+
+    @staticmethod
     def _draw_function_tool(canvas: "Canvas") -> Callable[..., Any]:
         """Build the draw_function tool: canvas.draw_function, but swapped bounds are reported.
 
@@ -180,7 +230,7 @@ class FunctionRegistry:
             "delete_vector": canvas.delete_vector,
             "update_vector": no_op_tools.update_tool(canvas, "update_vector", canvas.update_vector),
             # ===== POLYGON OPERATIONS =====
-            "create_polygon": canvas.create_polygon,
+            "create_polygon": FunctionRegistry._create_polygon_tool(canvas),
             "delete_polygon": canvas.delete_polygon,
             "update_polygon": no_op_tools.update_tool(canvas, "update_polygon", canvas.update_polygon),
             # ===== CIRCLE OPERATIONS =====
@@ -188,7 +238,7 @@ class FunctionRegistry:
             "delete_circle": canvas.delete_circle,
             "update_circle": no_op_tools.update_tool(canvas, "update_circle", canvas.update_circle),
             # ===== CIRCLE ARC OPERATIONS =====
-            "create_circle_arc": canvas.create_circle_arc,
+            "create_circle_arc": FunctionRegistry._create_circle_arc_tool(canvas),
             "delete_circle_arc": canvas.delete_circle_arc,
             "update_circle_arc": no_op_tools.update_tool(canvas, "update_circle_arc", canvas.update_circle_arc),
             # ===== ELLIPSE OPERATIONS =====

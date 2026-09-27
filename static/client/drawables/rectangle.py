@@ -65,49 +65,22 @@ class Rectangle(Quadrilateral):
         Raises:
             ValueError: If the segments do not form a valid rectangle
         """
-        if not self._segments_form_rectangle(segment1, segment2, segment3, segment4):
-            raise ValueError("The segments do not form a rectangle")
-        if not MathUtils.is_rectangle(
-            segment1.point1.x,
-            segment1.point1.y,
-            segment2.point1.x,
-            segment2.point1.y,
-            segment3.point1.x,
-            segment3.point1.y,
-            segment4.point1.x,
-            segment4.point1.y,
-        ):
-            raise ValueError("The quadrilateral formed by the segments is not a rectangle")
+        # The quadrilateral checks that the segments close a loop (in any direction) and orders the vertices.
         super().__init__(segment1, segment2, segment3, segment4, color=color)
-        self._set_base_type_labels(["quadrilateral", "rectangle"])
+        corners = [(point.x, point.y) for point in self._points]
+        if not MathUtils.is_rectangle(*[coordinate for corner in corners for coordinate in corner]):
+            raise ValueError("The quadrilateral formed by the segments is not a rectangle")
+        # "rectangle" comes from the computed flags, so a sheared rectangle stops listing it.
+        self._set_base_type_labels(["quadrilateral"])
 
     def get_class_name(self) -> str:
         return "Rectangle"
 
-    def _segments_form_rectangle(self, s1: Segment, s2: Segment, s3: Segment, s4: Segment) -> bool:
-        # Check if the end point of one segment is the start point of the next
-        correct_connections: bool = (
-            s1.point2 == s2.point1 and s2.point2 == s3.point1 and s3.point2 == s4.point1 and s4.point2 == s1.point1
-        )
-        return correct_connections
-
     def get_state(self) -> Dict[str, Any]:
-        # Collect all point names into a list
-        point_names: list[str] = [
-            self.segment1.point1.name,
-            self.segment1.point2.name,
-            self.segment2.point1.name,
-            self.segment2.point2.name,
-            self.segment3.point1.name,
-            self.segment3.point2.name,
-            self.segment4.point1.name,
-            self.segment4.point2.name,
-        ]
-        # Convert the list into a set to remove duplicates, then convert it back to a list and sort it
-        points_names: list[str] = sorted(list(set(point_names)))
+        # Vertex names in cyclic order around the rectangle (older saves stored them sorted by name).
         state: Dict[str, Any] = {
             "name": self.name,
-            "args": {"p1": points_names[0], "p2": points_names[1], "p3": points_names[2], "p4": points_names[3]},
+            "args": {f"p{index + 1}": point.name for index, point in enumerate(self._points)},
         }
         state["types"] = self.get_type_names()
         self._add_color_to_state(state)

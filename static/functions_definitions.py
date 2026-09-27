@@ -372,7 +372,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "create_polygon",
-            "description": "Creates a polygon from ordered vertex coordinates. For rectangle and square types, coordinates are normalized through the canonicalizer so near-rectangles snap into valid rectangles. Triangle inputs can optionally request canonicalization toward special subtypes such as equilateral or right triangles.",
+            "description": "Creates a polygon from ordered vertex coordinates. Vertices keep the given order (never re-ordered; list corners in order around the shape). With a subtype: vertices that already form it are used as given; vertices off by at most 2% of the side length are adjusted, moving as few as possible and never an existing point, and the result says which point was placed where; otherwise the call fails with the measured sides and angles and nothing is created, so compute accurate coordinates.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -417,7 +417,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     },
                     "subtype": {
                         "type": ["string", "null"],
-                        "description": "Optional polygon subtype hint. Triangles support equilateral, isosceles, right, right_isosceles. Quadrilaterals support rectangle, square, parallelogram, rhombus, kite, trapezoid, isosceles_trapezoid, right_trapezoid.",
+                        "description": "Optional polygon subtype the vertices must form (small errors are adjusted and reported, larger ones refused). Triangles support equilateral, isosceles, scalene, right, right_isosceles. Quadrilaterals support rectangle, square, parallelogram, rhombus, kite, trapezoid, isosceles_trapezoid, right_trapezoid.",
                         "enum": POLYGON_SUBTYPE_VALUES + [None],
                     },
                 },
@@ -550,26 +550,26 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "create_circle_arc",
-            "description": "Creates an arc on a circle. Use this for requests like 'draw an arc with center (x,y), radius r' or 'arc on circle C between two points'. Supports standalone center/radius arcs, arcs on an existing circle, or deriving from three points with center_point_choice.",
+            "description": "Creates an arc on a circle. Use this for requests like 'draw an arc with center (x,y), radius r' or 'arc on circle C between two points'. Supports standalone center/radius arcs, arcs on an existing circle, or deriving from three points with center_point_choice. Existing points are never moved: an existing endpoint that is not on the circle stays where it is, the arc uses a point at its projection onto the circle instead, and the result names that point.",
             "strict": True,
             "parameters": {
                 "type": "object",
                 "properties": {
                     "point1_x": {
                         "type": "number",
-                        "description": "Reference X coordinate for the first arc point (snapped to the circle when center/radius are provided)",
+                        "description": "Reference X coordinate for the first arc point (a new point is snapped to the circle; an existing point is never moved)",
                     },
                     "point1_y": {
                         "type": "number",
-                        "description": "Reference Y coordinate for the first arc point (snapped to the circle when center/radius are provided)",
+                        "description": "Reference Y coordinate for the first arc point (a new point is snapped to the circle; an existing point is never moved)",
                     },
                     "point2_x": {
                         "type": "number",
-                        "description": "Reference X coordinate for the second arc point (snapped to the circle when center/radius are provided)",
+                        "description": "Reference X coordinate for the second arc point (a new point is snapped to the circle; an existing point is never moved)",
                     },
                     "point2_y": {
                         "type": "number",
-                        "description": "Reference Y coordinate for the second arc point (snapped to the circle when center/radius are provided)",
+                        "description": "Reference Y coordinate for the second arc point (a new point is snapped to the circle; an existing point is never moved)",
                     },
                     "point1_name": {"type": ["string", "null"], "description": "Optional name for the first arc point"},
                     "point2_name": {

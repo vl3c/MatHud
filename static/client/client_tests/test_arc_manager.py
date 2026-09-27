@@ -121,7 +121,7 @@ class TestArcManager(unittest.TestCase):
         self.assertTrue(math.isclose(math.hypot(arc.point1.x, arc.point1.y), 5.0, rel_tol=1e-9, abs_tol=1e-9))
         self.assertTrue(math.isclose(math.hypot(arc.point2.x, arc.point2.y), 5.0, rel_tol=1e-9, abs_tol=1e-9))
 
-    def test_create_circle_arc_projects_existing_points(self) -> None:
+    def test_create_circle_arc_leaves_existing_points_in_place(self) -> None:
         existing_point_a = self.point_manager.create_point(1, 0, name="A")
         existing_point_b = self.point_manager.create_point(0, 2, name="B")
 
@@ -132,12 +132,28 @@ class TestArcManager(unittest.TestCase):
         )
 
         self.assertIsNotNone(arc)
-        self.assertTrue(
-            math.isclose(math.hypot(existing_point_a.x, existing_point_a.y), 5.0, rel_tol=1e-9, abs_tol=1e-9)
+        self.assertEqual((existing_point_a.x, existing_point_a.y), (1, 0))
+        self.assertEqual((existing_point_b.x, existing_point_b.y), (0, 2))
+        self.assertIsNot(arc.point1, existing_point_a)
+        self.assertIsNot(arc.point2, existing_point_b)
+        self.assertTrue(math.isclose(arc.point1.x, 5.0, abs_tol=1e-9) and math.isclose(arc.point1.y, 0.0, abs_tol=1e-9))
+        self.assertTrue(math.isclose(arc.point2.x, 0.0, abs_tol=1e-9) and math.isclose(arc.point2.y, 5.0, abs_tol=1e-9))
+        self.assertEqual(len(self.arc_manager.last_endpoint_notes), 2)
+        self.assertIn("'A'", self.arc_manager.last_endpoint_notes[0])
+        self.assertIn("not moved", self.arc_manager.last_endpoint_notes[0])
+
+    def test_create_circle_arc_uses_existing_points_on_the_circle(self) -> None:
+        existing_point_a = self.point_manager.create_point(5, 0, name="A")
+
+        arc = self.arc_manager.create_circle_arc(
+            point1_name="A",
+            point2_x=0,
+            point2_y=5,
+            circle_name=self.circle.name,
         )
-        self.assertTrue(
-            math.isclose(math.hypot(existing_point_b.x, existing_point_b.y), 5.0, rel_tol=1e-9, abs_tol=1e-9)
-        )
+
+        self.assertIs(arc.point1, existing_point_a)
+        self.assertEqual(self.arc_manager.last_endpoint_notes, [])
 
     def test_create_circle_arc_raises_when_points_coincide(self) -> None:
         self.point_manager.create_point(1, 0, name="A")

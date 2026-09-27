@@ -11,7 +11,7 @@ Key Features:
     - Mathematical formula generation for geometric operations
 
 Mathematical Properties:
-    - circle_formula: Algebraic equation coefficients
+    - circle_formula: Algebraic equation string, computed from the current centre and radius
     - Center point tracking through Point object
     - Renderer-agnostic; no viewport scaling stored in model
 
@@ -43,7 +43,7 @@ class Circle(Drawable):
     Attributes:
         center (Point): Center point of the circle
         radius (float): Radius in mathematical coordinate units
-        circle_formula (dict): Algebraic circle equation coefficients
+        circle_formula (str): Algebraic circle equation, computed from the current geometry
     """
 
     def __init__(self, center_point: Point, radius: float, color: str = default_color) -> None:
@@ -56,18 +56,25 @@ class Circle(Drawable):
         """
         self.center: Point = center_point
         self.radius: float = radius
-        self.circle_formula: Dict[str, float] = self._calculate_circle_algebraic_formula()
         super().__init__(name=self._generate_default_name(), color=color)
 
     def get_class_name(self) -> str:
         return "Circle"
 
-    def _calculate_circle_algebraic_formula(self) -> Dict[str, float]:
+    @property
+    def circle_formula(self) -> str:
+        """Algebraic circle equation, computed from the current centre and radius.
+
+        Computed on each access so it follows the centre when another object
+        (a polygon sharing the centre point, a point transform) moves it.
+        """
+        return self._calculate_circle_algebraic_formula()
+
+    def _calculate_circle_algebraic_formula(self) -> str:
         x: float = self.center.x
         y: float = self.center.y
         r: float = self.radius
-        circle_formula: Dict[str, float] = MathUtils.get_circle_formula(x, y, r)
-        return circle_formula
+        return str(MathUtils.get_circle_formula(x, y, r))
 
     def get_state(self) -> Dict[str, Any]:
         radius: float = self.radius
@@ -93,13 +100,11 @@ class Circle(Drawable):
     def translate(self, x_offset: float, y_offset: float) -> None:
         self.center.x += x_offset
         self.center.y += y_offset
-        self.circle_formula = self._calculate_circle_algebraic_formula()
         self.regenerate_name()
 
     def reflect(self, axis: str, a: float = 0, b: float = 0, c: float = 0) -> None:
         """Reflect the circle across the specified axis (center moves, radius unchanged)."""
         self.center.reflect(axis, a, b, c)
-        self.circle_formula = self._calculate_circle_algebraic_formula()
         self.regenerate_name()
 
     def scale(self, sx: float, sy: float, cx: float, cy: float) -> None:
@@ -116,7 +121,6 @@ class Circle(Drawable):
             )
         self.center.scale(sx, sy, cx, cy)
         self.radius = abs(self.radius * sx)
-        self.circle_formula = self._calculate_circle_algebraic_formula()
         self.regenerate_name()
 
     def shear(self, axis: str, factor: float, cx: float, cy: float) -> None:
@@ -130,7 +134,6 @@ class Circle(Drawable):
     def rotate_around(self, angle_deg: float, cx: float, cy: float) -> None:
         """Rotate the circle center around an arbitrary point (cx, cy)."""
         self.center.rotate_around(angle_deg, cx, cy)
-        self.circle_formula = self._calculate_circle_algebraic_formula()
         self.regenerate_name()
 
     def rotate(self, angle: float) -> None:
@@ -153,6 +156,5 @@ class Circle(Drawable):
         self.color = str(color)
 
     def update_center_position(self, x: float, y: float) -> None:
-        """Move the center point and refresh the cached circle formula."""
+        """Move the center point (the circle formula follows it)."""
         self.center.update_position(x, y)
-        self.circle_formula = self._calculate_circle_algebraic_formula()

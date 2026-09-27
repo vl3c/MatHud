@@ -12,7 +12,9 @@ import math
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 
 from drawables.circle_arc import CircleArc
+from drawables.position import Position
 from managers.base_drawable_manager import BaseDrawableManager
+from managers.dependency_removal import remove_drawable_with_dependencies
 from managers.edit_policy import EditRule
 from utils.math_utils import MathUtils
 
@@ -50,10 +52,29 @@ class ArcManager(BaseDrawableManager):
             drawable_manager_proxy,
         )
         self.point_manager: "PointManager" = point_manager
+        # What the last create_circle_arc did instead of moving an existing point (for the tool result).
+        self.last_endpoint_notes: List[str] = []
+        # Points the current create_circle_arc call created, removed again if the call fails.
+        self._created_points: List["Point"] = []
 
     # ------------------------------------------------------------------
     # Creation helpers
     # ------------------------------------------------------------------
+
+    def _create_or_reuse_point(self, x: float, y: float, name: str) -> Tuple["Point", bool]:
+        """Return the point at (x, y), creating it if needed; the flag says whether this call created it."""
+        existing = self.point_manager.get_point(x, y)
+        if existing is not None:
+            return existing, False
+        point = self.point_manager.create_point(x, y, name=name, extra_graphics=False)
+        self._created_points.append(point)
+        return point, True
+
+    def _remove_created_points(self) -> None:
+        """Take back the points a failed create_circle_arc call created."""
+        for point in reversed(self._created_points):
+            remove_drawable_with_dependencies(self.drawables, self.dependency_manager, point)
+        self._created_points = []
 
     def _resolve_point(
         self,
@@ -68,24 +89,11 @@ class ArcManager(BaseDrawableManager):
                 return existing, False
             if x is None or y is None:
                 raise ValueError(f"{label} name '{point_name}' was not found and coordinates were not provided.")
-            created_point = self.point_manager.create_point(
-                x,
-                y,
-                name=point_name,
-                extra_graphics=False,
-            )
-            return created_point, True
+            return self._create_or_reuse_point(x, y, point_name)
 
         if x is None or y is None:
             raise ValueError(f"{label} coordinates are required when no name is provided.")
-
-        created_point = self.point_manager.create_point(
-            x,
-            y,
-            name="",
-            extra_graphics=False,
-        )
-        return created_point, True
+        return self._create_or_reuse_point(x, y, "")
 
     def _resolve_circle_geometry(
         self,
@@ -208,15 +216,7 @@ class ArcManager(BaseDrawableManager):
 
         # Use create_point directly with suggested name (like segments do)
         # create_point handles: coordinate lookup, name validation via generate_point_name
-        point = self.point_manager.create_point(
-            x,
-            y,
-            name=suggested_name or "",
-            extra_graphics=False,
-        )
-        # Check if point was newly created or already existed at coordinates
-        not bool(self.point_manager.get_point(x, y) and suggested_name)
-        return point, True  # Assume new for arc creation purposes
+        return self._create_or_reuse_point(x, y, suggested_name or "")
 
     def _determine_arc_geometry(
         self,
@@ -339,17 +339,50 @@ class ArcManager(BaseDrawableManager):
             endpoint_two_new,
         )
 
-    def _project_endpoints_on_circle(
+    def _place_endpoint_on_circle(
         self,
-        point1: "Point",
-        point2: "Point",
+        point: "Point",
+        point_is_new: bool,
         center_x: float,
         center_y: float,
         radius: float,
-    ) -> None:
-        """Project both endpoints onto the circle defined by center/radius."""
-        MathUtils.project_point_onto_circle(point1, center_x, center_y, radius)
-        MathUtils.project_point_onto_circle(point2, center_x, center_y, radius)
+    ) -> "Point":
+        """Return the arc endpoint on the circle for ``point``, never moving an existing point.
+
+        A point on the circle is used as is. A point this call created is projected
+        onto the circle. An existing point off the circle stays where it is: the arc
+        gets a point at its projection instead (reusing one already there), and a
+        note in ``last_endpoint_notes`` says so.
+        """
+        if MathUtils.point_on_circle(point, center_x=center_x, center_y=center_y, radius=radius, strict=False):
+            return point
+        target = Position(float(point.x), float(point.y))
+        MathUtils.project_point_onto_circle(target, center_x, center_y, radius)
+        if point_is_new:
+            occupant = self.point_manager.get_point(target.x, target.y)
+            if occupant is None:
+                point.x, point.y = target.x, target.y
+                return point
+            # Another point already sits at the projection: use it and drop the one this call made.
+            if point in self._created_points:
+                self._created_points.remove(point)
+                remove_drawable_with_dependencies(self.drawables, self.dependency_manager, point)
+            return occupant
+
+        replacement, _ = self._create_or_reuse_point(target.x, target.y, "")
+        self.last_endpoint_notes.append(
+            f"Point '{point.name}' at ({point.x:g}, {point.y:g}) is not on the circle, so it was not moved; "
+            f"the arc uses point '{replacement.name}' at ({replacement.x:g}, {replacement.y:g}) instead."
+        )
+        return replacement
+
+    @staticmethod
+    def _require_distinct_endpoints(point1: "Point", point2: "Point") -> None:
+        if point1 is point2 or MathUtils.point_matches_coordinates(point1, point2.x, point2.y):
+            raise ValueError(
+                f"Both arc endpoints land at ({point1.x:g}, {point1.y:g}) on the circle; "
+                "give two endpoints at different positions around it."
+            )
 
     # ------------------------------------------------------------------
     # Public API
@@ -377,83 +410,93 @@ class ArcManager(BaseDrawableManager):
         use_major_arc: bool = False,
         extra_graphics: bool = True,
     ) -> Optional[CircleArc]:
+        """Create an arc; existing points are never moved onto the circle (see _place_endpoint_on_circle)."""
+        self.last_endpoint_notes = []
+        self._created_points = []
         self.canvas.undo_redo_manager.archive()
 
-        (
-            point1,
-            point1_is_new,
-            point2,
-            point2_is_new,
-            point3,
-            point3_is_new,
-        ) = self._resolve_circle_arc_points(
-            point1_name,
-            point1_x,
-            point1_y,
-            point2_name,
-            point2_x,
-            point2_y,
-            point3_name,
-            point3_x,
-            point3_y,
-            arc_name,
-        )
+        try:
+            (
+                point1,
+                point1_is_new,
+                point2,
+                point2_is_new,
+                point3,
+                point3_is_new,
+            ) = self._resolve_circle_arc_points(
+                point1_name,
+                point1_x,
+                point1_y,
+                point2_name,
+                point2_x,
+                point2_y,
+                point3_name,
+                point3_x,
+                point3_y,
+                arc_name,
+            )
 
-        (
-            circle,
-            resolved_center_x,
-            resolved_center_y,
-            resolved_radius,
-            point1,
-            point1_is_new,
-            point2,
-            point2_is_new,
-        ) = self._determine_arc_geometry(
-            point1,
-            point1_is_new,
-            point2,
-            point2_is_new,
-            point3=point3,
-            point3_is_new=point3_is_new,
-            center_point_choice=center_point_choice,
-            circle_name=circle_name,
-            center_x=center_x,
-            center_y=center_y,
-            radius=radius,
-        )
+            (
+                circle,
+                resolved_center_x,
+                resolved_center_y,
+                resolved_radius,
+                point1,
+                point1_is_new,
+                point2,
+                point2_is_new,
+            ) = self._determine_arc_geometry(
+                point1,
+                point1_is_new,
+                point2,
+                point2_is_new,
+                point3=point3,
+                point3_is_new=point3_is_new,
+                center_point_choice=center_point_choice,
+                circle_name=circle_name,
+                center_x=center_x,
+                center_y=center_y,
+                radius=radius,
+            )
 
-        self._project_endpoints_on_circle(
-            point1,
-            point2,
-            resolved_center_x,
-            resolved_center_y,
-            resolved_radius,
-        )
+            point1 = self._place_endpoint_on_circle(
+                point1, point1_is_new, resolved_center_x, resolved_center_y, resolved_radius
+            )
+            point2 = self._place_endpoint_on_circle(
+                point2, point2_is_new, resolved_center_x, resolved_center_y, resolved_radius
+            )
+            self._require_distinct_endpoints(point1, point2)
 
-        existing_arc = self._find_duplicate_arc(
-            point1,
-            point2,
-            resolved_center_x,
-            resolved_center_y,
-            resolved_radius,
-            use_major_arc,
-        )
-        if existing_arc:
-            return existing_arc
+            existing_arc = self._find_duplicate_arc(
+                point1,
+                point2,
+                resolved_center_x,
+                resolved_center_y,
+                resolved_radius,
+                use_major_arc,
+            )
+            if existing_arc:
+                self._created_points = []
+                return existing_arc
 
-        final_name = self._generate_arc_name(arc_name, point1, point2, use_major_arc)
+            final_name = self._generate_arc_name(arc_name, point1, point2, use_major_arc)
 
-        new_arc = CircleArc(
-            point1,
-            point2,
-            center_x=resolved_center_x,
-            center_y=resolved_center_y,
-            radius=resolved_radius,
-            circle=circle,
-            use_major_arc=use_major_arc,
-            color=color,
-            name=final_name,
-        )
+            new_arc = CircleArc(
+                point1,
+                point2,
+                center_x=resolved_center_x,
+                center_y=resolved_center_y,
+                radius=resolved_radius,
+                circle=circle,
+                use_major_arc=use_major_arc,
+                color=color,
+                name=final_name,
+            )
+        except Exception:
+            self._remove_created_points()
+            self.last_endpoint_notes = []
+            raise
+        self._created_points = []
 
         self.drawables.add(new_arc)
         self.dependency_manager.register_dependency(new_arc, point1)

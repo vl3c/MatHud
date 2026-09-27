@@ -303,12 +303,12 @@ static/client/
 │   ├── graph_analyzer.py              # Graph analysis dispatcher (shortest path, MST, etc.)
 │   ├── style_utils.py                 # Style and UI utility functions
 │   ├── polygon_subtypes.py            # Triangle/quadrilateral subtype enums
-│   ├── polygon_canonicalizer.py       # Re-export module for canonicalizers
-│   ├── canonicalizers/                # Polygon vertex canonicalization
+│   ├── polygon_subtype_checks.py      # Fit given vertices to a requested subtype (verbatim, adjusted or refused)
+│   ├── polygon_canonicalizer.py       # Re-export module for the rectangle canonicalizer
+│   ├── canonicalizers/                # Rectangle corners from a diagonal or noisy vertices
 │   │   ├── __init__.py                # Package exports
 │   │   ├── common.py                  # Shared types and helpers
-│   │   ├── triangle.py                # Triangle canonicalization
-│   │   └── quadrilateral.py           # Quadrilateral canonicalization
+│   │   └── quadrilateral.py           # Rectangle canonicalization
 │   └── statistics/                    # Statistical utilities
 │       ├── __init__.py                # Package exports
 │       └── distributions.py           # Normal PDF expression generation

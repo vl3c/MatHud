@@ -8,9 +8,7 @@
       "title": "Build, move, measure, undo",
       "tags": ["multi-turn", "transforms", "undo"],
       "smoke": true,
-      "known": ["K16"],
       "targets": "multi-turn reference resolution; undo accounting across read-only turns",
-      "invariants": {"I3": "K16"},
       "steps": [
         {
           "user": "Draw a triangle with vertices A(0,0), B(4,0) and C(0,3).",
