@@ -3120,7 +3120,9 @@ class MathUtils:
         from expression_validator import ExpressionValidator
 
         try:
-            compiled = window.math.compile(ExpressionValidator.fix_math_expression(str(expression)))
+            # math.js calls trunc() fix()
+            fixed = ExpressionValidator.fix_math_expression(str(expression)).replace("trunc(", "fix(")
+            compiled = window.math.compile(fixed)
         except Exception:
             return None
 
@@ -3352,6 +3354,8 @@ class MathUtils:
     _AITKEN_AGREEMENT = 1e-6
     # A settled value is never trusted beyond 12 significant digits.
     _SETTLED_PRECISION = 1e-12
+    # Bisections from the last finite sample towards an infinite one (a gap 2^-40 of the first).
+    _OVERFLOW_BISECTIONS = 40
 
     @staticmethod
     def _limit_at_infinity(evaluate: Callable[[float], Optional[float]], sign: float) -> Optional[float]:
@@ -3359,21 +3363,56 @@ class MathUtils:
 
         evaluate must use IEEE arithmetic (_mathjs_probe_evaluator), so an overflow inside f
         carries through it: 1/(1 + exp(-x)) is 0 where exp(-x) overflows. f undefined at a
-        sample (not real) means no limit on that side. An infinite sample means f itself
-        overflows, so it grows without bound (exp(x-700) + 1 looks flat until x = 710). A NaN
-        sample (inf/inf, e.g. cosh(x)/sinh(x) once both overflow) has lost the value of f: it
-        ends the sampling, and the samples before it are judged.
+        sample (not real) means no limit on that side. An infinite sample ends the sampling
+        after the last finite value before the overflow (_value_before_overflow) is added, so
+        exp(x-700) + 1, which reads 1 up to x = 622.7 and overflows by x = 2490.9, is judged on
+        its value near 1e308 there. A NaN sample (inf/inf, e.g. cosh(x)/sinh(x) once both
+        overflow) has lost the value of f: it ends the sampling, and the samples before it are
+        judged.
         """
         values: List[float] = []
+        previous_x = 0.0
         for index in range(MathUtils._INFINITY_PROBE_COUNT):
             x = sign * MathUtils._INFINITY_PROBE_START * MathUtils._INFINITY_PROBE_FACTOR**index
             value = evaluate(x)
-            if value is None or math.isinf(value):
+            if value is None:
                 return None
             if math.isnan(value):
                 break
+            if math.isinf(value):
+                if not values:
+                    return None
+                before_overflow = MathUtils._value_before_overflow(evaluate, previous_x, x)
+                if before_overflow is None:
+                    return None
+                values.append(before_overflow)
+                break
             values.append(value)
+            previous_x = x
         return MathUtils._settled_value(values)
+
+    @staticmethod
+    def _value_before_overflow(
+        evaluate: Callable[[float], Optional[float]], finite_x: float, infinite_x: float
+    ) -> Optional[float]:
+        """f just before it stops being finite between finite_x and infinite_x; None where f is not real.
+
+        An infinite f is either f itself overflowing, where f is huge just before (exp(x-700) + 1
+        nears 1e308), or an overflow inside f that a later operation keeps infinite although f
+        stays finite (log(1 + exp(x)) - x is log(inf) - x = inf, yet about 0 just before).
+        """
+        best = evaluate(finite_x)
+        low, high = finite_x, infinite_x
+        for _ in range(MathUtils._OVERFLOW_BISECTIONS):
+            middle = (low + high) / 2
+            value = evaluate(middle)
+            if value is None:
+                return None
+            if math.isfinite(value):
+                best, low = value, middle
+            else:
+                high = middle
+        return best
 
     @staticmethod
     def _aitken(first: float, second: float, third: float) -> Optional[float]:
