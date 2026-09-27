@@ -253,6 +253,38 @@ class TestFunctionTangentGuard(_FunctionToolTestCase):
 
         self.assertIn("vertical asymptote", str(traced["result"]))
 
+    def test_large_or_steep_tangents_follow_the_magnitude_rule(self) -> None:
+        # (expression, right bound, x, expected error fragment or None when the tangent is drawn)
+        cases: List[Tuple[str, float, float, Optional[str]]] = [
+            ("exp(x)", 30, 28, "too large to draw here"),
+            ("x^3", 20000, 10001, "too large to draw here"),
+            ("tan(x)", 4, math.pi / 2 - 1e-6, "too steep to draw here"),
+            ("1/x", 5, 1e-6, "too steep to draw here"),
+            ("exp(x)", 30, 27, None),
+            ("10^13*x", 5, 0.01, None),
+            ("tan(x)", 4, math.pi / 2 - 1e-4, None),
+        ]
+        for expression, right, x, fragment in cases:
+            with self.subTest(expression=expression, x=x):
+                self.setUp()
+                self.draw(expression, "f", -4, right)
+                depth = self.undo_depth()
+
+                traced = self.run_call(
+                    "draw_tangent_line", curve_name="f", parameter=x, name=None, length=None, color=None
+                )
+
+                segments = self.canvas.drawable_manager.drawables.Segments
+                if fragment is None:
+                    self.assertFalse(traced["is_error"], traced["result"])
+                    self.assertEqual(len(segments), 1)
+                else:
+                    self.assertTrue(traced["is_error"], traced["result"])
+                    self.assertIn(fragment, str(traced["result"]))
+                    self.assertNotIn("no tangent", str(traced["result"]))
+                    self.assertEqual(len(segments), 0)
+                    self.assertEqual(self.undo_depth(), depth)
+
     def test_tangent_away_from_the_asymptote_still_works(self) -> None:
         self.draw("tan(x)", "t", -4, 4)
 

@@ -1109,7 +1109,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "draw_tangent_line",
-            "description": "Draws a tangent line segment to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For circles, it's the angle in radians from the positive x-axis. For ellipses, it's the parametric angle t in radians, measured from the ellipse's own (rotated) x-axis: point = center + R(rotation) * (radius_x*cos(t), radius_y*sin(t)). Fails, creating nothing, where a function is undefined or has a vertical asymptote, or where its value or derivative is infinite or huge.",
+            "description": "Draws a tangent line segment to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For circles, it's the angle in radians from the positive x-axis. For ellipses, it's the parametric angle t in radians, measured from the ellipse's own (rotated) x-axis: point = center + R(rotation) * (radius_x*cos(t), radius_y*sin(t)). For a function it fails, creating nothing, where the function is undefined, infinite or at a vertical asymptote, or where the line would be too large (|f(x)| above 1e12) or too steep (slope above 1e12 next to a vertical asymptote) to draw.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -1141,7 +1141,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "draw_normal_line",
-            "description": "Draws a normal line segment (perpendicular to tangent) to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For circles, it's the angle in radians from the positive x-axis. For ellipses, it's the parametric angle t in radians, measured from the ellipse's own (rotated) x-axis: point = center + R(rotation) * (radius_x*cos(t), radius_y*sin(t)). Fails, creating nothing, where a function is undefined or has a vertical asymptote, or where its value or derivative is infinite or huge.",
+            "description": "Draws a normal line segment (perpendicular to tangent) to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For circles, it's the angle in radians from the positive x-axis. For ellipses, it's the parametric angle t in radians, measured from the ellipse's own (rotated) x-axis: point = center + R(rotation) * (radius_x*cos(t), radius_y*sin(t)). For a function it fails, creating nothing, where the function is undefined, infinite or at a vertical asymptote, or where the line would be too large (|f(x)| above 1e12) or too steep (slope above 1e12 next to a vertical asymptote) to draw.",
             "strict": True,
             "parameters": {
                 "type": "object",

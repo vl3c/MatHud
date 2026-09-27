@@ -38,12 +38,17 @@ CurveType = Union["Function", "ParametricFunction", "Circle", "Ellipse"]
 # Default line segment length in math units
 DEFAULT_TANGENT_LENGTH = 4.0
 
-# Largest |f(x)| and |f'(x)| a function tangent accepts; beyond it the tangent is refused
+# Largest |f(x)| a function tangent accepts, and the largest |f'(x)| it accepts near a
+# vertical asymptote; beyond them the tangent is too large or too steep to draw
 MAX_TANGENT_MAGNITUDE = 1e12
 
 # Step of MathUtils.numerical_derivative_at (relative to max(1, |x|)); a listed vertical
 # asymptote within two steps of x means there is no tangent at x
 _DERIVATIVE_STEP = 1e-7
+
+# Distance (relative to max(1, |x|)) from a listed vertical asymptote within which the
+# slope limit applies: there the numerical derivative loses accuracy as the slope grows
+_NEAR_ASYMPTOTE = 1e-3
 
 
 class TangentManager:
@@ -180,25 +185,28 @@ class TangentManager:
         y = float(y)
         if math.isnan(y):
             raise ValueError(f"Function is undefined at x={x}")
-        asymptote = self._vertical_asymptote_near(func, x)
+        asymptote = self._vertical_asymptote_within(func, x, 2 * _DERIVATIVE_STEP)
         if asymptote is not None:
             raise ValueError(
                 f"Function '{func.name}' has a vertical asymptote at x={asymptote}; there is no tangent at x={x}"
             )
-        if not math.isfinite(y) or abs(y) > MAX_TANGENT_MAGNITUDE:
+        if not math.isfinite(y):
+            raise ValueError(f"Function '{func.name}' is infinite at x={x}; there is no tangent there")
+        if abs(y) > MAX_TANGENT_MAGNITUDE:
             raise ValueError(
-                f"Function '{func.name}' is infinite or too large at x={x} (f(x) = {y}, limit "
-                f"{MAX_TANGENT_MAGNITUDE:g}); there is no tangent there"
+                f"The tangent to '{func.name}' at x={x} is too large to draw here: f(x) = {y} exceeds "
+                f"{MAX_TANGENT_MAGNITUDE:g} in magnitude"
             )
 
         # Compute derivative numerically
         slope = MathUtils.numerical_derivative_at(func.function, x)
-        if slope is None:
-            raise ValueError(f"Cannot compute derivative at x={x}")
-        if not math.isfinite(slope) or abs(slope) > MAX_TANGENT_MAGNITUDE:
+        if slope is None or not math.isfinite(slope):
+            raise ValueError(f"The derivative of '{func.name}' at x={x} is not finite; there is no tangent there")
+        nearby_asymptote = self._vertical_asymptote_within(func, x, _NEAR_ASYMPTOTE)
+        if nearby_asymptote is not None and abs(slope) > MAX_TANGENT_MAGNITUDE:
             raise ValueError(
-                f"The derivative of '{func.name}' at x={x} is infinite or too large (about {slope}, limit "
-                f"{MAX_TANGENT_MAGNITUDE:g}); there is no tangent there"
+                f"The tangent to '{func.name}' at x={x} is too steep to draw here: its slope is about {slope:.3g}, "
+                f"above {MAX_TANGENT_MAGNITUDE:g}, next to the vertical asymptote at x={nearby_asymptote}"
             )
 
         point = (x, y)
@@ -211,9 +219,9 @@ class TangentManager:
         }
 
     @staticmethod
-    def _vertical_asymptote_near(func: "Function", x: float) -> Optional[float]:
-        """Return a listed vertical asymptote close enough to x to spoil the derivative, if any."""
-        window = 2 * _DERIVATIVE_STEP * max(1.0, abs(x))
+    def _vertical_asymptote_within(func: "Function", x: float, relative_distance: float) -> Optional[float]:
+        """Return a listed vertical asymptote within relative_distance * max(1, |x|) of x, if any."""
+        window = relative_distance * max(1.0, abs(x))
         for asymptote in getattr(func, "vertical_asymptotes", None) or []:
             if abs(asymptote - x) <= window:
                 return float(asymptote)
