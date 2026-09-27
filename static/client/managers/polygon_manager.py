@@ -356,11 +356,11 @@ class PolygonManager(BaseDrawableManager):
             positions = [Position(x, y) for x, y in vertices]
             if not GeometryUtils.is_rectangle(positions):
                 raise ValueError(
-                    "Provided vertices do not form a rectangle in the given order; vertices are used exactly as given."
+                    "Provided vertices do not form a rectangle in the given order; vertices are never re-ordered."
                 )
             if constraints.get("require_square") and not GeometryUtils.is_square(positions):
                 raise ValueError(
-                    "Provided vertices do not form a square in the given order; vertices are used exactly as given."
+                    "Provided vertices do not form a square in the given order; vertices are never re-ordered."
                 )
 
     @staticmethod
