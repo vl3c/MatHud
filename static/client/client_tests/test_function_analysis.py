@@ -627,3 +627,26 @@ class TestLimitsCannotHang(_FunctionToolTestCase):
         result = MathUtils.ratio_test("abs(n)/n", "n")
         self.assert_quick(started, "ratio_test(abs(n)/n)")
         self.assertIsInstance(result, str)
+
+    def test_a_limit_is_stopped_near_its_budget_whatever_step_it_is_in(self) -> None:
+        """This limit spent 37 s in expand/simplify between two derivative steps."""
+        started = _now_seconds()
+
+        result = MathUtils.limit("x/(abs(x)/x+abs(sin(x))/sin(x))", "x", "0")
+
+        elapsed = _now_seconds() - started
+        self.assertLess(elapsed, MathUtils.NERDAMER_MAX_MS / 1000 + 2.0, f"took {elapsed:.1f} s")
+        self.assertIn("could not be computed symbolically", result)
+
+    def test_symbolic_tools_are_stopped_instead_of_freezing(self) -> None:
+        started = _now_seconds()
+
+        result = MathUtils.expand("(x+y+z)^25")
+
+        elapsed = _now_seconds() - started
+        self.assertLess(elapsed, MathUtils.NERDAMER_TOOL_MAX_MS / 1000 + 3.0, f"took {elapsed:.1f} s")
+        self.assertTrue(result.startswith("Error: Computing expand((x+y+z)^25) took too long"), result)
+        # nerdamer still works after the abort
+        self.assertEqual(MathUtils.derivative("x^3", "x"), "3*x^2")
+        self.assertEqual(MathUtils.expand("(x+1)^2"), "1+2*x+x^2")
+        self.assertEqual(MathUtils.limit("sin(x)/x", "x", "0"), "1")

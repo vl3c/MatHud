@@ -1267,9 +1267,10 @@ class MathUtils:
         """
         expression, variable = MathUtils._normalize_symbols(expression), MathUtils._normalize_variable(variable)
         try:
-            return str(window.nerdamer(f"diff({expression}, {variable})").text())
+            result = MathUtils._guarded_nerdamer_text(f"diff({expression}, {variable})", MathUtils.NERDAMER_TOOL_MAX_MS)
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
+        return MathUtils._took_too_long_message(f"the derivative of {expression}") if result is None else result
 
     @staticmethod
     def limit(expression: str, variable: str, value_to_approach: Union[Number, str]) -> str:
@@ -1303,26 +1304,48 @@ class MathUtils:
             return MathUtils._abandoned_limit_message(expression, variable, str(value_to_approach))
         return result
 
-    # A guarded nerdamer computation is abandoned after this many derivative and limit steps or
-    # this many milliseconds (static/nerdamer_guard.js).
+    # A guarded nerdamer computation (static/nerdamer_guard.js) is stopped after this many
+    # derivative and limit steps (limits only) or once this many milliseconds have passed; it
+    # stops within a few hundred milliseconds of the deadline. Limits, and the solve() behind
+    # asymptote detection, get NERDAMER_MAX_MS; the derive, integrate, simplify, expand,
+    # factor and solve tools get NERDAMER_TOOL_MAX_MS.
     NERDAMER_MAX_STEPS = 2000
     NERDAMER_MAX_MS = 1500
+    NERDAMER_TOOL_MAX_MS = 5000
+    _NO_STEP_LIMIT = 10**9
 
     @staticmethod
-    def _guarded_nerdamer_text(nerdamer_input: str) -> Optional[str]:
-        """Evaluate nerdamer input under the step and time budget; None if the budget ran out.
+    def _guarded_nerdamer_text(
+        nerdamer_input: str, max_ms: Optional[int] = None, decimals: bool = False
+    ) -> Optional[str]:
+        """Evaluate nerdamer input under the time budget; None if the budget ran out.
 
+        Only limits count derivative steps (max_ms None means a limit: NERDAMER_MAX_MS and
+        NERDAMER_MAX_STEPS). With decimals the result is evaluated and printed as decimals.
         Falls back to plain nerdamer when the guard script is not loaded. Errors raised by
         nerdamer are raised again as ValueError.
         """
         if not hasattr(window, "MatHudGuardedNerdamer"):
-            return str(window.nerdamer(nerdamer_input).text())
-        outcome = window.MatHudGuardedNerdamer(nerdamer_input, MathUtils.NERDAMER_MAX_STEPS, MathUtils.NERDAMER_MAX_MS)
+            parsed = window.nerdamer(nerdamer_input)
+            return str(parsed.evaluate().text("decimals") if decimals else parsed.text())
+        max_steps = MathUtils.NERDAMER_MAX_STEPS if max_ms is None else MathUtils._NO_STEP_LIMIT
+        outcome = window.MatHudGuardedNerdamer(
+            nerdamer_input, max_steps, max_ms or MathUtils.NERDAMER_MAX_MS, bool(decimals)
+        )
         if outcome.exceeded:
             return None
         if outcome.error:
             raise ValueError(str(outcome.error))
         return str(outcome.text)
+
+    @staticmethod
+    def _took_too_long_message(what: str) -> str:
+        """Error text for a nerdamer computation the guard stopped."""
+        seconds = MathUtils.NERDAMER_TOOL_MAX_MS / 1000
+        return (
+            f"Error: Computing {what} took too long and was stopped after about {seconds:g} s; "
+            "the expression is probably too large for the symbolic engine."
+        )
 
     @staticmethod
     def _abandoned_limit_message(expression: str, variable: str, value_to_approach: str) -> str:
@@ -1411,9 +1434,14 @@ class MathUtils:
         expression, variable = MathUtils._normalize_symbols(expression), MathUtils._normalize_variable(variable)
         lower_bound, upper_bound = MathUtils._normalize_symbols(lower_bound), MathUtils._normalize_symbols(upper_bound)
         try:
-            indefinite_integral = window.nerdamer(f"integrate({expression}, {variable})")
+            antiderivative = MathUtils._guarded_nerdamer_text(
+                f"integrate({expression}, {variable})", MathUtils.NERDAMER_TOOL_MAX_MS
+            )
+            if antiderivative is None:
+                return MathUtils._took_too_long_message(f"the integral of {expression}")
             if lower_bound is None and upper_bound is None:
-                return str(indefinite_integral.text())
+                return antiderivative
+            indefinite_integral = window.nerdamer(antiderivative)
             evaluated_at_upper = indefinite_integral.sub(variable, upper_bound).text()
             evaluated_at_lower = indefinite_integral.sub(variable, lower_bound).text()
             result = str(window.nerdamer(f"{evaluated_at_upper} - {evaluated_at_lower}").evaluate().text())
@@ -1622,9 +1650,10 @@ class MathUtils:
         """
         expression = MathUtils._normalize_symbols(expression)
         try:
-            return str(window.nerdamer(f"simplify({expression})").text())
+            result = MathUtils._guarded_nerdamer_text(f"simplify({expression})", MathUtils.NERDAMER_TOOL_MAX_MS)
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
+        return MathUtils._took_too_long_message(f"simplify({expression})") if result is None else result
 
     @staticmethod
     def expand(expression: str) -> str:
@@ -1641,9 +1670,10 @@ class MathUtils:
         """
         expression = MathUtils._normalize_symbols(expression)
         try:
-            return str(window.nerdamer(f"expand({expression})").text())
+            result = MathUtils._guarded_nerdamer_text(f"expand({expression})", MathUtils.NERDAMER_TOOL_MAX_MS)
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
+        return MathUtils._took_too_long_message(f"expand({expression})") if result is None else result
 
     @staticmethod
     def factor(expression: str) -> str:
@@ -1660,9 +1690,10 @@ class MathUtils:
         """
         expression = MathUtils._normalize_symbols(expression)
         try:
-            return str(window.nerdamer(f"factor({expression})").text())
+            result = MathUtils._guarded_nerdamer_text(f"factor({expression})", MathUtils.NERDAMER_TOOL_MAX_MS)
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
+        return MathUtils._took_too_long_message(f"factor({expression})") if result is None else result
 
     @staticmethod
     def get_equation_type(equation: str) -> str:
@@ -1820,9 +1851,13 @@ class MathUtils:
         """
         equation, variable = MathUtils._normalize_symbols(equation), MathUtils._normalize_variable(variable)
         try:
-            raw_solutions = str(window.nerdamer(f"solve({equation}, {variable})").text())
+            raw_solutions = MathUtils._guarded_nerdamer_text(
+                f"solve({equation}, {variable})", MathUtils.NERDAMER_TOOL_MAX_MS
+            )
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
+        if raw_solutions is None:
+            return MathUtils._took_too_long_message(f"the solutions of {equation} for {variable}")
         return MathUtils._drop_invalid_roots(raw_solutions, equation, variable)
 
     @staticmethod
@@ -1928,8 +1963,15 @@ class MathUtils:
 
     @staticmethod
     def _numeric_real_roots(expression: str, variable: str) -> List[float]:
-        """Solve expression = 0 with nerdamer and return the distinct real roots as floats."""
-        raw_roots = str(window.nerdamer(f"solve({expression}, {variable})").evaluate().text("decimals"))
+        """Solve expression = 0 with nerdamer and return the distinct real roots as floats.
+
+        Raises ValueError when nerdamer fails or runs past NERDAMER_MAX_MS.
+        """
+        raw_roots = MathUtils._guarded_nerdamer_text(
+            f"solve({expression}, {variable})", MathUtils.NERDAMER_MAX_MS, decimals=True
+        )
+        if raw_roots is None:
+            raise ValueError(f"solve({expression}, {variable}) took too long")
         if not (raw_roots.startswith("[") and raw_roots.endswith("]")):
             return []
         roots: List[float] = []
