@@ -279,6 +279,7 @@ from .test_chat_html_safety import (
     TestMathOutputSanitizer,
 )
 from .test_chat_math_typeset import TestChatMathTypeset
+from .test_chat_math_typeset_queue import TestChatMathTypesetQueue
 from .test_turn_metrics import (
     TestTurnAggregation,
     TestFooterFormatting,
@@ -391,6 +392,7 @@ class Tests:
             test_cases = test_runner._get_test_cases()
             total = len(test_cases)
             print(f"[ClientTests] Running {total} test classes asynchronously.")
+            await cls.prepare_async()
 
             loader = unittest.TestLoader()
             custom_stream = BrythonTestStream()
@@ -427,6 +429,24 @@ class Tests:
             print(f"[ClientTests] Exception during run_tests_async: {repr(exc)}")
             traceback.print_exc()
             return test_runner._create_error_result(str(exc))
+
+    @classmethod
+    async def prepare_async(cls) -> None:
+        """Await each test class's ``prepare_async`` classmethod, before any test runs.
+
+        Tests run synchronously, so no promise settles while they run. A test class
+        that has to wait for one (a typeset loading a TeX extension, say) does that
+        work in an async ``prepare_async`` classmethod and its tests check the outcome.
+        """
+        for test_case in cls()._get_test_cases():
+            prepare = getattr(test_case, "prepare_async", None)
+            if prepare is None:
+                continue
+            try:
+                await prepare()
+            except Exception as exc:
+                print(f"[ClientTests] {test_case.__name__}.prepare_async failed: {repr(exc)}")
+                traceback.print_exc()
 
     def _get_test_cases(self) -> List[Type[unittest.TestCase]]:
         """Return the list of test case classes to run."""
@@ -671,6 +691,7 @@ class Tests:
             TestMathJaxHrefDisabled,
             TestMathOutputSanitizer,
             TestChatMathTypeset,
+            TestChatMathTypesetQueue,
             TestTurnAggregation,
             TestFooterFormatting,
             TestTurnMetricsCollector,
@@ -817,6 +838,11 @@ class Tests:
 
 def run_tests() -> Dict[str, Any]:
     return Tests.run_tests()
+
+
+async def prepare_async_tests() -> None:
+    """Run the async preparation of tests that wait on promises (before run_tests)."""
+    await Tests.prepare_async()
 
 
 async def run_tests_async(
