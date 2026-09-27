@@ -7,9 +7,11 @@ workspace manager's restore, as a save followed by a load does.
 
 from __future__ import annotations
 
-from typing import Any, Dict
+import json
+from copy import deepcopy
+from typing import Any, Dict, List
 
-from .test_tool_batch_results import _ToolBatchTestCase
+from .test_tool_batch_results import TRIANGLE_VERTICES, _ToolBatchTestCase
 
 
 class TestRequestedNamesAreReported(_ToolBatchTestCase):
@@ -204,3 +206,148 @@ class TestRegressionReportsReusedPoints(_ToolBatchTestCase):
         self.assertEqual(result["created_point_names"], result["point_names"])
         self.assertNotIn("reused_point_names", result)
         self.assertNotIn("note", result)
+
+
+class TestWorkspaceRoundTripKeepsStyles(_ToolBatchTestCase):
+    """K5: save/load and undo keep colours, custom angle names and grid visibility."""
+
+    def build_styled_scene(self) -> None:
+        self.run_batch(
+            ("create_point", {"x": -9, "y": 9, "name": "P", "color": "red"}),
+            (
+                "create_polygon",
+                {"vertices": TRIANGLE_VERTICES, "polygon_type": "triangle", "name": "ABC", "color": "green"},
+            ),
+            ("create_circle", {"center_x": 10, "center_y": 10, "radius": 2, "color": "purple"}),
+            (
+                "create_ellipse",
+                {
+                    "center_x": -8,
+                    "center_y": 5,
+                    "radius_x": 3,
+                    "radius_y": 1.5,
+                    "rotation_angle": 30,
+                    "color": "orange",
+                },
+            ),
+            ("create_vector", {"origin_x": -5, "origin_y": -5, "tip_x": -2, "tip_y": -1, "color": "red"}),
+            (
+                "draw_function",
+                {"function_string": "x^2", "name": "f", "left_bound": -2, "right_bound": 2, "color": "red"},
+            ),
+            ("create_segment", {"x1": 20, "y1": 0, "x2": 24, "y2": 0, "color": "teal"}),
+            (
+                "create_polygon",
+                {
+                    "vertices": [{"x": 30, "y": 0}, {"x": 34, "y": 0}, {"x": 34, "y": 2}, {"x": 30, "y": 2}],
+                    "polygon_type": "rectangle",
+                    "color": "maroon",
+                },
+            ),
+            (
+                "create_angle",
+                {"vx": 0, "vy": 0, "p1x": 4, "p1y": 0, "p2x": 0, "p2y": 3, "angle_name": "alpha", "is_reflex": True},
+            ),
+        )
+
+    def colors(self) -> Dict[str, str]:
+        colors: Dict[str, str] = {}
+        for bucket, drawables in self.canvas.drawable_manager.drawables._drawables.items():
+            for drawable in drawables:
+                colors[f"{bucket}:{drawable.name}"] = str(drawable.color)
+        return colors
+
+    def save_and_load(self) -> None:
+        saved: Dict[str, Any] = json.loads(json.dumps(self.canvas.get_canvas_state()))
+        self.canvas.clear()
+        self.canvas.coordinate_system_manager.set_mode("cartesian", redraw=False)
+        self.canvas.coordinate_system_manager.polar_grid.visible = True
+        self.canvas.cartesian2axis.visible = True
+        self.workspace_manager._restore_workspace_state(saved)
+
+    def test_colors_survive_save_and_load(self) -> None:
+        self.build_styled_scene()
+        before = self.colors()
+        self.assertEqual(before["Point:P"], "red")
+        self.assertIn("purple", [color for key, color in before.items() if key.startswith("Circle:")])
+
+        self.save_and_load()
+
+        self.assertEqual(self.colors(), before)
+
+    def test_custom_angle_name_survives_save_and_load(self) -> None:
+        self.build_styled_scene()
+
+        self.save_and_load()
+
+        angles = self.canvas.get_drawables_by_class_name("Angle")
+        self.assertEqual([angle.name for angle in angles], ["alpha"])
+        self.assertTrue(angles[0].is_reflex)
+
+    def test_grid_visibility_survives_save_and_load(self) -> None:
+        self.run_single("create_point", x=1, y=1)
+        self.canvas.set_coordinate_system("polar")
+        self.canvas.set_grid_visible(False)
+        self.canvas.cartesian2axis.visible = False
+
+        self.save_and_load()
+
+        self.assertEqual(self.canvas.coordinate_system_manager.mode, "polar")
+        self.assertFalse(self.canvas.coordinate_system_manager.polar_grid.visible)
+        self.assertFalse(self.canvas.cartesian2axis.visible)
+
+    def test_default_colors_are_not_written_to_the_state(self) -> None:
+        self.run_single("create_segment", x1=0, y1=0, x2=4, y2=0)
+
+        state = self.canvas.get_canvas_state()
+
+        self.assertNotIn("color", state["Points"][0]["args"])
+        self.assertNotIn("color", state["Segments"][0]["args"])
+        self.assertEqual(state["coordinate_system"], {"mode": "cartesian"})
+
+    def test_saves_without_colors_still_load_with_defaults(self) -> None:
+        legacy: Dict[str, Any] = {
+            "Points": [
+                {"name": "A", "args": {"position": {"x": 0, "y": 0}}},
+                {"name": "B", "args": {"position": {"x": 4, "y": 0}}},
+            ],
+            "Segments": [{"name": "AB", "args": {"p1": "A", "p2": "B"}}],
+            "Circles": [{"name": "A(2)", "args": {"center": "A", "radius": 2}}],
+            "coordinate_system": {"mode": "polar"},
+        }
+
+        self.workspace_manager._restore_workspace_state(legacy)
+
+        colors = self.colors()
+        self.assertEqual(colors["Point:A"], "black")
+        self.assertEqual(colors["Segment:AB"], "black")
+        self.assertEqual(colors["Circle:A(2)"], "black")
+        self.assertTrue(self.canvas.coordinate_system_manager.polar_grid.visible)
+
+    def test_undo_keeps_custom_angle_name_and_colors(self) -> None:
+        self.build_styled_scene()
+        before = self.colors()
+
+        self.run_single("create_point", x=50, y=50)
+        self.run_single("undo")
+
+        self.assertEqual(self.colors(), before)
+        self.assertEqual([a.name for a in self.canvas.get_drawables_by_class_name("Angle")], ["alpha"])
+
+    def test_copies_for_undo_keep_custom_shape_names(self) -> None:
+        self.build_styled_scene()
+        self.run_single(
+            "create_polygon",
+            vertices=[{"x": 40, "y": 0}, {"x": 44, "y": 0}, {"x": 45, "y": 3}, {"x": 42, "y": 5}, {"x": 39, "y": 3}],
+            polygon_type="pentagon",
+        )
+        renamed: List[Any] = []
+        for class_name in ("Circle", "Ellipse", "Triangle", "Rectangle", "Pentagon"):
+            drawable = self.canvas.get_drawables_by_class_name(class_name)[0]
+            drawable.name = f"custom_{class_name}"
+            renamed.append(drawable)
+
+        for drawable in renamed:
+            copied = deepcopy(drawable)
+            self.assertEqual(copied.name, drawable.name)
+            self.assertEqual(copied.color, drawable.color)

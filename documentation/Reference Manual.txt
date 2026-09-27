@@ -1098,6 +1098,7 @@ Attributes:
 - `get_name()`: Return the object's name
 - `draw()`: Abstract method for rendering (implemented by subclasses)
 - `get_state()`: Abstract method for state serialization (implemented by subclasses)
+- `_add_color_to_state(state, default=default_color)`: Add a non-default color to `state["args"]["color"]`. Points, segments, vectors, circles, ellipses, functions and every polygon class use it, so a colour survives save and load and reaches the model's canvas text, while the state of default-colored objects is unchanged. Their `__deepcopy__` (used by undo) keeps the name and the colour; angles keep a custom name such as `alpha` on undo and on load
 - `zoom()`: Abstract method to update object for zoom operations (implemented by subclasses)
 - `pan()`: Abstract method to update object for pan operations (implemented by subclasses)
 - `rotate(angle)`: Abstract method to rotate object by specified angle (implemented by subclasses)
@@ -2383,8 +2384,8 @@ Class Attributes:
 - `is_polar()`: Check if the current mode is Polar
 - `toggle_mode(redraw=True)`: Toggle between Cartesian and Polar modes, returns the new mode
 - `invalidate_cache_on_zoom()`: Invalidate grid caches when zoom changes (calls both grids)
-- `get_state()`: Get the state for workspace persistence (mode and polar_grid_state)
-- `set_state(state)`: Restore state from workspace data
+- `get_state()`: Get the state for workspace persistence: `{"mode": ...}`, plus `"polar_grid_visible": false` when the polar grid is hidden (the Cartesian grid's visibility is the canvas state's top-level `visible`, which a load now restores too)
+- `set_state(state)`: Restore state from workspace data (the mode, and the polar grid's visibility, visible when not recorded)
 
 ### Specialized Managers
 

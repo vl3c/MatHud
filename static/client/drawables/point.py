@@ -80,6 +80,7 @@ class Point(Drawable):
 
     def get_state(self) -> Dict[str, Any]:
         state: Dict[str, Any] = {"name": self.name, "args": {"position": {"x": self.x, "y": self.y}}}
+        self._add_color_to_state(state)
         return state
 
     def __deepcopy__(self, memo: Dict[int, Any]) -> Point:

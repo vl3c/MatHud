@@ -167,7 +167,15 @@ class WorkspaceManager:
             item_state["args"]["position"]["x"],
             item_state["args"]["position"]["y"],
             name=item_state.get("name", ""),
+            color=self._saved_color(item_state),
         )
+
+    @staticmethod
+    def _saved_color(item_state: Any) -> Optional[str]:
+        """The color stored in a drawable's state, or None (the default) for older saves without one."""
+        args = item_state.get("args") if isinstance(item_state, dict) else None
+        color = args.get("color") if isinstance(args, dict) else None
+        return color if isinstance(color, str) and color else None
 
     def _create_labels(self, state: Dict[str, Any]) -> None:
         """Create standalone labels from workspace state."""
@@ -273,6 +281,7 @@ class WorkspaceManager:
             p2.x,
             p2.y,
             name=item_state.get("name", ""),
+            color=self._saved_color(item_state),
             # Restore exactly what was saved: no implicit triangles (also avoids O(n^4) scans).
             extra_graphics=False,
             label_text=str(label_args.get("text", "") or ""),
@@ -389,6 +398,7 @@ class WorkspaceManager:
             tip_point.x,
             tip_point.y,
             name=item_state.get("name", ""),
+            color=self._saved_color(item_state),
             extra_graphics=False,
         )
         self._restore_vector_label(vector, item_state.get("args", {}))
@@ -446,6 +456,7 @@ class WorkspaceManager:
                 ],
                 polygon_type=PolygonType.TRIANGLE,
                 name=item_state.get("name", ""),
+                color=self._saved_color(item_state),
                 extra_graphics=False,
             )
 
@@ -478,6 +489,7 @@ class WorkspaceManager:
             resolved_vertices,
             polygon_type=PolygonType.RECTANGLE,
             name=rect_name,
+            color=self._saved_color(item_state),
             extra_graphics=False,
         )
 
@@ -571,6 +583,7 @@ class WorkspaceManager:
             self.canvas.create_polygon(
                 [(point.x, point.y) for point in points],
                 polygon_type=polygon_type,
+                color=self._saved_color(item_state),
                 extra_graphics=False,
             )
         except Exception as exc:
@@ -685,6 +698,7 @@ class WorkspaceManager:
                 center_point.y,
                 item_state["args"]["radius"],
                 name=item_state.get("name", ""),
+                color=self._saved_color(item_state),
                 extra_graphics=False,
             )
 
@@ -705,6 +719,7 @@ class WorkspaceManager:
                 item_state["args"]["radius_y"],
                 rotation_angle=item_state["args"].get("rotation_angle", 0),
                 name=item_state.get("name", ""),
+                color=self._saved_color(item_state),
                 extra_graphics=False,
             )
 
@@ -721,6 +736,7 @@ class WorkspaceManager:
             name=item_state.get("name", ""),
             left_bound=item_state["args"].get("left_bound"),
             right_bound=item_state["args"].get("right_bound"),
+            color=self._saved_color(item_state),
             undefined_at=item_state["args"].get("undefined_at"),
         )
 
@@ -1269,6 +1285,7 @@ class WorkspaceManager:
             try:
                 self._reset_coordinate_system_to_cartesian()
                 self._apply_saved_coordinate_system_state(state.get("coordinate_system"))
+                self._restore_cartesian_grid_visibility(state)
             except Exception:
                 pass
 
@@ -1280,6 +1297,11 @@ class WorkspaceManager:
         # Then apply saved state if present
         if coord_system_state:
             self.canvas.coordinate_system_manager.set_state(coord_system_state)
+
+    def _restore_cartesian_grid_visibility(self, state: Dict[str, Any]) -> None:
+        # Every save stores the Cartesian grid's visibility as the top-level "visible" flag.
+        if isinstance(state.get("visible"), bool):
+            self.canvas.cartesian2axis.visible = state["visible"]
 
     def _restore_drawables_in_dependency_order(self, state: Dict[str, Any]) -> None:
         # Create objects in the correct dependency order

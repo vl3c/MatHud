@@ -118,6 +118,7 @@ class Segment(Drawable):
                 "text": label_text,
                 "visible": label_visible,
             }
+        self._add_color_to_state(state)
         return state
 
     def __deepcopy__(self, memo: Dict[int, Any]) -> Any:

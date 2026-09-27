@@ -328,6 +328,7 @@ from .test_names_and_persistence import (
     TestColoredAreaNullStyle,
     TestSegmentAreaHasNoSideEffects,
     TestRegressionReportsReusedPoints,
+    TestWorkspaceRoundTripKeepsStyles,
 )
 from .test_base_telemetry import (
     TestBaseTelemetryInit,
@@ -706,6 +707,7 @@ class Tests:
             TestColoredAreaNullStyle,
             TestSegmentAreaHasNoSideEffects,
             TestRegressionReportsReusedPoints,
+            TestWorkspaceRoundTripKeepsStyles,
             TestBaseTelemetryInit,
             TestBaseTelemetryReset,
             TestBaseTelemetryBeginFrame,

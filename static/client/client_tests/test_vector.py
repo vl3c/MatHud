@@ -57,6 +57,7 @@ class TestVector(unittest.TestCase):
             "args": {
                 "origin": "O",
                 "tip": "T",
+                "color": "green",
             },
             "_origin_coords": [self.origin.x, self.origin.y],
             "_tip_coords": [self.tip.x, self.tip.y],

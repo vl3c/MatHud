@@ -94,6 +94,7 @@ class Ellipse(Drawable):
                 "ellipse_formula": self.ellipse_formula,
             },
         }
+        self._add_color_to_state(state)
         return state
 
     def __deepcopy__(self, memo: Dict[int, Any]) -> Any:
@@ -105,6 +106,7 @@ class Ellipse(Drawable):
         new_ellipse: Ellipse = Ellipse(
             new_center, self.radius_x, self.radius_y, color=self.color, rotation_angle=self.rotation_angle
         )
+        new_ellipse.name = self.name
         memo[id(self)] = new_ellipse
         return new_ellipse
 
