@@ -186,15 +186,21 @@
     // renders again whatever the latest typeset asked for, so a typeset started during
     // the load left the pending formula as an undefined command. Even without a load,
     // the typeset runs after this returns: the math is in place once the promise resolves.
+    // A root taken off the page while it waited (the chat was cleared or replaced) is
+    // skipped: MathJax would keep records of its math that no typesetClear reaches.
     function typesetAndSanitize(root) {
         var mathjax = window.MathJax;
         if (!mathjax || typeof mathjax.typesetPromise !== "function") {
             return Promise.resolve(sanitize(root, true));
         }
+        var wasConnected = !!(root && root.isConnected);
         function sanitizeRoot() {
             return sanitize(root, true);
         }
         function typeset() {
+            if (wasConnected && !root.isConnected) {
+                return 0;
+            }
             try {
                 return mathjax.typesetPromise([root]).then(sanitizeRoot, sanitizeRoot);
             } catch (error) {

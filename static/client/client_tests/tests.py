@@ -279,7 +279,7 @@ from .test_chat_html_safety import (
     TestMathOutputSanitizer,
 )
 from .test_chat_math_typeset import TestChatMathTypeset
-from .test_chat_math_typeset_queue import TestChatMathTypesetQueue
+from .test_chat_math_typeset_queue import TestChatMathTypesetQueue, TestChatScrollAfterTypeset
 from .test_turn_metrics import (
     TestTurnAggregation,
     TestFooterFormatting,
@@ -692,6 +692,7 @@ class Tests:
             TestMathOutputSanitizer,
             TestChatMathTypeset,
             TestChatMathTypesetQueue,
+            TestChatScrollAfterTypeset,
             TestTurnAggregation,
             TestFooterFormatting,
             TestTurnMetricsCollector,

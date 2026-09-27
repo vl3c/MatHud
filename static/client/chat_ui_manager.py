@@ -155,13 +155,14 @@ class ChatUIManager:
         """Typeset ``root`` and keep the chat scrolled to the end.
 
         The typeset finishes after this returns and display math makes a message taller,
-        so the chat scrolls again once it is done.
+        so the chat scrolls again once it is done, unless the user has scrolled up since.
         """
         typeset = self.render_math(root)
         self._scroll_to_bottom()
         if typeset is not None:
             try:
-                typeset.then(lambda _count: self._scroll_to_bottom_quietly())
+                top = self._chat_history_element().scrollTop
+                typeset.then(lambda _count: self._scroll_to_bottom_unless_scrolled_up(top))
             except Exception:
                 pass
 
@@ -729,10 +730,18 @@ class ChatUIManager:
         history = self._chat_history_element()
         history.scrollTop = history.scrollHeight
 
-    def _scroll_to_bottom_quietly(self) -> None:
-        """Scroll to the end from a promise callback, where an error would go unhandled."""
+    def _scroll_to_bottom_unless_scrolled_up(self, top: float) -> None:
+        """Scroll to the end if the chat is still at or below ``top``.
+
+        Runs from a promise callback, where an error would go unhandled. A chat that
+        got shorter (typeset TeX is often shorter than its source) may have been pulled
+        above ``top``; it is then at the end already.
+        """
         try:
-            self._scroll_to_bottom()
+            history = self._chat_history_element()
+            at_end = history.scrollHeight - history.scrollTop - history.clientHeight <= 2
+            if history.scrollTop >= top - 2 or at_end:
+                self._scroll_to_bottom()
         except Exception:
             pass
 
