@@ -2789,9 +2789,9 @@ class MathUtils:
     ) -> Tuple[List[float], List[float]]:
         """Return (vertical asymptotes, removable discontinuities) found from the expression text.
 
-        A zero of a denominator is an asymptote only if the function blows up beside it;
-        where it stays bounded on every side it is defined (e.g. (x^2-1)/(x-1) at x = 1),
-        the zero is a hole.
+        A zero of a denominator is a hole only if f converges to a finite limit beside it on
+        every side where it is defined (e.g. (x^2-1)/(x-1) at x = 1); otherwise it is an
+        asymptote.
         """
         from expression_validator import ExpressionValidator
 
@@ -2819,7 +2819,7 @@ class MathUtils:
         holes: List[float] = []
         evaluate = MathUtils._singularity_probe_evaluator(function_string)
         for zero in denominator_zeros:
-            if evaluate is not None and MathUtils._is_bounded_near(evaluate, zero):
+            if evaluate is not None and MathUtils._is_removable_near(evaluate, zero):
                 holes.append(zero)
             else:
                 vertical_asymptotes.append(zero)
@@ -2827,8 +2827,13 @@ class MathUtils:
         asymptotes = sorted(set(vertical_asymptotes))
         return asymptotes, sorted(set(hole for hole in holes if hole not in asymptotes))
 
-    # Offsets (relative to max(1, |x0|)) at which a denominator zero x0 is probed on each side.
-    _SINGULARITY_PROBE_OFFSETS: Tuple[float, ...] = (1e-3, 1e-5, 1e-7)
+    # Offsets (relative to max(1, |x0|)) at which a denominator zero x0 is probed on each side:
+    # a 10-fold spacing, stopping at 1e-4 so cancellation (e.g. in (1 - cos(x))/x^2) stays small.
+    _SINGULARITY_PROBE_OFFSETS: Tuple[float, ...] = (1e-2, 1e-3, 1e-4)
+    # A side converges when its last step is at most this fraction of the step before...
+    _SINGULARITY_CONVERGENCE_RATIO = 0.5
+    # ...plus this fraction of |f| (floating-point noise near a cancelling zero).
+    _SINGULARITY_RELATIVE_TOLERANCE = 5e-3
 
     @staticmethod
     def _singularity_probe_evaluator(function_string: str) -> Optional[Callable[[float], Optional[float]]]:
@@ -2855,12 +2860,16 @@ class MathUtils:
         return evaluate
 
     @staticmethod
-    def _is_bounded_near(evaluate: Callable[[float], Optional[float]], x0: float) -> bool:
-        """True if f stays bounded approaching x0 from every side on which it is defined.
+    def _is_removable_near(evaluate: Callable[[float], Optional[float]], x0: float) -> bool:
+        """True if f converges to a finite limit approaching x0 from every side on which it is defined.
 
-        On each side, f is sampled at three offsets shrinking 100-fold; |f| at least doubling
-        at each step (or an infinite value) means f blows up there. A side where f is
-        undefined is skipped; if f is undefined on both sides, x0 is not called bounded.
+        On each side f is sampled at three offsets shrinking 10-fold (v1, v2, v3). Near a
+        removable discontinuity f is about L + c*h, so each step is about a tenth of the one
+        before; the side converges if |v3 - v2| <= 0.5*|v2 - v1| plus a small tolerance
+        relative to |v2|. Anything that grows, however slowly (log(1/x), 1/x^0.1), or that
+        keeps oscillating (sin(1/x)/x), does not converge, and an infinite value never does.
+        A side where f is undefined is skipped; if f is undefined on both sides, x0 is not
+        called removable.
         """
         scale = max(1.0, abs(x0))
         defined_side = False
@@ -2868,10 +2877,11 @@ class MathUtils:
             values = [evaluate(x0 + side * offset * scale) for offset in MathUtils._SINGULARITY_PROBE_OFFSETS]
             if any(value is None for value in values):
                 continue
-            magnitudes = [abs(cast(float, value)) for value in values]
-            if any(math.isinf(magnitude) for magnitude in magnitudes):
+            v1, v2, v3 = (cast(float, value) for value in values)
+            if any(math.isinf(value) for value in (v1, v2, v3)):
                 return False
-            if magnitudes[2] > 2 * magnitudes[1] and magnitudes[1] > 2 * magnitudes[0]:
+            tolerance = MathUtils._SINGULARITY_RELATIVE_TOLERANCE * abs(v2)
+            if abs(v3 - v2) > MathUtils._SINGULARITY_CONVERGENCE_RATIO * abs(v2 - v1) + tolerance:
                 return False
             defined_side = True
         return defined_side

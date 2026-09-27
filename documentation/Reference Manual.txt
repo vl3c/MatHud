@@ -3045,7 +3045,7 @@ Class Attributes:
 - `mode(values)`: Calculate mode of values
 - `stdev(values)`: Calculate standard deviation
 - `variance(values)`: Calculate variance
-- `calculate_vertical_asymptotes(function_string, left_bound=None, right_bound=None)`: Find vertical asymptotes of function. A zero of a denominator counts only if f blows up beside it (|f| at least doubling as the offset shrinks 100-fold, or overflowing); where f stays bounded it is a removable discontinuity, e.g. (x^2-1)/(x-1) at x = 1
+- `calculate_vertical_asymptotes(function_string, left_bound=None, right_bound=None)`: Find vertical asymptotes of function. A zero of a denominator is a removable discontinuity (e.g. (x^2-1)/(x-1) at x = 1) only if f converges beside it on every side where it is defined: sampled at offsets 1e-2, 1e-3 and 1e-4 (times max(1, |x0|)), each step changes f by at most half the step before plus 0.5% of |f|. Growing (even like log(1/x) or 1/x^0.1), oscillating or overflowing samples keep it an asymptote
 - `calculate_horizontal_asymptotes(function_string)`: Find horizontal asymptotes of function
 - `calculate_asymptotes_and_discontinuities(function_string, left_bound=None, right_bound=None)`: Complete asymptote and discontinuity analysis; removable discontinuities within the bounds are listed with the point discontinuities
 - `calculate_point_discontinuities(function_string, left_bound=None, right_bound=None)`: Find point discontinuities in function

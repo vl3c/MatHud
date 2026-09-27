@@ -332,6 +332,20 @@ _SINGULARITY_CASES: List[Tuple[str, Optional[float], Optional[float], List[float
     ("1/(x^2-1)", None, None, [-1.0, 1.0], []),
     ("sqrt(x)/x", None, None, [0.0], []),
     ("exp(1/x)", None, None, [0.0], []),
+    # abs(...) corners are always listed as point discontinuities, hence the 0 in the last list
+    ("1/sqrt(abs(x))", None, None, [0.0], [0.0]),
+    ("sin(1/x)/x", None, None, [0.0], []),
+    # Slowly growing asymptotes: |f| grows by less than 2x per 100-fold step
+    ("log(1/x)", None, None, [0.0], []),
+    ("log(1/x^2)", None, None, [0.0], []),
+    ("ln(1/abs(x))", None, None, [0.0], [0.0]),
+    ("1/x^0.1", None, None, [0.0], []),
+    ("1/x^(1/8)", None, None, [0.0], []),
+    # Holes whose samples cancel badly or are large
+    ("(e^x-1)/x", None, None, [], [0.0]),
+    ("(1-cos(x))/x^2", None, None, [], [0.0]),
+    ("(exp(x)-1-x-x^2/2)/x^3", None, None, [], [0.0]),
+    ("10^15*(x^2-1)/(x-1)", None, None, [], [1.0]),
     ("log(x)", None, None, [0.0], []),
     ("tan(x)", -2, 2, [round(-math.pi / 2, 6), round(math.pi / 2, 6)], []),
     ("x^2 + 1", None, None, [], []),
@@ -339,7 +353,7 @@ _SINGULARITY_CASES: List[Tuple[str, Optional[float], Optional[float], List[float
 
 
 class TestRemovableDiscontinuities(_FunctionToolTestCase):
-    """K24: a zero of a denominator where f stays bounded is a hole, not an asymptote."""
+    """K24: a zero of a denominator where f converges to a finite limit is a hole, not an asymptote."""
 
     def test_singularities_are_classified(self) -> None:
         for expression, left, right, asymptotes, holes in _SINGULARITY_CASES:
@@ -349,6 +363,15 @@ class TestRemovableDiscontinuities(_FunctionToolTestCase):
                 )
                 self.assertEqual(_rounded(vertical), asymptotes)
                 self.assertEqual(_rounded(discontinuities), holes)
+
+    def test_hole_and_asymptotes_of_the_same_denominator_are_told_apart(self) -> None:
+        vertical, _, discontinuities = MathUtils.calculate_asymptotes_and_discontinuities("x/sin(x)", -7, 7)
+
+        self.assertEqual(_rounded(discontinuities), [0.0])
+        self.assertNotIn(0.0, _rounded(vertical))
+        self.assertTrue(vertical, "the zeros of sin(x) other than 0 are asymptotes")
+        for asymptote in vertical:
+            self.assertAlmostEqual(math.sin(asymptote), 0.0, places=6)
 
     def test_holes_outside_the_bounds_are_not_listed(self) -> None:
         _, _, discontinuities = MathUtils.calculate_asymptotes_and_discontinuities("(x^2-1)/(x-1)", 2, 5)
