@@ -16,6 +16,7 @@ from copy import deepcopy
 from typing import Any, Dict, List, Set, cast
 
 from constants import default_color
+from drawables.drawable import Drawable
 from drawables.point import Point
 from drawables.polygon import Polygon
 from drawables.segment import Segment
@@ -136,12 +137,16 @@ class Quadrilateral(Polygon):
             return cast(Quadrilateral, memo[id(self)])
 
         new_segments = [deepcopy(segment, memo) for segment in self._segments]
-        new_quad = self.__class__(
-            new_segments[0],
-            new_segments[1],
-            new_segments[2],
-            new_segments[3],
-            color=self.color,
-        )
+        # Copy without the constructor's checks: a transformed Rectangle need not be a rectangle any
+        # more (its types say so), and undo snapshots must still be able to copy it.
+        new_quad = self.__class__.__new__(self.__class__)
         memo[id(self)] = new_quad
+        new_quad._copy_structure_from(self, new_segments, memo)
         return new_quad
+
+    def _copy_structure_from(self, source: Quadrilateral, segments: List[Segment], memo: Dict[int, Any]) -> None:
+        self.segment1, self.segment2, self.segment3, self.segment4 = segments
+        self._segments = list(segments)
+        self._points = [deepcopy(point, memo) for point in source._points]
+        self._base_type_labels = list(getattr(source, "_base_type_labels", []))
+        Drawable.__init__(self, name=source.name, color=source.color, is_renderable=source.is_renderable)

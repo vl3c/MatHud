@@ -1,5 +1,6 @@
 """Regression tests for derived geometry that must follow the points (K8, K9, K16, K17, K19).
 
+Also covers rectangles after non-rigid transforms (undo snapshots, save and load).
 
 Each test drives the canvas with the same function registry and result processor
 the AI uses, so it covers the tool path the model takes.
@@ -7,6 +8,7 @@ the AI uses, so it covers the tool path the model takes.
 
 from __future__ import annotations
 
+import json
 import math
 import unittest
 from typing import Any, List, Tuple
@@ -484,3 +486,76 @@ class TestStaleGeometry(unittest.TestCase):
         self.assertIn("not in order", error)
         self.assertIn("cross", error)
         self.assertEqual(self._points(), [])
+
+    # ------------------------------------------------------------------
+    # Rectangles after non-rigid transforms (undo snapshots, save and load)
+    # ------------------------------------------------------------------
+    def _sheared_rectangle(self) -> Any:
+        rectangle = self._polygon([(0, 0), (4, 0), (4, 2), (0, 2)], "quadrilateral", "ABCD", subtype="rectangle")
+        self._call("shear_object", name=rectangle.name, axis="horizontal", factor=1, cx=0, cy=0)
+        return rectangle
+
+    def test_sheared_rectangle_keeps_the_canvas_usable(self) -> None:
+        self._sheared_rectangle()
+        sheared = self._points()
+
+        self._call("create_point", x=9, y=9, name="Z")
+        self._call("undo")
+        self.assertEqual(self._points(), sheared)
+        self._call("undo")
+        self.assertEqual(self._points(), [(0.0, 0.0), (0.0, 2.0), (4.0, 0.0), (4.0, 2.0)])
+        self._call("redo")
+        self.assertEqual(self._points(), sheared)
+        self._call("redo")
+        self.assertIn((9.0, 9.0), self._points())
+
+    def _save_and_load(self) -> None:
+        state = json.loads(json.dumps(self.workspace_manager._snapshot_persistable_canvas_state()))
+        self.workspace_manager._restore_workspace_state(state)
+
+    def test_sheared_rectangle_survives_save_and_load(self) -> None:
+        self._sheared_rectangle()
+        before = self._points()
+
+        self._save_and_load()
+
+        self.assertEqual(self._points(), before)
+        quadrilaterals = list(self.canvas.get_drawables_by_class_name("Quadrilateral"))
+        self.assertEqual(len(quadrilaterals), 1)
+        self.assertEqual(list(self.canvas.get_drawables_by_class_name("Rectangle")), [])
+        self.assertNotIn("rectangle", quadrilaterals[0].get_type_names())
+
+    def test_rotated_rectangle_survives_save_and_load(self) -> None:
+        self._polygon([(0, 0), (4, 3), (1, 7), (-3, 4)], "quadrilateral", "ABCD", subtype="rectangle")
+        self._call("create_circle", center_x=10, center_y=10, radius=2)
+        before = self._points()
+
+        self._save_and_load()
+
+        self.assertEqual(self._points(), before)
+        self.assertEqual(len(list(self.canvas.get_drawables_by_class_name("Rectangle"))), 1)
+        self.assertEqual(len(list(self.canvas.get_drawables_by_class_name("Circle"))), 1)
+
+    def test_old_save_with_sorted_rectangle_names_restores(self) -> None:
+        self._polygon([(0, 0), (4, 3), (1, 7), (-3, 4)], "quadrilateral", "ABCD", subtype="rectangle")
+        state = json.loads(json.dumps(self.workspace_manager._snapshot_persistable_canvas_state()))
+        # Older saves stored the rectangle's vertex names sorted, not in order around it.
+        rectangle_state = state["Rectangles"][0]
+        rectangle_state["args"] = {"p1": "A", "p2": "C", "p3": "B", "p4": "D"}
+
+        self.workspace_manager._restore_workspace_state(state)
+
+        rectangles = list(self.canvas.get_drawables_by_class_name("Rectangle"))
+        self.assertEqual(len(rectangles), 1)
+        self.assertEqual(self._points(), [(-3.0, 4.0), (0.0, 0.0), (1.0, 7.0), (4.0, 3.0)])
+
+    def test_one_bad_item_does_not_abort_the_restore(self) -> None:
+        self._polygon([(0, 0), (4, 0), (4, 2), (0, 2)], "quadrilateral", "ABCD", subtype="rectangle")
+        self._call("create_circle", center_x=10, center_y=10, radius=2)
+        state = json.loads(json.dumps(self.workspace_manager._snapshot_persistable_canvas_state()))
+        state["Triangles"] = [{"name": "broken", "args": {}}]
+
+        self.workspace_manager._restore_workspace_state(state)
+
+        self.assertEqual(len(list(self.canvas.get_drawables_by_class_name("Rectangle"))), 1)
+        self.assertEqual(len(list(self.canvas.get_drawables_by_class_name("Circle"))), 1)
