@@ -1,4 +1,4 @@
-"""Regression tests for function analysis kept in step with the function (K11-K14, K24).
+"""Regression tests for function analysis kept in step with the function (K11-K14, K24, K28).
 
 Tool calls run through ``ProcessFunctionCalls.get_results_traced``, the path a model
 tool batch takes, against a real canvas.
@@ -10,6 +10,7 @@ import math
 import unittest
 from typing import Any, Dict, List, Optional, Tuple
 
+from browser import window
 from canvas import Canvas
 from function_registry import FunctionRegistry
 from process_function_calls import ProcessFunctionCalls
@@ -437,3 +438,126 @@ class TestRemovableDiscontinuities(_FunctionToolTestCase):
         self.assertNotIn("vertical_asymptotes", args)
         self.assertEqual(_rounded(args.get("point_discontinuities")), [1.0])
         self.assertAlmostEqual(self.function("h").function(2), 3.0)
+
+
+def _now_seconds() -> float:
+    return float(window.Date.now()) / 1000.0
+
+
+# (expression, horizontal asymptotes: the limits at -inf and +inf that are finite)
+_HORIZONTAL_ASYMPTOTE_CASES: List[Tuple[str, List[float]]] = [
+    # nerdamer's limit() never returns for these (K28)
+    ("abs(x)/x", [-1.0, 1.0]),
+    ("sqrt(x^2)/x", [-1.0, 1.0]),
+    ("x/(abs(x)+1)", [-1.0, 1.0]),
+    ("abs(x^3)/x^3", [-1.0, 1.0]),
+    ("(abs(x)+1)/x", [-1.0, 1.0]),
+    # nerdamer's limit() is wrong or unevaluated for these
+    ("floor(x)/x", [1.0, 1.0]),
+    ("sqrt(x^2+1)/x", [-1.0, 1.0]),
+    ("x/sqrt(x^2+1)", [-1.0, 1.0]),
+    ("atan(x)", [round(-math.pi / 2, 6), round(math.pi / 2, 6)]),
+    ("max(x,0)", [0.0]),
+    # Plain cases
+    ("abs(x-1)/(x-1)", [-1.0, 1.0]),
+    ("1/x", [0.0, 0.0]),
+    ("(2*x+1)/(x-3)", [2.0, 2.0]),
+    ("(x^2+1)/(x^2+2)", [1.0, 1.0]),
+    ("sin(x)/x", [0.0, 0.0]),
+    ("exp(x)", [0.0]),
+    ("(1+1/x)^x", [round(math.e, 6), round(math.e, 6)]),
+    ("x*sin(1/x)", [1.0, 1.0]),
+    ("5", [5.0, 5.0]),
+    # No horizontal asymptote
+    ("x*abs(x)", []),
+    ("x^2", []),
+    ("abs(sin(x))/sin(x)", []),
+    ("x-floor(x)", []),
+    ("sin(x)", []),
+    ("tan(x)", []),
+    ("log(x)", []),
+    ("1/(1-cos(x))", []),
+]
+
+
+class TestLimitsCannotHang(_FunctionToolTestCase):
+    """K28: nerdamer's limit() loops forever on abs(x)/x; no draw or limit call may hang the tab."""
+
+    # Generous: a guarded limit gives up after 1.5 s; a hang never returns at all.
+    TIME_LIMIT_S = 10.0
+
+    def assert_quick(self, started: float, what: str) -> None:
+        elapsed = _now_seconds() - started
+        self.assertLess(elapsed, self.TIME_LIMIT_S, f"{what} took {elapsed:.1f} s")
+
+    def test_horizontal_asymptotes_are_estimated_numerically(self) -> None:
+        for expression, expected in _HORIZONTAL_ASYMPTOTE_CASES:
+            with self.subTest(expression=expression):
+                started = _now_seconds()
+                asymptotes = MathUtils.calculate_horizontal_asymptotes(expression)
+                self.assert_quick(started, expression)
+                self.assertEqual(_rounded(asymptotes), expected)
+
+    def test_drawing_quotients_with_abs_completes(self) -> None:
+        expressions = [
+            "abs(x)/x",
+            "abs(x-1)/(x-1)",
+            "x*abs(x)",
+            "floor(x)/x",
+            "max(x,0)",
+            "sqrt(x^2)/x",
+            "abs(sin(x))/sin(x)",
+            "x/(abs(x)+1)",
+            "abs(2*x)/x",
+        ]
+        for index, expression in enumerate(expressions):
+            with self.subTest(expression=expression):
+                name = f"f{index}"
+                started = _now_seconds()
+                self.draw(expression, name, -10, 10)
+                self.assert_quick(started, f"draw_function({expression})")
+                self.function(name)
+
+    def test_abs_over_x_is_analysed(self) -> None:
+        self.draw("abs(x)/x", "f", -10, 10)
+
+        args = self.function_args("f")
+        self.assertEqual(_rounded(args.get("horizontal_asymptotes")), [-1.0, 1.0])
+        self.assertNotIn("vertical_asymptotes", args)
+        self.assertEqual(_rounded(args.get("point_discontinuities")), [0.0])
+
+    def test_limit_tool_reports_an_abandoned_limit(self) -> None:
+        # (expression, value to approach, fragment of the numeric estimate)
+        cases = [
+            ("abs(x)/x", "inf", "approaches 1 as x -> Infinity"),
+            ("abs(x)/x", "-inf", "approaches -1 as x -> -Infinity"),
+            ("sqrt(x^2)/x", "inf", "approaches 1 as x -> Infinity"),
+            ("x/(abs(x)+1)", "-inf", "approaches -1 as x -> -Infinity"),
+            ("abs(x)/x", "0", "-1 from the left and 1 from the right"),
+        ]
+        for expression, target, fragment in cases:
+            with self.subTest(expression=expression, target=target):
+                started = _now_seconds()
+                traced = self.run_call("limit", expression=expression, variable="x", value_to_approach=target)
+                self.assert_quick(started, f"limit({expression}, {target})")
+                self.assertTrue(traced["is_error"], traced["result"])
+                self.assertIn("could not be computed symbolically", str(traced["result"]))
+                self.assertIn(fragment, str(traced["result"]))
+
+    def test_limit_tool_still_computes_ordinary_limits(self) -> None:
+        cases = [
+            ("1/x", "inf", "0"),
+            ("sin(x)/x", "0", "1"),
+            ("(x^2-1)/(x-1)", "1", "2"),
+            ("x/abs(x)", "inf", "1"),
+            ("(1+1/x)^x", "inf", "e"),
+        ]
+        for expression, target, expected in cases:
+            with self.subTest(expression=expression, target=target):
+                self.assertEqual(MathUtils.limit(expression, "x", target), expected)
+
+    def test_series_tests_on_abs_quotients_finish(self) -> None:
+        started = _now_seconds()
+        result = MathUtils.ratio_test("abs(n)/n", "n")
+        self.assert_quick(started, "ratio_test(abs(n)/n)")
+        self.assertIsInstance(result, str)

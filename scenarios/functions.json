@@ -346,6 +346,64 @@
           ]
         }
       ]
+    },
+    {
+      "id": "FN-10",
+      "title": "A quotient with abs() draws and its limits answer",
+      "tags": ["functions", "asymptotes", "limits"],
+      "smoke": false,
+      "targets": "nerdamer's limit() never returning for abs(x)/x (K28): the draw analysis and the limit tool must finish",
+      "steps": [
+        {
+          "user": "Plot the sign function as abs(x)/x from -5 to 5.",
+          "reference": [
+            {
+              "tool": "draw_function",
+              "args": {"function_string": "abs(x)/x", "name": "s", "left_bound": -5, "right_bound": 5}
+            }
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {
+              "check": "relation",
+              "relation": "function_value",
+              "select": [{"type": "Function", "name": "s"}],
+              "values": [[2, 1], [-3, -1], [4.5, 1]]
+            },
+            {
+              "check": "attribute",
+              "path": "args.horizontal_asymptotes",
+              "select": {"type": "Function", "name": "s"},
+              "eq": [-1, 1]
+            },
+            {
+              "check": "attribute",
+              "path": "args.vertical_asymptotes",
+              "select": {"type": "Function", "name": "s"},
+              "is_null": true
+            },
+            {
+              "check": "attribute",
+              "path": "args.point_discontinuities",
+              "select": {"type": "Function", "name": "s"},
+              "contains": 0
+            }
+          ]
+        },
+        {
+          "user": "What is the limit of abs(x)/x as x approaches 0, and as x goes to infinity?",
+          "reference": [
+            {"tool": "limit", "args": {"expression": "abs(x)/x", "variable": "x", "value_to_approach": "0"}},
+            {"tool": "limit", "args": {"expression": "abs(x)/x", "variable": "x", "value_to_approach": "inf"}}
+          ],
+          "checks": [
+            {"check": "tool_error", "tool": "limit", "index": 0},
+            {"check": "tool_result", "tool": "limit", "index": 0, "contains": "two-sided limit does not exist"},
+            {"check": "tool_result", "tool": "limit", "index": 1, "contains": "approaches 1 as x -> Infinity"},
+            {"check": "answer_mentions", "numbers": [1, -1]}
+          ]
+        }
+      ]
     }
   ]
 }

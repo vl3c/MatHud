@@ -1450,7 +1450,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "limit",
-            "description": "Computes the limit of a function as it approaches a value",
+            "description": "Computes the limit of a function as it approaches a value. If the symbolic limit does not finish (e.g. abs(x)/x), returns an error with a numeric estimate where one is clear",
             "strict": True,
             "parameters": {
                 "type": "object",

@@ -1284,18 +1284,101 @@ class MathUtils:
             value_to_approach (str/float): Value or "inf"/"-inf" for infinity
 
         Returns:
-            str: Limit result as string or error message
+            str: Limit result as string or error message. nerdamer's limit runs under a step and
+            time budget (static/nerdamer_guard.js): its L'Hopital loop never ends for quotients
+            such as abs(x)/x, so a limit that runs out of budget is an error, with a numeric
+            estimate when one is clear.
         """
         expression, variable = MathUtils._normalize_symbols(expression), MathUtils._normalize_variable(variable)
         try:
             value_to_approach = str(MathUtils._normalize_symbols(value_to_approach)).lower().replace(" ", "")
-            if value_to_approach in ["inf", "infinity"]:
+            if value_to_approach in ["inf", "infinity", "+inf", "+infinity"]:
                 value_to_approach = "Infinity"
             elif value_to_approach in ["-inf", "-infinity"]:
                 value_to_approach = "-Infinity"
-            return str(window.nerdamer(f"limit({expression}, {variable}, {value_to_approach})").text())
+            result = MathUtils._guarded_nerdamer_text(f"limit({expression}, {variable}, {value_to_approach})")
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
+        if result is None:
+            return MathUtils._abandoned_limit_message(expression, variable, str(value_to_approach))
+        return result
+
+    # A guarded nerdamer computation is abandoned after this many derivative and limit steps or
+    # this many milliseconds (static/nerdamer_guard.js).
+    NERDAMER_MAX_STEPS = 2000
+    NERDAMER_MAX_MS = 1500
+
+    @staticmethod
+    def _guarded_nerdamer_text(nerdamer_input: str) -> Optional[str]:
+        """Evaluate nerdamer input under the step and time budget; None if the budget ran out.
+
+        Falls back to plain nerdamer when the guard script is not loaded. Errors raised by
+        nerdamer are raised again as ValueError.
+        """
+        if not hasattr(window, "MatHudGuardedNerdamer"):
+            return str(window.nerdamer(nerdamer_input).text())
+        outcome = window.MatHudGuardedNerdamer(nerdamer_input, MathUtils.NERDAMER_MAX_STEPS, MathUtils.NERDAMER_MAX_MS)
+        if outcome.exceeded:
+            return None
+        if outcome.error:
+            raise ValueError(str(outcome.error))
+        return str(outcome.text)
+
+    @staticmethod
+    def _abandoned_limit_message(expression: str, variable: str, value_to_approach: str) -> str:
+        """Error text for a limit nerdamer could not finish, with a numeric estimate where one is clear."""
+        message = (
+            f"Error: The limit of {expression} as {variable} -> {value_to_approach} could not be computed "
+            "symbolically: the computation did not finish (nerdamer's L'Hopital loop does not end for "
+            "quotients with abs(), sqrt(x^2) or similar)."
+        )
+        estimate = MathUtils._numeric_limit_estimate(expression, variable, value_to_approach)
+        return f"{message} {estimate}" if estimate else message
+
+    @staticmethod
+    def _numeric_limit_estimate(expression: str, variable: str, value_to_approach: str) -> Optional[str]:
+        """Describe what f does near the target numerically, or None when the samples are unclear."""
+        try:
+            from expression_validator import ExpressionValidator
+
+            compiled = window.math.compile(ExpressionValidator.fix_math_expression(str(expression)))
+
+            def evaluate(point: float) -> Optional[float]:
+                try:
+                    value = compiled.evaluate({variable: point})
+                except Exception:
+                    return None
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    return None
+                value = float(value)
+                return None if math.isnan(value) else value
+
+            if value_to_approach in ("Infinity", "-Infinity"):
+                sign = -1.0 if value_to_approach.startswith("-") else 1.0
+                limit_value = MathUtils._limit_at_infinity(evaluate, sign)
+                if limit_value is None:
+                    return None
+                return (
+                    f"Numerically, the expression approaches {limit_value:.12g} as {variable} -> {value_to_approach}."
+                )
+            x0 = float(window.math.evaluate(value_to_approach))
+            if not math.isfinite(x0):
+                return None
+            start = MathUtils._PROBE_START * max(1.0, abs(x0))
+            sides = [
+                MathUtils._settled_value(MathUtils._probe_side(evaluate, x0, side, start) or []) for side in (-1.0, 1.0)
+            ]
+        except Exception:
+            return None
+        left, right = sides
+        if left is None or right is None:
+            return None
+        if abs(left - right) <= 1e-9 * max(1.0, abs(left), abs(right)):
+            return f"Numerically, the expression approaches {left:.12g} from both sides."
+        return (
+            f"Numerically, it approaches {left:.12g} from the left and {right:.12g} from the right, "
+            "so the two-sided limit does not exist."
+        )
 
     @staticmethod
     def integral(
@@ -3057,30 +3140,97 @@ class MathUtils:
 
     @staticmethod
     def calculate_horizontal_asymptotes(function_string: str) -> List[float]:
-        """Calculate horizontal asymptotes of a function"""
+        """Calculate horizontal asymptotes of a function: the limit at +inf and at -inf, where finite.
+
+        The limits are estimated numerically (_limit_at_infinity), never with nerdamer: its
+        limit() never returns for abs(x)/x and similar quotients, which froze the tab on every
+        draw, and it is wrong for others (floor(x)/x -> 0, sqrt(x^2+1)/x -> 0).
+        """
         from expression_validator import ExpressionValidator
 
-        # Standardize the function string
         function_string = ExpressionValidator.fix_math_expression(function_string)
+        evaluate = MathUtils._singularity_probe_evaluator(function_string)
+        if evaluate is None:
+            return []
         horizontal_asymptotes: List[float] = []
-
-        try:
-            # Check limit as x approaches infinity
-            limit_inf = float(MathUtils.limit(function_string, "x", "inf"))
-            if not math.isinf(limit_inf) and not math.isnan(limit_inf):
-                horizontal_asymptotes.append(limit_inf)
-        except:
-            pass
-
-        try:
-            # Check limit as x approaches negative infinity
-            limit_neg_inf = float(MathUtils.limit(function_string, "x", "-inf"))
-            if not math.isinf(limit_neg_inf) and not math.isnan(limit_neg_inf):
-                horizontal_asymptotes.append(limit_neg_inf)
-        except:
-            pass
-
+        for sign in (1.0, -1.0):
+            value = MathUtils._limit_at_infinity(evaluate, sign)
+            if value is not None:
+                horizontal_asymptotes.append(value)
         return sorted(horizontal_asymptotes)
+
+    # f is sampled at x = sign * 97.3 * 4^k for k < 10 (97.3 to 2.6e7). The start is not an
+    # integer, so integer-periodic parts such as x - floor(x) are not sampled in phase, and
+    # the largest x keeps x^2 below 2^53, so cancellations such as sqrt(x^2 + x) - x stay exact
+    # enough.
+    _INFINITY_PROBE_START = 97.3
+    _INFINITY_PROBE_FACTOR = 4.0
+    _INFINITY_PROBE_COUNT = 10
+    # Settled samples: the last half spans at most 1e-4 * max(1, |value|) and at most a quarter
+    # of the first half's span (so a bounded oscillation such as 1 + 1e-5*sin(x) does not settle).
+    _SETTLED_SPREAD = 1e-4
+    _SETTLED_SHRINK = 4.0
+    # Two successive Aitken extrapolations must agree to this relative tolerance.
+    _AITKEN_AGREEMENT = 1e-6
+
+    @staticmethod
+    def _limit_at_infinity(evaluate: Callable[[float], Optional[float]], sign: float) -> Optional[float]:
+        """Estimate lim f(x) as x -> sign * infinity from samples; None if f does not settle on a finite value."""
+        values: List[float] = []
+        for index in range(MathUtils._INFINITY_PROBE_COUNT):
+            x = sign * MathUtils._INFINITY_PROBE_START * MathUtils._INFINITY_PROBE_FACTOR**index
+            value = evaluate(x)
+            if value is None or not math.isfinite(value):
+                return None
+            values.append(value)
+        return MathUtils._settled_value(values)
+
+    @staticmethod
+    def _aitken(first: float, second: float, third: float) -> Optional[float]:
+        """Aitken's delta-squared extrapolation of three successive samples; None if undefined."""
+        later = third - second
+        if later == 0:
+            return third
+        denominator = later - (second - first)
+        if denominator == 0:
+            return None
+        return third - later * later / denominator
+
+    @staticmethod
+    def _settled_value(values: List[float]) -> Optional[float]:
+        """The finite value samples (nearest last) settle on, rounded to the precision they support.
+
+        Converging samples (MathUtils._probe_side_verdict) are extrapolated with Aitken's
+        delta-squared process, accepted when the last two extrapolations agree. Otherwise the
+        samples settle if their last half barely spreads and spreads much less than their first
+        half (float noise near the limit, decaying oscillations such as sin(x)/x). The value
+        is rounded to the digits its tolerance supports, so 1/x gives 0 and floor(x)/x gives 1.
+        """
+        if len(values) < 4 or not all(math.isfinite(value) for value in values):
+            return None
+        estimate: Optional[float] = None
+        tolerance = 0.0
+        if MathUtils._probe_side_verdict(values) == "converge":
+            previous = MathUtils._aitken(values[-4], values[-3], values[-2])
+            latest = MathUtils._aitken(values[-3], values[-2], values[-1])
+            if previous is not None and latest is not None and math.isfinite(previous) and math.isfinite(latest):
+                if abs(latest - previous) <= MathUtils._AITKEN_AGREEMENT * max(1.0, abs(latest)):
+                    estimate, tolerance = latest, abs(latest - previous)
+        if estimate is None:
+            half = len(values) // 2
+            first, last = values[:half], values[half:]
+            spread_last = max(last) - min(last)
+            spread_first = max(first) - min(first)
+            middle = sorted(last)[len(last) // 2]
+            if spread_last > MathUtils._SETTLED_SPREAD * max(1.0, abs(middle)):
+                return None
+            if spread_last > 0 and spread_last * MathUtils._SETTLED_SHRINK > spread_first:
+                return None
+            estimate, tolerance = values[-1], spread_last
+        tolerance = max(tolerance, 1e-9 * max(1.0, abs(estimate)))
+        digits = min(12, max(0, int(math.floor(-math.log10(tolerance)))))
+        rounded = round(estimate, digits)
+        return 0.0 if rounded == 0 else float(rounded)
 
     @staticmethod
     def calculate_asymptotes_and_discontinuities(

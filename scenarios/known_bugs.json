@@ -28,7 +28,8 @@
     "K24": "A removable discontinuity is reported as a vertical asymptote",
     "K25": "Canvas.reset does not reset the polar grid spacing (slow polar rendering after zoom then clear)",
     "K26": "A change already in effect (same colour, same zoom) reports success and adds an undo entry",
-    "K27": "fit_regression lists reused existing points as if it created them"
+    "K27": "fit_regression lists reused existing points as if it created them",
+    "K28": "draw_function(\"abs(x)/x\") hangs the browser tab: nerdamer's limit() never returns"
   },
   "fixed": {
     "K1": "vl3c/MatHud#73",
@@ -56,7 +57,8 @@
     "K5": "this branch (claude/fix-names-persistence)",
     "K10": "this branch (claude/fix-names-persistence)",
     "K15": "this branch (claude/fix-names-persistence)",
-    "K27": "this branch (claude/fix-names-persistence)"
+    "K27": "this branch (claude/fix-names-persistence)",
+    "K28": "claude/fix-batch-7"
   },
   "invariant_waivers": {}
 }

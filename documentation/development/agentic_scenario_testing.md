@@ -736,6 +736,18 @@ The smoke subset has 11 scenarios (18 turns), one for each area except coloured 
 - Targets: hole bookkeeping; asymptote detection from the expression text.
 - Known bugs: K24 (expected to fail until fixed; see section 6).
 
+#### FN-10: A quotient with abs() draws and its limits answer
+
+- Turn 1: "Plot the sign function as abs(x)/x from -5 to 5."
+  - Reference: `draw_function(function_string="abs(x)/x", name="s", left_bound=-5, right_bound=5)`
+- Turn 2: "What is the limit of abs(x)/x as x approaches 0, and as x goes to infinity?"
+  - Reference: `limit(expression="abs(x)/x", variable="x", value_to_approach="0")`; `limit(expression="abs(x)/x", variable="x", value_to_approach="inf")`
+- Checks:
+  - after turn 1: no tool errors (before the fix the turn never finished); s(2) = 1, s(-3) = -1; horizontal asymptotes [-1, 1]; no vertical asymptote; a point discontinuity at 0
+  - after turn 2: the limit at 0 is an error saying the two-sided limit does not exist; the limit at infinity says the expression approaches 1
+- Targets: nerdamer's `limit()` looping forever on quotients with `abs()`.
+- Known bugs: K28, fixed on `claude/fix-batch-7`; the checks are regression guards.
+
 ### 5.4 Coloured areas and regions (AR)
 
 #### AR-01: Shaded area follows its function
@@ -1284,6 +1296,7 @@ All paths are relative to `static/client/` unless stated otherwise.
 | K25 | **Fixed on `claude/fix-view-undo-noops`; its mark is removed.** `Canvas.reset` now resets the polar grid's spacing, and the reset hook no longer does it itself. **`Canvas.reset` does not reset the polar grid.** It resets the Cartesian grid but never calls `PolarGrid.reset()`, so the zoom-adapted ring spacing survives `clear_canvas`, `reset_canvas` and workspace loads (which clear first). After zooming in and clearing, polar mode draws its rings at the old spacing across the default view: thousands of circles per frame. | `canvas.py:422-426` (`_reset_drawables_state`); `polar_grid.py:149-151` (`reset`, no callers) | (observed by the first replay run) After CV-01's zoom to ±2, WS-01's `load_workspace` in polar mode took 30 to 57 s instead of 2 to 5 s; the spacing stays 0.2 instead of 50. The reset hook now resets it, so scenarios stay isolated. | CV-05 |
 | K26 | **Fixed on `claude/fix-view-undo-noops`; its marks and waivers are removed.** The `update_*` tools (colour for every type the tools cover except coloured areas; also point name and position, circle and ellipse centre), `zoom`, `set_coordinate_system` and `set_grid_visible` return a `NoChangeResult` ("Circle 'A(2)' already has color red; nothing changed.") when nothing would change, and add no undo entry. **A change that is already in effect reports success and adds an undo entry.** `update_circle` with the colour the circle already has, and `zoom` to the view already shown, answer "Call successful!" and archive an undo entry, although nothing changed. | the update and zoom paths archive before comparing (found on `main` after vl3c/MatHud#73) | (observed) CV-06: the undo depth grows by one per repeated call and I4 flags the bare success. | CV-06 |
 | K27 | **Fixed on `claude/fix-names-persistence`; its marks are removed.** **`fit_regression` lists reused points as if it created them.** With `show_points`, a data point on an existing point reuses it, and `point_names` reports it like a new one; `point_color` is not applied to it. | `managers/statistics_manager.py:486-502` with reuse at `managers/point_manager.py:149-151` | (observed) ST-03: `point_names` is `[A, B, C, D]` with A the pre-existing point, and the result says nothing about reuse. This was finding 5 below; it was marked K2 until K2's fix showed it is separate. **Fix:** when points were reused, the result adds `reused_point_names`, `created_point_names` and a note; the tool description says to delete only the created points then. | ST-03 |
+| K28 | **Fixed on `claude/fix-batch-7`.** Horizontal asymptotes are estimated numerically (`MathUtils._limit_at_infinity`: f at ±97.3·4^k, settled by Aitken extrapolation or a shrinking spread), with no nerdamer call; the `limit` tool runs nerdamer under a step and time budget (`static/nerdamer_guard.js`, 2000 steps or 1.5 s) and answers an abandoned limit with an error that gives the numeric estimate (one-sided values at a finite point). **`draw_function("abs(x)/x")` hangs the browser tab.** Every draw computes horizontal asymptotes with nerdamer's `limit()`, whose L'Hôpital loop never ends when the derivative gives the quotient back (d/dx abs(x) = abs(x)/x). The `limit` tool hangs the same way. | `utils/math_utils.py` (`calculate_horizontal_asymptotes`, `limit`); `static/vendor/nerdamer/1.1.13/Calculus.js:2229-2246` (`Limit.divide`) | (observed, node probe of the vendored nerdamer) `limit` never returns for `abs(x)/x`, `sqrt(x^2)/x`, `x/(abs(x)+1)`, `abs(x^3)/x^3`, `(abs(x)+1)/x` at ±∞ and for `abs(x)/x` at 0. It also gives wrong values: `floor(x)/x` → 0, `sqrt(x^2+1)/x` → 0, `x/sqrt(x^2+1)` → Infinity. `solve` and `diff`, the other nerdamer calls on the draw path, finished for every probed expression. | FN-10 |
 
 Other findings from reading the code only, not yet reproduced in the app, each with a scenario that would catch it:
 

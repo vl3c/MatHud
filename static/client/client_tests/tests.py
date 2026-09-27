@@ -89,6 +89,7 @@ from .test_function_analysis import (
     TestFunctionRedefinition,
     TestFunctionTangentGuard,
     TestFunctionTranslationAnalysis,
+    TestLimitsCannotHang,
     TestRemovableDiscontinuities,
 )
 from .test_parametric_function import (
@@ -570,6 +571,7 @@ class Tests:
             TestFunctionTangentGuard,
             TestFunctionAreaTranslation,
             TestRemovableDiscontinuities,
+            TestLimitsCannotHang,
             TestParametricFunction,
             TestParametricFunctionRenderable,
             TestExpressionValidatorParametric,
