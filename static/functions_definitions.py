@@ -1670,7 +1670,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "translate_object",
-            "description": "Moves/shifts/translates an existing drawable object or function by x and y offsets (dx, dy).",
+            "description": "Moves/shifts/translates an existing drawable object or function by x and y offsets (dx, dy). A plot (bar chart or distribution) cannot be moved as a whole: plot it again at the new position.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -1697,7 +1697,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "rotate_object",
-            "description": "Rotates a drawable object by the specified angle. By default rotates around the object's own center. When center_x and center_y are provided, rotates around that arbitrary point (works for all types including points and circles).",
+            "description": "Rotates a drawable object by the specified angle. By default rotates around the object's own center. When center_x and center_y are provided, rotates around that arbitrary point (works for all types including points and circles). Plots cannot be rotated.",
             "strict": True,
             "parameters": {
                 "type": "object",

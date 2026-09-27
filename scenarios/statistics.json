@@ -171,6 +171,35 @@
           ]
         }
       ]
+    },
+    {
+      "id": "ST-05",
+      "title": "Moving a bar chart as a whole is refused, not faked",
+      "tags": ["statistics", "plots", "transforms"],
+      "smoke": false,
+      "targets": "translate_object on a plot answering 'Call successful!' while nothing moved (the K26 family)",
+      "setup": {
+        "calls": [{"tool": "plot_bars", "args": {"name": "sales", "values": [3, 5, 2], "labels_below": ["a", "b", "c"]}}]
+      },
+      "steps": [
+        {
+          "user": "Move the sales chart 4 units to the right.",
+          "reference": [{"tool": "translate_object", "args": {"name": "sales", "x_offset": 4, "y_offset": 0}}],
+          "checks": [
+            {"check": "tool_error", "tool": "translate_object"},
+            {"check": "tool_result", "tool": "translate_object", "contains": "plot_bars with x_start"},
+            {"check": "state_equals", "snapshot": "setup"}
+          ]
+        },
+        {
+          "user": "Rotate the sales chart by 90 degrees.",
+          "reference": [{"tool": "rotate_object", "args": {"name": "sales", "angle": 90}}],
+          "checks": [
+            {"check": "tool_error", "tool": "rotate_object"},
+            {"check": "state_equals", "snapshot": "setup"}
+          ]
+        }
+      ]
     }
   ]
 }

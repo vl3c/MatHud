@@ -523,3 +523,132 @@ class TestNullArguments(_NullToolTestCase):
         )
         self.assertEqual(self.newest("Ellipses").rotation_angle, 45)
         self.assertEqual(self.canvas.get_segment_by_name("AB").label.text, "t")
+
+
+class TestTruthfulNoOps(_NullToolTestCase):
+    """Calls that change nothing say so instead of answering "Call successful!" (K26 family)."""
+
+    def assert_no_op(self, tool: str, args: Dict[str, Any], *words: str) -> str:
+        depth = self.undo_depth()
+        traced = self.call(tool, **args)
+        result = str(traced["result"])
+        self.assertNotEqual(traced["result"], successful_call_message)
+        self.assertFalse(traced["is_error"], result)
+        self.assertIn("nothing changed", result)
+        for word in words:
+            self.assertIn(word, result)
+        self.assertEqual(self.undo_depth(), depth)
+        return result
+
+    def make_segment(self, label_visible: bool) -> None:
+        self.run_single(
+            "create_segment", x1=0, y1=0, x2=4, y2=0, name="AB", label_text="s", label_visible=label_visible
+        )
+
+    def test_hiding_a_hidden_segment_label_is_a_no_op(self) -> None:
+        self.make_segment(label_visible=False)
+
+        result = self.assert_no_op(
+            "update_segment", {"name": "AB", "new_color": None, "new_label_text": None, "new_label_visible": False}
+        )
+
+        self.assertEqual(result, "Segment 'AB' already has a hidden label; nothing changed.")
+
+    def test_setting_the_same_segment_label_text_is_a_no_op(self) -> None:
+        self.make_segment(label_visible=True)
+
+        self.assert_no_op(
+            "update_segment",
+            {"name": "AB", "new_color": None, "new_label_text": "s", "new_label_visible": True},
+            "label text 's'",
+            "a visible label",
+        )
+
+    def test_a_real_label_change_still_changes_it(self) -> None:
+        self.make_segment(label_visible=False)
+        depth = self.undo_depth()
+
+        result = self.run_single("update_segment", name="AB", new_label_visible=True)
+
+        self.assertEqual(result, successful_call_message)
+        self.assertTrue(self.canvas.get_segment_by_name("AB").label.visible)
+        self.assertEqual(self.undo_depth(), depth + 1)
+
+    def test_setting_the_same_label_text_is_a_no_op(self) -> None:
+        self.run_single("create_label", x=1, y=1, text="hello", name="L1")
+
+        self.assert_no_op("update_label", {"name": "L1", "new_text": "hello"}, "Label 'L1'", "text 'hello'")
+
+    def plot_bars(self) -> Any:
+        self.run_single("plot_bars", name="bp", values=[1, 2], labels_below=["a", "b"])
+        bars = self.canvas.drawable_manager.drawables.get_by_class_name("Bar")
+        self.assertTrue(bars, "plot_bars drew no bars")
+        return bars[-1]
+
+    def assert_refused(self, tool: str, args: Dict[str, Any], fragment: str) -> str:
+        depth = self.undo_depth()
+        traced = self.call(tool, **args)
+        self.assertTrue(traced["is_error"], traced["result"])
+        self.assertIn(fragment, str(traced["result"]))
+        self.assertEqual(self.undo_depth(), depth)
+        return str(traced["result"])
+
+    def test_translating_a_bars_plot_is_refused(self) -> None:
+        bar = self.plot_bars()
+        before = bar.get_state()
+
+        self.assert_refused("translate_object", {"name": "bp", "x_offset": 3, "y_offset": 1}, "cannot move it")
+
+        self.assertEqual(bar.get_state(), before)
+
+    def test_rotating_a_bars_plot_is_refused(self) -> None:
+        self.plot_bars()
+
+        self.assert_refused(
+            "rotate_object", {"name": "bp", "angle": 30, "center_x": None, "center_y": None}, "cannot rotate it"
+        )
+
+    def test_a_bar_itself_still_translates(self) -> None:
+        bar = self.plot_bars()
+        before = bar.get_state()
+
+        result = self.run_single("translate_object", name=bar.name, x_offset=3, y_offset=0)
+
+        self.assertEqual(result, successful_call_message)
+        self.assertNotEqual(bar.get_state(), before)
+
+    def test_translating_by_zero_is_a_no_op(self) -> None:
+        self.run_single("create_point", x=1, y=1, name="A")
+
+        self.assert_no_op("translate_object", {"name": "A", "x_offset": 0, "y_offset": 0}, "(0, 0)")
+
+    def test_translating_a_missing_object_by_zero_is_still_an_error(self) -> None:
+        traced = self.call("translate_object", name="nope", x_offset=0, y_offset=0)
+
+        self.assertTrue(traced["is_error"], traced["result"])
+
+    def test_a_function_that_cannot_be_translated_reports_an_error(self) -> None:
+        self.run_single("draw_function", function_string="x^2", name="f", left_bound=-2, right_bound=2)
+        function = self.canvas.get_function("f")
+        expression = function.function_string
+        original_parse = ExpressionValidator.__dict__["parse_function_string"]
+        parse = ExpressionValidator.parse_function_string
+
+        def refuse_the_shifted_expression(function_string: str, *args: Any, **kwargs: Any) -> Any:
+            if "(x - 1)" in str(function_string):
+                raise ValueError("parser unavailable")
+            return parse(function_string, *args, **kwargs)
+
+        ExpressionValidator.parse_function_string = staticmethod(refuse_the_shifted_expression)  # type: ignore[method-assign]
+        try:
+            result = self.assert_refused(
+                "translate_object", {"name": "f", "x_offset": 1, "y_offset": 0}, "Could not translate"
+            )
+        finally:
+            ExpressionValidator.parse_function_string = original_parse  # type: ignore[method-assign]
+
+        self.assertIn("'f'", result)
+        self.assertIn("parser unavailable", result)
+        self.assertEqual((function.left_bound, function.right_bound), (-2, 2))
+        self.assertEqual(function.function_string, expression)
+        self.assertAlmostEqual(function.function(1), 1.0)

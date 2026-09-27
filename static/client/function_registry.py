@@ -277,7 +277,7 @@ class FunctionRegistry:
             "construct_circumcircle": canvas.create_circumcircle,
             "construct_incircle": canvas.create_incircle,
             # ===== OBJECT TRANSFORMATIONS =====
-            "translate_object": canvas.translate_object,
+            "translate_object": no_op_tools.translate_tool(canvas),
             "rotate_object": canvas.rotate_object,
             "reflect_object": canvas.reflect_object,
             "scale_object": canvas.scale_object,

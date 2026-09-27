@@ -1,9 +1,9 @@
 """Model tools that report a change already in effect instead of repeating it.
 
-An update to the values an object already has, a zoom to the view already shown, and a
-coordinate-system or grid setting already active change nothing. The wrappers here
-return a NoChangeResult for them (which ResultProcessor reports as is, adding no undo
-entry) and call the real tool otherwise.
+An update to the values an object already has, a translation by (0, 0), a zoom to the view
+already shown, and a coordinate-system or grid setting already active change nothing. The
+wrappers here return a NoChangeResult for them (which ResultProcessor reports as is, adding
+no undo entry) and call the real tool otherwise.
 
 The update check is conservative: it answers "nothing changed" only when every requested
 field is one it knows how to compare and each already has the requested value. Any other
@@ -140,6 +140,36 @@ ARC_SWEEP_FIELD = _Field(
 )
 
 
+def _text_matches(label: Any, value: Any) -> bool:
+    """The label already shows ``value`` once normalised as Label.set_text would store it."""
+    if label is None:
+        return False
+    from drawables.label import Label
+
+    try:
+        return str(Label.validate_text(str(value))) == str(getattr(label, "text", ""))
+    except ValueError:
+        return False
+
+
+LABEL_TEXT_FIELD = _Field(
+    ("new_text",), lambda label, values: _text_matches(label, values[0]), lambda values: f"text '{values[0]}'"
+)
+SEGMENT_LABEL_TEXT_FIELD = _Field(
+    ("new_label_text",),
+    lambda segment, values: _text_matches(getattr(segment, "label", None), values[0]),
+    lambda values: f"label text '{values[0]}'",
+)
+SEGMENT_LABEL_VISIBLE_FIELD = _Field(
+    ("new_label_visible",),
+    lambda segment, values: (
+        getattr(segment, "label", None) is not None
+        and bool(getattr(segment.label, "visible", False)) == bool(values[0])
+    ),
+    lambda values: "a visible label" if values[0] else "a hidden label",
+)
+
+
 def _by_name(lookup: Callable[["Canvas"], Callable[[str], Any]]) -> Finder:
     """A finder that calls ``lookup(canvas)(name)``."""
     return lambda canvas, name, _args: lookup(canvas)(name)
@@ -153,7 +183,10 @@ UPDATE_SPECS: Dict[str, _UpdateSpec] = {
         (POINT_NAME_FIELD, POINT_POSITION_FIELD, _color_field(_with_label)),
     ),
     "update_segment": _UpdateSpec(
-        "Segment", "name", _by_name(lambda canvas: canvas.get_segment_by_name), (_color_field(_with_label),)
+        "Segment",
+        "name",
+        _by_name(lambda canvas: canvas.get_segment_by_name),
+        (_color_field(_with_label), SEGMENT_LABEL_TEXT_FIELD, SEGMENT_LABEL_VISIBLE_FIELD),
     ),
     "update_vector": _UpdateSpec(
         "Vector",
@@ -180,7 +213,9 @@ UPDATE_SPECS: Dict[str, _UpdateSpec] = {
     "update_ellipse": _UpdateSpec(
         "Ellipse", "name", _by_name(lambda canvas: canvas.get_ellipse_by_name), (COLOR_FIELD, CENTER_FIELD)
     ),
-    "update_label": _UpdateSpec("Label", "name", _by_name(lambda canvas: canvas.get_label_by_name), (COLOR_FIELD,)),
+    "update_label": _UpdateSpec(
+        "Label", "name", _by_name(lambda canvas: canvas.get_label_by_name), (COLOR_FIELD, LABEL_TEXT_FIELD)
+    ),
     "update_function": _UpdateSpec("Function", "name", _by_name(lambda canvas: canvas.get_function), (COLOR_FIELD,)),
     "update_piecewise_function": _UpdateSpec(
         "Piecewise function",
@@ -249,6 +284,18 @@ def update_tool(canvas: "Canvas", tool_name: str, update: Callable[..., Any]) ->
         return update(**kwargs)
 
     return checked_update
+
+
+def translate_tool(canvas: "Canvas") -> Callable[..., Any]:
+    """Wrap canvas.translate_object so that a translation by (0, 0) of an existing object is a no-op."""
+
+    def translate_object(name: str, x_offset: float, y_offset: float) -> Any:
+        if _same_number(x_offset, 0) and _same_number(y_offset, 0):
+            if any(getattr(drawable, "name", None) == name for drawable in canvas.drawable_manager.get_drawables()):
+                return NoChangeResult(f"Translating '{name}' by (0, 0) moves nothing; nothing changed.")
+        return canvas.translate_object(name, x_offset, y_offset)
+
+    return translate_object
 
 
 def zoom_tool(canvas: "Canvas") -> Callable[..., Any]:

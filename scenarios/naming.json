@@ -169,6 +169,58 @@
           ]
         }
       ]
+    },
+    {
+      "id": "NM-07",
+      "title": "Label edits and a move that change nothing say so",
+      "tags": ["labels", "update", "no-op", "transforms"],
+      "smoke": false,
+      "targets": "update_segment label fields, update_label text and translate_object by (0, 0) answering 'Call successful!' with nothing changed (the K26 family)",
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_segment",
+            "args": {"x1": 0, "y1": 0, "x2": 4, "y2": 0, "name": "AB", "label_text": "base", "label_visible": false}
+          },
+          {"tool": "create_label", "args": {"x": 1, "y": 3, "text": "note", "name": "L1"}}
+        ]
+      },
+      "steps": [
+        {
+          "user": "Hide the label of AB.",
+          "reference": [{"tool": "update_segment", "args": {"name": "AB", "new_label_visible": false}}],
+          "checks": [
+            {"check": "tool_result", "tool": "update_segment", "contains": "nothing changed"},
+            {"check": "attribute", "path": "args.label.visible", "select": {"type": "Segment", "name": "AB"}, "eq": false}
+          ]
+        },
+        {
+          "user": "Set AB's label text to 'base'.",
+          "reference": [{"tool": "update_segment", "args": {"name": "AB", "new_label_text": "base"}}],
+          "checks": [{"check": "tool_result", "tool": "update_segment", "contains": "nothing changed"}]
+        },
+        {
+          "user": "Change the text of L1 to 'note'.",
+          "reference": [{"tool": "update_label", "args": {"name": "L1", "new_text": "note"}}],
+          "checks": [{"check": "tool_result", "tool": "update_label", "contains": "nothing changed"}]
+        },
+        {
+          "user": "Move AB by (0, 0).",
+          "reference": [{"tool": "translate_object", "args": {"name": "AB", "x_offset": 0, "y_offset": 0}}],
+          "checks": [
+            {"check": "tool_result", "tool": "translate_object", "contains": "nothing changed"},
+            {"check": "state_equals", "snapshot": "setup"}
+          ]
+        },
+        {
+          "user": "Show AB's label.",
+          "reference": [{"tool": "update_segment", "args": {"name": "AB", "new_label_visible": true}}],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "attribute", "path": "args.label.visible", "select": {"type": "Segment", "name": "AB"}, "eq": true}
+          ]
+        }
+      ]
     }
   ]
 }

@@ -212,15 +212,15 @@ class Function(Drawable):
             self._translate_analysis(x_offset, y_offset)
 
         except Exception as e:
-            print(f"Warning: Could not translate function: {str(e)}")
-            # If translation fails, revert bounds
+            # Revert the bounds and holes, then report the failure: swallowing it made
+            # translate_object answer "Call successful!" for a function that did not move.
             if self.left_bound is not None:
                 self.left_bound -= x_offset
             if self.right_bound is not None:
                 self.right_bound -= x_offset
-            # Revert undefined_at
             if self.undefined_at and x_offset != 0:
                 self.undefined_at = [h - x_offset for h in self.undefined_at]
+            raise ValueError(f"Could not translate function '{self.name}': {e}") from e
 
     def _translate_analysis(self, x_offset: float, y_offset: float) -> None:
         """Shift the analysis derived from the expression along with the curve.
