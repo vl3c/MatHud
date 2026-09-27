@@ -559,3 +559,43 @@ class TestStaleGeometry(unittest.TestCase):
 
         self.assertEqual(len(list(self.canvas.get_drawables_by_class_name("Rectangle"))), 1)
         self.assertEqual(len(list(self.canvas.get_drawables_by_class_name("Circle"))), 1)
+
+    # ------------------------------------------------------------------
+    # K9 (continued): a failed arc leaves nothing behind
+    # ------------------------------------------------------------------
+    def test_arc_whose_endpoints_land_on_one_spot_fails_cleanly(self) -> None:
+        self._call("create_point", x=3, y=0, name="P")
+        before = self._points()
+
+        error = self._call_error(
+            "create_circle_arc",
+            point1_x=3,
+            point1_y=0,
+            point2_x=5,
+            point2_y=0,
+            center_x=0,
+            center_y=0,
+            radius=5,
+        )
+
+        self.assertIn("Both arc endpoints land at (5, 0)", error)
+        self.assertEqual(self._points(), before)
+        self.assertEqual(list(self.canvas.get_drawables_by_class_name("CircleArc")), [])
+
+    def test_new_endpoint_projected_onto_an_existing_point_reuses_it(self) -> None:
+        self._call("create_point", x=5, y=0, name="Q")
+        point_q = self._point("Q")
+
+        self._call(
+            "create_circle_arc",
+            point1_x=2,
+            point1_y=0,
+            point2_x=0,
+            point2_y=5,
+            center_x=0,
+            center_y=0,
+            radius=5,
+        )
+
+        self.assertIs(self._only("CircleArc").point1, point_q)
+        self.assertEqual(self._points(), [(0.0, 5.0), (5.0, 0.0)])
