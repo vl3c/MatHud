@@ -209,6 +209,63 @@ class TestFunctionRedefinition(_FunctionToolTestCase):
         self.assertEqual(_rounded(self.function_args("t").get("vertical_asymptotes")), expected)
 
 
+class TestFunctionTangentGuard(_FunctionToolTestCase):
+    """K13: no tangent or normal where the function or its derivative is not finite."""
+
+    def assert_refused(self, tool_name: str, curve_name: str, parameter: float) -> None:
+        depth = self.undo_depth()
+
+        traced = self.run_call(
+            tool_name, curve_name=curve_name, parameter=parameter, name=None, length=None, color=None
+        )
+
+        self.assertTrue(traced["is_error"], traced["result"])
+        self.assertEqual(len(self.canvas.drawable_manager.drawables.Segments), 0)
+        self.assertEqual(len(self.canvas.drawable_manager.drawables.Points), 0)
+        self.assertEqual(self.undo_depth(), depth)
+
+    def test_tangent_at_a_tan_asymptote_is_refused(self) -> None:
+        self.draw("tan(x)", "t", -4, 4)
+
+        self.assert_refused("draw_tangent_line", "t", math.pi / 2)
+
+    def test_normal_at_a_tan_asymptote_is_refused(self) -> None:
+        self.draw("tan(x)", "t", -4, 4)
+
+        self.assert_refused("draw_normal_line", "t", math.pi / 2)
+
+    def test_tangent_just_beside_an_asymptote_is_refused(self) -> None:
+        self.draw("tan(x)", "t", -4, 4)
+
+        self.assert_refused("draw_tangent_line", "t", math.pi / 2 + 1e-8)
+
+    def test_tangent_where_the_function_is_undefined_is_refused(self) -> None:
+        self.draw("1/(x-1)", "r", -4, 4)
+
+        self.assert_refused("draw_tangent_line", "r", 1)
+
+    def test_refusal_names_the_asymptote(self) -> None:
+        self.draw("tan(x)", "t", -4, 4)
+
+        traced = self.run_call(
+            "draw_tangent_line", curve_name="t", parameter=math.pi / 2, name=None, length=None, color=None
+        )
+
+        self.assertIn("vertical asymptote", str(traced["result"]))
+
+    def test_tangent_away_from_the_asymptote_still_works(self) -> None:
+        self.draw("tan(x)", "t", -4, 4)
+
+        traced = self.run_call("draw_tangent_line", curve_name="t", parameter=1, name=None, length=None, color=None)
+
+        self.assertFalse(traced["is_error"], traced["result"])
+        segments = self.canvas.drawable_manager.drawables.Segments
+        self.assertEqual(len(segments), 1)
+        segment = segments[0]
+        slope = (segment.point2.y - segment.point1.y) / (segment.point2.x - segment.point1.x)
+        self.assertAlmostEqual(slope, 1 / math.cos(1) ** 2, places=4)
+
+
 # (expression, left, right, vertical asymptotes, removable discontinuities)
 _SINGULARITY_CASES: List[Tuple[str, Optional[float], Optional[float], List[float], List[float]]] = [
     ("(x^2-1)/(x-1)", None, None, [], [1.0]),

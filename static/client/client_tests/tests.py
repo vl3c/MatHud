@@ -85,6 +85,7 @@ from .test_colored_area_manager import TestColoredAreaManager
 from .test_function_manager import TestFunctionManager
 from .test_function_analysis import (
     TestFunctionRedefinition,
+    TestFunctionTangentGuard,
     TestFunctionTranslationAnalysis,
     TestRemovableDiscontinuities,
 )
@@ -534,6 +535,7 @@ class Tests:
             TestFunctionManager,
             TestFunctionTranslationAnalysis,
             TestFunctionRedefinition,
+            TestFunctionTangentGuard,
             TestRemovableDiscontinuities,
             TestParametricFunction,
             TestParametricFunctionRenderable,
