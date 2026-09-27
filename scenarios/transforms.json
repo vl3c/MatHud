@@ -8,9 +8,7 @@
       "title": "Translate one of two triangles that share an edge",
       "tags": ["transforms", "polygons", "shared-points"],
       "smoke": true,
-      "known": ["K16"],
       "targets": "double-moving shared vertices; stale derived data",
-      "invariants": {"I3": "K16"},
       "setup": {
         "calls": [
           {
@@ -136,9 +134,7 @@
       "title": "Shear updates angle markers and triangle types",
       "tags": ["transforms", "angles", "derived"],
       "smoke": false,
-      "known": ["K16", "K17"],
       "targets": "stale cached classifications and angle values",
-      "invariants": {"I3": "K16"},
       "setup": {
         "calls": [
           {
@@ -175,16 +171,14 @@
               "check": "attribute",
               "path": "types",
               "select": {"type": "Triangle", "only": true},
-              "not_contains": "equilateral",
-              "known": "K16"
+              "not_contains": "equilateral"
             },
             {
               "check": "attribute",
               "path": "inspect.angle_degrees",
               "select": {"type": "Angle", "only": true},
               "eq": 112.91133691901508,
-              "tol": 1e-06,
-              "known": "K17"
+              "tol": 1e-06
             }
           ]
         }

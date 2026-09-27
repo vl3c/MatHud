@@ -22,7 +22,7 @@ python -m cli.main test scenarios --regrade logs/scenario_runs/<time>/results.js
 4. Check statuses: `pass`, `fail`, `error` (a check that could not be evaluated; also when it is marked `known`, since a crash is not the bug's failure), `xfail` (a failing check marked `known`, or an invariant failure excused by a waiver), `xpass` (a `known` check that passed: "fixed? K<n>"), `warn` (I1's cross-bucket name clash), `skip` (answer checks in replay) and `unrecorded` (the check needs a function sample the run did not store, which can happen in `--regrade` after a check was edited; rerun the replay). Scenario statuses: `fail` (any `fail` or `error`), else `xpass`, else `xfail` (a check marked `known` failed), else `waived` (only waived invariants failed), else `pass`. A waiver that excused nothing in the run is listed as "waiver I5:K1 (global) unused" (or with the scenario id for a scenario waiver), an xpass-style hint that the bug may be fixed.
 5. Exit codes: 0 with no unexpected failures, 1 with any `fail` or `error` (including a scenario the browser could not finish), 2 for invalid scenario files or a missing server, 130 when interrupted. Expected failures, waived failures, xpasses, unused waivers and unrecorded checks never fail the run.
 6. Adding a scenario: add it to its area file, run it with `--ids`, and give every check that fails because of an app bug `"known": "K<n>"`, with the bug in section 6 and in `scenarios/known_bugs.json`. `server_tests/test_cli/test_scenario_catalogue.py` loads and validates every file in the server suite.
-7. Latest replay (2026-09-27, `main` with vl3c/MatHud#72 and #73 merged, Windows 11, headless Chrome, `--start-server`): 74 scenarios, 49 pass, 20 xfail, 5 waived, 0 xpass, 0 unexpected failures, no unused waivers; checks 1,361 pass, 53 xfail, 5 warn, 9 skip; about 35 s including Chrome start-up. Every remaining expected failure belongs to an open bug: K3, K4, K5, K8 to K17, K19, K24, K25, K26 or K27.
+7. Latest replay (2026-09-27, branch `claude/fix-stale-geometry` on `main` aef92fa, Windows 11, headless Chrome, `--start-server`): 74 scenarios, 55 pass, 17 xfail, 2 waived, 0 xpass, 0 unexpected failures, no unused waivers; checks 1,372 pass, 42 xfail, 5 warn, 9 skip; about 35 s including Chrome start-up. Every remaining expected failure belongs to an open bug: K3, K4, K5, K10 to K15, K24, K25, K26 or K27.
 
 ## 1. Summary
 
@@ -481,9 +481,9 @@ The smoke subset has 11 scenarios (18 turns), one for each area except coloured 
 - Checks:
   - one Rectangles entry whose vertex set equals the four given corners within 1e-12
   - types include `square`; four sides of length 2
-  - vertex names follow the given order: B is at (2,0) (currently (0,2): vertices are re-ordered)
-- Targets: subtype canonicalisation moving user coordinates (currently 1.9999999999999996).
-- Known bugs: K19 (expected to fail until fixed; see section 6).
+  - vertex names follow the given order: B is at (2,0) (before the K19 fix, (0,2): vertices were re-ordered)
+- Targets: subtype handling moving or re-ordering the given coordinates (before the K19 fix, 1.9999999999999996).
+- Known bugs: K19, fixed in this branch; the checks are regression guards.
 
 #### GEO-09: Regular hexagon from a description
 
@@ -513,10 +513,10 @@ The smoke subset has 11 scenarios (18 turns), one for each area except coloured 
   - Reference: `translate_object(name="ABC", x_offset=10, y_offset=0)`
 - Checks:
   - A, B, C moved by exactly (10,0); the circle's centre is A, so it moved too (pinned: shared points move)
-  - invariant I3: circle_formula reads `(x - 10.0)**2 + ...` (currently still `(x - 0.0)`)
+  - invariant I3: circle_formula reads `(x - 10.0)**2 + ...` (before the K8 fix, still `(x - 0.0)`)
   - unchanged_except: nothing but A, B, C, their segments, the triangle and the circle changed
 - Targets: stale cached derived fields after a shared point moves.
-- Known bugs: K8 (expected to fail until fixed; see section 6).
+- Known bugs: K8, fixed in this branch; the checks are regression guards.
 
 #### GEO-12: Ellipse rotation accumulates
 
@@ -539,7 +539,7 @@ The smoke subset has 11 scenarios (18 turns), one for each area except coloured 
   - the arc's endpoints lie on the circle (distance 5 from the origin)
   - reference deliberately passes point1 = (3,0), a nearby existing point, as a sloppy model would
 - Targets: constructions mutating unrelated existing points.
-- Known bugs: K9 (expected to fail until fixed; see section 6).
+- Known bugs: K9, fixed in this branch; the checks are regression guards.
 
 #### GEO-14: Removing an angle marker keeps the triangle
 
@@ -793,7 +793,7 @@ The smoke subset has 11 scenarios (18 turns), one for each area except coloured 
   - D unchanged at (0,4); triangle ACD now uses the moved A and C (pinned: shared points)
   - invariant I3: triangle `types` recomputed for ACD
 - Targets: double-moving shared vertices; stale derived data.
-- Known bugs: K16 (expected to fail until fixed; see section 6).
+- Known bugs: K16, fixed in this branch; the checks are regression guards.
 
 #### TR-02: Rotate about a point and back
 
@@ -835,10 +835,10 @@ The smoke subset has 11 scenarios (18 turns), one for each area except coloured 
   - Reference: `shear_object(name="ABC", axis="horizontal", factor=1, cx=0, cy=0)`
 - Checks:
   - C moved to (5.4641, 3.4641); A and B unchanged
-  - invariant I3: the triangle's types no longer include `equilateral` (currently still listed)
-  - invariant I3 (inspection): the angle's cached degrees equal the new geometric angle at B (currently still 60)
+  - invariant I3: the triangle's types no longer include `equilateral` (before the K16 fix, still listed)
+  - invariant I3 (inspection): the angle's degrees equal the new geometric angle at B (before the K17 fix, still 60)
 - Targets: stale cached classifications and angle values.
-- Known bugs: K16, K17 (expected to fail until fixed; see section 6).
+- Known bugs: K16 and K17, fixed in this branch; the checks are regression guards.
 
 #### TR-06: Transforming an unsupported type fails without side effects
 
@@ -1263,18 +1263,18 @@ All paths are relative to `static/client/` unless stated otherwise.
 | K5 | **Workspace round-trips lose attributes that `get_canvas_state` does not show**, so a state comparison passes while data is lost. Lost: colours of points, segments, polygons, circles, ellipses, vectors and functions; a custom angle name; grid visibility. | colours: `drawables/point.py:81-83`, `drawables/circle.py:72-79` (no colour in `get_state`); angle name: `drawables/angle.py:334` and `managers/angle_manager.py:577-581`; grid: `managers/coordinate_system_manager.py:129` | (observed) A red point and a green circle come back black. Green triangle sides, the orange ellipse, the red vector and the red function come back default. Angle `alpha` comes back as `angle_BAC_reflex`. The state diff is empty. | WS-01 |
 | K6 | **Fixed in vl3c/MatHud#72; its marks are removed.** **Deletes cascade into objects that only share parts.** `delete_angle` deletes both arm segments unconditionally, which deletes the triangle; the tool description promises "if they are no longer part of other drawables". `delete_polygon` deletes every edge, so a triangle sharing an edge is deleted too. | `managers/angle_manager.py:373-380`; `managers/polygon_manager.py:261-267`; `managers/segment_manager.py:549-563` | (observed) Triangle ABC plus the angle at A, then `delete_angle`: only BC and the points remain. Triangles ABC and ACD, then `delete_polygon` ABC: ACD and CA are gone. | GEO-14, NM-06 |
 | K7 | **Fixed in vl3c/MatHud#72; its marks are removed.** **`delete_vector` recurses forever when a segment has the same endpoints.** The vector deletes "its" segment by coordinates, and deleting that segment deletes vectors by coordinates. A segment and a vector can also both be named `AB`. | `managers/vector_manager.py:265-272` ↔ `managers/segment_manager.py:545-546` | (observed) `Error: maximum recursion depth exceeded`; the undo stack jumped from 6 to 358 entries. | GEO-07 |
-| K8 | **A cached circle formula goes stale when the centre moves through another object.** Polygon transforms refresh segment formulas, not circles centred on a moved vertex. | `drawables/circle.py:59`, `:77`; `managers/transformations_manager.py:431-447` | (observed) After translating triangle ABC by (10,0), circle A(5) centred on A still reports `(x - 0.0)**2 + (y - 0.0)**2 = 5**2`. This formula reaches the model in the `json` canvas format and through `get_current_canvas_state`. | GEO-11 |
-| K9 | **`create_circle_arc` moves existing points onto the circle.** Endpoints reused from existing points are projected in place, bypassing the edit policy that forbids moving referenced points. | `managers/arc_manager.py:425-431` | (observed) With segment A(0,0)-B(3,0), an arc of radius 5 given the reference point (3,0) moves B to (5,0), and AB grows to length 5. | GEO-13 |
+| K8 | **Fixed in this branch; its marks and the I3 waiver are removed.** **A cached circle formula goes stale when the centre moves through another object.** Polygon transforms refresh segment formulas, not circles centred on a moved vertex. Fix: `circle_formula` and `ellipse_formula` are properties computed from the current centre, radii and rotation, so no move path can leave them stale; translating a point now also refreshes its segments and dependants. | `drawables/circle.py:59`, `:77`; `managers/transformations_manager.py:431-447` | (observed) After translating triangle ABC by (10,0), circle A(5) centred on A still reports `(x - 0.0)**2 + (y - 0.0)**2 = 5**2`. This formula reaches the model in the `json` canvas format and through `get_current_canvas_state`. | GEO-11 |
+| K9 | **Fixed in this branch; its marks are removed.** **`create_circle_arc` moves existing points onto the circle.** Endpoints reused from existing points are projected in place, bypassing the edit policy that forbids moving referenced points. Fix: an existing point is never moved. One already on the circle is used as is; one off the circle stays put, the arc gets a point at its projection (reusing a point already there), and the tool result names both points. Points the call creates from reference coordinates are still snapped. | `managers/arc_manager.py:425-431` | (observed) With segment A(0,0)-B(3,0), an arc of radius 5 given the reference point (3,0) moves B to (5,0), and AB grows to length 5. | GEO-13 |
 | K10 | **`create_colored_area` and `create_region_colored_area` reject `color: null`**, which the strict schema requires models to send when they have no colour. The Python default applies only when the argument is omitted. | `managers/colored_area_manager.py:139` → `utils/style_utils.py:216`; default at `canvas.py:1770`, `:1790` | (observed) `Error: Invalid CSS color: None` for both tools. | FN-01, AR-04 |
 | K11 | **Translating a function leaves its asymptotes behind.** Bounds, holes and the expression move; `vertical_asymptotes` and `horizontal_asymptotes` do not. The renderer splits the curve at these values. | `drawables/function.py:165-225` | (observed) `1/x` shifted by (2,3) becomes `(1/(x - 2)) + 3` with `vertical_asymptotes: [0]`, `horizontal_asymptotes: [0, 0]`. | FN-02 |
 | K12 | **`draw_function` on an existing name updates in place without re-analysing**, and `draw_function` never validates its bounds (`update_function` does). | `managers/function_manager.py:143-169`; validation only in `update_function` (`:305-310`) | (observed) `f = 1/x` redrawn as `x^2` keeps `vertical_asymptotes: [0]`. `left_bound=5, right_bound=-5` reports success. | FN-03, FN-08 |
 | K13 | **No guard for a tangent at a vertical asymptote.** Only NaN and a missing derivative are rejected, so a huge finite value at x = π/2 gets through. | `managers/tangent_manager.py:166-180` | (observed) The tangent to `tan(x)` at π/2 creates a segment with y ≈ 1.63e16 and reports success. | FN-06 |
 | K14 | **Coloured-area bounds do not follow a translated function.** | `managers/transformations_manager.py:153-154` (cache invalidation only); `drawables/functions_bounded_colored_area.py` | (observed) f = x² with the area on [0,2], shifted 3 right: f's bounds are [0,6], and the area stays on [0,2]. | AR-01 |
 | K15 | **An area between two segments adds points and splits segments.** Its helper points are created with `extra_graphics=True`. | `managers/colored_area_manager.py:188-201` → `managers/segment_manager.py:565-604` | (observed) Points E(1,0) and F(3,0) and segments EA, EB, FA, FB, FE appear; the undo depth goes from 7 to 27. | AR-02 |
-| K16 | **Polygon type flags are computed only in the constructor.** Rotation without an explicit centre also skips the dependency refresh. | `drawables/triangle.py:72` (quadrilateral and n-gons alike); `managers/transformations_manager.py:271-272` | (observed) An equilateral triangle sheared by factor 1 still lists `equilateral`. | TR-01, TR-05 |
-| K17 | **Cached angle values are never refreshed.** `angle_degrees` is set at creation. `handle_segment_updated`, the only refresher, is never called. The renderer draws from the cache. The text canvas format recomputes, so the model and the drawing disagree. | `drawables/angle.py:219-222`; `managers/angle_manager.py:472` (no callers); `rendering/helpers/angle_renderer.py:227` | (observed) The angle at B stays 60° after the shear. | TR-05 |
+| K16 | **Fixed in this branch; its marks and the I3 waivers are removed.** **Polygon type flags are computed only in the constructor.** Rotation without an explicit centre also skips the dependency refresh. Fix: `Polygon.get_type_flags()` classifies the current vertices on each call (triangles, quadrilaterals and n-gons); a rectangle's `rectangle` label comes from the flags, so a sheared rectangle drops it; every rotation refreshes dependants. | `drawables/triangle.py:72` (quadrilateral and n-gons alike); `managers/transformations_manager.py:271-272` | (observed) An equilateral triangle sheared by factor 1 still lists `equilateral`. | TR-01, TR-05 |
+| K17 | **Fixed in this branch; its marks are removed.** **Cached angle values are never refreshed.** `angle_degrees` is set at creation. `handle_segment_updated`, the only refresher, is never called. The renderer draws from the cache. The text canvas format recomputes, so the model and the drawing disagree. Fix: `raw_angle_degrees` and `angle_degrees` are properties computed from the current vertex and arm points; the dead refresher is removed. | `drawables/angle.py:219-222`; `managers/angle_manager.py:472` (no callers); `rendering/helpers/angle_renderer.py:227` | (observed) The angle at B stays 60° after the shear. | TR-05 |
 | K18 | **Fixed in vl3c/MatHud#72; its marks are removed.** **Graph bugs.** Adjacency-matrix edges are always created as directed, so an undirected graph gets vectors in both directions and `segments: []`. `delete_graph` deletes every vertex point, including points that existed before and were reused as vertices, and cascades into their triangles. | `managers/graph_manager.py:176-186`; `managers/graph_manager.py:258-264` with reuse at `point_manager.py:152-154` | (observed) The matrix `[[0,1,0],[1,0,2],[0,2,0]]` gives 4 vectors, and `shortest_path` returns `{"path": None}`. A graph with a vertex at an existing triangle vertex (name X dropped, reused as A): `delete_graph` deletes A, AB, CA and the triangle. | GR-03, GR-04 |
-| K19 | **Polygon subtypes move and re-order the given vertices.** Canonicalisation rebuilds the vertices from the subtype. | `managers/polygon_manager.py:144-178` (`canonicalize_rectangle` / `canonicalize_triangle` / `canonicalize_quadrilateral`) | (observed) Square (0,0),(2,0),(2,2),(0,2) is stored as A(0,0) B(0,2) C(2,2) D(2,0) with coordinates `1.9999999999999996`. The equilateral triangle vertices get about 1e-11 of noise. | GEO-08 |
+| K19 | **Fixed in this branch; its marks are removed.** **Polygon subtypes move and re-order the given vertices.** Canonicalisation rebuilds the vertices from the subtype. Fix: `create_polygon` uses the vertices exactly as given, in order. A subtype (and the rectangle and square polygon types) is checked against them with the type-flag tolerances, and a mismatch is refused with an error giving the measured sides and angles; nothing is created. | `managers/polygon_manager.py:144-178` (`canonicalize_rectangle` / `canonicalize_triangle` / `canonicalize_quadrilateral`) | (observed) Square (0,0),(2,0),(2,2),(0,2) is stored as A(0,0) B(0,2) C(2,2) D(2,0) with coordinates `1.9999999999999996`. The equilateral triangle vertices get about 1e-11 of noise. | GEO-08 |
 | K20 | **Action-trace `state_delta` is always empty.** The delta expects buckets of `{name: state}` dicts, but real states hold lists. The unit tests use the invented dict shape. | `managers/action_trace_collector.py:275-287`; `client_tests/test_action_trace_collector.py:17-18` | (observed) Adding point Q gives `{"added": [], "removed": [], "modified": []}`. The server logs this delta with every batch. **Fixed** in phase 1: the delta reads list buckets, and a name used by two buckets is keyed `Bucket:name`. | (harness) |
 | K21 | **Fixed in vl3c/MatHud#73; its marks are removed.** **Errors returned as `{"error": ...}` dicts are not flagged as errors** in traces or turn metrics (`tool_errors`), so the footer and benchmarks under-count tool errors. | `result_processor.py:161`; `turn_metrics.py:75-76`, `:126` | (observed) `analyze_graph` on a missing graph and `inspect_relation` on a missing segment both give `is_error: false`. | GR-03, invariant I6 |
 | K22 | **The CLI's canvas commands do nothing.** They use `window._canvas`, which is never set, and call `get_state`/`reset_view`, which do not exist. | `cli/browser.py:306-359`; `cli/canvas.py:65-295`; `main.py:140`, `:193` | (code) There is no `window._canvas` assignment anywhere in `static/` or `templates/`. `canvas state` returns `{}`, and `canvas clear` prints "Canvas cleared" without clearing anything. **Fixed** in phase 1: the commands use the scenario hooks. | (harness) |

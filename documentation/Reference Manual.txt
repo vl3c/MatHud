@@ -284,9 +284,10 @@ Attributes:
 - `create_segment(x1, y1, x2, y2, name="", extra_graphics=True)`: Create a line segment between two points
 - `create_vector(origin_x, origin_y, tip_x, tip_y, name="", extra_graphics=True)`: Create a vector from origin to tip
 - `create_polygon(vertices, polygon_type="triangle", name="", extra_graphics=True)`: Create a triangle from three points
-- `create_polygon(vertices, polygon_type="rectangle", name="", extra_graphics=True)`: Create a rectangle from canonicalized vertices (use `canonicalize_rectangle` for diagonal pairs)
+- `create_polygon(vertices, polygon_type="rectangle", name="", extra_graphics=True)`: Create a rectangle from its four corners in order, used exactly as given (use `canonicalize_rectangle` to build the corners from a diagonal pair); vertices that do not form a rectangle are refused
+- `create_polygon(..., subtype=...)`: Vertices are always used exactly as given (never moved or re-ordered). A triangle or quadrilateral `subtype` is checked against them with the polygon type-flag tolerances (`utils/polygon_subtype_checks.py`); a mismatch raises `ValueError` with the measured sides and angles, and nothing is created
 - `create_circle(center_x, center_y, radius, name="", color=None, extra_graphics=True)`: Create a circle with specified center and radius. `name` names the center point; the circle itself is named `<center>(<radius>)`, e.g. `A(3)`, and that name is used to reference it later
-- `create_circle_arc(point1_x, point1_y, point2_x, point2_y, point3_x=None, point3_y=None, center_point_choice=None, circle_name=None, center_x=None, center_y=None, radius=None, arc_name=None, use_major_arc=False, extra_graphics=True)`: Create a circle arc between two points. When supplying explicit center/radius values or referencing an existing circle, all provided endpoints (new or existing) are projected onto that circle before the arc is created. Alternatively, provide three points plus `center_point_choice` (point1/point2/point3) to treat that point as the center and derive the circle automatically.
+- `create_circle_arc(point1_x, point1_y, point2_x, point2_y, point3_x=None, point3_y=None, center_point_choice=None, circle_name=None, center_x=None, center_y=None, radius=None, arc_name=None, use_major_arc=False, extra_graphics=True)`: Create a circle arc between two points. When supplying explicit center/radius values or referencing an existing circle, endpoints this call creates from reference coordinates are projected onto that circle. Existing points are never moved: one on the circle is used as is; one off the circle stays where it is and the arc uses a point at its projection instead (reusing a point already there). The `create_circle_arc` tool result then names both points (`ArcManager.last_endpoint_notes`). Alternatively, provide three points plus `center_point_choice` (point1/point2/point3) to treat that point as the center and derive the circle automatically.
 - `delete_circle_arc(name)`: Remove a circle arc by name without deleting its endpoints.
 - `update_circle_arc(name, new_color=None, use_major_arc=None)`: Update arc styling or switch between the minor and major arc sweep.
 - `create_ellipse(center_x, center_y, radius_x, radius_y, rotation_angle=0, name="", color=None, extra_graphics=True)`: Create an ellipse with specified parameters. As with circles, `name` names the center point and the ellipse is named `<center>(<radius_x>, <radius_y>)`
@@ -1452,7 +1453,7 @@ properties for mathematical operations and geometric intersections.
 Attributes:
     center (Point): Center point of the circle
     radius (float): Radius in mathematical coordinate units
-    circle_formula (dict): Algebraic circle equation coefficients
+    circle_formula (str): Algebraic circle equation, a property computed from the current centre and radius
     drawn_radius (float): Current screen radius (affected by scale factor)
 ```
 
@@ -1573,8 +1574,8 @@ Attributes:
     vertex_point (Point): Common vertex where segments intersect
     arm1_point (Point): End point of first segment arm
     arm2_point (Point): End point of second segment arm
-    raw_angle_degrees (float): Fundamental angle measurement (0-360°)
-    angle_degrees (float): Display angle (small or reflex based on is_reflex)
+    raw_angle_degrees (float): Fundamental angle measurement (0-360°), a property computed from the current points
+    angle_degrees (float): Display angle (small or reflex based on is_reflex), a property computed from the current points
     drawn_arc_radius (float): Screen radius for arc rendering
 ```
 
@@ -1914,6 +1915,7 @@ Subclasses must implement:
 - `reflect(axis, a=0, b=0, c=0)`: Reflect all vertices across the specified axis
 - `scale(sx, sy, cx, cy)`: Scale all vertices relative to center (cx, cy)
 - `shear(axis, factor, cx, cy)`: Shear all vertices relative to center (cx, cy)
+- `get_type_flags()` / `get_type_names()`: Classification flags (e.g. `equilateral`, `right`, `square`, `rectangle`, `regular`) computed from the current vertex positions on every call (`_compute_type_flags()`, overridden by triangles and quadrilaterals), so `get_state()["types"]` stays right after transforms and point moves
 - `rotate_around(angle_deg, cx, cy)`: Rotate all vertices around an arbitrary center
 
 ### Management Classes
@@ -1938,7 +1940,7 @@ Manager Hierarchy:
     - PointManager: Point creation, retrieval, and deletion operations
     - SegmentManager: Line segment operations with endpoint validation
     - VectorManager: Vector operations with origin and tip management
-    - PolygonManager: Polygon operations with canonicalization for triangles, quadrilaterals (rectangles, squares), pentagons, and hexagons
+    - PolygonManager: Polygon operations for triangles through decagons and generic polygons; vertices are kept as given and subtypes are validated, not enforced
     - CircleManager: Circle operations with center and radius validation
     - EllipseManager: Ellipse operations with center, radii, and rotation
     - AngleManager: Angle operations with vertex and arm management
@@ -2019,7 +2021,7 @@ This class coordinates specialized managers for each drawable type:
 - `update_ellipse(name, new_color=None, new_radius_x=None, new_radius_y=None, new_rotation_angle=None, new_center_x=None, new_center_y=None)`: Update ellipse styling or geometry (solitary ellipses only; center moves require complete coordinate pairs)
 - `get_polygon_by_vertices(vertices, polygon_type="rectangle")`: Get a rectangle by canonicalized vertices
 - `get_polygon_by_name(name, polygon_type="rectangle")`: Get a rectangle by its name
-- `create_polygon(vertices, polygon_type="rectangle", name="", extra_graphics=True)`: Create a rectangle from canonicalized vertices (use `canonicalize_rectangle` for diagonal pairs)
+- `create_polygon(vertices, polygon_type="rectangle", name="", extra_graphics=True)`: Create a rectangle from its four corners in order, used exactly as given (use `canonicalize_rectangle` to build the corners from a diagonal pair); vertices that do not form a rectangle are refused
 - `delete_polygon(polygon_type="rectangle", name)`: Delete a rectangle by name via the polygon API
 - `update_rectangle(name, new_color=None)`: Update a rectangle's color
 - `create_label(x, y, text, name="", color=None, font_size=None, rotation_degrees=None)`: Create a label anchored at math-space coordinates
@@ -2586,12 +2588,12 @@ State Management:
 #### Rectangle Operations (Polygon Manager)
 
 **Overview:**
-Rectangles are constructed through the unified polygon pipeline. Supplying `polygon_type="rectangle"` to `create_polygon` routes coordinates through `canonicalize_rectangle`, which normalizes diagonal pairs or noisy vertex lists into a valid rectangle before instantiation.
+Rectangles are constructed through the unified polygon pipeline. Supplying `polygon_type="rectangle"` (or a quadrilateral with `subtype="rectangle"`/`"square"`) to `create_polygon` checks that the four vertices, in the given order, form a rectangle (or square) and creates it from exactly those vertices; otherwise the call is refused. `canonicalize_rectangle` still builds rectangle corners from a diagonal pair or a noisy vertex list for callers that want that.
 
 **Key Points:**
-- `PolygonManager.create_polygon` canonicalizes rectangle vertices using `utils/polygon_canonicalizer.py`.
+- `PolygonManager.create_polygon` never moves or re-orders the given vertices; it validates rectangle and subtype requests (`utils/polygon_subtype_checks.py`).
 - Workspace restoration and other call sites build rectangles by invoking `create_polygon` with the canonicalized vertex list; no rectangle-specific manager is required.
-- AI tooling (`static/functions_definitions.py`) documents this behavior so prompts can provide diagonal corners or approximate rectangles confidently.
+- AI tooling (`static/functions_definitions.py`) documents this behavior: the model must send exact corners, and a refused call reports the measured sides and angles.
 
 #### Circle Manager (`managers/circle_manager.py`)
 
@@ -2912,7 +2914,6 @@ This class is responsible for:
 - `get_angle_by_points(vertex_point, arm1_point, arm2_point, is_reflex_filter=None)`: Retrieves an Angle by its three defining Point objects
 - `delete_angle(angle_name, delete_unused_arms=True)`: Delete an angle by name, with each arm segment that no polygon, angle, graph or other object still uses (points stay). Cascades from a segment or point delete pass `delete_unused_arms=False`
 - `update_angle(angle_name, new_color=None)`: Update angle properties like color
-- `handle_segment_updated(updated_segment_name)`: Handle updates when constituent segments change
 - `handle_segment_removed(removed_segment_name)`: Handle cleanup when constituent segments are deleted
 - `load_angles(angles_data)`: Load angles from state data for workspace restoration
 - `get_angles_state()`: Get serialized state of all angles for workspace saving

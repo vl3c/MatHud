@@ -243,8 +243,7 @@
       "title": "Square given by exact corners",
       "tags": ["polygons", "subtypes", "precision"],
       "smoke": false,
-      "known": ["K19"],
-      "targets": "subtype canonicalisation moving user coordinates (currently 1.9999999999999996)",
+      "targets": "subtype handling moving or re-ordering the given coordinates (it once stored 1.9999999999999996)",
       "steps": [
         {
           "user": "Draw the square ABCD with corners (0,0), (2,0), (2,2) and (0,2).",
@@ -264,8 +263,7 @@
             {
               "check": "exists",
               "select": {"type": "Rectangle", "vertices": [[0, 0], [2, 0], [2, 2], [0, 2]]},
-              "tol": {"abs": 0, "rel": 0},
-              "known": "K19"
+              "tol": {"abs": 0, "rel": 0}
             },
             {
               "check": "attribute",
@@ -289,7 +287,7 @@
               "select": [{"type": "Segment", "ends": [[0, 0], [2, 0]]}],
               "value": 2
             },
-            {"check": "point_at", "select": {"type": "Point", "name": "B"}, "at": [2, 0], "known": "K19"}
+            {"check": "point_at", "select": {"type": "Point", "name": "B"}, "at": [2, 0]}
           ]
         }
       ]
@@ -389,9 +387,7 @@
       "title": "Translating a triangle whose vertex is a circle centre",
       "tags": ["polygons", "circles", "transforms", "derived"],
       "smoke": false,
-      "known": ["K8"],
       "targets": "stale cached derived fields after a shared point moves",
-      "invariants": {"I3": "K8"},
       "setup": {
         "calls": [
           {
@@ -462,7 +458,6 @@
       "title": "Arc endpoints must not drag existing points",
       "tags": ["arcs", "side-effects"],
       "smoke": false,
-      "known": ["K9"],
       "targets": "constructions mutating unrelated existing points",
       "setup": {"calls": [{"tool": "create_segment", "args": {"x1": 0, "y1": 0, "x2": 3, "y2": 0}}]},
       "steps": [
@@ -484,13 +479,12 @@
             }
           ],
           "checks": [
-            {"check": "point_at", "select": {"type": "Point", "name": "B"}, "at": [3, 0], "known": "K9"},
+            {"check": "point_at", "select": {"type": "Point", "name": "B"}, "at": [3, 0]},
             {
               "check": "relation",
               "relation": "length",
               "select": [{"type": "Segment", "name": "AB"}],
-              "value": 3,
-              "known": "K9"
+              "value": 3
             },
             {"check": "count", "select": {"type": "CircleArc"}, "eq": 1},
             {"check": "exists", "select": {"type": "Point", "at": [0, 5]}}
