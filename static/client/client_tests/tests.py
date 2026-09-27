@@ -278,6 +278,7 @@ from .test_chat_html_safety import (
     TestMathJaxHrefDisabled,
     TestMathOutputSanitizer,
 )
+from .test_chat_math_typeset import TestChatMathTypeset
 from .test_turn_metrics import (
     TestTurnAggregation,
     TestFooterFormatting,
@@ -662,6 +663,7 @@ class Tests:
             TestAutocompleteHtmlSafety,
             TestMathJaxHrefDisabled,
             TestMathOutputSanitizer,
+            TestChatMathTypeset,
             TestTurnAggregation,
             TestFooterFormatting,
             TestTurnMetricsCollector,
