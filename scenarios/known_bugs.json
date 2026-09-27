@@ -29,7 +29,11 @@
     "K25": "Canvas.reset does not reset the polar grid spacing (slow polar rendering after zoom then clear)",
     "K26": "A change already in effect (same colour, same zoom) reports success and adds an undo entry",
     "K27": "fit_regression lists reused existing points as if it created them",
-    "K28": "draw_function(\"abs(x)/x\") hangs the browser tab: nerdamer's limit() never returns"
+    "K28": "draw_function(\"abs(x)/x\") hangs the browser tab: nerdamer's limit() never returns",
+    "K29": "update_circle_arc always fails: the canvas passes endpoint arguments the arc manager does not take",
+    "K30": "create_ellipse and draw_parametric_function crash on a null rotation_angle or t_min",
+    "K31": "Label updates, translations and plot transforms that change nothing still report success",
+    "K32": "Vertical asymptotes listed at bounded tan() poles, as near-duplicate roots, and outside the bounds"
   },
   "fixed": {
     "K1": "vl3c/MatHud#73",
@@ -59,7 +63,11 @@
     "K15": "this branch (claude/fix-names-persistence)",
     "K27": "this branch (claude/fix-names-persistence)",
     "K23": "claude/fix-batch-7",
-    "K28": "claude/fix-batch-7"
+    "K28": "claude/fix-batch-7",
+    "K29": "claude/fix-batch-7",
+    "K30": "claude/fix-batch-7",
+    "K31": "claude/fix-batch-7",
+    "K32": "claude/fix-batch-7"
   },
   "invariant_waivers": {}
 }
