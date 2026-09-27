@@ -328,7 +328,7 @@ _CHECK_KEYS: dict[str, frozenset[str]] = {
     "max_tool_calls": frozenset({"max"}),
     "no_tool_errors": frozenset(),
     "tool_error": frozenset({"tool", "index"}),
-    "tool_result": frozenset({"tool", "path", "index", "mod"}) | COMPARISON_OPS,
+    "tool_result": frozenset({"tool", "path", "index", "any", "mod"}) | COMPARISON_OPS,
     "answer_mentions": frozenset({"numbers", "words", "names"}),
 }
 _BIND_KEYS = frozenset({"bind", "select", "known", "tol", "id", "note"})
@@ -455,6 +455,8 @@ def validate_check(check: Any) -> list[str]:
         any(op in check for op in COMPARISON_OPS) or (kind == "attribute" and isinstance(check.get("same_as"), str))
     ):
         problems.append(f"{kind} needs a comparison ({', '.join(sorted(COMPARISON_OPS))})")
+    if kind == "tool_result" and "any" in check and ("index" in check or not isinstance(check["any"], bool)):
+        problems.append("tool_result takes either index or any (true or false), not both")
     if kind == "attribute" and "select" not in check and check.get("target") not in ("view", "state", "inspection"):
         problems.append("attribute needs a select or target (view, state or inspection)")
     return problems
@@ -1032,7 +1034,29 @@ def _check_tool_error(check: dict[str, Any], ctx: CheckContext) -> Any:
 
 
 def _check_tool_result(check: dict[str, Any], ctx: CheckContext) -> Any:
-    call = _tool_call(check, ctx)
+    """The result of the tool's last call (or call ``index``) satisfies the comparison.
+
+    With ``any: true`` it is enough that one call's result does, whatever the order of the
+    calls (a live model may make them in any order).
+    """
+    if not check.get("any"):
+        return _tool_result_value(check, ctx, _tool_call(check, ctx))
+    calls = _executed(ctx, check["tool"])
+    if not calls:
+        raise CheckFailure(f"{check['tool']} was not called")
+    failures: list[CheckFailure] = []
+    for call in calls:
+        try:
+            return _tool_result_value(check, ctx, call)
+        except CheckFailure as failure:
+            failures.append(failure)
+    raise CheckFailure(
+        f"no {check['tool']} result of {len(calls)} satisfies the check: " + "; ".join(str(f) for f in failures),
+        actual=[call.get("result") for call in calls],
+    )
+
+
+def _tool_result_value(check: dict[str, Any], ctx: CheckContext, call: dict[str, Any]) -> Any:
     result = call.get("result")
     if isinstance(result, str) and result[:1] in "[{":
         try:
@@ -1757,7 +1781,8 @@ def _result_mentions(result: Any, names: set[str]) -> bool:
     """
     text = json.dumps(result) if not isinstance(result, str) else result
     return any(
-        f"'{name}'" in text or re.search(rf"(?<![\w']){re.escape(name)}(?![\w'])", text) for name in names
+        re.search(rf"'{re.escape(name)}'(?!')", text) or re.search(rf"(?<![\w']){re.escape(name)}(?![\w'])", text)
+        for name in names
     )
 
 

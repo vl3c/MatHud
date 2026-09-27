@@ -372,6 +372,20 @@ class TestOutcomeChecks:
         assert missing.status == "fail" and "has no 'order'" in missing.message
         assert run({"check": "tool_error", "tool": "create_point"}, view, step=step).status == "fail"
 
+    def test_tool_result_any_accepts_a_match_in_any_call(self) -> None:
+        step = StepData(
+            calls=[
+                call("create_point", "Created Point 'F' instead of the requested name 'Far'.", name="Far"),
+                call("create_point", "Created Point 'A'."),
+            ]
+        )
+        view = CanvasView(state())
+        check: dict[str, Any] = {"check": "tool_result", "tool": "create_point", "matches": "'F'.*'Far'"}
+        assert run(check, view, step=step).status == "fail"
+        assert run({**check, "any": True}, view, step=step).status == "pass"
+        none = run({**check, "any": True, "matches": "'Z'"}, view, step=step)
+        assert none.status == "fail" and "no create_point result of 2" in none.message
+
     def test_tool_error_counts_error_dicts(self) -> None:
         step = StepData(calls=[call("analyze_graph", {"error": "Graph not found"})])
         view = CanvasView(state())

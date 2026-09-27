@@ -70,12 +70,54 @@ class TestRequestedNamesAreReported(_ToolBatchTestCase):
 
         self.assertEqual(result, "Created Segment 'AB'.")
 
-    def test_existing_segment_is_reported_as_reused(self) -> None:
+    def test_existing_segment_is_reported_as_reused_and_adds_no_undo_entry(self) -> None:
         self.run_single("create_segment", x1=0, y1=0, x2=4, y2=0, name="AB")
+        depth = self.undo_depth()
 
-        result = self.run_single("create_segment", x1=0, y1=0, x2=4, y2=0)
+        _, traced = self.run_batch(("create_segment", {"x1": 0, "y1": 0, "x2": 4, "y2": 0, "color": "red"}))
 
-        self.assertEqual(result, "Used the existing Segment 'AB'; no new segment was created.")
+        self.assertEqual(
+            traced[0]["result"],
+            "Used the existing Segment 'AB'; no new segment was created. The requested color was not applied.",
+        )
+        self.assertFalse(traced[0]["is_error"])
+        self.assertEqual(self.undo_depth(), depth)
+
+    def test_segment_name_is_available_again_after_undo(self) -> None:
+        self.run_single("create_segment", x1=0, y1=0, x2=4, y2=0, name="PQ")
+        self.run_single("undo")
+
+        result = self.run_single("create_segment", x1=1, y1=1, x2=5, y2=1, name="PQ")
+
+        self.assertEqual(result, "Created Segment 'PQ'.")
+        self.assertEqual(self.canvas.get_point_by_name("P").x, 1)
+
+    def test_triangle_name_is_available_again_after_undo(self) -> None:
+        vertices = [{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 0, "y": 3}]
+        self.run_single("create_polygon", vertices=vertices, polygon_type="triangle", name="XYZ")
+        self.run_single("undo")
+
+        moved = [{"x": v["x"] + 10, "y": v["y"]} for v in vertices]
+        result = self.run_single("create_polygon", vertices=moved, polygon_type="triangle", name="XYZ")
+
+        self.assertEqual(result, "Created Triangle 'XYZ'.")
+        self.assertEqual(sorted(self.snapshot()["Point"]), ["X(10.0, 0.0)", "Y(14.0, 0.0)", "Z(10.0, 3.0)"])
+
+    def test_redefined_function_is_reported_as_updated_and_stays_undoable(self) -> None:
+        self.run_single("draw_function", function_string="x^2", name="f", left_bound=-5, right_bound=5)
+        depth = self.undo_depth()
+
+        result = self.run_single("draw_function", function_string="x^3", name="f", left_bound=-5, right_bound=5)
+
+        self.assertTrue(str(result).startswith("Updated the existing Function 'f' to "), result)
+        self.assertEqual(self.undo_depth(), depth + 1)
+        self.run_single("undo")
+        self.assertIn("2", self.canvas.get_drawables_by_class_name("Function")[0].function_string)
+
+    def test_circle_result_names_its_centre(self) -> None:
+        result = self.run_single("create_circle", center_x=0, center_y=0, radius=2, name="O")
+
+        self.assertEqual(result, "Created Circle 'O(2)' centred on 'O'.")
 
     def test_composite_result_names_each_part(self) -> None:
         self.run_single("create_segment", x1=0, y1=0, x2=4, y2=0, name="AB")

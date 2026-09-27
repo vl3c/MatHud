@@ -160,8 +160,8 @@
             {
               "check": "tool_result",
               "tool": "create_point",
-              "index": 0,
-              "eq": "Created Point 'F' instead of the requested name 'Far'.",
+              "any": true,
+              "matches": "Created Point 'F'.*'(?i:far)'",
               "note": "Point names are one capital letter plus optional primes; an invalid name is replaced and the result says so."
             }
           ]
