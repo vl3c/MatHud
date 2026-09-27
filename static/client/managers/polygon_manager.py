@@ -5,7 +5,8 @@ update, and deletion for all polygon types from triangle to decagon.
 
 Key Features:
     - Unified create/update/delete API for all polygon types
-    - Automatic vertex canonicalization with subtype support
+    - Vertices are used exactly as given (order and coordinates)
+    - Subtypes are checked against the given vertices, never enforced by moving them
     - Triangle subtypes: equilateral, isosceles, scalene, right
     - Quadrilateral subtypes: rectangle, square, parallelogram, rhombus, etc.
     - Point and segment creation with dependency tracking
@@ -35,14 +36,8 @@ from itertools import combinations
 
 from utils.geometry_utils import GeometryUtils
 from utils.math_utils import MathUtils
-from utils.polygon_canonicalizer import (
-    PolygonCanonicalizationError,
-    QuadrilateralSubtype,
-    TriangleSubtype,
-    canonicalize_quadrilateral,
-    canonicalize_rectangle,
-    canonicalize_triangle,
-)
+from utils.polygon_subtype_checks import quadrilateral_subtype_mismatch, triangle_subtype_mismatch
+from utils.polygon_subtypes import QuadrilateralSubtype, TriangleSubtype
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -138,45 +133,16 @@ class PolygonManager(BaseDrawableManager):
         subtype: Optional[Union[str, TriangleSubtype, QuadrilateralSubtype]] = None,
         extra_graphics: bool = True,
     ) -> "Drawable":
+        # Vertices are used exactly as given: a subtype or a rectangle/square type is checked
+        # against them and refused when it does not hold, never enforced by moving them.
         normalized_vertices = self._sanitize_vertices(vertices)
-        original_vertices = list(normalized_vertices)
         normalized_type, constraints = self._resolve_polygon_type(normalized_vertices, polygon_type)
         triangle_subtype, quad_subtype = self._normalize_polygon_subtype(subtype, normalized_type)
 
-        if constraints.get("require_square"):
-            # Validate squares before any canonicalization so invalid inputs raise immediately.
-            self._validate_polygon_coordinates(original_vertices, normalized_type, constraints)
-
-        if constraints.get("require_rectangle"):
-            mode = "diagonal" if len(normalized_vertices) == 2 else "vertices"
-            try:
-                normalized_vertices = canonicalize_rectangle(
-                    normalized_vertices,
-                    construction_mode=mode,
-                    enforce_square=constraints.get("require_square", False),
-                )
-            except PolygonCanonicalizationError as exc:
-                raise ValueError(str(exc)) from exc
-        elif normalized_type is PolygonType.TRIANGLE:
-            try:
-                normalized_vertices = canonicalize_triangle(
-                    normalized_vertices,
-                    subtype=triangle_subtype,
-                )
-            except PolygonCanonicalizationError:
-                # Preserve legacy behavior for degenerate triangles (e.g., collinear vertices)
-                normalized_vertices = original_vertices
-        elif normalized_type is PolygonType.QUADRILATERAL and quad_subtype is not None:
-            try:
-                normalized_vertices = canonicalize_quadrilateral(
-                    normalized_vertices,
-                    subtype=quad_subtype,
-                )
-                # Promote to Rectangle type for rectangle/square subtypes
-                if quad_subtype in (QuadrilateralSubtype.RECTANGLE, QuadrilateralSubtype.SQUARE):
-                    normalized_type = PolygonType.RECTANGLE
-            except PolygonCanonicalizationError:
-                normalized_vertices = original_vertices
+        self._validate_polygon_subtype(normalized_vertices, triangle_subtype, quad_subtype)
+        if quad_subtype in (QuadrilateralSubtype.RECTANGLE, QuadrilateralSubtype.SQUARE):
+            # Promote to Rectangle type for rectangle/square subtypes
+            normalized_type = PolygonType.RECTANGLE
 
         self._validate_polygon_coordinates(normalized_vertices, normalized_type, constraints)
 
@@ -365,9 +331,28 @@ class PolygonManager(BaseDrawableManager):
         if constraints.get("require_rectangle") or constraints.get("require_square"):
             positions = [Position(x, y) for x, y in vertices]
             if not GeometryUtils.is_rectangle(positions):
-                raise ValueError("Provided vertices do not form a rectangle.")
+                raise ValueError(
+                    "Provided vertices do not form a rectangle in the given order; vertices are used exactly as given."
+                )
             if constraints.get("require_square") and not GeometryUtils.is_square(positions):
-                raise ValueError("Provided vertices do not form a square.")
+                raise ValueError(
+                    "Provided vertices do not form a square in the given order; vertices are used exactly as given."
+                )
+
+    def _validate_polygon_subtype(
+        self,
+        vertices: Sequence[Coordinate],
+        triangle_subtype: Optional[TriangleSubtype],
+        quad_subtype: Optional[QuadrilateralSubtype],
+    ) -> None:
+        """Raise when the vertices, as given, do not form the requested subtype."""
+        reason: Optional[str] = None
+        if triangle_subtype is not None:
+            reason = triangle_subtype_mismatch(vertices, triangle_subtype)
+        elif quad_subtype is not None:
+            reason = quadrilateral_subtype_mismatch(vertices, quad_subtype)
+        if reason:
+            raise ValueError(reason)
 
     def _build_point_names(self, name: str, count: int) -> List[str]:
         if not name:

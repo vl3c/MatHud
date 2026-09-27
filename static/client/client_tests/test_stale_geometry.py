@@ -312,3 +312,71 @@ class TestStaleGeometry(unittest.TestCase):
         self.assertAlmostEqual(arc.point1.x, 5.0)
         self.assertAlmostEqual(arc.point2.y, 5.0)
         self.assertEqual(self._points(), sorted([self._coords(arc.point1), self._coords(arc.point2)]))
+
+    # ------------------------------------------------------------------
+    # K19: polygon subtypes keep the given vertices
+    # ------------------------------------------------------------------
+    def test_square_subtype_keeps_exact_corners_and_order(self) -> None:
+        square = self._polygon([(0, 0), (2, 0), (2, 2), (0, 2)], "quadrilateral", "ABCD", subtype="square")
+
+        self.assertEqual(self._coords(self._point("A")), (0.0, 0.0))
+        self.assertEqual(self._coords(self._point("B")), (2.0, 0.0))
+        self.assertEqual(self._coords(self._point("C")), (2.0, 2.0))
+        self.assertEqual(self._coords(self._point("D")), (0.0, 2.0))
+        self.assertIn("square", square.get_type_names())
+
+    def test_equilateral_subtype_keeps_given_coordinates(self) -> None:
+        self._polygon([(0, 0), (4, 0), (2, EQUILATERAL_APEX_Y)], "triangle", "ABC", subtype="equilateral")
+
+        self.assertEqual(self._coords(self._point("A")), (0.0, 0.0))
+        self.assertEqual(self._coords(self._point("B")), (4.0, 0.0))
+        self.assertEqual(self._coords(self._point("C")), (2.0, EQUILATERAL_APEX_Y))
+
+    def test_subtype_mismatch_is_refused_without_side_effects(self) -> None:
+        cases = [
+            ("quadrilateral", "square", [(0, 0), (3, 0), (3, 2), (0, 2)]),
+            ("quadrilateral", "rectangle", [(0, 0), (4, 0), (5, 2), (1, 2)]),
+            ("quadrilateral", "rhombus", [(0, 0), (4, 0), (5, 2), (1, 2)]),
+            ("quadrilateral", "parallelogram", [(0, 0), (4, 0), (4, 2), (1, 3)]),
+            ("quadrilateral", "kite", [(0, 0), (4, 0), (4, 2), (1, 3)]),
+            ("quadrilateral", "trapezoid", [(0, 0), (4, 0), (4, 2), (1, 3)]),
+            ("quadrilateral", "isosceles_trapezoid", [(0, 0), (4, 0), (3, 2), (0, 2)]),
+            ("quadrilateral", "right_trapezoid", [(0, 0), (4, 0), (3, 2), (1, 2)]),
+            ("triangle", "equilateral", [(0, 0), (4, 0), (2, 3)]),
+            ("triangle", "isosceles", [(0, 0), (4, 0), (1, 3)]),
+            ("triangle", "scalene", [(0, 0), (4, 0), (2, 3)]),
+            ("triangle", "right", [(0, 0), (4, 0), (1, 3)]),
+            ("triangle", "right_isosceles", [(0, 0), (4, 0), (0, 3)]),
+        ]
+        for polygon_type, subtype, vertices in cases:
+            with self.subTest(subtype=subtype):
+                error = self._call_error(
+                    "create_polygon",
+                    vertices=[{"x": x, "y": y} for x, y in vertices],
+                    polygon_type=polygon_type,
+                    subtype=subtype,
+                )
+                self.assertIn(subtype.replace("_", " "), error)
+                self.assertEqual(self._points(), [])
+                self.assertEqual(self.canvas.undo_redo_manager.undo_stack, [])
+
+    def test_subtype_match_is_accepted_for_each_quadrilateral_subtype(self) -> None:
+        cases = [
+            ("rectangle", [(0, 0), (4, 0), (4, 2), (0, 2)]),
+            ("rhombus", [(0, 0), (3, 1), (4, 4), (1, 3)]),
+            ("parallelogram", [(0, 0), (4, 0), (5, 3), (1, 3)]),
+            ("kite", [(0, 0), (2, -1), (5, 0), (2, 1)]),
+            ("trapezoid", [(0, 0), (6, 0), (4, 2), (1, 2)]),
+            ("isosceles_trapezoid", [(0, 0), (6, 0), (5, 2), (1, 2)]),
+            ("right_trapezoid", [(0, 0), (6, 0), (4, 2), (0, 2)]),
+        ]
+        for subtype, vertices in cases:
+            with self.subTest(subtype=subtype):
+                self._call("clear_canvas")
+                self._call(
+                    "create_polygon",
+                    vertices=[{"x": x, "y": y} for x, y in vertices],
+                    polygon_type="quadrilateral",
+                    subtype=subtype,
+                )
+                self.assertEqual(self._points(), sorted((float(x), float(y)) for x, y in vertices))
