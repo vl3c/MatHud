@@ -50,6 +50,7 @@ from slash_command_handler import SlashCommandHandler
 from command_autocomplete import CommandAutocomplete
 from tts_ui_manager import TTSUIManager
 from chat_ui_manager import ChatUIManager
+from chat_persistence_manager import ChatPersistenceManager
 from turn_metrics import TurnMetricsCollector, turn_outcome
 from managers.action_trace_collector import ActionTraceCollector
 
@@ -121,6 +122,12 @@ class AIInterface:
             on_image_click=self._image_attachment.show_modal,
             on_start_timeout=lambda use_reasoning: self._start_response_timeout(use_reasoning_timeout=use_reasoning),
         )
+        # Chat saved with workspaces and restored on user loads (delegated to ChatPersistenceManager)
+        self._chat_persistence = ChatPersistenceManager(
+            self._chat_ui,
+            get_model_id=lambda: str(document["ai-model-selector"].value),
+        )
+        self.workspace_manager.set_chat_persistence(self._chat_persistence)
         # Message recovery state
         self._last_user_message: str = ""  # Buffered message for recovery on error
         # Action trace collector for deterministic tool-execution logs
@@ -603,9 +610,17 @@ class AIInterface:
         except Exception:
             return {}
 
-    def _print_user_message_in_chat(self, user_message: str, images: Optional[list[str]] = None) -> None:
-        """Print a user message to the chat history (delegates to ChatUIManager)."""
-        self._chat_ui.print_user_message(user_message, images)
+    def _print_user_message_in_chat(
+        self,
+        user_message: str,
+        images: Optional[list[str]] = None,
+        record: bool = False,
+    ) -> None:
+        """Print a user message to the chat history (delegates to ChatUIManager).
+
+        ``record`` keeps it in the transcript saved with workspaces (messages sent to the AI).
+        """
+        self._chat_ui.print_user_message(user_message, images, record=record)
 
     def _print_system_message_in_chat(self, message: str) -> None:
         """Print a system message to the chat history (delegates to ChatUIManager)."""
@@ -737,12 +752,12 @@ class AIInterface:
 
         if not self._should_run_tools(finish_reason, tool_calls):
             turn_metrics = self._turn_metrics.finish_turn(turn_outcome(finish_reason), turn_token)
-            self._chat_ui.print_ai_message(ai_message, turn_metrics=turn_metrics)
+            self._chat_ui.print_ai_message(ai_message, turn_metrics=turn_metrics, record=True)
             self._enable_send_controls()
         else:
             # Text sent with the calls (e.g. a cut-off note) is shown before they run.
             if isinstance(ai_message, str) and ai_message.strip():
-                self._chat_ui.print_ai_message(ai_message)
+                self._chat_ui.print_ai_message(ai_message, record=True)
             try:
                 batch = self.execute_tool_batch(tool_calls, turn_token)
                 trace_summary = self._trace_summary(batch["trace"])
@@ -950,7 +965,7 @@ class AIInterface:
         ai_message = message if has_text else "What do you see in this image?"
 
         # Display the user message with images in chat
-        self._print_user_message_in_chat(display_message, images=images_to_send)
+        self._print_user_message_in_chat(display_message, images=images_to_send, record=True)
 
         # Clear attached images after displaying (not after successful send)
         self._image_attachment.clear()
@@ -1057,14 +1072,14 @@ class AIInterface:
 
     def start_new_conversation(self, event: Any) -> None:
         """Saves the current workspace, resets the canvas and chat, and starts a new backend session."""
-        # 1. Save the current workspace automatically
+        # 1. Save the current workspace (canvas and chat) automatically
         self.workspace_manager.save_workspace()
 
         # 2. Reset the client-side canvas
         self.canvas.clear()
 
-        # 3. Clear the chat history UI
-        document["chat-history"].clear()
+        # 3. Clear the chat history UI and its transcript
+        self._chat_ui.clear_chat()
 
         # 4. Call the backend to reset the AI conversation state
         req = ajax.ajax()

@@ -266,6 +266,18 @@ from .test_image_attachment import (
     TestImageOnlySending,
 )
 from .test_tool_call_log import TestToolCallLog
+from .test_chat_persistence import (
+    TestChatTranscript,
+    TestChatUIRecordAndRestore,
+    TestChatPersistenceManager,
+    TestWorkspaceManagerChat,
+)
+from .test_chat_html_safety import (
+    TestAutocompleteHtmlSafety,
+    TestChatHtmlSafety,
+    TestMathJaxHrefDisabled,
+    TestMathOutputSanitizer,
+)
 from .test_turn_metrics import (
     TestTurnAggregation,
     TestFooterFormatting,
@@ -642,6 +654,14 @@ class Tests:
             TestDataURLParsing,
             TestImageOnlySending,
             TestToolCallLog,
+            TestChatTranscript,
+            TestChatUIRecordAndRestore,
+            TestChatPersistenceManager,
+            TestWorkspaceManagerChat,
+            TestChatHtmlSafety,
+            TestAutocompleteHtmlSafety,
+            TestMathJaxHrefDisabled,
+            TestMathOutputSanitizer,
             TestTurnAggregation,
             TestFooterFormatting,
             TestTurnMetricsCollector,

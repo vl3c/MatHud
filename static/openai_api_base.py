@@ -26,6 +26,7 @@ from static.canvas_state_summarizer import compare_canvas_states
 from static.functions_definitions import FUNCTIONS, FunctionDefinition
 from static.response_metrics import ResponseMetrics, ResponseMetricsTracker
 from static.token_estimation import estimate_tokens_from_bytes
+from static.workspace_chat import HistoryTurn
 
 # Use the shared MatHud logger for file logging
 _logger = logging.getLogger("mathud")
@@ -348,6 +349,16 @@ class OpenAIAPIBase:
         """Reset the conversation history to start a new session."""
         self.messages = [{"role": "developer", "content": self._build_system_prompt()}]
         self._last_canvas_state = None
+
+    def restore_conversation(self, history: Sequence[HistoryTurn]) -> None:
+        """Start over from restored plain-text turns (e.g. a chat loaded with a workspace).
+
+        Resets the conversation (subclasses clear their own state, such as a stored
+        response id), then appends each ``{"role", "content"}`` turn as given.
+        """
+        self.reset_conversation()
+        for turn in history:
+            self.messages.append({"role": turn["role"], "content": turn["content"]})
 
     def add_partial_assistant_message(self, content: str) -> None:
         """Add a partial assistant message that was interrupted by the user."""

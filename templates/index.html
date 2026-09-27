@@ -27,21 +27,244 @@ Dependencies:
     <!-- Inter font, served locally from static/vendor (see static/vendor/LICENSES.md) -->
     <link href="{{ url_for('static', filename='vendor/inter/5.3.0/inter.css') }}" rel="stylesheet">
     
-    <!-- MathJax configuration for LaTeX mathematical notation rendering -->
+    <!-- MathJax configuration for LaTeX mathematical notation rendering.
+         Chat math is untrusted (model output, user text, saved workspaces), so it is
+         locked down in layers: no html extension, no \require, no commands that define
+         macros or keep state between formulas (\def, \newcommand, \DeclareMathOperator,
+         \definecolor, labels, \unicode's font), a length cap, the ui/safe filter (no URLs at all, no
+         cursor styles), a fontfamily filter, and static/math_output_sanitizer.js, which
+         runs as a MathJax render action on every render and re-render (including the
+         context menu's scale and accessibility options) and again after each chat typeset
+         (ChatUIManager.render_math). Only TeX is read: the MathML input is removed. -->
     <script>
+    // Font names only: letters, digits, spaces, commas, quotes and hyphens. \mmlToken's
+    // fontfamily and \unicode's font option are otherwise pasted into the style unchecked
+    // (e.g. "x;position:fixed;..." makes a full-page overlay, or loads a url()).
+    var MATHUD_SAFE_FONT_FAMILY = /^[\w\s,'"-]*$/;
+    // Longest TeX expression typeset; longer ones show a short note instead, so one
+    // message cannot block the page with a huge formula.
+    var MATHUD_MAX_TEX_CHARS = 4000;
+    // Render-action priority and item state: just after MathJax inserts the output
+    // (STATE.INSERTED = 200). A formula at this state has been sanitised; MathJax resets
+    // the state when it re-renders, so re-rendered output is sanitised again.
+    var MATHUD_SANITIZE_PRIORITY = 201;
+    // Commands removed from MathJax's command maps (map name -> commands): they define
+    // macros, operators or colours that would change how later messages render, and
+    // nested definitions multiply the output (\DeclareMathOperator parses each level
+    // with a fresh parser, so tex.maxMacros never trips).
+    var MATHUD_REMOVED_COMMANDS = {
+        'Newcommand-macros': ['def', 'let', 'newcommand', 'renewcommand', 'newenvironment', 'renewenvironment'],
+        'AMSmath-macros': ['DeclareMathOperator'],
+        'color': ['definecolor']
+    };
+    // Context-menu settings kept from localStorage. The others (renderer, the
+    // accessibility explorer, collapsible math, language) need MathJax components this
+    // app does not vendor: a stored {"renderer": "SVG"} made every later typeset hang.
+    var MATHUD_MENU_SETTINGS_KEPT = ['texHints', 'semantics', 'zoom', 'zscale', 'alt', 'cmd', 'ctrl', 'shift', 'scale', 'inTabOrder', 'assistiveMml'];
+    // Menu entries hidden for the same reason (Accessibility keeps "In tab order" and
+    // "Include hidden MathML").
+    var MATHUD_MENU_HIDDEN = ['Renderer', 'Language', 'Activate', 'Speech', 'Highlight', 'Magnification', 'Semantic Info', 'Collapsible', 'AutoCollapse'];
+
+    (function keepOnlyVendoredMenuSettings() {
+        var key = 'MathJax-Menu-Settings';
+        try {
+            var raw = window.localStorage.getItem(key);
+            if (!raw) {
+                return;
+            }
+            var stored = JSON.parse(raw), kept = {};
+            MATHUD_MENU_SETTINGS_KEPT.forEach(function (name) {
+                if (stored && Object.prototype.hasOwnProperty.call(stored, name)) {
+                    kept[name] = stored[name];
+                }
+            });
+            window.localStorage.setItem(key, JSON.stringify(kept));
+        } catch (e) {
+            try { window.localStorage.removeItem(key); } catch (ignored) {}
+        }
+    })();
+
+    // \unicode without its font option. MathJax's handler remembers the font of each
+    // code point in a module-private cache, so \unicode[Courier New]{x41} in one message
+    // changed how a later \unicode{x41} rendered. This handler reads the same syntax
+    // (\unicode[h,d][font]{code} or \unicode[font]{code}), ignores the font and keeps
+    // no state; the result is what MathJax builds for \unicode without a font.
+    function mathudUnicode(parser, name) {
+        var tex = MathJax._.input.tex;
+        var first = parser.GetBrackets(name);
+        if (first && first.replace(/ /g, '').match(/^(\d+(\.\d*)?|\.\d+),(\d+(\.\d*)?|\.\d+)$/)) {
+            parser.GetBrackets(name);  // the optional font after the height and depth
+        }
+        var code = tex.ParseUtil.default.trimSpaces(parser.GetArgument(name)).replace(/^0x/, 'x');
+        if (!code.match(/^(x[0-9A-Fa-f]+|[0-9]+)$/)) {
+            throw new tex.TexError.default('BadUnicode', 'Argument to \\unicode must be a number');
+        }
+        var attributes = {};
+        if (parser.stack.env.font) {
+            attributes.mathvariant = parser.stack.env.font;
+        }
+        var node = parser.create('token', 'mtext', attributes, MathJax._.util.Entities.numeric(code));
+        tex.NodeUtil.default.setProperty(node, 'unicode', true);
+        parser.Push(node);
+    }
+    mathudUnicode.isMathud = true;
+
+    function mathudReplaceUnicode() {
+        var map = MathJax._.input.tex.MapHandler.MapHandler.getMap('unicode');
+        var current = map && map.map ? map.map.get('unicode') : null;
+        if (current && !current.func.isMathud) {
+            map.map.set('unicode', new MathJax._.input.tex.Symbol.Macro('unicode', mathudUnicode, []));
+        }
+    }
+
+    function mathudRemoveCommands() {
+        mathudReplaceUnicode();
+        var maps = MathJax._.input.tex.MapHandler.MapHandler;
+        Object.keys(MATHUD_REMOVED_COMMANDS).forEach(function (mapName) {
+            var map = maps.getMap(mapName);
+            if (map && map.map) {
+                MATHUD_REMOVED_COMMANDS[mapName].forEach(function (name) { map.map.delete(name); });
+            }
+        });
+        // Operators declared before the command was removed (belt and braces).
+        var declared = maps.getMap('ams-declare-ops');
+        if (declared && declared.map) {
+            declared.map.clear();
+        }
+    }
+
+    function mathudSanitizeMathItem(math) {
+        if (window.MatHudMathSafety && math && math.typesetRoot) {
+            window.MatHudMathSafety.sanitize(math.typesetRoot);
+        }
+    }
+
+    function mathudHideMenuEntries() {
+        var menu = MathJax.startup.document.menu;
+        if (!menu || !menu.menu) {
+            return;
+        }
+        // Top-level entries and one level of submenus (Settings, Accessibility).
+        var items = menu.menu.items.slice();
+        menu.menu.items.forEach(function (item) {
+            if (item.submenu && item.submenu.items) {
+                items = items.concat(item.submenu.items);
+            }
+        });
+        items.forEach(function (item) {
+            if (item && MATHUD_MENU_HIDDEN.indexOf(item.id) !== -1) {
+                item.hide();
+            }
+        });
+    }
+
     window.MathJax = {
+        // ui/safe filters what typeset math may carry: hrefs, and style, class and id
+        // values (\mmlToken and \bbox can set them from base TeX). It resolves to the
+        // vendored es5/ui/safe.js, relative to tex-mml-chtml.js, like the TeX extensions.
+        loader: { load: ['ui/safe'] },
+        startup: {
+            // The page is only typeset through ChatUIManager.render_math.
+            typeset: false,
+            ready: function () {
+                MathJax.startup.defaultReady();
+                var doc = MathJax.startup.document;
+                MathJax._.core.MathItem.newState('MATHUDSANITIZED', MATHUD_SANITIZE_PRIORITY);
+                // Chat math is TeX only. The MathML input would also pick up the hidden
+                // <math> copy (assistive MathML) inside every earlier formula each time the
+                // chat is typeset, so formulas multiplied and long chats slowed to seconds
+                // per message.
+                doc.inputJax = doc.inputJax.filter(function (jax) { return jax.name !== 'MathML'; });
+                var safe = doc.safe;
+                safe.filterMethods.filterFontFamily = function (_safe, family) {
+                    return typeof family === 'string' && MATHUD_SAFE_FONT_FAMILY.test(family) ? family : null;
+                };
+                safe.filterAttributes.set('fontfamily', 'filterFontFamily');
+                // Removed from the command maps themselves, so an extension that depends on
+                // newcommand (such as action, for \mathtip) cannot bring \def back.
+                mathudRemoveCommands();
+                doc.inputJax.forEach(function (jax) {
+                    if (jax.name === 'TeX') {
+                        // TeX preFilters run before parsing and see the source as args.math.math.
+                        jax.preFilters.add(function (args) {
+                            var math = args.math;
+                            if (math && typeof math.math === 'string' && math.math.length > MATHUD_MAX_TEX_CHARS) {
+                                math.math = '\\text{[formula too long to display]}';
+                            }
+                            // Each formula starts clean: no commands an extension loaded
+                            // since added back, and no labels left by earlier formulas.
+                            mathudRemoveCommands();
+                            jax.parseOptions.tags.reset();
+                        });
+                    }
+                });
+                mathudHideMenuEntries();
+                // Load the commonly used autoloaded extensions up front (small vendored
+                // files), so typesetting never waits on MathJax's retry-and-load path.
+                MathJax.loader.load('[tex]/color', '[tex]/bbox', '[tex]/boldsymbol', '[tex]/cancel', '[tex]/unicode')
+                    .then(mathudRemoveCommands)
+                    .catch(function () {});
+            }
+        },
         tex: {
             inlineMath: [['\\(', '\\)']],
             displayMath: [['$$', '$$']],
             processEscapes: true,
-            processEnvironments: true
+            processEnvironments: true,
+            // No html extension: its \href{javascript:...} would turn chat text
+            // (live or loaded from a workspace) into a clickable script link.
+            // Removing "require" stops \require{html} from loading it explicitly.
+            // Removing "newcommand" drops \def, \newcommand, \renewcommand and
+            // \newenvironment: nested user macros multiply output (a few hundred
+            // characters can block the tab for seconds), and a redefinition such as
+            // \def\pi{3} would carry over into later messages. autoload would otherwise
+            // load newcommand again on the first \def or \newcommand, and extpfeil (rare
+            // arrows such as \xtwoheadrightarrow, plus \Newextarrow) depends on it.
+            packages: { '[-]': ['require', 'newcommand'] },
+            autoload: { html: [], newcommand: [], extpfeil: [] },
+            // Built-in macro expansions per expression (MathJax's default is 10000).
+            maxMacros: 1000
         },
         options: {
-            skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+            skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
+            // Sanitise every rendered formula right after insertion, on first render and
+            // on every re-render (the context menu's scale and accessibility options
+            // re-render). Formulas already at the MATHUDSANITIZED state are skipped, so a
+            // typeset only walks new or re-rendered output. Not run for
+            // MathJax.tex2chtml() conversions, which the app does not use (the tests use
+            // them to check the configuration alone).
+            renderActions: {
+                mathudSanitize: [
+                    MATHUD_SANITIZE_PRIORITY,
+                    function (doc) {
+                        var sanitized = MathJax._.core.MathItem.STATE.MATHUDSANITIZED;
+                        for (var item of doc.math) {
+                            if (item.state() < sanitized) {
+                                mathudSanitizeMathItem(item);
+                                item.state(sanitized);
+                            }
+                        }
+                    },
+                    function (math) {
+                        mathudSanitizeMathItem(math);
+                        math.state(MathJax._.core.MathItem.STATE.MATHUDSANITIZED);
+                    },
+                    false
+                ]
+            },
+            // No URLs at all: ui/safe's protocol check lets a tab or control character
+            // inside "javascript:" through, and http(s)/file links are unwanted anyway.
+            // Cursor styles can load url() images, so they are dropped too.
+            safeOptions: {
+                allow: { URLs: 'none' },
+                safeStyles: { cursor: false }
+            }
         }
     };
     </script>
     <script id="MathJax-script" async src="{{ url_for('static', filename='vendor/mathjax/3.2.2/es5/tex-mml-chtml.js') }}"></script>
+    <!-- Backstop for typeset chat math: strips links, overlays and foreign ids/classes -->
+    <script src="{{ url_for('static', filename='math_output_sanitizer.js') }}"></script>
     
     <!-- Brython Python runtime and mathematical libraries, vendored in static/vendor (pinned by scripts/vendor_js_libs.py) -->
     <script src="{{ url_for('static', filename='vendor/mathjs/14.5.2/math.min.js') }}"></script>

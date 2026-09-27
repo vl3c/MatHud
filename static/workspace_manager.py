@@ -3,6 +3,8 @@ MatHud Server-Side Workspace Management
 
 Handles workspace file operations for saving and loading canvas states.
 Provides secure file operations with path validation and JSON-based storage.
+A workspace can also carry the chat transcript it was saved with (schema
+version 2, see static/workspace_chat.py); older files load without one.
 
 Dependencies:
     - os: File system operations and path validation
@@ -20,9 +22,10 @@ import shutil
 import tempfile
 import time
 from datetime import datetime
-from typing import Dict, List, Optional, TypedDict, Union, cast
+from typing import Dict, List, NotRequired, Optional, TypedDict, Union, cast
 
 from static.config import CURRENT_WORKSPACE_SCHEMA_VERSION, get_workspaces_dir
+from static.workspace_chat import ChatRecord, sanitize_chat_record
 
 # Previous version of an overwritten workspace is kept as "<name>.json.bak".
 BACKUP_SUFFIX = ".bak"
@@ -47,6 +50,7 @@ class WorkspaceMetadata(TypedDict):
 class WorkspaceRecord(TypedDict):
     metadata: WorkspaceMetadata
     state: WorkspaceState
+    chat: NotRequired[ChatRecord]
 
 
 class WorkspaceManager:
@@ -148,6 +152,7 @@ class WorkspaceManager:
         state: WorkspaceState,
         name: Optional[str] = None,
         test_dir: Optional[str] = None,
+        chat: object = None,
     ) -> bool:
         """Save a workspace state to a file.
 
@@ -155,6 +160,7 @@ class WorkspaceManager:
             state: The state data to save
             name: Optional name for the workspace
             test_dir: Optional test directory path
+            chat: Optional chat transcript; validated and size-capped before saving
 
         Returns:
             bool: True if save was successful, False otherwise.
@@ -172,6 +178,7 @@ class WorkspaceManager:
                 },
                 "state": state,
             }
+            self._attach_chat(workspace_data, chat)
 
             file_path = self.get_workspace_path(name, test_dir)
             self._write_json_atomically(file_path, workspace_data)
@@ -180,6 +187,13 @@ class WorkspaceManager:
         except (ValueError, OSError) as e:
             print(f"Error saving workspace: {str(e)}")
             return False
+
+    @staticmethod
+    def _attach_chat(record: WorkspaceRecord, chat: object) -> None:
+        """Add the sanitized chat to a record, leaving it out when there is nothing to keep."""
+        sanitized = sanitize_chat_record(chat)
+        if sanitized is not None and (sanitized["messages"] or sanitized["truncated"]):
+            record["chat"] = sanitized
 
     def _write_json_atomically(self, file_path: str, data: WorkspaceRecord) -> None:
         """Write JSON to a temp file in the same directory, then swap it into place.
@@ -240,6 +254,18 @@ class WorkspaceManager:
         Returns:
             dict: The loaded state data
         """
+        return self.load_workspace_record(name, test_dir)["state"]
+
+    def load_workspace_record(self, name: Optional[str] = None, test_dir: Optional[str] = None) -> WorkspaceRecord:
+        """Load a whole workspace record: metadata, state and, when saved, the chat.
+
+        Args:
+            name: Optional name of the workspace to load
+            test_dir: Optional test directory path
+
+        Returns:
+            The normalized record. ``chat`` is present only when the file has one.
+        """
         try:
             if name is None:
                 file_path = self._get_most_recent_current_workspace(test_dir)
@@ -254,11 +280,10 @@ class WorkspaceManager:
 
             if not isinstance(workspace_data_raw, dict):
                 raise ValueError("Workspace file is not a JSON object")
-            normalized = self._normalize_and_migrate_workspace_record(
+            return self._normalize_and_migrate_workspace_record(
                 workspace_data_raw,
                 workspace_name=(name or "current"),
             )
-            return normalized["state"]
         except FileNotFoundError:
             raise
         except Exception as e:
@@ -296,7 +321,7 @@ class WorkspaceManager:
             else datetime.now().isoformat()
         )
 
-        return {
+        record: WorkspaceRecord = {
             "metadata": {
                 "name": metadata_name,
                 "last_modified": metadata_last_modified,
@@ -304,6 +329,9 @@ class WorkspaceManager:
             },
             "state": migrated_state,
         }
+        # Files before schema version 2 have no chat; they load with an empty one.
+        self._attach_chat(record, workspace_data_raw.get("chat") if "state" in workspace_data_raw else None)
+        return record
 
     def _parse_schema_version(self, schema_version: JsonValue) -> int:
         """Parse schema_version from metadata, defaulting to 0 for legacy files."""
@@ -343,6 +371,10 @@ class WorkspaceManager:
             if filename.endswith(".json") and not filename.startswith("."):
                 name_without_extension = filename[:-5]
                 if name_without_extension.startswith("current_workspace_"):
+                    continue
+                # Only list names that load_workspace accepts (the client shows them in
+                # the /load autocomplete, so markup-like file names never reach it).
+                if not self._is_safe_workspace_name(name_without_extension):
                     continue
 
                 file_path = os.path.join(target_dir, filename)

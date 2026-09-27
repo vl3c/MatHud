@@ -37,7 +37,7 @@ class TestAIResponseEndings(unittest.TestCase):
 
         ai = AIInterface.__new__(AIInterface)
 
-        def print_ai_message(message: str, turn_metrics: Optional[Any] = None) -> None:
+        def print_ai_message(message: str, turn_metrics: Optional[Any] = None, record: bool = False) -> None:
             self.printed.append(message)
 
         def finish_turn(outcome: str, turn_token: Optional[int] = None) -> None:

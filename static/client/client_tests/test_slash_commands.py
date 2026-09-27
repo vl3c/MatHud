@@ -92,6 +92,7 @@ class MockWorkspaceManager:
         self.load_called = False
         self.save_name: Optional[str] = None
         self.load_name: Optional[str] = None
+        self.chat_restored = False
 
     def save_workspace(self, name: Optional[str] = None) -> str:
         self.save_called = True
@@ -102,6 +103,10 @@ class MockWorkspaceManager:
         self.load_called = True
         self.load_name = name
         return f'Workspace "{name if name else "current"}" loaded successfully.'
+
+    def load_workspace_with_chat(self, name: Optional[str] = None) -> str:
+        self.chat_restored = True
+        return self.load_workspace(name)
 
     def list_workspaces(self) -> str:
         return "workspace1, workspace2"
@@ -303,6 +308,7 @@ class TestEssentialCommands(unittest.TestCase):
         result = self.handler.execute("/load")
         self.assertTrue(result.success)
         self.assertTrue(self.workspace_manager.load_called)
+        self.assertTrue(self.workspace_manager.chat_restored, "/load restores the saved chat")
 
     def test_cmd_load_with_name(self) -> None:
         """Test /load with workspace name."""

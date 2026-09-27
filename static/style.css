@@ -473,6 +473,32 @@ input, select, textarea, button {
     word-wrap: break-word;
 }
 
+/* ===== CHAT MATH CONTAINMENT ===== */
+/* Chat math is untrusted TeX: \raise, \smash, \kern and similar can move output far
+   outside the formula (e.g. over earlier messages). Each formula is painted only
+   inside its own box, which for MathJax's output always contains the formula (the
+   inline box as inline-block, display math with a little padding for descenders).
+   Wide display math scrolls horizontally in its own box instead of widening the chat. */
+#chat-history .chat-content {
+    max-width: 100%;
+}
+
+#chat-history mjx-container[jax="CHTML"]:not([display="true"]) {
+    display: inline-block;
+    contain: paint;
+    overflow-clip-margin: 0.5em; /* italic and accent overhang (\mathit{ff}, \vec{f}, \overrightarrow{f}: 0.41em) */
+}
+
+#chat-history mjx-container[jax="CHTML"][display="true"] {
+    min-width: 0 !important; /* MathJax sets the formula width inline; scroll instead */
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0.25em 0;
+    margin: 0.75em 0; /* MathJax's 1em, minus the padding */
+    contain: paint;
+}
+
 /* Per-message menu button and dropdown */
 .chat-message-menu-button {
     position: absolute;
@@ -839,6 +865,15 @@ input, select, textarea, button {
 
 .chat-metrics-footer:hover {
     opacity: 1;
+}
+
+/* ===== RESTORED CHAT NOTES ===== */
+/* Placeholders in a chat restored from a workspace (images and trimmed messages were not saved) */
+.chat-restored-note {
+    margin-top: 4px;
+    color: var(--text-secondary);
+    font-size: 0.8em;
+    font-style: italic;
 }
 
 /* ===== TOOL CALL LOG STYLING ===== */

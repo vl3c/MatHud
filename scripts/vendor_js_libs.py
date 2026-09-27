@@ -125,6 +125,9 @@ LIBRARIES: tuple[VendorLibrary, ...] = (
             {
                 "LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
                 "es5/tex-mml-chtml.js": "300480069078b5892d2363a2b65e2dfbbf30fe5c80f83edbfecf4610fd093862",
+                # Loaded by the page (loader.load = ['ui/safe']): filters href, style,
+                # class and id that TeX commands such as \mmlToken and \bbox can set.
+                "es5/ui/safe.js": "9fef48d868277a8bc1852f7ba796b33ead812d38916a7131b0a29ea48961a6a4",
             },
         )
         + _files(

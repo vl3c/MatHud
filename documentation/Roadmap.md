@@ -83,7 +83,7 @@ Goal: one command (later one executable) opens a MatHud window; no separate serv
 3. Decide on a server-side SymPy fallback for weak areas (limits, non-polynomial solving) based on the audit.
 
 ### Conversation persistence
-Save and restore the chat transcript with the workspace (truncate older turns on restore).
+~~Save and restore the chat transcript with the workspace (truncate older turns on restore).~~ Done: workspaces (schema version 2) carry the user and assistant messages as markdown, with image counts and compact tool-call entries, capped at 200 messages / 400k characters. `/load` replaces the chat and rebuilds a plain-text AI history from it (newest 40 turns, about 10k tokens) through `/restore_conversation`; the AI's `load_workspace` tool restores the canvas only, so it never replaces the chat mid-turn. Older workspaces load with an empty chat. See `static/workspace_chat.py` and `static/client/chat_persistence_manager.py`. Still open: summarize dropped turns instead of only noting them; a provider created after the restore (switching to another provider) starts without the restored history, as it does for any conversation today.
 
 ## A2. Exploration features
 
@@ -185,7 +185,7 @@ Not scheduled. Worth revisiting once Part A is solid, or better built as a separ
 | Milestone | Focus |
 |---|---|
 | **1 — Stable** ✓ | A0 complete: known math bugs fixed, workspace round-trip, tool-result plumbing, canvas-state format, renderer fixes and speed |
-| **2 — Unified app** | Desktop shell ✓, vendored libs ✓, client-side snapshots ✓, per-response metrics ✓, chat persistence |
+| **2 — Unified app** ✓ | Desktop shell ✓, vendored libs ✓, client-side snapshots ✓, per-response metrics ✓, chat persistence ✓ |
 | **3 — Workbench** | Benchmark suite, CAS audit, side-by-side comparison, local-model tuning |
 | **4 — Explore I** | Sliders, roots/extrema/intersections, adaptive plotting, polar, calculus visuals, adaptive quadrature |
 | **5 — UI** | Symbol palette, tabs, export, highlight tool |

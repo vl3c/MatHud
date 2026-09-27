@@ -6,7 +6,7 @@ provider model synchronization and tool lifecycle management.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, cast
+from typing import TYPE_CHECKING, List, Optional, cast
 
 if TYPE_CHECKING:
     from static.app_manager import MatHudFlask
@@ -86,3 +86,25 @@ def get_active_provider(app: MatHudFlask, model_id: Optional[str]) -> OpenAIAPIB
         return cast("OpenAIAPIBase", get_provider_for_model(app, model_id))
 
     return cast("OpenAIAPIBase", app.ai_api)
+
+
+def conversation_apis(app: MatHudFlask, model_id: Optional[str]) -> List[OpenAIAPIBase]:
+    """Return every provider instance that keeps conversation history.
+
+    That is the two built-in OpenAI APIs, the providers created so far and, when
+    *model_id* is given, the provider for that model (created if needed), so a
+    restored conversation reaches the model the user continues with. A model
+    whose provider cannot be created (no API key, for instance) is skipped.
+    """
+    apis: List[OpenAIAPIBase] = [cast("OpenAIAPIBase", app.ai_api), cast("OpenAIAPIBase", app.responses_api)]
+    apis.extend(cast("OpenAIAPIBase", provider) for provider in app.providers.values())
+    if model_id:
+        try:
+            apis.append(get_active_provider(app, model_id))
+        except Exception:
+            pass
+    unique: List[OpenAIAPIBase] = []
+    for api in apis:
+        if all(api is not seen for seen in unique):
+            unique.append(api)
+    return unique
