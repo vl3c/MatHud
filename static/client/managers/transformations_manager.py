@@ -164,6 +164,21 @@ class TransformationsManager:
         shifted = [area for area in areas if area.follow_function_translation(function, x_offset)]
         self._invalidate_drawables(shifted)
 
+    def _refuse_plot(self, drawable: Any, tool: str, verb: str) -> None:
+        """Raise for a plot, whose translate and rotate do nothing (the call would report a false success).
+
+        A plot (bars, continuous or discrete) is a record of the objects it drew; they are
+        not moved with it.
+        """
+        from drawables.plot import Plot
+
+        if isinstance(drawable, Plot):
+            raise ValueError(
+                f"'{drawable.name}' is a plot ({self._get_class_name(drawable)}), a record of the objects it drew, "
+                f"and {tool} cannot {verb} it. To place it elsewhere, delete it and plot it again "
+                "(plot_bars with x_start and y_base, or plot_distribution with plot_bounds)."
+            )
+
     def _redraw(self) -> None:
         if self.canvas.draw_enabled:
             self.canvas.draw()
@@ -195,6 +210,7 @@ class TransformationsManager:
 
         if not drawable or drawable.name != name:
             raise ValueError(f"No drawable found with name '{name}'")
+        self._refuse_plot(drawable, "translate_object", "move")
 
         # Archive current state for undo/redo AFTER finding the object but BEFORE modifying it
         self.canvas.undo_redo_manager.archive()
@@ -263,6 +279,7 @@ class TransformationsManager:
                 exclude_types=_EXCLUDE_TRANSFORM + ("Point", "Circle"),
             )
 
+        self._refuse_plot(drawable, "rotate_object", "rotate")
         self.canvas.undo_redo_manager.archive()
 
         moved_points = self._gather_moved_points(drawable)

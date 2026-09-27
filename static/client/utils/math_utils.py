@@ -1267,9 +1267,10 @@ class MathUtils:
         """
         expression, variable = MathUtils._normalize_symbols(expression), MathUtils._normalize_variable(variable)
         try:
-            return str(window.nerdamer(f"diff({expression}, {variable})").text())
+            result = MathUtils._guarded_nerdamer_text(f"diff({expression}, {variable})", MathUtils.NERDAMER_TOOL_MAX_MS)
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
+        return MathUtils._took_too_long_message(f"the derivative of {expression}") if result is None else result
 
     @staticmethod
     def limit(expression: str, variable: str, value_to_approach: Union[Number, str]) -> str:
@@ -1284,18 +1285,128 @@ class MathUtils:
             value_to_approach (str/float): Value or "inf"/"-inf" for infinity
 
         Returns:
-            str: Limit result as string or error message
+            str: Limit result as string or error message. nerdamer's limit runs under a step and
+            time budget (static/nerdamer_guard.js): its L'Hopital loop never ends for quotients
+            such as abs(x)/x, so a limit that runs out of budget is an error, with a numeric
+            estimate when one is clear.
         """
         expression, variable = MathUtils._normalize_symbols(expression), MathUtils._normalize_variable(variable)
         try:
             value_to_approach = str(MathUtils._normalize_symbols(value_to_approach)).lower().replace(" ", "")
-            if value_to_approach in ["inf", "infinity"]:
+            if value_to_approach in ["inf", "infinity", "+inf", "+infinity"]:
                 value_to_approach = "Infinity"
             elif value_to_approach in ["-inf", "-infinity"]:
                 value_to_approach = "-Infinity"
-            return str(window.nerdamer(f"limit({expression}, {variable}, {value_to_approach})").text())
+            result = MathUtils._guarded_nerdamer_text(f"limit({expression}, {variable}, {value_to_approach})")
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
+        if result is None:
+            return MathUtils._abandoned_limit_message(expression, variable, str(value_to_approach))
+        return result
+
+    # A guarded nerdamer computation (static/nerdamer_guard.js) is stopped after this many
+    # derivative and limit steps (limits only) or once this many milliseconds have passed; it
+    # stops within a few hundred milliseconds of the deadline. Limits, and the solve() behind
+    # asymptote detection, get NERDAMER_MAX_MS; the derive, integrate, simplify, expand,
+    # factor and solve tools get NERDAMER_TOOL_MAX_MS.
+    NERDAMER_MAX_STEPS = 2000
+    NERDAMER_MAX_MS = 1500
+    NERDAMER_TOOL_MAX_MS = 5000
+    _NO_STEP_LIMIT = 10**9
+
+    @staticmethod
+    def _guarded_nerdamer_text(
+        nerdamer_input: str, max_ms: Optional[int] = None, decimals: bool = False
+    ) -> Optional[str]:
+        """Evaluate nerdamer input under the time budget; None if the budget ran out.
+
+        Only limits count derivative steps (max_ms None means a limit: NERDAMER_MAX_MS and
+        NERDAMER_MAX_STEPS). With decimals the result is evaluated and printed as decimals.
+        Falls back to plain nerdamer when the guard script is not loaded. Errors raised by
+        nerdamer are raised again as ValueError.
+        """
+        if not hasattr(window, "MatHudGuardedNerdamer"):
+            parsed = window.nerdamer(nerdamer_input)
+            return str(parsed.evaluate().text("decimals") if decimals else parsed.text())
+        max_steps = MathUtils.NERDAMER_MAX_STEPS if max_ms is None else MathUtils._NO_STEP_LIMIT
+        outcome = window.MatHudGuardedNerdamer(
+            nerdamer_input, max_steps, max_ms or MathUtils.NERDAMER_MAX_MS, bool(decimals)
+        )
+        if outcome.exceeded:
+            return None
+        if outcome.error:
+            raise ValueError(str(outcome.error))
+        return str(outcome.text)
+
+    @staticmethod
+    def _took_too_long_message(what: str) -> str:
+        """Error text for a nerdamer computation the guard stopped."""
+        seconds = MathUtils.NERDAMER_TOOL_MAX_MS / 1000
+        return (
+            f"Error: Computing {what} took too long and was stopped after about {seconds:g} s; "
+            "the expression is probably too large for the symbolic engine."
+        )
+
+    @staticmethod
+    def _abandoned_limit_message(expression: str, variable: str, value_to_approach: str) -> str:
+        """Error text for a limit nerdamer could not finish, with a numeric estimate where one is clear."""
+        message = (
+            f"Error: The limit of {expression} as {variable} -> {value_to_approach} could not be computed "
+            "symbolically: the computation did not finish (nerdamer's L'Hopital loop does not end for "
+            "quotients with abs(), sqrt(x^2) or similar)."
+        )
+        estimate = MathUtils._numeric_limit_estimate(expression, variable, value_to_approach)
+        return f"{message} {estimate}" if estimate else message
+
+    @staticmethod
+    def _numeric_limit_estimate(expression: str, variable: str, value_to_approach: str) -> Optional[str]:
+        """Describe what f does near the target numerically, or None when the samples are unclear."""
+        try:
+            from expression_validator import ExpressionValidator
+
+            compiled = window.math.compile(ExpressionValidator.fix_math_expression(str(expression)))
+
+            at_infinity = value_to_approach in ("Infinity", "-Infinity")
+
+            def evaluate(point: float) -> Optional[float]:
+                try:
+                    value = compiled.evaluate({variable: point})
+                except Exception:
+                    return None
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    return None
+                value = float(value)
+                if math.isnan(value):
+                    # inf/inf at huge |x| ends the sampling at infinity (see _limit_at_infinity)
+                    return float("inf") if at_infinity else None
+                return value
+
+            if at_infinity:
+                sign = -1.0 if value_to_approach.startswith("-") else 1.0
+                limit_value = MathUtils._limit_at_infinity(evaluate, sign)
+                if limit_value is None:
+                    return None
+                return (
+                    f"Numerically, the expression approaches {limit_value:.12g} as {variable} -> {value_to_approach}."
+                )
+            x0 = float(window.math.evaluate(value_to_approach))
+            if not math.isfinite(x0):
+                return None
+            start = MathUtils._PROBE_START * max(1.0, abs(x0))
+            sides = [
+                MathUtils._settled_value(MathUtils._probe_side(evaluate, x0, side, start) or []) for side in (-1.0, 1.0)
+            ]
+        except Exception:
+            return None
+        left, right = sides
+        if left is None or right is None:
+            return None
+        if abs(left - right) <= 1e-9 * max(1.0, abs(left), abs(right)):
+            return f"Numerically, the expression approaches {left:.12g} from both sides."
+        return (
+            f"Numerically, it approaches {left:.12g} from the left and {right:.12g} from the right, "
+            "so the two-sided limit does not exist."
+        )
 
     @staticmethod
     def integral(
@@ -1323,9 +1434,14 @@ class MathUtils:
         expression, variable = MathUtils._normalize_symbols(expression), MathUtils._normalize_variable(variable)
         lower_bound, upper_bound = MathUtils._normalize_symbols(lower_bound), MathUtils._normalize_symbols(upper_bound)
         try:
-            indefinite_integral = window.nerdamer(f"integrate({expression}, {variable})")
+            antiderivative = MathUtils._guarded_nerdamer_text(
+                f"integrate({expression}, {variable})", MathUtils.NERDAMER_TOOL_MAX_MS
+            )
+            if antiderivative is None:
+                return MathUtils._took_too_long_message(f"the integral of {expression}")
             if lower_bound is None and upper_bound is None:
-                return str(indefinite_integral.text())
+                return antiderivative
+            indefinite_integral = window.nerdamer(antiderivative)
             evaluated_at_upper = indefinite_integral.sub(variable, upper_bound).text()
             evaluated_at_lower = indefinite_integral.sub(variable, lower_bound).text()
             result = str(window.nerdamer(f"{evaluated_at_upper} - {evaluated_at_lower}").evaluate().text())
@@ -1534,9 +1650,10 @@ class MathUtils:
         """
         expression = MathUtils._normalize_symbols(expression)
         try:
-            return str(window.nerdamer(f"simplify({expression})").text())
+            result = MathUtils._guarded_nerdamer_text(f"simplify({expression})", MathUtils.NERDAMER_TOOL_MAX_MS)
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
+        return MathUtils._took_too_long_message(f"simplify({expression})") if result is None else result
 
     @staticmethod
     def expand(expression: str) -> str:
@@ -1553,9 +1670,10 @@ class MathUtils:
         """
         expression = MathUtils._normalize_symbols(expression)
         try:
-            return str(window.nerdamer(f"expand({expression})").text())
+            result = MathUtils._guarded_nerdamer_text(f"expand({expression})", MathUtils.NERDAMER_TOOL_MAX_MS)
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
+        return MathUtils._took_too_long_message(f"expand({expression})") if result is None else result
 
     @staticmethod
     def factor(expression: str) -> str:
@@ -1572,9 +1690,10 @@ class MathUtils:
         """
         expression = MathUtils._normalize_symbols(expression)
         try:
-            return str(window.nerdamer(f"factor({expression})").text())
+            result = MathUtils._guarded_nerdamer_text(f"factor({expression})", MathUtils.NERDAMER_TOOL_MAX_MS)
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
+        return MathUtils._took_too_long_message(f"factor({expression})") if result is None else result
 
     @staticmethod
     def get_equation_type(equation: str) -> str:
@@ -1732,9 +1851,13 @@ class MathUtils:
         """
         equation, variable = MathUtils._normalize_symbols(equation), MathUtils._normalize_variable(variable)
         try:
-            raw_solutions = str(window.nerdamer(f"solve({equation}, {variable})").text())
+            raw_solutions = MathUtils._guarded_nerdamer_text(
+                f"solve({equation}, {variable})", MathUtils.NERDAMER_TOOL_MAX_MS
+            )
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
+        if raw_solutions is None:
+            return MathUtils._took_too_long_message(f"the solutions of {equation} for {variable}")
         return MathUtils._drop_invalid_roots(raw_solutions, equation, variable)
 
     @staticmethod
@@ -1840,8 +1963,15 @@ class MathUtils:
 
     @staticmethod
     def _numeric_real_roots(expression: str, variable: str) -> List[float]:
-        """Solve expression = 0 with nerdamer and return the distinct real roots as floats."""
-        raw_roots = str(window.nerdamer(f"solve({expression}, {variable})").evaluate().text("decimals"))
+        """Solve expression = 0 with nerdamer and return the distinct real roots as floats.
+
+        Raises ValueError when nerdamer fails or runs past NERDAMER_MAX_MS.
+        """
+        raw_roots = MathUtils._guarded_nerdamer_text(
+            f"solve({expression}, {variable})", MathUtils.NERDAMER_MAX_MS, decimals=True
+        )
+        if raw_roots is None:
+            raise ValueError(f"solve({expression}, {variable}) took too long")
         if not (raw_roots.startswith("[") and raw_roots.endswith("]")):
             return []
         roots: List[float] = []
@@ -2789,23 +2919,26 @@ class MathUtils:
     ) -> Tuple[List[float], List[float]]:
         """Return (vertical asymptotes, point discontinuities) found from the expression text.
 
-        Log and tan asymptotes come from the text. A zero of a denominator is classified by
-        sampling f beside it (_is_asymptote_at_denominator_zero): an asymptote if f grows on
-        either side, otherwise a point discontinuity (a hole such as (x^2-1)/(x-1) at x = 1,
-        a jump, or a bounded oscillation such as sin(1/x) at 0).
+        Log asymptotes come from the text. A zero of a denominator, or a pole of a tan() in the
+        expression, is classified by sampling f beside it (_is_asymptote_at_denominator_zero):
+        an asymptote if f grows on either side, otherwise a point discontinuity (a hole such as
+        (x^2-1)/(x-1) at x = 1 or x/tan(x) at pi/2, a jump, or a bounded oscillation such as
+        sin(1/x) at 0). Candidates closer than _PROBE_SAME_POINT (relative) are one point, so
+        nerdamer's near-duplicate roots (0, 1.4e-9, 6.2e-9 for 1 - cos(x)) count once, and
+        with bounds only points within them are listed.
         """
         from expression_validator import ExpressionValidator
 
         # Standardize the function string
         function_string = ExpressionValidator.fix_math_expression(function_string)
-        vertical_asymptotes: List[float] = []
+        log_zeros: List[float] = []
         denominator_zeros: List[float] = []
 
         # For logarithmic functions: where the (first) argument is zero
         for log_argument in MathUtils._function_call_arguments(function_string, "log|ln|log10|log2"):
             arguments = MathUtils._split_top_level_commas(log_argument)
             if arguments:
-                vertical_asymptotes.extend(MathUtils._real_zeros_in_x(arguments[0]))
+                log_zeros.extend(MathUtils._real_zeros_in_x(arguments[0]))
 
         # For rational functions: where any denominator that depends on x is zero
         for denominator in MathUtils._denominators(function_string):
@@ -2814,20 +2947,135 @@ class MathUtils:
         # For tangent functions (word boundary so atan/arctan are excluded)
         left = left_bound if left_bound is not None else -1000
         right = right_bound if right_bound is not None else 1000
+        tangent_poles: List[float] = []
         for tan_argument in MathUtils._function_call_arguments(function_string, "tan"):
-            vertical_asymptotes.extend(MathUtils._tangent_asymptotes(tan_argument, left, right))
+            tangent_poles.extend(MathUtils._tangent_asymptotes(tan_argument, left, right))
 
+        log_zeros = MathUtils._merge_close_points(log_zeros)
+        denominator_zeros = MathUtils._merge_close_points(denominator_zeros)
+        tangent_poles = MathUtils._merge_close_points(tangent_poles)
+        singular_points = MathUtils._merge_close_points(log_zeros + denominator_zeros + tangent_poles)
+
+        vertical_asymptotes: List[float] = list(log_zeros)
         discontinuities: List[float] = []
         evaluate = MathUtils._singularity_probe_evaluator(function_string)
-        singular_points = denominator_zeros + vertical_asymptotes
         for zero in denominator_zeros:
             if evaluate is None or MathUtils._is_asymptote_at_denominator_zero(evaluate, zero, singular_points):
                 vertical_asymptotes.append(zero)
             else:
                 discontinuities.append(zero)
+        tangent_asymptotes, tangent_holes = MathUtils._classify_tangent_poles(evaluate, tangent_poles, singular_points)
+        vertical_asymptotes.extend(tangent_asymptotes)
+        discontinuities.extend(tangent_holes)
 
-        asymptotes = sorted(set(vertical_asymptotes))
-        return asymptotes, sorted(set(x for x in discontinuities if x not in asymptotes))
+        def within_bounds(x: float) -> bool:
+            return (left_bound is None or x >= left_bound) and (right_bound is None or x <= right_bound)
+
+        asymptotes = [x for x in MathUtils._merge_close_points(vertical_asymptotes) if within_bounds(x)]
+        holes = [
+            x
+            for x in MathUtils._merge_close_points(discontinuities)
+            if within_bounds(x) and MathUtils._nearest_other_distance(asymptotes, x, include_same=True) != 0.0
+        ]
+        return asymptotes, holes
+
+    @staticmethod
+    def _same_point(a: float, b: float) -> bool:
+        """True when a and b are closer than _PROBE_SAME_POINT relative to max(1, |a|, |b|)."""
+        return abs(a - b) <= MathUtils._PROBE_SAME_POINT * max(1.0, abs(a), abs(b))
+
+    @staticmethod
+    def _merge_close_points(points: List[float]) -> List[float]:
+        """Sorted points with near-duplicates merged, keeping the one nearest zero (0 over 1.4e-9).
+
+        One sort and one pass: a point joins the run of its predecessor when the two are the
+        same point (_same_point), so a run of close points collapses to one.
+        """
+        merged: List[float] = []
+        previous: Optional[float] = None
+        for point in sorted(points):
+            if previous is not None and MathUtils._same_point(point, previous):
+                if abs(point) < abs(merged[-1]):
+                    merged[-1] = point
+            else:
+                merged.append(point)
+            previous = point
+        return merged
+
+    @staticmethod
+    def _nearest_other_distance(sorted_points: List[float], x0: float, include_same: bool = False) -> float:
+        """Distance from x0 to the nearest point of sorted_points that is not x0 itself.
+
+        Points within _PROBE_SAME_POINT of x0 count as x0 and are skipped, unless include_same,
+        in which case finding one returns 0.0. Returns inf when there is no other point.
+        """
+        import bisect
+
+        index = bisect.bisect_left(sorted_points, x0)
+        nearest = math.inf
+        # Merged points are never the same point as each other, so at most one neighbour on
+        # each side can be x0 itself; two on each side are enough.
+        for neighbour in sorted_points[max(0, index - 2) : index + 2]:
+            if MathUtils._same_point(neighbour, x0):
+                if include_same:
+                    return 0.0
+                continue
+            nearest = min(nearest, abs(neighbour - x0))
+        return nearest
+
+    @staticmethod
+    def _classify_tangent_poles(
+        evaluate: Optional[Callable[[float], Optional[float]]],
+        poles: List[float],
+        singular_points: List[float],
+    ) -> Tuple[List[float], List[float]]:
+        """Split tan() poles into (asymptotes, point discontinuities) by sampling f beside each one.
+
+        A pole where f stays bounded is not an asymptote: x/tan(x) and 1/tan(x) tend to 0 at
+        pi/2, and tan(x)*(x - 101*pi/2) tends to -1 at 101*pi/2 only.
+        """
+        if evaluate is None or not poles:
+            return list(poles), []
+        asymptotes: List[float] = []
+        holes: List[float] = []
+        for pole in poles:
+            verdict = MathUtils._quick_pole_verdict(evaluate, pole, MathUtils._probe_start(pole, singular_points))
+            if verdict is None:
+                verdict = MathUtils._is_asymptote_at_denominator_zero(evaluate, pole, singular_points)
+            (asymptotes if verdict else holes).append(pole)
+        return asymptotes, holes
+
+    # Quick verdict before the full classifier, which costs up to 56 evaluations per point
+    # (thousands of tan() poles made that seconds in Brython). f is sampled at x0 +/- start/8^k
+    # for k = 0, 1, 2 on a side and judged on the two differences, so adding a constant to f
+    # changes nothing: the second at least _STEEP_GROWTH times the first, same sign, is growth
+    # (a simple pole gives 8); at most _QUICK_SHRINK times the first on both sides is a
+    # bounded, converging f (x/tan(x) gives 1/8, tan(x)*(x - x0) 1/64). Anything else, or an
+    # undefined or infinite sample, goes to the full classifier.
+    _STEEP_GROWTH = 4.0
+    _QUICK_SHRINK = 0.25
+
+    @staticmethod
+    def _quick_pole_verdict(evaluate: Callable[[float], Optional[float]], x0: float, start: float) -> Optional[bool]:
+        """True (asymptote), False (point discontinuity) or None (not clear: use the full classifier)."""
+        converging_sides = 0
+        for side in (1.0, -1.0):
+            samples = [evaluate(x0 + side * start / 8.0**k) for k in range(3)]
+            if any(sample is None or not math.isfinite(sample) for sample in samples):
+                return None
+            far, middle, near = cast(List[float], samples)
+            first, second = middle - far, near - middle
+            if first != 0 and (first > 0) == (second > 0) and abs(second) >= MathUtils._STEEP_GROWTH * abs(first):
+                return True
+            if abs(second) <= MathUtils._QUICK_SHRINK * abs(first):
+                converging_sides += 1
+        return False if converging_sides == 2 else None
+
+    @staticmethod
+    def _probe_start(x0: float, singular_points: List[float]) -> float:
+        """The first sampling offset beside x0: 1e-2 * max(1, |x0|), or a tenth of the distance to the nearest other singular point."""
+        scale = max(1.0, abs(x0))
+        return min(MathUtils._PROBE_START * scale, MathUtils._nearest_other_distance(singular_points, x0) / 10)
 
     # Sampling beside a denominator zero x0: the first offset is 1e-2 * max(1, |x0|), or a tenth
     # of the distance to the nearest other singular point if smaller (points closer than
@@ -2849,8 +3097,13 @@ class MathUtils:
     _PROBE_ENVELOPE = 100.0
 
     @staticmethod
-    def _singularity_probe_evaluator(function_string: str) -> Optional[Callable[[float], Optional[float]]]:
-        """Return f as a probe: a float, inf on overflow, or None where f is undefined or not real."""
+    def _singularity_probe_evaluator(
+        function_string: str, nan_as_overflow: bool = False
+    ) -> Optional[Callable[[float], Optional[float]]]:
+        """Return f as a probe: a float, inf on overflow, or None where f is undefined or not real.
+
+        With nan_as_overflow, NaN is reported as inf too (inf/inf at huge |x|, see _limit_at_infinity).
+        """
         from expression_validator import ExpressionValidator
 
         try:
@@ -2868,7 +3121,9 @@ class MathUtils:
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 return None
             value = float(value)
-            return None if math.isnan(value) else value
+            if math.isnan(value):
+                return float("inf") if nan_as_overflow else None
+            return value
 
         return evaluate
 
@@ -2884,12 +3139,7 @@ class MathUtils:
         on both sides; otherwise (f converges, or stays bounded without converging, as
         sin(1/x) does at 0) it is a point discontinuity.
         """
-        scale = max(1.0, abs(x0))
-        start = MathUtils._PROBE_START * scale
-        for point in singular_points:
-            distance = abs(point - x0)
-            if distance > MathUtils._PROBE_SAME_POINT * scale:
-                start = min(start, distance / 10)
+        start = MathUtils._probe_start(x0, singular_points)
         verdicts = [
             MathUtils._probe_side_verdict(MathUtils._probe_side(evaluate, x0, side, start)) for side in (-1.0, 1.0)
         ]
@@ -3057,30 +3307,119 @@ class MathUtils:
 
     @staticmethod
     def calculate_horizontal_asymptotes(function_string: str) -> List[float]:
-        """Calculate horizontal asymptotes of a function"""
+        """Calculate horizontal asymptotes of a function: the limit at +inf and at -inf, where finite.
+
+        The limits are estimated numerically (_limit_at_infinity), never with nerdamer: its
+        limit() never returns for abs(x)/x and similar quotients, which froze the tab on every
+        draw, and it is wrong for others (floor(x)/x -> 0, sqrt(x^2+1)/x -> 0).
+        """
         from expression_validator import ExpressionValidator
 
-        # Standardize the function string
         function_string = ExpressionValidator.fix_math_expression(function_string)
+        evaluate = MathUtils._singularity_probe_evaluator(function_string, nan_as_overflow=True)
+        if evaluate is None:
+            return []
         horizontal_asymptotes: List[float] = []
-
-        try:
-            # Check limit as x approaches infinity
-            limit_inf = float(MathUtils.limit(function_string, "x", "inf"))
-            if not math.isinf(limit_inf) and not math.isnan(limit_inf):
-                horizontal_asymptotes.append(limit_inf)
-        except:
-            pass
-
-        try:
-            # Check limit as x approaches negative infinity
-            limit_neg_inf = float(MathUtils.limit(function_string, "x", "-inf"))
-            if not math.isinf(limit_neg_inf) and not math.isnan(limit_neg_inf):
-                horizontal_asymptotes.append(limit_neg_inf)
-        except:
-            pass
-
+        for sign in (1.0, -1.0):
+            value = MathUtils._limit_at_infinity(evaluate, sign)
+            if value is not None:
+                horizontal_asymptotes.append(value)
         return sorted(horizontal_asymptotes)
+
+    # f is sampled at x = sign * 9.73 * 4^k for k < 12 (9.73 to 4.1e7). The start is not an
+    # integer, so integer-periodic parts such as x - floor(x) are not sampled in phase; the
+    # first samples come before exp() overflows (x = 709.8), so logistic curves keep four; and
+    # the largest x keeps x^2 below 2^53, so cancellations such as sqrt(x^2 + x) - x stay exact
+    # enough.
+    _INFINITY_PROBE_START = 9.73
+    _INFINITY_PROBE_FACTOR = 4.0
+    _INFINITY_PROBE_COUNT = 12
+    # Convergence and Aitken extrapolation are judged on the trailing samples, so an offset or
+    # a scale that keeps the first samples far from the limit ((x+500)/(x-500), atan(x/1000))
+    # does not hide it.
+    _SETTLED_TAIL = 5
+    # Settled samples: the last four span at most 1e-4 * max(1, |value|) and at most a quarter
+    # of the four before them (so a bounded oscillation such as 1 + 1e-5*sin(x) does not settle).
+    _SETTLED_WINDOW = 4
+    _SETTLED_SPREAD = 1e-4
+    _SETTLED_SHRINK = 4.0
+    # Two successive Aitken extrapolations must agree to this relative tolerance.
+    _AITKEN_AGREEMENT = 1e-6
+    # A settled value is never trusted beyond 12 significant digits.
+    _SETTLED_PRECISION = 1e-12
+
+    @staticmethod
+    def _limit_at_infinity(evaluate: Callable[[float], Optional[float]], sign: float) -> Optional[float]:
+        """Estimate lim f(x) as x -> sign * infinity from samples; None if f does not settle on a finite value.
+
+        f undefined at a sample (not real) means no limit on that side. An infinite sample
+        (overflow, e.g. exp(x) inside 1/(1 + exp(-x))) ends the sampling, and the samples
+        before it are judged: overflow says nothing about the limit of the whole expression.
+        evaluate should report NaN as inf (nan_as_overflow): Brython's cosh(x)/sinh(x) is
+        inf/inf = NaN once both overflow.
+        """
+        values: List[float] = []
+        for index in range(MathUtils._INFINITY_PROBE_COUNT):
+            x = sign * MathUtils._INFINITY_PROBE_START * MathUtils._INFINITY_PROBE_FACTOR**index
+            value = evaluate(x)
+            if value is None:
+                return None
+            if not math.isfinite(value):
+                break
+            values.append(value)
+        return MathUtils._settled_value(values)
+
+    @staticmethod
+    def _aitken(first: float, second: float, third: float) -> Optional[float]:
+        """Aitken's delta-squared extrapolation of three successive samples; None if undefined."""
+        later = third - second
+        if later == 0:
+            return third
+        denominator = later - (second - first)
+        if denominator == 0:
+            return None
+        return third - later * later / denominator
+
+    @staticmethod
+    def _settled_value(values: List[float]) -> Optional[float]:
+        """The finite value samples (nearest last) settle on, rounded to the precision they support.
+
+        When the trailing samples converge (MathUtils._probe_side_verdict on the last
+        _SETTLED_TAIL), they are extrapolated with Aitken's delta-squared process, accepted
+        when the last two extrapolations agree. Otherwise the samples settle if the last four
+        barely spread and spread much less than the four before them (float noise near the
+        limit, decaying oscillations such as sin(x)/x). The value is rounded to the digits its
+        tolerance supports, so 1/x gives 0 and floor(x)/x gives 1.
+        """
+        if len(values) < 4 or not all(math.isfinite(value) for value in values):
+            return None
+        estimate: Optional[float] = None
+        tolerance = 0.0
+        # Slices start at max(0, ...): Brython returns only the last item for values[-5:] when
+        # values has fewer than five items.
+        tail = values[max(0, len(values) - MathUtils._SETTLED_TAIL) :]
+        if MathUtils._probe_side_verdict(tail) == "converge":
+            previous = MathUtils._aitken(values[-4], values[-3], values[-2])
+            latest = MathUtils._aitken(values[-3], values[-2], values[-1])
+            if previous is not None and latest is not None and math.isfinite(previous) and math.isfinite(latest):
+                if abs(latest - previous) <= MathUtils._AITKEN_AGREEMENT * max(1.0, abs(latest)):
+                    estimate, tolerance = latest, abs(latest - previous)
+        if estimate is None:
+            window = MathUtils._SETTLED_WINDOW
+            last = values[len(values) - window :]
+            earlier = values[max(0, len(values) - 2 * window) : len(values) - window]
+            spread_last = max(last) - min(last)
+            middle = sorted(last)[len(last) // 2]
+            if spread_last > MathUtils._SETTLED_SPREAD * max(1.0, abs(middle)):
+                return None
+            if spread_last > 0:
+                if not earlier or spread_last * MathUtils._SETTLED_SHRINK > max(earlier) - min(earlier):
+                    return None
+            estimate, tolerance = values[-1], spread_last
+        tolerance = max(tolerance, MathUtils._SETTLED_PRECISION * max(1.0, abs(estimate)))
+        digits = min(12, max(0, int(math.floor(-math.log10(tolerance)))))
+        rounded = round(estimate, digits)
+        return 0.0 if rounded == 0 else float(rounded)
 
     @staticmethod
     def calculate_asymptotes_and_discontinuities(
@@ -3098,12 +3437,15 @@ class MathUtils:
         )
         horizontal_asymptotes = MathUtils.calculate_horizontal_asymptotes(function_string)
         point_discontinuities = MathUtils.calculate_point_discontinuities(function_string, left_bound, right_bound)
-        # Denominator zeros that are not asymptotes (holes, jumps, bounded oscillations)
+        # Denominator zeros and tan() poles that are not asymptotes (holes, jumps, bounded
+        # oscillations); a set, since tan(10*x) alone has thousands
+        listed = set(point_discontinuities)
         for point in denominator_discontinuities:
             within_bounds = (left_bound is None or point >= left_bound) and (
                 right_bound is None or point <= right_bound
             )
-            if within_bounds and point not in point_discontinuities:
+            if within_bounds and point not in listed:
+                listed.add(point)
                 point_discontinuities.append(point)
         return vertical_asymptotes, horizontal_asymptotes, sorted(point_discontinuities)
 

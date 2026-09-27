@@ -223,6 +223,43 @@
           "checks": [{"check": "tool_result", "tool": "delete_workspace", "contains": "deleted successfully"}]
         }
       ]
+    },
+    {
+      "id": "WS-04",
+      "title": "A load name with URL characters loads nothing",
+      "tags": ["workspaces", "naming"],
+      "smoke": false,
+      "targets": "the load URL carrying the name unencoded (K23)",
+      "setup": {
+        "calls": [
+          {"tool": "create_point", "args": {"x": 1, "y": 1, "name": "A"}},
+          {"tool": "save_workspace", "args": {"name": "scn_url"}}
+        ]
+      },
+      "steps": [
+        {"do": [{"tool": "clear_canvas", "args": {}}]},
+        {
+          "user": "Load the workspace called scn_url&x=1.",
+          "reference": [{"tool": "load_workspace", "args": {"name": "scn_url&x=1"}}],
+          "checks": [
+            {"check": "tool_error", "tool": "load_workspace"},
+            {"check": "absent", "select": {"type": "Point", "at": [1, 1]}}
+          ]
+        },
+        {
+          "user": "Then load scn_url#2.",
+          "reference": [{"tool": "load_workspace", "args": {"name": "scn_url#2"}}],
+          "checks": [
+            {"check": "tool_error", "tool": "load_workspace"},
+            {"check": "absent", "select": {"type": "Point", "at": [1, 1]}}
+          ]
+        },
+        {
+          "do": [{"tool": "load_workspace", "args": {"name": "scn_url"}}],
+          "checks": [{"check": "exists", "select": {"type": "Point", "at": [1, 1]}}]
+        },
+        {"do": [{"tool": "delete_workspace", "args": {"name": "scn_url"}}]}
+      ]
     }
   ]
 }

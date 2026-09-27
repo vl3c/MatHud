@@ -178,6 +178,7 @@ static/
 ├── env_config.py                      # Shared environment loading utility
 ├── route_helpers.py                   # Extracted route helper functions
 ├── canvas2d_paths.js                  # JavaScript path-tracing helpers for the Canvas2D renderer
+├── nerdamer_guard.js                  # Step and time budget for nerdamer's limit() (its L'Hopital loop can run forever)
 ├── style.css                          # Frontend CSS styling
 └── client/                           # Custom Python modules for Brython (moved from Brython-3.11.3/Lib/site-packages/)
     # Note: Brython core (3.12.5), Math.js (14.5.2), and Nerdamer (1.1.13) now loaded from CDN

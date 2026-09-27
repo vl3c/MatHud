@@ -1340,18 +1340,21 @@ class Canvas:
         center_y: float,
         radius_x: float,
         radius_y: float,
-        rotation_angle: float = 0,
+        rotation_angle: Optional[float] = 0,
         name: str = "",
         color: Optional[str] = None,
         extra_graphics: bool = True,
     ) -> "Drawable":
-        """Create an ellipse with the specified center, radii, and rotation"""
+        """Create an ellipse with the specified center, radii, and rotation.
+
+        A null rotation_angle (strict-schema models send null for "not given") means 0.
+        """
         return self.drawable_manager.create_ellipse(
             center_x,
             center_y,
             radius_x,
             radius_y,
-            rotation_angle,
+            0 if rotation_angle is None else rotation_angle,
             name,
             color=color,
             extra_graphics=extra_graphics,
@@ -1467,16 +1470,19 @@ class Canvas:
         x_expression: str,
         y_expression: str,
         name: Optional[str] = None,
-        t_min: float = 0.0,
+        t_min: Optional[float] = 0.0,
         t_max: Optional[float] = None,
         color: Optional[str] = None,
     ) -> "Drawable":
-        """Draw a parametric function on the canvas."""
+        """Draw a parametric function on the canvas.
+
+        A null t_min means 0 and a null t_max means 2*pi (strict-schema models send null for "not given").
+        """
         return self.drawable_manager.draw_parametric_function(
             x_expression,
             y_expression,
             name=name,
-            t_min=t_min,
+            t_min=0.0 if t_min is None else t_min,
             t_max=t_max,
             color=color,
         )
@@ -2064,31 +2070,15 @@ class Canvas:
         *,
         new_color: Optional[str] = None,
         use_major_arc: Optional[bool] = None,
-        point1_name: Optional[str] = None,
-        point1_x: Optional[float] = None,
-        point1_y: Optional[float] = None,
-        point2_name: Optional[str] = None,
-        point2_x: Optional[float] = None,
-        point2_y: Optional[float] = None,
     ) -> bool:
-        """Update editable circle arc properties."""
+        """Update editable circle arc properties: the color and the major/minor sweep.
+
+        The endpoints cannot be moved here (the tool schema never offered it); delete the
+        arc and create it again with create_circle_arc, which never moves existing points.
+        """
         arc_manager = self._get_arc_manager()
         if arc_manager:
-            return bool(
-                arc_manager.update_circle_arc(
-                    name,
-                    **self._build_update_circle_arc_kwargs(
-                        new_color=new_color,
-                        use_major_arc=use_major_arc,
-                        point1_name=point1_name,
-                        point1_x=point1_x,
-                        point1_y=point1_y,
-                        point2_name=point2_name,
-                        point2_x=point2_x,
-                        point2_y=point2_y,
-                    ),
-                )
-            )
+            return bool(arc_manager.update_circle_arc(name, new_color=new_color, use_major_arc=use_major_arc))
         return False
 
     def _get_arc_manager(self) -> Any:
@@ -2135,29 +2125,6 @@ class Canvas:
             "color": color,
             "use_major_arc": use_major_arc,
             "extra_graphics": extra_graphics,
-        }
-
-    def _build_update_circle_arc_kwargs(
-        self,
-        *,
-        new_color: Optional[str],
-        use_major_arc: Optional[bool],
-        point1_name: Optional[str],
-        point1_x: Optional[float],
-        point1_y: Optional[float],
-        point2_name: Optional[str],
-        point2_x: Optional[float],
-        point2_y: Optional[float],
-    ) -> Dict[str, Any]:
-        return {
-            "new_color": new_color,
-            "use_major_arc": use_major_arc,
-            "point1_name": point1_name,
-            "point1_x": point1_x,
-            "point1_y": point1_y,
-            "point2_name": point2_name,
-            "point2_x": point2_x,
-            "point2_y": point2_y,
         }
 
     # Property delegations to CoordinateMapper for backward compatibility

@@ -613,6 +613,87 @@
           ]
         }
       ]
+    },
+    {
+      "id": "GEO-17",
+      "title": "Recolour an arc and switch it to the major arc",
+      "tags": ["arcs", "update", "no-op"],
+      "smoke": false,
+      "targets": "update_circle_arc passing endpoint arguments the arc manager does not take (it always failed)",
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_circle_arc",
+            "args": {
+              "point1_x": 5,
+              "point1_y": 0,
+              "point2_x": 0,
+              "point2_y": 5,
+              "center_x": 0,
+              "center_y": 0,
+              "radius": 5,
+              "use_major_arc": false
+            }
+          }
+        ]
+      },
+      "steps": [
+        {
+          "user": "Make the arc red.",
+          "reference": [{"tool": "update_circle_arc", "args": {"name": "ArcMin_AB", "new_color": "red"}}],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"bind": "ARC", "select": {"type": "CircleArc", "only": true}},
+            {"check": "attribute", "path": "args.color", "select": "$ARC", "eq": "red"}
+          ]
+        },
+        {
+          "user": "Now draw the major arc instead.",
+          "reference": [{"tool": "update_circle_arc", "args": {"name": "ArcMin_AB", "use_major_arc": true}}],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "attribute", "path": "args.use_major_arc", "select": "$ARC", "eq": true},
+            {"check": "attribute", "path": "args.color", "select": "$ARC", "eq": "red"}
+          ]
+        },
+        {
+          "user": "Make sure it is the major arc.",
+          "reference": [{"tool": "update_circle_arc", "args": {"name": "ArcMin_AB", "use_major_arc": true}}],
+          "checks": [
+            {"check": "tool_result", "tool": "update_circle_arc", "contains": "nothing changed"},
+            {"check": "attribute", "path": "args.use_major_arc", "select": "$ARC", "eq": true}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GEO-18",
+      "title": "Optional numbers sent as null take their defaults",
+      "tags": ["ellipses", "parametric", "null-arguments"],
+      "smoke": false,
+      "targets": "create tools crashing on null optional numbers from strict-schema models (the K10 pattern)",
+      "steps": [
+        {
+          "user": "Draw an ellipse centred at (2, -1) with radii 4 and 2.",
+          "reference": [
+            {"tool": "create_ellipse", "args": {"center_x": 2, "center_y": -1, "radius_x": 4, "radius_y": 2}}
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "count", "select": {"type": "Ellipse"}, "eq": 1},
+            {"check": "attribute", "path": "args.rotation_angle", "select": {"type": "Ellipse", "only": true}, "eq": 0}
+          ]
+        },
+        {
+          "user": "Plot the parametric curve x = t, y = t^2.",
+          "reference": [{"tool": "draw_parametric_function", "args": {"x_expression": "t", "y_expression": "t^2"}}],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "count", "select": {"type": "ParametricFunction"}, "eq": 1},
+            {"check": "attribute", "path": "args.t_min", "select": {"type": "ParametricFunction", "only": true}, "eq": 0}
+          ]
+        }
+      ]
     }
   ]
 }

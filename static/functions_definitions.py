@@ -656,7 +656,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "update_circle_arc",
-            "description": "Updates editable properties of an existing circle arc (color or major/minor toggle). Provide null for fields to keep them unchanged.",
+            "description": "Updates editable properties of an existing circle arc (color or major/minor toggle). Provide null for fields to keep them unchanged. The endpoints cannot be moved here: delete the arc and create it again.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -1450,7 +1450,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "limit",
-            "description": "Computes the limit of a function as it approaches a value",
+            "description": "Computes the limit of a function as it approaches a value. If the symbolic limit does not finish (e.g. abs(x)/x), returns an error with a numeric estimate where one is clear",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -1670,7 +1670,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "translate_object",
-            "description": "Moves/shifts/translates an existing drawable object or function by x and y offsets (dx, dy).",
+            "description": "Moves/shifts/translates an existing drawable object or function by x and y offsets (dx, dy). A plot (bar chart or distribution) cannot be moved as a whole: plot it again at the new position.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -1697,7 +1697,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "rotate_object",
-            "description": "Rotates a drawable object by the specified angle. By default rotates around the object's own center. When center_x and center_y are provided, rotates around that arbitrary point (works for all types including points and circles).",
+            "description": "Rotates a drawable object by the specified angle. By default rotates around the object's own center. When center_x and center_y are provided, rotates around that arbitrary point (works for all types including points and circles). Plots cannot be rotated.",
             "strict": True,
             "parameters": {
                 "type": "object",

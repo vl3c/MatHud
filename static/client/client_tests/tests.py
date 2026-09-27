@@ -89,6 +89,7 @@ from .test_function_analysis import (
     TestFunctionRedefinition,
     TestFunctionTangentGuard,
     TestFunctionTranslationAnalysis,
+    TestLimitsCannotHang,
     TestRemovableDiscontinuities,
 )
 from .test_parametric_function import (
@@ -334,6 +335,7 @@ from .test_scenario_hooks import (
 from .test_result_processor_traced import TestGetResultsTraced
 from .test_tool_batch_results import TestToolBatchUndo, TestToolErrorResults, TestToolNoOpResults
 from .test_view_undo_and_no_ops import TestNoOpUpdates, TestPolarGridReset, TestViewUndo
+from .test_tool_null_and_no_op_results import TestCircleArcUpdate, TestNullArguments, TestTruthfulNoOps
 from .test_names_and_persistence import (
     TestRequestedNamesAreReported,
     TestColoredAreaNullStyle,
@@ -570,6 +572,7 @@ class Tests:
             TestFunctionTangentGuard,
             TestFunctionAreaTranslation,
             TestRemovableDiscontinuities,
+            TestLimitsCannotHang,
             TestParametricFunction,
             TestParametricFunctionRenderable,
             TestExpressionValidatorParametric,
@@ -745,6 +748,9 @@ class Tests:
             TestViewUndo,
             TestPolarGridReset,
             TestNoOpUpdates,
+            TestCircleArcUpdate,
+            TestNullArguments,
+            TestTruthfulNoOps,
             TestRequestedNamesAreReported,
             TestColoredAreaNullStyle,
             TestSegmentAreaHasNoSideEffects,

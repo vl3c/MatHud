@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from typing import List
 
 from .simple_mock import SimpleMock
 from drawables.point import Point
@@ -208,6 +209,34 @@ class TestWorkspaceManagerHelperMethods(unittest.TestCase):
 
 
 class TestWorkspaceManagerOrchestration(unittest.TestCase):
+    def test_load_url_encodes_the_name(self) -> None:
+        """K23: the name is percent-encoded, so '&', '#', '%' and '+' cannot change which workspace loads."""
+        manager = WorkspaceManager(SimpleMock())
+        urls: List[str] = []
+
+        def fake_request(method: str, url: str, on_complete: object, error_prefix: str) -> str:
+            urls.append(url)
+            return "sent"
+
+        manager._execute_sync_request = fake_request  # type: ignore[assignment]
+
+        for name in ("demo_1", "a&x=1", "a#b", "%41", "a+b", "a b"):
+            manager.load_workspace(name)
+        manager.load_workspace(None)
+
+        self.assertEqual(
+            urls,
+            [
+                "/load_workspace?name=demo_1",
+                "/load_workspace?name=a%26x%3D1",
+                "/load_workspace?name=a%23b",
+                "/load_workspace?name=%2541",
+                "/load_workspace?name=a%2Bb",
+                "/load_workspace?name=a%20b",
+                "/load_workspace",
+            ],
+        )
+
     def test_execute_sync_request_runs_build_open_finalize_in_order(self) -> None:
         manager = WorkspaceManager(SimpleMock())
         events = []

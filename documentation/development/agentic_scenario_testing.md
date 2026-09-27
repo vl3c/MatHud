@@ -1,6 +1,6 @@
 # Agentic Scenario Testing
 
-Status: phases 1 to 5 of section 7 are built: the client hooks, the loader and check engine, the catalogue (`scenarios/*.json`), the replay runner and the reports. Live mode (phase 6) and the CI job (phase 7) are next. Written 2026-09-26 against `main` at `e6996fa`; updated the same day to match the implementation (field names, hook options, the check language as built, K20 and K22 fixed, K25 and CV-05 added). Updated 2026-09-27 after merging `main` with vl3c/MatHud#72 and #73: K1, K2, K6, K7, K18 and K21 are fixed and their marks and waivers removed; K26, K27 and CV-06 added. Updated again on `claude/fix-view-undo-noops`: K4, K25 and K26 are fixed and their marks and waivers removed. Updated again on `claude/fix-names-persistence` (vl3c/MatHud#77): K3, K5, K10, K15 and K27 are fixed and their marks and waivers removed.
+Status: phases 1 to 5 of section 7 are built: the client hooks, the loader and check engine, the catalogue (`scenarios/*.json`), the replay runner and the reports. Live mode (phase 6) and the CI job (phase 7) are next. Written 2026-09-26 against `main` at `e6996fa`; updated the same day to match the implementation (field names, hook options, the check language as built, K20 and K22 fixed, K25 and CV-05 added). Updated 2026-09-27 after merging `main` with vl3c/MatHud#72 and #73: K1, K2, K6, K7, K18 and K21 are fixed and their marks and waivers removed; K26, K27 and CV-06 added. Updated again on `claude/fix-view-undo-noops`: K4, K25 and K26 are fixed and their marks and waivers removed. Updated again on `claude/fix-names-persistence` (vl3c/MatHud#77): K3, K5, K10, K15 and K27 are fixed and their marks and waivers removed. Updated again on `claude/fix-batch-7`: K23 is fixed; K28 to K32 are added and fixed, with scenarios FN-10, FN-11, GEO-17, GEO-18, NM-07, ST-05 and WS-04.
 
 This document proposes a testing framework that closes the agentic loop. A real model gets a natural-language request that needs several chained tool calls. The real app runs those calls in the browser, and the framework checks the resulting canvas. The same scenarios also run with no model at all: each one carries a reference tool-call sequence that the harness replays directly. The main goal is catching app bugs in how objects are created, related, named, updated, transformed, deleted, undone and persisted, which unit tests miss. The second goal is measuring how well models chain tool calls.
 
@@ -22,7 +22,7 @@ python -m cli.main test scenarios --regrade logs/scenario_runs/<time>/results.js
 4. Check statuses: `pass`, `fail`, `error` (a check that could not be evaluated; also when it is marked `known`, since a crash is not the bug's failure), `xfail` (a failing check marked `known`, or an invariant failure excused by a waiver), `xpass` (a `known` check that passed: "fixed? K<n>"), `warn` (I1's cross-bucket name clash), `skip` (answer checks in replay) and `unrecorded` (the check needs a function sample the run did not store, which can happen in `--regrade` after a check was edited; rerun the replay). Scenario statuses: `fail` (any `fail` or `error`), else `xpass`, else `xfail` (a check marked `known` failed), else `waived` (only waived invariants failed), else `pass`. A waiver that excused nothing in the run is listed as "waiver I5:K1 (global) unused" (or with the scenario id for a scenario waiver), an xpass-style hint that the bug may be fixed.
 5. Exit codes: 0 with no unexpected failures, 1 with any `fail` or `error` (including a scenario the browser could not finish), 2 for invalid scenario files or a missing server, 130 when interrupted. Expected failures, waived failures, xpasses, unused waivers and unrecorded checks never fail the run.
 6. Adding a scenario: add it to its area file, run it with `--ids`, and give every check that fails because of an app bug `"known": "K<n>"`, with the bug in section 6 and in `scenarios/known_bugs.json`. `server_tests/test_cli/test_scenario_catalogue.py` loads and validates every file in the server suite.
-7. Latest replay (2026-09-27, `claude/fix-stale-geometry` merged with `claude/fix-functions`, which holds `main` with #76 to #79; Windows 11, headless Chrome, `--start-server`): 74 scenarios, 74 pass, 0 xfail, 0 waived, 0 xpass, 0 unexpected failures, no unused waivers; checks 1,415 pass, 0 xfail, 5 warn, 9 skip; about 36 s including Chrome start-up. No scenario check is marked known any more: every bug with a scenario is fixed and its checks are regression guards. K23 (no scenario) is still open.
+7. Latest replay (2026-09-27, `claude/fix-batch-7` on `main` at `cc57b41`; Windows 11, headless Chrome, `--start-server`): 81 scenarios, 81 pass, 0 xfail, 0 waived, 0 xpass, 0 unexpected failures, no unused waivers; checks 1,643 pass, 0 xfail, 5 warn, 10 skip; about 30 s including Chrome start-up. No scenario check is marked known: every bug with a scenario is fixed and its checks are regression guards. Each scenario added on this branch was also replayed against the code before its fix and failed there.
 
 ## 1. Summary
 
@@ -366,23 +366,23 @@ Conventions:
 2. **Names in references** are the ones the app assigns on a fresh canvas, for example the first circle centre is `A`, so its circle is `A(3)`. In live mode the model finds names from the canvas; checks select by geometry.
 3. **Setup (scripted)** runs as replay in both modes. **Scripted steps** are harness actions that are never shown to the model.
 4. **Invariants I1 to I7** run after every step of every scenario and are not repeated in the checks.
-5. **Known bugs** refer to section 6. Each such check is an expected failure until the bug is fixed. Bugs fixed since (K1, K2, K6, K7, K18 and K21 by vl3c/MatHud#72 and #73; K20 and K22 on this branch; K3, K5, K10, K15 and K27 by vl3c/MatHud#77; K4, K25 and K26 on `claude/fix-view-undo-noops`; K11, K12, K13, K14 and K24 on `claude/fix-functions`; K8, K9, K16, K17 and K19 on `claude/fix-stale-geometry`) no longer carry marks in `scenarios/*.json`: their checks are regression guards, and `scenarios/known_bugs.json` lists them under `fixed`, which the loader refuses as a mark. The per-scenario "Known bugs" lines below keep the original design's list.
+5. **Known bugs** refer to section 6. Each such check is an expected failure until the bug is fixed. Bugs fixed since (K1, K2, K6, K7, K18 and K21 by vl3c/MatHud#72 and #73; K20 and K22 on this branch; K3, K5, K10, K15 and K27 by vl3c/MatHud#77; K4, K25 and K26 on `claude/fix-view-undo-noops`; K11, K12, K13, K14 and K24 on `claude/fix-functions`; K8, K9, K16, K17 and K19 on `claude/fix-stale-geometry`; K23 and K28 to K32 on `claude/fix-batch-7`) no longer carry marks in `scenarios/*.json`: their checks are regression guards, and `scenarios/known_bugs.json` lists them under `fixed`, which the loader refuses as a mark. The per-scenario "Known bugs" lines below keep the original design's list.
 
 | Area | Scenarios | Smoke |
 |---|---|---|
-| Points, segments, vectors, polygons, circles, ellipses, arcs, angles and labels (GEO) | 16 | GEO-01 |
+| Points, segments, vectors, polygons, circles, ellipses, arcs, angles and labels (GEO) | 18 | GEO-01 |
 | Constructions (CON) | 6 | CON-01 |
-| Functions, piecewise and parametric curves, tangents and normals (FN) | 9 | FN-01 |
+| Functions, piecewise and parametric curves, tangents and normals (FN) | 11 | FN-01 |
 | Coloured areas and regions (AR) | 4 | - |
 | Transforms (TR) | 6 | TR-01 |
 | Graph theory (GR) | 6 | GR-01 |
-| Statistics, plots and regression (ST) | 4 | ST-01 |
+| Statistics, plots and regression (ST) | 5 | ST-01 |
 | Math tools feeding the canvas (MC) | 4 | MC-01 |
 | Canvas operations: view, coordinate systems, undo and redo (CV) | 6 | CV-02 |
-| Workspaces (WS) | 3 | WS-01 |
-| Naming, editing and deleting (NM) | 6 | NM-03 |
+| Workspaces (WS) | 4 | WS-01 |
+| Naming, editing and deleting (NM) | 7 | NM-03 |
 | Multi-turn follow-ups (MT) | 4 | MT-01 |
-| **Total** | **74** | **11** |
+| **Total** | **81** | **11** |
 
 The smoke subset has 11 scenarios (18 turns), one for each area except coloured areas, which FN-01 already exercises: GEO-01, CON-01, FN-01, TR-01, GR-01, ST-01, MC-01, CV-02, WS-01, NM-03 and MT-01. It runs in about 40 s in replay and about 6 to 27 minutes live on the local model.
 
@@ -575,6 +575,31 @@ The smoke subset has 11 scenarios (18 turns), one for each area except coloured 
   - two labels with unique names; the one at (1,1) reads `hello`, rotation 15; the one at (2,2) is untouched
 - Targets: label naming and update targeting.
 
+#### GEO-17: Recolour an arc and switch it to the major arc
+
+- Setup (scripted): `create_circle_arc(point1_x=5, point1_y=0, point2_x=0, point2_y=5, center_x=0, center_y=0, radius=5, use_major_arc=false)` (the arc is `ArcMin_AB`)
+- Turn 1: "Make the arc red."
+  - Reference: `update_circle_arc(name="ArcMin_AB", new_color="red")`
+- Turn 2: "Now draw the major arc instead."
+  - Reference: `update_circle_arc(name="ArcMin_AB", use_major_arc=true)`
+- Turn 3: "Make sure it is the major arc."
+  - Reference: `update_circle_arc(name="ArcMin_AB", use_major_arc=true)`
+- Checks:
+  - after turns 1 and 2: no tool errors (before the fix every call failed with "unexpected keyword argument 'point1_name'"); the arc is red, then the major arc and still red
+  - after turn 3: the result says nothing changed
+- Targets: the update path of arcs.
+- Known bugs: K29, fixed on `claude/fix-batch-7`; the checks are regression guards.
+
+#### GEO-18: Optional numbers sent as null take their defaults
+
+- Turn 1: "Draw an ellipse centred at (2, -1) with radii 4 and 2."
+  - Reference: `create_ellipse(center_x=2, center_y=-1, radius_x=4, radius_y=2)` (the loader sends `rotation_angle: null`)
+- Turn 2: "Plot the parametric curve x = t, y = t^2."
+  - Reference: `draw_parametric_function(x_expression="t", y_expression="t^2")` (with `t_min: null`, `t_max: null`)
+- Checks: no tool errors; one ellipse with rotation_angle 0; one parametric curve with t_min 0
+- Targets: create tools that crash on null optional numbers, the K10 pattern (before the fix the ellipse batch broke the hook with "must be real number, not NoneType").
+- Known bugs: K30, fixed on `claude/fix-batch-7`; the checks are regression guards.
+
 ### 5.2 Constructions (CON)
 
 #### CON-01: Midpoint is a static snapshot (documented) (smoke)
@@ -735,6 +760,33 @@ The smoke subset has 11 scenarios (18 turns), one for each area except coloured 
   - invariant I3: x = 1 is not listed as a vertical asymptote (currently it is)
 - Targets: hole bookkeeping; asymptote detection from the expression text.
 - Known bugs: K24 (expected to fail until fixed; see section 6).
+
+#### FN-10: A quotient with abs() draws and its limits answer
+
+- Turn 1: "Plot the sign function as abs(x)/x from -5 to 5."
+  - Reference: `draw_function(function_string="abs(x)/x", name="s", left_bound=-5, right_bound=5)`
+- Turn 2: "What is the limit of abs(x)/x as x approaches 0, and as x goes to infinity?"
+  - Reference: `limit(expression="abs(x)/x", variable="x", value_to_approach="0")`; `limit(expression="abs(x)/x", variable="x", value_to_approach="inf")`
+- Checks:
+  - after turn 1: no tool errors (before the fix the turn never finished); s(2) = 1, s(-3) = -1; horizontal asymptotes [-1, 1]; no vertical asymptote; a point discontinuity at 0
+  - after turn 2: the limit at 0 is an error saying the two-sided limit does not exist; the limit at infinity says the expression approaches 1
+- Targets: nerdamer's `limit()` looping forever on quotients with `abs()`.
+- Known bugs: K28, fixed on `claude/fix-batch-7`; the checks are regression guards.
+
+#### FN-11: Asymptote lists without false or duplicate entries
+
+- Turn 1: "Plot x/tan(x) from -2 to 2."
+  - Reference: `draw_function(function_string="x/tan(x)", name="c", left_bound=-2, right_bound=2)`
+- Turn 2: "Plot 1/(1 - cos(x)) from -1 to 1."
+  - Reference: `draw_function(function_string="1/(1 - cos(x))", name="r", left_bound=-1, right_bound=1)`
+- Turn 3: "Plot 1/x from 2 to 5."
+  - Reference: `draw_function(function_string="1/x", name="q", left_bound=2, right_bound=5)`
+- Checks:
+  - c lists no vertical asymptote (before the fix ±π/2 and dozens of asymptotes outside the bounds; I3 flags ±π/2 as not blowing up) and three point discontinuities (-π/2, 0, π/2)
+  - r lists the asymptote 0 once (before the fix 0, 1.4e-9, 6.2e-9 and 9.7e-9, and asymptotes outside the bounds)
+  - q lists no asymptote (before the fix 0, outside [2, 5]); q(2) = 0.5, q(4) = 0.25
+- Targets: asymptote detection from the expression text.
+- Known bugs: K32, fixed on `claude/fix-batch-7`; the checks are regression guards.
 
 ### 5.4 Coloured areas and regions (AR)
 
@@ -958,6 +1010,17 @@ The smoke subset has 11 scenarios (18 turns), one for each area except coloured 
   - answer mentions 30, 30 and 14.14 (model quality)
 - Targets: non-canvas tool; model reporting.
 
+#### ST-05: Moving a bar chart as a whole is refused, not faked
+
+- Setup (scripted): `plot_bars(name="sales", values=[3, 5, 2], labels_below=["a", "b", "c"])`
+- Turn 1: "Move the sales chart 4 units to the right."
+  - Reference: `translate_object(name="sales", x_offset=4, y_offset=0)`
+- Turn 2: "Rotate the sales chart by 90 degrees."
+  - Reference: `rotate_object(name="sales", angle=90)`
+- Checks: both calls are errors (the translate error says to plot again with `x_start`), and the canvas equals the setup snapshot (before the fix both answered "Call successful!" and nothing moved)
+- Targets: transforms of composite plot records.
+- Known bugs: K31, fixed on `claude/fix-batch-7`; the checks are regression guards.
+
 ### 5.8 Math tools feeding the canvas (MC)
 
 #### MC-01: Solve, mark the roots, plot the parabola (smoke)
@@ -1117,6 +1180,21 @@ Added after the K1 and K2 fixes merged (not part of the original 72).
   - list result contains that name; the answer tells the user the adjusted name
 - Targets: name validation; model adaptation.
 
+#### WS-04: A load name with URL characters loads nothing
+
+- Setup (scripted): `create_point(x=1, y=1, name="A")`; `save_workspace(name="scn_url")`
+- Scripted step: `clear_canvas()`
+- Turn 1: "Load the workspace called scn_url&x=1."
+  - Reference: `load_workspace(name="scn_url&x=1")`
+- Turn 2: "Then load scn_url#2."
+  - Reference: `load_workspace(name="scn_url#2")`
+- Scripted steps: `load_workspace(name="scn_url")`, then `delete_workspace(name="scn_url")`
+- Checks:
+  - after each turn: the load is an error and the canvas stays empty (before the fix both loaded `scn_url`: the name went into the URL unencoded, so `&x=1` became a second parameter and `#2` a fragment)
+  - after the scripted load: the point at (1,1) is back, so the workspace itself loads
+- Targets: the load URL.
+- Known bugs: K23, fixed on `claude/fix-batch-7`; the checks are regression guards.
+
 ### 5.11 Naming, editing and deleting (NM)
 
 #### NM-01: Rename and recolour a free point
@@ -1185,6 +1263,20 @@ Added after the K1 and K2 fixes merged (not part of the original 72).
   - sides AB and BC are gone
 - Targets: cascade deletes through shared edges.
 - Known bugs: K6 (expected to fail until fixed; see section 6).
+
+#### NM-07: Label edits and a move that change nothing say so
+
+- Setup (scripted): `create_segment(x1=0, y1=0, x2=4, y2=0, name="AB", label_text="base", label_visible=false)`; `create_label(x=1, y=3, text="note", name="L1")`
+- Turn 1: "Hide the label of AB." Reference: `update_segment(name="AB", new_label_visible=false)`
+- Turn 2: "Set AB's label text to 'base'." Reference: `update_segment(name="AB", new_label_text="base")`
+- Turn 3: "Change the text of L1 to 'note'." Reference: `update_label(name="L1", new_text="note")`
+- Turn 4: "Move AB by (0, 0)." Reference: `translate_object(name="AB", x_offset=0, y_offset=0)`
+- Turn 5: "Show AB's label." Reference: `update_segment(name="AB", new_label_visible=true)`
+- Checks:
+  - turns 1 to 4: the result says nothing changed (before the fix "Call successful!", which I4 flags); after turn 4 the canvas equals the setup snapshot
+  - turn 5: no tool errors and the label is visible
+- Targets: the K26 no-op checks for label fields and zero translations.
+- Known bugs: K31, fixed on `claude/fix-batch-7`; the checks are regression guards.
 
 ### 5.12 Multi-turn follow-ups (MT)
 
@@ -1279,11 +1371,16 @@ All paths are relative to `static/client/` unless stated otherwise.
 | K20 | **Action-trace `state_delta` is always empty.** The delta expects buckets of `{name: state}` dicts, but real states hold lists. The unit tests use the invented dict shape. | `managers/action_trace_collector.py:275-287`; `client_tests/test_action_trace_collector.py:17-18` | (observed) Adding point Q gives `{"added": [], "removed": [], "modified": []}`. The server logs this delta with every batch. **Fixed** in phase 1: the delta reads list buckets, and a name used by two buckets is keyed `Bucket:name`. | (harness) |
 | K21 | **Fixed in vl3c/MatHud#73; its marks are removed.** **Errors returned as `{"error": ...}` dicts are not flagged as errors** in traces or turn metrics (`tool_errors`), so the footer and benchmarks under-count tool errors. | `result_processor.py:161`; `turn_metrics.py:75-76`, `:126` | (observed) `analyze_graph` on a missing graph and `inspect_relation` on a missing segment both give `is_error: false`. | GR-03, invariant I6 |
 | K22 | **The CLI's canvas commands do nothing.** They use `window._canvas`, which is never set, and call `get_state`/`reset_view`, which do not exist. | `cli/browser.py:306-359`; `cli/canvas.py:65-295`; `main.py:140`, `:193` | (code) There is no `window._canvas` assignment anywhere in `static/` or `templates/`. `canvas state` returns `{}`, and `canvas clear` prints "Canvas cleared" without clearing anything. **Fixed** in phase 1: the commands use the scenario hooks. | (harness) |
-| K23 | **The load URL is not encoded.** `name="a&x=1"` loads workspace `a`. Low severity. | `workspace_manager.py:1365` | (code) | - |
+| K23 | **Fixed on `claude/fix-batch-7`.** The name is percent-encoded with `encodeURIComponent` (`WorkspaceManager._load_workspace_url`); save and delete send it in a JSON body and list takes none, so the load URL was the only one affected. **The load URL is not encoded.** `name="a&x=1"` loads workspace `a`. Low severity. | `workspace_manager.py:1440` | (observed) WS-04: `load_workspace(name="scn_url&x=1")` answered `Workspace "scn_url&x=1" loaded successfully.` and loaded `scn_url`; `#2` did the same. Names are limited to `[\w-]` on the server, so an encoded name is simply rejected. | WS-04 |
 | K24 | **Fixed on claude/fix-functions; its marks are removed.** A denominator zero is an asymptote only if f grows beside it on either side, judged on the differences between samples at shrinking offsets (so a constant offset changes nothing, and sampling starts closer than any neighbouring pole); otherwise it is listed as a point discontinuity (a hole, a jump, or a bounded oscillation such as sin(1/x)). **A removable discontinuity is reported as a vertical asymptote.** Every zero of a denominator is taken as an asymptote, without checking for cancellation. The Roadmap's "adaptive plotting" item plans to replace this string-based detection. | `utils/math_utils.py:2794-2796` | (observed) `(x^2 - 1)/(x - 1)` lists `vertical_asymptotes: [1]`. | FN-09 |
 | K25 | **Fixed on `claude/fix-view-undo-noops`; its mark is removed.** `Canvas.reset` now resets the polar grid's spacing, and the reset hook no longer does it itself. **`Canvas.reset` does not reset the polar grid.** It resets the Cartesian grid but never calls `PolarGrid.reset()`, so the zoom-adapted ring spacing survives `clear_canvas`, `reset_canvas` and workspace loads (which clear first). After zooming in and clearing, polar mode draws its rings at the old spacing across the default view: thousands of circles per frame. | `canvas.py:422-426` (`_reset_drawables_state`); `polar_grid.py:149-151` (`reset`, no callers) | (observed by the first replay run) After CV-01's zoom to ±2, WS-01's `load_workspace` in polar mode took 30 to 57 s instead of 2 to 5 s; the spacing stays 0.2 instead of 50. The reset hook now resets it, so scenarios stay isolated. | CV-05 |
 | K26 | **Fixed on `claude/fix-view-undo-noops`; its marks and waivers are removed.** The `update_*` tools (colour for every type the tools cover except coloured areas; also point name and position, circle and ellipse centre), `zoom`, `set_coordinate_system` and `set_grid_visible` return a `NoChangeResult` ("Circle 'A(2)' already has color red; nothing changed.") when nothing would change, and add no undo entry. **A change that is already in effect reports success and adds an undo entry.** `update_circle` with the colour the circle already has, and `zoom` to the view already shown, answer "Call successful!" and archive an undo entry, although nothing changed. | the update and zoom paths archive before comparing (found on `main` after vl3c/MatHud#73) | (observed) CV-06: the undo depth grows by one per repeated call and I4 flags the bare success. | CV-06 |
 | K27 | **Fixed on `claude/fix-names-persistence`; its marks are removed.** **`fit_regression` lists reused points as if it created them.** With `show_points`, a data point on an existing point reuses it, and `point_names` reports it like a new one; `point_color` is not applied to it. | `managers/statistics_manager.py:486-502` with reuse at `managers/point_manager.py:149-151` | (observed) ST-03: `point_names` is `[A, B, C, D]` with A the pre-existing point, and the result says nothing about reuse. This was finding 5 below; it was marked K2 until K2's fix showed it is separate. **Fix:** when points were reused, the result adds `reused_point_names`, `created_point_names` and a note; the tool description says to delete only the created points then. | ST-03 |
+| K28 | **Fixed on `claude/fix-batch-7`.** Horizontal asymptotes are estimated numerically (`MathUtils._limit_at_infinity`: f at ±9.73·4^k up to the first overflow, settled by Aitken extrapolation of the trailing samples or a shrinking spread), with no nerdamer call; the `limit` tool runs nerdamer under a step and time budget (`static/nerdamer_guard.js`, 2000 steps or 1.5 s, the clock also checked in nerdamer's arithmetic, simplify and printing, so a limit stops within a few hundred milliseconds of the budget; worst measured about 1.75 s; derive, integrate, simplify, expand, factor and solve get 5 s) and answers an abandoned limit with an error that gives the numeric estimate (one-sided values at a finite point). **`draw_function("abs(x)/x")` hangs the browser tab.** Every draw computes horizontal asymptotes with nerdamer's `limit()`, whose L'Hôpital loop never ends when the derivative gives the quotient back (d/dx abs(x) = abs(x)/x). The `limit` tool hangs the same way. | `utils/math_utils.py` (`calculate_horizontal_asymptotes`, `limit`); `static/vendor/nerdamer/1.1.13/Calculus.js:2229-2246` (`Limit.divide`) | (observed, node probe of the vendored nerdamer) `limit` never returns for `abs(x)/x`, `sqrt(x^2)/x`, `x/(abs(x)+1)`, `abs(x^3)/x^3`, `(abs(x)+1)/x` at ±∞ and for `abs(x)/x` at 0. It also gives wrong values: `floor(x)/x` → 0, `sqrt(x^2+1)/x` → 0, `x/sqrt(x^2+1)` → Infinity. `solve` and `diff`, the other nerdamer calls on the draw path, finished for every probed expression. | FN-10 |
+| K29 | **Fixed on `claude/fix-batch-7`.** The canvas wrapper passes only `new_color` and `use_major_arc`, the tool's schema; moving the endpoints stays unsupported (the tool description says to recreate the arc, which never moves existing points). Selecting the sweep the arc already has is a `NoChangeResult`. **`update_circle_arc` always fails.** `Canvas.update_circle_arc` forwards `point1_*`/`point2_*` keyword arguments (all None) that `ArcManager.update_circle_arc` does not accept. | `canvas.py:2061-2090` (`_build_update_circle_arc_kwargs`); `managers/arc_manager.py:553` | (observed) GEO-17: every call answers "Error: update_circle_arc() got an unexpected keyword argument 'point1_name'". | GEO-17 |
+| K30 | **Fixed on `claude/fix-batch-7`.** A null `rotation_angle` means 0 and a null `t_min` means 0 (`t_max` already defaulted to 2π). An audit of every create, draw, construct, plot and update tool, each called with all its optional arguments null (`TestNullArguments`), found no other crash; `update_colored_area` on a region area fails for another reason ("Edit policy for ClosedShapeColoredArea is not configured", not filed). **`create_ellipse` with `rotation_angle: null` fails**, as does `draw_parametric_function` with `t_min: null`; strict-schema models send null for every optional argument. | `canvas.py:1335` (`create_ellipse`), `:1463` (`draw_parametric_function`) | (observed) GEO-18: the ellipse is stored with rotation None and the batch then fails with "must be real number, not NoneType"; the parametric call fails with "float() argument must be a string or a real number, not 'NoneType'". | GEO-18 |
+| K31 | **Fixed on `claude/fix-batch-7`.** `no_op_tools.py` also compares `update_segment`'s `new_label_text` and `new_label_visible` and `update_label`'s `new_text`, and wraps `translate_object` so an offset of (0, 0) is a `NoChangeResult`; translating or rotating a plot is an error raised before archiving; `Function.translate` re-raises a parse failure after restoring its bounds. **Calls that change nothing still report "Call successful!"** (the K26 family): hiding an already hidden segment label, setting a label's current text, translating by (0, 0), and translating or rotating a bars, continuous or discrete plot, whose `translate` and `rotate` do nothing (`rotate_object` excludes only the base class name `Plot`). A function whose shifted expression fails to parse keeps its old expression, and the failure is only printed. | `no_op_tools.py`; `drawables/plot.py:63-69`; `managers/transformations_manager.py:175`; `drawables/function.py:215` | (observed) NM-07 and ST-05: I4 flags each bare success. | NM-07, ST-05 |
+| K32 | **Fixed on `claude/fix-batch-7`.** tan() poles are classified like denominator zeros, each one (a 3-sample quick check first, the full test when it is unclear), candidates closer than 1e-6 relative are merged keeping the one nearest zero (one sort, one pass), and every asymptote and discontinuity is filtered to the bounds. The name special case in `FunctionsBoundedColoredArea._has_asymptote_at` is removed; the function's own analysis covers tan(x/100). **Vertical asymptotes that are not there.** The tan rule marks every `tan(` in the text, so `x/tan(x)` and `1/tan(x)` list ±π/2, where both tend to 0; nerdamer's near-duplicate roots of a denominator (0, 1.4e-9, 6.2e-9, 9.7e-9 for `1 - cos(x)`) are each listed; log and denominator asymptotes are not filtered to the bounds (`1/x` on [2, 5] lists 0); and the coloured-area renderer gives any function named `f3` the asymptotes of tan(x/100). | `utils/math_utils.py` (`_vertical_asymptotes_and_discontinuities`); `drawables/functions_bounded_colored_area.py:284-297` | (observed) FN-11: I3 flags x/tan(x)'s ±π/2 as not blowing up. | FN-11 |
 
 Other findings from reading the code only, not yet reproduced in the app, each with a scenario that would catch it:
 
