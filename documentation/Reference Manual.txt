@@ -657,7 +657,7 @@ Args:
 - `__init__(canvas)`: Initialize workspace manager with canvas reference
 - `set_chat_persistence(chat_persistence)`: Attach the `ChatPersistenceManager` (set by `AIInterface`); without one, workspaces are canvas-only
 - `save_workspace(name=None)`: Save the current workspace state to server via AJAX, with the chat transcript as `chat` when chat persistence is attached
-- `load_workspace(name=None)`: Load and restore the canvas from the server. This is the AI's `load_workspace` tool, which can run in the middle of a turn, so it leaves the chat and the AI conversation alone; when the workspace has a saved chat, the result says so and names the `/load <name>` command that restores it
+- `load_workspace(name=None)`: Load and restore the canvas from the server. This is the AI's `load_workspace` tool, which can run in the middle of a turn, so it leaves the chat and the AI conversation alone; when the workspace has a saved chat, the result says so and names the `/load <name>` command that restores it. The name is percent-encoded in the `/load_workspace?name=` URL (`encodeURIComponent`), so a name such as `a&x=1` or `a#b` reaches the server whole and is rejected as invalid instead of loading `a`
 - `load_workspace_with_chat(name=None)`: The user's `/load`: restore the canvas, then replace the chat and the AI conversation with the saved chat (a workspace without one starts an empty chat) and append "Restored N chat messages." to the result
 - `list_workspaces()`: Retrieve list of available workspace names from server
 - `delete_workspace(name)`: Remove workspace from server persistent storage

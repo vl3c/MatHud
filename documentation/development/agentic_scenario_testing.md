@@ -1129,6 +1129,21 @@ Added after the K1 and K2 fixes merged (not part of the original 72).
   - list result contains that name; the answer tells the user the adjusted name
 - Targets: name validation; model adaptation.
 
+#### WS-04: A load name with URL characters loads nothing
+
+- Setup (scripted): `create_point(x=1, y=1, name="A")`; `save_workspace(name="scn_url")`
+- Scripted step: `clear_canvas()`
+- Turn 1: "Load the workspace called scn_url&x=1."
+  - Reference: `load_workspace(name="scn_url&x=1")`
+- Turn 2: "Then load scn_url#2."
+  - Reference: `load_workspace(name="scn_url#2")`
+- Scripted steps: `load_workspace(name="scn_url")`, then `delete_workspace(name="scn_url")`
+- Checks:
+  - after each turn: the load is an error and the canvas stays empty (before the fix both loaded `scn_url`: the name went into the URL unencoded, so `&x=1` became a second parameter and `#2` a fragment)
+  - after the scripted load: the point at (1,1) is back, so the workspace itself loads
+- Targets: the load URL.
+- Known bugs: K23, fixed on `claude/fix-batch-7`; the checks are regression guards.
+
 ### 5.11 Naming, editing and deleting (NM)
 
 #### NM-01: Rename and recolour a free point
@@ -1291,7 +1306,7 @@ All paths are relative to `static/client/` unless stated otherwise.
 | K20 | **Action-trace `state_delta` is always empty.** The delta expects buckets of `{name: state}` dicts, but real states hold lists. The unit tests use the invented dict shape. | `managers/action_trace_collector.py:275-287`; `client_tests/test_action_trace_collector.py:17-18` | (observed) Adding point Q gives `{"added": [], "removed": [], "modified": []}`. The server logs this delta with every batch. **Fixed** in phase 1: the delta reads list buckets, and a name used by two buckets is keyed `Bucket:name`. | (harness) |
 | K21 | **Fixed in vl3c/MatHud#73; its marks are removed.** **Errors returned as `{"error": ...}` dicts are not flagged as errors** in traces or turn metrics (`tool_errors`), so the footer and benchmarks under-count tool errors. | `result_processor.py:161`; `turn_metrics.py:75-76`, `:126` | (observed) `analyze_graph` on a missing graph and `inspect_relation` on a missing segment both give `is_error: false`. | GR-03, invariant I6 |
 | K22 | **The CLI's canvas commands do nothing.** They use `window._canvas`, which is never set, and call `get_state`/`reset_view`, which do not exist. | `cli/browser.py:306-359`; `cli/canvas.py:65-295`; `main.py:140`, `:193` | (code) There is no `window._canvas` assignment anywhere in `static/` or `templates/`. `canvas state` returns `{}`, and `canvas clear` prints "Canvas cleared" without clearing anything. **Fixed** in phase 1: the commands use the scenario hooks. | (harness) |
-| K23 | **The load URL is not encoded.** `name="a&x=1"` loads workspace `a`. Low severity. | `workspace_manager.py:1365` | (code) | - |
+| K23 | **Fixed on `claude/fix-batch-7`.** The name is percent-encoded with `encodeURIComponent` (`WorkspaceManager._load_workspace_url`); save and delete send it in a JSON body and list takes none, so the load URL was the only one affected. **The load URL is not encoded.** `name="a&x=1"` loads workspace `a`. Low severity. | `workspace_manager.py:1440` | (observed) WS-04: `load_workspace(name="scn_url&x=1")` answered `Workspace "scn_url&x=1" loaded successfully.` and loaded `scn_url`; `#2` did the same. Names are limited to `[\w-]` on the server, so an encoded name is simply rejected. | WS-04 |
 | K24 | **Fixed on claude/fix-functions; its marks are removed.** A denominator zero is an asymptote only if f grows beside it on either side, judged on the differences between samples at shrinking offsets (so a constant offset changes nothing, and sampling starts closer than any neighbouring pole); otherwise it is listed as a point discontinuity (a hole, a jump, or a bounded oscillation such as sin(1/x)). **A removable discontinuity is reported as a vertical asymptote.** Every zero of a denominator is taken as an asymptote, without checking for cancellation. The Roadmap's "adaptive plotting" item plans to replace this string-based detection. | `utils/math_utils.py:2794-2796` | (observed) `(x^2 - 1)/(x - 1)` lists `vertical_asymptotes: [1]`. | FN-09 |
 | K25 | **Fixed on `claude/fix-view-undo-noops`; its mark is removed.** `Canvas.reset` now resets the polar grid's spacing, and the reset hook no longer does it itself. **`Canvas.reset` does not reset the polar grid.** It resets the Cartesian grid but never calls `PolarGrid.reset()`, so the zoom-adapted ring spacing survives `clear_canvas`, `reset_canvas` and workspace loads (which clear first). After zooming in and clearing, polar mode draws its rings at the old spacing across the default view: thousands of circles per frame. | `canvas.py:422-426` (`_reset_drawables_state`); `polar_grid.py:149-151` (`reset`, no callers) | (observed by the first replay run) After CV-01's zoom to ±2, WS-01's `load_workspace` in polar mode took 30 to 57 s instead of 2 to 5 s; the spacing stays 0.2 instead of 50. The reset hook now resets it, so scenarios stay isolated. | CV-05 |
 | K26 | **Fixed on `claude/fix-view-undo-noops`; its marks and waivers are removed.** The `update_*` tools (colour for every type the tools cover except coloured areas; also point name and position, circle and ellipse centre), `zoom`, `set_coordinate_system` and `set_grid_visible` return a `NoChangeResult` ("Circle 'A(2)' already has color red; nothing changed.") when nothing would change, and add no undo entry. **A change that is already in effect reports success and adds an undo entry.** `update_circle` with the colour the circle already has, and `zoom` to the view already shown, answer "Call successful!" and archive an undo entry, although nothing changed. | the update and zoom paths archive before comparing (found on `main` after vl3c/MatHud#73) | (observed) CV-06: the undo depth grows by one per repeated call and I4 flags the bare success. | CV-06 |

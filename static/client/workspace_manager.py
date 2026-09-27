@@ -47,7 +47,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, ca
 
 import json
 
-from browser import ajax, document
+from browser import ajax, document, window
 from constants import (
     default_area_fill_color,
     default_area_opacity,
@@ -1437,13 +1437,24 @@ class WorkspaceManager:
         def on_complete(req: Any) -> str:
             return self._parse_load_workspace_response(req, name, restore_chat)
 
-        url: str = f"/load_workspace?name={name}" if name else "/load_workspace"
         return self._execute_sync_request(
             method="GET",
-            url=url,
+            url=self._load_workspace_url(name),
             on_complete=on_complete,
             error_prefix="Error loading workspace",
         )
+
+    @staticmethod
+    def _load_workspace_url(name: Optional[str]) -> str:
+        """The load URL, with the name percent-encoded.
+
+        Unencoded, "a&x=1" or "a#b" loaded workspace "a" and "%41" loaded "A"; encoded, the
+        server sees the name as given and rejects it as invalid. Save and delete send the
+        name in a JSON body, and list takes no name, so this is the only URL carrying one.
+        """
+        if not name:
+            return "/load_workspace"
+        return f"/load_workspace?name={window.encodeURIComponent(str(name))}"
 
     def _parse_load_workspace_response(self, req: Any, name: Optional[str], restore_chat: bool = False) -> str:
         return self._parse_workspace_response(

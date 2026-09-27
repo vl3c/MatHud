@@ -58,6 +58,7 @@
     "K10": "this branch (claude/fix-names-persistence)",
     "K15": "this branch (claude/fix-names-persistence)",
     "K27": "this branch (claude/fix-names-persistence)",
+    "K23": "claude/fix-batch-7",
     "K28": "claude/fix-batch-7"
   },
   "invariant_waivers": {}
