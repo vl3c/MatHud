@@ -8,9 +8,7 @@
       "title": "Undo a zoom",
       "tags": ["view", "undo"],
       "smoke": false,
-      "known": ["K4"],
       "targets": "view state outside the undo snapshot",
-      "invariants": {"I4": "K4"},
       "steps": [
         {
           "user": "Zoom to x between -2 and 2 around the origin.",
@@ -23,7 +21,7 @@
         {
           "user": "Undo that.",
           "reference": [{"tool": "undo", "args": {}}],
-          "checks": [{"check": "state_equals", "snapshot": "start", "view": true, "known": "K4"}]
+          "checks": [{"check": "state_equals", "snapshot": "start", "view": true}]
         }
       ]
     },
@@ -65,7 +63,6 @@
       "title": "Clear, then undo",
       "tags": ["view", "undo", "clear"],
       "smoke": false,
-      "known": ["K4"],
       "targets": "clear resets the view outside undo",
       "setup": {
         "calls": [
@@ -96,8 +93,8 @@
           "reference": [{"tool": "undo", "args": {}}],
           "checks": [
             {"check": "state_equals", "snapshot": "setup"},
-            {"check": "attribute", "path": "left_bound", "target": "view", "eq": -10, "known": "K4"},
-            {"check": "attribute", "path": "right_bound", "target": "view", "eq": 10, "known": "K4"}
+            {"check": "attribute", "path": "left_bound", "target": "view", "eq": -10},
+            {"check": "attribute", "path": "right_bound", "target": "view", "eq": 10}
           ]
         }
       ]

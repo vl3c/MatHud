@@ -14,6 +14,9 @@ State Management Architecture:
 Archived State Components:
     - Drawable Objects: Complete deep copy of all geometric objects and their properties
     - Computation History: Mathematical operation results and expressions
+    - View: Zoom and pan, coordinate-system mode, grid visibility and grid spacing
+      (``Canvas.get_view_state``). Mouse panning and zooming do not archive, and undoing
+      a step that did not change the view keeps the current view.
     - Object Relationships: Preservation of parent-child dependencies
     - Canvas References: Proper object-to-canvas relationship maintenance
 
@@ -44,10 +47,17 @@ from __future__ import annotations
 
 import copy
 import json
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 if TYPE_CHECKING:
     from canvas import Canvas
+
+# Entry key: False when the step the entry undoes did not change the view, so undoing it
+# (and redoing it) keeps the current view, e.g. after the user panned with the mouse.
+# A missing key means unknown, and the entry's view is restored.
+RESTORES_VIEW_KEY = "restores_view"
+# View keys that follow from the zoom level: restored, but left out of comparisons.
+_DERIVED_VIEW_KEYS = ("grid_spacing",)
 
 
 class UndoRedoManager:
@@ -92,11 +102,22 @@ class UndoRedoManager:
         self.push_undo_state(self.capture_state())
 
     def capture_state(self) -> Dict[str, Any]:
-        """Capture the current canvas state snapshot."""
-        return {
+        """Capture the current canvas state snapshot: drawables, computations and the view."""
+        state: Dict[str, Any] = {
             "drawables": copy.deepcopy(self.canvas.drawable_manager.drawables._drawables),
             "computations": copy.deepcopy(self.canvas.computations),
         }
+        view = self._capture_view()
+        if view is not None:
+            state["view"] = view
+        return state
+
+    def _capture_view(self) -> Optional[Dict[str, Any]]:
+        """The canvas view, or None for a canvas without one (test doubles)."""
+        get_view_state = getattr(self.canvas, "get_view_state", None)
+        if not callable(get_view_state):
+            return None
+        return cast(Dict[str, Any], get_view_state())
 
     def push_undo_state(self, state: Dict[str, Any]) -> None:
         """Push a prior state onto the undo stack and clear redo history.
@@ -111,13 +132,26 @@ class UndoRedoManager:
         self.redo_stack = []
 
     def restore_state(self, state: Dict[str, Any], redraw: bool = True) -> None:
-        """Restore a captured state snapshot."""
+        """Restore a captured state snapshot, including its view."""
+        self._apply_state(state, restore_view=True, redraw=redraw)
+
+    def _apply_state(self, state: Dict[str, Any], restore_view: bool, redraw: bool) -> None:
+        """Replace the drawables and computations with the state's, and optionally the view."""
         self.canvas.drawable_manager.drawables._drawables = copy.deepcopy(state["drawables"])
         self.canvas.drawable_manager.drawables.rebuild_renderables()
         self.canvas.computations = copy.deepcopy(state.get("computations", []))
+        zoom_changed = restore_view and self._restore_view(state)
         self._rebuild_dependency_graph()
         if redraw:
-            self.canvas.draw()
+            self.canvas.draw(apply_zoom=zoom_changed)
+
+    def _restore_view(self, state: Dict[str, Any]) -> bool:
+        """Apply the state's view, if it has one; return True when the zoom level changed."""
+        view = state.get("view")
+        restore_view_state = getattr(self.canvas, "restore_view_state", None)
+        if view is None or not callable(restore_view_state):
+            return False
+        return bool(restore_view_state(view))
 
     def suspend_archiving(self) -> None:
         """Suspend archive() calls for composite operations."""
@@ -159,11 +193,11 @@ class UndoRedoManager:
     def state_differs_from_batch_baseline(self) -> bool:
         """Return True when the canvas no longer matches the open batch's baseline.
 
-        Compares each live drawable's ``get_state()`` and the computations, serialized as
-        sorted JSON, with the same serialization of the live objects taken when the batch
-        started. The deep-copied baseline is not used: copying rebuilds some drawables (a
-        polygon recomputes its types), so it can serialize differently from the unchanged
-        live objects. Outside a batch, or when a state cannot be serialized, the canvas is
+        Compares each live drawable's ``get_state()``, the computations and the view (zoom,
+        pan, coordinate mode and grid visibility), serialized as sorted JSON, with the same
+        serialization of the live objects taken when the batch started. The deep-copied
+        baseline is not used: copying rebuilds some drawables (a polygon recomputes its
+        types), so it can serialize differently from the unchanged live objects. Outside a batch, or when a state cannot be serialized, the canvas is
         assumed to differ so that a change is never dropped from the undo history.
         """
         if self._batch_depth == 0 or self._batch_signature is None:
@@ -185,10 +219,11 @@ class UndoRedoManager:
             return None
 
     def _live_state(self) -> Dict[str, Any]:
-        """The live drawables and computations, without copying (for comparison only)."""
+        """The live drawables, computations and view, without copying (for comparison only)."""
         return {
             "drawables": self.canvas.drawable_manager.drawables._drawables,
             "computations": self.canvas.computations,
+            "view": self._capture_view(),
         }
 
     @staticmethod
@@ -198,13 +233,37 @@ class UndoRedoManager:
             for bucket, items in state["drawables"].items()
             if items
         }
-        payload = {"drawables": drawables, "computations": state.get("computations", [])}
+        payload = {
+            "drawables": drawables,
+            "computations": state.get("computations", []),
+            "view": UndoRedoManager._comparable_view(state.get("view")),
+        }
         return json.dumps(payload, sort_keys=True, default=str)
 
+    @staticmethod
+    def _comparable_view(view: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """The view without the keys that follow from the zoom level."""
+        if view is None:
+            return None
+        return {key: value for key, value in view.items() if key not in _DERIVED_VIEW_KEYS}
+
+    def _view_changed_since(self, state: Dict[str, Any]) -> bool:
+        """True when the live view differs from the state's view, or when either is unknown."""
+        before = self._comparable_view(state.get("view"))
+        after = self._comparable_view(self._capture_view())
+        if before is None or after is None:
+            return True
+        return json.dumps(before, sort_keys=True) != json.dumps(after, sort_keys=True)
+
     def _commit_batch(self) -> None:
-        """Push the batch baseline as one undo entry when the batch changed something."""
+        """Push the batch baseline as one undo entry when the batch changed something.
+
+        The entry records whether the batch changed the view, so undoing a batch that only
+        changed objects keeps the view the user has now.
+        """
         if not self._batch_changed or self._batch_baseline is None:
             return
+        self._batch_baseline[RESTORES_VIEW_KEY] = self._view_changed_since(self._batch_baseline)
         self.undo_stack.append(self._batch_baseline)
         self.redo_stack = []
         self._batch_changed = False
@@ -228,26 +287,9 @@ class UndoRedoManager:
         if not self.undo_stack:
             return False
 
-        # Get the last archived state
         last_state = self.undo_stack.pop()
-
-        # Archive current state for redo
-        current_state = {
-            "drawables": copy.deepcopy(self.canvas.drawable_manager.drawables._drawables),
-            "computations": copy.deepcopy(self.canvas.computations),
-        }
-        self.redo_stack.append(current_state)
-
-        # Restore only the drawables from the last state
-        self.canvas.drawable_manager.drawables._drawables = copy.deepcopy(last_state["drawables"])
-        self.canvas.drawable_manager.drawables.rebuild_renderables()
-
-        # Ensure all objects are properly initialized
-        self._rebuild_dependency_graph()
-
-        # Make sure to reset any cached or derived values
-        # This ensures a complete state reset
-        self.canvas.draw()
+        self.redo_stack.append(self._capture_counterpart(last_state))
+        self._restore_history_entry(last_state)
 
         self._rebase_batch()
         return True
@@ -266,29 +308,26 @@ class UndoRedoManager:
         if not self.redo_stack:
             return False
 
-        # Get the last undone state
         next_state = self.redo_stack.pop()
-
-        # Archive current state for undo
-        current_state = {
-            "drawables": copy.deepcopy(self.canvas.drawable_manager.drawables._drawables),
-            "computations": copy.deepcopy(self.canvas.computations),
-        }
-        self.undo_stack.append(current_state)
-
-        # Restore only the drawables from the next state
-        self.canvas.drawable_manager.drawables._drawables = copy.deepcopy(next_state["drawables"])
-        self.canvas.drawable_manager.drawables.rebuild_renderables()
-
-        # Ensure all objects are properly initialized
-        self._rebuild_dependency_graph()
-
-        # Make sure to reset any cached or derived values
-        # This ensures a complete state reset
-        self.canvas.draw()
+        self.undo_stack.append(self._capture_counterpart(next_state))
+        self._restore_history_entry(next_state)
 
         self._rebase_batch()
         return True
+
+    def _capture_counterpart(self, entry: Dict[str, Any]) -> Dict[str, Any]:
+        """The current state, for the opposite stack; it restores the view only if ``entry`` does."""
+        current = self.capture_state()
+        current[RESTORES_VIEW_KEY] = self._entry_restores_view(entry)
+        return current
+
+    def _restore_history_entry(self, entry: Dict[str, Any]) -> None:
+        """Restore an undo or redo entry: its objects always, its view when its step changed the view."""
+        self._apply_state(entry, restore_view=self._entry_restores_view(entry), redraw=True)
+
+    @staticmethod
+    def _entry_restores_view(entry: Dict[str, Any]) -> bool:
+        return bool(entry.get(RESTORES_VIEW_KEY, True))
 
     def can_undo(self) -> bool:
         """

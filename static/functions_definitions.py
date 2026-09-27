@@ -80,7 +80,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "zoom",
-            "description": "Centers viewport on (center_x, center_y). The range_val specifies half-width (if range_axis='x') or half-height (if range_axis='y'); the other axis scales with canvas aspect ratio. Example: 'zoom x in range +-2, y around 10' uses center_x=0, center_y=10, range_val=2, range_axis='x'.",
+            "description": "Centers viewport on (center_x, center_y). The range_val specifies half-width (if range_axis='x') or half-height (if range_axis='y'); the other axis scales with canvas aspect ratio. Example: 'zoom x in range +-2, y around 10' uses center_x=0, center_y=10, range_val=2, range_axis='x'. Undo restores the previous view.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -106,7 +106,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "undo",
-            "description": "Undoes the last action on the canvas",
+            "description": "Undoes the last action on the canvas, including zoom, coordinate-system and grid changes",
             "strict": True,
             "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
         },
@@ -2646,7 +2646,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "set_coordinate_system",
-            "description": "Sets the coordinate system mode for the canvas grid. Choose 'cartesian' for the standard x-y grid or 'polar' for a polar coordinate grid with concentric circles and radial lines.",
+            "description": "Sets the coordinate system mode for the canvas grid. Choose 'cartesian' for the standard x-y grid or 'polar' for a polar coordinate grid with concentric circles and radial lines. Undoable.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2699,7 +2699,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "set_grid_visible",
-            "description": "Sets the visibility of the active coordinate grid (Cartesian or Polar). Use this to show or hide the grid lines without changing the coordinate system mode.",
+            "description": "Sets the visibility of the active coordinate grid (Cartesian or Polar). Use this to show or hide the grid lines without changing the coordinate system mode. Undoable.",
             "strict": True,
             "parameters": {
                 "type": "object",

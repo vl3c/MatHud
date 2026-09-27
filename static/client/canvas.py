@@ -40,7 +40,7 @@ from constants import (
     default_area_opacity,
     default_closed_shape_resolution,
 )
-from drawables_aggregator import Point
+from drawables_aggregator import Point, Position
 from cartesian_system_2axis import Cartesian2Axis
 from coordinate_mapper import CoordinateMapper
 from utils.style_utils import StyleUtils
@@ -588,6 +588,50 @@ class Canvas:
             True if the active grid is visible, False otherwise
         """
         return bool(self.coordinate_system_manager.is_grid_visible())
+
+    def get_view_state(self) -> Dict[str, Any]:
+        """The view as undo captures it: zoom, pan, coordinate mode, grid visibility and grid spacing.
+
+        The canvas size and screen origin are left out, so a view restored after a resize
+        stays centered on the same math point. ``grid_spacing`` follows from the zoom level.
+        """
+        mapper = self.coordinate_mapper
+        manager = self.coordinate_system_manager
+        return {
+            "scale_factor": float(mapper.scale_factor),
+            "offset": [float(mapper.offset.x), float(mapper.offset.y)],
+            "coordinate_mode": str(manager.mode),
+            "cartesian_grid_visible": bool(manager.cartesian_grid.visible),
+            "polar_grid_visible": bool(manager.polar_grid.visible),
+            "grid_spacing": {
+                "cartesian": float(manager.cartesian_grid.current_tick_spacing),
+                "polar": float(manager.polar_grid.current_radial_spacing),
+            },
+        }
+
+    def restore_view_state(self, view: Dict[str, Any]) -> bool:
+        """Apply a view from get_view_state() without redrawing.
+
+        Returns:
+            True when the zoom level changed, so the caller redraws with ``apply_zoom``
+        """
+        mapper = self.coordinate_mapper
+        previous_scale = float(mapper.scale_factor)
+        offset_x, offset_y = view["offset"]
+        mapper.scale_factor = float(view["scale_factor"])
+        mapper.offset = Position(float(offset_x), float(offset_y))
+        mapper.zoom_point = Position(0, 0)
+        mapper.zoom_direction = 0
+        manager = self.coordinate_system_manager
+        manager.set_mode(str(view["coordinate_mode"]), redraw=False)
+        manager.cartesian_grid.visible = bool(view["cartesian_grid_visible"])
+        manager.polar_grid.visible = bool(view["polar_grid_visible"])
+        spacing = view.get("grid_spacing") or {}
+        if "cartesian" in spacing:
+            manager.cartesian_grid.current_tick_spacing = float(spacing["cartesian"])
+        if "polar" in spacing:
+            manager.polar_grid.current_radial_spacing = float(spacing["polar"])
+        return float(mapper.scale_factor) != previous_scale
 
     def get_canvas_state(self) -> Dict[str, Any]:
         state = self.get_drawables_state()

@@ -277,6 +277,7 @@ Attributes:
 - `begin_undo_batch()` / `end_undo_batch()`: Group every change between the two calls into one undo step (see Undo Redo Manager)
 - `undo()`: Restores the last archived state from the undo stack
 - `redo()`: Restores the last undone state from the redo stack
+- `get_view_state()` / `restore_view_state(view)`: The view that undo entries hold: zoom and pan (`scale_factor`, `offset`), `coordinate_mode`, both grids' visibility, and `grid_spacing` (restored, but not compared, since it follows from the zoom level). The canvas size and screen origin are left out. `restore_view_state` does not redraw and returns True when the zoom level changed
 - `get_drawables()`: Get all drawables as a flat list
 - `create_point(x, y, name="", extra_graphics=True)`: Create a point at the specified coordinates
 - `delete_point(x, y)`: Delete a point at the specified coordinates
@@ -311,9 +312,9 @@ Attributes:
 - `fit_regression(name=None, x_data=None, y_data=None, model_type="linear", degree=None, plot_bounds=None, curve_color=None, show_points=True, point_color=None)`: Fit a regression model to data and plot the resulting curve. Supported model types: "linear" (y=mx+b), "polynomial" (y=a0+a1*x+...+an*x^n, requires `degree`), "exponential" (y=a*e^(bx), requires positive y), "logarithmic" (y=a+b*ln(x), requires positive x), "power" (y=a*x^b, requires positive x and y), "logistic" (y=L/(1+e^(-k(x-x0)))), and "sinusoidal" (y=a*sin(bx+c)+d, requires at least 4 points). Returns function_name, expression, coefficients, r_squared, model_type, bounds, and optionally point_names. Data points take the next free canvas point names (A, B, C, ..., A', ...), a point that already exists at a data coordinate is reused, and point_names lists the names in data order. Use `delete_function` to remove the curve; delete points individually. The curve and the points are one undo step.
 - `compute_descriptive_statistics(data)`: Compute descriptive statistics for a list of numbers. Returns a dictionary with: count, mean, median, mode (list of values; empty if no meaningful mode), standard_deviation (population), variance (population), min, max, q1 (first quartile), q3 (third quartile), iqr (interquartile range), and range. Quartiles use the median-of-halves (exclusive) method. All values must be finite (no Infinity or NaN).
 - `delete_plot(name)`: Delete a plot composite created by plot_distribution/plot_bars, including its derived components.
-- `zoom(center_x, center_y, range_val, range_axis)`: Center the viewport on (center_x, center_y) showing center +/- `range_val` along `range_axis` ('x' or 'y'); the other axis follows the canvas aspect ratio. Delegates to `CoordinateMapper.set_visible_bounds`. Tool: `zoom`
-- `set_coordinate_system(mode)`: Switch the grid between 'cartesian' and 'polar'. Tool: `set_coordinate_system`
-- `set_grid_visible(visible)`: Show or hide the active grid without changing the coordinate system. Tool: `set_grid_visible`
+- `zoom(center_x, center_y, range_val, range_axis)`: Center the viewport on (center_x, center_y) showing center +/- `range_val` along `range_axis` ('x' or 'y'); the other axis follows the canvas aspect ratio. Delegates to `CoordinateMapper.set_visible_bounds`. Tool: `zoom`, which is undoable (undo restores the previous view)
+- `set_coordinate_system(mode)`: Switch the grid between 'cartesian' and 'polar'. Tool: `set_coordinate_system` (undoable)
+- `set_grid_visible(visible)`: Show or hide the active grid without changing the coordinate system. Tool: `set_grid_visible` (undoable)
 - `create_colored_area(drawable1_name, drawable2_name=None, left_bound=None, right_bound=None, color="lightblue", opacity=0.3)`: Create a colored area between two objects
 - `create_region_colored_area(expression=None, triangle_name=None, rectangle_name=None, polygon_segment_names=None, circle_name=None, ellipse_name=None, chord_segment_name=None, arc_clockwise=False, resolution=96, color="lightblue", opacity=0.3)`: Fill a region given by a boolean expression over shape names (`&` intersection, `|` union, `-` difference, `^` symmetric difference; e.g. `'circle_A - triangle_ABC'`) or by a single closed shape, optionally cut by a chord segment. `expression` takes precedence. Tool: `create_region_colored_area`
 - `translate_object(name, x_offset, y_offset)`: Translates a drawable object by the specified offset
@@ -2245,6 +2246,9 @@ State Management Architecture:
 Archived State Components:
     - Drawable Objects: Complete deep copy of all geometric objects and their properties
     - Computation History: Mathematical operation results and expressions
+    - View: Zoom and pan, coordinate-system mode, grid visibility and grid spacing
+      (``Canvas.get_view_state``). Mouse panning and zooming do not archive, and undoing
+      a step that did not change the view keeps the current view.
     - Object Relationships: Preservation of parent-child dependencies
     - Canvas References: Proper object-to-canvas relationship maintenance
 
@@ -2287,9 +2291,10 @@ This class is responsible for:
 - `suspend_archiving()` / `resume_archiving()`: Ignore `archive()` calls during a composite operation that pushes its own baseline with `push_undo_state()`
 - `begin_batch()` / `end_batch()`: Group every change until the matching end into one undo step. Batches nest; the outermost `begin_batch()` captures the baseline, and the outermost `end_batch()` pushes it as one entry if anything called `archive()` or `push_undo_state()` in between. Used for model tool batches and workspace restores.
 - `is_batch_changed()` / `set_batch_changed(changed)`: Read or overwrite the open batch's change mark; ResultProcessor resets the mark after a call that failed or changed nothing
-- `state_differs_from_batch_baseline()`: Return True when the canvas no longer matches the state the open batch started from. It compares a sorted-JSON serialization of the live drawables' `get_state()` and the computations with the same serialization of the live objects taken when the batch started (or after an undo or redo inside it). The deep-copied baseline that undo restores is not compared, because copying rebuilds polygons and recomputes their types. True outside a batch or when a state cannot be serialized, so a change is never dropped
-- `undo()`: Restore the most recent archived state (inside a batch, the batch's earlier changes are committed first)
-- `redo()`: Restore a previously undone state (inside a batch, the batch's earlier changes are committed first, which clears the redo history)
+- `state_differs_from_batch_baseline()`: Return True when the canvas no longer matches the state the open batch started from. It compares a sorted-JSON serialization of the live drawables' `get_state()`, the computations and the view (`Canvas.get_view_state()` without `grid_spacing`) with the same serialization of the live objects taken when the batch started (or after an undo or redo inside it). The deep-copied baseline that undo restores is not compared, because copying rebuilds polygons and recomputes their types. True outside a batch or when a state cannot be serialized, so a change is never dropped
+- `capture_state()` / `restore_state(state, redraw=True)`: Snapshot or restore the drawables, the computations and the view (`Canvas.get_view_state()`; a canvas without it, such as a test double, is snapshotted without a view)
+- `undo()`: Restore the most recent archived state: drawables, computations and, when the undone step changed the view, the view (inside a batch, the batch's earlier changes are committed first). A batch entry records whether its batch changed the view (`restores_view`); entries pushed outside a batch, such as `clear()` from a slash command, always restore it. So undoing a step that only changed objects keeps the view the user has now, for example after panning with the mouse, which adds no undo entry
+- `redo()`: Restore a previously undone state, with the view under the same rule (inside a batch, the batch's earlier changes are committed first, which clears the redo history)
 - `can_undo()`: Check if undo operation is possible
 - `can_redo()`: Check if redo operation is possible
 - `clear()`: Clear all archived states
@@ -3508,7 +3513,7 @@ and defines which functions support undo/redo operations for state management.
 
 **Key Methods:**
 - `get_available_functions(canvas, workspace_manager, ai_interface=None)`: Get the complete dictionary of all available functions with their implementations
-- `get_undoable_functions()`: Get the tuple of function names that support undo/redo operations
+- `get_undoable_functions()`: Get the tuple of function names that support undo/redo operations (including `zoom`, `set_coordinate_system` and `set_grid_visible`)
 
 #### Process Function Calls (`process_function_calls.py`)
 

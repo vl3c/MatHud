@@ -345,6 +345,8 @@ class FunctionRegistry:
             "clear_canvas",
             "reset_canvas",
             "zoom",
+            "set_coordinate_system",
+            "set_grid_visible",
             # Point operations
             "create_point",
             "delete_point",
