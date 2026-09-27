@@ -162,7 +162,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "create_point",
-            "description": "Creates and draws a point at the given coordinates. If a name is provided, it will try to use the first available letter from that name as the point's name.",
+            "description": "Creates and draws a point at the given coordinates. Point names are one capital letter with optional primes (A, B'). If a name is provided, the first available letter from that name is used; the result names the point actually created.",
             "strict": True,
             "parameters": {
                 "type": "object",

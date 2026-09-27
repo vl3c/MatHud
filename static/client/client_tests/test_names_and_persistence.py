@@ -12,6 +12,88 @@ from typing import Any, Dict
 from .test_tool_batch_results import _ToolBatchTestCase
 
 
+class TestRequestedNamesAreReported(_ToolBatchTestCase):
+    """K3: a requested name is used, or the result says which name was used instead."""
+
+    def test_create_point_reports_the_name_it_used(self) -> None:
+        result = self.run_single("create_point", x=1, y=1, name="A", color=None)
+
+        self.assertEqual(result, "Created Point 'A'.")
+
+    def test_taken_name_is_replaced_and_reported(self) -> None:
+        self.run_single("create_point", x=0, y=0, name="A")
+
+        result = self.run_single("create_point", x=7, y=7, name="A")
+
+        created = self.canvas.get_point(7, 7)
+        self.assertIsNotNone(created)
+        self.assertNotEqual(created.name, "A")
+        self.assertEqual(result, f"Created Point '{created.name}' instead of the requested name 'A'.")
+        self.assertEqual(self.canvas.get_point_by_name("A").x, 0)
+
+    def test_invalid_point_name_is_replaced_and_reported(self) -> None:
+        result = self.run_single("create_point", x=1, y=2, name="Far")
+
+        created = self.canvas.get_point(1, 2)
+        self.assertEqual(result, f"Created Point '{created.name}' instead of the requested name 'Far'.")
+
+    def test_name_is_available_again_after_undo(self) -> None:
+        self.run_single("create_point", x=1, y=1, name="K")
+        self.run_single("undo")
+
+        result = self.run_single("create_point", x=3, y=3, name="K")
+
+        self.assertEqual(self.canvas.get_point_by_name("K").x, 3)
+        self.assertEqual(result, "Created Point 'K'.")
+
+    def test_name_is_available_again_after_delete(self) -> None:
+        self.run_single("create_point", x=1, y=1, name="K")
+        self.run_single("delete_point", x=1, y=1)
+
+        self.run_single("create_point", x=3, y=3, name="K")
+
+        self.assertEqual(self.canvas.get_point_by_name("K").y, 3)
+
+    def test_construction_with_a_taken_name_reports_the_real_name(self) -> None:
+        self.build_triangle()
+
+        result = self.run_single("construct_midpoint", segment_name="BC", name="A")
+
+        midpoint = self.canvas.get_point(2, 1.5)
+        self.assertIsNotNone(midpoint)
+        self.assertEqual(result, f"Created Point '{midpoint.name}' instead of the requested name 'A'.")
+
+    def test_segment_names_its_new_segment(self) -> None:
+        result = self.run_single("create_segment", x1=0, y1=0, x2=4, y2=0, name="AB")
+
+        self.assertEqual(result, "Created Segment 'AB'.")
+
+    def test_existing_segment_is_reported_as_reused(self) -> None:
+        self.run_single("create_segment", x1=0, y1=0, x2=4, y2=0, name="AB")
+
+        result = self.run_single("create_segment", x1=0, y1=0, x2=4, y2=0)
+
+        self.assertEqual(result, "Used the existing Segment 'AB'; no new segment was created.")
+
+    def test_composite_result_names_each_part(self) -> None:
+        self.run_single("create_segment", x1=0, y1=0, x2=4, y2=0, name="AB")
+        self.run_single("create_point", x=2, y=3, name="C")
+
+        result = self.run_single("construct_perpendicular_from_point", point_name="C", segment_name="AB")
+
+        foot = self.canvas.get_point(2, 0)
+        self.assertIsNotNone(foot)
+        self.assertIn(f"foot: created Point '{foot.name}'", result)
+        self.assertIn(f"segment: created Segment 'C{foot.name}'", result)
+
+    def test_non_create_tools_keep_the_success_message(self) -> None:
+        self.run_single("create_point", x=1, y=1, name="A")
+
+        result = self.run_single("translate_object", name="A", x_offset=1, y_offset=0)
+
+        self.assertEqual(result, "Call successful!")
+
+
 class TestColoredAreaNullStyle(_ToolBatchTestCase):
     """K10: color and opacity null (strict-schema models send it) mean the defaults."""
 

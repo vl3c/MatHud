@@ -234,6 +234,12 @@ class PointNameGenerator(NameGenerator):
                 name_data["next_index"] = i + 1
                 return name
 
+        # Letters handed out earlier may be free again (after an undo or a delete): reuse one
+        # as it is, so asking for K again after undoing K gives K, not an unrelated letter
+        for letter_with_apostrophes in available_letters[:start_index]:
+            if letter_with_apostrophes not in point_names:
+                return letter_with_apostrophes
+
         # If no letters from preferred name are available, generate a unique name
         unique_name = self._generate_unique_point_name()
         return unique_name

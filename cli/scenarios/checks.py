@@ -1751,8 +1751,14 @@ def _removes_objects(tool: str) -> bool:
 
 
 def _result_mentions(result: Any, names: set[str]) -> bool:
+    """True when the result names one of the objects: bare (``B``) or quoted (``'B'``, as the app words it).
+
+    A bare name must not touch a letter or a prime, so ``B`` is not found inside ``AB`` or ``B'``.
+    """
     text = json.dumps(result) if not isinstance(result, str) else result
-    return any(re.search(rf"(?<![\w']){re.escape(name)}(?![\w'])", text) for name in names)
+    return any(
+        f"'{name}'" in text or re.search(rf"(?<![\w']){re.escape(name)}(?![\w'])", text) for name in names
+    )
 
 
 def _inv_truthful_results(before: CanvasView, after: CanvasView, step: StepData) -> list[str]:

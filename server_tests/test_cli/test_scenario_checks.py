@@ -798,6 +798,18 @@ class TestInvariants:
         assert "asked for name 'A'" in by_id(invariants(before, after, silent), "I4").message
         reported = StepData(calls=[call("create_point", "Created point B (A was taken)", x=7, y=7, name="A")])
         assert by_id(invariants(before, after, reported), "I4").status == "pass"
+        quoted = StepData(
+            calls=[call("create_point", "Created Point 'B' instead of the requested name 'A'.", x=7, y=7, name="A")]
+        )
+        assert by_id(invariants(before, after, quoted), "I4").status == "pass"
+
+    def test_i4_quoted_name_must_match_exactly(self) -> None:
+        before = CanvasView(state(point("A", 0, 0)))
+        after = CanvasView(state(point("A", 0, 0), point("B'", 7, 7)))
+        wrong = StepData(calls=[call("create_point", "Created Point 'B' instead of 'A'.", x=7, y=7, name="A")])
+        assert by_id(invariants(before, after, wrong), "I4").status == "fail"
+        right = StepData(calls=[call("create_point", "Created Point 'B'' instead of 'A'.", x=7, y=7, name="A")])
+        assert by_id(invariants(before, after, right), "I4").status == "pass"
 
     def test_i4_naming_rule_skipped_when_the_batch_deletes(self) -> None:
         before = CanvasView(state())

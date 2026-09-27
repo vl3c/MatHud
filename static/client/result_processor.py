@@ -27,7 +27,7 @@ Dependencies:
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, FrozenSet, List, Optional, Tuple
 
 from browser import window
 
@@ -37,6 +37,7 @@ from constants import (
     nothing_to_undo_message,
     successful_call_message,
 )
+from creation_report import CreationReport
 from no_change_result import NoChangeResult
 
 # Largest JSON-serialized return value of a canvas-mutating tool passed back to the model;
@@ -324,8 +325,11 @@ class ResultProcessor:
         if not ResultProcessor._is_function_available(function_name, available_functions, results):
             return None
 
-        # Execute the function
+        # Execute the function; for create calls, remember what existed so reused objects are reported as such
         args: Dict[str, Any] = call.get("arguments", {})
+        existing_ids: Optional[FrozenSet[int]] = None
+        if function_name in unformattable_functions and CreationReport.applies_to(function_name):
+            existing_ids = CreationReport.snapshot_ids(canvas)
         result: Any = ResultProcessor._execute_function(function_name, args, available_functions)
 
         # Format the key for results dictionary
@@ -333,7 +337,15 @@ class ResultProcessor:
 
         # Process the result based on function type
         ResultProcessor._process_result(
-            function_name, args, result, key, unformattable_functions, non_computation_functions, canvas, results
+            function_name,
+            args,
+            result,
+            key,
+            unformattable_functions,
+            non_computation_functions,
+            canvas,
+            results,
+            existing_ids,
         )
         return result
 
@@ -370,11 +382,12 @@ class ResultProcessor:
         non_computation_functions: Tuple[str, ...],
         canvas: "Canvas",
         results: Dict[str, Any],
+        existing_ids: Optional[FrozenSet[int]] = None,
     ) -> None:
         """Process the result based on function type and update results dictionary."""
         if function_name in unformattable_functions:
             # Handle unformattable functions (return success message)
-            ResultProcessor._handle_unformattable_function(function_name, key, result, results)
+            ResultProcessor._handle_unformattable_function(function_name, key, result, results, args, existing_ids)
         elif function_name == "evaluate_expression" and "expression" in args:
             # Handle expression evaluation
             ResultProcessor._handle_expression_evaluation(
@@ -387,13 +400,21 @@ class ResultProcessor:
             )
 
     @staticmethod
-    def _handle_unformattable_function(function_name: str, key: str, result: Any, results: Dict[str, Any]) -> None:
+    def _handle_unformattable_function(
+        function_name: str,
+        key: str,
+        result: Any,
+        results: Dict[str, Any],
+        args: Optional[Dict[str, Any]] = None,
+        existing_ids: Optional[FrozenSet[int]] = None,
+    ) -> None:
         """Handle result for unformattable functions.
 
         A NoChangeResult reports its message, and a delete, undo or redo that returned False
         changed nothing and says so. Small string/dict return values (e.g. generated names or
-        graph state) are passed through so the model can use them; anything else becomes the
-        success message.
+        graph state) are passed through so the model can use them. A create call that returned
+        drawables names them (see CreationReport), including a requested name that was not
+        used; anything else becomes the success message.
         """
         no_op_message = ResultProcessor._no_op_message(function_name, result)
         if isinstance(result, NoChangeResult):
@@ -403,7 +424,17 @@ class ResultProcessor:
         elif ResultProcessor._is_small_passthrough_result(result):
             results[key] = result
         else:
-            results[key] = successful_call_message
+            results[key] = ResultProcessor._creation_message(function_name, args, result, existing_ids)
+
+    @staticmethod
+    def _creation_message(
+        function_name: str, args: Optional[Dict[str, Any]], result: Any, existing_ids: Optional[FrozenSet[int]]
+    ) -> str:
+        """What a create call produced, or the success message when there is nothing to name."""
+        if not CreationReport.applies_to(function_name):
+            return str(successful_call_message)
+        described = CreationReport.describe(function_name, args or {}, result, existing_ids)
+        return described if described is not None else str(successful_call_message)
 
     @staticmethod
     def _no_op_message(function_name: str, result: Any) -> Optional[str]:
