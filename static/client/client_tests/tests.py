@@ -335,7 +335,7 @@ from .test_scenario_hooks import (
 from .test_result_processor_traced import TestGetResultsTraced
 from .test_tool_batch_results import TestToolBatchUndo, TestToolErrorResults, TestToolNoOpResults
 from .test_view_undo_and_no_ops import TestNoOpUpdates, TestPolarGridReset, TestViewUndo
-from .test_tool_null_and_no_op_results import TestCircleArcUpdate
+from .test_tool_null_and_no_op_results import TestCircleArcUpdate, TestNullArguments
 from .test_names_and_persistence import (
     TestRequestedNamesAreReported,
     TestColoredAreaNullStyle,
@@ -749,6 +749,7 @@ class Tests:
             TestPolarGridReset,
             TestNoOpUpdates,
             TestCircleArcUpdate,
+            TestNullArguments,
             TestRequestedNamesAreReported,
             TestColoredAreaNullStyle,
             TestSegmentAreaHasNoSideEffects,

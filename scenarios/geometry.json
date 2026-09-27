@@ -665,6 +665,35 @@
           ]
         }
       ]
+    },
+    {
+      "id": "GEO-18",
+      "title": "Optional numbers sent as null take their defaults",
+      "tags": ["ellipses", "parametric", "null-arguments"],
+      "smoke": false,
+      "targets": "create tools crashing on null optional numbers from strict-schema models (the K10 pattern)",
+      "steps": [
+        {
+          "user": "Draw an ellipse centred at (2, -1) with radii 4 and 2.",
+          "reference": [
+            {"tool": "create_ellipse", "args": {"center_x": 2, "center_y": -1, "radius_x": 4, "radius_y": 2}}
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "count", "select": {"type": "Ellipse"}, "eq": 1},
+            {"check": "attribute", "path": "args.rotation_angle", "select": {"type": "Ellipse", "only": true}, "eq": 0}
+          ]
+        },
+        {
+          "user": "Plot the parametric curve x = t, y = t^2.",
+          "reference": [{"tool": "draw_parametric_function", "args": {"x_expression": "t", "y_expression": "t^2"}}],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "count", "select": {"type": "ParametricFunction"}, "eq": 1},
+            {"check": "attribute", "path": "args.t_min", "select": {"type": "ParametricFunction", "only": true}, "eq": 0}
+          ]
+        }
+      ]
     }
   ]
 }

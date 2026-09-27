@@ -1340,18 +1340,21 @@ class Canvas:
         center_y: float,
         radius_x: float,
         radius_y: float,
-        rotation_angle: float = 0,
+        rotation_angle: Optional[float] = 0,
         name: str = "",
         color: Optional[str] = None,
         extra_graphics: bool = True,
     ) -> "Drawable":
-        """Create an ellipse with the specified center, radii, and rotation"""
+        """Create an ellipse with the specified center, radii, and rotation.
+
+        A null rotation_angle (strict-schema models send null for "not given") means 0.
+        """
         return self.drawable_manager.create_ellipse(
             center_x,
             center_y,
             radius_x,
             radius_y,
-            rotation_angle,
+            0 if rotation_angle is None else rotation_angle,
             name,
             color=color,
             extra_graphics=extra_graphics,
@@ -1467,16 +1470,19 @@ class Canvas:
         x_expression: str,
         y_expression: str,
         name: Optional[str] = None,
-        t_min: float = 0.0,
+        t_min: Optional[float] = 0.0,
         t_max: Optional[float] = None,
         color: Optional[str] = None,
     ) -> "Drawable":
-        """Draw a parametric function on the canvas."""
+        """Draw a parametric function on the canvas.
+
+        A null t_min means 0 and a null t_max means 2*pi (strict-schema models send null for "not given").
+        """
         return self.drawable_manager.draw_parametric_function(
             x_expression,
             y_expression,
             name=name,
-            t_min=t_min,
+            t_min=0.0 if t_min is None else t_min,
             t_max=t_max,
             color=color,
         )
