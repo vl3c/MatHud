@@ -3363,15 +3363,16 @@ class MathUtils:
 
         evaluate must use IEEE arithmetic (_mathjs_probe_evaluator), so an overflow inside f
         carries through it: 1/(1 + exp(-x)) is 0 where exp(-x) overflows. f undefined at a
-        sample (not real) means no limit on that side. An infinite sample ends the sampling
-        after the last finite value before the overflow (_value_before_overflow) is added, so
-        exp(x-700) + 1, which reads 1 up to x = 622.7 and overflows by x = 2490.9, is judged on
-        its value near 1e308 there. A NaN sample (inf/inf, e.g. cosh(x)/sinh(x) once both
-        overflow) has lost the value of f: it ends the sampling, and the samples before it are
-        judged.
+        sample (not real) means no limit on that side. An infinite sample or a NaN one (inf/inf,
+        e.g. cosh(x)/sinh(x) once both overflow) ends the sampling, and the samples before it
+        are judged. After an infinite sample, f just before the overflow (_value_before_overflow)
+        must also be at least as close to the limit as the last sample: exp(x-700) + 1 reads 1
+        up to x = 622.7 but nears 1e308 before it overflows, so it has no limit. That value is
+        a check, not a sample: it lies off the 4-fold grid, which Aitken extrapolation needs.
         """
         values: List[float] = []
         previous_x = 0.0
+        before_overflow: Optional[float] = None
         for index in range(MathUtils._INFINITY_PROBE_COUNT):
             x = sign * MathUtils._INFINITY_PROBE_START * MathUtils._INFINITY_PROBE_FACTOR**index
             value = evaluate(x)
@@ -3385,11 +3386,16 @@ class MathUtils:
                 before_overflow = MathUtils._value_before_overflow(evaluate, previous_x, x)
                 if before_overflow is None:
                     return None
-                values.append(before_overflow)
                 break
             values.append(value)
             previous_x = x
-        return MathUtils._settled_value(values)
+        limit = MathUtils._settled_value(values)
+        if limit is None or before_overflow is None:
+            return limit
+        slack = MathUtils._SETTLED_SPREAD * max(1.0, abs(limit))
+        if abs(before_overflow - limit) > abs(values[-1] - limit) + slack:
+            return None
+        return limit
 
     @staticmethod
     def _value_before_overflow(

@@ -532,11 +532,14 @@ _HORIZONTAL_ASYMPTOTE_CASES: List[Tuple[str, List[float]]] = [
     ("1/(1+exp(-3*x))", [0.0, 1.0]),
     ("exp(x)/(1+exp(x))", [0.0, 1.0]),
     ("cosh(x)/sinh(x)", [-1.0, 1.0]),
-    # An infinite sample is judged on f just before the overflow: huge where f itself overflows
-    # (exp(x-700)+1 reads 1 up to x = 622.7), near the limit where log() takes it back
+    # After an infinite sample, f just before the overflow must be near the limit: it is huge
+    # where f itself overflows (exp(x-700)+1 reads 1 up to x = 622.7), not where log() takes
+    # the overflow back
     ("exp(x-700)+1", [1.0]),
     ("log(1+exp(x))-x", [0.0]),
     ("log(1+exp(x))/x", [0.0, 1.0]),
+    ("log(1+exp(x))/x^2", [0.0, 0.0]),
+    ("log(cosh(x))/x", [-1.0, 1.0]),
     # math.js has no trunc(); it is evaluated as fix()
     ("trunc(x)/x", [1.0, 1.0]),
     # Large offsets and scales: the trailing samples converge
