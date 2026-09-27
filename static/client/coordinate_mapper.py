@@ -210,6 +210,23 @@ class CoordinateMapper:
         visible. Offsets are recalculated so the bounds are centered in view and any
         lingering zoom-towards state is cleared.
         """
+        new_scale, offset_x, offset_y = self.compute_visible_bounds_transform(
+            left_bound, right_bound, top_bound, bottom_bound
+        )
+        self.scale_factor = new_scale
+        self.offset.x = offset_x
+        self.offset.y = offset_y
+        self.zoom_point = Position(0, 0)
+        self.zoom_direction = 0
+
+    def compute_visible_bounds_transform(
+        self, left_bound: float, right_bound: float, top_bound: float, bottom_bound: float
+    ) -> Tuple[float, float, float]:
+        """The (scale_factor, offset_x, offset_y) that set_visible_bounds() would set, without setting them.
+
+        Raises:
+            ValueError: If the bounds are not numeric or do not define a positive area
+        """
         try:
             left: float = float(left_bound)
             right: float = float(right_bound)
@@ -229,16 +246,12 @@ class CoordinateMapper:
 
         scale_x: float = self.canvas_width / width
         scale_y: float = self.canvas_height / height
-        new_scale: float = min(scale_x, scale_y)
-        self.scale_factor = max(new_scale, 1e-9)
+        new_scale: float = max(min(scale_x, scale_y), 1e-9)
 
         center_x: float = (left + right) / 2.0
         center_y: float = (top + bottom) / 2.0
 
-        self.offset.x = -center_x * self.scale_factor
-        self.offset.y = center_y * self.scale_factor
-        self.zoom_point = Position(0, 0)
-        self.zoom_direction = 0
+        return new_scale, -center_x * new_scale, center_y * new_scale
 
     def get_visible_bounds(self) -> Dict[str, float]:
         """Get mathematical bounds of the currently visible area.

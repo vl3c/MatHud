@@ -63,8 +63,8 @@ if TYPE_CHECKING:
     from drawables.drawable import Drawable
     from geometry.graph_state import GraphState
 
-# A zoom whose bounds are within this fraction of the visible span of the current bounds shows the same view.
-VIEW_BOUNDS_RELATIVE_TOLERANCE = 1e-9
+# A zoom whose scale and pan are within this relative tolerance of the current ones shows the same view.
+VIEW_RELATIVE_TOLERANCE = 1e-9
 
 
 class Canvas:
@@ -613,22 +613,28 @@ class Canvas:
         }
 
     def restore_view_state(self, view: Dict[str, Any]) -> bool:
-        """Apply a view from get_view_state() without redrawing.
+        """Apply a view from get_view_state(), or any subset of its keys, without redrawing.
+
+        Keys left out keep their current values; ``scale_factor`` and ``offset`` go together.
 
         Returns:
             True when the zoom level changed, so the caller redraws with ``apply_zoom``
         """
         mapper = self.coordinate_mapper
         previous_scale = float(mapper.scale_factor)
-        offset_x, offset_y = view["offset"]
-        mapper.scale_factor = float(view["scale_factor"])
-        mapper.offset = Position(float(offset_x), float(offset_y))
-        mapper.zoom_point = Position(0, 0)
-        mapper.zoom_direction = 0
+        if "scale_factor" in view and "offset" in view:
+            offset_x, offset_y = view["offset"]
+            mapper.scale_factor = float(view["scale_factor"])
+            mapper.offset = Position(float(offset_x), float(offset_y))
+            mapper.zoom_point = Position(0, 0)
+            mapper.zoom_direction = 0
         manager = self.coordinate_system_manager
-        manager.set_mode(str(view["coordinate_mode"]), redraw=False)
-        manager.cartesian_grid.visible = bool(view["cartesian_grid_visible"])
-        manager.polar_grid.visible = bool(view["polar_grid_visible"])
+        if "coordinate_mode" in view:
+            manager.set_mode(str(view["coordinate_mode"]), redraw=False)
+        if "cartesian_grid_visible" in view:
+            manager.cartesian_grid.visible = bool(view["cartesian_grid_visible"])
+        if "polar_grid_visible" in view:
+            manager.polar_grid.visible = bool(view["polar_grid_visible"])
         spacing = view.get("grid_spacing") or {}
         if "cartesian" in spacing:
             manager.cartesian_grid.current_tick_spacing = float(spacing["cartesian"])
@@ -1735,19 +1741,18 @@ class Canvas:
     ) -> Optional[Tuple[float, float, float, float]]:
         """The (left, right, top, bottom) that zoom() would show, when the canvas already shows them.
 
-        Returns None when the zoom would change the view or its arguments are invalid.
+        Compares the scale and pan that zoom() would set with the current ones, each to a
+        relative 1e-9, so the check holds at any distance from the origin. Returns None
+        when the zoom would change the view or its arguments are invalid.
         """
+        mapper = self.coordinate_mapper
         try:
             bounds = self._compute_zoom_bounds(float(center_x), float(center_y), float(range_val), range_axis)
+            wanted = mapper.compute_visible_bounds_transform(*bounds)
         except (TypeError, ValueError, ZeroDivisionError):
             return None
-        left, right, top, bottom = bounds
-        if not (left < right and bottom < top):
-            return None
-        visible = self.coordinate_mapper.get_visible_bounds()
-        tolerance = VIEW_BOUNDS_RELATIVE_TOLERANCE * max(right - left, top - bottom)
-        shown = (visible["left"], visible["right"], visible["top"], visible["bottom"])
-        if all(abs(wanted - actual) <= tolerance for wanted, actual in zip(bounds, shown)):
+        current = (float(mapper.scale_factor), float(mapper.offset.x), float(mapper.offset.y))
+        if all(math.isclose(a, b, rel_tol=VIEW_RELATIVE_TOLERANCE, abs_tol=1e-12) for a, b in zip(wanted, current)):
             return bounds
         return None
 

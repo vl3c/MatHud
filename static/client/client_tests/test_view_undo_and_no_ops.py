@@ -135,7 +135,8 @@ class TestViewUndo(_ViewTestCase):
         self.assertEqual(self.snapshot(), {"Point": ["A(1.0, 1.0)"]})
         self.assert_bounds(panned)
 
-    def test_undoing_a_zoom_after_a_mouse_pan_restores_the_view_before_the_zoom(self) -> None:
+    def test_undoing_a_zoom_restores_zoom_and_pan_as_one_unit(self) -> None:
+        """A pan after the zoom is undone with it: the view before the zoom comes back whole."""
         before = self.bounds()
         self.run_single("zoom", center_x=5, center_y=5, range_val=2, range_axis="x")
         self.canvas.coordinate_mapper.apply_pan(40, -25)
@@ -143,6 +144,43 @@ class TestViewUndo(_ViewTestCase):
         self.run_single("undo")
 
         self.assert_bounds(before)
+
+    def test_undoing_a_zoom_keeps_a_later_slash_command_mode_switch(self) -> None:
+        before = self.bounds()
+        self.run_single("zoom", center_x=5, center_y=5, range_val=2, range_axis="x")
+        self.canvas.set_coordinate_system("polar")  # what /polar does: no undo entry
+
+        self.run_single("undo")
+
+        self.assert_bounds(before)
+        self.assertEqual(self.canvas.get_coordinate_system(), "polar")
+
+    def test_undoing_a_mode_switch_keeps_a_later_slash_command_grid_toggle(self) -> None:
+        self.run_single("set_coordinate_system", mode="polar")
+        self.canvas.set_grid_visible(False)  # what /grid does: hides the polar grid, no undo entry
+
+        self.run_single("undo")
+
+        manager = self.canvas.coordinate_system_manager
+        self.assertEqual(self.canvas.get_coordinate_system(), "cartesian")
+        self.assertFalse(manager.polar_grid.visible)
+        self.assertTrue(manager.cartesian_grid.visible)
+
+        self.run_single("redo")
+        self.assertEqual(self.canvas.get_coordinate_system(), "polar")
+        self.assertFalse(self.canvas.is_grid_visible())
+
+    def test_undoing_a_zoom_keeps_the_objects_restore_and_a_later_grid_toggle(self) -> None:
+        self.run_batch(
+            ("create_point", {"x": 1, "y": 1, "name": "A"}),
+            ("zoom", {"center_x": 0, "center_y": 0, "range_val": 3, "range_axis": "x"}),
+        )
+        self.canvas.set_grid_visible(False)
+
+        self.run_single("undo")
+
+        self.assertEqual(self.snapshot(), {})
+        self.assertFalse(self.canvas.is_grid_visible())
 
     def test_batch_that_only_zooms_is_judged_changed(self) -> None:
         self.canvas.begin_undo_batch()
@@ -306,6 +344,51 @@ class TestNoOpUpdates(_ViewTestCase):
         result = self.assert_no_op("zoom", {"center_x": 0, "center_y": 0, "range_val": 2, "range_axis": "x"})
 
         self.assertIn("already", result)
+
+    def test_repeated_zoom_far_from_the_origin_is_a_no_op(self) -> None:
+        args = {"center_x": 1e6, "center_y": 1e6, "range_val": 1e-3, "range_axis": "x"}
+        self.run_single("zoom", **args)
+
+        result = self.assert_no_op("zoom", args)
+
+        self.assertIn("already", result)
+
+    def test_reset_or_clear_of_a_canvas_already_reset_adds_no_entry(self) -> None:
+        self.assert_no_op_batch(("reset_canvas", {}))
+        self.assert_no_op_batch(("clear_canvas", {}))
+
+        self.run_single("zoom", center_x=0, center_y=0, range_val=2, range_axis="x")
+        depth = self.undo_depth()
+        self.run_single("reset_canvas")
+        self.run_single("reset_canvas")
+        self.assertEqual(self.undo_depth(), depth + 1)
+
+    def test_batch_that_changes_and_reverts_adds_no_entry(self) -> None:
+        self.run_single("zoom", center_x=0, center_y=0, range_val=2, range_axis="x")
+
+        self.assert_no_op_batch(
+            ("zoom", {"center_x": 3, "center_y": 3, "range_val": 5, "range_axis": "x"}),
+            ("zoom", {"center_x": 0, "center_y": 0, "range_val": 2, "range_axis": "x"}),
+        )
+        self.assert_no_op_batch(
+            ("set_coordinate_system", {"mode": "polar"}),
+            ("set_coordinate_system", {"mode": "cartesian"}),
+        )
+        self.assert_no_op_batch(
+            ("create_point", {"x": 4, "y": 4, "name": "Q"}),
+            ("delete_point", {"x": 4, "y": 4}),
+        )
+
+    def assert_no_op_batch(self, *calls: Any) -> None:
+        """The batch adds no undo entry and keeps a pending redo."""
+        self.run_single("create_point", x=9, y=9, name="R")
+        self.run_single("undo")
+        depth, redo_depth = self.undo_depth(), len(self.canvas.undo_redo_manager.redo_stack)
+
+        self.run_batch(*calls)
+
+        self.assertEqual(self.undo_depth(), depth)
+        self.assertEqual(len(self.canvas.undo_redo_manager.redo_stack), redo_depth)
 
     def test_zoom_to_a_new_view_still_adds_an_entry(self) -> None:
         self.run_single("zoom", center_x=0, center_y=0, range_val=2, range_axis="x")
