@@ -203,7 +203,8 @@ class TestRegressionReportsReusedPoints(_ToolBatchTestCase):
     def test_without_existing_points_nothing_is_reported_as_reused(self) -> None:
         result = self.fit()
 
-        self.assertEqual(result["created_point_names"], result["point_names"])
+        self.assertEqual(result["point_names"], ["A", "B", "C", "D"])
+        self.assertNotIn("created_point_names", result)
         self.assertNotIn("reused_point_names", result)
         self.assertNotIn("note", result)
 

@@ -394,9 +394,9 @@ class StatisticsManager:
 
         Creates a standalone Function for the fitted curve and optionally
         Point markers for the data. No tracking entity is created - delete
-        the function with delete_function() and the points listed in
-        created_point_names individually. A data point on an existing point
-        reuses it; such points are listed in reused_point_names.
+        the function with delete_function() and the data points individually.
+        A data point on an existing point reuses it; the result then lists such
+        points in reused_point_names, and only created_point_names may be deleted.
 
         Args:
             name: Optional base name for the function and points
@@ -412,9 +412,9 @@ class StatisticsManager:
 
         Returns:
             Dict with function_name, expression, coefficients, r_squared,
-            model_type, bounds, and with points shown point_names (data order)
-            and created_point_names, plus reused_point_names and a note when
-            existing points were reused
+            model_type, bounds, point_names (data order) when points are shown,
+            and created_point_names, reused_point_names and a note when existing
+            points were reused
         """
         started_at = time.perf_counter()
         model = str(model_type or "").strip().lower()
@@ -508,12 +508,12 @@ class StatisticsManager:
 
             if point_names:
                 result_dict["point_names"] = point_names
-                result_dict["created_point_names"] = [
-                    n for n in dict.fromkeys(point_names) if n not in reused_point_names
-                ]
             if reused_point_names:
                 # Existing points at data coordinates are reused, not created: say so, so they
                 # are not mistaken for (and deleted as) this fit's own points.
+                result_dict["created_point_names"] = [
+                    n for n in dict.fromkeys(point_names) if n not in reused_point_names
+                ]
                 result_dict["reused_point_names"] = reused_point_names
                 result_dict["note"] = (
                     "Points "
