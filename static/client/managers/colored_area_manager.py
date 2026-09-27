@@ -114,8 +114,8 @@ class ColoredAreaManager:
         drawable2_name: Optional[str] = None,
         left_bound: Optional[float] = None,
         right_bound: Optional[float] = None,
-        color: str = default_area_fill_color,
-        opacity: float = default_area_opacity,
+        color: Optional[str] = default_area_fill_color,
+        opacity: Optional[float] = default_area_opacity,
     ) -> Union[FunctionsBoundedColoredArea, SegmentsBoundedColoredArea, FunctionSegmentBoundedColoredArea]:
         """
         Creates a colored area between two functions, two segments, or a function and a segment.
@@ -126,8 +126,8 @@ class ColoredAreaManager:
             drawable2_name: Name of second function/segment (or None for x-axis)
             left_bound: Optional left bound for function areas
             right_bound: Optional right bound for function areas
-            color: Color of the area (default: lightblue)
-            opacity: Opacity of the area (default: 0.3)
+            color: Color of the area (default: lightblue; None also means the default)
+            opacity: Opacity of the area (default: 0.3; None also means the default)
 
         Returns:
             The created colored area object
@@ -135,6 +135,7 @@ class ColoredAreaManager:
         Raises:
             ValueError: If color or opacity values are invalid or if drawables not found
         """
+        color, opacity = self._style_or_defaults(color, opacity)
         # Validate color and opacity before proceeding
         self.canvas._validate_color_and_opacity(color, opacity)
 
@@ -164,42 +165,8 @@ class ColoredAreaManager:
             drawable1, drawable2 = drawable2, drawable1
 
         if isinstance(drawable1, Segment) and (drawable2 is None or isinstance(drawable2, Segment)):
-            # Segment-segment or segment-xaxis case
-            if drawable2:  # Segment-segment case
-                # Create points at overlap boundaries
-                def get_y_at_x(segment: Segment, x: float) -> float:
-                    # Linear interpolation to find y value at x using math coordinates
-                    x1: float = segment.point1.x
-                    y1: float = segment.point1.y
-                    x2: float = segment.point2.x
-                    y2: float = segment.point2.y
-                    if x2 == x1:
-                        return y1  # Vertical segment
-                    t: float = (x - x1) / (x2 - x1)
-                    return y1 + t * (y2 - y1)
-
-                # Get x-ranges of both segments using math coordinates
-                x1_min = min(drawable1.point1.x, drawable1.point2.x)
-                x1_max = max(drawable1.point1.x, drawable1.point2.x)
-                x2_min = min(drawable2.point1.x, drawable2.point2.x)
-                x2_max = max(drawable2.point1.x, drawable2.point2.x)
-
-                # Check if segment1 endpoints create points on segment2
-                if x1_min >= x2_min and x1_min <= x2_max:
-                    y = get_y_at_x(drawable2, x1_min)
-                    self.drawable_manager.create_point(x1_min, y)
-                if x1_max >= x2_min and x1_max <= x2_max:
-                    y = get_y_at_x(drawable2, x1_max)
-                    self.drawable_manager.create_point(x1_max, y)
-
-                # Check if segment2 endpoints create points on segment1
-                if x2_min >= x1_min and x2_min <= x1_max:
-                    y = get_y_at_x(drawable1, x2_min)
-                    self.drawable_manager.create_point(x2_min, y)
-                if x2_max >= x1_min and x2_max <= x1_max:
-                    y = get_y_at_x(drawable1, x2_max)
-                    self.drawable_manager.create_point(x2_max, y)
-
+            # Segment-segment or segment-xaxis case. The area only shades: its renderer finds the
+            # overlap of the segments' x-ranges itself, so no points are added and no segment is split.
             colored_area: Union[SegmentsBoundedColoredArea, FunctionSegmentBoundedColoredArea, FunctionsBoundedColoredArea]
             colored_area = SegmentsBoundedColoredArea(drawable1, drawable2, color=color, opacity=opacity)
         elif isinstance(drawable2, Segment):
@@ -231,15 +198,19 @@ class ColoredAreaManager:
         ellipse_name: Optional[str] = None,
         chord_segment_name: Optional[str] = None,
         arc_clockwise: bool = False,
-        resolution: int = default_closed_shape_resolution,
-        color: str = default_area_fill_color,
-        opacity: float = default_area_opacity,
+        resolution: Optional[int] = default_closed_shape_resolution,
+        color: Optional[str] = default_area_fill_color,
+        opacity: Optional[float] = default_area_opacity,
     ) -> ClosedShapeColoredArea:
         """
         Creates a colored area from a region expression, existing shapes, or simple geometries.
 
         Expression takes precedence if provided. Supports boolean operations on shapes.
+        A None color, opacity or resolution (strict-schema models send null) means the default.
         """
+        color, opacity = self._style_or_defaults(color, opacity)
+        if resolution is None:
+            resolution = default_closed_shape_resolution
         self.canvas._validate_color_and_opacity(color, opacity)
         self.canvas.undo_redo_manager.archive()
 
@@ -341,6 +312,14 @@ class ColoredAreaManager:
             self.canvas.draw()
 
         return closed_area
+
+    @staticmethod
+    def _style_or_defaults(color: Optional[str], opacity: Optional[float]) -> tuple[str, float]:
+        """Replace a None color or opacity with the default fill color and opacity."""
+        return (
+            default_area_fill_color if color is None else color,
+            default_area_opacity if opacity is None else opacity,
+        )
 
     def _create_from_expression(
         self,

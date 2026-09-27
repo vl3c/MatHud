@@ -1861,8 +1861,8 @@ class Canvas:
         drawable2_name: Optional[str] = None,
         left_bound: Optional[float] = None,
         right_bound: Optional[float] = None,
-        color: str = default_area_fill_color,
-        opacity: float = default_area_opacity,
+        color: Optional[str] = default_area_fill_color,
+        opacity: Optional[float] = default_area_opacity,
     ) -> "Drawable":
         """Creates a vertical bounded colored area between two functions, two segments, or a function and a segment"""
         return self.drawable_manager.create_colored_area(
@@ -1880,9 +1880,9 @@ class Canvas:
         ellipse_name: Optional[str] = None,
         chord_segment_name: Optional[str] = None,
         arc_clockwise: bool = False,
-        resolution: int = default_closed_shape_resolution,
-        color: str = default_area_fill_color,
-        opacity: float = default_area_opacity,
+        resolution: Optional[int] = default_closed_shape_resolution,
+        color: Optional[str] = default_area_fill_color,
+        opacity: Optional[float] = default_area_opacity,
     ) -> "Drawable":
         """Creates a region colored area from expression or closed shape."""
         return self.drawable_manager.create_region_colored_area(

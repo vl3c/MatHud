@@ -87,5 +87,14 @@ class Drawable:
     def get_state(self) -> Dict[str, Any]:
         raise NotImplementedError("Subclasses must implement get_state method")
 
+    def _add_color_to_state(self, state: Dict[str, Any], default: str = default_color) -> None:
+        """Add a non-default color to ``state["args"]`` so saves, loads and the model keep it.
+
+        The default color is left out, which keeps the state of default-colored objects unchanged.
+        """
+        color = self.color
+        if color and color != default:
+            state.setdefault("args", {})["color"] = color
+
     def rotate(self, angle: float) -> None:
         raise NotImplementedError("Subclasses must implement rotate method")

@@ -511,10 +511,10 @@ class TestToolNoOpResults(_ToolBatchTestCase):
 
         self.assertEqual(result, "Point 'A' already exists at (2.5, -1); no new point was created.")
 
-    def test_create_point_on_a_free_spot_still_reports_success(self) -> None:
+    def test_create_point_on_a_free_spot_reports_the_new_point(self) -> None:
         result = self.run_single("create_point", x=1, y=1, name="A")
 
-        self.assertEqual(result, successful_call_message)
+        self.assertEqual(result, "Created Point 'A'.")
         self.assertEqual(self.undo_depth(), 1)
 
     def test_undo_and_redo_with_history_still_report_success(self) -> None:

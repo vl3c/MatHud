@@ -60,6 +60,7 @@ class TestEllipse(unittest.TestCase):
                 "radius_y": self.radius_y,
                 "rotation_angle": self.rotation_angle,
                 "ellipse_formula": self.ellipse.ellipse_formula,
+                "color": "red",
             },
         }
         self.assertEqual(state, expected_state)

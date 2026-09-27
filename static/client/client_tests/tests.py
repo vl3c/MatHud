@@ -278,6 +278,7 @@ from .test_chat_html_safety import (
     TestMathJaxHrefDisabled,
     TestMathOutputSanitizer,
 )
+from .test_chat_math_typeset import TestChatMathTypeset
 from .test_turn_metrics import (
     TestTurnAggregation,
     TestFooterFormatting,
@@ -324,6 +325,13 @@ from .test_scenario_hooks import (
 from .test_result_processor_traced import TestGetResultsTraced
 from .test_tool_batch_results import TestToolBatchUndo, TestToolErrorResults, TestToolNoOpResults
 from .test_view_undo_and_no_ops import TestNoOpUpdates, TestPolarGridReset, TestViewUndo
+from .test_names_and_persistence import (
+    TestRequestedNamesAreReported,
+    TestColoredAreaNullStyle,
+    TestSegmentAreaHasNoSideEffects,
+    TestRegressionReportsReusedPoints,
+    TestWorkspaceRoundTripKeepsStyles,
+)
 from .test_base_telemetry import (
     TestBaseTelemetryInit,
     TestBaseTelemetryReset,
@@ -663,6 +671,7 @@ class Tests:
             TestAutocompleteHtmlSafety,
             TestMathJaxHrefDisabled,
             TestMathOutputSanitizer,
+            TestChatMathTypeset,
             TestTurnAggregation,
             TestFooterFormatting,
             TestTurnMetricsCollector,
@@ -700,6 +709,11 @@ class Tests:
             TestViewUndo,
             TestPolarGridReset,
             TestNoOpUpdates,
+            TestRequestedNamesAreReported,
+            TestColoredAreaNullStyle,
+            TestSegmentAreaHasNoSideEffects,
+            TestRegressionReportsReusedPoints,
+            TestWorkspaceRoundTripKeepsStyles,
             TestBaseTelemetryInit,
             TestBaseTelemetryReset,
             TestBaseTelemetryBeginFrame,

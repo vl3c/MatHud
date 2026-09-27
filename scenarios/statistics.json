@@ -107,7 +107,6 @@
       "title": "Linear regression over an existing point",
       "tags": ["statistics", "regression", "points"],
       "smoke": false,
-      "known": ["K27"],
       "targets": "regression math; reuse of existing points",
       "setup": {"calls": [{"tool": "create_point", "args": {"x": 1, "y": 3, "name": "A"}}]},
       "steps": [
@@ -142,7 +141,8 @@
             {"check": "exists", "select": {"type": "Point", "at": [4, 9]}},
             {"check": "count", "select": {"type": "Point"}, "eq": 4},
             {"check": "tool_result", "tool": "fit_regression", "path": "point_names", "eq": ["A", "B", "C", "D"]},
-            {"check": "tool_result", "tool": "fit_regression", "matches": "(?i)reus|existing", "known": "K27"}
+            {"check": "tool_result", "tool": "fit_regression", "path": "reused_point_names", "eq": ["A"]},
+            {"check": "tool_result", "tool": "fit_regression", "path": "created_point_names", "eq": ["B", "C", "D"]}
           ]
         }
       ]
