@@ -1,5 +1,6 @@
 """Regression tests for derived geometry that must follow the points (K8, K9, K16, K17, K19).
 
+
 Each test drives the canvas with the same function registry and result processor
 the AI uses, so it covers the tool path the model takes.
 """
@@ -380,3 +381,106 @@ class TestStaleGeometry(unittest.TestCase):
                     subtype=subtype,
                 )
                 self.assertEqual(self._points(), sorted((float(x), float(y)) for x, y in vertices))
+
+    def test_near_subtype_is_adjusted_and_reported(self) -> None:
+        result = self._call(
+            "create_polygon",
+            vertices=[{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 2, "y": 3.46}],
+            polygon_type="triangle",
+            subtype="equilateral",
+            name="ABC",
+        )
+
+        self.assertEqual(self._coords(self._point("A")), (0.0, 0.0))
+        self.assertEqual(self._coords(self._point("B")), (4.0, 0.0))
+        self.assertAlmostEqual(self._point("C").y, EQUILATERAL_APEX_Y, places=12)
+        self.assertIn("equilateral", self._only("Triangle").get_type_names())
+        self.assertIsInstance(result, str)
+        self.assertIn("'C' placed at (2, 3.4641016) instead of (2, 3.46)", result)
+        self.assertIn("equilateral triangle", result)
+
+    def test_rounded_square_moves_only_the_rounded_corner(self) -> None:
+        # A square of side 2 rotated 45 degrees, given to 2 decimals.
+        result = self._call(
+            "create_polygon",
+            vertices=[{"x": 0, "y": 0}, {"x": 1.41, "y": 1.41}, {"x": 0, "y": 2.83}, {"x": -1.41, "y": 1.41}],
+            polygon_type="quadrilateral",
+            subtype="square",
+            name="ABCD",
+        )
+
+        self.assertEqual(self._coords(self._point("A")), (0.0, 0.0))
+        self.assertEqual(self._coords(self._point("B")), (1.41, 1.41))
+        self.assertEqual(self._coords(self._point("D")), (-1.41, 1.41))
+        self.assertAlmostEqual(self._point("C").y, 2.82, places=12)
+        self.assertIn("square", self._only("Rectangle").get_type_names())
+        self.assertIn("'C' placed at", str(result))
+
+    def test_subtype_adjustment_never_moves_an_existing_point(self) -> None:
+        self._call("create_point", x=2, y=3.46, name="P")
+        self._call("create_point", x=0, y=0, name="Q")
+        self._call("create_point", x=4, y=0, name="R")
+        error = self._call_error(
+            "create_polygon",
+            vertices=[{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 2, "y": 3.46}],
+            polygon_type="triangle",
+            subtype="equilateral",
+        )
+        self.assertIn("existing point", error)
+        self.assertEqual(self._coords(self._point("P")), (2.0, 3.46))
+        self.assertEqual(list(self.canvas.get_drawables_by_class_name("Triangle")), [])
+
+    def test_existing_point_stays_while_another_vertex_is_adjusted(self) -> None:
+        self._call("create_point", x=2, y=3.46, name="P")
+
+        result = self._call(
+            "create_polygon",
+            vertices=[{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 2, "y": 3.46}],
+            polygon_type="triangle",
+            subtype="equilateral",
+        )
+
+        self.assertEqual(self._coords(self._point("P")), (2.0, 3.46))
+        self.assertIn("equilateral", self._only("Triangle").get_type_names())
+        self.assertIn("placed at", str(result))
+        self.assertNotIn("'P' placed", str(result))
+
+    def test_far_subtype_is_refused_with_labelled_measurements_and_a_suggestion(self) -> None:
+        error = self._call_error(
+            "create_polygon",
+            vertices=[{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 2, "y": 3}],
+            polygon_type="triangle",
+            subtype="equilateral",
+            name="ABC",
+        )
+
+        self.assertIn("an equilateral triangle", error)
+        self.assertIn("AB = 4", error)
+        self.assertIn("CA = 3.6055513", error)
+        self.assertIn("angles A = ", error)
+        self.assertIn("2%", error)
+        self.assertIn("C would be at (2, 3.4641016)", error)
+        self.assertEqual(self._points(), [])
+
+    def test_right_isosceles_refusal_suggests_a_corner(self) -> None:
+        error = self._call_error(
+            "create_polygon",
+            vertices=[{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 0, "y": 3}],
+            polygon_type="triangle",
+            subtype="right_isosceles",
+        )
+
+        self.assertIn("With the right angle at A", error)
+        self.assertIn("would be at (0, 4)", error)
+
+    def test_corners_out_of_cyclic_order_are_refused_not_reordered(self) -> None:
+        error = self._call_error(
+            "create_polygon",
+            vertices=[{"x": 0, "y": 0}, {"x": 2, "y": 2}, {"x": 2, "y": 0}, {"x": 0, "y": 2}],
+            polygon_type="quadrilateral",
+            subtype="square",
+        )
+
+        self.assertIn("not in order", error)
+        self.assertIn("cross", error)
+        self.assertEqual(self._points(), [])

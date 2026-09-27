@@ -372,7 +372,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "create_polygon",
-            "description": "Creates a polygon from ordered vertex coordinates, used exactly as given: vertices are never moved or re-ordered. An optional subtype is checked against the vertices (small rounding is tolerated); if they do not form it, the call fails with the measured sides and angles and nothing is created, so compute exact coordinates for the subtype.",
+            "description": "Creates a polygon from ordered vertex coordinates. Vertices keep the given order (never re-ordered; list corners in order around the shape). With a subtype: vertices that already form it are used as given; vertices off by at most 2% of the side length are adjusted, moving as few as possible and never an existing point, and the result says which point was placed where; otherwise the call fails with the measured sides and angles and nothing is created, so compute accurate coordinates.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -417,7 +417,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     },
                     "subtype": {
                         "type": ["string", "null"],
-                        "description": "Optional polygon subtype the given vertices must form (checked, never enforced by moving them). Triangles support equilateral, isosceles, scalene, right, right_isosceles. Quadrilaterals support rectangle, square, parallelogram, rhombus, kite, trapezoid, isosceles_trapezoid, right_trapezoid.",
+                        "description": "Optional polygon subtype the vertices must form (small errors are adjusted and reported, larger ones refused). Triangles support equilateral, isosceles, scalene, right, right_isosceles. Quadrilaterals support rectangle, square, parallelogram, rhombus, kite, trapezoid, isosceles_trapezoid, right_trapezoid.",
                         "enum": POLYGON_SUBTYPE_VALUES + [None],
                     },
                 },

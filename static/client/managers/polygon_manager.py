@@ -5,8 +5,9 @@ update, and deletion for all polygon types from triangle to decagon.
 
 Key Features:
     - Unified create/update/delete API for all polygon types
-    - Vertices are used exactly as given (order and coordinates)
-    - Subtypes are checked against the given vertices, never enforced by moving them
+    - Vertices keep the given order and are never re-ordered
+    - Subtypes: exact vertices are used verbatim, near ones get the fewest vertices
+      adjusted (never an existing point, and the result says so), others are refused
     - Triangle subtypes: equilateral, isosceles, scalene, right
     - Quadrilateral subtypes: rectangle, square, parallelogram, rhombus, etc.
     - Point and segment creation with dependency tracking
@@ -36,7 +37,12 @@ from itertools import combinations
 
 from utils.geometry_utils import GeometryUtils
 from utils.math_utils import MathUtils
-from utils.polygon_subtype_checks import quadrilateral_subtype_mismatch, triangle_subtype_mismatch
+from utils.polygon_subtype_checks import (
+    SubtypeResolution,
+    format_coordinate,
+    resolve_polygon_subtype,
+    shape_name,
+)
 from utils.polygon_subtypes import QuadrilateralSubtype, TriangleSubtype
 
 if TYPE_CHECKING:
@@ -118,6 +124,8 @@ class PolygonManager(BaseDrawableManager):
         )
         self.point_manager: "PointManager" = point_manager
         self.segment_manager: "SegmentManager" = segment_manager
+        # Vertices the last create_polygon moved to fit its subtype (for the tool result).
+        self.last_adjustment_notes: List[str] = []
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -133,16 +141,28 @@ class PolygonManager(BaseDrawableManager):
         subtype: Optional[Union[str, TriangleSubtype, QuadrilateralSubtype]] = None,
         extra_graphics: bool = True,
     ) -> "Drawable":
-        # Vertices are used exactly as given: a subtype or a rectangle/square type is checked
-        # against them and refused when it does not hold, never enforced by moving them.
+        # Vertices keep the given order. A subtype (or the rectangle/square type) is resolved
+        # against them: exact vertices are used verbatim, near ones are adjusted as little as
+        # possible (never an existing point), and anything else is refused.
+        self.last_adjustment_notes = []
         normalized_vertices = self._sanitize_vertices(vertices)
         normalized_type, constraints = self._resolve_polygon_type(normalized_vertices, polygon_type)
         triangle_subtype, quad_subtype = self._normalize_polygon_subtype(subtype, normalized_type)
-
-        self._validate_polygon_subtype(normalized_vertices, triangle_subtype, quad_subtype)
+        # Explicit None checks: truth-testing an Enum member fails under Brython.
+        if quad_subtype is None:
+            quad_subtype = self._subtype_from_constraints(constraints)
         if quad_subtype in (QuadrilateralSubtype.RECTANGLE, QuadrilateralSubtype.SQUARE):
             # Promote to Rectangle type for rectangle/square subtypes
             normalized_type = PolygonType.RECTANGLE
+
+        point_names = self._build_point_names(name, len(normalized_vertices))
+        requested_subtype: Optional[Union[TriangleSubtype, QuadrilateralSubtype]] = (
+            triangle_subtype if triangle_subtype is not None else quad_subtype
+        )
+        resolution: Optional[SubtypeResolution] = None
+        if requested_subtype is not None:
+            resolution = self._resolve_subtype(normalized_vertices, requested_subtype, point_names)
+            normalized_vertices = resolution.vertices
 
         self._validate_polygon_coordinates(normalized_vertices, normalized_type, constraints)
 
@@ -152,8 +172,10 @@ class PolygonManager(BaseDrawableManager):
 
         self.canvas.undo_redo_manager.archive()
 
-        point_names = self._build_point_names(name, len(normalized_vertices))
         points = self._create_points(normalized_vertices, point_names)
+        notes: List[str] = []
+        if resolution is not None and requested_subtype is not None:
+            notes = self._adjustment_notes(resolution, points, requested_subtype)
         segment_kwargs = self._build_segment_kwargs(color)
         segments = self._create_segments(points, segment_kwargs)
 
@@ -163,6 +185,8 @@ class PolygonManager(BaseDrawableManager):
 
         if extra_graphics:
             self.drawable_manager.create_drawables_from_new_connections()
+        # Set after the extra graphics, which may create polygons of their own.
+        self.last_adjustment_notes = notes
 
         if self.canvas.draw_enabled:
             self.canvas.draw()
@@ -339,20 +363,37 @@ class PolygonManager(BaseDrawableManager):
                     "Provided vertices do not form a square in the given order; vertices are used exactly as given."
                 )
 
-    def _validate_polygon_subtype(
+    @staticmethod
+    def _subtype_from_constraints(constraints: Dict[str, bool]) -> Optional[QuadrilateralSubtype]:
+        if constraints.get("require_square"):
+            return QuadrilateralSubtype.SQUARE
+        if constraints.get("require_rectangle"):
+            return QuadrilateralSubtype.RECTANGLE
+        return None
+
+    def _resolve_subtype(
         self,
         vertices: Sequence[Coordinate],
-        triangle_subtype: Optional[TriangleSubtype],
-        quad_subtype: Optional[QuadrilateralSubtype],
-    ) -> None:
-        """Raise when the vertices, as given, do not form the requested subtype."""
-        reason: Optional[str] = None
-        if triangle_subtype is not None:
-            reason = triangle_subtype_mismatch(vertices, triangle_subtype)
-        elif quad_subtype is not None:
-            reason = quadrilateral_subtype_mismatch(vertices, quad_subtype)
-        if reason:
-            raise ValueError(reason)
+        subtype: Union[TriangleSubtype, QuadrilateralSubtype],
+        point_names: Sequence[str],
+    ) -> SubtypeResolution:
+        """Fit the vertices to the subtype; raises ValueError when they cannot be fitted."""
+        get_point = getattr(self.point_manager, "get_point", None)
+        fixed = [bool(callable(get_point) and get_point(x, y) is not None) for x, y in vertices]
+        labels = list(point_names) if all(point_names) and len(set(point_names)) == len(point_names) else None
+        return resolve_polygon_subtype(vertices, subtype, fixed=fixed, labels=labels)
+
+    @staticmethod
+    def _adjustment_notes(
+        resolution: SubtypeResolution,
+        points: Sequence["Point"],
+        subtype: Union[TriangleSubtype, QuadrilateralSubtype],
+    ) -> List[str]:
+        return [
+            f"Point '{points[index].name}' placed at {format_coordinate(placed)} instead of "
+            f"{format_coordinate(given)} to make {shape_name(subtype)}."
+            for index, given, placed in resolution.moves
+        ]
 
     def _build_point_names(self, name: str, count: int) -> List[str]:
         if not name:

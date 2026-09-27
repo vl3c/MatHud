@@ -101,6 +101,20 @@ class FunctionRegistry:
         return message
 
     @staticmethod
+    def _create_polygon_tool(canvas: "Canvas") -> Callable[..., Any]:
+        """Build the create_polygon tool: canvas.create_polygon, but vertices moved to fit a subtype are reported."""
+
+        def create_polygon(**arguments: Any) -> Any:
+            polygon = canvas.create_polygon(**arguments)
+            polygon_manager = getattr(canvas.drawable_manager, "polygon_manager", None)
+            notes = list(getattr(polygon_manager, "last_adjustment_notes", None) or [])
+            if polygon is None or not notes:
+                return polygon
+            return f"Polygon '{polygon.name}': " + " ".join(notes)
+
+        return create_polygon
+
+    @staticmethod
     def _create_circle_arc_tool(canvas: "Canvas") -> Callable[..., Any]:
         """Build the create_circle_arc tool: canvas.create_circle_arc, but a replaced endpoint is reported.
 
@@ -167,7 +181,7 @@ class FunctionRegistry:
             "delete_vector": canvas.delete_vector,
             "update_vector": canvas.update_vector,
             # ===== POLYGON OPERATIONS =====
-            "create_polygon": canvas.create_polygon,
+            "create_polygon": FunctionRegistry._create_polygon_tool(canvas),
             "delete_polygon": canvas.delete_polygon,
             "update_polygon": canvas.update_polygon,
             # ===== CIRCLE OPERATIONS =====
