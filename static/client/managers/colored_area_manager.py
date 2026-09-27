@@ -114,8 +114,8 @@ class ColoredAreaManager:
         drawable2_name: Optional[str] = None,
         left_bound: Optional[float] = None,
         right_bound: Optional[float] = None,
-        color: str = default_area_fill_color,
-        opacity: float = default_area_opacity,
+        color: Optional[str] = default_area_fill_color,
+        opacity: Optional[float] = default_area_opacity,
     ) -> Union[FunctionsBoundedColoredArea, SegmentsBoundedColoredArea, FunctionSegmentBoundedColoredArea]:
         """
         Creates a colored area between two functions, two segments, or a function and a segment.
@@ -126,8 +126,8 @@ class ColoredAreaManager:
             drawable2_name: Name of second function/segment (or None for x-axis)
             left_bound: Optional left bound for function areas
             right_bound: Optional right bound for function areas
-            color: Color of the area (default: lightblue)
-            opacity: Opacity of the area (default: 0.3)
+            color: Color of the area (default: lightblue; None also means the default)
+            opacity: Opacity of the area (default: 0.3; None also means the default)
 
         Returns:
             The created colored area object
@@ -135,6 +135,7 @@ class ColoredAreaManager:
         Raises:
             ValueError: If color or opacity values are invalid or if drawables not found
         """
+        color, opacity = self._style_or_defaults(color, opacity)
         # Validate color and opacity before proceeding
         self.canvas._validate_color_and_opacity(color, opacity)
 
@@ -231,15 +232,19 @@ class ColoredAreaManager:
         ellipse_name: Optional[str] = None,
         chord_segment_name: Optional[str] = None,
         arc_clockwise: bool = False,
-        resolution: int = default_closed_shape_resolution,
-        color: str = default_area_fill_color,
-        opacity: float = default_area_opacity,
+        resolution: Optional[int] = default_closed_shape_resolution,
+        color: Optional[str] = default_area_fill_color,
+        opacity: Optional[float] = default_area_opacity,
     ) -> ClosedShapeColoredArea:
         """
         Creates a colored area from a region expression, existing shapes, or simple geometries.
 
         Expression takes precedence if provided. Supports boolean operations on shapes.
+        A None color, opacity or resolution (strict-schema models send null) means the default.
         """
+        color, opacity = self._style_or_defaults(color, opacity)
+        if resolution is None:
+            resolution = default_closed_shape_resolution
         self.canvas._validate_color_and_opacity(color, opacity)
         self.canvas.undo_redo_manager.archive()
 
@@ -341,6 +346,14 @@ class ColoredAreaManager:
             self.canvas.draw()
 
         return closed_area
+
+    @staticmethod
+    def _style_or_defaults(color: Optional[str], opacity: Optional[float]) -> tuple[str, float]:
+        """Replace a None color or opacity with the default fill color and opacity."""
+        return (
+            default_area_fill_color if color is None else color,
+            default_area_opacity if opacity is None else opacity,
+        )
 
     def _create_from_expression(
         self,
