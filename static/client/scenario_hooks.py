@@ -282,8 +282,6 @@ def reset_canvas_session(canvas: "Canvas") -> None:
     manager.set_mode("cartesian", redraw=False)
     manager.cartesian_grid.visible = True
     manager.polar_grid.visible = True
-    # Canvas.reset does not reset the polar grid's zoom-adapted spacing (K25), so do it here.
-    manager.polar_grid.reset()
     clear_undo_history(canvas)
     canvas.reset()
 

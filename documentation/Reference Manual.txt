@@ -272,7 +272,7 @@ Attributes:
 - `add_drawable(drawable)`: Add a drawable object to the canvas
 - `draw(apply_zoom=False)`: Draw all canvas content including coordinate system and drawable objects
 - `clear()`: Clear all drawables from the canvas
-- `reset()`: Reset the canvas to its initial state
+- `reset()`: Reset the canvas to its initial state: the view and both grids' zoom-adapted spacing (Cartesian ticks and polar rings)
 - `archive()`: Archive the current state for undo functionality (inside an undo batch it only marks the batch as changed)
 - `begin_undo_batch()` / `end_undo_batch()`: Group every change between the two calls into one undo step (see Undo Redo Manager)
 - `undo()`: Restores the last archived state from the undo stack
@@ -468,7 +468,7 @@ Browser hooks for the agentic scenario-testing harness (`python -m cli.main test
 
 - `getMatHudCanvasState(optionsJson?)`: `{"state": Canvas.get_canvas_state(), "inspection"?: {...}}`. Options: `inspect` (bool) adds the inspection view; `samples` (`{function_name or "*": [x, ...]}`) and `t_samples` (the same for parametric curves) add function values computed with the app's own evaluator. The inspection view holds, per drawable, `class`, `name`, `color`, the attached `label` (text, visible), angle `angle_degrees`, `raw_angle_degrees`, `is_reflex` and vertex/arm coordinates, polygon `vertices` in order, requested `samples`/`t_samples`, and for functions with listed vertical asymptotes `asymptote_probes` (`[a, f(a - h), f(a + h)]`); globally `undo_depth`, `redo_depth`, `coordinate_mode`, `grid_visible` (cartesian, polar, active), `polar_radial_spacing` and the point-name generator's `name_hints`.
 - `runMatHudToolCalls(callsJson)`: Refused with `{"status": "busy"}` while a chat turn runs. Otherwise, run one batch through `AIInterface.execute_tool_batch`, the path a model's batch takes (results, turn metrics, action trace). Calls are `[{"function_name", "arguments"}]` or `[{"tool", "args"}]`. Returns `traced` (per call: function name, arguments, result, `is_error`, duration), `undoable` (per call), `state` after the batch, `trace_id`, and `undo_depth_before/after` and `redo_depth_before/after`.
-- `resetMatHudSession(optionsJson?)`: Clear drawables, computations, name-generator state, undo and redo stacks, view, coordinate system (cartesian), grid visibility and polar grid spacing, action traces and turn metrics, without archiving or saving a workspace. Options: `fixture` (a canvas state, or `{"state": ...}`) is restored afterwards and leaves no undo entries; `chat` (default true) clears the chat panel; `conversation` (default false) also POSTs `/new_conversation` (each POST starts a new server session log).
+- `resetMatHudSession(optionsJson?)`: Clear drawables, computations, name-generator state, undo and redo stacks, view, coordinate system (cartesian), grid visibility and grid spacing (through `Canvas.reset`), action traces and turn metrics, without archiving or saving a workspace. Options: `fixture` (a canvas state, or `{"state": ...}`) is restored afterwards and leaves no undo entries; `chat` (default true) clears the chat panel; `conversation` (default false) also POSTs `/new_conversation` (each POST starts a new server session log).
 - `getMatHudTurnStatus()`: `{"processing", "completed_turns", "last_outcome", "requests", "tool_batches", "tool_calls"}`; the last three count the active turn.
 - `sendMatHudMessage(text, modelId?)`: Select the `#ai-model-selector` option `modelId` (error if it is missing), switch vision off for this request (the user's toggle is restored afterwards) and send `text` as the user. Returns `{"status": "started"}` or `{"status": "busy"}`.
 - `stopMatHudTurn()`: `ai_interface.stop_ai_processing()` when a turn is running; `{"status": "stopped"}` or `{"status": "idle"}`.
@@ -837,7 +837,8 @@ Attributes:
 
 **Key Methods:**
 - `__init__(coordinate_mapper, angular_divisions=12, radial_spacing=1.0, show_angle_labels=True, show_radius_labels=True, color=default_color)`: Initialize polar grid with a CoordinateMapper and configuration
-- `reset()`: Reset polar grid to initial state
+- `reset()`: Reset polar grid to initial state (its zoom-adapted spacing; `Canvas.reset` calls it)
+- `current_radial_spacing`: Property for the zoom-adapted spacing between rings, in math units (undo restores it with the view)
 - `class_name`: Property returning 'PolarGrid'
 - `angular_divisions`: Property for number of radial lines (setter validates positive integer)
 - `radial_spacing`: Property for base radial spacing (setter validates positive number)

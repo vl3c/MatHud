@@ -420,8 +420,9 @@ class Canvas:
         self.dragging = False
 
     def _reset_drawables_state(self) -> None:
-        # Reset cartesian system and drawables
+        # Reset both grids' zoom-adapted spacing and the drawables
         self.cartesian2axis.reset()
+        self.coordinate_system_manager.polar_grid.reset()
         for drawable in self.get_drawables():
             drawable.reset()
 
