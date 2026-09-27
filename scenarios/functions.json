@@ -404,6 +404,79 @@
           ]
         }
       ]
+    },
+    {
+      "id": "FN-11",
+      "title": "Asymptote lists without false or duplicate entries",
+      "tags": ["functions", "asymptotes", "discontinuities"],
+      "smoke": false,
+      "targets": "the tan rule marking every tan(), nerdamer's near-duplicate roots, asymptotes outside the bounds (K32)",
+      "steps": [
+        {
+          "user": "Plot x/tan(x) from -2 to 2.",
+          "reference": [
+            {
+              "tool": "draw_function",
+              "args": {"function_string": "x/tan(x)", "name": "c", "left_bound": -2, "right_bound": 2}
+            }
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {
+              "check": "attribute",
+              "path": "args.vertical_asymptotes",
+              "select": {"type": "Function", "name": "c"},
+              "is_null": true
+            },
+            {
+              "check": "attribute",
+              "path": "args.point_discontinuities",
+              "select": {"type": "Function", "name": "c"},
+              "len": 3
+            }
+          ]
+        },
+        {
+          "user": "Plot 1/(1 - cos(x)) from -1 to 1.",
+          "reference": [
+            {
+              "tool": "draw_function",
+              "args": {"function_string": "1/(1 - cos(x))", "name": "r", "left_bound": -1, "right_bound": 1}
+            }
+          ],
+          "checks": [
+            {
+              "check": "attribute",
+              "path": "args.vertical_asymptotes",
+              "select": {"type": "Function", "name": "r"},
+              "eq": [0]
+            }
+          ]
+        },
+        {
+          "user": "Plot 1/x from 2 to 5.",
+          "reference": [
+            {
+              "tool": "draw_function",
+              "args": {"function_string": "1/x", "name": "q", "left_bound": 2, "right_bound": 5}
+            }
+          ],
+          "checks": [
+            {
+              "check": "attribute",
+              "path": "args.vertical_asymptotes",
+              "select": {"type": "Function", "name": "q"},
+              "is_null": true
+            },
+            {
+              "check": "relation",
+              "relation": "function_value",
+              "select": [{"type": "Function", "name": "q"}],
+              "values": [[2, 0.5], [4, 0.25]]
+            }
+          ]
+        }
+      ]
     }
   ]
 }

@@ -150,30 +150,25 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
         self.assertEqual(area_copy.opacity, area.opacity)
 
     def test_asymptote_detection_with_tangent_function(self) -> None:
-        """Test asymptote detection for tangent function."""
-        # Create a tangent function with known asymptotes
+        """Asymptotes come from the function's own analysis (tan(x/100) has one at 50*pi)."""
         import math
 
-        tangent_func = SimpleMock(
-            name="f3",  # Special name that triggers asymptote detection
-            function=lambda x: math.tan(x / 100),
-            left_bound=-500,
-            right_bound=500,
-        )
-
+        tangent_func = Function("tan(x/100)", name="t", left_bound=-500, right_bound=500)
         area = FunctionsBoundedColoredArea(tangent_func, self.func2)
-
-        # Test asymptote detection at known asymptote positions
-        asym_x = 100 * (math.pi / 2)  # First asymptote
+        asym_x = 100 * (math.pi / 2)
         dx = 1.0
 
-        # Should detect asymptote when very close
-        has_asymptote = area._has_asymptote_at(tangent_func, asym_x, dx)
-        self.assertTrue(has_asymptote, "Should detect asymptote at π/2 * 100")
+        self.assertTrue(area._has_asymptote_at(tangent_func, asym_x, dx), "Should detect asymptote at pi/2 * 100")
+        self.assertFalse(area._has_asymptote_at(tangent_func, 0, dx), "Should not detect asymptote at x=0")
 
-        # Should not detect asymptote when far away
-        has_asymptote = area._has_asymptote_at(tangent_func, 0, dx)
-        self.assertFalse(has_asymptote, "Should not detect asymptote at x=0")
+    def test_a_function_named_f3_gets_no_invented_asymptotes(self) -> None:
+        """The name "f3" used to trigger hard-coded tan(x/100) asymptotes whatever the expression."""
+        import math
+
+        parabola = Function("x^2", name="f3", left_bound=-500, right_bound=500)
+        area = FunctionsBoundedColoredArea(parabola, self.func2)
+
+        self.assertFalse(area._has_asymptote_at(parabola, 100 * (math.pi / 2), 1.0))
 
     def test_asymptote_handling_during_path_generation(self) -> None:
         """Test that asymptotes are properly handled during path generation."""

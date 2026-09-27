@@ -281,21 +281,9 @@ class FunctionsBoundedColoredArea(ColoredArea):
         try:
             if isinstance(func, (int, float)) or func is None:
                 return False
-            # Manual asymptote detection for functions with tangent asymptotes (e.g. f3)
+            # The function's own analysis lists its asymptotes (tan's included); there is no
+            # special case by name any more (a function named "f3" used to get tan(x/100)'s).
             if isinstance(func, Function) or self._is_function_like(func):
-                if hasattr(func, "name") and func.name == "f3":
-                    import math
-
-                    has_asym: bool = False
-                    # Check known asymptote positions for tan(x/100)
-                    for n in range(-5, 6):  # Check a reasonable range
-                        asym_x: float = 100 * (math.pi / 2 + n * math.pi)
-                        # Only consider very, very close to asymptote (20% of dx)
-                        if abs(x_orig - asym_x) < dx * 0.2:
-                            has_asym = True
-                            break
-                    return has_asym
-                # Default asymptote detection for other functions
                 if hasattr(func, "has_vertical_asymptote_between_x"):
                     return cast(bool, func.has_vertical_asymptote_between_x(x_orig - dx, x_orig + dx))
             return False

@@ -2872,23 +2872,26 @@ class MathUtils:
     ) -> Tuple[List[float], List[float]]:
         """Return (vertical asymptotes, point discontinuities) found from the expression text.
 
-        Log and tan asymptotes come from the text. A zero of a denominator is classified by
-        sampling f beside it (_is_asymptote_at_denominator_zero): an asymptote if f grows on
-        either side, otherwise a point discontinuity (a hole such as (x^2-1)/(x-1) at x = 1,
-        a jump, or a bounded oscillation such as sin(1/x) at 0).
+        Log asymptotes come from the text. A zero of a denominator, or a pole of a tan() in the
+        expression, is classified by sampling f beside it (_is_asymptote_at_denominator_zero):
+        an asymptote if f grows on either side, otherwise a point discontinuity (a hole such as
+        (x^2-1)/(x-1) at x = 1 or x/tan(x) at pi/2, a jump, or a bounded oscillation such as
+        sin(1/x) at 0). Candidates closer than _PROBE_SAME_POINT (relative) are one point, so
+        nerdamer's near-duplicate roots (0, 1.4e-9, 6.2e-9 for 1 - cos(x)) count once, and
+        with bounds only points within them are listed.
         """
         from expression_validator import ExpressionValidator
 
         # Standardize the function string
         function_string = ExpressionValidator.fix_math_expression(function_string)
-        vertical_asymptotes: List[float] = []
+        log_zeros: List[float] = []
         denominator_zeros: List[float] = []
 
         # For logarithmic functions: where the (first) argument is zero
         for log_argument in MathUtils._function_call_arguments(function_string, "log|ln|log10|log2"):
             arguments = MathUtils._split_top_level_commas(log_argument)
             if arguments:
-                vertical_asymptotes.extend(MathUtils._real_zeros_in_x(arguments[0]))
+                log_zeros.extend(MathUtils._real_zeros_in_x(arguments[0]))
 
         # For rational functions: where any denominator that depends on x is zero
         for denominator in MathUtils._denominators(function_string):
@@ -2897,20 +2900,90 @@ class MathUtils:
         # For tangent functions (word boundary so atan/arctan are excluded)
         left = left_bound if left_bound is not None else -1000
         right = right_bound if right_bound is not None else 1000
+        tangent_poles: List[float] = []
         for tan_argument in MathUtils._function_call_arguments(function_string, "tan"):
-            vertical_asymptotes.extend(MathUtils._tangent_asymptotes(tan_argument, left, right))
+            tangent_poles.extend(MathUtils._tangent_asymptotes(tan_argument, left, right))
 
+        log_zeros = MathUtils._merge_close_points(log_zeros)
+        denominator_zeros = MathUtils._merge_close_points(denominator_zeros)
+        tangent_poles = MathUtils._merge_close_points(tangent_poles)
+        singular_points = MathUtils._merge_close_points(log_zeros + denominator_zeros + tangent_poles)
+
+        vertical_asymptotes: List[float] = list(log_zeros)
         discontinuities: List[float] = []
         evaluate = MathUtils._singularity_probe_evaluator(function_string)
-        singular_points = denominator_zeros + vertical_asymptotes
         for zero in denominator_zeros:
             if evaluate is None or MathUtils._is_asymptote_at_denominator_zero(evaluate, zero, singular_points):
                 vertical_asymptotes.append(zero)
             else:
                 discontinuities.append(zero)
+        tangent_asymptotes, tangent_holes = MathUtils._classify_tangent_poles(
+            evaluate, tangent_poles, singular_points, (left + right) / 2
+        )
+        vertical_asymptotes.extend(tangent_asymptotes)
+        discontinuities.extend(tangent_holes)
 
-        asymptotes = sorted(set(vertical_asymptotes))
-        return asymptotes, sorted(set(x for x in discontinuities if x not in asymptotes))
+        def within_bounds(x: float) -> bool:
+            return (left_bound is None or x >= left_bound) and (right_bound is None or x <= right_bound)
+
+        asymptotes = [x for x in MathUtils._merge_close_points(vertical_asymptotes) if within_bounds(x)]
+        holes = [
+            x
+            for x in MathUtils._merge_close_points(discontinuities)
+            if within_bounds(x) and not any(MathUtils._same_point(x, asymptote) for asymptote in asymptotes)
+        ]
+        return asymptotes, holes
+
+    @staticmethod
+    def _same_point(a: float, b: float) -> bool:
+        """True when a and b are closer than _PROBE_SAME_POINT relative to max(1, |a|, |b|)."""
+        return abs(a - b) <= MathUtils._PROBE_SAME_POINT * max(1.0, abs(a), abs(b))
+
+    @staticmethod
+    def _merge_close_points(points: List[float]) -> List[float]:
+        """Sorted points with near-duplicates merged, keeping the one nearest zero (0 over 1.4e-9)."""
+        kept: List[float] = []
+        for point in sorted(points, key=abs):
+            if not any(MathUtils._same_point(point, other) for other in kept):
+                kept.append(point)
+        return sorted(kept)
+
+    # More tan poles than this are judged from the ones nearest the middle of the range when
+    # those agree (the poles repeat with the period of tan's linear argument).
+    _TANGENT_POLE_SAMPLE = 16
+
+    @staticmethod
+    def _classify_tangent_poles(
+        evaluate: Optional[Callable[[float], Optional[float]]],
+        poles: List[float],
+        singular_points: List[float],
+        middle: float,
+    ) -> Tuple[List[float], List[float]]:
+        """Split tan() poles into (asymptotes, point discontinuities) by sampling f beside them.
+
+        A pole where f stays bounded is not an asymptote: x/tan(x) and 1/tan(x) tend to 0 at
+        pi/2. With many poles, the _TANGENT_POLE_SAMPLE nearest the middle are classified and,
+        when they agree, their verdict stands for all; otherwise every pole is classified.
+        """
+        if evaluate is None or not poles:
+            return list(poles), []
+        probe = evaluate
+
+        def is_asymptote(pole: float) -> bool:
+            return MathUtils._is_asymptote_at_denominator_zero(probe, pole, singular_points)
+
+        verdicts: Dict[float, bool] = {}
+        if len(poles) > MathUtils._TANGENT_POLE_SAMPLE:
+            sample = sorted(poles, key=lambda pole: abs(pole - middle))[: MathUtils._TANGENT_POLE_SAMPLE]
+            sample_verdicts = {is_asymptote(pole) for pole in sample}
+            if len(sample_verdicts) == 1:
+                verdict = sample_verdicts.pop()
+                verdicts = {pole: verdict for pole in poles}
+        if not verdicts:
+            verdicts = {pole: is_asymptote(pole) for pole in poles}
+        asymptotes = [pole for pole in poles if verdicts[pole]]
+        holes = [pole for pole in poles if not verdicts[pole]]
+        return asymptotes, holes
 
     # Sampling beside a denominator zero x0: the first offset is 1e-2 * max(1, |x0|), or a tenth
     # of the distance to the nearest other singular point if smaller (points closer than

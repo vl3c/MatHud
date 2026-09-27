@@ -402,6 +402,18 @@ _SINGULARITY_CASES: List[Tuple[str, Optional[float], Optional[float], List[float
     ("1/x+10^7", None, None, [0.0], []),
     # Neither
     ("x^2 + 1", None, None, [], []),
+    # A tan() pole where f stays bounded is not an asymptote (x/tan(x) and 1/tan(x) tend to 0 at pi/2)
+    ("x/tan(x)", -2, 2, [], [round(-math.pi / 2, 6), 0.0, round(math.pi / 2, 6)]),
+    ("1/tan(x)", -2, 2, [0.0], [round(-math.pi / 2, 6), round(math.pi / 2, 6)]),
+    ("tan(x)*cos(x)", -2, 2, [], [round(-math.pi / 2, 6), round(math.pi / 2, 6)]),
+    # nerdamer's near-duplicate roots of 1 - cos(x) (0, 1.4e-9, 6.2e-9, ...) count once
+    ("1/(1-cos(x))", -1, 1, [0.0], []),
+    ("1/(tan(x)-x)", -1, 1, [0.0], []),
+    # Only points within the bounds are listed
+    ("1/x", 2, 5, [], []),
+    ("log(x)", 2, 5, [], []),
+    ("1/(x-3)", 2, 5, [3.0], []),
+    ("(x^2-1)/(x-1)", 2, 5, [], []),
 ]
 
 
@@ -425,6 +437,18 @@ class TestRemovableDiscontinuities(_FunctionToolTestCase):
         self.assertTrue(vertical, "the zeros of sin(x) other than 0 are asymptotes")
         for asymptote in vertical:
             self.assertAlmostEqual(math.sin(asymptote), 0.0, places=6)
+
+    def test_many_tan_poles_are_judged_from_a_sample(self) -> None:
+        """Without bounds tan() has about 640 poles in [-1000, 1000]; x/tan(x) is bounded at every one."""
+        vertical, _, discontinuities = MathUtils.calculate_asymptotes_and_discontinuities("x/tan(x)")
+
+        for pole in (-math.pi / 2, math.pi / 2, 101 * math.pi / 2):
+            self.assertFalse(any(abs(x - pole) < 1e-6 for x in vertical), f"{pole} listed as an asymptote")
+            self.assertTrue(any(abs(x - pole) < 1e-6 for x in discontinuities), f"{pole} not listed as a hole")
+        self.assertTrue(any(abs(x - math.pi) < 1e-6 for x in vertical), "x/tan(x) blows up at pi")
+
+        vertical, _, _ = MathUtils.calculate_asymptotes_and_discontinuities("tan(x)")
+        self.assertGreater(len(vertical), 600)
 
     def test_holes_outside_the_bounds_are_not_listed(self) -> None:
         _, _, discontinuities = MathUtils.calculate_asymptotes_and_discontinuities("(x^2-1)/(x-1)", 2, 5)
