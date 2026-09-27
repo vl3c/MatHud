@@ -8,7 +8,6 @@
       "title": "Shaded area follows its function",
       "tags": ["areas", "functions", "transforms", "dependencies"],
       "smoke": false,
-      "known": ["K14"],
       "targets": "dependents of functions not updated by transforms",
       "setup": {
         "calls": [
@@ -38,15 +37,13 @@
               "check": "attribute",
               "path": "args.left_bound",
               "select": {"type": "FunctionsBoundedColoredArea", "only": true},
-              "eq": 3,
-              "known": "K14"
+              "eq": 3
             },
             {
               "check": "attribute",
               "path": "args.right_bound",
               "select": {"type": "FunctionsBoundedColoredArea", "only": true},
-              "eq": 5,
-              "known": "K14"
+              "eq": 5
             }
           ]
         }

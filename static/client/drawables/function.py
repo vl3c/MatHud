@@ -176,11 +176,6 @@ class Function(Drawable):
         # Translate undefined points
         if self.undefined_at and x_offset != 0:
             self.undefined_at = [h + x_offset for h in self.undefined_at]
-            # Update point_discontinuities to reflect translated holes
-            self.point_discontinuities = [
-                p + x_offset if p in [h - x_offset for h in self.undefined_at] else p
-                for p in self.point_discontinuities
-            ]
 
         try:
             # First handle horizontal translation by replacing x with (x - x_offset)
@@ -211,8 +206,10 @@ class Function(Drawable):
                 new_function_string = f"({new_function_string}) + {y_offset}"
 
             # Update function string and parse new function
+            new_base_function = ExpressionValidator.parse_function_string(new_function_string)
             self.function_string = ExpressionValidator.fix_math_expression(new_function_string)
-            self._base_function = ExpressionValidator.parse_function_string(new_function_string)
+            self._base_function = new_base_function
+            self._translate_analysis(x_offset, y_offset)
 
         except Exception as e:
             print(f"Warning: Could not translate function: {str(e)}")
@@ -224,6 +221,20 @@ class Function(Drawable):
             # Revert undefined_at
             if self.undefined_at and x_offset != 0:
                 self.undefined_at = [h - x_offset for h in self.undefined_at]
+
+    def _translate_analysis(self, x_offset: float, y_offset: float) -> None:
+        """Shift the analysis derived from the expression along with the curve.
+
+        Vertical asymptotes and point discontinuities move by x_offset, horizontal
+        asymptotes by y_offset; the period is unchanged. New lists replace the old ones,
+        so caches keyed on the list objects (the sorted asymptotes) are rebuilt.
+        """
+        if getattr(self, "vertical_asymptotes", None):
+            self.vertical_asymptotes = [x + x_offset for x in self.vertical_asymptotes]
+        if getattr(self, "horizontal_asymptotes", None):
+            self.horizontal_asymptotes = [y + y_offset for y in self.horizontal_asymptotes]
+        if getattr(self, "point_discontinuities", None):
+            self.point_discontinuities = [x + x_offset for x in self.point_discontinuities]
 
     def rotate(self, angle: float) -> None:
         pass
@@ -239,6 +250,39 @@ class Function(Drawable):
     def update_right_bound(self, right_bound: Optional[float]) -> None:
         """Update the right bound (None clears the bound)."""
         self.right_bound = None if right_bound is None else float(right_bound)
+
+    def redefine(
+        self,
+        function_string: str,
+        left_bound: Optional[float],
+        right_bound: Optional[float],
+        undefined_at: Optional[List[float]],
+    ) -> None:
+        """Replace the definition (expression, bounds, holes) and recompute its analysis.
+
+        The expression is parsed before anything changes, so a parse error leaves the
+        function as it was.
+        """
+        try:
+            fixed_string = ExpressionValidator.fix_math_expression(function_string)
+            base_function = ExpressionValidator.parse_function_string(function_string)
+        except Exception as e:
+            raise ValueError(f"Failed to parse function string '{function_string}': {str(e)}")
+        self.function_string = fixed_string
+        self._base_function = base_function
+        self.left_bound = left_bound
+        self.right_bound = right_bound
+        self.undefined_at = list(undefined_at) if undefined_at else []
+        self.reanalyze()
+
+    def reanalyze(self) -> None:
+        """Recompute asymptotes, discontinuities and periodicity from the expression and bounds."""
+        self._calculate_asymptotes_and_discontinuities()
+        for hole in self.undefined_at:
+            if hole not in self.point_discontinuities:
+                self.point_discontinuities.append(hole)
+        self.point_discontinuities.sort()
+        self._detect_periodicity()
 
     def _calculate_asymptotes_and_discontinuities(self) -> None:
         """Calculate vertical and horizontal asymptotes and point discontinuities of the function"""

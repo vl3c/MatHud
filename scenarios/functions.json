@@ -50,9 +50,7 @@
       "title": "Shifting a function moves its asymptotes",
       "tags": ["functions", "transforms", "asymptotes", "derived"],
       "smoke": false,
-      "known": ["K11"],
       "targets": "cached analysis not updated by transforms",
-      "invariants": {"I3": "K11"},
       "setup": {
         "calls": [
           {
@@ -76,15 +74,13 @@
               "check": "attribute",
               "path": "args.vertical_asymptotes",
               "select": {"type": "Function", "name": "f"},
-              "eq": [2],
-              "known": "K11"
+              "eq": [2]
             },
             {
               "check": "attribute",
               "path": "args.horizontal_asymptotes",
               "select": {"type": "Function", "name": "f"},
-              "contains": 3,
-              "known": "K11"
+              "contains": 3
             },
             {"check": "attribute", "path": "args.left_bound", "select": {"type": "Function", "name": "f"}, "eq": -8},
             {"check": "attribute", "path": "args.right_bound", "select": {"type": "Function", "name": "f"}, "eq": 12}
@@ -97,9 +93,7 @@
       "title": "Redefining an existing function name",
       "tags": ["functions", "update", "asymptotes"],
       "smoke": false,
-      "known": ["K12"],
       "targets": "update-in-place path skipping re-analysis",
-      "invariants": {"I3": "K12"},
       "setup": {
         "calls": [
           {
@@ -130,8 +124,7 @@
               "check": "attribute",
               "path": "args.vertical_asymptotes",
               "select": {"type": "Function", "name": "f"},
-              "is_null": true,
-              "known": "K12"
+              "is_null": true
             }
           ]
         }
@@ -224,9 +217,7 @@
       "title": "Tangent at a vertical asymptote is refused",
       "tags": ["functions", "tangents", "asymptotes", "precision"],
       "smoke": false,
-      "known": ["K13"],
       "targets": "missing asymptote guard in tangent computation",
-      "invariants": {"I7": "K13"},
       "setup": {
         "calls": [
           {
@@ -239,7 +230,7 @@
         {
           "user": "Draw the tangent to t at x = pi/2.",
           "reference": [{"tool": "draw_tangent_line", "args": {"curve_name": "t", "parameter": 1.5707963267948966}}],
-          "checks": [{"check": "count", "select": {"type": "Segment"}, "eq": 0, "known": "K13"}]
+          "checks": [{"check": "count", "select": {"type": "Segment"}, "eq": 0}]
         }
       ]
     },
@@ -291,9 +282,7 @@
       "title": "Reversed bounds",
       "tags": ["functions", "validation"],
       "smoke": false,
-      "known": ["K12"],
       "targets": "missing validation (update_function validates, draw_function does not)",
-      "invariants": {"I3": "K12"},
       "steps": [
         {
           "user": "Plot y = x from 5 to -5.",
@@ -308,15 +297,13 @@
               "check": "attribute",
               "path": "args.left_bound",
               "select": {"type": "Function", "name": "g"},
-              "eq": -5,
-              "known": "K12"
+              "eq": -5
             },
             {
               "check": "attribute",
               "path": "args.right_bound",
               "select": {"type": "Function", "name": "g"},
-              "eq": 5,
-              "known": "K12"
+              "eq": 5
             }
           ]
         }
@@ -327,9 +314,7 @@
       "title": "Removable discontinuity",
       "tags": ["functions", "asymptotes", "discontinuities"],
       "smoke": false,
-      "known": ["K24"],
       "targets": "hole bookkeeping; asymptote detection from the expression text",
-      "invariants": {"I3": "K24"},
       "steps": [
         {
           "user": "Plot (x^2 - 1)/(x - 1) and mark that it has a hole at x = 1.",
@@ -356,8 +341,7 @@
               "check": "attribute",
               "path": "args.vertical_asymptotes",
               "select": {"type": "Function", "name": "h"},
-              "is_null": true,
-              "known": "K24"
+              "is_null": true
             }
           ]
         }

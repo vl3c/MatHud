@@ -19,7 +19,7 @@ Dependencies:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, cast
 
 import no_op_tools
 from no_change_result import NoChangeResult
@@ -102,6 +102,36 @@ class FunctionRegistry:
         return message
 
     @staticmethod
+    def _draw_function_tool(canvas: "Canvas") -> Callable[..., Any]:
+        """Build the draw_function tool: canvas.draw_function, but swapped bounds are reported.
+
+        Reversed bounds are swapped by the function manager; the tool then returns a message
+        saying so instead of the generic success message.
+        """
+
+        def draw_function(
+            function_string: str,
+            name: str,
+            left_bound: Optional[float] = None,
+            right_bound: Optional[float] = None,
+            color: Optional[str] = None,
+            undefined_at: Optional[List[float]] = None,
+        ) -> Any:
+            function = canvas.draw_function(
+                function_string, name, left_bound, right_bound, color=color, undefined_at=undefined_at
+            )
+            if left_bound is None or right_bound is None or left_bound <= right_bound:
+                return function
+            return (
+                f"Function '{getattr(function, 'name', name)}' was drawn with its bounds swapped to "
+                f"[{FunctionRegistry._format_coordinate(right_bound)}, "
+                f"{FunctionRegistry._format_coordinate(left_bound)}]: left_bound {left_bound} was greater "
+                f"than right_bound {right_bound}."
+            )
+
+        return draw_function
+
+    @staticmethod
     def _format_coordinate(value: Any) -> str:
         """``1.0 -> '1'``, ``2.5 -> '2.5'``."""
         text = repr(float(value))
@@ -170,7 +200,7 @@ class FunctionRegistry:
             "delete_label": canvas.delete_label,
             "update_label": no_op_tools.update_tool(canvas, "update_label", canvas.update_label),
             # ===== FUNCTION PLOTTING =====
-            "draw_function": canvas.draw_function,
+            "draw_function": FunctionRegistry._draw_function_tool(canvas),
             "delete_function": canvas.delete_function,
             "update_function": no_op_tools.update_tool(canvas, "update_function", canvas.update_function),
             # ===== PIECEWISE FUNCTION PLOTTING =====
