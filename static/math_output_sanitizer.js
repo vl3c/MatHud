@@ -179,19 +179,35 @@
     // Typeset root with MathJax, then sanitise any of its math the render action has
     // not (belt and braces). Resolves to the number of containers sanitised in this
     // pass; never rejects (a failed typeset still gets sanitised).
+    //
+    // Typesets run one after another, chained on MathJax.startup.promise as MathJax's
+    // documentation recommends. typesetPromise is not queued: when a formula needs a TeX
+    // extension that is not loaded yet (\ce, \bra, ...), MathJax loads it and then
+    // renders again whatever the latest typeset asked for, so a typeset started during
+    // the load left the pending formula as an undefined command. Even without a load,
+    // the typeset runs after this returns: the math is in place once the promise resolves.
     function typesetAndSanitize(root) {
         var mathjax = window.MathJax;
         if (!mathjax || typeof mathjax.typesetPromise !== "function") {
             return Promise.resolve(sanitize(root, true));
         }
-        return mathjax.typesetPromise([root]).then(
-            function () {
-                return sanitize(root, true);
-            },
-            function () {
-                return sanitize(root, true);
+        function sanitizeRoot() {
+            return sanitize(root, true);
+        }
+        function typeset() {
+            try {
+                return mathjax.typesetPromise([root]).then(sanitizeRoot, sanitizeRoot);
+            } catch (error) {
+                return sanitizeRoot();
             }
-        );
+        }
+        var startup = mathjax.startup;
+        var previous = startup && startup.promise ? startup.promise : Promise.resolve();
+        var done = previous.then(typeset, typeset);
+        if (startup) {
+            startup.promise = done;
+        }
+        return done;
     }
 
     window.MatHudMathSafety = {

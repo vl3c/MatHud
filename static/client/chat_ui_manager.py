@@ -128,7 +128,7 @@ class ChatUIManager:
         """Parse markdown text to HTML using the dedicated markdown parser."""
         return cast(str, self.markdown_parser.parse(text))
 
-    def render_math(self, root: Optional[Any] = None) -> None:
+    def render_math(self, root: Optional[Any] = None) -> Optional[Any]:
         """Typeset math in ``root`` (a message just added; default: the whole chat).
 
         Typesetting only the new message keeps the cost per message flat in long chats.
@@ -138,15 +138,32 @@ class ChatUIManager:
         ``window.MatHudMathSafety.typesetAndSanitize`` runs it again over ``root`` after
         this typeset. If the sanitiser is missing, math is left as plain TeX text rather
         than typeset without it.
+
+        Typesets are queued, so the math is in place only once the returned promise
+        resolves (it never rejects). Returns None when nothing was typeset.
         """
         try:
             safety = getattr(window, "MatHudMathSafety", None)
             if safety is None or not hasattr(window, "MathJax"):
-                return
-            safety.typesetAndSanitize(root if root is not None else self._chat_history_element())
+                return None
+            return safety.typesetAndSanitize(root if root is not None else self._chat_history_element())
         except Exception:
             # MathJax not available or error occurred, continue silently
-            pass
+            return None
+
+    def _render_math_and_scroll(self, root: Optional[Any] = None) -> None:
+        """Typeset ``root`` and keep the chat scrolled to the end.
+
+        The typeset finishes after this returns and display math makes a message taller,
+        so the chat scrolls again once it is done.
+        """
+        typeset = self.render_math(root)
+        self._scroll_to_bottom()
+        if typeset is not None:
+            try:
+                typeset.then(lambda _count: self._scroll_to_bottom_quietly())
+            except Exception:
+                pass
 
     def _forget_chat_math(self, history: Any) -> None:
         """Drop MathJax's records of the chat's formulas before the chat is emptied."""
@@ -258,10 +275,8 @@ class ChatUIManager:
             message_element = self.create_message_element("AI", ai_message)
             self.append_metrics_footer(message_element, turn_metrics)
             self._chat_history_element() <= message_element
-            # Trigger MathJax rendering for new content
-            self.render_math(message_element)
-            # Scroll the chat history to the bottom
-            self._scroll_to_bottom()
+            # Typeset the new message's math and scroll the chat history to the bottom
+            self._render_math_and_scroll(message_element)
 
     def print_user_message(
         self,
@@ -282,10 +297,8 @@ class ChatUIManager:
         # Add the user's message to the chat history with markdown support
         message_element = self.create_message_element("User", user_message, images=images)
         self._chat_history_element() <= message_element
-        # Trigger MathJax rendering for new content
-        self.render_math(message_element)
-        # Scroll the chat history to the bottom
-        self._scroll_to_bottom()
+        # Typeset the new message's math and scroll the chat history to the bottom
+        self._render_math_and_scroll(message_element)
 
     def print_system_message(self, message: str) -> None:
         """Print a system/command response to the chat history.
@@ -326,11 +339,8 @@ class ChatUIManager:
             # Add to chat history
             self._chat_history_element() <= message_container
 
-            # Trigger MathJax rendering for new content
-            self.render_math(message_container)
-
-            # Scroll to bottom
-            self._scroll_to_bottom()
+            # Typeset the new message's math and scroll to bottom
+            self._render_math_and_scroll(message_container)
         except Exception as e:
             print(f"Error printing system message: {e}")
             # Fallback to simple paragraph
@@ -592,8 +602,7 @@ class ChatUIManager:
                             except Exception:
                                 pass
 
-                    self.render_math(self._stream_message_container)
-                    self._scroll_to_bottom()
+                    self._render_math_and_scroll(self._stream_message_container)
                 else:
                     # Reasoning but no text content - remove the empty container
                     self.remove_empty_container()
@@ -605,8 +614,7 @@ class ChatUIManager:
                         parsed_content = self.parse_markdown(text_to_render)
                         self._stream_content_element.innerHTML = parsed_content
                         self._stream_content_element.classList.add("markdown")
-                    self.render_math(self._stream_message_container)
-                    self._scroll_to_bottom()
+                    self._render_math_and_scroll(self._stream_message_container)
                 else:
                     # No reasoning or tool log, use standard finalization
                     final_element = self.create_message_element("AI", text_to_render)
@@ -621,8 +629,7 @@ class ChatUIManager:
                     else:
                         history <= final_element
 
-                    self.render_math(final_element)
-                    history.scrollTop = history.scrollHeight
+                    self._render_math_and_scroll(final_element)
             else:
                 # No text content at all - remove any empty container
                 self.remove_empty_container()
@@ -715,13 +722,19 @@ class ChatUIManager:
         messages = self.transcript.messages
         for message in messages:
             history <= self._create_restored_message_element(message)
-        self.render_math()
-        history.scrollTop = history.scrollHeight
+        self._render_math_and_scroll()
         return len(messages)
 
     def _scroll_to_bottom(self) -> None:
         history = self._chat_history_element()
         history.scrollTop = history.scrollHeight
+
+    def _scroll_to_bottom_quietly(self) -> None:
+        """Scroll to the end from a promise callback, where an error would go unhandled."""
+        try:
+            self._scroll_to_bottom()
+        except Exception:
+            pass
 
     def _chat_history_element(self) -> Any:
         """Return the chat history container (tests substitute a detached element)."""
