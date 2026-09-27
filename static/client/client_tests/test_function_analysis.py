@@ -525,10 +525,15 @@ _HORIZONTAL_ASYMPTOTE_CASES: List[Tuple[str, List[float]]] = [
     ("tan(x)", []),
     ("log(x)", []),
     ("1/(1-cos(x))", []),
-    # exp() overflows past x = 709.8; the samples before the overflow decide
+    # exp() overflows past x = 709.8: to inf, which carries through f (IEEE arithmetic), or to
+    # inf/inf = NaN, where the samples before the overflow decide
     ("1/(1+exp(-x))", [0.0, 1.0]),
+    ("1/(1+exp(-2*x))", [0.0, 1.0]),
+    ("1/(1+exp(-3*x))", [0.0, 1.0]),
     ("exp(x)/(1+exp(x))", [0.0, 1.0]),
     ("cosh(x)/sinh(x)", [-1.0, 1.0]),
+    # Flat until exp() overflows near x = 710, but f grows without bound there
+    ("exp(x-700)+1", [1.0]),
     # Large offsets and scales: the trailing samples converge
     ("(x+500)/(x-500)", [1.0, 1.0]),
     ("(x-1000)/(x+1000)", [1.0, 1.0]),
