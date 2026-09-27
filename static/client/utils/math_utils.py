@@ -38,7 +38,7 @@ import json
 import math
 import random
 import statistics
-from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union, cast
 
 from browser import window
 
@@ -2779,11 +2779,26 @@ class MathUtils:
         right_bound: Optional[Number] = None,
     ) -> List[float]:
         """Calculate vertical asymptotes of a function within given bounds"""
+        return MathUtils._vertical_asymptotes_and_holes(function_string, left_bound, right_bound)[0]
+
+    @staticmethod
+    def _vertical_asymptotes_and_holes(
+        function_string: str,
+        left_bound: Optional[Number] = None,
+        right_bound: Optional[Number] = None,
+    ) -> Tuple[List[float], List[float]]:
+        """Return (vertical asymptotes, removable discontinuities) found from the expression text.
+
+        A zero of a denominator is an asymptote only if the function blows up beside it;
+        where it stays bounded on every side it is defined (e.g. (x^2-1)/(x-1) at x = 1),
+        the zero is a hole.
+        """
         from expression_validator import ExpressionValidator
 
         # Standardize the function string
         function_string = ExpressionValidator.fix_math_expression(function_string)
         vertical_asymptotes: List[float] = []
+        denominator_zeros: List[float] = []
 
         # For logarithmic functions: where the (first) argument is zero
         for log_argument in MathUtils._function_call_arguments(function_string, "log|ln|log10|log2"):
@@ -2793,7 +2808,7 @@ class MathUtils:
 
         # For rational functions: where any denominator that depends on x is zero
         for denominator in MathUtils._denominators(function_string):
-            vertical_asymptotes.extend(MathUtils._real_zeros_in_x(denominator))
+            denominator_zeros.extend(MathUtils._real_zeros_in_x(denominator))
 
         # For tangent functions (word boundary so atan/arctan are excluded)
         left = left_bound if left_bound is not None else -1000
@@ -2801,7 +2816,65 @@ class MathUtils:
         for tan_argument in MathUtils._function_call_arguments(function_string, "tan"):
             vertical_asymptotes.extend(MathUtils._tangent_asymptotes(tan_argument, left, right))
 
-        return sorted(set(vertical_asymptotes))
+        holes: List[float] = []
+        evaluate = MathUtils._singularity_probe_evaluator(function_string)
+        for zero in denominator_zeros:
+            if evaluate is not None and MathUtils._is_bounded_near(evaluate, zero):
+                holes.append(zero)
+            else:
+                vertical_asymptotes.append(zero)
+
+        asymptotes = sorted(set(vertical_asymptotes))
+        return asymptotes, sorted(set(hole for hole in holes if hole not in asymptotes))
+
+    # Offsets (relative to max(1, |x0|)) at which a denominator zero x0 is probed on each side.
+    _SINGULARITY_PROBE_OFFSETS: Tuple[float, ...] = (1e-3, 1e-5, 1e-7)
+
+    @staticmethod
+    def _singularity_probe_evaluator(function_string: str) -> Optional[Callable[[float], Optional[float]]]:
+        """Return f as a probe: a float, inf on overflow, or None where f is undefined or not real."""
+        from expression_validator import ExpressionValidator
+
+        try:
+            base_function = ExpressionValidator.parse_function_string(function_string)
+        except Exception:
+            return None
+
+        def evaluate(x: float) -> Optional[float]:
+            try:
+                value = base_function(x)
+            except OverflowError:
+                return float("inf")
+            except Exception:
+                return None
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                return None
+            value = float(value)
+            return None if math.isnan(value) else value
+
+        return evaluate
+
+    @staticmethod
+    def _is_bounded_near(evaluate: Callable[[float], Optional[float]], x0: float) -> bool:
+        """True if f stays bounded approaching x0 from every side on which it is defined.
+
+        On each side, f is sampled at three offsets shrinking 100-fold; |f| at least doubling
+        at each step (or an infinite value) means f blows up there. A side where f is
+        undefined is skipped; if f is undefined on both sides, x0 is not called bounded.
+        """
+        scale = max(1.0, abs(x0))
+        defined_side = False
+        for side in (-1.0, 1.0):
+            values = [evaluate(x0 + side * offset * scale) for offset in MathUtils._SINGULARITY_PROBE_OFFSETS]
+            if any(value is None for value in values):
+                continue
+            magnitudes = [abs(cast(float, value)) for value in values]
+            if any(math.isinf(magnitude) for magnitude in magnitudes):
+                return False
+            if magnitudes[2] > 2 * magnitudes[1] and magnitudes[1] > 2 * magnitudes[0]:
+                return False
+            defined_side = True
+        return defined_side
 
     _X_TOKEN_PATTERN = r"(?<![A-Za-z_])x(?![A-Za-z_])"
 
@@ -2931,10 +3004,15 @@ class MathUtils:
 
         # Standardize the function string
         function_string = ExpressionValidator.fix_math_expression(function_string)
-        vertical_asymptotes = MathUtils.calculate_vertical_asymptotes(function_string, left_bound, right_bound)
+        vertical_asymptotes, holes = MathUtils._vertical_asymptotes_and_holes(function_string, left_bound, right_bound)
         horizontal_asymptotes = MathUtils.calculate_horizontal_asymptotes(function_string)
         point_discontinuities = MathUtils.calculate_point_discontinuities(function_string, left_bound, right_bound)
-        return vertical_asymptotes, horizontal_asymptotes, point_discontinuities
+        # Removable discontinuities (denominator zeros where f stays bounded) are holes
+        for hole in holes:
+            within_bounds = (left_bound is None or hole >= left_bound) and (right_bound is None or hole <= right_bound)
+            if within_bounds and hole not in point_discontinuities:
+                point_discontinuities.append(hole)
+        return vertical_asymptotes, horizontal_asymptotes, sorted(point_discontinuities)
 
     @staticmethod
     def calculate_point_discontinuities(

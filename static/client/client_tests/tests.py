@@ -83,6 +83,9 @@ from .test_circle_manager import TestCircleManager
 from .test_ellipse_manager import TestEllipseManager
 from .test_colored_area_manager import TestColoredAreaManager
 from .test_function_manager import TestFunctionManager
+from .test_function_analysis import (
+    TestRemovableDiscontinuities,
+)
 from .test_parametric_function import (
     TestParametricFunction,
     TestParametricFunctionRenderable,
@@ -527,6 +530,7 @@ class Tests:
             TestTransformationsManager,
             TestTransforms,
             TestFunctionManager,
+            TestRemovableDiscontinuities,
             TestParametricFunction,
             TestParametricFunctionRenderable,
             TestExpressionValidatorParametric,
