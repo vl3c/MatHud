@@ -79,6 +79,7 @@ class TestSegment(unittest.TestCase):
             "args": {
                 "p1": "A",
                 "p2": "B",
+                "color": "blue",
             },
             "_p1_coords": [self.p1.x, self.p1.y],
             "_p2_coords": [self.p2.x, self.p2.y],

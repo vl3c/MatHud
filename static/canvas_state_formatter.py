@@ -31,7 +31,7 @@ import logging
 import math
 import re
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Sequence, Set, Tuple
+from typing import Any, Callable, Dict, FrozenSet, List, Literal, Mapping, Optional, Sequence, Set, Tuple
 
 from static.token_estimation import estimate_tokens_from_text
 
@@ -74,7 +74,9 @@ _VIEW_KEYS = frozenset(
 )
 _COMPUTATIONS_KEY = "computations"
 
-_DEFAULT_COLORS = frozenset({"", "black", "blue"})
+# Colors that are not worth showing: the drawable default (black), and blue for angles, whose default it is.
+_DEFAULT_COLORS = frozenset({"", "black"})
+_DEFAULT_ANGLE_COLORS = _DEFAULT_COLORS | {"blue"}
 _DEFAULT_AREA_COLOR = "lightblue"
 _DEFAULT_AREA_OPACITY = 0.3
 _DEFAULT_LABEL_FONT_SIZE = 14.0
@@ -311,9 +313,9 @@ def _duplicate_names(state: Mapping[str, Any]) -> Dict[str, Set[str]]:
 # --------------------------------------------------------------------------- shared line pieces
 
 
-def _color_suffix(args: Mapping[str, Any]) -> str:
+def _color_suffix(args: Mapping[str, Any], defaults: FrozenSet[str] = _DEFAULT_COLORS) -> str:
     color = args.get("color")
-    if _is_empty(color) or (isinstance(color, str) and color in _DEFAULT_COLORS):
+    if _is_empty(color) or (isinstance(color, str) and color in defaults):
         return ""
     return f" color {color}"
 
@@ -534,7 +536,8 @@ def _render_angle(scene: _Scene, item: JsonDict) -> str:
     measured = _angle_degrees(scene, args)
     if measured is not None:
         line += f"  vertex {measured[0]}, {format_number(measured[1])} deg"
-    return line + _color_suffix(args) + _extras_suffix(args, {"segment1_name", "segment2_name", "is_reflex", "color"})
+    handled = {"segment1_name", "segment2_name", "is_reflex", "color"}
+    return line + _color_suffix(args, _DEFAULT_ANGLE_COLORS) + _extras_suffix(args, handled)
 
 
 def _function_features(args: Mapping[str, Any]) -> str:
@@ -1012,6 +1015,8 @@ def _view_line(state: Mapping[str, Any]) -> Optional[str]:
         parts.append(f"{mode} coordinates")
     if state.get("visible") is False:
         parts.append("axes hidden")
+    if mode == "polar" and coordinate_system.get("polar_grid_visible") is False:
+        parts.append("polar grid hidden")
     return "; ".join(parts)
 
 
@@ -1174,19 +1179,22 @@ def _min_json_output(state: Mapping[str, Any]) -> JsonDict:
         output["coords"] = coordinate_system["mode"]
     if state.get("visible") is False:
         output["axes_hidden"] = True
+    if output.get("coords") == "polar" and coordinate_system.get("polar_grid_visible") is False:
+        output["polar_grid_hidden"] = True
     for bucket, items in state.items():
         if bucket in _VIEW_KEYS or _is_empty(items):
             continue
         if bucket == _COMPUTATIONS_KEY or not isinstance(items, list):
             output[bucket] = items
             continue
-        output[bucket] = [_min_json_item(item) for item in items if isinstance(item, dict)]
+        output[bucket] = [_min_json_item(item, bucket) for item in items if isinstance(item, dict)]
     return output
 
 
-def _min_json_item(item: Mapping[str, Any]) -> JsonDict:
+def _min_json_item(item: Mapping[str, Any], bucket: str = "") -> JsonDict:
     args = {k: v for k, v in _args(item).items() if k not in _RENDER_ONLY_FIELDS and not _is_empty(v)}
-    if isinstance(args.get("color"), str) and args["color"] in _DEFAULT_COLORS:
+    default_colors = _DEFAULT_ANGLE_COLORS if bucket == "Angles" else _DEFAULT_COLORS
+    if isinstance(args.get("color"), str) and args["color"] in default_colors:
         args.pop("color", None)
     label = args.get("label")
     if isinstance(label, dict):

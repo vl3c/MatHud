@@ -77,6 +77,11 @@ class PointNameGenerator(NameGenerator):
         available_letters: List[str] = name_data["letters"]
         start_index: int = name_data["next_index"]
 
+        if available_letters and start_index >= len(available_letters):
+            # Every letter was handed out before; those freed since (by an undo or a delete) can be
+            # used again in their places, so "PQ" after undoing segment PQ gives P and Q again
+            return self._free_letters_in_place(available_letters, n)
+
         result: List[str] = []
         for i in range(n):
             if start_index + i < len(available_letters):
@@ -87,6 +92,11 @@ class PointNameGenerator(NameGenerator):
         # Update the next index
         name_data["next_index"] = min(start_index + n, len(available_letters))
         return result
+
+    def _free_letters_in_place(self, letters: List[str], n: int) -> List[str]:
+        """The first n letters of a hint, each replaced by "" when a point already has that name."""
+        point_names: List[str] = self.get_drawable_names("Point")
+        return [letters[i] if i < len(letters) and letters[i] not in point_names else "" for i in range(n)]
 
     def split_point_names(self, expression: Optional[str], n: int = 2) -> List[str]:
         """Split a point expression into individual point names.
@@ -233,6 +243,12 @@ class PointNameGenerator(NameGenerator):
             if name:
                 name_data["next_index"] = i + 1
                 return name
+
+        # Letters handed out earlier may be free again (after an undo or a delete): reuse one
+        # as it is, so asking for K again after undoing K gives K, not an unrelated letter
+        for letter_with_apostrophes in available_letters[:start_index]:
+            if letter_with_apostrophes not in point_names:
+                return letter_with_apostrophes
 
         # If no letters from preferred name are available, generate a unique name
         unique_name = self._generate_unique_point_name()

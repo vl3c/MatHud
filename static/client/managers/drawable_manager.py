@@ -775,8 +775,8 @@ class DrawableManager:
         drawable2_name: Optional[str] = None,
         left_bound: Optional[float] = None,
         right_bound: Optional[float] = None,
-        color: str = default_area_fill_color,
-        opacity: float = default_area_opacity,
+        color: Optional[str] = default_area_fill_color,
+        opacity: Optional[float] = default_area_opacity,
     ) -> "ColoredArea":
         """Create a new colored area between drawables"""
         return self.colored_area_manager.create_colored_area(
@@ -799,9 +799,9 @@ class DrawableManager:
         ellipse_name: Optional[str] = None,
         chord_segment_name: Optional[str] = None,
         arc_clockwise: bool = False,
-        resolution: int = default_closed_shape_resolution,
-        color: str = default_area_fill_color,
-        opacity: float = default_area_opacity,
+        resolution: Optional[int] = default_closed_shape_resolution,
+        color: Optional[str] = default_area_fill_color,
+        opacity: Optional[float] = default_area_opacity,
     ) -> "ClosedShapeColoredArea":
         """Create a region colored area from expression or closed shape."""
         return self.colored_area_manager.create_region_colored_area(

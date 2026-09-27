@@ -267,6 +267,7 @@ class PiecewiseFunction(Drawable):
         if self.point_discontinuities:
             state["args"]["point_discontinuities"] = self.point_discontinuities
 
+        self._add_color_to_state(state)
         return state
 
     def __deepcopy__(self, memo: Dict[int, Any]) -> Any:

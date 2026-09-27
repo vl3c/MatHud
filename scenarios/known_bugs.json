@@ -38,7 +38,12 @@
     "K18": "vl3c/MatHud#72",
     "K20": "claude/scenario-tests (scenario hooks)",
     "K21": "vl3c/MatHud#73",
-    "K22": "claude/scenario-tests (scenario hooks)"
+    "K22": "claude/scenario-tests (scenario hooks)",
+    "K3": "this branch (claude/fix-names-persistence)",
+    "K5": "this branch (claude/fix-names-persistence)",
+    "K10": "this branch (claude/fix-names-persistence)",
+    "K15": "this branch (claude/fix-names-persistence)",
+    "K27": "this branch (claude/fix-names-persistence)"
   },
   "invariant_waivers": {}
 }

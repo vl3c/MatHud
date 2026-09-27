@@ -8,7 +8,6 @@
       "title": "Function with an asymptote and a shaded area",
       "tags": ["functions", "areas", "asymptotes", "null-arguments"],
       "smoke": true,
-      "known": ["K10"],
       "targets": "schema says color is optional but null is rejected",
       "steps": [
         {
@@ -39,10 +38,9 @@
               "select": {
                 "type": "FunctionsBoundedColoredArea",
                 "where": {"args.func1": "f", "args.func2": "x_axis", "args.left_bound": 2, "args.right_bound": 4}
-              },
-              "known": "K10"
+              }
             },
-            {"check": "no_tool_errors", "known": "K10"}
+            {"check": "no_tool_errors"}
           ]
         }
       ]

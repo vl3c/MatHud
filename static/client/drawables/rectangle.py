@@ -110,6 +110,7 @@ class Rectangle(Quadrilateral):
             "args": {"p1": points_names[0], "p2": points_names[1], "p3": points_names[2], "p4": points_names[3]},
         }
         state["types"] = self.get_type_names()
+        self._add_color_to_state(state)
         return state
 
     def get_vertices(self) -> Set[Point]:

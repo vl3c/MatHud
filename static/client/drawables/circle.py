@@ -76,6 +76,7 @@ class Circle(Drawable):
             "name": self.name,
             "args": {"center": center, "radius": radius, "circle_formula": self.circle_formula},
         }
+        self._add_color_to_state(state)
         return state
 
     def __deepcopy__(self, memo: Dict[int, Any]) -> Any:
@@ -85,6 +86,7 @@ class Circle(Drawable):
         new_center: Point = deepcopy(self.center, memo)
         # Create a new Circle instance with the copied center point and other properties
         new_circle: Circle = Circle(new_center, self.radius, color=self.color)
+        new_circle.name = self.name
         memo[id(self)] = new_circle
         return new_circle
 

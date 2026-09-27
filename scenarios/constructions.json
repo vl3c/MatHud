@@ -227,9 +227,7 @@
       "title": "Construction asked to reuse an existing name",
       "tags": ["constructions", "naming"],
       "smoke": false,
-      "known": ["K3"],
       "targets": "name collisions in constructions",
-      "invariants": {"I4": "K3"},
       "setup": {
         "calls": [
           {
