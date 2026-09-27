@@ -20,7 +20,7 @@ from __future__ import annotations
 from typing import Optional
 
 from ai_interface import AIInterface
-from browser import document, window
+from browser import aio, document, window
 from canvas import Canvas
 from canvas_event_handler import CanvasEventHandler
 from math_symbol_input import MathSymbolInput
@@ -113,8 +113,18 @@ def start_tests() -> str:
             except Exception:
                 pass
 
+    async def prepare_and_execute_tests() -> None:
+        # Tests that wait on promises do so first: the suite itself runs synchronously.
+        try:
+            from client_tests.tests import prepare_async_tests
+
+            await prepare_async_tests()
+        except Exception as e:
+            print(f"[start_tests] Async test preparation failed: {repr(e)}")
+        execute_tests()
+
     # Schedule test execution to run asynchronously
-    window.setTimeout(execute_tests, 10)
+    window.setTimeout(lambda: aio.run(prepare_and_execute_tests()), 10)
     return str(window.JSON.stringify({"status": "started"}))
 
 
