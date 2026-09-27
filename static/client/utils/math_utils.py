@@ -1362,28 +1362,17 @@ class MathUtils:
     def _numeric_limit_estimate(expression: str, variable: str, value_to_approach: str) -> Optional[str]:
         """Describe what f does near the target numerically, or None when the samples are unclear."""
         try:
-            from expression_validator import ExpressionValidator
-
-            compiled = window.math.compile(ExpressionValidator.fix_math_expression(str(expression)))
-
-            at_infinity = value_to_approach in ("Infinity", "-Infinity")
+            evaluate_ieee = MathUtils._mathjs_probe_evaluator(expression, variable)
+            if evaluate_ieee is None:
+                return None
 
             def evaluate(point: float) -> Optional[float]:
-                try:
-                    value = compiled.evaluate({variable: point})
-                except Exception:
-                    return None
-                if isinstance(value, bool) or not isinstance(value, (int, float)):
-                    return None
-                value = float(value)
-                if math.isnan(value):
-                    # inf/inf at huge |x| ends the sampling at infinity (see _limit_at_infinity)
-                    return float("inf") if at_infinity else None
-                return value
+                value = evaluate_ieee(point)
+                return None if value is None or math.isnan(value) else value
 
-            if at_infinity:
+            if value_to_approach in ("Infinity", "-Infinity"):
                 sign = -1.0 if value_to_approach.startswith("-") else 1.0
-                limit_value = MathUtils._limit_at_infinity(evaluate, sign)
+                limit_value = MathUtils._limit_at_infinity(evaluate_ieee, sign)
                 if limit_value is None:
                     return None
                 return (
@@ -3097,13 +3086,8 @@ class MathUtils:
     _PROBE_ENVELOPE = 100.0
 
     @staticmethod
-    def _singularity_probe_evaluator(
-        function_string: str, nan_as_overflow: bool = False
-    ) -> Optional[Callable[[float], Optional[float]]]:
-        """Return f as a probe: a float, inf on overflow, or None where f is undefined or not real.
-
-        With nan_as_overflow, NaN is reported as inf too (inf/inf at huge |x|, see _limit_at_infinity).
-        """
+    def _singularity_probe_evaluator(function_string: str) -> Optional[Callable[[float], Optional[float]]]:
+        """Return f as a probe: a float, inf on overflow, or None where f is undefined or not real."""
         from expression_validator import ExpressionValidator
 
         try:
@@ -3121,9 +3105,35 @@ class MathUtils:
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 return None
             value = float(value)
-            if math.isnan(value):
-                return float("inf") if nan_as_overflow else None
-            return value
+            return None if math.isnan(value) else value
+
+        return evaluate
+
+    @staticmethod
+    def _mathjs_probe_evaluator(expression: str, variable: str = "x") -> Optional[Callable[[float], Optional[float]]]:
+        """Return f compiled by math.js as a probe: a float, or None where f fails or is not real.
+
+        math.js computes with IEEE floats, so an overflow is inf and carries through the rest of
+        the expression (1/(1 + exp(-x)) is 0 where exp(-x) overflows), and inf/inf is NaN.
+        Python floats raise OverflowError instead, which loses the value of the whole expression.
+        """
+        from expression_validator import ExpressionValidator
+
+        try:
+            # math.js calls trunc() fix()
+            fixed = ExpressionValidator.fix_math_expression(str(expression)).replace("trunc(", "fix(")
+            compiled = window.math.compile(fixed)
+        except Exception:
+            return None
+
+        def evaluate(point: float) -> Optional[float]:
+            try:
+                value = compiled.evaluate({variable: point})
+            except Exception:
+                return None
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                return None
+            return float(value)
 
         return evaluate
 
@@ -3313,10 +3323,7 @@ class MathUtils:
         limit() never returns for abs(x)/x and similar quotients, which froze the tab on every
         draw, and it is wrong for others (floor(x)/x -> 0, sqrt(x^2+1)/x -> 0).
         """
-        from expression_validator import ExpressionValidator
-
-        function_string = ExpressionValidator.fix_math_expression(function_string)
-        evaluate = MathUtils._singularity_probe_evaluator(function_string, nan_as_overflow=True)
+        evaluate = MathUtils._mathjs_probe_evaluator(function_string)
         if evaluate is None:
             return []
         horizontal_asymptotes: List[float] = []
@@ -3328,9 +3335,9 @@ class MathUtils:
 
     # f is sampled at x = sign * 9.73 * 4^k for k < 12 (9.73 to 4.1e7). The start is not an
     # integer, so integer-periodic parts such as x - floor(x) are not sampled in phase; the
-    # first samples come before exp() overflows (x = 709.8), so logistic curves keep four; and
-    # the largest x keeps x^2 below 2^53, so cancellations such as sqrt(x^2 + x) - x stay exact
-    # enough.
+    # first four samples come before exp() overflows (x = 709.8), so quotients that become
+    # inf/inf there, such as cosh(x)/sinh(x), keep four; and the largest x keeps x^2 below
+    # 2^53, so cancellations such as sqrt(x^2 + x) - x stay exact enough.
     _INFINITY_PROBE_START = 9.73
     _INFINITY_PROBE_FACTOR = 4.0
     _INFINITY_PROBE_COUNT = 12
@@ -3347,27 +3354,71 @@ class MathUtils:
     _AITKEN_AGREEMENT = 1e-6
     # A settled value is never trusted beyond 12 significant digits.
     _SETTLED_PRECISION = 1e-12
+    # Bisections from the last finite sample towards an infinite one (a gap 2^-40 of the first).
+    _OVERFLOW_BISECTIONS = 40
 
     @staticmethod
     def _limit_at_infinity(evaluate: Callable[[float], Optional[float]], sign: float) -> Optional[float]:
         """Estimate lim f(x) as x -> sign * infinity from samples; None if f does not settle on a finite value.
 
-        f undefined at a sample (not real) means no limit on that side. An infinite sample
-        (overflow, e.g. exp(x) inside 1/(1 + exp(-x))) ends the sampling, and the samples
-        before it are judged: overflow says nothing about the limit of the whole expression.
-        evaluate should report NaN as inf (nan_as_overflow): Brython's cosh(x)/sinh(x) is
-        inf/inf = NaN once both overflow.
+        evaluate must use IEEE arithmetic (_mathjs_probe_evaluator), so an overflow inside f
+        carries through it: 1/(1 + exp(-x)) is 0 where exp(-x) overflows. f undefined at a
+        sample (not real) means no limit on that side. An infinite sample or a NaN one (inf/inf,
+        e.g. cosh(x)/sinh(x) once both overflow) ends the sampling, and the samples before it
+        are judged. After an infinite sample, f just before the overflow (_value_before_overflow)
+        must also be at least as close to the limit as the last sample: exp(x-700) + 1 reads 1
+        up to x = 622.7 but nears 1e308 before it overflows, so it has no limit. That value is
+        a check, not a sample: it lies off the 4-fold grid, which Aitken extrapolation needs.
         """
         values: List[float] = []
+        previous_x = 0.0
+        before_overflow: Optional[float] = None
         for index in range(MathUtils._INFINITY_PROBE_COUNT):
             x = sign * MathUtils._INFINITY_PROBE_START * MathUtils._INFINITY_PROBE_FACTOR**index
             value = evaluate(x)
             if value is None:
                 return None
-            if not math.isfinite(value):
+            if math.isnan(value):
+                break
+            if math.isinf(value):
+                if not values:
+                    return None
+                before_overflow = MathUtils._value_before_overflow(evaluate, previous_x, x)
+                if before_overflow is None:
+                    return None
                 break
             values.append(value)
-        return MathUtils._settled_value(values)
+            previous_x = x
+        limit = MathUtils._settled_value(values)
+        if limit is None or before_overflow is None:
+            return limit
+        slack = MathUtils._SETTLED_SPREAD * max(1.0, abs(limit))
+        if abs(before_overflow - limit) > abs(values[-1] - limit) + slack:
+            return None
+        return limit
+
+    @staticmethod
+    def _value_before_overflow(
+        evaluate: Callable[[float], Optional[float]], finite_x: float, infinite_x: float
+    ) -> Optional[float]:
+        """f just before it stops being finite between finite_x and infinite_x; None where f is not real.
+
+        An infinite f is either f itself overflowing, where f is huge just before (exp(x-700) + 1
+        nears 1e308), or an overflow inside f that a later operation keeps infinite although f
+        stays finite (log(1 + exp(x)) - x is log(inf) - x = inf, yet about 0 just before).
+        """
+        best = evaluate(finite_x)
+        low, high = finite_x, infinite_x
+        for _ in range(MathUtils._OVERFLOW_BISECTIONS):
+            middle = (low + high) / 2
+            value = evaluate(middle)
+            if value is None:
+                return None
+            if math.isfinite(value):
+                best, low = value, middle
+            else:
+                high = middle
+        return best
 
     @staticmethod
     def _aitken(first: float, second: float, third: float) -> Optional[float]:
