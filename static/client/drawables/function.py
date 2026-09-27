@@ -250,6 +250,39 @@ class Function(Drawable):
         """Update the right bound (None clears the bound)."""
         self.right_bound = None if right_bound is None else float(right_bound)
 
+    def redefine(
+        self,
+        function_string: str,
+        left_bound: Optional[float],
+        right_bound: Optional[float],
+        undefined_at: Optional[List[float]],
+    ) -> None:
+        """Replace the definition (expression, bounds, holes) and recompute its analysis.
+
+        The expression is parsed before anything changes, so a parse error leaves the
+        function as it was.
+        """
+        try:
+            fixed_string = ExpressionValidator.fix_math_expression(function_string)
+            base_function = ExpressionValidator.parse_function_string(function_string)
+        except Exception as e:
+            raise ValueError(f"Failed to parse function string '{function_string}': {str(e)}")
+        self.function_string = fixed_string
+        self._base_function = base_function
+        self.left_bound = left_bound
+        self.right_bound = right_bound
+        self.undefined_at = list(undefined_at) if undefined_at else []
+        self.reanalyze()
+
+    def reanalyze(self) -> None:
+        """Recompute asymptotes, discontinuities and periodicity from the expression and bounds."""
+        self._calculate_asymptotes_and_discontinuities()
+        for hole in self.undefined_at:
+            if hole not in self.point_discontinuities:
+                self.point_discontinuities.append(hole)
+        self.point_discontinuities.sort()
+        self._detect_periodicity()
+
     def _calculate_asymptotes_and_discontinuities(self) -> None:
         """Calculate vertical and horizontal asymptotes and point discontinuities of the function"""
         from utils.math_utils import MathUtils

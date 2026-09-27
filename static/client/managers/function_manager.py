@@ -43,10 +43,9 @@ State Management:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from drawables.function import Function
-from expression_validator import ExpressionValidator
 from managers.dependency_removal import remove_drawable_with_dependencies
 from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
 
@@ -132,8 +131,16 @@ class FunctionManager:
             Function: The newly created or updated function object
 
         Raises:
-            ValueError: If the function string cannot be parsed or is invalid
+            ValueError: If the function string cannot be parsed or is invalid, or if
+                left_bound equals right_bound
+
+        Reversed bounds (left_bound > right_bound) are swapped. Drawing under the name of
+        an existing function redefines it in place: expression, bounds and holes are
+        replaced and everything derived from them (asymptotes, discontinuities,
+        periodicity) is recomputed; its color is kept unless a new one is given.
         """
+        left_bound, right_bound = self.ordered_bounds(left_bound, right_bound)
+
         # Archive before creation or modification
         self.canvas.undo_redo_manager.archive()
 
@@ -141,25 +148,7 @@ class FunctionManager:
         existing_function = self.get_function(name)
         color_value = str(color).strip() if color is not None else ""
         if existing_function:
-            # If it exists, update its expression
-            try:
-                existing_function.function_string = ExpressionValidator.fix_math_expression(function_string)
-                existing_function._base_function = ExpressionValidator.parse_function_string(
-                    function_string, use_mathjs=False
-                )
-            except Exception as e:
-                raise ValueError(f"Failed to parse function string '{function_string}': {str(e)}")
-            # Update the bounds
-            existing_function.left_bound = left_bound
-            existing_function.right_bound = right_bound
-            # Update undefined_at
-            if undefined_at is not None:
-                existing_function.undefined_at = undefined_at
-                # Re-add to point_discontinuities
-                for hole in undefined_at:
-                    if hole not in existing_function.point_discontinuities:
-                        existing_function.point_discontinuities.append(hole)
-                existing_function.point_discontinuities.sort()
+            existing_function.redefine(function_string, left_bound, right_bound, undefined_at)
 
             if color_value:
                 existing_function.update_color(color_value)
@@ -191,6 +180,21 @@ class FunctionManager:
                 self.canvas.draw()
 
             return new_function
+
+    @staticmethod
+    def ordered_bounds(
+        left_bound: Optional[float], right_bound: Optional[float]
+    ) -> Tuple[Optional[float], Optional[float]]:
+        """Return the bounds in increasing order; equal bounds leave nothing to plot and are rejected."""
+        if left_bound is None or right_bound is None:
+            return left_bound, right_bound
+        if left_bound == right_bound:
+            raise ValueError(
+                f"left_bound and right_bound are both {left_bound}; left_bound must be less than right_bound."
+            )
+        if left_bound > right_bound:
+            return right_bound, left_bound
+        return left_bound, right_bound
 
     def delete_function(self, name: str) -> bool:
         """
@@ -325,3 +329,7 @@ class FunctionManager:
 
         if "right_bound" in pending_fields and new_right_bound is not None:
             function.update_right_bound(float(new_right_bound))
+
+        if "left_bound" in pending_fields or "right_bound" in pending_fields:
+            # Asymptotes (e.g. of tan), discontinuities and periodicity depend on the bounds
+            function.reanalyze()

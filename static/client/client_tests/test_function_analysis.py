@@ -122,6 +122,93 @@ class TestFunctionTranslationAnalysis(_FunctionToolTestCase):
         self.assert_all_equal(args.get("horizontal_asymptotes"), 0.0)
 
 
+class TestFunctionRedefinition(_FunctionToolTestCase):
+    """K12: redrawing under an existing name re-analyses; reversed bounds are swapped."""
+
+    def test_redraw_recomputes_asymptotes(self) -> None:
+        self.draw("1/x", "f", -10, 10)
+
+        self.draw("x^2", "f", -10, 10)
+
+        self.assertEqual(len(self.canvas.drawable_manager.drawables.Functions), 1)
+        args = self.function_args("f")
+        self.assertNotIn("vertical_asymptotes", args)
+        self.assertNotIn("horizontal_asymptotes", args)
+        self.assertAlmostEqual(self.function("f").function(2), 4.0)
+
+    def test_redraw_finds_the_new_asymptotes(self) -> None:
+        self.draw("x^2", "f", -10, 10)
+
+        self.draw("1/(x-1)", "f", -10, 10)
+
+        self.assertEqual(_rounded(self.function_args("f").get("vertical_asymptotes")), [1.0])
+
+    def test_redraw_without_holes_clears_the_old_holes(self) -> None:
+        self.draw("x^2", "f", -10, 10, undefined_at=[1])
+
+        self.draw("x^3", "f", -10, 10)
+
+        args = self.function_args("f")
+        self.assertNotIn("undefined_at", args)
+        self.assertNotIn("point_discontinuities", args)
+        self.assertAlmostEqual(self.function("f").function(1), 1.0)
+
+    def test_redraw_with_a_bad_expression_changes_nothing(self) -> None:
+        self.draw("1/x", "f", -10, 10)
+
+        traced = self.run_call(
+            "draw_function",
+            function_string="1/(",
+            name="f",
+            left_bound=-5,
+            right_bound=5,
+            color=None,
+            undefined_at=None,
+        )
+
+        self.assertTrue(traced["is_error"])
+        args = self.function_args("f")
+        self.assertEqual(args["function_string"], "1/x")
+        self.assertEqual((args["left_bound"], args["right_bound"]), (-10, 10))
+        self.assertEqual(_rounded(args.get("vertical_asymptotes")), [0.0])
+
+    def test_reversed_bounds_are_swapped_and_reported(self) -> None:
+        result = self.draw("x", "g", 5, -5)
+
+        args = self.function_args("g")
+        self.assertEqual((args["left_bound"], args["right_bound"]), (-5, 5))
+        self.assertIsInstance(result, str)
+        self.assertIn("swapped", result)
+        self.assertIn("[-5, 5]", result)
+
+    def test_equal_bounds_are_rejected(self) -> None:
+        depth = self.undo_depth()
+
+        traced = self.run_call(
+            "draw_function",
+            function_string="x",
+            name="g",
+            left_bound=2,
+            right_bound=2,
+            color=None,
+            undefined_at=None,
+        )
+
+        self.assertTrue(traced["is_error"])
+        self.assertIn("left_bound must be less than right_bound", str(traced["result"]))
+        self.assertEqual(len(self.canvas.drawable_manager.drawables.Functions), 0)
+        self.assertEqual(self.undo_depth(), depth)
+
+    def test_update_bounds_recomputes_bound_dependent_asymptotes(self) -> None:
+        self.draw("tan(x)", "t", -2, 2)
+
+        traced = self.run_call("update_function", name="t", new_color=None, new_left_bound=-5, new_right_bound=5)
+
+        self.assertFalse(traced["is_error"], traced["result"])
+        expected = [round(-math.pi / 2 + n * math.pi, 6) for n in range(-1, 3)]
+        self.assertEqual(_rounded(self.function_args("t").get("vertical_asymptotes")), expected)
+
+
 # (expression, left, right, vertical asymptotes, removable discontinuities)
 _SINGULARITY_CASES: List[Tuple[str, Optional[float], Optional[float], List[float], List[float]]] = [
     ("(x^2-1)/(x-1)", None, None, [], [1.0]),

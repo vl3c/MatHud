@@ -860,7 +860,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "draw_function",
-            "description": "Plots the given mathematical function on the canvas between the specified left and right bounds.",
+            "description": "Plots the given mathematical function on the canvas between the specified left and right bounds. Reversed bounds are swapped and the result says so; equal bounds are an error. Using the name of an existing function redefines it (expression, bounds and holes), keeping its color unless a new one is given.",
             "strict": True,
             "parameters": {
                 "type": "object",
