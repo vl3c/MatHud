@@ -161,9 +161,9 @@ class UndoRedoManager:
 
         Compares each live drawable's ``get_state()`` and the computations, serialized as
         sorted JSON, with the same serialization of the live objects taken when the batch
-        started. The deep-copied baseline is not used: copying rebuilds some drawables (a
-        polygon recomputes its types), so it can serialize differently from the unchanged
-        live objects. Outside a batch, or when a state cannot be serialized, the canvas is
+        started. The deep-copied baseline is not used: copying rebuilds each drawable
+        through its constructor, so it need not serialize exactly like the unchanged live
+        objects. Outside a batch, or when a state cannot be serialized, the canvas is
         assumed to differ so that a change is never dropped from the undo history.
         """
         if self._batch_depth == 0 or self._batch_signature is None:

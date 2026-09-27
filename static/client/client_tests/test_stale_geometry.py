@@ -125,3 +125,67 @@ class TestStaleGeometry(unittest.TestCase):
         expected = MathUtils.get_ellipse_formula(2.0, -1.0, 3, 2, 30)
         self.assertEqual(ellipse.ellipse_formula, expected)
         self.assertEqual(self._state_of(ellipse)["args"]["ellipse_formula"], expected)
+
+    # ------------------------------------------------------------------
+    # K16: polygon types follow the vertices
+    # ------------------------------------------------------------------
+    def test_square_scaled_non_uniformly_is_no_longer_a_square(self) -> None:
+        square = self._polygon([(0, 0), (4, 0), (4, 4), (0, 4)], "square", "ABCD")
+        self.assertIn("square", square.get_type_names())
+
+        self._call("scale_object", name=square.name, sx=2, sy=1, cx=0, cy=0)
+
+        types = self._state_of(square)["types"]
+        self.assertNotIn("square", types)
+        self.assertNotIn("rhombus", types)
+        self.assertIn("rectangle", types)
+
+    def test_sheared_rectangle_is_no_longer_a_rectangle(self) -> None:
+        rectangle = self._polygon([(0, 0), (4, 0), (4, 2), (0, 2)], "rectangle", "ABCD")
+
+        self._call("shear_object", name=rectangle.name, axis="horizontal", factor=1, cx=0, cy=0)
+
+        types = self._state_of(rectangle)["types"]
+        self.assertNotIn("rectangle", types)
+        self.assertNotIn("square", types)
+        self.assertIn("quadrilateral", types)
+
+    def test_sheared_equilateral_triangle_is_no_longer_equilateral(self) -> None:
+        triangle = self._polygon([(0, 0), (4, 0), (2, EQUILATERAL_APEX_Y)], "triangle", "ABC", subtype="equilateral")
+        self.assertIn("equilateral", triangle.get_type_names())
+
+        self._call("shear_object", name="ABC", axis="horizontal", factor=1, cx=0, cy=0)
+
+        types = self._state_of(triangle)["types"]
+        self.assertNotIn("equilateral", types)
+        self.assertNotIn("isosceles", types)
+        self.assertIn("scalene", types)
+
+    def test_triangle_types_follow_a_moved_vertex(self) -> None:
+        triangle = self._polygon([(0, 0), (4, 0), (0, 3)], "triangle", "ABC")
+        self.assertIn("right", triangle.get_type_names())
+
+        self._call("translate_object", name="A", x_offset=1, y_offset=1)
+
+        self.assertNotIn("right", self._state_of(triangle)["types"])
+
+    def test_square_types_follow_a_moved_vertex(self) -> None:
+        square = self._polygon([(0, 0), (4, 0), (4, 4), (0, 4)], "square", "ABCD")
+
+        self._call("translate_object", name="C", x_offset=1, y_offset=1)
+
+        types = self._state_of(square)["types"]
+        self.assertNotIn("square", types)
+        self.assertNotIn("rectangle", types)
+        self.assertIn("irregular", types)
+
+    def test_pentagon_regularity_follows_scaling(self) -> None:
+        vertices = [(math.cos(math.radians(90 + 72 * k)), math.sin(math.radians(90 + 72 * k))) for k in range(5)]
+        pentagon = self._polygon(vertices, "pentagon", "ABCDE")
+        self.assertIn("regular", pentagon.get_type_names())
+
+        self._call("scale_object", name=pentagon.name, sx=3, sy=1, cx=0, cy=0)
+
+        types = self._state_of(pentagon)["types"]
+        self.assertNotIn("regular", types)
+        self.assertIn("irregular", types)

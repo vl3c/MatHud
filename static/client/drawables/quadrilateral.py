@@ -59,7 +59,6 @@ class Quadrilateral(Polygon):
         self.segment4 = segment4
         self._segments: List[Segment] = list(segments)
         self._points: List[Point] = list(ordered_points)
-        self._set_type_flags(GeometryUtils.quadrilateral_type_flags(self._points))
         self._set_base_type_labels(["quadrilateral"])
 
         super().__init__(name=name, color=color, is_renderable=False)
@@ -96,6 +95,9 @@ class Quadrilateral(Polygon):
 
     def get_segments(self) -> List[Segment]:
         return list(self._segments)
+
+    def _compute_type_flags(self) -> Dict[str, bool]:
+        return GeometryUtils.quadrilateral_type_flags(self._points)
 
     def get_type_flags(self) -> Dict[str, bool]:
         return super().get_type_flags()

@@ -79,7 +79,8 @@ class Rectangle(Quadrilateral):
         ):
             raise ValueError("The quadrilateral formed by the segments is not a rectangle")
         super().__init__(segment1, segment2, segment3, segment4, color=color)
-        self._set_base_type_labels(["quadrilateral", "rectangle"])
+        # "rectangle" comes from the computed flags, so a sheared rectangle stops listing it.
+        self._set_base_type_labels(["quadrilateral"])
 
     def get_class_name(self) -> str:
         return "Rectangle"

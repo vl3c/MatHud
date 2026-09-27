@@ -69,7 +69,6 @@ class Triangle(Polygon):
         self.segment2: Segment = segment2
         self.segment3: Segment = segment3
         self._segments: list[Segment] = [self.segment1, self.segment2, self.segment3]
-        self._set_type_flags(self._classify_triangle())
         self._set_base_type_labels(["triangle"])
         name: str = self._set_name()
         super().__init__(name=name, color=color, is_renderable=False)
@@ -100,7 +99,7 @@ class Triangle(Polygon):
                 return False
         return True
 
-    def _classify_triangle(self) -> Dict[str, bool]:
+    def _compute_type_flags(self) -> Dict[str, bool]:
         flags = GeometryUtils.triangle_type_flags_from_segments(self._segments)
         if flags is None:
             return {"equilateral": False, "isosceles": False, "scalene": False, "right": False}

@@ -38,7 +38,6 @@ class Nonagon(Polygon):
 
         self._segments: List[Segment] = list(segments)
         self._points: List[Point] = list(ordered_points)
-        self._set_type_flags(GeometryUtils.polygon_flags(self._points))
         self._set_base_type_labels(["nonagon"])
 
         super().__init__(name=name, color=color, is_renderable=False)
