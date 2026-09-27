@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import math
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 
 from constants import default_area_fill_color, default_area_opacity
 from drawables.bars_plot import BarsPlot
@@ -394,7 +394,9 @@ class StatisticsManager:
 
         Creates a standalone Function for the fitted curve and optionally
         Point markers for the data. No tracking entity is created - delete
-        the function with delete_function() and points individually.
+        the function with delete_function() and the points listed in
+        created_point_names individually. A data point on an existing point
+        reuses it; such points are listed in reused_point_names.
 
         Args:
             name: Optional base name for the function and points
@@ -410,7 +412,9 @@ class StatisticsManager:
 
         Returns:
             Dict with function_name, expression, coefficients, r_squared,
-            model_type, bounds, and optionally point_names
+            model_type, bounds, and with points shown point_names (data order)
+            and created_point_names, plus reused_point_names and a note when
+            existing points were reused
         """
         started_at = time.perf_counter()
         model = str(model_type or "").strip().lower()
@@ -480,34 +484,11 @@ class StatisticsManager:
 
             # Optionally plot the data points
             point_names: List[str] = []
+            reused_point_names: List[str] = []
             should_show_points = show_points if show_points is not None else True
 
             if should_show_points:
-                point_manager = self._get_point_manager()
-                if point_manager is not None:
-                    # Data points take the next free canvas point names (A, B, C, ..., A', ...).
-                    # Point names must be letters plus apostrophes, so a preferred name derived
-                    # from base_name would be filtered down to its letters and yield a confusing
-                    # mix. point_names reports the chosen names in data order.
-                    for i, (x, y) in enumerate(zip(x_data, y_data)):
-                        try:
-                            created_point = point_manager.create_point(
-                                x=x,
-                                y=y,
-                                name="",
-                                color=point_color,
-                                extra_graphics=False,
-                            )
-                            if created_point is not None:
-                                point_names.append(created_point.name)
-                        except Exception as e:
-                            # Log point creation failure for debugging
-                            try:
-                                logger = getattr(self.canvas, "logger", None)
-                                if logger is not None:
-                                    logger.debug(f"Failed to create regression point {i} at ({x}, {y}): {e}")
-                            except Exception:
-                                pass
+                point_names, reused_point_names = self._plot_regression_points(x_data, y_data, point_color)
 
             # Trigger redraw
             if getattr(self.canvas, "draw_enabled", False):
@@ -527,6 +508,19 @@ class StatisticsManager:
 
             if point_names:
                 result_dict["point_names"] = point_names
+                result_dict["created_point_names"] = [
+                    n for n in dict.fromkeys(point_names) if n not in reused_point_names
+                ]
+            if reused_point_names:
+                # Existing points at data coordinates are reused, not created: say so, so they
+                # are not mistaken for (and deleted as) this fit's own points.
+                result_dict["reused_point_names"] = reused_point_names
+                result_dict["note"] = (
+                    "Points "
+                    + ", ".join(reused_point_names)
+                    + " already existed and were reused as data points (point_color not applied); "
+                    "they are not part of this fit, so do not delete them when removing it."
+                )
 
             return result_dict
         except Exception as exc:
@@ -549,6 +543,47 @@ class StatisticsManager:
                         "point_count": len(cast(List[str], result_dict.get("point_names", []))),
                     },
                 )
+
+    def _plot_regression_points(
+        self, x_data: List[float], y_data: List[float], point_color: Optional[str]
+    ) -> Tuple[List[str], List[str]]:
+        """Plot the data points; return (every point name in data order, names of reused points).
+
+        Data points take the next free canvas point names (A, B, C, ..., A', ...). Point names
+        must be letters plus apostrophes, so a preferred name derived from the fit's name would
+        be filtered down to its letters and yield a confusing mix. A data point on an existing
+        point reuses that point, which is left as it is (point_color is not applied to it).
+        """
+        point_names: List[str] = []
+        reused_point_names: List[str] = []
+        point_manager = self._get_point_manager()
+        if point_manager is None:
+            return point_names, reused_point_names
+        for i, (x, y) in enumerate(zip(x_data, y_data)):
+            try:
+                existing_point = point_manager.get_point(x, y)
+                created_point = point_manager.create_point(
+                    x=x,
+                    y=y,
+                    name="",
+                    color=point_color,
+                    extra_graphics=False,
+                )
+                if created_point is None:
+                    continue
+                point_names.append(created_point.name)
+                is_reused = existing_point is not None and existing_point.name not in point_names[:-1]
+                if is_reused and created_point.name not in reused_point_names:
+                    reused_point_names.append(created_point.name)
+            except Exception as e:
+                # Log point creation failure for debugging
+                try:
+                    logger = getattr(self.canvas, "logger", None)
+                    if logger is not None:
+                        logger.debug(f"Failed to create regression point {i} at ({x}, {y}): {e}")
+                except Exception:
+                    pass
+        return point_names, reused_point_names
 
     def _get_point_manager(self) -> Optional["PointManager"]:
         """Get the point manager from the canvas."""

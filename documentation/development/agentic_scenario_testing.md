@@ -944,9 +944,9 @@ The smoke subset has 11 scenarios (18 turns), one for each area except coloured 
 - Checks:
   - tool result: m = 2, b = 1, r_squared = 1; function fit1 with fit1(0) = 1
   - a point at each data coordinate; point_names in the result match the points at those coordinates
-  - A is reused for (1,3) and the result says so (currently listed as if new)
+  - A is reused for (1,3) and the result says so: `reused_point_names` is [A] and `created_point_names` is [B, C, D]
 - Targets: regression math; reuse of existing points.
-- Known bugs: K27, formerly filed under K2 (expected to fail until fixed; see section 6).
+- Known bugs: K27, formerly filed under K2 (fixed; see section 6).
 
 #### ST-04: Descriptive statistics answer
 
@@ -1282,7 +1282,7 @@ All paths are relative to `static/client/` unless stated otherwise.
 | K24 | **A removable discontinuity is reported as a vertical asymptote.** Every zero of a denominator is taken as an asymptote, without checking for cancellation. The Roadmap's "adaptive plotting" item plans to replace this string-based detection. | `utils/math_utils.py:2794-2796` | (observed) `(x^2 - 1)/(x - 1)` lists `vertical_asymptotes: [1]`. | FN-09 |
 | K25 | **`Canvas.reset` does not reset the polar grid.** It resets the Cartesian grid but never calls `PolarGrid.reset()`, so the zoom-adapted ring spacing survives `clear_canvas`, `reset_canvas` and workspace loads (which clear first). After zooming in and clearing, polar mode draws its rings at the old spacing across the default view: thousands of circles per frame. | `canvas.py:422-426` (`_reset_drawables_state`); `polar_grid.py:149-151` (`reset`, no callers) | (observed by the first replay run) After CV-01's zoom to ±2, WS-01's `load_workspace` in polar mode took 30 to 57 s instead of 2 to 5 s; the spacing stays 0.2 instead of 50. The reset hook now resets it, so scenarios stay isolated. | CV-05 |
 | K26 | **A change that is already in effect reports success and adds an undo entry.** `update_circle` with the colour the circle already has, and `zoom` to the view already shown, answer "Call successful!" and archive an undo entry, although nothing changed. | the update and zoom paths archive before comparing (found on `main` after vl3c/MatHud#73) | (observed) CV-06: the undo depth grows by one per repeated call and I4 flags the bare success. | CV-06 |
-| K27 | **`fit_regression` lists reused points as if it created them.** With `show_points`, a data point on an existing point reuses it, and `point_names` reports it like a new one; `point_color` is not applied to it. | `managers/statistics_manager.py:486-502` with reuse at `managers/point_manager.py:149-151` | (observed) ST-03: `point_names` is `[A, B, C, D]` with A the pre-existing point, and the result says nothing about reuse. This was finding 5 below; it was marked K2 until K2's fix showed it is separate. | ST-03 |
+| K27 | **Fixed on `claude/fix-names-persistence`; its marks are removed.** **`fit_regression` lists reused points as if it created them.** With `show_points`, a data point on an existing point reuses it, and `point_names` reports it like a new one; `point_color` is not applied to it. | `managers/statistics_manager.py:486-502` with reuse at `managers/point_manager.py:149-151` | (observed) ST-03: `point_names` is `[A, B, C, D]` with A the pre-existing point, and the result says nothing about reuse. This was finding 5 below; it was marked K2 until K2's fix showed it is separate. **Fix:** the result adds `created_point_names`, and for reused points `reused_point_names` and a note; the tool description says to delete only the created points. | ST-03 |
 
 Other findings from reading the code only, not yet reproduced in the app, each with a scenario that would catch it:
 
@@ -1290,7 +1290,7 @@ Other findings from reading the code only, not yet reproduced in the app, each w
 2. **Vector endpoints can be renamed while the vector keeps its old name.** The vector is registered only against its internal segment (`managers/drawable_dependency_manager.py:477-478`). Add to NM.
 3. **The edit policy needs a solitary point even for a colour change** (`managers/edit_policy.py:53-58`), so a triangle vertex cannot be recoloured. The tool text says only "solitary point". NM-02 covers the rename case.
 4. **Creating an ellipse that already exists ignores `rotation_angle`** (`managers/ellipse_manager.py:111-116`). An ellipse with the same centre and radii but a new angle returns the old one unchanged.
-5. **`fit_regression` with `show_points` reuses existing points and lists them as if they were new.** `point_color` is not applied to them (`managers/statistics_manager.py:459`). ST-03 has the setup; its check on `point_names` catches this.
+5. (Filed as K27, now fixed.) **`fit_regression` with `show_points` reuses existing points and lists them as if they were new.** `point_color` is not applied to them (`managers/statistics_manager.py:459`). ST-03 has the setup; its check on `point_names` catches this.
 6. **Coloured-area names are not unique** (`area_between_{f}_and_{g}`), so `delete_colored_area` removes only the first of two such areas.
 7. **For a function and a segment, `left_bound`/`right_bound` are ignored** (`managers/colored_area_manager.py:207`), although the schema says they are used.
 8. **A continuous `plot_distribution` that fails after drawing its pdf leaves the function behind** (`managers/statistics_manager.py:182-183`).

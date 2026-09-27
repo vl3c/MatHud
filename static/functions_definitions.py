@@ -2444,7 +2444,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "fit_regression",
-            "description": "Fits a regression model to data points and plots the resulting curve. Supported model types: linear (y = mx + b), polynomial (y = a0 + a1*x + ... + an*x^n), exponential (y = a*e^(bx)), logarithmic (y = a + b*ln(x)), power (y = a*x^b), logistic (y = L/(1+e^(-k(x-x0)))), and sinusoidal (y = a*sin(bx+c)+d). Returns the function_name, fitted expression, coefficients, R-squared, and point_names. Use delete_function to remove the curve; delete points individually.",
+            "description": "Fits a regression model to data points and plots the resulting curve. Supported model types: linear (y = mx + b), polynomial (y = a0 + a1*x + ... + an*x^n), exponential (y = a*e^(bx)), logarithmic (y = a + b*ln(x)), power (y = a*x^b), logistic (y = L/(1+e^(-k(x-x0)))), and sinusoidal (y = a*sin(bx+c)+d). Returns the function_name, fitted expression, coefficients, R-squared, and point_names (every data point in data order). A data point on an existing point reuses it: reused_point_names lists those, and created_point_names lists the points this call added. Use delete_function to remove the curve; to remove the data points, delete only the created_point_names, never the reused ones (they belong to the user's existing drawing).",
             "strict": True,
             "parameters": {
                 "type": "object",

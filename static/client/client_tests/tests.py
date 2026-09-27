@@ -326,6 +326,7 @@ from .test_tool_batch_results import TestToolBatchUndo, TestToolErrorResults, Te
 from .test_names_and_persistence import (
     TestColoredAreaNullStyle,
     TestSegmentAreaHasNoSideEffects,
+    TestRegressionReportsReusedPoints,
 )
 from .test_base_telemetry import (
     TestBaseTelemetryInit,
@@ -702,6 +703,7 @@ class Tests:
             TestToolErrorResults,
             TestColoredAreaNullStyle,
             TestSegmentAreaHasNoSideEffects,
+            TestRegressionReportsReusedPoints,
             TestBaseTelemetryInit,
             TestBaseTelemetryReset,
             TestBaseTelemetryBeginFrame,

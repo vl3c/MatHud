@@ -83,3 +83,42 @@ class TestSegmentAreaHasNoSideEffects(_ToolBatchTestCase):
         self.assertEqual(len(after.pop("SegmentsBoundedColoredArea", [])), 1)
         self.assertEqual(after, before)
         self.assertEqual(self.undo_depth(), depth + 1)
+
+
+class TestRegressionReportsReusedPoints(_ToolBatchTestCase):
+    """K27: fit_regression tells created data points from reused existing ones."""
+
+    def fit(self) -> Dict[str, Any]:
+        result = self.run_single(
+            "fit_regression",
+            name="fit1",
+            x_data=[1, 2, 3, 4],
+            y_data=[3, 5, 7, 9],
+            model_type="linear",
+            degree=None,
+            plot_bounds=None,
+            curve_color=None,
+            show_points=True,
+            point_color="red",
+        )
+        self.assertIsInstance(result, dict)
+        return dict(result)
+
+    def test_reused_point_is_listed_apart_from_created_points(self) -> None:
+        self.run_single("create_point", x=1, y=3, name="A")
+
+        result = self.fit()
+
+        self.assertEqual(result["point_names"], ["A", "B", "C", "D"])
+        self.assertEqual(result["created_point_names"], ["B", "C", "D"])
+        self.assertEqual(result["reused_point_names"], ["A"])
+        self.assertIn("already existed", result["note"])
+        self.assertEqual(self.canvas.get_point_by_name("A").color, "black")
+        self.assertEqual(self.canvas.get_point_by_name("B").color, "red")
+
+    def test_without_existing_points_nothing_is_reported_as_reused(self) -> None:
+        result = self.fit()
+
+        self.assertEqual(result["created_point_names"], result["point_names"])
+        self.assertNotIn("reused_point_names", result)
+        self.assertNotIn("note", result)
