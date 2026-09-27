@@ -59,11 +59,13 @@ class Octagon(Polygon):
 
     def get_state(self) -> Dict[str, Any]:
         args = {f"p{index + 1}": point.name for index, point in enumerate(self._points)}
-        return {
+        state: Dict[str, Any] = {
             "name": self.name,
             "args": args,
             "types": self.get_type_names(),
         }
+        self._add_color_to_state(state)
+        return state
 
     def get_segments(self) -> List[Segment]:
         return list(self._segments)
@@ -82,5 +84,6 @@ class Octagon(Polygon):
             return cast(Octagon, memo[id(self)])
         new_segments = [deepcopy(segment, memo) for segment in self._segments]
         new_octagon = Octagon(new_segments, color=self.color)
+        new_octagon.name = self.name
         memo[id(self)] = new_octagon
         return new_octagon

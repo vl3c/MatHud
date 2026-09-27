@@ -59,11 +59,13 @@ class Hexagon(Polygon):
 
     def get_state(self) -> Dict[str, Any]:
         args = {f"p{index + 1}": point.name for index, point in enumerate(self._points)}
-        return {
+        state: Dict[str, Any] = {
             "name": self.name,
             "args": args,
             "types": self.get_type_names(),
         }
+        self._add_color_to_state(state)
+        return state
 
     def get_segments(self) -> List[Segment]:
         return list(self._segments)
@@ -82,5 +84,6 @@ class Hexagon(Polygon):
             return cast(Hexagon, memo[id(self)])
         new_segments = [deepcopy(segment, memo) for segment in self._segments]
         new_hexagon = Hexagon(new_segments, color=self.color)
+        new_hexagon.name = self.name
         memo[id(self)] = new_hexagon
         return new_hexagon

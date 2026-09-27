@@ -84,6 +84,13 @@ from .test_circle_manager import TestCircleManager
 from .test_ellipse_manager import TestEllipseManager
 from .test_colored_area_manager import TestColoredAreaManager
 from .test_function_manager import TestFunctionManager
+from .test_function_analysis import (
+    TestFunctionAreaTranslation,
+    TestFunctionRedefinition,
+    TestFunctionTangentGuard,
+    TestFunctionTranslationAnalysis,
+    TestRemovableDiscontinuities,
+)
 from .test_parametric_function import (
     TestParametricFunction,
     TestParametricFunctionRenderable,
@@ -279,6 +286,8 @@ from .test_chat_html_safety import (
     TestMathJaxHrefDisabled,
     TestMathOutputSanitizer,
 )
+from .test_chat_math_typeset import TestChatMathTypeset
+from .test_chat_math_typeset_queue import TestChatMathTypesetQueue, TestChatScrollAfterTypeset
 from .test_turn_metrics import (
     TestTurnAggregation,
     TestFooterFormatting,
@@ -324,6 +333,14 @@ from .test_scenario_hooks import (
 )
 from .test_result_processor_traced import TestGetResultsTraced
 from .test_tool_batch_results import TestToolBatchUndo, TestToolErrorResults, TestToolNoOpResults
+from .test_view_undo_and_no_ops import TestNoOpUpdates, TestPolarGridReset, TestViewUndo
+from .test_names_and_persistence import (
+    TestRequestedNamesAreReported,
+    TestColoredAreaNullStyle,
+    TestSegmentAreaHasNoSideEffects,
+    TestRegressionReportsReusedPoints,
+    TestWorkspaceRoundTripKeepsStyles,
+)
 from .test_base_telemetry import (
     TestBaseTelemetryInit,
     TestBaseTelemetryReset,
@@ -384,6 +401,7 @@ class Tests:
             test_cases = test_runner._get_test_cases()
             total = len(test_cases)
             print(f"[ClientTests] Running {total} test classes asynchronously.")
+            await cls.prepare_async()
 
             loader = unittest.TestLoader()
             custom_stream = BrythonTestStream()
@@ -420,6 +438,24 @@ class Tests:
             print(f"[ClientTests] Exception during run_tests_async: {repr(exc)}")
             traceback.print_exc()
             return test_runner._create_error_result(str(exc))
+
+    @classmethod
+    async def prepare_async(cls) -> None:
+        """Await each test class's ``prepare_async`` classmethod, before any test runs.
+
+        Tests run synchronously, so no promise settles while they run. A test class
+        that has to wait for one (a typeset loading a TeX extension, say) does that
+        work in an async ``prepare_async`` classmethod and its tests check the outcome.
+        """
+        for test_case in cls()._get_test_cases():
+            prepare = getattr(test_case, "prepare_async", None)
+            if prepare is None:
+                continue
+            try:
+                await prepare()
+            except Exception as exc:
+                print(f"[ClientTests] {test_case.__name__}.prepare_async failed: {repr(exc)}")
+                traceback.print_exc()
 
     def _get_test_cases(self) -> List[Type[unittest.TestCase]]:
         """Return the list of test case classes to run."""
@@ -529,6 +565,11 @@ class Tests:
             TestTransformationsManager,
             TestTransforms,
             TestFunctionManager,
+            TestFunctionTranslationAnalysis,
+            TestFunctionRedefinition,
+            TestFunctionTangentGuard,
+            TestFunctionAreaTranslation,
+            TestRemovableDiscontinuities,
             TestParametricFunction,
             TestParametricFunctionRenderable,
             TestExpressionValidatorParametric,
@@ -664,6 +705,9 @@ class Tests:
             TestAutocompleteHtmlSafety,
             TestMathJaxHrefDisabled,
             TestMathOutputSanitizer,
+            TestChatMathTypeset,
+            TestChatMathTypesetQueue,
+            TestChatScrollAfterTypeset,
             TestTurnAggregation,
             TestFooterFormatting,
             TestTurnMetricsCollector,
@@ -698,6 +742,14 @@ class Tests:
             TestToolBatchUndo,
             TestToolNoOpResults,
             TestToolErrorResults,
+            TestViewUndo,
+            TestPolarGridReset,
+            TestNoOpUpdates,
+            TestRequestedNamesAreReported,
+            TestColoredAreaNullStyle,
+            TestSegmentAreaHasNoSideEffects,
+            TestRegressionReportsReusedPoints,
+            TestWorkspaceRoundTripKeepsStyles,
             TestBaseTelemetryInit,
             TestBaseTelemetryReset,
             TestBaseTelemetryBeginFrame,
@@ -805,6 +857,11 @@ class Tests:
 
 def run_tests() -> Dict[str, Any]:
     return Tests.run_tests()
+
+
+async def prepare_async_tests() -> None:
+    """Run the async preparation of tests that wait on promises (before run_tests)."""
+    await Tests.prepare_async()
 
 
 async def run_tests_async(

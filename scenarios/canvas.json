@@ -8,9 +8,7 @@
       "title": "Undo a zoom",
       "tags": ["view", "undo"],
       "smoke": false,
-      "known": ["K4"],
       "targets": "view state outside the undo snapshot",
-      "invariants": {"I4": "K4"},
       "steps": [
         {
           "user": "Zoom to x between -2 and 2 around the origin.",
@@ -23,7 +21,7 @@
         {
           "user": "Undo that.",
           "reference": [{"tool": "undo", "args": {}}],
-          "checks": [{"check": "state_equals", "snapshot": "start", "view": true, "known": "K4"}]
+          "checks": [{"check": "state_equals", "snapshot": "start", "view": true}]
         }
       ]
     },
@@ -65,7 +63,6 @@
       "title": "Clear, then undo",
       "tags": ["view", "undo", "clear"],
       "smoke": false,
-      "known": ["K4"],
       "targets": "clear resets the view outside undo",
       "setup": {
         "calls": [
@@ -96,8 +93,8 @@
           "reference": [{"tool": "undo", "args": {}}],
           "checks": [
             {"check": "state_equals", "snapshot": "setup"},
-            {"check": "attribute", "path": "left_bound", "target": "view", "eq": -10, "known": "K4"},
-            {"check": "attribute", "path": "right_bound", "target": "view", "eq": 10, "known": "K4"}
+            {"check": "attribute", "path": "left_bound", "target": "view", "eq": -10},
+            {"check": "attribute", "path": "right_bound", "target": "view", "eq": 10}
           ]
         }
       ]
@@ -121,7 +118,6 @@
       "title": "Clearing after a zoom resets the polar grid too",
       "tags": ["view", "coordinate-systems", "clear"],
       "smoke": false,
-      "known": ["K25"],
       "targets": "Canvas.reset resets the Cartesian grid but not the polar grid's zoom-adapted ring spacing, so polar mode after a clear draws thousands of rings (found by the replay suite: WS-01's load took 30 to 57 s after CV-01)",
       "steps": [
         {
@@ -137,13 +133,7 @@
           "checks": [
             {"check": "attribute", "path": "left_bound", "target": "view", "same_as": "start"},
             {"check": "attribute", "path": "mode", "target": "view", "eq": "polar"},
-            {
-              "check": "attribute",
-              "path": "polar_radial_spacing",
-              "target": "inspection",
-              "same_as": "start",
-              "known": "K25"
-            }
+            {"check": "attribute", "path": "polar_radial_spacing", "target": "inspection", "same_as": "start"}
           ]
         }
       ]
@@ -153,9 +143,7 @@
       "title": "Repeating a change that is already in effect is a no-op",
       "tags": ["view", "circles", "update", "undo", "results"],
       "smoke": false,
-      "known": ["K26"],
       "targets": "tools that succeed without changing anything must say so and must not add an undo entry",
-      "invariants": {"I4": "K26", "I5": "K26"},
       "setup": {
         "calls": [
           {"tool": "create_circle", "args": {"center_x": 0, "center_y": 0, "radius": 2, "color": "red"}},
@@ -168,8 +156,8 @@
           "reference": [{"tool": "update_circle", "args": {"name": "A(2)", "new_color": "red"}}],
           "checks": [
             {"check": "state_equals", "snapshot": "setup", "inspect": true, "view": true},
-            {"check": "attribute", "target": "inspection", "path": "undo_depth", "same_as": "setup", "known": "K26"},
-            {"check": "tool_result", "tool": "update_circle", "ne": "Call successful!", "known": "K26"}
+            {"check": "attribute", "target": "inspection", "path": "undo_depth", "same_as": "setup"},
+            {"check": "tool_result", "tool": "update_circle", "ne": "Call successful!"}
           ]
         },
         {"snapshot": "after_colour"},
@@ -178,14 +166,8 @@
           "reference": [{"tool": "zoom", "args": {"center_x": 0, "center_y": 0, "range_val": 2, "range_axis": "x"}}],
           "checks": [
             {"check": "state_equals", "snapshot": "setup", "inspect": true, "view": true},
-            {
-              "check": "attribute",
-              "target": "inspection",
-              "path": "undo_depth",
-              "same_as": "after_colour",
-              "known": "K26"
-            },
-            {"check": "tool_result", "tool": "zoom", "ne": "Call successful!", "known": "K26"}
+            {"check": "attribute", "target": "inspection", "path": "undo_depth", "same_as": "after_colour"},
+            {"check": "tool_result", "tool": "zoom", "ne": "Call successful!"}
           ]
         }
       ]

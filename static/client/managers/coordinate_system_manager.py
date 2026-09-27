@@ -123,19 +123,27 @@ class CoordinateSystemManager:
     def get_state(self) -> Dict[str, Any]:
         """Get the state for workspace persistence.
 
+        The Cartesian grid's visibility is saved by the grid itself (the top-level
+        ``visible`` flag); a hidden polar grid is recorded here.
+
         Returns:
-            Dict containing the current mode
+            Dict containing the current mode, and ``polar_grid_visible: False`` when the polar grid is hidden
         """
-        return {"mode": self._mode}
+        state: Dict[str, Any] = {"mode": self._mode}
+        if not self.polar_grid.visible:
+            state["polar_grid_visible"] = False
+        return state
 
     def set_state(self, state: Dict[str, Any]) -> None:
         """Restore state from workspace data.
 
         Args:
-            state: Dict containing the mode to restore
+            state: Dict containing the mode to restore and, optionally, ``polar_grid_visible``
+                (missing means visible, as in saves made before it was recorded)
         """
         mode = state.get("mode", "cartesian")
         if mode in self.VALID_MODES:
             self._mode = mode
         else:
             self._mode = "cartesian"
+        self.polar_grid.visible = bool(state.get("polar_grid_visible", True))

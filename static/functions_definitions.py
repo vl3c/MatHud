@@ -80,7 +80,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "zoom",
-            "description": "Centers viewport on (center_x, center_y). The range_val specifies half-width (if range_axis='x') or half-height (if range_axis='y'); the other axis scales with canvas aspect ratio. Example: 'zoom x in range +-2, y around 10' uses center_x=0, center_y=10, range_val=2, range_axis='x'.",
+            "description": "Centers viewport on (center_x, center_y). The range_val specifies half-width (if range_axis='x') or half-height (if range_axis='y'); the other axis scales with canvas aspect ratio. Example: 'zoom x in range +-2, y around 10' uses center_x=0, center_y=10, range_val=2, range_axis='x'. Undo restores the previous view.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -106,7 +106,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "undo",
-            "description": "Undoes the last action on the canvas",
+            "description": "Undoes the last action on the canvas, including zoom, coordinate-system and grid changes",
             "strict": True,
             "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
         },
@@ -162,7 +162,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "create_point",
-            "description": "Creates and draws a point at the given coordinates. If a name is provided, it will try to use the first available letter from that name as the point's name.",
+            "description": "Creates and draws a point at the given coordinates. Point names are one capital letter with optional primes (A, B'). If a name is provided, the first available letter from that name is used; the result names the point actually created.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -860,7 +860,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "draw_function",
-            "description": "Plots the given mathematical function on the canvas between the specified left and right bounds.",
+            "description": "Plots the given mathematical function on the canvas between the specified left and right bounds. Reversed bounds are swapped and the result says so; equal bounds are an error. Using the name of an existing function redefines it (expression, bounds and holes), keeping its color unless a new one is given.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -1109,7 +1109,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "draw_tangent_line",
-            "description": "Draws a tangent line segment to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For circles, it's the angle in radians from the positive x-axis. For ellipses, it's the parametric angle t in radians, measured from the ellipse's own (rotated) x-axis: point = center + R(rotation) * (radius_x*cos(t), radius_y*sin(t)).",
+            "description": "Draws a tangent line segment to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For circles, it's the angle in radians from the positive x-axis. For ellipses, it's the parametric angle t in radians, measured from the ellipse's own (rotated) x-axis: point = center + R(rotation) * (radius_x*cos(t), radius_y*sin(t)). For a function it fails, creating nothing, where the function is undefined, infinite or at a vertical asymptote, or where the line would be too large (|f(x)| above 1e12) or too steep (slope above 1e12 next to a vertical asymptote) to draw.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -1141,7 +1141,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "draw_normal_line",
-            "description": "Draws a normal line segment (perpendicular to tangent) to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For circles, it's the angle in radians from the positive x-axis. For ellipses, it's the parametric angle t in radians, measured from the ellipse's own (rotated) x-axis: point = center + R(rotation) * (radius_x*cos(t), radius_y*sin(t)).",
+            "description": "Draws a normal line segment (perpendicular to tangent) to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For circles, it's the angle in radians from the positive x-axis. For ellipses, it's the parametric angle t in radians, measured from the ellipse's own (rotated) x-axis: point = center + R(rotation) * (radius_x*cos(t), radius_y*sin(t)). For a function it fails, creating nothing, where the function is undefined, infinite or at a vertical asymptote, or where the line would be too large (|f(x)| above 1e12) or too steep (slope above 1e12 next to a vertical asymptote) to draw.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2444,7 +2444,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "fit_regression",
-            "description": "Fits a regression model to data points and plots the resulting curve. Supported model types: linear (y = mx + b), polynomial (y = a0 + a1*x + ... + an*x^n), exponential (y = a*e^(bx)), logarithmic (y = a + b*ln(x)), power (y = a*x^b), logistic (y = L/(1+e^(-k(x-x0)))), and sinusoidal (y = a*sin(bx+c)+d). Returns the function_name, fitted expression, coefficients, R-squared, and point_names. Use delete_function to remove the curve; delete points individually.",
+            "description": "Fits a regression model to data points and plots the resulting curve. Supported model types: linear (y = mx + b), polynomial (y = a0 + a1*x + ... + an*x^n), exponential (y = a*e^(bx)), logarithmic (y = a + b*ln(x)), power (y = a*x^b), logistic (y = L/(1+e^(-k(x-x0)))), and sinusoidal (y = a*sin(bx+c)+d). Returns the function_name, fitted expression, coefficients, R-squared, and point_names (every data point in data order). A data point on an existing point reuses it; the result then adds reused_point_names (those points) and created_point_names (the points this call added). Use delete_function to remove the curve; to remove the data points, delete the point_names, or when reused_point_names is present only the created_point_names, never the reused ones (they belong to the user's existing drawing).",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2646,7 +2646,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "set_coordinate_system",
-            "description": "Sets the coordinate system mode for the canvas grid. Choose 'cartesian' for the standard x-y grid or 'polar' for a polar coordinate grid with concentric circles and radial lines.",
+            "description": "Sets the coordinate system mode for the canvas grid. Choose 'cartesian' for the standard x-y grid or 'polar' for a polar coordinate grid with concentric circles and radial lines. Undoable.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2699,7 +2699,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "set_grid_visible",
-            "description": "Sets the visibility of the active coordinate grid (Cartesian or Polar). Use this to show or hide the grid lines without changing the coordinate system mode.",
+            "description": "Sets the visibility of the active coordinate grid (Cartesian or Polar). Use this to show or hide the grid lines without changing the coordinate system mode. Undoable.",
             "strict": True,
             "parameters": {
                 "type": "object",

@@ -117,11 +117,13 @@ class Quadrilateral(Polygon):
 
     def get_state(self) -> Dict[str, Any]:
         args = {f"p{index + 1}": point.name for index, point in enumerate(self._points)}
-        return {
+        state: Dict[str, Any] = {
             "name": self.name,
             "args": args,
             "types": self.get_type_names(),
         }
+        self._add_color_to_state(state)
+        return state
 
     def update_color(self, color: str) -> None:
         sanitized = str(color)

@@ -83,6 +83,7 @@ class Rectangle(Quadrilateral):
             "args": {f"p{index + 1}": point.name for index, point in enumerate(self._points)},
         }
         state["types"] = self.get_type_names()
+        self._add_color_to_state(state)
         return state
 
     def get_vertices(self) -> Set[Point]:

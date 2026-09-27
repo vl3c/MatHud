@@ -52,6 +52,7 @@ from constants import (
     default_area_fill_color,
     default_area_opacity,
     default_closed_shape_resolution,
+    default_color,
 )
 from drawables.label_render_mode import LabelRenderMode
 from drawables.bars_plot import BarsPlot
@@ -173,7 +174,15 @@ class WorkspaceManager:
             item_state["args"]["position"]["x"],
             item_state["args"]["position"]["y"],
             name=item_state.get("name", ""),
+            color=self._saved_color(item_state),
         )
+
+    @staticmethod
+    def _saved_color(item_state: Any) -> Optional[str]:
+        """The color stored in a drawable's state, or None (the default) for older saves without one."""
+        args = item_state.get("args") if isinstance(item_state, dict) else None
+        color = args.get("color") if isinstance(args, dict) else None
+        return color if isinstance(color, str) and color else None
 
     def _create_labels(self, state: Dict[str, Any]) -> None:
         """Create standalone labels from workspace state."""
@@ -278,12 +287,29 @@ class WorkspaceManager:
             p2.x,
             p2.y,
             name=item_state.get("name", ""),
+            color=self._saved_color(item_state),
             # Restore exactly what was saved: no implicit triangles (also avoids O(n^4) scans).
             extra_graphics=False,
             label_text=str(label_args.get("text", "") or ""),
             label_visible=bool(label_args.get("visible", False)),
         )
         self._restore_segment_label(segment, label_args)
+
+    def _reapply_segment_colors(self, state: Dict[str, Any]) -> None:
+        """Give each segment its saved color again after polygons are restored.
+
+        Restoring a colored polygon colors all its edges, so an edge recolored on its own
+        would otherwise come back in the polygon's color. A segment saved without a color
+        has the default color.
+        """
+        for item_state in state.get("Segments") or []:
+            name = item_state.get("name") if isinstance(item_state, dict) else None
+            segment = self.canvas.get_segment_by_name(name) if isinstance(name, str) and name else None
+            if segment is None:
+                continue
+            color = self._saved_color(item_state) or default_color
+            if segment.color != color:
+                segment.update_color(color)
 
     def _resolve_segment_points(self, args: Dict[str, Any]) -> Tuple[Optional["Point"], Optional["Point"]]:
         p1 = self._get_point_from_state(args.get("p1"), args.get("p1_coords"))
@@ -393,6 +419,7 @@ class WorkspaceManager:
             tip_point.x,
             tip_point.y,
             name=item_state.get("name", ""),
+            color=self._saved_color(item_state),
             extra_graphics=False,
         )
         self._restore_vector_label(vector, item_state.get("args", {}))
@@ -449,6 +476,7 @@ class WorkspaceManager:
                 ],
                 polygon_type=PolygonType.TRIANGLE,
                 name=item_state.get("name", ""),
+                color=self._saved_color(item_state),
                 extra_graphics=False,
             )
 
@@ -480,6 +508,7 @@ class WorkspaceManager:
             vertices,
             polygon_type=polygon_type,
             name=rect_name,
+            color=self._saved_color(item_state),
             extra_graphics=False,
         )
 
@@ -533,6 +562,7 @@ class WorkspaceManager:
             self.canvas.create_polygon(
                 [(point.x, point.y) for point in points],
                 polygon_type=polygon_type,
+                color=self._saved_color(item_state),
                 extra_graphics=False,
             )
         except Exception as exc:
@@ -646,6 +676,7 @@ class WorkspaceManager:
                 center_point.y,
                 item_state["args"]["radius"],
                 name=item_state.get("name", ""),
+                color=self._saved_color(item_state),
                 extra_graphics=False,
             )
 
@@ -665,6 +696,7 @@ class WorkspaceManager:
                 item_state["args"]["radius_y"],
                 rotation_angle=item_state["args"].get("rotation_angle", 0),
                 name=item_state.get("name", ""),
+                color=self._saved_color(item_state),
                 extra_graphics=False,
             )
 
@@ -680,6 +712,7 @@ class WorkspaceManager:
             name=item_state.get("name", ""),
             left_bound=item_state["args"].get("left_bound"),
             right_bound=item_state["args"].get("right_bound"),
+            color=self._saved_color(item_state),
             undefined_at=item_state["args"].get("undefined_at"),
         )
 
@@ -1226,6 +1259,7 @@ class WorkspaceManager:
             try:
                 self._reset_coordinate_system_to_cartesian()
                 self._apply_saved_coordinate_system_state(state.get("coordinate_system"))
+                self._restore_cartesian_grid_visibility(state)
             except Exception:
                 pass
 
@@ -1237,6 +1271,11 @@ class WorkspaceManager:
         # Then apply saved state if present
         if coord_system_state:
             self.canvas.coordinate_system_manager.set_state(coord_system_state)
+
+    def _restore_cartesian_grid_visibility(self, state: Dict[str, Any]) -> None:
+        # Every save stores the Cartesian grid's visibility as the top-level "visible" flag.
+        if isinstance(state.get("visible"), bool):
+            self.canvas.cartesian2axis.visible = state["visible"]
 
     def _restore_drawables_in_dependency_order(self, state: Dict[str, Any]) -> None:
         # Create objects in the correct dependency order
@@ -1258,6 +1297,7 @@ class WorkspaceManager:
             self._create_rectangles,
             self._create_ordered_polygons,
             self._create_graphs,
+            self._reapply_segment_colors,
             self._create_circles,
             self._create_circle_arcs,
             self._create_ellipses,

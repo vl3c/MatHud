@@ -372,6 +372,20 @@ class TestOutcomeChecks:
         assert missing.status == "fail" and "has no 'order'" in missing.message
         assert run({"check": "tool_error", "tool": "create_point"}, view, step=step).status == "fail"
 
+    def test_tool_result_any_accepts_a_match_in_any_call(self) -> None:
+        step = StepData(
+            calls=[
+                call("create_point", "Created Point 'F' instead of the requested name 'Far'.", name="Far"),
+                call("create_point", "Created Point 'A'."),
+            ]
+        )
+        view = CanvasView(state())
+        check: dict[str, Any] = {"check": "tool_result", "tool": "create_point", "matches": "'F'.*'Far'"}
+        assert run(check, view, step=step).status == "fail"
+        assert run({**check, "any": True}, view, step=step).status == "pass"
+        none = run({**check, "any": True, "matches": "'Z'"}, view, step=step)
+        assert none.status == "fail" and "no create_point result of 2" in none.message
+
     def test_tool_error_counts_error_dicts(self) -> None:
         step = StepData(calls=[call("analyze_graph", {"error": "Graph not found"})])
         view = CanvasView(state())
@@ -798,6 +812,18 @@ class TestInvariants:
         assert "asked for name 'A'" in by_id(invariants(before, after, silent), "I4").message
         reported = StepData(calls=[call("create_point", "Created point B (A was taken)", x=7, y=7, name="A")])
         assert by_id(invariants(before, after, reported), "I4").status == "pass"
+        quoted = StepData(
+            calls=[call("create_point", "Created Point 'B' instead of the requested name 'A'.", x=7, y=7, name="A")]
+        )
+        assert by_id(invariants(before, after, quoted), "I4").status == "pass"
+
+    def test_i4_quoted_name_must_match_exactly(self) -> None:
+        before = CanvasView(state(point("A", 0, 0)))
+        after = CanvasView(state(point("A", 0, 0), point("B'", 7, 7)))
+        wrong = StepData(calls=[call("create_point", "Created Point 'B' instead of 'A'.", x=7, y=7, name="A")])
+        assert by_id(invariants(before, after, wrong), "I4").status == "fail"
+        right = StepData(calls=[call("create_point", "Created Point 'B'' instead of 'A'.", x=7, y=7, name="A")])
+        assert by_id(invariants(before, after, right), "I4").status == "pass"
 
     def test_i4_naming_rule_skipped_when_the_batch_deletes(self) -> None:
         before = CanvasView(state())

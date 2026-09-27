@@ -33,9 +33,7 @@
       "title": "Requested point name already taken",
       "tags": ["points", "naming"],
       "smoke": false,
-      "known": ["K3"],
       "targets": "silent renaming; tool result hides the real name",
-      "invariants": {"I4": "K3"},
       "setup": {"calls": [{"tool": "create_point", "args": {"x": 0, "y": 0, "name": "A"}}]},
       "steps": [
         {
@@ -56,7 +54,6 @@
       "title": "Creating a point on an occupied spot",
       "tags": ["points", "naming", "undo"],
       "smoke": false,
-      "known": ["K3"],
       "targets": "silent reuse of an existing point, dropped name, no-op undo entries",
       "setup": {
         "calls": [
@@ -129,9 +126,7 @@
       "title": "Huge and tiny coordinates, then zoom to them",
       "tags": ["points", "precision", "view", "naming"],
       "smoke": false,
-      "known": ["K3"],
       "targets": "numeric precision of storage, point matching and the view; multi-letter name coerced to a letter",
-      "invariants": {"I4": "K3"},
       "steps": [
         {
           "user": "Create a point named Far at (1000000000, -0.000000001) and a point at (1e-9, 1e-9), then zoom so the far point is in view with about 10 units on each side.",
@@ -162,7 +157,13 @@
               "eq": 1000000010.0,
               "tol": {"abs": 1e-06, "rel": 0}
             },
-            {"check": "exists", "select": {"type": "Point", "name": "Far"}, "known": "K3"}
+            {
+              "check": "tool_result",
+              "tool": "create_point",
+              "any": true,
+              "matches": "Created Point 'F'.*'(?i:far)'",
+              "note": "Point names are one capital letter plus optional primes; an invalid name is replaced and the result says so."
+            }
           ]
         }
       ]

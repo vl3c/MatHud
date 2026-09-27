@@ -40,7 +40,7 @@ from constants import (
     default_area_opacity,
     default_closed_shape_resolution,
 )
-from drawables_aggregator import Point
+from drawables_aggregator import Point, Position
 from cartesian_system_2axis import Cartesian2Axis
 from coordinate_mapper import CoordinateMapper
 from utils.style_utils import StyleUtils
@@ -62,6 +62,9 @@ from rendering.interfaces import RendererProtocol
 if TYPE_CHECKING:
     from drawables.drawable import Drawable
     from geometry.graph_state import GraphState
+
+# A zoom whose scale and pan are within this relative tolerance of the current ones shows the same view.
+VIEW_RELATIVE_TOLERANCE = 1e-9
 
 
 class Canvas:
@@ -420,8 +423,9 @@ class Canvas:
         self.dragging = False
 
     def _reset_drawables_state(self) -> None:
-        # Reset cartesian system and drawables
+        # Reset both grids' zoom-adapted spacing and the drawables
         self.cartesian2axis.reset()
+        self.coordinate_system_manager.polar_grid.reset()
         for drawable in self.get_drawables():
             drawable.reset()
 
@@ -587,6 +591,56 @@ class Canvas:
             True if the active grid is visible, False otherwise
         """
         return bool(self.coordinate_system_manager.is_grid_visible())
+
+    def get_view_state(self) -> Dict[str, Any]:
+        """The view as undo captures it: zoom, pan, coordinate mode, grid visibility and grid spacing.
+
+        The canvas size and screen origin are left out, so a view restored after a resize
+        stays centered on the same math point. ``grid_spacing`` follows from the zoom level.
+        """
+        mapper = self.coordinate_mapper
+        manager = self.coordinate_system_manager
+        return {
+            "scale_factor": float(mapper.scale_factor),
+            "offset": [float(mapper.offset.x), float(mapper.offset.y)],
+            "coordinate_mode": str(manager.mode),
+            "cartesian_grid_visible": bool(manager.cartesian_grid.visible),
+            "polar_grid_visible": bool(manager.polar_grid.visible),
+            "grid_spacing": {
+                "cartesian": float(manager.cartesian_grid.current_tick_spacing),
+                "polar": float(manager.polar_grid.current_radial_spacing),
+            },
+        }
+
+    def restore_view_state(self, view: Dict[str, Any]) -> bool:
+        """Apply a view from get_view_state(), or any subset of its keys, without redrawing.
+
+        Keys left out keep their current values; ``scale_factor`` and ``offset`` go together.
+
+        Returns:
+            True when the zoom level changed, so the caller redraws with ``apply_zoom``
+        """
+        mapper = self.coordinate_mapper
+        previous_scale = float(mapper.scale_factor)
+        if "scale_factor" in view and "offset" in view:
+            offset_x, offset_y = view["offset"]
+            mapper.scale_factor = float(view["scale_factor"])
+            mapper.offset = Position(float(offset_x), float(offset_y))
+            mapper.zoom_point = Position(0, 0)
+            mapper.zoom_direction = 0
+        manager = self.coordinate_system_manager
+        if "coordinate_mode" in view:
+            manager.set_mode(str(view["coordinate_mode"]), redraw=False)
+        if "cartesian_grid_visible" in view:
+            manager.cartesian_grid.visible = bool(view["cartesian_grid_visible"])
+        if "polar_grid_visible" in view:
+            manager.polar_grid.visible = bool(view["polar_grid_visible"])
+        spacing = view.get("grid_spacing") or {}
+        if "cartesian" in spacing:
+            manager.cartesian_grid.current_tick_spacing = float(spacing["cartesian"])
+        if "polar" in spacing:
+            manager.polar_grid.current_radial_spacing = float(spacing["polar"])
+        return float(mapper.scale_factor) != previous_scale
 
     def get_canvas_state(self) -> Dict[str, Any]:
         state = self.get_drawables_state()
@@ -1682,6 +1736,26 @@ class Canvas:
         self.draw(apply_zoom=True)
         return True
 
+    def get_zoom_bounds_if_shown(
+        self, center_x: float, center_y: float, range_val: float, range_axis: str
+    ) -> Optional[Tuple[float, float, float, float]]:
+        """The (left, right, top, bottom) that zoom() would show, when the canvas already shows them.
+
+        Compares the scale and pan that zoom() would set with the current ones, each to a
+        relative 1e-9, so the check holds at any distance from the origin. Returns None
+        when the zoom would change the view or its arguments are invalid.
+        """
+        mapper = self.coordinate_mapper
+        try:
+            bounds = self._compute_zoom_bounds(float(center_x), float(center_y), float(range_val), range_axis)
+            wanted = mapper.compute_visible_bounds_transform(*bounds)
+        except (TypeError, ValueError, ZeroDivisionError):
+            return None
+        current = (float(mapper.scale_factor), float(mapper.offset.x), float(mapper.offset.y))
+        if all(math.isclose(a, b, rel_tol=VIEW_RELATIVE_TOLERANCE, abs_tol=1e-12) for a, b in zip(wanted, current)):
+            return bounds
+        return None
+
     def _compute_zoom_bounds(
         self, center_x: float, center_y: float, range_val: float, range_axis: str
     ) -> Tuple[float, float, float, float]:
@@ -1787,8 +1861,8 @@ class Canvas:
         drawable2_name: Optional[str] = None,
         left_bound: Optional[float] = None,
         right_bound: Optional[float] = None,
-        color: str = default_area_fill_color,
-        opacity: float = default_area_opacity,
+        color: Optional[str] = default_area_fill_color,
+        opacity: Optional[float] = default_area_opacity,
     ) -> "Drawable":
         """Creates a vertical bounded colored area between two functions, two segments, or a function and a segment"""
         return self.drawable_manager.create_colored_area(
@@ -1806,9 +1880,9 @@ class Canvas:
         ellipse_name: Optional[str] = None,
         chord_segment_name: Optional[str] = None,
         arc_clockwise: bool = False,
-        resolution: int = default_closed_shape_resolution,
-        color: str = default_area_fill_color,
-        opacity: float = default_area_opacity,
+        resolution: Optional[int] = default_closed_shape_resolution,
+        color: Optional[str] = default_area_fill_color,
+        opacity: Optional[float] = default_area_opacity,
     ) -> "Drawable":
         """Creates a region colored area from expression or closed shape."""
         return self.drawable_manager.create_region_colored_area(

@@ -50,7 +50,8 @@ class TestPoint(unittest.TestCase):
         self.assertEqual(str(self.point), "1,2")
 
     def test_get_state(self) -> None:
-        expected_state = {"name": "p1", "args": {"position": {"x": 1, "y": 2}}}
+        # A non-default color is saved with the point (K5)
+        expected_state = {"name": "p1", "args": {"position": {"x": 1, "y": 2}, "color": "red"}}
         self.assertEqual(self.point.get_state(), expected_state)
 
     def test_deepcopy(self) -> None:

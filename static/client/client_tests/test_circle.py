@@ -48,7 +48,12 @@ class TestCircle(unittest.TestCase):
         state = self.circle.get_state()
         expected_state = {
             "name": self.circle.name,
-            "args": {"center": self.center.name, "radius": self.radius, "circle_formula": self.circle.circle_formula},
+            "args": {
+                "center": self.center.name,
+                "radius": self.radius,
+                "circle_formula": self.circle.circle_formula,
+                "color": "blue",
+            },
         }
         self.assertEqual(state, expected_state)
 

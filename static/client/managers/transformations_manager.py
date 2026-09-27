@@ -157,6 +157,13 @@ class TransformationsManager:
         else:
             self._invalidate_drawables([drawable])
 
+    def _shift_areas_with_function(self, function: Any, x_offset: float) -> None:
+        """Move the bounds of areas shaded under a translated function along with it."""
+        drawables = getattr(self.canvas.drawable_manager, "drawables", None)
+        areas = getattr(drawables, "FunctionsBoundedColoredAreas", None) or []
+        shifted = [area for area in areas if area.follow_function_translation(function, x_offset)]
+        self._invalidate_drawables(shifted)
+
     def _redraw(self) -> None:
         if self.canvas.draw_enabled:
             self.canvas.draw()
@@ -203,6 +210,8 @@ class TransformationsManager:
             raise ValueError(f"Error translating drawable: {str(e)}")
 
         self._refresh_dependencies_after_transform(drawable, moved_points)
+        if self._get_class_name(drawable) == "Function":
+            self._shift_areas_with_function(drawable, x_offset)
 
         # If we got here, the translation was successful
         # Redraw the canvas

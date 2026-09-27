@@ -38,7 +38,7 @@ import json
 import math
 import random
 import statistics
-from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union, cast
 
 from browser import window
 
@@ -2779,11 +2779,27 @@ class MathUtils:
         right_bound: Optional[Number] = None,
     ) -> List[float]:
         """Calculate vertical asymptotes of a function within given bounds"""
+        return MathUtils._vertical_asymptotes_and_discontinuities(function_string, left_bound, right_bound)[0]
+
+    @staticmethod
+    def _vertical_asymptotes_and_discontinuities(
+        function_string: str,
+        left_bound: Optional[Number] = None,
+        right_bound: Optional[Number] = None,
+    ) -> Tuple[List[float], List[float]]:
+        """Return (vertical asymptotes, point discontinuities) found from the expression text.
+
+        Log and tan asymptotes come from the text. A zero of a denominator is classified by
+        sampling f beside it (_is_asymptote_at_denominator_zero): an asymptote if f grows on
+        either side, otherwise a point discontinuity (a hole such as (x^2-1)/(x-1) at x = 1,
+        a jump, or a bounded oscillation such as sin(1/x) at 0).
+        """
         from expression_validator import ExpressionValidator
 
         # Standardize the function string
         function_string = ExpressionValidator.fix_math_expression(function_string)
         vertical_asymptotes: List[float] = []
+        denominator_zeros: List[float] = []
 
         # For logarithmic functions: where the (first) argument is zero
         for log_argument in MathUtils._function_call_arguments(function_string, "log|ln|log10|log2"):
@@ -2793,7 +2809,7 @@ class MathUtils:
 
         # For rational functions: where any denominator that depends on x is zero
         for denominator in MathUtils._denominators(function_string):
-            vertical_asymptotes.extend(MathUtils._real_zeros_in_x(denominator))
+            denominator_zeros.extend(MathUtils._real_zeros_in_x(denominator))
 
         # For tangent functions (word boundary so atan/arctan are excluded)
         left = left_bound if left_bound is not None else -1000
@@ -2801,7 +2817,153 @@ class MathUtils:
         for tan_argument in MathUtils._function_call_arguments(function_string, "tan"):
             vertical_asymptotes.extend(MathUtils._tangent_asymptotes(tan_argument, left, right))
 
-        return sorted(set(vertical_asymptotes))
+        discontinuities: List[float] = []
+        evaluate = MathUtils._singularity_probe_evaluator(function_string)
+        singular_points = denominator_zeros + vertical_asymptotes
+        for zero in denominator_zeros:
+            if evaluate is None or MathUtils._is_asymptote_at_denominator_zero(evaluate, zero, singular_points):
+                vertical_asymptotes.append(zero)
+            else:
+                discontinuities.append(zero)
+
+        asymptotes = sorted(set(vertical_asymptotes))
+        return asymptotes, sorted(set(x for x in discontinuities if x not in asymptotes))
+
+    # Sampling beside a denominator zero x0: the first offset is 1e-2 * max(1, |x0|), or a tenth
+    # of the distance to the nearest other singular point if smaller (points closer than
+    # 1e-6 * max(1, |x0|) count as x0 itself); each next offset is 4 times smaller.
+    _PROBE_START = 1e-2
+    _PROBE_FACTOR = 4.0
+    _PROBE_COUNT = 7
+    _PROBE_SAME_POINT = 1e-6
+    # A sample is float noise (cancellation) when moving x by up to 3e-6 of its offset changes f
+    # by more than a tenth of the step from the previous sample; sampling stops before it.
+    _PROBE_JITTER = 1e-6
+    _PROBE_NOISE = 0.1
+    # Successive differences shrinking to at most 0.9 of the previous one converge.
+    _PROBE_SHRINK = 0.9
+    # Log-like growth: ratios of successive differences rising by >= 0.005 each, to >= 0.7.
+    _PROBE_SLOW_GROWTH_RATIO = 0.7
+    _PROBE_SLOW_GROWTH_STEP = 0.005
+    # Unbounded oscillation: the last two |f| exceed the first two by this factor.
+    _PROBE_ENVELOPE = 100.0
+
+    @staticmethod
+    def _singularity_probe_evaluator(function_string: str) -> Optional[Callable[[float], Optional[float]]]:
+        """Return f as a probe: a float, inf on overflow, or None where f is undefined or not real."""
+        from expression_validator import ExpressionValidator
+
+        try:
+            base_function = ExpressionValidator.parse_function_string(function_string)
+        except Exception:
+            return None
+
+        def evaluate(x: float) -> Optional[float]:
+            try:
+                value = base_function(x)
+            except OverflowError:
+                return float("inf")
+            except Exception:
+                return None
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                return None
+            value = float(value)
+            return None if math.isnan(value) else value
+
+        return evaluate
+
+    @staticmethod
+    def _is_asymptote_at_denominator_zero(
+        evaluate: Callable[[float], Optional[float]], x0: float, singular_points: List[float]
+    ) -> bool:
+        """True if the denominator zero x0 is a vertical asymptote, False for a point discontinuity.
+
+        Each side is sampled at shrinking offsets and judged on the differences between
+        successive samples, never on |f| relative to its own value, so adding a constant to
+        f changes nothing. x0 is an asymptote if f grows on either side, or if f is undefined
+        on both sides; otherwise (f converges, or stays bounded without converging, as
+        sin(1/x) does at 0) it is a point discontinuity.
+        """
+        scale = max(1.0, abs(x0))
+        start = MathUtils._PROBE_START * scale
+        for point in singular_points:
+            distance = abs(point - x0)
+            if distance > MathUtils._PROBE_SAME_POINT * scale:
+                start = min(start, distance / 10)
+        verdicts = [
+            MathUtils._probe_side_verdict(MathUtils._probe_side(evaluate, x0, side, start)) for side in (-1.0, 1.0)
+        ]
+        return "grow" in verdicts or verdicts == ["undefined", "undefined"]
+
+    @staticmethod
+    def _probe_side(
+        evaluate: Callable[[float], Optional[float]], x0: float, side: float, start: float
+    ) -> Optional[List[float]]:
+        """Samples of f on one side of x0, nearest last; None if f is undefined there.
+
+        Sampling stops at an infinite value (kept) or before a sample dominated by float noise.
+        """
+        values: List[float] = []
+        for index in range(MathUtils._PROBE_COUNT):
+            offset = start / MathUtils._PROBE_FACTOR**index
+            value = evaluate(x0 + side * offset)
+            if value is None:
+                return None
+            if math.isinf(value):
+                values.append(value)
+                break
+            if values:
+                step = abs(value - values[-1])
+                jittered = [evaluate(x0 + side * offset * (1 + j * MathUtils._PROBE_JITTER)) for j in (1, 2, 3)]
+                if any(
+                    other is None or math.isinf(other) or abs(other - value) > MathUtils._PROBE_NOISE * step
+                    for other in jittered
+                ):
+                    break
+            values.append(value)
+        return values
+
+    @staticmethod
+    def _probe_side_verdict(values: Optional[List[float]]) -> str:
+        """Classify one side's samples as "grow", "converge", "neither" or "undefined".
+
+        - grow: an infinite sample; or differences that do not shrink (each at least 0.9 of
+          the one before) while f moves one way or |f| keeps rising (powers of any positive
+          exponent, even 1/x^0.004, logs, sin(1/x)/x); or ratios of differences rising towards
+          1 (log(log(1/x))); or, failing convergence, |f| rising 100-fold over the samples.
+        - converge: every difference at most 0.9 of the one before (holes, jumps, and slow
+          limits such as |x|^0.25). Edge: a limit approached like L + c*|h|^p with p below
+          about 0.076 shrinks by less than 0.9 per 4-fold step and is read as growth.
+        - neither: bounded without converging (sin(1/x)), or fewer than three clean samples.
+        """
+        if values is None:
+            return "undefined"
+        if any(math.isinf(value) for value in values):
+            return "grow"
+        if len(values) < 3:
+            return "neither"
+        differences = [later - earlier for earlier, later in zip(values, values[1:])]
+        ratios = [
+            (0.0 if later == 0 else float("inf")) if earlier == 0 else abs(later) / abs(earlier)
+            for earlier, later in zip(differences, differences[1:])
+        ]
+        one_way = all(d > 0 for d in differences) or all(d < 0 for d in differences)
+        rising = all(abs(later) > abs(earlier) for earlier, later in zip(values, values[1:]))
+        if (one_way or rising) and all(ratio >= MathUtils._PROBE_SHRINK for ratio in ratios):
+            return "grow"
+        if (
+            one_way
+            and len(ratios) >= 2
+            and ratios[-1] >= MathUtils._PROBE_SLOW_GROWTH_RATIO
+            and all(later - earlier >= MathUtils._PROBE_SLOW_GROWTH_STEP for earlier, later in zip(ratios, ratios[1:]))
+        ):
+            return "grow"
+        if all(ratio <= MathUtils._PROBE_SHRINK for ratio in ratios):
+            return "converge"
+        first = max(abs(value) for value in values[:2])
+        if max(abs(value) for value in values[-2:]) > MathUtils._PROBE_ENVELOPE * first:
+            return "grow"
+        return "neither"
 
     _X_TOKEN_PATTERN = r"(?<![A-Za-z_])x(?![A-Za-z_])"
 
@@ -2931,10 +3093,19 @@ class MathUtils:
 
         # Standardize the function string
         function_string = ExpressionValidator.fix_math_expression(function_string)
-        vertical_asymptotes = MathUtils.calculate_vertical_asymptotes(function_string, left_bound, right_bound)
+        vertical_asymptotes, denominator_discontinuities = MathUtils._vertical_asymptotes_and_discontinuities(
+            function_string, left_bound, right_bound
+        )
         horizontal_asymptotes = MathUtils.calculate_horizontal_asymptotes(function_string)
         point_discontinuities = MathUtils.calculate_point_discontinuities(function_string, left_bound, right_bound)
-        return vertical_asymptotes, horizontal_asymptotes, point_discontinuities
+        # Denominator zeros that are not asymptotes (holes, jumps, bounded oscillations)
+        for point in denominator_discontinuities:
+            within_bounds = (left_bound is None or point >= left_bound) and (
+                right_bound is None or point <= right_bound
+            )
+            if within_bounds and point not in point_discontinuities:
+                point_discontinuities.append(point)
+        return vertical_asymptotes, horizontal_asymptotes, sorted(point_discontinuities)
 
     @staticmethod
     def calculate_point_discontinuities(

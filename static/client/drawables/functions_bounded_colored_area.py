@@ -441,6 +441,31 @@ class FunctionsBoundedColoredArea(ColoredArea):
         )
         return state
 
+    def follow_function_translation(self, function: Any, x_offset: float) -> bool:
+        """Shift the explicit bounds with a bounding function that moved by x_offset.
+
+        Applies when the moved function is the only function bounding the area (the other
+        side is the x-axis or a constant), so the area keeps covering the same part of the
+        curve. An area between two functions keeps its bounds when only one moves; its
+        shape is always evaluated from the functions' current state.
+
+        Returns:
+            True if a bound was shifted.
+        """
+        if x_offset == 0:
+            return False
+        bounding_functions = [f for f in (self.func1, self.func2) if self._is_function_or_function_like(f)]
+        if not bounding_functions or any(f is not function for f in bounding_functions):
+            return False
+        shifted = False
+        if self.left_bound is not None:
+            self.left_bound += x_offset
+            shifted = True
+        if self.right_bound is not None:
+            self.right_bound += x_offset
+            shifted = True
+        return shifted
+
     def update_left_bound(self, left_bound: Optional[float]) -> None:
         """Update the left bound (None resets to default behavior)."""
         self.left_bound = None if left_bound is None else float(left_bound)

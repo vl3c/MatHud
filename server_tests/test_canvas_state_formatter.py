@@ -209,6 +209,34 @@ class TestRenderTextBuckets(unittest.TestCase):
             render_text(state).startswith("view x [-10, 10] y [-5, 5]; grid 1; polar coordinates; axes hidden")
         )
 
+    def test_view_line_mentions_a_hidden_polar_grid(self) -> None:
+        state = with_view()
+        state["coordinate_system"] = {"mode": "polar", "polar_grid_visible": False}
+        self.assertTrue(
+            render_text(state).startswith("view x [-10, 10] y [-5, 5]; grid 1; polar coordinates; polar grid hidden")
+        )
+        self.assertTrue(json.loads(render_min_json(state))["polar_grid_hidden"])
+        # The polar grid is not drawn in Cartesian mode, so its visibility is not mentioned there.
+        state["coordinate_system"] = {"mode": "cartesian", "polar_grid_visible": False}
+        self.assertNotIn("polar grid hidden", render_text(state))
+        self.assertNotIn("polar_grid_hidden", json.loads(render_min_json(state)))
+
+    def test_non_default_colors_are_shown_and_blue_is_default_only_for_angles(self) -> None:
+        # Drawables record a color in their state only when it is not their default (K5).
+        text = self.render(
+            Points=[{"name": "A", "args": {"position": {"x": 0, "y": 0}, "color": "blue"}}, point("B", 2, 0)],
+            Circles=[{"name": "A(2)", "args": {"center": "A", "radius": 2, "color": "purple"}}],
+        )
+        self.assertIn("color blue", text)
+        self.assertIn("color purple", text)
+        payload = json.loads(
+            render_min_json(with_view(Points=[{"name": "A", "args": {"position": {"x": 0, "y": 0}, "color": "blue"}}]))
+        )
+        self.assertEqual(payload["Points"][0]["color"], "blue")
+        angle = {"name": "angle_BAC", "args": {"segment1_name": "AB", "segment2_name": "AC", "color": "blue"}}
+        self.assertNotIn("color blue", self.render(Angles=[angle]))
+        self.assertNotIn("color", json.loads(render_min_json(with_view(Angles=[angle])))["Angles"][0])
+
     def test_vector(self) -> None:
         text = self.render(
             Points=[point("A", 0, 0), point("B", 3, 4)],

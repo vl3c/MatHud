@@ -549,6 +549,10 @@ class AngleManager(BaseDrawableManager):
             angle_kwargs: Dict[str, Any] = {"is_reflex": args.get("is_reflex", False)}
             if "color" in args:
                 angle_kwargs["color"] = args["color"]
+            saved_name = angle_state.get("name")
+            if isinstance(saved_name, str) and saved_name:
+                # Keep a custom name such as "alpha"; without one the name is derived from the points
+                angle_kwargs["name"] = saved_name
 
             new_angle = Angle(segment1, segment2, **angle_kwargs)
 
