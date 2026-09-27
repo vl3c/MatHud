@@ -100,6 +100,7 @@ class TestUndoRedoManager(unittest.TestCase):
     def test_nested_batches_commit_once_at_the_outermost_end(self) -> None:
         self.manager.begin_batch()
         self.manager.begin_batch()
+        self.canvas.computations = ["during"]
         self.manager.archive()
         self.manager.end_batch()
         self.assertEqual(self.manager.undo_stack, [])
@@ -140,6 +141,30 @@ class TestUndoRedoManager(unittest.TestCase):
 
         self.assertTrue(self.manager.state_differs_from_batch_baseline())
         self.manager.end_batch()
+
+    def test_batch_marked_changed_that_left_the_canvas_as_it_was_adds_no_entry(self) -> None:
+        self.canvas.computations = ["before"]
+        self.manager.redo_stack = [{"drawables": {}, "computations": []}]
+
+        self.manager.begin_batch()
+        self.canvas.computations = ["during"]
+        self.manager.archive()
+        self.canvas.computations = ["before"]
+        self.manager.end_batch()
+
+        self.assertEqual(self.manager.undo_stack, [])
+        self.assertEqual(len(self.manager.redo_stack), 1)
+
+    def test_batch_whose_state_cannot_be_serialized_still_adds_its_entry(self) -> None:
+        def unserializable_state() -> None:
+            raise ValueError("cannot serialize")
+
+        self.manager.begin_batch()
+        self.drawables._drawables = {"Points": [SimpleMock(name="P", get_state=unserializable_state)]}
+        self.manager.archive()
+        self.manager.end_batch()
+
+        self.assertEqual(len(self.manager.undo_stack), 1)
 
     def test_archive_outside_a_batch_is_unchanged(self) -> None:
         self.manager.begin_batch()

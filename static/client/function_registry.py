@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, cast
 
+import no_op_tools
 from no_change_result import NoChangeResult
 from utils.math_utils import MathUtils
 from process_function_calls import ProcessFunctionCalls
@@ -127,7 +128,7 @@ class FunctionRegistry:
             # ===== CANVAS OPERATIONS =====
             "reset_canvas": canvas.reset,
             "clear_canvas": canvas.clear,
-            "zoom": canvas.zoom,
+            "zoom": no_op_tools.zoom_tool(canvas),
             "get_current_canvas_state": lambda drawable_types=None, object_names=None, include_computations=True: {
                 "type": "canvas_state",
                 "value": canvas.get_canvas_state_filtered(
@@ -139,47 +140,51 @@ class FunctionRegistry:
             # ===== POINT OPERATIONS =====
             "create_point": FunctionRegistry._create_point_tool(canvas),
             "delete_point": canvas.delete_point,
-            "update_point": canvas.update_point,
+            "update_point": no_op_tools.update_tool(canvas, "update_point", canvas.update_point),
             # ===== SEGMENT OPERATIONS =====
             "create_segment": canvas.create_segment,
             "delete_segment": canvas.delete_segment,
-            "update_segment": canvas.update_segment,
+            "update_segment": no_op_tools.update_tool(canvas, "update_segment", canvas.update_segment),
             # ===== VECTOR OPERATIONS =====
             "create_vector": canvas.create_vector,
             "delete_vector": canvas.delete_vector,
-            "update_vector": canvas.update_vector,
+            "update_vector": no_op_tools.update_tool(canvas, "update_vector", canvas.update_vector),
             # ===== POLYGON OPERATIONS =====
             "create_polygon": canvas.create_polygon,
             "delete_polygon": canvas.delete_polygon,
-            "update_polygon": canvas.update_polygon,
+            "update_polygon": no_op_tools.update_tool(canvas, "update_polygon", canvas.update_polygon),
             # ===== CIRCLE OPERATIONS =====
             "create_circle": canvas.create_circle,
             "delete_circle": canvas.delete_circle,
-            "update_circle": canvas.update_circle,
+            "update_circle": no_op_tools.update_tool(canvas, "update_circle", canvas.update_circle),
             # ===== CIRCLE ARC OPERATIONS =====
             "create_circle_arc": canvas.create_circle_arc,
             "delete_circle_arc": canvas.delete_circle_arc,
-            "update_circle_arc": canvas.update_circle_arc,
+            "update_circle_arc": no_op_tools.update_tool(canvas, "update_circle_arc", canvas.update_circle_arc),
             # ===== ELLIPSE OPERATIONS =====
             "create_ellipse": canvas.create_ellipse,
             "delete_ellipse": canvas.delete_ellipse,
-            "update_ellipse": canvas.update_ellipse,
+            "update_ellipse": no_op_tools.update_tool(canvas, "update_ellipse", canvas.update_ellipse),
             # ===== LABEL OPERATIONS =====
             "create_label": canvas.create_label,
             "delete_label": canvas.delete_label,
-            "update_label": canvas.update_label,
+            "update_label": no_op_tools.update_tool(canvas, "update_label", canvas.update_label),
             # ===== FUNCTION PLOTTING =====
             "draw_function": canvas.draw_function,
             "delete_function": canvas.delete_function,
-            "update_function": canvas.update_function,
+            "update_function": no_op_tools.update_tool(canvas, "update_function", canvas.update_function),
             # ===== PIECEWISE FUNCTION PLOTTING =====
             "draw_piecewise_function": canvas.draw_piecewise_function,
             "delete_piecewise_function": canvas.delete_piecewise_function,
-            "update_piecewise_function": canvas.update_piecewise_function,
+            "update_piecewise_function": no_op_tools.update_tool(
+                canvas, "update_piecewise_function", canvas.update_piecewise_function
+            ),
             # ===== PARAMETRIC FUNCTION PLOTTING =====
             "draw_parametric_function": canvas.draw_parametric_function,
             "delete_parametric_function": canvas.delete_parametric_function,
-            "update_parametric_function": canvas.update_parametric_function,
+            "update_parametric_function": no_op_tools.update_tool(
+                canvas, "update_parametric_function", canvas.update_parametric_function
+            ),
             # ===== TANGENT AND NORMAL LINES =====
             "draw_tangent_line": canvas.create_tangent_line,
             "draw_normal_line": canvas.create_normal_line,
@@ -239,13 +244,13 @@ class FunctionRegistry:
             # ===== ANGLE OPERATIONS =====
             "create_angle": canvas.create_angle,
             "delete_angle": canvas.delete_angle,
-            "update_angle": canvas.update_angle,
+            "update_angle": no_op_tools.update_tool(canvas, "update_angle", canvas.update_angle),
             # ===== AREA CALCULATION =====
             "calculate_area": lambda expression: ProcessFunctionCalls.calculate_area(expression, canvas),
             # ===== COORDINATE SYSTEM OPERATIONS =====
-            "set_coordinate_system": canvas.set_coordinate_system,
+            "set_coordinate_system": no_op_tools.set_coordinate_system_tool(canvas),
             "convert_coordinates": FunctionRegistry._convert_coordinates,
-            "set_grid_visible": canvas.set_grid_visible,
+            "set_grid_visible": no_op_tools.set_grid_visible_tool(canvas),
         }
 
         # Add testing functions if ai_interface is provided
@@ -345,6 +350,8 @@ class FunctionRegistry:
             "clear_canvas",
             "reset_canvas",
             "zoom",
+            "set_coordinate_system",
+            "set_grid_visible",
             # Point operations
             "create_point",
             "delete_point",
