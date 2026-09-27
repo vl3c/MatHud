@@ -667,6 +667,7 @@ Args:
 - `_create_colored_areas(state)`: Create colored areas from workspace state with boundary resolution
 - `_create_angles(state)`: Create angles from workspace state with vertex/arm dependencies
 - `_restore_computations(state)`: Restore computation history from workspace state
+- `_reapply_segment_colors(state)`: After polygons are restored (which colors their edges), give each segment its saved color again, so a separately recolored edge keeps its color
 - `_restore_workspace_state(state)`: Main restoration orchestrator for complete workspace state; the whole restore, including the canvas clear, is one undo step, so one `undo` after a load or import restores the objects that were on the canvas before it
 - `_find_rectangle_segments(points)`: Find existing segments that form a rectangle
 - `_get_properly_oriented_rectangle_segments(segments, points)`: Arrange segments in proper rectangle order
@@ -1098,7 +1099,7 @@ Attributes:
 - `get_name()`: Return the object's name
 - `draw()`: Abstract method for rendering (implemented by subclasses)
 - `get_state()`: Abstract method for state serialization (implemented by subclasses)
-- `_add_color_to_state(state, default=default_color)`: Add a non-default color to `state["args"]["color"]`. Points, segments, vectors, circles, ellipses, functions and every polygon class use it, so a colour survives save and load and reaches the model's canvas text, while the state of default-colored objects is unchanged. Their `__deepcopy__` (used by undo) keeps the name and the colour; angles keep a custom name such as `alpha` on undo and on load
+- `_add_color_to_state(state, default=default_color)`: Add a non-default color to `state["args"]["color"]`. Points, segments, vectors, circles, ellipses, functions, piecewise functions and every polygon class use it, so a colour survives save and load and reaches the model's canvas text, while the state of default-colored objects is unchanged. Their `__deepcopy__` (used by undo) keeps the name and the colour; angles keep a custom name such as `alpha` on undo and on load
 - `zoom()`: Abstract method to update object for zoom operations (implemented by subclasses)
 - `pan()`: Abstract method to update object for pan operations (implemented by subclasses)
 - `rotate(angle)`: Abstract method to rotate object by specified angle (implemented by subclasses)

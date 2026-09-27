@@ -216,6 +216,10 @@ class TestRenderTextBuckets(unittest.TestCase):
             render_text(state).startswith("view x [-10, 10] y [-5, 5]; grid 1; polar coordinates; polar grid hidden")
         )
         self.assertTrue(json.loads(render_min_json(state))["polar_grid_hidden"])
+        # The polar grid is not drawn in Cartesian mode, so its visibility is not mentioned there.
+        state["coordinate_system"] = {"mode": "cartesian", "polar_grid_visible": False}
+        self.assertNotIn("polar grid hidden", render_text(state))
+        self.assertNotIn("polar_grid_hidden", json.loads(render_min_json(state)))
 
     def test_non_default_colors_are_shown_and_blue_is_default_only_for_angles(self) -> None:
         # Drawables record a color in their state only when it is not their default (K5).

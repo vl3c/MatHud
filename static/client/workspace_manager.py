@@ -52,6 +52,7 @@ from constants import (
     default_area_fill_color,
     default_area_opacity,
     default_closed_shape_resolution,
+    default_color,
 )
 from drawables.label_render_mode import LabelRenderMode
 from drawables.bars_plot import BarsPlot
@@ -288,6 +289,22 @@ class WorkspaceManager:
             label_visible=bool(label_args.get("visible", False)),
         )
         self._restore_segment_label(segment, label_args)
+
+    def _reapply_segment_colors(self, state: Dict[str, Any]) -> None:
+        """Give each segment its saved color again after polygons are restored.
+
+        Restoring a colored polygon colors all its edges, so an edge recolored on its own
+        would otherwise come back in the polygon's color. A segment saved without a color
+        has the default color.
+        """
+        for item_state in state.get("Segments") or []:
+            name = item_state.get("name") if isinstance(item_state, dict) else None
+            segment = self.canvas.get_segment_by_name(name) if isinstance(name, str) and name else None
+            if segment is None:
+                continue
+            color = self._saved_color(item_state) or default_color
+            if segment.color != color:
+                segment.update_color(color)
 
     def _resolve_segment_points(self, args: Dict[str, Any]) -> Tuple[Optional["Point"], Optional["Point"]]:
         p1 = self._get_point_from_state(args.get("p1"), args.get("p1_coords"))
@@ -1323,6 +1340,7 @@ class WorkspaceManager:
             self._create_rectangles,
             self._create_ordered_polygons,
             self._create_graphs,
+            self._reapply_segment_colors,
             self._create_circles,
             self._create_circle_arcs,
             self._create_ellipses,

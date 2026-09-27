@@ -318,6 +318,29 @@ class TestWorkspaceRoundTripKeepsStyles(_ToolBatchTestCase):
 
         self.assertEqual(self.colors(), before)
 
+    def test_piecewise_function_color_survives_save_and_load(self) -> None:
+        pieces = [
+            {"expression": "x", "left": None, "right": 0, "left_inclusive": True, "right_inclusive": False},
+            {"expression": "x^2", "left": 0, "right": None, "left_inclusive": True, "right_inclusive": True},
+        ]
+        self.canvas.draw_piecewise_function(pieces, name="p", color="green")
+
+        self.save_and_load()
+
+        self.assertEqual(self.canvas.get_drawables_by_class_name("PiecewiseFunction")[0].color, "green")
+
+    def test_separately_recolored_polygon_edge_survives_save_and_load(self) -> None:
+        self.run_single(
+            "create_polygon", vertices=TRIANGLE_VERTICES, polygon_type="triangle", name="ABC", color="green"
+        )
+        self.run_single("update_segment", name="AB", new_color="red")
+        before = self.colors()
+        self.assertEqual(before["Segment:AB"], "red")
+
+        self.save_and_load()
+
+        self.assertEqual(self.colors(), before)
+
     def test_custom_angle_name_survives_save_and_load(self) -> None:
         self.build_styled_scene()
 

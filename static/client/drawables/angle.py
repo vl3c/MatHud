@@ -331,9 +331,7 @@ class Angle(Drawable):
 
         new_segment1 = deepcopy(self.segment1, memo)
         new_segment2 = deepcopy(self.segment2, memo)
-        new_angle: Angle = Angle(
-            new_segment1, new_segment2, color=self.color, is_reflex=self.is_reflex, name=self.name
-        )
+        new_angle: Angle = Angle(new_segment1, new_segment2, color=self.color, is_reflex=self.is_reflex, name=self.name)
         memo[id(self)] = new_angle
         return new_angle
 

@@ -1015,7 +1015,7 @@ def _view_line(state: Mapping[str, Any]) -> Optional[str]:
         parts.append(f"{mode} coordinates")
     if state.get("visible") is False:
         parts.append("axes hidden")
-    if isinstance(coordinate_system, dict) and coordinate_system.get("polar_grid_visible") is False:
+    if mode == "polar" and coordinate_system.get("polar_grid_visible") is False:
         parts.append("polar grid hidden")
     return "; ".join(parts)
 
@@ -1179,7 +1179,7 @@ def _min_json_output(state: Mapping[str, Any]) -> JsonDict:
         output["coords"] = coordinate_system["mode"]
     if state.get("visible") is False:
         output["axes_hidden"] = True
-    if isinstance(coordinate_system, dict) and coordinate_system.get("polar_grid_visible") is False:
+    if output.get("coords") == "polar" and coordinate_system.get("polar_grid_visible") is False:
         output["polar_grid_hidden"] = True
     for bucket, items in state.items():
         if bucket in _VIEW_KEYS or _is_empty(items):
