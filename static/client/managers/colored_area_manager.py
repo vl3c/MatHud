@@ -165,42 +165,8 @@ class ColoredAreaManager:
             drawable1, drawable2 = drawable2, drawable1
 
         if isinstance(drawable1, Segment) and (drawable2 is None or isinstance(drawable2, Segment)):
-            # Segment-segment or segment-xaxis case
-            if drawable2:  # Segment-segment case
-                # Create points at overlap boundaries
-                def get_y_at_x(segment: Segment, x: float) -> float:
-                    # Linear interpolation to find y value at x using math coordinates
-                    x1: float = segment.point1.x
-                    y1: float = segment.point1.y
-                    x2: float = segment.point2.x
-                    y2: float = segment.point2.y
-                    if x2 == x1:
-                        return y1  # Vertical segment
-                    t: float = (x - x1) / (x2 - x1)
-                    return y1 + t * (y2 - y1)
-
-                # Get x-ranges of both segments using math coordinates
-                x1_min = min(drawable1.point1.x, drawable1.point2.x)
-                x1_max = max(drawable1.point1.x, drawable1.point2.x)
-                x2_min = min(drawable2.point1.x, drawable2.point2.x)
-                x2_max = max(drawable2.point1.x, drawable2.point2.x)
-
-                # Check if segment1 endpoints create points on segment2
-                if x1_min >= x2_min and x1_min <= x2_max:
-                    y = get_y_at_x(drawable2, x1_min)
-                    self.drawable_manager.create_point(x1_min, y)
-                if x1_max >= x2_min and x1_max <= x2_max:
-                    y = get_y_at_x(drawable2, x1_max)
-                    self.drawable_manager.create_point(x1_max, y)
-
-                # Check if segment2 endpoints create points on segment1
-                if x2_min >= x1_min and x2_min <= x1_max:
-                    y = get_y_at_x(drawable1, x2_min)
-                    self.drawable_manager.create_point(x2_min, y)
-                if x2_max >= x1_min and x2_max <= x1_max:
-                    y = get_y_at_x(drawable1, x2_max)
-                    self.drawable_manager.create_point(x2_max, y)
-
+            # Segment-segment or segment-xaxis case. The area only shades: its renderer finds the
+            # overlap of the segments' x-ranges itself, so no points are added and no segment is split.
             colored_area: Union[SegmentsBoundedColoredArea, FunctionSegmentBoundedColoredArea, FunctionsBoundedColoredArea]
             colored_area = SegmentsBoundedColoredArea(drawable1, drawable2, color=color, opacity=opacity)
         elif isinstance(drawable2, Segment):

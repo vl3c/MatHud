@@ -63,3 +63,23 @@ class TestColoredAreaNullStyle(_ToolBatchTestCase):
         areas = self.canvas.get_drawables_by_class_name("ClosedShapeColoredArea")
         self.assertEqual(len(areas), 1)
         self.assertEqual(areas[0].color, "lightblue")
+
+
+class TestSegmentAreaHasNoSideEffects(_ToolBatchTestCase):
+    """K15: shading between two segments adds no points and splits no segment."""
+
+    def test_area_between_segments_changes_nothing_else(self) -> None:
+        self.run_single("create_segment", x1=0, y1=0, x2=4, y2=0)
+        self.run_single("create_segment", x1=1, y1=2, x2=3, y2=2)
+        before = self.snapshot()
+        depth = self.undo_depth()
+
+        _, traced = self.run_batch(
+            ("create_colored_area", {"drawable1_name": "AB", "drawable2_name": "CD", "color": "pink", "opacity": 0.3})
+        )
+
+        self.assertFalse(traced[0]["is_error"], traced[0]["result"])
+        after = self.snapshot()
+        self.assertEqual(len(after.pop("SegmentsBoundedColoredArea", [])), 1)
+        self.assertEqual(after, before)
+        self.assertEqual(self.undo_depth(), depth + 1)
