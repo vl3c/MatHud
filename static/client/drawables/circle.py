@@ -11,7 +11,7 @@ Key Features:
     - Mathematical formula generation for geometric operations
 
 Mathematical Properties:
-    - circle_formula: Algebraic equation coefficients
+    - circle_formula: Algebraic equation string, computed from the current centre and radius
     - Center point tracking through Point object
     - Renderer-agnostic; no viewport scaling stored in model
 
@@ -62,7 +62,7 @@ class Circle(Drawable):
         return "Circle"
 
     @property
-    def circle_formula(self) -> Dict[str, float]:
+    def circle_formula(self) -> str:
         """Algebraic circle equation, computed from the current centre and radius.
 
         Computed on each access so it follows the centre when another object
@@ -70,12 +70,11 @@ class Circle(Drawable):
         """
         return self._calculate_circle_algebraic_formula()
 
-    def _calculate_circle_algebraic_formula(self) -> Dict[str, float]:
+    def _calculate_circle_algebraic_formula(self) -> str:
         x: float = self.center.x
         y: float = self.center.y
         r: float = self.radius
-        circle_formula: Dict[str, float] = MathUtils.get_circle_formula(x, y, r)
-        return circle_formula
+        return str(MathUtils.get_circle_formula(x, y, r))
 
     def get_state(self) -> Dict[str, Any]:
         radius: float = self.radius

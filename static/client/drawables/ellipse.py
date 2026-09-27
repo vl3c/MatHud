@@ -11,7 +11,7 @@ Key Features:
     - Pure math model; renderer applies screen scaling and rotation transforms
 
 Mathematical Properties:
-    - ellipse_formula: Algebraic equation coefficients
+    - ellipse_formula: Algebraic equation string, computed from the current geometry
     - Center point tracking through Point object
     - Renderer-agnostic; no viewport scaling stored in model
     - Rotation angle preservation and application
@@ -76,18 +76,17 @@ class Ellipse(Drawable):
         return "Ellipse"
 
     @property
-    def ellipse_formula(self) -> Dict[str, float]:
+    def ellipse_formula(self) -> str:
         """Algebraic ellipse equation, computed from the current centre, radii and rotation.
 
         Computed on each access so it follows the centre when another object moves it.
         """
         return self._calculate_ellipse_algebraic_formula()
 
-    def _calculate_ellipse_algebraic_formula(self) -> Dict[str, float]:
+    def _calculate_ellipse_algebraic_formula(self) -> str:
         x: float = self.center.x
         y: float = self.center.y
-        result: Any = MathUtils.get_ellipse_formula(x, y, self.radius_x, self.radius_y, self.rotation_angle)
-        return cast(Dict[str, float], result)
+        return str(MathUtils.get_ellipse_formula(x, y, self.radius_x, self.radius_y, self.rotation_angle))
 
     def get_state(self) -> Dict[str, Any]:
         """Return the state of the ellipse including rotation"""
