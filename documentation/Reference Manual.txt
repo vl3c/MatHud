@@ -290,7 +290,7 @@ Attributes:
 - `delete_circle_arc(name)`: Remove a circle arc by name without deleting its endpoints.
 - `update_circle_arc(name, new_color=None, use_major_arc=None)`: Update arc styling or switch between the minor and major arc sweep.
 - `create_ellipse(center_x, center_y, radius_x, radius_y, rotation_angle=0, name="", color=None, extra_graphics=True)`: Create an ellipse with specified parameters. As with circles, `name` names the center point and the ellipse is named `<center>(<radius_x>, <radius_y>)`
-- `draw_function(function_string, name, left_bound=None, right_bound=None)`: Draw a mathematical function on the canvas
+- `draw_function(function_string, name, left_bound=None, right_bound=None)`: Draw a mathematical function on the canvas. Reversed bounds are swapped and the result says so; equal bounds are an error. Drawing under the name of an existing function redefines it (expression, bounds and holes) and recomputes its asymptotes, discontinuities and periodicity; its color is kept unless a new one is given
 - `draw_parametric_function(x_expression, y_expression, name=None, t_min=0, t_max=2*pi, color=None)`: Draw a parametric curve defined by x(t) and y(t) expressions. Use for curves that cannot be expressed as y=f(x), such as circles, spirals, Lissajous figures, and other complex shapes.
 - `delete_parametric_function(name)`: Remove a parametric function by name
 - `draw_piecewise_function(pieces, name=None, color=None)`: Plot a piecewise function. Each piece has `expression`, `left`/`right` bounds (`None` for unbounded), `left_inclusive`/`right_inclusive`, and optional `undefined_at` holes. Tool: `draw_piecewise_function`
@@ -299,6 +299,7 @@ Attributes:
 - `update_parametric_function(name, new_color=None, new_t_min=None, new_t_max=None)`: Update editable properties of an existing parametric function
 - `draw_tangent_line(curve_name, parameter, name=None, length=4.0, color=None)`: Draw a tangent line segment to a curve at a specified point. For functions y=f(x), parameter is the x-coordinate. For parametric curves, it's the t value. For circles, it's the angle in radians from the positive x-axis. For ellipses, it's the parametric angle t in radians, measured in the ellipse's own (rotated) frame: point = center + R(rotation) * (radius_x*cos(t), radius_y*sin(t)).
 - `draw_normal_line(curve_name, parameter, name=None, length=4.0, color=None)`: Draw a normal line segment (perpendicular to tangent) to a curve at a specified point. Same parameter conventions as draw_tangent_line.
+- For a function y=f(x), `draw_tangent_line` and `draw_normal_line` fail and create nothing where f is undefined, within two derivative steps (2e-7 * max(1, |x|)) of a listed vertical asymptote, or where f(x) or f'(x) is infinite or larger than 1e12 in magnitude.
 - `construct_midpoint(p1_name=None, p2_name=None, segment_name=None, name=None, color=None)`: Construct a point at the midpoint of a segment or between two named points. Provide either `segment_name` or both `p1_name` and `p2_name`.
 - `construct_perpendicular_bisector(segment_name, length=6.0, name=None, color=None)`: Construct the perpendicular bisector of a segment. Creates a new segment passing through the midpoint, perpendicular to the original.
 - `construct_perpendicular_from_point(point_name, segment_name, name=None, color=None)`: Drop a perpendicular from a point to a segment. Creates the foot point on the line and a segment from the original point to the foot (single undo step).
@@ -316,7 +317,7 @@ Attributes:
 - `set_grid_visible(visible)`: Show or hide the active grid without changing the coordinate system. Tool: `set_grid_visible`
 - `create_colored_area(drawable1_name, drawable2_name=None, left_bound=None, right_bound=None, color="lightblue", opacity=0.3)`: Create a colored area between two objects
 - `create_region_colored_area(expression=None, triangle_name=None, rectangle_name=None, polygon_segment_names=None, circle_name=None, ellipse_name=None, chord_segment_name=None, arc_clockwise=False, resolution=96, color="lightblue", opacity=0.3)`: Fill a region given by a boolean expression over shape names (`&` intersection, `|` union, `-` difference, `^` symmetric difference; e.g. `'circle_A - triangle_ABC'`) or by a single closed shape, optionally cut by a chord segment. `expression` takes precedence. Tool: `create_region_colored_area`
-- `translate_object(name, x_offset, y_offset)`: Translates a drawable object by the specified offset
+- `translate_object(name, x_offset, y_offset)`: Translates a drawable object by the specified offset. A translated function's vertical asymptotes and point discontinuities move by x_offset and its horizontal asymptotes by y_offset; the explicit bounds of an area between the function and the x-axis or a constant move with it (an area between two functions keeps its bounds)
 - `rotate_object(name, angle, center_x=None, center_y=None)`: Rotates a drawable object by the specified angle, optionally around an arbitrary center
 - `reflect_object(name, axis, line_a=None, line_b=None, line_c=None, segment_name=None)`: Reflects a drawable across x_axis, y_axis, a line (ax+by+c=0), or a named segment
 - `scale_object(name, sx, sy, cx, cy)`: Scales a drawable from center (cx, cy)
@@ -1651,11 +1652,13 @@ Attributes:
 - `draw()`: Render the function curve to the SVG canvas with path optimization
 - `zoom()`: Update function plotting for zoom operations (handled by path regeneration)
 - `pan()`: Update function for pan operations (handled by path regeneration)
-- `translate(x_offset, y_offset)`: Translation not applicable for functions
+- `translate(x_offset, y_offset)`: Rewrite the expression as f(x - dx) + dy and shift bounds, holes, asymptotes and point discontinuities with it
 - `rotate(angle)`: Rotation not applicable for functions
 - `get_state()`: Serialize function state for persistence
 - `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
 - `_generate_paths()`: Generate optimized SVG paths for function curve rendering
+- `redefine(function_string, left_bound, right_bound, undefined_at)`: Replace the definition and recompute its analysis (a parse error changes nothing)
+- `reanalyze()`: Recompute asymptotes, discontinuities and periodicity from the expression and bounds
 - `_calculate_asymptotes_and_discontinuities()`: Calculate mathematical function properties
 
 #### Colored Area (`drawables/colored_area.py`)
@@ -1746,6 +1749,7 @@ Attributes:
 - `get_class_name()`: Return the class name 'FunctionsBoundedColoredArea'
 - `draw()`: Draw the colored area between the functions on the canvas
 - `get_state()`: Serialize functions bounded area state for persistence
+- `follow_function_translation(function, x_offset)`: Shift the explicit bounds when the translated function is the area's only bounding function
 - `__deepcopy__(memo)`: Create a deep copy for undo/redo functionality
 - `_validate_parameters(func1, func2, left_bound, right_bound, num_sample_points)`: Validate input parameters for function bounded area creation
 - `_generate_name(func1, func2)`: Generate a descriptive name for the colored area
@@ -2340,7 +2344,7 @@ operations with proper state management, object validation, and canvas integrati
 
 **Key Methods:**
 - `__init__(canvas)`: Initialize the TransformationsManager
-- `translate_object(name, x_offset, y_offset)`: Translates a drawable object by the specified offset
+- `translate_object(name, x_offset, y_offset)`: Translates a drawable object by the specified offset. A translated function's vertical asymptotes and point discontinuities move by x_offset and its horizontal asymptotes by y_offset; the explicit bounds of an area between the function and the x-axis or a constant move with it (an area between two functions keeps its bounds)
 - `rotate_object(name, angle, center_x=None, center_y=None)`: Rotates a drawable object by the specified angle. When center_x and center_y are provided, rotates around that arbitrary point (all types including Point and Circle are eligible).
 - `reflect_object(name, axis, line_a=0, line_b=0, line_c=0, segment_name="")`: Reflects a drawable across an axis. axis is one of 'x_axis', 'y_axis', 'line' (ax+by+c=0), or 'segment' (resolve named segment).
 - `scale_object(name, sx, sy, cx, cy)`: Scales a drawable from center (cx, cy). Circles require uniform scaling (sx == sy). Rotated ellipses require uniform scaling.
@@ -3041,9 +3045,9 @@ Class Attributes:
 - `mode(values)`: Calculate mode of values
 - `stdev(values)`: Calculate standard deviation
 - `variance(values)`: Calculate variance
-- `calculate_vertical_asymptotes(function_string, left_bound=None, right_bound=None)`: Find vertical asymptotes of function
+- `calculate_vertical_asymptotes(function_string, left_bound=None, right_bound=None)`: Find vertical asymptotes of function. A zero of a denominator counts only if f blows up beside it (|f| at least doubling as the offset shrinks 100-fold, or overflowing); where f stays bounded it is a removable discontinuity, e.g. (x^2-1)/(x-1) at x = 1
 - `calculate_horizontal_asymptotes(function_string)`: Find horizontal asymptotes of function
-- `calculate_asymptotes_and_discontinuities(function_string, left_bound=None, right_bound=None)`: Complete asymptote and discontinuity analysis
+- `calculate_asymptotes_and_discontinuities(function_string, left_bound=None, right_bound=None)`: Complete asymptote and discontinuity analysis; removable discontinuities within the bounds are listed with the point discontinuities
 - `calculate_point_discontinuities(function_string, left_bound=None, right_bound=None)`: Find point discontinuities in function
 - `triangle_matches_coordinates(triangle, x1, y1, x2, y2, x3, y3)`: Check if triangle matches given coordinates
 - `find_diagonal_points(points, rect_name_for_warning)`: Find diagonal points for rectangle construction

@@ -35,10 +35,15 @@
     "K2": "vl3c/MatHud#73",
     "K6": "vl3c/MatHud#72",
     "K7": "vl3c/MatHud#72",
+    "K11": "claude/fix-functions",
+    "K12": "claude/fix-functions",
+    "K13": "claude/fix-functions",
+    "K14": "claude/fix-functions",
     "K18": "vl3c/MatHud#72",
     "K20": "claude/scenario-tests (scenario hooks)",
     "K21": "vl3c/MatHud#73",
-    "K22": "claude/scenario-tests (scenario hooks)"
+    "K22": "claude/scenario-tests (scenario hooks)",
+    "K24": "claude/fix-functions"
   },
   "invariant_waivers": {}
 }
