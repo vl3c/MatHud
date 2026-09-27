@@ -211,10 +211,17 @@ class Angle(Drawable):
         vertex_coords: Tuple[float, float] = (self.vertex_point.x, self.vertex_point.y)
         arm1_coords: Tuple[float, float] = (self.arm1_point.x, self.arm1_point.y)
         arm2_coords: Tuple[float, float] = (self.arm2_point.x, self.arm2_point.y)
-        return cast(
+        # Memoised on the coordinates: recomputed whenever a point moves, cheap on every frame otherwise.
+        key = (vertex_coords, arm1_coords, arm2_coords)
+        cached = getattr(self, "_raw_angle_cache", None)
+        if cached is not None and cached[0] == key:
+            return cast(Optional[float], cached[1])
+        raw = cast(
             Optional[float],
             math_utils.MathUtils.calculate_angle_degrees(vertex_coords, arm1_coords, arm2_coords),
         )
+        self._raw_angle_cache: Tuple[Any, Optional[float]] = (key, raw)
+        return raw
 
     @property
     def angle_degrees(self) -> Optional[float]:

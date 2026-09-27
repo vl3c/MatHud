@@ -99,6 +99,9 @@ class Triangle(Polygon):
                 return False
         return True
 
+    def _type_flag_points(self) -> List[Point]:
+        return [point for segment in self._segments for point in (segment.point1, segment.point2)]
+
     def _compute_type_flags(self) -> Dict[str, bool]:
         flags = GeometryUtils.triangle_type_flags_from_segments(self._segments)
         if flags is None:
