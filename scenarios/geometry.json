@@ -613,6 +613,58 @@
           ]
         }
       ]
+    },
+    {
+      "id": "GEO-17",
+      "title": "Recolour an arc and switch it to the major arc",
+      "tags": ["arcs", "update", "no-op"],
+      "smoke": false,
+      "targets": "update_circle_arc passing endpoint arguments the arc manager does not take (it always failed)",
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_circle_arc",
+            "args": {
+              "point1_x": 5,
+              "point1_y": 0,
+              "point2_x": 0,
+              "point2_y": 5,
+              "center_x": 0,
+              "center_y": 0,
+              "radius": 5,
+              "use_major_arc": false
+            }
+          }
+        ]
+      },
+      "steps": [
+        {
+          "user": "Make the arc red.",
+          "reference": [{"tool": "update_circle_arc", "args": {"name": "ArcMin_AB", "new_color": "red"}}],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"bind": "ARC", "select": {"type": "CircleArc", "only": true}},
+            {"check": "attribute", "path": "args.color", "select": "$ARC", "eq": "red"}
+          ]
+        },
+        {
+          "user": "Now draw the major arc instead.",
+          "reference": [{"tool": "update_circle_arc", "args": {"name": "ArcMin_AB", "use_major_arc": true}}],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "attribute", "path": "args.use_major_arc", "select": "$ARC", "eq": true},
+            {"check": "attribute", "path": "args.color", "select": "$ARC", "eq": "red"}
+          ]
+        },
+        {
+          "user": "Make sure it is the major arc.",
+          "reference": [{"tool": "update_circle_arc", "args": {"name": "ArcMin_AB", "use_major_arc": true}}],
+          "checks": [
+            {"check": "tool_result", "tool": "update_circle_arc", "contains": "nothing changed"},
+            {"check": "attribute", "path": "args.use_major_arc", "select": "$ARC", "eq": true}
+          ]
+        }
+      ]
     }
   ]
 }

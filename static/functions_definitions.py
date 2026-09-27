@@ -656,7 +656,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "update_circle_arc",
-            "description": "Updates editable properties of an existing circle arc (color or major/minor toggle). Provide null for fields to keep them unchanged.",
+            "description": "Updates editable properties of an existing circle arc (color or major/minor toggle). Provide null for fields to keep them unchanged. The endpoints cannot be moved here: delete the arc and create it again.",
             "strict": True,
             "parameters": {
                 "type": "object",

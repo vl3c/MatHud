@@ -133,6 +133,12 @@ CENTER_FIELD = _Field(
     lambda values: f"center ({_format_number(values[0])}, {_format_number(values[1])})",
 )
 
+ARC_SWEEP_FIELD = _Field(
+    ("use_major_arc",),
+    lambda arc, values: bool(getattr(arc, "use_major_arc", False)) == bool(values[0]),
+    lambda values: "the major arc selected" if values[0] else "the minor arc selected",
+)
+
 
 def _by_name(lookup: Callable[["Canvas"], Callable[[str], Any]]) -> Finder:
     """A finder that calls ``lookup(canvas)(name)``."""
@@ -169,7 +175,7 @@ UPDATE_SPECS: Dict[str, _UpdateSpec] = {
         "Circle arc",
         "name",
         _by_name(lambda canvas: canvas.drawable_manager.arc_manager.get_circle_arc_by_name),
-        (COLOR_FIELD,),
+        (COLOR_FIELD, ARC_SWEEP_FIELD),
     ),
     "update_ellipse": _UpdateSpec(
         "Ellipse", "name", _by_name(lambda canvas: canvas.get_ellipse_by_name), (COLOR_FIELD, CENTER_FIELD)
