@@ -266,6 +266,62 @@ class TestFunctionTangentGuard(_FunctionToolTestCase):
         self.assertAlmostEqual(slope, 1 / math.cos(1) ** 2, places=4)
 
 
+class TestFunctionAreaTranslation(_FunctionToolTestCase):
+    """K14: an area shaded under a function follows the function when it is translated."""
+
+    def shade(self, drawable1: str, drawable2: Optional[str], left: Optional[float], right: Optional[float]) -> Any:
+        traced = self.run_call(
+            "create_colored_area",
+            drawable1_name=drawable1,
+            drawable2_name=drawable2,
+            left_bound=left,
+            right_bound=right,
+            color="orange",
+            opacity=0.4,
+        )
+        self.assertFalse(traced["is_error"], traced["result"])
+        areas = self.canvas.drawable_manager.drawables.FunctionsBoundedColoredAreas
+        self.assertEqual(len(areas), 1)
+        return areas[0]
+
+    def test_area_under_a_function_moves_with_it(self) -> None:
+        self.draw("x^2", "f", -3, 3)
+        area = self.shade("f", None, 0, 2)
+
+        self.run_call("translate_object", name="f", x_offset=3, y_offset=0)
+
+        self.assertEqual((area.left_bound, area.right_bound), (3, 5))
+        self.assertEqual(area._get_bounds(), (3, 5))
+
+    def test_area_between_two_functions_keeps_its_bounds_when_one_moves(self) -> None:
+        self.draw("x^2", "f", -5, 5)
+        self.draw("x", "g", -5, 5)
+        area = self.shade("f", "g", 0, 1)
+
+        self.run_call("translate_object", name="f", x_offset=3, y_offset=0)
+
+        self.assertEqual((area.left_bound, area.right_bound), (0, 1))
+
+    def test_area_without_explicit_bounds_follows_the_function_bounds(self) -> None:
+        self.draw("x^2", "f", -3, 3)
+        area = self.shade("f", None, None, None)
+
+        self.run_call("translate_object", name="f", x_offset=3, y_offset=0)
+
+        self.assertEqual((area.left_bound, area.right_bound), (None, None))
+        self.assertEqual(area._get_bounds(), (0, 6))
+
+    def test_undo_restores_the_area_bounds(self) -> None:
+        self.draw("x^2", "f", -3, 3)
+        self.shade("f", None, 0, 2)
+        self.run_call("translate_object", name="f", x_offset=3, y_offset=0)
+
+        self.run_call("undo")
+
+        area = self.canvas.drawable_manager.drawables.FunctionsBoundedColoredAreas[0]
+        self.assertEqual((area.left_bound, area.right_bound), (0, 2))
+
+
 # (expression, left, right, vertical asymptotes, removable discontinuities)
 _SINGULARITY_CASES: List[Tuple[str, Optional[float], Optional[float], List[float], List[float]]] = [
     ("(x^2-1)/(x-1)", None, None, [], [1.0]),
