@@ -84,6 +84,7 @@ from .test_ellipse_manager import TestEllipseManager
 from .test_colored_area_manager import TestColoredAreaManager
 from .test_function_manager import TestFunctionManager
 from .test_function_analysis import (
+    TestFunctionTranslationAnalysis,
     TestRemovableDiscontinuities,
 )
 from .test_parametric_function import (
@@ -530,6 +531,7 @@ class Tests:
             TestTransformationsManager,
             TestTransforms,
             TestFunctionManager,
+            TestFunctionTranslationAnalysis,
             TestRemovableDiscontinuities,
             TestParametricFunction,
             TestParametricFunctionRenderable,

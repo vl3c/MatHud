@@ -73,6 +73,55 @@ class _FunctionToolTestCase(unittest.TestCase):
             self.assertAlmostEqual(float(value), expected)
 
 
+class TestFunctionTranslationAnalysis(_FunctionToolTestCase):
+    """K11: translating a function moves its asymptotes and discontinuities."""
+
+    def test_asymptotes_follow_the_translation(self) -> None:
+        self.draw("1/x", "f", -10, 10)
+
+        traced = self.run_call("translate_object", name="f", x_offset=2, y_offset=3)
+
+        self.assertFalse(traced["is_error"], traced["result"])
+        args = self.function_args("f")
+        self.assertEqual(_rounded(args.get("vertical_asymptotes")), [2.0])
+        self.assert_all_equal(args.get("horizontal_asymptotes"), 3.0)
+        self.assertEqual((args["left_bound"], args["right_bound"]), (-8, 12))
+        self.assertAlmostEqual(self.function("f").function(3), 4.0)
+
+    def test_tangent_asymptotes_follow_the_translation(self) -> None:
+        self.draw("tan(x)", "t", -2, 2)
+
+        self.run_call("translate_object", name="t", x_offset=1, y_offset=0)
+
+        expected = [round(-math.pi / 2 + 1, 6), round(math.pi / 2 + 1, 6)]
+        self.assertEqual(_rounded(self.function_args("t").get("vertical_asymptotes")), expected)
+        function = self.function("t")
+        self.assertIsNotNone(function.get_vertical_asymptote_between_x(math.pi / 2 + 0.9, math.pi / 2 + 1.1))
+        self.assertIsNone(function.get_vertical_asymptote_between_x(math.pi / 2 - 0.1, math.pi / 2 + 0.1))
+
+    def test_point_discontinuities_follow_the_translation(self) -> None:
+        self.draw("abs(x)", "a", -5, 5)
+        self.draw("x^2", "h", -5, 5, undefined_at=[1])
+
+        self.run_call("translate_object", name="a", x_offset=2, y_offset=0)
+        self.run_call("translate_object", name="h", x_offset=2, y_offset=0)
+
+        self.assertEqual(_rounded(self.function_args("a").get("point_discontinuities")), [2.0])
+        h_args = self.function_args("h")
+        self.assertEqual(_rounded(h_args.get("point_discontinuities")), [3.0])
+        self.assertEqual(_rounded(h_args.get("undefined_at")), [3.0])
+
+    def test_undo_restores_the_asymptotes(self) -> None:
+        self.draw("1/x", "f", -10, 10)
+        self.run_call("translate_object", name="f", x_offset=2, y_offset=3)
+
+        self.run_call("undo")
+
+        args = self.function_args("f")
+        self.assertEqual(_rounded(args.get("vertical_asymptotes")), [0.0])
+        self.assert_all_equal(args.get("horizontal_asymptotes"), 0.0)
+
+
 # (expression, left, right, vertical asymptotes, removable discontinuities)
 _SINGULARITY_CASES: List[Tuple[str, Optional[float], Optional[float], List[float], List[float]]] = [
     ("(x^2-1)/(x-1)", None, None, [], [1.0]),
