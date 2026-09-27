@@ -2779,19 +2779,20 @@ class MathUtils:
         right_bound: Optional[Number] = None,
     ) -> List[float]:
         """Calculate vertical asymptotes of a function within given bounds"""
-        return MathUtils._vertical_asymptotes_and_holes(function_string, left_bound, right_bound)[0]
+        return MathUtils._vertical_asymptotes_and_discontinuities(function_string, left_bound, right_bound)[0]
 
     @staticmethod
-    def _vertical_asymptotes_and_holes(
+    def _vertical_asymptotes_and_discontinuities(
         function_string: str,
         left_bound: Optional[Number] = None,
         right_bound: Optional[Number] = None,
     ) -> Tuple[List[float], List[float]]:
-        """Return (vertical asymptotes, removable discontinuities) found from the expression text.
+        """Return (vertical asymptotes, point discontinuities) found from the expression text.
 
-        A zero of a denominator is a hole only if f converges to a finite limit beside it on
-        every side where it is defined (e.g. (x^2-1)/(x-1) at x = 1); otherwise it is an
-        asymptote.
+        Log and tan asymptotes come from the text. A zero of a denominator is classified by
+        sampling f beside it (_is_asymptote_at_denominator_zero): an asymptote if f grows on
+        either side, otherwise a point discontinuity (a hole such as (x^2-1)/(x-1) at x = 1,
+        a jump, or a bounded oscillation such as sin(1/x) at 0).
         """
         from expression_validator import ExpressionValidator
 
@@ -2816,24 +2817,36 @@ class MathUtils:
         for tan_argument in MathUtils._function_call_arguments(function_string, "tan"):
             vertical_asymptotes.extend(MathUtils._tangent_asymptotes(tan_argument, left, right))
 
-        holes: List[float] = []
+        discontinuities: List[float] = []
         evaluate = MathUtils._singularity_probe_evaluator(function_string)
+        singular_points = denominator_zeros + vertical_asymptotes
         for zero in denominator_zeros:
-            if evaluate is not None and MathUtils._is_removable_near(evaluate, zero):
-                holes.append(zero)
-            else:
+            if evaluate is None or MathUtils._is_asymptote_at_denominator_zero(evaluate, zero, singular_points):
                 vertical_asymptotes.append(zero)
+            else:
+                discontinuities.append(zero)
 
         asymptotes = sorted(set(vertical_asymptotes))
-        return asymptotes, sorted(set(hole for hole in holes if hole not in asymptotes))
+        return asymptotes, sorted(set(x for x in discontinuities if x not in asymptotes))
 
-    # Offsets (relative to max(1, |x0|)) at which a denominator zero x0 is probed on each side:
-    # a 10-fold spacing, stopping at 1e-4 so cancellation (e.g. in (1 - cos(x))/x^2) stays small.
-    _SINGULARITY_PROBE_OFFSETS: Tuple[float, ...] = (1e-2, 1e-3, 1e-4)
-    # A side converges when its last step is at most this fraction of the step before...
-    _SINGULARITY_CONVERGENCE_RATIO = 0.5
-    # ...plus this fraction of |f| (floating-point noise near a cancelling zero).
-    _SINGULARITY_RELATIVE_TOLERANCE = 5e-3
+    # Sampling beside a denominator zero x0: the first offset is 1e-2 * max(1, |x0|), or a tenth
+    # of the distance to the nearest other singular point if smaller (points closer than
+    # 1e-6 * max(1, |x0|) count as x0 itself); each next offset is 4 times smaller.
+    _PROBE_START = 1e-2
+    _PROBE_FACTOR = 4.0
+    _PROBE_COUNT = 7
+    _PROBE_SAME_POINT = 1e-6
+    # A sample is float noise (cancellation) when moving x by up to 3e-6 of its offset changes f
+    # by more than a tenth of the step from the previous sample; sampling stops before it.
+    _PROBE_JITTER = 1e-6
+    _PROBE_NOISE = 0.1
+    # Successive differences shrinking to at most 0.9 of the previous one converge.
+    _PROBE_SHRINK = 0.9
+    # Log-like growth: ratios of successive differences rising by >= 0.005 each, to >= 0.7.
+    _PROBE_SLOW_GROWTH_RATIO = 0.7
+    _PROBE_SLOW_GROWTH_STEP = 0.005
+    # Unbounded oscillation: the last two |f| exceed the first two by this factor.
+    _PROBE_ENVELOPE = 100.0
 
     @staticmethod
     def _singularity_probe_evaluator(function_string: str) -> Optional[Callable[[float], Optional[float]]]:
@@ -2860,31 +2873,97 @@ class MathUtils:
         return evaluate
 
     @staticmethod
-    def _is_removable_near(evaluate: Callable[[float], Optional[float]], x0: float) -> bool:
-        """True if f converges to a finite limit approaching x0 from every side on which it is defined.
+    def _is_asymptote_at_denominator_zero(
+        evaluate: Callable[[float], Optional[float]], x0: float, singular_points: List[float]
+    ) -> bool:
+        """True if the denominator zero x0 is a vertical asymptote, False for a point discontinuity.
 
-        On each side f is sampled at three offsets shrinking 10-fold (v1, v2, v3). Near a
-        removable discontinuity f is about L + c*h, so each step is about a tenth of the one
-        before; the side converges if |v3 - v2| <= 0.5*|v2 - v1| plus a small tolerance
-        relative to |v2|. Anything that grows, however slowly (log(1/x), 1/x^0.1), or that
-        keeps oscillating (sin(1/x)/x), does not converge, and an infinite value never does.
-        A side where f is undefined is skipped; if f is undefined on both sides, x0 is not
-        called removable.
+        Each side is sampled at shrinking offsets and judged on the differences between
+        successive samples, never on |f| relative to its own value, so adding a constant to
+        f changes nothing. x0 is an asymptote if f grows on either side, or if f is undefined
+        on both sides; otherwise (f converges, or stays bounded without converging, as
+        sin(1/x) does at 0) it is a point discontinuity.
         """
         scale = max(1.0, abs(x0))
-        defined_side = False
-        for side in (-1.0, 1.0):
-            values = [evaluate(x0 + side * offset * scale) for offset in MathUtils._SINGULARITY_PROBE_OFFSETS]
-            if any(value is None for value in values):
-                continue
-            v1, v2, v3 = (cast(float, value) for value in values)
-            if any(math.isinf(value) for value in (v1, v2, v3)):
-                return False
-            tolerance = MathUtils._SINGULARITY_RELATIVE_TOLERANCE * abs(v2)
-            if abs(v3 - v2) > MathUtils._SINGULARITY_CONVERGENCE_RATIO * abs(v2 - v1) + tolerance:
-                return False
-            defined_side = True
-        return defined_side
+        start = MathUtils._PROBE_START * scale
+        for point in singular_points:
+            distance = abs(point - x0)
+            if distance > MathUtils._PROBE_SAME_POINT * scale:
+                start = min(start, distance / 10)
+        verdicts = [
+            MathUtils._probe_side_verdict(MathUtils._probe_side(evaluate, x0, side, start)) for side in (-1.0, 1.0)
+        ]
+        return "grow" in verdicts or verdicts == ["undefined", "undefined"]
+
+    @staticmethod
+    def _probe_side(
+        evaluate: Callable[[float], Optional[float]], x0: float, side: float, start: float
+    ) -> Optional[List[float]]:
+        """Samples of f on one side of x0, nearest last; None if f is undefined there.
+
+        Sampling stops at an infinite value (kept) or before a sample dominated by float noise.
+        """
+        values: List[float] = []
+        for index in range(MathUtils._PROBE_COUNT):
+            offset = start / MathUtils._PROBE_FACTOR**index
+            value = evaluate(x0 + side * offset)
+            if value is None:
+                return None
+            if math.isinf(value):
+                values.append(value)
+                break
+            if values:
+                step = abs(value - values[-1])
+                jittered = [evaluate(x0 + side * offset * (1 + j * MathUtils._PROBE_JITTER)) for j in (1, 2, 3)]
+                if any(
+                    other is None or math.isinf(other) or abs(other - value) > MathUtils._PROBE_NOISE * step
+                    for other in jittered
+                ):
+                    break
+            values.append(value)
+        return values
+
+    @staticmethod
+    def _probe_side_verdict(values: Optional[List[float]]) -> str:
+        """Classify one side's samples as "grow", "converge", "neither" or "undefined".
+
+        - grow: an infinite sample; or differences that do not shrink (each at least 0.9 of
+          the one before) while f moves one way or |f| keeps rising (powers of any positive
+          exponent, even 1/x^0.004, logs, sin(1/x)/x); or ratios of differences rising towards
+          1 (log(log(1/x))); or, failing convergence, |f| rising 100-fold over the samples.
+        - converge: every difference at most 0.9 of the one before (holes, jumps, and slow
+          limits such as |x|^0.25). Edge: a limit approached like L + c*|h|^p with p below
+          about 0.076 shrinks by less than 0.9 per 4-fold step and is read as growth.
+        - neither: bounded without converging (sin(1/x)), or fewer than three clean samples.
+        """
+        if values is None:
+            return "undefined"
+        if any(math.isinf(value) for value in values):
+            return "grow"
+        if len(values) < 3:
+            return "neither"
+        differences = [later - earlier for earlier, later in zip(values, values[1:])]
+        ratios = [
+            (0.0 if later == 0 else float("inf")) if earlier == 0 else abs(later) / abs(earlier)
+            for earlier, later in zip(differences, differences[1:])
+        ]
+        one_way = all(d > 0 for d in differences) or all(d < 0 for d in differences)
+        rising = all(abs(later) > abs(earlier) for earlier, later in zip(values, values[1:]))
+        if (one_way or rising) and all(ratio >= MathUtils._PROBE_SHRINK for ratio in ratios):
+            return "grow"
+        if (
+            one_way
+            and len(ratios) >= 2
+            and ratios[-1] >= MathUtils._PROBE_SLOW_GROWTH_RATIO
+            and all(later - earlier >= MathUtils._PROBE_SLOW_GROWTH_STEP for earlier, later in zip(ratios, ratios[1:]))
+        ):
+            return "grow"
+        if all(ratio <= MathUtils._PROBE_SHRINK for ratio in ratios):
+            return "converge"
+        first = max(abs(value) for value in values[:2])
+        if max(abs(value) for value in values[-2:]) > MathUtils._PROBE_ENVELOPE * first:
+            return "grow"
+        return "neither"
 
     _X_TOKEN_PATTERN = r"(?<![A-Za-z_])x(?![A-Za-z_])"
 
@@ -3014,14 +3093,18 @@ class MathUtils:
 
         # Standardize the function string
         function_string = ExpressionValidator.fix_math_expression(function_string)
-        vertical_asymptotes, holes = MathUtils._vertical_asymptotes_and_holes(function_string, left_bound, right_bound)
+        vertical_asymptotes, denominator_discontinuities = MathUtils._vertical_asymptotes_and_discontinuities(
+            function_string, left_bound, right_bound
+        )
         horizontal_asymptotes = MathUtils.calculate_horizontal_asymptotes(function_string)
         point_discontinuities = MathUtils.calculate_point_discontinuities(function_string, left_bound, right_bound)
-        # Removable discontinuities (denominator zeros where f stays bounded) are holes
-        for hole in holes:
-            within_bounds = (left_bound is None or hole >= left_bound) and (right_bound is None or hole <= right_bound)
-            if within_bounds and hole not in point_discontinuities:
-                point_discontinuities.append(hole)
+        # Denominator zeros that are not asymptotes (holes, jumps, bounded oscillations)
+        for point in denominator_discontinuities:
+            within_bounds = (left_bound is None or point >= left_bound) and (
+                right_bound is None or point <= right_bound
+            )
+            if within_bounds and point not in point_discontinuities:
+                point_discontinuities.append(point)
         return vertical_asymptotes, horizontal_asymptotes, sorted(point_discontinuities)
 
     @staticmethod

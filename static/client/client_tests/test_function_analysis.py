@@ -354,38 +354,58 @@ class TestFunctionAreaTranslation(_FunctionToolTestCase):
         self.assertEqual((area.left_bound, area.right_bound), (0, 2))
 
 
-# (expression, left, right, vertical asymptotes, removable discontinuities)
+# (expression, left, right, vertical asymptotes, point discontinuities)
+# abs(...) corners are always listed as point discontinuities, hence some 0s in the last list.
 _SINGULARITY_CASES: List[Tuple[str, Optional[float], Optional[float], List[float], List[float]]] = [
+    # Holes
     ("(x^2-1)/(x-1)", None, None, [], [1.0]),
     ("(x-1)/(x^2-1)", None, None, [-1.0], [1.0]),
     ("sin(x)/x", None, None, [], [0.0]),
-    ("1/x", None, None, [0.0], []),
-    ("1/x^2", None, None, [0.0], []),
-    ("1/(x^2-1)", None, None, [-1.0, 1.0], []),
-    ("sqrt(x)/x", None, None, [0.0], []),
-    ("exp(1/x)", None, None, [0.0], []),
-    # abs(...) corners are always listed as point discontinuities, hence the 0 in the last list
-    ("1/sqrt(abs(x))", None, None, [0.0], [0.0]),
-    ("sin(1/x)/x", None, None, [0.0], []),
-    # Slowly growing asymptotes: |f| grows by less than 2x per 100-fold step
-    ("log(1/x)", None, None, [0.0], []),
-    ("log(1/x^2)", None, None, [0.0], []),
-    ("ln(1/abs(x))", None, None, [0.0], [0.0]),
-    ("1/x^0.1", None, None, [0.0], []),
-    ("1/x^(1/8)", None, None, [0.0], []),
+    ("(x^2-10^6)/(x-1000)", None, None, [], [1000.0]),
     # Holes whose samples cancel badly or are large
     ("(e^x-1)/x", None, None, [], [0.0]),
     ("(1-cos(x))/x^2", None, None, [], [0.0]),
     ("(exp(x)-1-x-x^2/2)/x^3", None, None, [], [0.0]),
     ("10^15*(x^2-1)/(x-1)", None, None, [], [1.0]),
+    # Holes within 0.2% of another pole: sampling starts closer than the pole
+    ("(x^2-1)/((x-1)*(x-1.001))", None, None, [1.001], [1.0]),
+    ("(x-1)/((x-1)*(x-1.002))", None, None, [1.002], [1.0]),
+    # A slow limit (|x|^0.25 -> 0) is not an asymptote
+    ("x/abs(x)^0.75", None, None, [], [0.0]),
+    # Bounded without a limit: a point discontinuity, not an asymptote
+    ("sin(1/x)", None, None, [], [0.0]),
+    # Asymptotes
+    ("1/x", None, None, [0.0], []),
+    ("1/x^2", None, None, [0.0], []),
+    ("1/(x^2-1)", None, None, [-1.0, 1.0], []),
+    ("sqrt(x)/x", None, None, [0.0], []),
+    ("exp(1/x)", None, None, [0.0], []),
+    ("1/sqrt(abs(x))", None, None, [0.0], [0.0]),
+    ("sin(1/x)/x", None, None, [0.0], []),
     ("log(x)", None, None, [0.0], []),
     ("tan(x)", -2, 2, [round(-math.pi / 2, 6), round(math.pi / 2, 6)], []),
+    # Slowly growing asymptotes; pure power growth is caught for any exponent (1/x^0.004 too)
+    ("log(1/x)", None, None, [0.0], []),
+    ("log(1/x^2)", None, None, [0.0], []),
+    ("ln(1/abs(x))", None, None, [0.0], [0.0]),
+    ("1/x^0.1", None, None, [0.0], []),
+    ("1/x^(1/8)", None, None, [0.0], []),
+    ("1/x^0.05", None, None, [0.0], []),
+    ("1/x^0.004", None, None, [0.0], []),
+    ("log(log(1/x))", None, None, [0.0, 1.0], []),  # log(1/x) = 0 at x = 1 too
+    # Adding a constant changes nothing
+    ("ln(1/x)+500", None, None, [0.0], []),
+    ("ln(1/abs(x))+1000", None, None, [0.0], [0.0]),
+    ("1/x^0.1+100", None, None, [0.0], []),
+    ("1/sqrt(abs(x))+20000", None, None, [0.0], [0.0]),
+    ("1/x+10^7", None, None, [0.0], []),
+    # Neither
     ("x^2 + 1", None, None, [], []),
 ]
 
 
 class TestRemovableDiscontinuities(_FunctionToolTestCase):
-    """K24: a zero of a denominator where f converges to a finite limit is a hole, not an asymptote."""
+    """K24: a zero of a denominator is an asymptote only where f grows; otherwise a point discontinuity."""
 
     def test_singularities_are_classified(self) -> None:
         for expression, left, right, asymptotes, holes in _SINGULARITY_CASES:
