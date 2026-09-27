@@ -1343,6 +1343,8 @@ class MathUtils:
 
             compiled = window.math.compile(ExpressionValidator.fix_math_expression(str(expression)))
 
+            at_infinity = value_to_approach in ("Infinity", "-Infinity")
+
             def evaluate(point: float) -> Optional[float]:
                 try:
                     value = compiled.evaluate({variable: point})
@@ -1351,9 +1353,12 @@ class MathUtils:
                 if isinstance(value, bool) or not isinstance(value, (int, float)):
                     return None
                 value = float(value)
-                return None if math.isnan(value) else value
+                if math.isnan(value):
+                    # inf/inf at huge |x| ends the sampling at infinity (see _limit_at_infinity)
+                    return float("inf") if at_infinity else None
+                return value
 
-            if value_to_approach in ("Infinity", "-Infinity"):
+            if at_infinity:
                 sign = -1.0 if value_to_approach.startswith("-") else 1.0
                 limit_value = MathUtils._limit_at_infinity(evaluate, sign)
                 if limit_value is None:
@@ -2917,9 +2922,7 @@ class MathUtils:
                 vertical_asymptotes.append(zero)
             else:
                 discontinuities.append(zero)
-        tangent_asymptotes, tangent_holes = MathUtils._classify_tangent_poles(
-            evaluate, tangent_poles, singular_points, (left + right) / 2
-        )
+        tangent_asymptotes, tangent_holes = MathUtils._classify_tangent_poles(evaluate, tangent_poles, singular_points)
         vertical_asymptotes.extend(tangent_asymptotes)
         discontinuities.extend(tangent_holes)
 
@@ -2930,7 +2933,7 @@ class MathUtils:
         holes = [
             x
             for x in MathUtils._merge_close_points(discontinuities)
-            if within_bounds(x) and not any(MathUtils._same_point(x, asymptote) for asymptote in asymptotes)
+            if within_bounds(x) and MathUtils._nearest_other_distance(asymptotes, x, include_same=True) != 0.0
         ]
         return asymptotes, holes
 
@@ -2941,49 +2944,96 @@ class MathUtils:
 
     @staticmethod
     def _merge_close_points(points: List[float]) -> List[float]:
-        """Sorted points with near-duplicates merged, keeping the one nearest zero (0 over 1.4e-9)."""
-        kept: List[float] = []
-        for point in sorted(points, key=abs):
-            if not any(MathUtils._same_point(point, other) for other in kept):
-                kept.append(point)
-        return sorted(kept)
+        """Sorted points with near-duplicates merged, keeping the one nearest zero (0 over 1.4e-9).
 
-    # More tan poles than this are judged from the ones nearest the middle of the range when
-    # those agree (the poles repeat with the period of tan's linear argument).
-    _TANGENT_POLE_SAMPLE = 16
+        One sort and one pass: a point joins the run of its predecessor when the two are the
+        same point (_same_point), so a run of close points collapses to one.
+        """
+        merged: List[float] = []
+        previous: Optional[float] = None
+        for point in sorted(points):
+            if previous is not None and MathUtils._same_point(point, previous):
+                if abs(point) < abs(merged[-1]):
+                    merged[-1] = point
+            else:
+                merged.append(point)
+            previous = point
+        return merged
+
+    @staticmethod
+    def _nearest_other_distance(sorted_points: List[float], x0: float, include_same: bool = False) -> float:
+        """Distance from x0 to the nearest point of sorted_points that is not x0 itself.
+
+        Points within _PROBE_SAME_POINT of x0 count as x0 and are skipped, unless include_same,
+        in which case finding one returns 0.0. Returns inf when there is no other point.
+        """
+        import bisect
+
+        index = bisect.bisect_left(sorted_points, x0)
+        nearest = math.inf
+        # Merged points are never the same point as each other, so at most one neighbour on
+        # each side can be x0 itself; two on each side are enough.
+        for neighbour in sorted_points[max(0, index - 2) : index + 2]:
+            if MathUtils._same_point(neighbour, x0):
+                if include_same:
+                    return 0.0
+                continue
+            nearest = min(nearest, abs(neighbour - x0))
+        return nearest
 
     @staticmethod
     def _classify_tangent_poles(
         evaluate: Optional[Callable[[float], Optional[float]]],
         poles: List[float],
         singular_points: List[float],
-        middle: float,
     ) -> Tuple[List[float], List[float]]:
-        """Split tan() poles into (asymptotes, point discontinuities) by sampling f beside them.
+        """Split tan() poles into (asymptotes, point discontinuities) by sampling f beside each one.
 
         A pole where f stays bounded is not an asymptote: x/tan(x) and 1/tan(x) tend to 0 at
-        pi/2. With many poles, the _TANGENT_POLE_SAMPLE nearest the middle are classified and,
-        when they agree, their verdict stands for all; otherwise every pole is classified.
+        pi/2, and tan(x)*(x - 101*pi/2) tends to -1 at 101*pi/2 only.
         """
         if evaluate is None or not poles:
             return list(poles), []
-        probe = evaluate
-
-        def is_asymptote(pole: float) -> bool:
-            return MathUtils._is_asymptote_at_denominator_zero(probe, pole, singular_points)
-
-        verdicts: Dict[float, bool] = {}
-        if len(poles) > MathUtils._TANGENT_POLE_SAMPLE:
-            sample = sorted(poles, key=lambda pole: abs(pole - middle))[: MathUtils._TANGENT_POLE_SAMPLE]
-            sample_verdicts = {is_asymptote(pole) for pole in sample}
-            if len(sample_verdicts) == 1:
-                verdict = sample_verdicts.pop()
-                verdicts = {pole: verdict for pole in poles}
-        if not verdicts:
-            verdicts = {pole: is_asymptote(pole) for pole in poles}
-        asymptotes = [pole for pole in poles if verdicts[pole]]
-        holes = [pole for pole in poles if not verdicts[pole]]
+        asymptotes: List[float] = []
+        holes: List[float] = []
+        for pole in poles:
+            verdict = MathUtils._quick_pole_verdict(evaluate, pole, MathUtils._probe_start(pole, singular_points))
+            if verdict is None:
+                verdict = MathUtils._is_asymptote_at_denominator_zero(evaluate, pole, singular_points)
+            (asymptotes if verdict else holes).append(pole)
         return asymptotes, holes
+
+    # Quick verdict before the full classifier, which costs up to 56 evaluations per point
+    # (thousands of tan() poles made that seconds in Brython). f is sampled at x0 +/- start/8^k
+    # for k = 0, 1, 2 on a side and judged on the two differences, so adding a constant to f
+    # changes nothing: the second at least _STEEP_GROWTH times the first, same sign, is growth
+    # (a simple pole gives 8); at most _QUICK_SHRINK times the first on both sides is a
+    # bounded, converging f (x/tan(x) gives 1/8, tan(x)*(x - x0) 1/64). Anything else, or an
+    # undefined or infinite sample, goes to the full classifier.
+    _STEEP_GROWTH = 4.0
+    _QUICK_SHRINK = 0.25
+
+    @staticmethod
+    def _quick_pole_verdict(evaluate: Callable[[float], Optional[float]], x0: float, start: float) -> Optional[bool]:
+        """True (asymptote), False (point discontinuity) or None (not clear: use the full classifier)."""
+        converging_sides = 0
+        for side in (1.0, -1.0):
+            samples = [evaluate(x0 + side * start / 8.0**k) for k in range(3)]
+            if any(sample is None or not math.isfinite(sample) for sample in samples):
+                return None
+            far, middle, near = cast(List[float], samples)
+            first, second = middle - far, near - middle
+            if first != 0 and (first > 0) == (second > 0) and abs(second) >= MathUtils._STEEP_GROWTH * abs(first):
+                return True
+            if abs(second) <= MathUtils._QUICK_SHRINK * abs(first):
+                converging_sides += 1
+        return False if converging_sides == 2 else None
+
+    @staticmethod
+    def _probe_start(x0: float, singular_points: List[float]) -> float:
+        """The first sampling offset beside x0: 1e-2 * max(1, |x0|), or a tenth of the distance to the nearest other singular point."""
+        scale = max(1.0, abs(x0))
+        return min(MathUtils._PROBE_START * scale, MathUtils._nearest_other_distance(singular_points, x0) / 10)
 
     # Sampling beside a denominator zero x0: the first offset is 1e-2 * max(1, |x0|), or a tenth
     # of the distance to the nearest other singular point if smaller (points closer than
@@ -3005,8 +3055,13 @@ class MathUtils:
     _PROBE_ENVELOPE = 100.0
 
     @staticmethod
-    def _singularity_probe_evaluator(function_string: str) -> Optional[Callable[[float], Optional[float]]]:
-        """Return f as a probe: a float, inf on overflow, or None where f is undefined or not real."""
+    def _singularity_probe_evaluator(
+        function_string: str, nan_as_overflow: bool = False
+    ) -> Optional[Callable[[float], Optional[float]]]:
+        """Return f as a probe: a float, inf on overflow, or None where f is undefined or not real.
+
+        With nan_as_overflow, NaN is reported as inf too (inf/inf at huge |x|, see _limit_at_infinity).
+        """
         from expression_validator import ExpressionValidator
 
         try:
@@ -3024,7 +3079,9 @@ class MathUtils:
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 return None
             value = float(value)
-            return None if math.isnan(value) else value
+            if math.isnan(value):
+                return float("inf") if nan_as_overflow else None
+            return value
 
         return evaluate
 
@@ -3040,12 +3097,7 @@ class MathUtils:
         on both sides; otherwise (f converges, or stays bounded without converging, as
         sin(1/x) does at 0) it is a point discontinuity.
         """
-        scale = max(1.0, abs(x0))
-        start = MathUtils._PROBE_START * scale
-        for point in singular_points:
-            distance = abs(point - x0)
-            if distance > MathUtils._PROBE_SAME_POINT * scale:
-                start = min(start, distance / 10)
+        start = MathUtils._probe_start(x0, singular_points)
         verdicts = [
             MathUtils._probe_side_verdict(MathUtils._probe_side(evaluate, x0, side, start)) for side in (-1.0, 1.0)
         ]
@@ -3222,7 +3274,7 @@ class MathUtils:
         from expression_validator import ExpressionValidator
 
         function_string = ExpressionValidator.fix_math_expression(function_string)
-        evaluate = MathUtils._singularity_probe_evaluator(function_string)
+        evaluate = MathUtils._singularity_probe_evaluator(function_string, nan_as_overflow=True)
         if evaluate is None:
             return []
         horizontal_asymptotes: List[float] = []
@@ -3232,29 +3284,46 @@ class MathUtils:
                 horizontal_asymptotes.append(value)
         return sorted(horizontal_asymptotes)
 
-    # f is sampled at x = sign * 97.3 * 4^k for k < 10 (97.3 to 2.6e7). The start is not an
-    # integer, so integer-periodic parts such as x - floor(x) are not sampled in phase, and
+    # f is sampled at x = sign * 9.73 * 4^k for k < 12 (9.73 to 4.1e7). The start is not an
+    # integer, so integer-periodic parts such as x - floor(x) are not sampled in phase; the
+    # first samples come before exp() overflows (x = 709.8), so logistic curves keep four; and
     # the largest x keeps x^2 below 2^53, so cancellations such as sqrt(x^2 + x) - x stay exact
     # enough.
-    _INFINITY_PROBE_START = 97.3
+    _INFINITY_PROBE_START = 9.73
     _INFINITY_PROBE_FACTOR = 4.0
-    _INFINITY_PROBE_COUNT = 10
-    # Settled samples: the last half spans at most 1e-4 * max(1, |value|) and at most a quarter
-    # of the first half's span (so a bounded oscillation such as 1 + 1e-5*sin(x) does not settle).
+    _INFINITY_PROBE_COUNT = 12
+    # Convergence and Aitken extrapolation are judged on the trailing samples, so an offset or
+    # a scale that keeps the first samples far from the limit ((x+500)/(x-500), atan(x/1000))
+    # does not hide it.
+    _SETTLED_TAIL = 5
+    # Settled samples: the last four span at most 1e-4 * max(1, |value|) and at most a quarter
+    # of the four before them (so a bounded oscillation such as 1 + 1e-5*sin(x) does not settle).
+    _SETTLED_WINDOW = 4
     _SETTLED_SPREAD = 1e-4
     _SETTLED_SHRINK = 4.0
     # Two successive Aitken extrapolations must agree to this relative tolerance.
     _AITKEN_AGREEMENT = 1e-6
+    # A settled value is never trusted beyond 12 significant digits.
+    _SETTLED_PRECISION = 1e-12
 
     @staticmethod
     def _limit_at_infinity(evaluate: Callable[[float], Optional[float]], sign: float) -> Optional[float]:
-        """Estimate lim f(x) as x -> sign * infinity from samples; None if f does not settle on a finite value."""
+        """Estimate lim f(x) as x -> sign * infinity from samples; None if f does not settle on a finite value.
+
+        f undefined at a sample (not real) means no limit on that side. An infinite sample
+        (overflow, e.g. exp(x) inside 1/(1 + exp(-x))) ends the sampling, and the samples
+        before it are judged: overflow says nothing about the limit of the whole expression.
+        evaluate should report NaN as inf (nan_as_overflow): Brython's cosh(x)/sinh(x) is
+        inf/inf = NaN once both overflow.
+        """
         values: List[float] = []
         for index in range(MathUtils._INFINITY_PROBE_COUNT):
             x = sign * MathUtils._INFINITY_PROBE_START * MathUtils._INFINITY_PROBE_FACTOR**index
             value = evaluate(x)
-            if value is None or not math.isfinite(value):
+            if value is None:
                 return None
+            if not math.isfinite(value):
+                break
             values.append(value)
         return MathUtils._settled_value(values)
 
@@ -3273,34 +3342,39 @@ class MathUtils:
     def _settled_value(values: List[float]) -> Optional[float]:
         """The finite value samples (nearest last) settle on, rounded to the precision they support.
 
-        Converging samples (MathUtils._probe_side_verdict) are extrapolated with Aitken's
-        delta-squared process, accepted when the last two extrapolations agree. Otherwise the
-        samples settle if their last half barely spreads and spreads much less than their first
-        half (float noise near the limit, decaying oscillations such as sin(x)/x). The value
-        is rounded to the digits its tolerance supports, so 1/x gives 0 and floor(x)/x gives 1.
+        When the trailing samples converge (MathUtils._probe_side_verdict on the last
+        _SETTLED_TAIL), they are extrapolated with Aitken's delta-squared process, accepted
+        when the last two extrapolations agree. Otherwise the samples settle if the last four
+        barely spread and spread much less than the four before them (float noise near the
+        limit, decaying oscillations such as sin(x)/x). The value is rounded to the digits its
+        tolerance supports, so 1/x gives 0 and floor(x)/x gives 1.
         """
         if len(values) < 4 or not all(math.isfinite(value) for value in values):
             return None
         estimate: Optional[float] = None
         tolerance = 0.0
-        if MathUtils._probe_side_verdict(values) == "converge":
+        # Slices start at max(0, ...): Brython returns only the last item for values[-5:] when
+        # values has fewer than five items.
+        tail = values[max(0, len(values) - MathUtils._SETTLED_TAIL) :]
+        if MathUtils._probe_side_verdict(tail) == "converge":
             previous = MathUtils._aitken(values[-4], values[-3], values[-2])
             latest = MathUtils._aitken(values[-3], values[-2], values[-1])
             if previous is not None and latest is not None and math.isfinite(previous) and math.isfinite(latest):
                 if abs(latest - previous) <= MathUtils._AITKEN_AGREEMENT * max(1.0, abs(latest)):
                     estimate, tolerance = latest, abs(latest - previous)
         if estimate is None:
-            half = len(values) // 2
-            first, last = values[:half], values[half:]
+            window = MathUtils._SETTLED_WINDOW
+            last = values[len(values) - window :]
+            earlier = values[max(0, len(values) - 2 * window) : len(values) - window]
             spread_last = max(last) - min(last)
-            spread_first = max(first) - min(first)
             middle = sorted(last)[len(last) // 2]
             if spread_last > MathUtils._SETTLED_SPREAD * max(1.0, abs(middle)):
                 return None
-            if spread_last > 0 and spread_last * MathUtils._SETTLED_SHRINK > spread_first:
-                return None
+            if spread_last > 0:
+                if not earlier or spread_last * MathUtils._SETTLED_SHRINK > max(earlier) - min(earlier):
+                    return None
             estimate, tolerance = values[-1], spread_last
-        tolerance = max(tolerance, 1e-9 * max(1.0, abs(estimate)))
+        tolerance = max(tolerance, MathUtils._SETTLED_PRECISION * max(1.0, abs(estimate)))
         digits = min(12, max(0, int(math.floor(-math.log10(tolerance)))))
         rounded = round(estimate, digits)
         return 0.0 if rounded == 0 else float(rounded)
@@ -3321,12 +3395,15 @@ class MathUtils:
         )
         horizontal_asymptotes = MathUtils.calculate_horizontal_asymptotes(function_string)
         point_discontinuities = MathUtils.calculate_point_discontinuities(function_string, left_bound, right_bound)
-        # Denominator zeros that are not asymptotes (holes, jumps, bounded oscillations)
+        # Denominator zeros and tan() poles that are not asymptotes (holes, jumps, bounded
+        # oscillations); a set, since tan(10*x) alone has thousands
+        listed = set(point_discontinuities)
         for point in denominator_discontinuities:
             within_bounds = (left_bound is None or point >= left_bound) and (
                 right_bound is None or point <= right_bound
             )
-            if within_bounds and point not in point_discontinuities:
+            if within_bounds and point not in listed:
+                listed.add(point)
                 point_discontinuities.append(point)
         return vertical_asymptotes, horizontal_asymptotes, sorted(point_discontinuities)
 

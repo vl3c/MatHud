@@ -438,7 +438,7 @@ class TestRemovableDiscontinuities(_FunctionToolTestCase):
         for asymptote in vertical:
             self.assertAlmostEqual(math.sin(asymptote), 0.0, places=6)
 
-    def test_many_tan_poles_are_judged_from_a_sample(self) -> None:
+    def test_every_tan_pole_is_classified(self) -> None:
         """Without bounds tan() has about 640 poles in [-1000, 1000]; x/tan(x) is bounded at every one."""
         vertical, _, discontinuities = MathUtils.calculate_asymptotes_and_discontinuities("x/tan(x)")
 
@@ -449,6 +449,30 @@ class TestRemovableDiscontinuities(_FunctionToolTestCase):
 
         vertical, _, _ = MathUtils.calculate_asymptotes_and_discontinuities("tan(x)")
         self.assertGreater(len(vertical), 600)
+
+    def test_a_single_bounded_tan_pole_among_many(self) -> None:
+        """tan(x)*(x - 101*pi/2) tends to -1 at 101*pi/2 and grows at every other pole."""
+        vertical, _, discontinuities = MathUtils.calculate_asymptotes_and_discontinuities("tan(x)*(x-101*pi/2)")
+
+        pole = 101 * math.pi / 2
+        self.assertFalse(any(abs(x - pole) < 1e-6 for x in vertical), "101*pi/2 listed as an asymptote")
+        self.assertTrue(any(abs(x - pole) < 1e-6 for x in discontinuities), "101*pi/2 not listed as a hole")
+        self.assertTrue(any(abs(x - 99 * math.pi / 2) < 1e-6 for x in vertical))
+
+    def test_thousands_of_tan_poles_are_analysed_quickly(self) -> None:
+        """tan(10*x) without bounds has about 6400 poles; merging them was quadratic (minutes)."""
+        started = _now_seconds()
+
+        vertical, _, _ = MathUtils.calculate_asymptotes_and_discontinuities("tan(10*x)")
+
+        elapsed = _now_seconds() - started
+        self.assertGreater(len(vertical), 6000)
+        self.assertLess(elapsed, 3.0, f"tan(10*x) took {elapsed:.2f} s")
+
+    def test_merging_close_points_keeps_the_one_nearest_zero(self) -> None:
+        points = [6.2e-9, 3.0, 1.4e-9, 0.0, 9.7e-9, 3.0 + 1e-8, -2.0, -2.0 - 1e-9]
+
+        self.assertEqual(MathUtils._merge_close_points(points), [-2.0, 0.0, 3.0])
 
     def test_holes_outside_the_bounds_are_not_listed(self) -> None:
         _, _, discontinuities = MathUtils.calculate_asymptotes_and_discontinuities("(x^2-1)/(x-1)", 2, 5)
@@ -501,13 +525,24 @@ _HORIZONTAL_ASYMPTOTE_CASES: List[Tuple[str, List[float]]] = [
     ("tan(x)", []),
     ("log(x)", []),
     ("1/(1-cos(x))", []),
+    # exp() overflows past x = 709.8; the samples before the overflow decide
+    ("1/(1+exp(-x))", [0.0, 1.0]),
+    ("exp(x)/(1+exp(x))", [0.0, 1.0]),
+    ("cosh(x)/sinh(x)", [-1.0, 1.0]),
+    # Large offsets and scales: the trailing samples converge
+    ("(x+500)/(x-500)", [1.0, 1.0]),
+    ("(x-1000)/(x+1000)", [1.0, 1.0]),
+    ("1/(x-1e5)", [0.0, 0.0]),
+    ("1/(x-20000)", [0.0, 0.0]),
+    ("x^2/(x^2+1e6)", [1.0, 1.0]),
+    ("atan(x/1000)", [round(-math.pi / 2, 6), round(math.pi / 2, 6)]),
 ]
 
 
 class TestLimitsCannotHang(_FunctionToolTestCase):
     """K28: nerdamer's limit() loops forever on abs(x)/x; no draw or limit call may hang the tab."""
 
-    # Generous: a guarded limit gives up after 1.5 s; a hang never returns at all.
+    # Generous: a guarded limit is stopped soon after 1.5 s; a hang never returns at all.
     TIME_LIMIT_S = 10.0
 
     def assert_quick(self, started: float, what: str) -> None:
@@ -521,6 +556,13 @@ class TestLimitsCannotHang(_FunctionToolTestCase):
                 asymptotes = MathUtils.calculate_horizontal_asymptotes(expression)
                 self.assert_quick(started, expression)
                 self.assertEqual(_rounded(asymptotes), expected)
+
+    def test_a_large_offset_keeps_the_limit_digits(self) -> None:
+        asymptotes = MathUtils.calculate_horizontal_asymptotes("atan(x)+10^6")
+
+        self.assertEqual(len(asymptotes), 2)
+        self.assertAlmostEqual(asymptotes[0], 10**6 - math.pi / 2, delta=1e-4)
+        self.assertAlmostEqual(asymptotes[1], 10**6 + math.pi / 2, delta=1e-4)
 
     def test_drawing_quotients_with_abs_completes(self) -> None:
         expressions = [
