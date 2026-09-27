@@ -323,7 +323,7 @@ from .test_scenario_hooks import (
 )
 from .test_result_processor_traced import TestGetResultsTraced
 from .test_tool_batch_results import TestToolBatchUndo, TestToolErrorResults, TestToolNoOpResults
-from .test_view_undo_and_no_ops import TestPolarGridReset, TestViewUndo
+from .test_view_undo_and_no_ops import TestNoOpUpdates, TestPolarGridReset, TestViewUndo
 from .test_base_telemetry import (
     TestBaseTelemetryInit,
     TestBaseTelemetryReset,
@@ -699,6 +699,7 @@ class Tests:
             TestToolErrorResults,
             TestViewUndo,
             TestPolarGridReset,
+            TestNoOpUpdates,
             TestBaseTelemetryInit,
             TestBaseTelemetryReset,
             TestBaseTelemetryBeginFrame,

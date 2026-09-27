@@ -63,6 +63,9 @@ if TYPE_CHECKING:
     from drawables.drawable import Drawable
     from geometry.graph_state import GraphState
 
+# A zoom whose bounds are within this fraction of the visible span of the current bounds shows the same view.
+VIEW_BOUNDS_RELATIVE_TOLERANCE = 1e-9
+
 
 class Canvas:
     """Central mathematical visualization canvas coordinating all drawable objects and interactions.
@@ -1726,6 +1729,27 @@ class Canvas:
         self._invalidate_cartesian_cache_on_zoom()
         self.draw(apply_zoom=True)
         return True
+
+    def get_zoom_bounds_if_shown(
+        self, center_x: float, center_y: float, range_val: float, range_axis: str
+    ) -> Optional[Tuple[float, float, float, float]]:
+        """The (left, right, top, bottom) that zoom() would show, when the canvas already shows them.
+
+        Returns None when the zoom would change the view or its arguments are invalid.
+        """
+        try:
+            bounds = self._compute_zoom_bounds(float(center_x), float(center_y), float(range_val), range_axis)
+        except (TypeError, ValueError, ZeroDivisionError):
+            return None
+        left, right, top, bottom = bounds
+        if not (left < right and bottom < top):
+            return None
+        visible = self.coordinate_mapper.get_visible_bounds()
+        tolerance = VIEW_BOUNDS_RELATIVE_TOLERANCE * max(right - left, top - bottom)
+        shown = (visible["left"], visible["right"], visible["top"], visible["bottom"])
+        if all(abs(wanted - actual) <= tolerance for wanted, actual in zip(bounds, shown)):
+            return bounds
+        return None
 
     def _compute_zoom_bounds(
         self, center_x: float, center_y: float, range_val: float, range_axis: str

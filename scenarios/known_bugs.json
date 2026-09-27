@@ -40,7 +40,8 @@
     "K20": "claude/scenario-tests (scenario hooks)",
     "K21": "vl3c/MatHud#73",
     "K22": "claude/scenario-tests (scenario hooks)",
-    "K25": "claude/fix-view-undo-noops"
+    "K25": "claude/fix-view-undo-noops",
+    "K26": "claude/fix-view-undo-noops"
   },
   "invariant_waivers": {}
 }

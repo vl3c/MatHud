@@ -6,11 +6,11 @@ model tool batch takes, against a real canvas.
 
 from __future__ import annotations
 
-from typing import Dict
+from typing import Any, Dict
 
 from constants import nothing_to_undo_message, successful_call_message
 
-from .test_tool_batch_results import _ToolBatchTestCase
+from .test_tool_batch_results import TRIANGLE_VERTICES, _ToolBatchTestCase
 
 BOUND_TOLERANCE = 1e-9
 
@@ -187,3 +187,145 @@ class TestPolarGridReset(_ViewTestCase):
         self.run_single("reset_canvas")
 
         self.assertEqual(self.polar_spacing(), default_spacing)
+
+
+class TestNoOpUpdates(_ViewTestCase):
+    """K26: a change already in effect says so and adds no undo entry."""
+
+    def assert_no_op(self, tool: str, args: Dict[str, Any], *words: str) -> str:
+        depth = self.undo_depth()
+        _, traced = self.run_batch((tool, args))
+        result = traced[0]["result"]
+        self.assertNotEqual(result, successful_call_message)
+        self.assertFalse(traced[0]["is_error"], str(result))
+        self.assertIn("nothing changed", str(result))
+        for word in words:
+            self.assertIn(word, str(result))
+        self.assertEqual(self.undo_depth(), depth)
+        return str(result)
+
+    def assert_changed(self, tool: str, args: Dict[str, Any]) -> None:
+        depth = self.undo_depth()
+        result = self.run_single(tool, **args)
+        self.assertEqual(result, successful_call_message)
+        self.assertEqual(self.undo_depth(), depth + 1)
+
+    def test_update_circle_to_its_own_colour_is_a_no_op(self) -> None:
+        self.run_single("create_circle", center_x=0, center_y=0, radius=2, color="red")
+        name = self.circle_name()
+
+        result = self.assert_no_op(
+            "update_circle", {"name": name, "new_color": "red", "new_center_x": None, "new_center_y": None}
+        )
+
+        self.assertEqual(result, f"Circle '{name}' already has color red; nothing changed.")
+
+    def test_colour_comparison_ignores_case_and_spaces(self) -> None:
+        self.run_single("create_circle", center_x=0, center_y=0, radius=2, color="red")
+
+        self.assert_no_op("update_circle", {"name": self.circle_name(), "new_color": " Red "}, "already")
+
+    def test_update_circle_to_a_new_colour_still_changes_it(self) -> None:
+        self.run_single("create_circle", center_x=0, center_y=0, radius=2, color="red")
+
+        self.assert_changed("update_circle", {"name": self.circle_name(), "new_color": "blue"})
+
+        self.assertEqual(self.canvas.drawable_manager.drawables.Circles[0].color, "blue")
+
+    def test_same_colour_with_a_new_center_is_a_change(self) -> None:
+        self.run_single("create_circle", center_x=0, center_y=0, radius=2, color="red")
+
+        self.assert_changed(
+            "update_circle", {"name": self.circle_name(), "new_color": "red", "new_center_x": 1, "new_center_y": 1}
+        )
+
+    def test_update_circle_to_its_own_center_is_a_no_op(self) -> None:
+        self.run_single("create_circle", center_x=1, center_y=2, radius=2)
+
+        self.assert_no_op(
+            "update_circle", {"name": self.circle_name(), "new_center_x": 1, "new_center_y": 2}, "center (1, 2)"
+        )
+
+    def test_update_point_with_its_own_values_is_a_no_op(self) -> None:
+        self.run_single("create_point", x=1, y=2, name="A", color="green")
+
+        result = self.assert_no_op(
+            "update_point", {"point_name": "A", "new_name": "A", "new_x": 1, "new_y": 2, "new_color": "green"}
+        )
+
+        self.assertEqual(result, "Point 'A' already has name A, position (1, 2) and color green; nothing changed.")
+
+    def test_update_point_to_a_new_position_still_moves_it(self) -> None:
+        self.run_single("create_point", x=1, y=2, name="A")
+
+        self.assert_changed("update_point", {"point_name": "A", "new_x": 3, "new_y": 2})
+
+    def test_update_segment_vector_and_angle_colour_no_ops(self) -> None:
+        self.run_single("create_segment", x1=0, y1=0, x2=4, y2=0, name="AB", color="blue")
+        self.assert_no_op("update_segment", {"name": "AB", "new_color": "blue"}, "Segment 'AB'")
+
+        self.run_single("create_vector", origin_x=0, origin_y=1, tip_x=3, tip_y=1, name="CD", color="orange")
+        self.assert_no_op("update_vector", {"name": "CD", "new_color": "orange"}, "Vector 'CD'")
+
+        self.run_single("create_angle", vx=0, vy=0, p1x=4, p1y=0, p2x=0, p2y=4, color="purple")
+        angle_name = self.snapshot()["Angle"][0]
+        self.assert_no_op("update_angle", {"name": angle_name, "new_color": "purple"}, "Angle")
+
+    def test_polygon_colour_is_a_no_op_only_when_every_edge_has_it(self) -> None:
+        self.run_single("create_polygon", vertices=TRIANGLE_VERTICES, polygon_type="triangle", name="ABC", color="red")
+        self.assert_no_op(
+            "update_polygon", {"polygon_name": "ABC", "polygon_type": "triangle", "new_color": "red"}, "Polygon 'ABC'"
+        )
+
+        self.run_single("update_segment", name="AB", new_color="blue")
+
+        self.assert_changed("update_polygon", {"polygon_name": "ABC", "new_color": "red"})
+        colors = {segment.color for segment in self.canvas.drawable_manager.drawables.Segments}
+        self.assertEqual(colors, {"red"})
+
+    def test_function_and_label_colour_no_ops(self) -> None:
+        self.run_single("draw_function", function_string="x^2", name="f", color="red")
+        self.assert_no_op("update_function", {"name": "f", "new_color": "red"}, "Function 'f'")
+
+        self.run_single("create_label", x=1, y=1, text="hi", name="L1", color="black")
+        self.assert_no_op("update_label", {"name": "L1", "new_color": "black"}, "Label 'L1'")
+
+    def test_fields_without_a_no_op_check_still_run_the_update(self) -> None:
+        self.run_single("draw_function", function_string="x^2", name="f", color="red")
+
+        self.assert_changed("update_function", {"name": "f", "new_color": "red", "new_left_bound": -1})
+
+    def test_update_of_a_missing_object_is_still_an_error(self) -> None:
+        _, traced = self.run_batch(("update_circle", {"name": "nope", "new_color": "red"}))
+
+        self.assertTrue(traced[0]["is_error"])
+
+    def test_zoom_to_the_current_view_is_a_no_op(self) -> None:
+        self.run_single("zoom", center_x=0, center_y=0, range_val=2, range_axis="x")
+
+        result = self.assert_no_op("zoom", {"center_x": 0, "center_y": 0, "range_val": 2, "range_axis": "x"})
+
+        self.assertIn("already", result)
+
+    def test_zoom_to_a_new_view_still_adds_an_entry(self) -> None:
+        self.run_single("zoom", center_x=0, center_y=0, range_val=2, range_axis="x")
+
+        self.assert_changed("zoom", {"center_x": 0, "center_y": 0, "range_val": 3, "range_axis": "x"})
+
+    def test_setting_the_current_mode_or_grid_visibility_is_a_no_op(self) -> None:
+        self.assert_no_op("set_coordinate_system", {"mode": "cartesian"}, "already")
+        self.assert_no_op("set_grid_visible", {"visible": True}, "already")
+
+    def test_colour_no_op_after_a_real_change_in_the_same_batch_keeps_the_entry(self) -> None:
+        self.run_single("create_circle", center_x=0, center_y=0, radius=2, color="red")
+        name = self.circle_name()
+        depth = self.undo_depth()
+
+        self.run_batch(
+            ("update_circle", {"name": name, "new_color": "blue"}),
+            ("update_circle", {"name": name, "new_color": "blue"}),
+        )
+
+        self.assertEqual(self.undo_depth(), depth + 1)
+        self.run_single("undo")
+        self.assertEqual(self.canvas.drawable_manager.drawables.Circles[0].color, "red")
