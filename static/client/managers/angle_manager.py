@@ -481,46 +481,6 @@ class AngleManager(BaseDrawableManager):
             except Exception:
                 pass
 
-    def handle_segment_updated(self, updated_segment_name: str) -> None:
-        """
-        Called when a segment (that an angle might depend on) is updated.
-        This method should find all angles dependent on this segment and trigger their update/re-initialization.
-
-        Args:
-            updated_segment_name: The name of the segment that was updated.
-        """
-        if not hasattr(self.drawables, "Angles") or not isinstance(self.drawables.Angles, list):
-            return
-
-        needs_redraw: bool = False
-        for angle in cast(List["Drawable"], list(self.drawables.Angles)):  # Iterate over a copy in case of modification
-            if not (hasattr(angle, "segment1") and hasattr(angle, "segment2")):
-                continue
-            if not (angle.segment1 and angle.segment2):
-                continue
-
-            if angle.segment1.name == updated_segment_name or angle.segment2.name == updated_segment_name:
-                if hasattr(angle, "_initialize") and callable(angle._initialize):
-                    try:
-                        # Before re-initializing, remove old SVG elements
-                        if hasattr(angle, "remove_svg_elements") and callable(angle.remove_svg_elements):
-                            angle.remove_svg_elements()
-                        angle._initialize()
-                        needs_redraw = True
-                    except ValueError as e:
-                        # If _initialize fails (e.g., angle becomes invalid), remove the angle
-                        print(
-                            f"AngleManager: Angle '{angle.name}' became invalid after segment '{updated_segment_name}' update. Error: {e}. Removing angle."
-                        )
-                        self.delete_angle(angle.name, delete_unused_arms=False)  # Draws on its own
-                        needs_redraw = True  # Ensure redraw happens even if this one is removed
-                else:
-                    print(f"AngleManager: Warning - Angle '{angle.name}' does not have _initialize method for update.")
-
-        if needs_redraw and self.canvas.draw_enabled:
-            # If delete_angle was called, it might have drawn. A final draw ensures overall consistency.
-            self.canvas.draw()
-
     def handle_segment_removed(self, removed_segment_name: str) -> None:
         """
         Called when a segment (that an angle might depend on) is removed.

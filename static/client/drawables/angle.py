@@ -52,8 +52,8 @@ class Angle(Drawable):
         vertex_point (Point): Common vertex where segments intersect
         arm1_point (Point): End point of first segment arm
         arm2_point (Point): End point of second segment arm
-        raw_angle_degrees (float): Fundamental angle measurement (0-360°)
-        angle_degrees (float): Display angle (small or reflex based on is_reflex)
+        raw_angle_degrees (float): Fundamental angle measurement (0-360°), computed from the current points
+        angle_degrees (float): Display angle (small or reflex based on is_reflex), computed from the current points
          (arc radius is provided by the renderer; a default constant is used when not specified)
     """
 
@@ -121,11 +121,6 @@ class Angle(Drawable):
         final_name: str = name if name is not None else computed_name if computed_name is not None else "angle"
 
         super().__init__(name=final_name, color=color)
-
-        self.raw_angle_degrees: Optional[float] = None  # To store the fundamental CCW angle (0-360)
-        self.angle_degrees: Optional[float] = None  # To store the display angle (small or reflex)
-
-        self._initialize()
 
     def _get_common_vertex(self, s1: Segment, s2: Segment) -> Optional[Point]:
         """Identifies and returns the common vertex point object between two segments."""
@@ -203,26 +198,28 @@ class Angle(Drawable):
                 display_angle = raw_angle_degrees
         return display_angle
 
-    def _initialize(self) -> None:
-        """Calculates raw_angle_degrees and angle_degrees based on geometry and is_reflex state."""
-        if not (self.vertex_point and self.arm1_point and self.arm2_point):
-            self.raw_angle_degrees = None
-            self.angle_degrees = None
-            return
+    @property
+    def raw_angle_degrees(self) -> Optional[float]:
+        """Fundamental CCW angle from arm1 to arm2 (0-360 degrees), or None when undefined.
 
+        Computed from the current point positions on each access, so the value
+        follows point moves and transforms (nothing is cached).
+        """
+        if not (self.vertex_point and self.arm1_point and self.arm2_point):
+            return None
         # Use math-space coordinates for fundamental angle calculation to match tests and model semantics
         vertex_coords: Tuple[float, float] = (self.vertex_point.x, self.vertex_point.y)
         arm1_coords: Tuple[float, float] = (self.arm1_point.x, self.arm1_point.y)
         arm2_coords: Tuple[float, float] = (self.arm2_point.x, self.arm2_point.y)
-
-        # Calculate the fundamental CCW angle from arm1 to arm2 (0-360 degrees)
-        self.raw_angle_degrees = math_utils.MathUtils.calculate_angle_degrees(vertex_coords, arm1_coords, arm2_coords)
-
-        self.angle_degrees = self._calculate_display_angle(
-            self.raw_angle_degrees, self.is_reflex, math_utils.MathUtils.EPSILON
+        return cast(
+            Optional[float],
+            math_utils.MathUtils.calculate_angle_degrees(vertex_coords, arm1_coords, arm2_coords),
         )
 
-        # Arc radius comes from renderer (or default constant when not provided)
+    @property
+    def angle_degrees(self) -> Optional[float]:
+        """Display angle (small or reflex, per is_reflex), computed from the current points."""
+        return self._calculate_display_angle(self.raw_angle_degrees, self.is_reflex, math_utils.MathUtils.EPSILON)
 
     def get_class_name(self) -> str:
         return "Angle"
@@ -236,7 +233,7 @@ class Angle(Drawable):
         Calculates SVG path parameters for the arc using screen coordinates for positioning
         and a fixed self.drawn_arc_radius for size.
         vx, vy, p1x, p1y, p2x, p2y are screen coordinates.
-        Assumes self.raw_angle_degrees and self.angle_degrees have been set by _initialize.
+        Uses self.raw_angle_degrees and self.angle_degrees, computed from the current points.
         """
         if self.raw_angle_degrees is None or self.angle_degrees is None:
             return None
@@ -338,10 +335,9 @@ class Angle(Drawable):
     def update_points_based_on_segments(self) -> bool:
         """
         Re-evaluates vertex and arm points if segments might have changed.
-        Then re-calculates the angle. Returns True if valid, False otherwise.
+        The angle values follow the new points. Returns True if valid, False otherwise.
         """
         if not self._segments_form_angle(self.segment1, self.segment2):
-            self.angle_degrees = None
             self.vertex_point = None
             self.arm1_point = None
             self.arm2_point = None
@@ -351,14 +347,10 @@ class Angle(Drawable):
         self.vertex_point, self.arm1_point, self.arm2_point = self._extract_defining_points(
             self.segment1, self.segment2
         )
-
-        self._initialize()
         return True
 
     def reset(self) -> None:
         """Resets the angle to its initial state based on its segments."""
-        # The Drawable base class reset calls _initialize.
-        # update_points_based_on_segments also calls _initialize and ensures points are current.
         self.update_points_based_on_segments()
 
     def update_color(self, color: str) -> None:

@@ -189,3 +189,39 @@ class TestStaleGeometry(unittest.TestCase):
         types = self._state_of(pentagon)["types"]
         self.assertNotIn("regular", types)
         self.assertIn("irregular", types)
+
+    # ------------------------------------------------------------------
+    # K17: angle values follow the points
+    # ------------------------------------------------------------------
+    def test_angle_degrees_follow_shear(self) -> None:
+        self._polygon([(0, 0), (4, 0), (2, EQUILATERAL_APEX_Y)], "triangle", "ABC")
+        self._call("create_angle", vx=4, vy=0, p1x=0, p1y=0, p2x=2, p2y=EQUILATERAL_APEX_Y)
+        angle = self._only("Angle")
+        self.assertAlmostEqual(angle.angle_degrees, 60.0, places=6)
+
+        self._call("shear_object", name="ABC", axis="horizontal", factor=1, cx=0, cy=0)
+
+        vertex, arm1, arm2 = angle.vertex_point, angle.arm1_point, angle.arm2_point
+        expected_raw = MathUtils.calculate_angle_degrees(self._coords(vertex), self._coords(arm1), self._coords(arm2))
+        expected = expected_raw if expected_raw <= 180 else 360 - expected_raw
+        self.assertAlmostEqual(angle.angle_degrees, expected, places=9)
+        self.assertAlmostEqual(angle.angle_degrees, 112.91133691901508, places=6)
+        self.assertAlmostEqual(angle.raw_angle_degrees, expected_raw, places=9)
+
+    def test_angle_degrees_follow_a_moved_arm_point(self) -> None:
+        self._call("create_angle", vx=0, vy=0, p1x=4, p1y=0, p2x=0, p2y=4)
+        angle = self._only("Angle")
+        self.assertAlmostEqual(angle.angle_degrees, 90.0, places=6)
+
+        self._call("translate_object", name=angle.arm2_point.name, x_offset=4, y_offset=0)
+
+        self.assertAlmostEqual(angle.angle_degrees, 45.0, places=6)
+
+    def test_reflex_angle_follows_moved_points(self) -> None:
+        self._call("create_angle", vx=0, vy=0, p1x=4, p1y=0, p2x=0, p2y=4, is_reflex=True)
+        angle = self._only("Angle")
+        self.assertAlmostEqual(angle.angle_degrees, 270.0, places=6)
+
+        self._call("translate_object", name=angle.arm2_point.name, x_offset=4, y_offset=0)
+
+        self.assertAlmostEqual(angle.angle_degrees, 315.0, places=6)
