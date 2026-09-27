@@ -229,6 +229,25 @@ class TestStaleGeometry(unittest.TestCase):
 
         self.assertAlmostEqual(angle.angle_degrees, 315.0, places=6)
 
+    def test_degenerate_angle_keeps_undo_working(self) -> None:
+        self._call("create_angle", vx=0, vy=0, p1x=4, p1y=0, p2x=0, p2y=4, angle_name="alpha")
+        angle = self._only("Angle")
+        arm_name = angle.arm2_point.name
+
+        # Move an arm point onto the vertex: the angle is undefined, but snapshots must still copy it.
+        self._call("translate_object", name=arm_name, x_offset=0, y_offset=-4)
+        self.assertIsNone(angle.angle_degrees)
+        self._call("create_point", x=9, y=9, name="Z")
+        self._call("undo")
+        self._call("undo")
+
+        restored = self._only("Angle")
+        self.assertEqual(restored.name, "alpha")
+        self.assertAlmostEqual(restored.angle_degrees, 90.0, places=6)
+        self._call("redo")
+        self.assertEqual(self._coords(self._point(arm_name)), (0.0, 0.0))
+        self.assertIsNone(self._only("Angle").angle_degrees)
+
     # ------------------------------------------------------------------
     # K9: arcs never move existing points
     # ------------------------------------------------------------------

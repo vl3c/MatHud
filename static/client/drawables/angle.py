@@ -202,8 +202,8 @@ class Angle(Drawable):
     def raw_angle_degrees(self) -> Optional[float]:
         """Fundamental CCW angle from arm1 to arm2 (0-360 degrees), or None when undefined.
 
-        Computed from the current point positions on each access, so the value
-        follows point moves and transforms (nothing is cached).
+        Computed from the current point positions (memoised on their coordinates), so the
+        value follows point moves and transforms.
         """
         if not (self.vertex_point and self.arm1_point and self.arm2_point):
             return None
@@ -335,8 +335,17 @@ class Angle(Drawable):
 
         new_segment1 = deepcopy(self.segment1, memo)
         new_segment2 = deepcopy(self.segment2, memo)
-        new_angle: Angle = Angle(new_segment1, new_segment2, color=self.color, is_reflex=self.is_reflex, name=self.name)
+        # Copy without the constructor's checks: a point move can leave the angle undefined (an arm
+        # point on the vertex), and undo snapshots must still be able to copy it.
+        new_angle: Angle = Angle.__new__(Angle)
         memo[id(self)] = new_angle
+        new_angle.segment1 = new_segment1
+        new_angle.segment2 = new_segment2
+        new_angle.is_reflex = self.is_reflex
+        new_angle.vertex_point = deepcopy(self.vertex_point, memo)
+        new_angle.arm1_point = deepcopy(self.arm1_point, memo)
+        new_angle.arm2_point = deepcopy(self.arm2_point, memo)
+        Drawable.__init__(new_angle, name=self.name, color=self.color)
         return new_angle
 
     def update_points_based_on_segments(self) -> bool:
