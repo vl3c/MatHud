@@ -144,6 +144,7 @@ class Triangle(Polygon):
             "args": {"p1": point_names[0], "p2": point_names[1], "p3": point_names[2]},
             "types": self.get_type_names(),
         }
+        self._add_color_to_state(state)
         return state
 
     def __deepcopy__(self, memo: Dict[int, Any]) -> Any:
@@ -154,6 +155,7 @@ class Triangle(Polygon):
         new_s2: Segment = deepcopy(self.segment2, memo)
         new_s3: Segment = deepcopy(self.segment3, memo)
         new_triangle: Triangle = Triangle(new_s1, new_s2, new_s3, color=self.color)
+        new_triangle.name = self.name
         memo[id(self)] = new_triangle
         return new_triangle
 

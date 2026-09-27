@@ -146,6 +146,15 @@ class PolarGrid(Drawable):
         """Get the spacing between circles in screen pixels."""
         return float(abs(self._current_radial_spacing) * self.coordinate_mapper.scale_factor)
 
+    @property
+    def current_radial_spacing(self) -> float:
+        """The zoom-adapted spacing between circles, in math units."""
+        return self._current_radial_spacing
+
+    @current_radial_spacing.setter
+    def current_radial_spacing(self, value: float) -> None:
+        self._current_radial_spacing = float(value)
+
     def reset(self) -> None:
         """Reset polar grid to initial state."""
         self._current_radial_spacing = self._default_radial_spacing

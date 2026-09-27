@@ -54,7 +54,6 @@
       "title": "Area between two segments has no side effects",
       "tags": ["areas", "segments", "side-effects"],
       "smoke": false,
-      "known": ["K15"],
       "targets": "hidden geometry created by an area tool",
       "setup": {
         "calls": [
@@ -76,8 +75,7 @@
             {
               "check": "unchanged_except",
               "since": "setup",
-              "except": [{"type": "SegmentsBoundedColoredArea"}],
-              "known": "K15"
+              "except": [{"type": "SegmentsBoundedColoredArea"}]
             }
           ]
         }
@@ -140,7 +138,6 @@
       "title": "Circle minus triangle",
       "tags": ["areas", "regions", "null-arguments"],
       "smoke": false,
-      "known": ["K10"],
       "targets": "boolean region expressions; names in expressions",
       "setup": {
         "calls": [
@@ -163,8 +160,8 @@
           ],
           "checks": [
             {"check": "tool_result", "tool": "calculate_area", "path": "value", "eq": 74.03981633974483, "tol": 0.001},
-            {"check": "count", "select": {"type": "ColoredArea"}, "eq": 1, "known": "K10"},
-            {"check": "no_tool_errors", "known": "K10"},
+            {"check": "count", "select": {"type": "ColoredArea"}, "eq": 1},
+            {"check": "no_tool_errors"},
             {"check": "answer_mentions", "numbers": [74.04]}
           ]
         }

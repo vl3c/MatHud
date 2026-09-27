@@ -8,7 +8,6 @@
       "title": "Round-trip of every object type",
       "tags": ["workspaces", "persistence", "round-trip"],
       "smoke": true,
-      "known": ["K5"],
       "targets": "persistence gaps invisible to get_canvas_state",
       "setup": {
         "calls": [
@@ -144,10 +143,10 @@
           "user": "Load the workspace scn_roundtrip.",
           "reference": [{"tool": "load_workspace", "args": {"name": "scn_roundtrip"}}],
           "checks": [
-            {"check": "state_equals", "snapshot": "setup", "ignore": ["Angle"]},
-            {"check": "exists", "select": {"type": "Angle", "name": "alpha"}, "known": "K5"},
-            {"check": "state_equals", "snapshot": "setup", "ignore": ["Angle"], "inspect": true, "known": "K5"},
-            {"check": "attribute", "path": "grid_visible.polar", "target": "inspection", "eq": false, "known": "K5"},
+            {"check": "state_equals", "snapshot": "setup"},
+            {"check": "exists", "select": {"type": "Angle", "name": "alpha"}},
+            {"check": "state_equals", "snapshot": "setup", "inspect": true},
+            {"check": "attribute", "path": "grid_visible.polar", "target": "inspection", "eq": false},
             {"check": "attribute", "path": "mode", "target": "view", "eq": "polar"}
           ]
         },

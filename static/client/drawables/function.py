@@ -134,6 +134,7 @@ class Function(Drawable):
         if self.undefined_at:
             state["args"]["undefined_at"] = self.undefined_at
 
+        self._add_color_to_state(state)
         return state
 
     def __deepcopy__(self, memo: Dict[int, Any]) -> Any:

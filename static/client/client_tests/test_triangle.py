@@ -90,7 +90,7 @@ class TestTriangle(unittest.TestCase):
         expected_types = ["triangle", "scalene", "right"]
         expected_state = {
             "name": self.triangle.name,
-            "args": {"p1": "P1", "p2": "P2", "p3": "P3"},
+            "args": {"p1": "P1", "p2": "P2", "p3": "P3", "color": "yellow"},
             "types": expected_types,
         }
         self.assertEqual(state, expected_state)
