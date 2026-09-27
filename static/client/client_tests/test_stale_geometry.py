@@ -275,6 +275,7 @@ class TestStaleGeometry(unittest.TestCase):
         self.assertAlmostEqual(arc.point1.x, 5.0)
         self.assertAlmostEqual(arc.point1.y, 0.0)
         self.assertIsInstance(result, str)
+        self.assertTrue(result.startswith("Created CircleArc"), result)
         self.assertIn(point_b.name, result)
         self.assertIn(arc.point1.name, result)
         self.assertIn("not moved", result)
@@ -417,6 +418,7 @@ class TestStaleGeometry(unittest.TestCase):
         self.assertAlmostEqual(self._point("C").y, EQUILATERAL_APEX_Y, places=12)
         self.assertIn("equilateral", self._only("Triangle").get_type_names())
         self.assertIsInstance(result, str)
+        self.assertTrue(result.startswith("Created Triangle 'ABC'"), result)
         self.assertIn("'C' placed at (2, 3.4641016) instead of (2, 3.46)", result)
         self.assertIn("equilateral triangle", result)
 

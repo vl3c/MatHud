@@ -22,6 +22,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, cast
 
 import no_op_tools
+from creation_report import CreationReport
 from no_change_result import NoChangeResult
 from utils.math_utils import MathUtils
 from process_function_calls import ProcessFunctionCalls
@@ -102,16 +103,36 @@ class FunctionRegistry:
         return message
 
     @staticmethod
+    def _create_with_notes(
+        canvas: "Canvas",
+        tool_name: str,
+        arguments: Dict[str, Any],
+        create: Callable[..., Any],
+        manager_name: str,
+        notes_name: str,
+    ) -> Any:
+        """Run a create tool; when its manager left notes, return the creation report followed by them.
+
+        Without notes the drawable is returned and ResultProcessor reports it as usual.
+        """
+        snapshot = CreationReport.take_snapshot(canvas, tool_name, arguments)
+        created = create(**arguments)
+        manager = getattr(canvas.drawable_manager, manager_name, None)
+        notes = list(getattr(manager, notes_name, None) or [])
+        if created is None or not notes:
+            return created
+        outcome = CreationReport.describe(tool_name, arguments, created, snapshot)
+        lead = outcome.message if outcome is not None else f"Created '{getattr(created, 'name', '')}'."
+        return lead + " " + " ".join(notes)
+
+    @staticmethod
     def _create_polygon_tool(canvas: "Canvas") -> Callable[..., Any]:
         """Build the create_polygon tool: canvas.create_polygon, but vertices moved to fit a subtype are reported."""
 
         def create_polygon(**arguments: Any) -> Any:
-            polygon = canvas.create_polygon(**arguments)
-            polygon_manager = getattr(canvas.drawable_manager, "polygon_manager", None)
-            notes = list(getattr(polygon_manager, "last_adjustment_notes", None) or [])
-            if polygon is None or not notes:
-                return polygon
-            return f"Polygon '{polygon.name}': " + " ".join(notes)
+            return FunctionRegistry._create_with_notes(
+                canvas, "create_polygon", arguments, canvas.create_polygon, "polygon_manager", "last_adjustment_notes"
+            )
 
         return create_polygon
 
@@ -124,12 +145,9 @@ class FunctionRegistry:
         """
 
         def create_circle_arc(**arguments: Any) -> Any:
-            arc = canvas.create_circle_arc(**arguments)
-            arc_manager = getattr(canvas.drawable_manager, "arc_manager", None)
-            notes = list(getattr(arc_manager, "last_endpoint_notes", None) or [])
-            if arc is None or not notes:
-                return arc
-            return f"Circle arc '{arc.name}': " + " ".join(notes)
+            return FunctionRegistry._create_with_notes(
+                canvas, "create_circle_arc", arguments, canvas.create_circle_arc, "arc_manager", "last_endpoint_notes"
+            )
 
         return create_circle_arc
 
