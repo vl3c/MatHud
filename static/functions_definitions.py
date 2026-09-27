@@ -550,26 +550,26 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "create_circle_arc",
-            "description": "Creates an arc on a circle. Use this for requests like 'draw an arc with center (x,y), radius r' or 'arc on circle C between two points'. Supports standalone center/radius arcs, arcs on an existing circle, or deriving from three points with center_point_choice.",
+            "description": "Creates an arc on a circle. Use this for requests like 'draw an arc with center (x,y), radius r' or 'arc on circle C between two points'. Supports standalone center/radius arcs, arcs on an existing circle, or deriving from three points with center_point_choice. Existing points are never moved: an existing endpoint that is not on the circle stays where it is, the arc uses a point at its projection onto the circle instead, and the result names that point.",
             "strict": True,
             "parameters": {
                 "type": "object",
                 "properties": {
                     "point1_x": {
                         "type": "number",
-                        "description": "Reference X coordinate for the first arc point (snapped to the circle when center/radius are provided)",
+                        "description": "Reference X coordinate for the first arc point (a new point is snapped to the circle; an existing point is never moved)",
                     },
                     "point1_y": {
                         "type": "number",
-                        "description": "Reference Y coordinate for the first arc point (snapped to the circle when center/radius are provided)",
+                        "description": "Reference Y coordinate for the first arc point (a new point is snapped to the circle; an existing point is never moved)",
                     },
                     "point2_x": {
                         "type": "number",
-                        "description": "Reference X coordinate for the second arc point (snapped to the circle when center/radius are provided)",
+                        "description": "Reference X coordinate for the second arc point (a new point is snapped to the circle; an existing point is never moved)",
                     },
                     "point2_y": {
                         "type": "number",
-                        "description": "Reference Y coordinate for the second arc point (snapped to the circle when center/radius are provided)",
+                        "description": "Reference Y coordinate for the second arc point (a new point is snapped to the circle; an existing point is never moved)",
                     },
                     "point1_name": {"type": ["string", "null"], "description": "Optional name for the first arc point"},
                     "point2_name": {

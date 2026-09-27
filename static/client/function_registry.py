@@ -101,6 +101,24 @@ class FunctionRegistry:
         return message
 
     @staticmethod
+    def _create_circle_arc_tool(canvas: "Canvas") -> Callable[..., Any]:
+        """Build the create_circle_arc tool: canvas.create_circle_arc, but a replaced endpoint is reported.
+
+        An existing point off the circle is never moved; the arc gets a point at its
+        projection instead, and the tool result says which point it used.
+        """
+
+        def create_circle_arc(**arguments: Any) -> Any:
+            arc = canvas.create_circle_arc(**arguments)
+            arc_manager = getattr(canvas.drawable_manager, "arc_manager", None)
+            notes = list(getattr(arc_manager, "last_endpoint_notes", None) or [])
+            if arc is None or not notes:
+                return arc
+            return f"Circle arc '{arc.name}': " + " ".join(notes)
+
+        return create_circle_arc
+
+    @staticmethod
     def _format_coordinate(value: Any) -> str:
         """``1.0 -> '1'``, ``2.5 -> '2.5'``."""
         text = repr(float(value))
@@ -157,7 +175,7 @@ class FunctionRegistry:
             "delete_circle": canvas.delete_circle,
             "update_circle": canvas.update_circle,
             # ===== CIRCLE ARC OPERATIONS =====
-            "create_circle_arc": canvas.create_circle_arc,
+            "create_circle_arc": FunctionRegistry._create_circle_arc_tool(canvas),
             "delete_circle_arc": canvas.delete_circle_arc,
             "update_circle_arc": canvas.update_circle_arc,
             # ===== ELLIPSE OPERATIONS =====

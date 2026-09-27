@@ -225,3 +225,90 @@ class TestStaleGeometry(unittest.TestCase):
         self._call("translate_object", name=angle.arm2_point.name, x_offset=4, y_offset=0)
 
         self.assertAlmostEqual(angle.angle_degrees, 315.0, places=6)
+
+    # ------------------------------------------------------------------
+    # K9: arcs never move existing points
+    # ------------------------------------------------------------------
+    def test_arc_does_not_move_an_existing_point_given_by_coordinates(self) -> None:
+        self._call("create_segment", x1=0, y1=0, x2=3, y2=0)
+        segment = self._only("Segment")
+        point_b = segment.point2 if segment.point2.x == 3 else segment.point1
+
+        result = self._call(
+            "create_circle_arc",
+            point1_x=3,
+            point1_y=0,
+            point2_x=0,
+            point2_y=5,
+            center_x=0,
+            center_y=0,
+            radius=5,
+            use_major_arc=False,
+        )
+
+        self.assertEqual(self._coords(point_b), (3.0, 0.0))
+        self.assertAlmostEqual(math.hypot(segment.point2.x - segment.point1.x, segment.point2.y - segment.point1.y), 3)
+        arc = self._only("CircleArc")
+        self.assertIsNot(arc.point1, point_b)
+        self.assertAlmostEqual(arc.point1.x, 5.0)
+        self.assertAlmostEqual(arc.point1.y, 0.0)
+        self.assertIsInstance(result, str)
+        self.assertIn(point_b.name, result)
+        self.assertIn(arc.point1.name, result)
+        self.assertIn("not moved", result)
+
+    def test_arc_does_not_move_an_existing_point_given_by_name(self) -> None:
+        self._call("create_point", x=1, y=1, name="P")
+        point_p = self._point("P")
+
+        result = self._call(
+            "create_circle_arc",
+            point1_name="P",
+            point2_x=0,
+            point2_y=2,
+            center_x=0,
+            center_y=0,
+            radius=2,
+        )
+
+        self.assertEqual(self._coords(point_p), (1.0, 1.0))
+        arc = self._only("CircleArc")
+        self.assertIsNot(arc.point1, point_p)
+        self.assertAlmostEqual(math.hypot(arc.point1.x, arc.point1.y), 2.0)
+        self.assertIn("P", str(result))
+
+    def test_arc_reuses_an_existing_point_already_on_the_circle(self) -> None:
+        self._call("create_point", x=5, y=0, name="Q")
+        point_q = self._point("Q")
+
+        result = self._call(
+            "create_circle_arc",
+            point1_x=5,
+            point1_y=0,
+            point2_x=0,
+            point2_y=5,
+            center_x=0,
+            center_y=0,
+            radius=5,
+        )
+
+        arc = self._only("CircleArc")
+        self.assertIs(arc.point1, point_q)
+        self.assertNotIn("not moved", str(result))
+
+    def test_arc_still_snaps_new_reference_coordinates(self) -> None:
+        self._call(
+            "create_circle_arc",
+            point1_x=3,
+            point1_y=0,
+            point2_x=0,
+            point2_y=4,
+            center_x=0,
+            center_y=0,
+            radius=5,
+        )
+
+        arc = self._only("CircleArc")
+        self.assertAlmostEqual(arc.point1.x, 5.0)
+        self.assertAlmostEqual(arc.point2.y, 5.0)
+        self.assertEqual(self._points(), sorted([self._coords(arc.point1), self._coords(arc.point2)]))
