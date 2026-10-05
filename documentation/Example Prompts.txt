@@ -43,6 +43,13 @@ Create an ellipse with radii 4 and 2, draw the normal line at angle pi/2.
 Create an ellipse centered at the origin with radii 4 and 2 rotated 30 degrees, then draw the tangent at parametric angle t = pi/4 (measured in the ellipse's own rotated frame).
 Draw a tangent line to the function f1 at x = 1 with length 6 in blue.
 
+# Roots, Extrema and Intersections
+Plot f(x) = x^3 - 3x and find its roots and local extrema; mark them with points.
+Find the local maximum and minimum of f between x = -2 and x = 2.
+Plot y = tan(x) and find its roots between -5 and 5 (the asymptotes are not roots).
+Plot f(x) = x^2 and g(x) = x + 2 and find where they intersect.
+Find where sin(x) and cos(x) intersect on [-4, 4] and place points at the intersections.
+
 # Geometric Constructions
 Create points A(0,0) and B(6,0), draw segment AB, then find the midpoint of AB.
 Find the midpoint between points P and Q.
