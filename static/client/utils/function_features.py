@@ -105,8 +105,6 @@ _CURVATURE_NOISE_FACTOR = 64.0
 # and the further fraction of that step used to polish the answer
 _CURVATURE_STEP_FRACTION = 0.125
 _CURVATURE_POLISH_FRACTION = 0.125
-# The polishing step is never below this fraction of max(1, |x|), where rounding noise would dominate
-_CURVATURE_MIN_STEP = 1e-4
 # The second derivative must change sign this many sample spacings either side of an
 # inflection, and this many polishing steps either side of it
 _INFLECTION_CHECK_STEPS = 2.0
@@ -226,7 +224,7 @@ def find_function_features(
         found.extend(_extremum_feature(extremum, span) for extremum in extrema)
     if FEATURE_INFLECTIONS in wanted:
         inflections = _scan_inflections(evaluate, left, right, breakpoints, total_samples)
-        found.extend(_inflection_feature(x, evaluate(x), radius, span) for x, radius in inflections)
+        found.extend(_inflection_feature(evaluate, x, radius, span) for x, radius in inflections)
     return _report(found, max_results, total_samples)
 
 
@@ -601,22 +599,30 @@ def _segment_inflections(
     return inflections
 
 
-def _curvature_sign(y0: float, y1: float, y2: float) -> Optional[int]:
+def _curvature_sign(y0: float, y1: float, y2: float, extra_noise: float = 0.0) -> Optional[int]:
     """Sign of the second difference y0 - 2*y1 + y2: 0 within rounding noise, None if undefined."""
     if not (math.isfinite(y0) and math.isfinite(y1) and math.isfinite(y2)):
         return None
     second = y0 - 2.0 * y1 + y2
-    if abs(second) <= _CURVATURE_NOISE_FACTOR * _EPS * (abs(y0) + 2.0 * abs(y1) + abs(y2)):
+    noise = _CURVATURE_NOISE_FACTOR * _EPS * (abs(y0) + 2.0 * abs(y1) + abs(y2)) + extra_noise
+    if abs(second) <= noise:
         return 0
     return 1 if second > 0 else -1
 
 
 def _second_derivative(evaluate: Callable[[float], float], step: float) -> Callable[[float], float]:
-    """Central-difference second derivative: 0 within rounding noise, NaN where f is undefined."""
+    """Central-difference second derivative: 0 within rounding noise, NaN where f is undefined.
+
+    The noise includes the rounding of the arguments x -/+ step (about eps * |x| times the
+    slope), which dominates at large |x|.
+    """
 
     def second(x: float) -> float:
         y0, y1, y2 = evaluate(x - step), evaluate(x), evaluate(x + step)
-        sign = _curvature_sign(y0, y1, y2)
+        argument_noise = 0.0
+        if math.isfinite(y0) and math.isfinite(y2):
+            argument_noise = _CURVATURE_NOISE_FACTOR * _EPS * abs(x) * abs(y2 - y0) / step
+        sign = _curvature_sign(y0, y1, y2, argument_noise)
         if sign is None:
             return math.nan
         if sign == 0:
@@ -640,15 +646,24 @@ def _refine_inflection(
     """
     x: Optional[float] = None
     for fraction in (_CURVATURE_STEP_FRACTION, 1.0):
-        x = _curvature_root(_second_derivative(evaluate, spacing * fraction), low, high, span)
+        x = _curvature_root(evaluate, spacing * fraction, low, high, span)
         if x is not None:
             break
     if x is None:
         return None
     reach = spacing * _CURVATURE_STEP_FRACTION
-    polish_step = max(reach * _CURVATURE_POLISH_FRACTION, _CURVATURE_MIN_STEP * max(1.0, abs(x)))
+    polish_step = reach * _CURVATURE_POLISH_FRACTION
     polish = _second_derivative(evaluate, polish_step)
-    x = _curvature_root(polish, x - reach, x + reach, span)
+    # Grow the step while the curvature at the bracket ends is lost in rounding noise (a
+    # large constant offset in f, or a large |x|), up to the spacing that found the change
+    while polish(x - reach) == 0.0 or polish(x + reach) == 0.0:
+        if polish_step >= spacing:
+            # Below noise this close to x at any usable step: keep the sampled sign change
+            # (a pole's curvature is never lost in noise)
+            return (x, reach) if _is_confirmed_inflection(evaluate, x, spacing) else None
+        polish_step = min(2.0 * polish_step, spacing)
+        polish = _second_derivative(evaluate, polish_step)
+    x = _curvature_root(evaluate, polish_step, x - reach, x + reach, span)
     if x is None or not _changes_sign_around(polish, x, _LOCAL_CHECK_STEPS * polish_step):
         return None
     # A true inflection moves by O(step^2) when the step halves; a stencil reaching across
@@ -656,13 +671,17 @@ def _refine_inflection(
     # (Skipped when the half step drowns in rounding noise, which a pole never does.)
     radius = _noise_radius(polish, x, reach, span)
     half = _second_derivative(evaluate, 0.5 * polish_step)
-    if half(x - reach) != 0.0 or half(x + reach) != 0.0:
-        x_half = _curvature_root(half, x - reach, x + reach, span)
+    if half(x - reach) != 0.0 and half(x + reach) != 0.0:
+        x_half = _curvature_root(evaluate, 0.5 * polish_step, x - reach, x + reach, span)
         if x_half is None:
             return None
+        shift = abs(x_half - x)
         tolerance = 2.0 * max(radius, _noise_radius(half, x_half, reach, span))
-        if abs(x_half - x) > _STEP_STABILITY * polish_step + tolerance:
+        if shift > _STEP_STABILITY * polish_step + tolerance:
             return None
+        # The bias is O(step^2): the half step's is a third of the shift, which Richardson
+        # extrapolation removes; a third of the shift still bounds what is left
+        x, radius = x_half + (x_half - x) / 3.0, max(radius, shift / 3.0)
     if not _is_confirmed_inflection(evaluate, x, spacing):
         return None
     return x, radius
@@ -670,10 +689,7 @@ def _refine_inflection(
 
 def _changes_sign_around(second: Callable[[float], float], x: float, offset: float) -> bool:
     """``second`` is non-zero with opposite signs at x - offset and x + offset."""
-    before, after = second(x - offset), second(x + offset)
-    if not (math.isfinite(before) and math.isfinite(after)) or before == 0.0 or after == 0.0:
-        return False
-    return (before < 0.0) != (after < 0.0)
+    return _changes_sign(second(x - offset), second(x + offset))
 
 
 def _noise_radius(second: Callable[[float], float], x: float, limit: float, span: float) -> float:
@@ -684,22 +700,38 @@ def _noise_radius(second: Callable[[float], float], x: float, limit: float, span
     return radius
 
 
-def _curvature_root(second: Callable[[float], float], low: float, high: float, span: float) -> Optional[float]:
-    """Brent's root of ``second`` on [low, high] when it changes sign there, else None."""
-    f_low, f_high = second(low), second(high)
-    if not (math.isfinite(f_low) and math.isfinite(f_high)) or f_low == 0.0 or f_high == 0.0:
+def _curvature_root(
+    evaluate: Callable[[float], float], step: float, low: float, high: float, span: float
+) -> Optional[float]:
+    """Where the second derivative (with this step) changes sign in [low, high], else None.
+
+    The ends must differ in sign above rounding noise; the root is then located on the raw
+    second difference, which, unlike the noise-zeroed one, has no flat band to stop in.
+    """
+    second = _second_derivative(evaluate, step)
+    if not _changes_sign(second(low), second(high)):
         return None
-    if (f_low < 0.0) == (f_high < 0.0):
-        return None
-    x, value = _brent_root(second, low, high, f_low, f_high, xtol=_EPS * span)
+
+    def raw(x: float) -> float:
+        return (evaluate(x - step) - 2.0 * evaluate(x) + evaluate(x + step)) / (step * step)
+
+    x, value = _brent_root(raw, low, high, raw(low), raw(high), xtol=_EPS * span)
     return x if math.isfinite(value) else None
+
+
+def _changes_sign(before: float, after: float) -> bool:
+    """Both values are finite and non-zero, with opposite signs."""
+    if not (math.isfinite(before) and math.isfinite(after)) or before == 0.0 or after == 0.0:
+        return False
+    return (before < 0.0) != (after < 0.0)
 
 
 def _is_confirmed_inflection(evaluate: Callable[[float], float], x: float, spacing: float) -> bool:
     """f is defined and continuous at x, and the second derivative has opposite signs either side."""
     if not math.isfinite(evaluate(x)):
         return False
-    second = _second_derivative(evaluate, 0.5 * spacing)
+    # The sample spacing as step: it resolved the sign change in the samples
+    second = _second_derivative(evaluate, spacing)
     if not _changes_sign_around(second, x, _INFLECTION_CHECK_STEPS * spacing):
         return False
     return _is_continuous_at(evaluate, x, spacing)
@@ -745,12 +777,16 @@ def _brent_root(
         if f_cur == 0.0 or abs(s_bis) < delta:
             return x_cur, f_cur
         if abs(s_pre) > delta and abs(f_cur) < abs(f_pre):
-            if x_pre == x_blk:
-                s_try = -f_cur * (x_cur - x_pre) / (f_cur - f_pre)
-            else:
-                d_pre = (f_pre - f_cur) / (x_pre - x_cur)
-                d_blk = (f_blk - f_cur) / (x_blk - x_cur)
-                s_try = -f_cur * (f_blk * d_blk - f_pre * d_pre) / (d_blk * d_pre * (f_blk - f_pre))
+            try:
+                if x_pre == x_blk:
+                    s_try = -f_cur * (x_cur - x_pre) / (f_cur - f_pre)
+                else:
+                    d_pre = (f_pre - f_cur) / (x_pre - x_cur)
+                    d_blk = (f_blk - f_cur) / (x_blk - x_cur)
+                    s_try = -f_cur * (f_blk * d_blk - f_pre * d_pre) / (d_blk * d_pre * (f_blk - f_pre))
+            except ZeroDivisionError:
+                # Values so small their differences underflow: bisect instead
+                s_try = math.inf
             if 2.0 * abs(s_try) < min(abs(s_pre), 3.0 * abs(s_bis) - delta):
                 s_pre, s_cur = s_cur, s_try
             else:
@@ -891,12 +927,13 @@ def _extremum_feature(extremum: _Extremum, span: float) -> FunctionFeature:
     }
 
 
-def _inflection_feature(x: float, y: float, radius: float, span: float) -> FunctionFeature:
-    # Keep the digits of x that rounding noise in the second derivative leaves certain
+def _inflection_feature(evaluate: Callable[[float], float], x: float, radius: float, span: float) -> FunctionFeature:
+    # Keep the digits of x that rounding noise and the step's bias leave certain
     decimals = -(math.floor(math.log10(radius)) + 1)
+    x = _round_x(round(x, decimals), _INFLECTION_X_DIGITS, span)
     return {
-        "x": _round_x(round(x, decimals), _INFLECTION_X_DIGITS, span),
-        "y": _round_value(y, _VALUE_DIGITS, _VALUE_ZERO_FLOOR),
+        "x": x,
+        "y": _round_value(evaluate(x), _VALUE_DIGITS, _VALUE_ZERO_FLOOR),
         "kind": KIND_INFLECTION,
     }
 
