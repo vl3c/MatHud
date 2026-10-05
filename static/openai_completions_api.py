@@ -8,6 +8,7 @@ Chat Completions API implementation for OpenAI-compatible endpoints
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
@@ -97,6 +98,9 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
     # After the finish reason only the usage chunk is still expected; stop reading
     # when it arrives, or after this many chunks without it.
     MAX_CHUNKS_AFTER_FINISH = 3
+    # A stream that goes silent after the finish reason (no usage chunk, no end) is
+    # closed after this many seconds instead of waiting for the HTTP read timeout.
+    POST_FINISH_TIMEOUT_SECONDS = 5.0
 
     # Providers that set this keep the response's reasoning_details on the stored
     # assistant message, so the requests of the same tool-call loop send them back
@@ -187,6 +191,7 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
         reasoning_details: List[Dict[str, Any]] = []
         finish_reason: Optional[str] = None
         chunks_after_finish = 0
+        post_finish_watchdog: Optional[threading.Timer] = None
         metrics = self._start_response_metrics("chat_completions")
 
         try:
@@ -241,6 +246,8 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
                     if has_usage:
                         self._close_stream(stream)
                         break
+                    if post_finish_watchdog is None:
+                        post_finish_watchdog = self._start_post_finish_watchdog(stream)
 
         except Exception as exc:
             if finish_reason is None:
@@ -260,6 +267,9 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
                 return
             # The answer was complete; only the trailing usage chunk was lost.
             _logger.warning(f"[OpenAI API] Stream ended with an error after the finish reason: {exc}")
+        finally:
+            if post_finish_watchdog is not None:
+                post_finish_watchdog.cancel()
 
         normalized_tool_calls = self._normalize_tool_calls(tool_calls_accumulator)
         resolved_finish_reason = finish_reason or "stop"
@@ -278,6 +288,13 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
                 self._finish_response_metrics(metrics, resolved_finish_reason, len(ai_tool_calls_json_ready))
             ),
         }
+
+    def _start_post_finish_watchdog(self, stream: Any) -> threading.Timer:
+        """Close the stream if it is still open a few seconds after the finish reason."""
+        watchdog = threading.Timer(self.POST_FINISH_TIMEOUT_SECONDS, self._close_stream, args=(stream,))
+        watchdog.daemon = True
+        watchdog.start()
+        return watchdog
 
     @staticmethod
     def _close_stream(stream: Any) -> None:
