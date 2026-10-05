@@ -382,8 +382,10 @@ class AIInterface:
         """Handle the final event from the streaming response.
 
         ``turn_token`` is the metrics turn that sent the request; a late event of
-        an earlier turn does not touch the current turn's metrics.
+        an earlier, stopped or timed-out turn is ignored.
         """
+        if self._is_stale_response(turn_token, "final event"):
+            return
         try:
             event = self._normalize_stream_event(event_obj)
 
@@ -528,6 +530,8 @@ class AIInterface:
 
     def _on_stream_error(self, err: Any, turn_token: Optional[int] = None) -> None:
         """Handle streaming errors and re-enable controls."""
+        if self._is_stale_response(turn_token, "stream error"):
+            return
         error_message = self._format_stream_error(err)
         print(f"Streaming error: {error_message}")
         try:
@@ -537,6 +541,20 @@ class AIInterface:
         self._turn_metrics.finish_turn("error", turn_token)
         self._restore_user_message_on_error()
         self._enable_send_controls()
+
+    def _is_stale_response(self, turn_token: Optional[int], kind: str) -> bool:
+        """True when a response belongs to an earlier turn or arrives after its turn ended.
+
+        The non-streaming request cannot be aborted, and any late callback would
+        otherwise finalize the chat, run tool calls or re-enable the controls of
+        the turn in progress. Callers without a token (tests, hooks) are never stale.
+        """
+        if turn_token is None:
+            return False
+        if turn_token == self._turn_metrics.turn_token and self.is_processing:
+            return False
+        print(f"Ignoring a late {kind} from a turn that already ended.")
+        return True
 
     def _format_stream_error(self, err: Any) -> str:
         """Convert a streaming error object into a readable string."""
@@ -776,12 +794,16 @@ class AIInterface:
 
     def _on_error(self, request: Any, turn_token: Optional[int] = None) -> None:
         """Handle request errors and ensure send controls are re-enabled."""
+        if self._is_stale_response(turn_token, "request error"):
+            return
         print(f"Error: {request.status}, {request.text}")
         self._turn_metrics.finish_turn("error", turn_token)
         self._enable_send_controls()
 
     def _on_complete(self, request: Any, turn_token: Optional[int] = None) -> None:
         """Handle request completion and process AI response."""
+        if self._is_stale_response(turn_token, "response"):
+            return
         try:
             if request.status == 200 or request.status == 0:
                 # Extract data from the proper response structure

@@ -330,3 +330,48 @@ class TestTurnBookkeeping(unittest.TestCase):
 
         self.assertTrue(ai._turn_metrics.is_active)
         self.assertIsNone(ai._turn_metrics.last_turn())
+
+    def _record_ui_calls(self, ai: Any) -> List[str]:
+        calls: List[str] = []
+        ai._finalize_stream_message = lambda msg=None: calls.append("finalize")
+        ai._enable_send_controls = lambda: calls.append("enable")
+        ai._restore_user_message_on_error = lambda: calls.append("restore")
+        ai.execute_tool_batch = lambda *args: calls.append("tools")
+        return calls
+
+    def test_late_final_event_of_an_old_turn_leaves_the_ui_alone(self) -> None:
+        ai = self._ai()
+        calls = self._record_ui_calls(ai)
+        old_token = ai._turn_metrics.turn_token
+        ai._turn_metrics.start_turn("next question")
+
+        tool_call = {"function_name": "create_point", "arguments": {"x": 1, "y": 2}}
+        ai._on_stream_final({"finish_reason": "tool_calls", "ai_tool_calls": [tool_call], "ai_message": ""}, old_token)
+        ai._on_stream_final({"finish_reason": "stop", "ai_tool_calls": [], "ai_message": "old"}, old_token)
+        ai._on_stream_error("boom", old_token)
+
+        self.assertEqual(calls, [])
+        self.assertTrue(ai._turn_metrics.is_active)
+
+    def test_late_non_streaming_response_after_stop_is_ignored(self) -> None:
+        ai = self._ai()
+        calls = self._record_ui_calls(ai)
+        token = ai._turn_metrics.turn_token
+        ai.is_processing = False  # the user stopped the turn (or it timed out)
+
+        payload = {"data": {"ai_message": "late", "ai_tool_calls": [], "finish_reason": "stop"}}
+        ai._on_complete(_FakeRequest(200, payload), token)
+        ai._on_error(_FakeRequest(500), token)
+
+        self.assertEqual(calls, [])
+
+    def test_current_turn_response_is_still_handled(self) -> None:
+        ai = self._ai()
+        calls = self._record_ui_calls(ai)
+
+        ai._on_stream_final(
+            {"finish_reason": "stop", "ai_tool_calls": [], "ai_message": "hi"}, ai._turn_metrics.turn_token
+        )
+
+        self.assertEqual(calls, ["finalize", "enable"])
+        self.assertEqual(self._last_outcome(ai), "stop")
