@@ -9,8 +9,15 @@ with "Circular reference detected", even though nothing is circular. So a result
 converted to plain data (dicts with string keys, lists, strings, numbers, booleans and
 None) before anything serializes it.
 
+Brython's ``json.dumps`` also differs from CPython's on dict keys: it rejects ``None``
+and float keys, and writes ``True`` as ``"True"`` (CPython writes ``"true"``). Only
+string keys serialize the same way in both, so ``to_json_safe`` turns every key into
+a string, as CPython would write it.
+
 ``to_json_safe`` never raises and never calls ``json.dumps``. Anything JSON cannot
-express becomes a string saying what it was.
+express becomes a string saying what it was. ``is_json_plain`` checks, without
+serializing, whether a value can be dumped as it is; ``ensure_json_safe`` converts
+only values that cannot.
 """
 
 from __future__ import annotations
@@ -28,13 +35,45 @@ def to_json_safe(value: Any) -> Any:
     """Return a copy of ``value`` that ``json.dumps`` can serialize, in Brython and CPython.
 
     - tuples become lists; sets and frozensets become lists, sorted when possible;
-    - dict keys become strings the way ``json.dumps`` writes them (``1`` -> ``"1"``,
-      ``True`` -> ``"true"``, ``None`` -> ``"null"``);
+    - dict keys become strings the way CPython's ``json.dumps`` writes them (``1`` -> ``"1"``,
+      ``True`` -> ``"true"``, ``None`` -> ``"null"``; Brython's rejects ``None`` and float keys);
     - NaN and infinite floats become ``"NaN"``, ``"Infinity"`` and ``"-Infinity"``;
     - a drawable becomes ``"<Class> '<name>'"``; any other object becomes ``str(obj)``;
     - a container that contains itself becomes ``"<circular reference>"``.
     """
     return _convert(value, set(), 0)
+
+
+def is_json_plain(value: Any) -> bool:
+    """True when ``json.dumps`` accepts ``value`` as it is, in Brython and CPython.
+
+    Plain data is None, booleans, numbers (NaN and infinities included), strings, lists
+    and dicts with string, int or bool keys, nested without cycles. Tuples, sets, other
+    objects and ``None`` or float keys make a value not plain. Never calls ``json.dumps``.
+    """
+    return _is_plain(value, set(), 0)
+
+
+def ensure_json_safe(value: Any) -> Any:
+    """``value`` itself when it is plain JSON data, else its ``to_json_safe`` copy."""
+    return value if is_json_plain(value) else to_json_safe(value)
+
+
+def _is_plain(value: Any, active: Set[int], depth: int) -> bool:
+    if value is None or isinstance(value, (bool, str, int, float)):
+        return True
+    if not isinstance(value, (dict, list)) or depth >= MAX_JSON_SAFE_DEPTH:
+        return False
+    marker = id(value)
+    if marker in active:
+        return False
+    active.add(marker)
+    try:
+        if isinstance(value, dict):
+            return all(isinstance(k, (str, int)) and _is_plain(v, active, depth + 1) for k, v in value.items())
+        return all(_is_plain(item, active, depth + 1) for item in value)
+    finally:
+        active.discard(marker)
 
 
 def _convert(value: Any, active: Set[int], depth: int) -> Any:

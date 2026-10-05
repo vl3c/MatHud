@@ -38,7 +38,7 @@ from constants import (
     successful_call_message,
 )
 from creation_report import CreationReport, CreationSnapshot
-from json_safe import to_json_safe
+from json_safe import ensure_json_safe, is_json_plain, to_json_safe
 from no_change_result import NoChangeResult
 
 # Largest JSON-serialized return value of a canvas-mutating tool passed back to the model;
@@ -266,13 +266,13 @@ class ResultProcessor:
         """Pair each traced call with its tool-call id, in call order, for the server.
 
         Each entry is ``{"tool_call_id": id_or_None, "result": {result_key: value}}`` so the
-        provider can answer every parallel tool call with its own result. Values are
-        converted to plain JSON data (see ``json_safe``).
+        provider can answer every parallel tool call with its own result. Results were made
+        plain data when they were recorded; one that is not is converted (see ``json_safe``).
         """
         entries: List[Dict[str, Any]] = []
         for call, traced in zip(calls, traced_calls):
-            tool_call_id = to_json_safe(call.get("id")) if isinstance(call, dict) else None
-            result = {str(traced["result_key"]): to_json_safe(traced["result"])}
+            tool_call_id = ensure_json_safe(call.get("id")) if isinstance(call, dict) else None
+            result = {str(traced["result_key"]): ensure_json_safe(traced["result"])}
             entries.append({"tool_call_id": tool_call_id, "result": result})
         return entries
 
@@ -485,11 +485,10 @@ class ResultProcessor:
         """
         if not isinstance(result, (str, dict)) or not result:
             return False
-        safe_result = to_json_safe(result)
-        if safe_result != result:
+        if not is_json_plain(result):
             return False
         try:
-            serialized: str = json.dumps(safe_result)
+            serialized: str = json.dumps(to_json_safe(result))
         except Exception:
             return False
         return len(serialized) <= MAX_PASSTHROUGH_RESULT_CHARS

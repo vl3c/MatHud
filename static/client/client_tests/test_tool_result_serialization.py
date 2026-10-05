@@ -15,7 +15,7 @@ from typing import Any, Dict, List
 import result_processor as result_processor_module
 from canvas import Canvas
 from function_registry import FunctionRegistry
-from json_safe import CIRCULAR_REFERENCE_TEXT, to_json_safe
+from json_safe import CIRCULAR_REFERENCE_TEXT, is_json_plain, to_json_safe
 from managers.action_trace_collector import ActionTraceCollector
 from process_function_calls import ProcessFunctionCalls
 from result_processor import ResultProcessor
@@ -220,12 +220,12 @@ class TestSendPathFallback(unittest.TestCase):
             {"function_name": "evaluate_expression", "result_key": "1+1", "result": 2},
             {"function_name": "broken_tool", "result_key": "broken_tool()", "result": {"value": object()}},
         ]
-        original = result_processor_module.to_json_safe
-        result_processor_module.to_json_safe = lambda value: value  # disable the sanitiser
+        original = result_processor_module.ensure_json_safe
+        result_processor_module.ensure_json_safe = lambda value: value  # disable the sanitiser
         try:
             text = ResultProcessor.serialize_tool_call_results(calls, traced)
         finally:
-            result_processor_module.to_json_safe = original
+            result_processor_module.ensure_json_safe = original
 
         sent = json.loads(text)
         self.assertEqual(sent[0], {"tool_call_id": "c1", "result": {"1+1": 2}})
@@ -234,7 +234,61 @@ class TestSendPathFallback(unittest.TestCase):
         self.assertTrue(message.startswith("Error: the result of broken_tool could not be serialized"))
         self.assertTrue(ResultProcessor.is_error_result(message))
 
-    def test_passthrough_check_keeps_plain_dicts_only(self) -> None:
-        self.assertTrue(ResultProcessor._is_small_passthrough_result({"edges": [["A", "B"]]}))
-        self.assertFalse(ResultProcessor._is_small_passthrough_result({"edges": [("A", "B")]}))
-        self.assertFalse(ResultProcessor._is_small_passthrough_result({"point": _Drawable("A")}))
+    def test_build_reuses_plain_results_and_converts_others(self) -> None:
+        plain = {"edges": [["A", "B"]]}
+        calls = [
+            {"id": "c1", "function_name": "f", "arguments": {}},
+            {"id": "c2", "function_name": "g", "arguments": {}},
+        ]
+        traced = [
+            {"function_name": "f", "result_key": "f()", "result": plain},
+            {"function_name": "g", "result_key": "g()", "result": {"edges": [("A", "B")]}},
+        ]
+        entries = ResultProcessor.build_tool_call_results(calls, traced)
+        self.assertIs(entries[0]["result"]["f()"], plain)
+        self.assertEqual(entries[1]["result"]["g()"], {"edges": [["A", "B"]]})
+
+
+class TestPassthroughCheck(unittest.TestCase):
+    """Canvas-tool dicts pass through unless they hold tuples, sets or objects."""
+
+    def assert_passes(self, value: Dict[Any, Any]) -> None:
+        self.assertTrue(ResultProcessor._is_small_passthrough_result(value), repr(value))
+
+    def assert_rejected(self, value: Dict[Any, Any]) -> None:
+        self.assertFalse(ResultProcessor._is_small_passthrough_result(value), repr(value))
+
+    def test_int_key_passes(self) -> None:
+        self.assert_passes({1: "a"})
+
+    def test_bool_key_passes(self) -> None:
+        self.assert_passes({True: 1})
+
+    def test_nan_value_passes(self) -> None:
+        self.assert_passes({"x": float("nan")})
+
+    def test_inf_value_passes(self) -> None:
+        self.assert_passes({"x": float("inf")})
+
+    def test_tuple_is_rejected(self) -> None:
+        self.assert_rejected({"edges": [("A", "B")]})
+
+    def test_set_is_rejected(self) -> None:
+        self.assert_rejected({"names": {"A", "B"}})
+
+    def test_drawable_is_rejected(self) -> None:
+        self.assert_rejected({"point": _Drawable("A")})
+
+
+class TestIsJsonPlain(unittest.TestCase):
+    """is_json_plain accepts exactly what json.dumps takes as it is."""
+
+    def test_plain_values(self) -> None:
+        for value in (None, True, 3, 2.5, float("nan"), "s", [1, [2]], {"a": {"b": [None]}}, {2: "a", True: 1}):
+            self.assertTrue(is_json_plain(value), repr(value))
+
+    def test_values_that_need_converting(self) -> None:
+        loop: List[Any] = []
+        loop.append(loop)
+        for value in ((1, 2), {1}, [_Drawable("A")], {None: 1}, {1.5: 1}, {("A", "B"): 1}, loop):
+            self.assertFalse(is_json_plain(value), repr(value))

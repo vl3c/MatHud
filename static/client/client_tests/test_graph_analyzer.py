@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 from typing import List
 
@@ -227,6 +228,18 @@ class TestAnalyzeGraphMST(unittest.TestCase):
         self.assertEqual(len(edges), 2)
         self.assertIn(frozenset({"A", "B"}), edges)
 
+    def test_mst_edges_are_json_lists(self) -> None:
+        """MST edges are [source, target] lists, so the raw result serializes as JSON."""
+        state = _make_state("ABCD", [("A", "B", 1.0), ("B", "C", 2.0), ("A", "C", 4.0), ("C", "D", 1.0)], False)
+        result = GraphAnalyzer.analyze(state, "mst", {})
+
+        edges = result.get("edges", [])
+        self.assertEqual(len(edges), 3)
+        for edge in edges:
+            self.assertIsInstance(edge, list)
+        self.assertEqual({frozenset(edge) for edge in edges}, {frozenset("AB"), frozenset("BC"), frozenset("CD")})
+        self.assertEqual(json.loads(json.dumps(result))["edges"], edges)
+
 
 class TestAnalyzeGraphTopologicalSort(unittest.TestCase):
     """Tests for topological_sort operation."""
@@ -340,6 +353,17 @@ class TestAnalyzeGraphBridges(unittest.TestCase):
 
         self.assertEqual(result.get("bridges"), [])
         self.assertEqual(result.get("highlight_vectors"), [])
+
+    def test_bridges_are_json_lists(self) -> None:
+        """Bridges are [u, v] lists, so the raw result serializes as JSON."""
+        state = _make_state("ABCD", [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")], directed=False)
+        result = GraphAnalyzer.analyze(state, "bridges", {})
+
+        bridges = result.get("bridges", [])
+        self.assertEqual(len(bridges), 1)
+        self.assertIsInstance(bridges[0], list)
+        self.assertEqual(sorted(bridges[0]), ["C", "D"])
+        self.assertEqual(json.loads(json.dumps(result))["bridges"], bridges)
 
 
 class TestAnalyzeGraphArticulationPoints(unittest.TestCase):
