@@ -72,7 +72,8 @@ from static.ai_model import AIModel  # noqa: E402
 from static.canvas_state_formatter import CANVAS_FORMATS, CanvasFormat  # noqa: E402
 from static.client.constants import successful_call_message  # noqa: E402
 from static.openai_api_base import CANVAS_BUDGET_ENV, CANVAS_FORMAT_ENV, TOOL_EXPOSURE_ENV, OpenAIAPIBase  # noqa: E402
-from static.providers.local import REASONING_EFFORT_ENV, REASONING_EFFORTS  # noqa: E402
+from static.model_prices import ESTIMATED_COMPLETION_TOKENS, PRICES_AS_OF, PRICES_PER_MTOK  # noqa: E402
+from static.providers.local import REASONING_EFFORT_CHOICES, REASONING_EFFORT_ENV  # noqa: E402
 from static.providers.local.local_agent_api import LocalAgentAPI  # noqa: E402
 from static.providers.openrouter_api import OpenRouterAPI  # noqa: E402
 from static.response_metrics import ResponseMetricsTracker, record_chat_completions_usage  # noqa: E402
@@ -87,19 +88,11 @@ DEFAULT_FORMATS: Dict[str, Tuple[CanvasFormat, ...]] = {
     "openrouter": ("json", "text"),
     "local": ("text", "min_json", "json"),
 }
-LOCAL_REASONING_EFFORT_CHOICES = REASONING_EFFORTS + ("default",)
+LOCAL_REASONING_EFFORT_CHOICES = REASONING_EFFORT_CHOICES
 DEFAULT_MAX_REQUESTS = 250
 DEFAULT_TIMEOUT_S = {"openrouter": 180.0, "local": 900.0}
 DEFAULT_CONCURRENCY = {"openrouter": 4, "local": 1}
 
-# USD per 1M tokens (input, output) on OpenRouter, as of PRICES_AS_OF.
-PRICES_AS_OF = "2026-09-25"
-PRICES_PER_MTOK: Dict[str, Tuple[float, float]] = {
-    "deepseek/deepseek-v4.1-flash": (0.099, 0.60),
-    "xiaomi/mimo-v2.6-pro": (0.435, 0.87),
-}
-# Dry-run cost estimates assume this many completion tokens per answer (reasoning included).
-ESTIMATED_COMPLETION_TOKENS = 400
 
 # Provider settings the benchmark pins while it builds prompts, so a local .env
 # cannot change them: each provider's defaults apply (search tool mode, hybrid

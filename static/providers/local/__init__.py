@@ -63,6 +63,8 @@ REASONING_EFFORT_ENV = "MATHUD_LOCAL_REASONING_EFFORT"
 REASONING_EFFORTS = ("low", "medium", "high", "xhigh", "max")
 DEFAULT_REASONING_EFFORT = "medium"
 _OMIT_REASONING_EFFORT = ("default",)
+# Values MATHUD_LOCAL_REASONING_EFFORT accepts (the benchmark and scenario CLIs offer these).
+REASONING_EFFORT_CHOICES = REASONING_EFFORTS + _OMIT_REASONING_EFFORT
 
 
 def get_configured_reasoning_effort() -> Optional[str]:

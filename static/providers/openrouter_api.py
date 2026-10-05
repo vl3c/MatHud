@@ -7,6 +7,8 @@ Uses OpenAI SDK with custom base_url for OpenRouter's OpenAI-compatible API.
 
 from __future__ import annotations
 
+import logging
+import os
 from collections.abc import Sequence
 from typing import Optional
 
@@ -19,6 +21,28 @@ from static.functions_definitions import FunctionDefinition
 from static.openai_api_base import ToolMode
 from static.openai_completions_api import OpenAIChatCompletionsAPI
 from static.providers import PROVIDER_OPENROUTER, ProviderRegistry
+
+
+_logger = logging.getLogger("mathud")
+
+# Overrides OpenRouterAPI.MAX_RETRIES; the scenario harness pins it to 0 so every
+# request it counts against its request cap is one request sent.
+MAX_RETRIES_ENV = "MATHUD_OPENROUTER_MAX_RETRIES"
+
+
+def configured_max_retries(default: int) -> int:
+    """SDK retries from MATHUD_OPENROUTER_MAX_RETRIES (a non-negative integer), else ``default``."""
+    raw = os.getenv(MAX_RETRIES_ENV, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        value = -1
+    if value < 0:
+        _logger.warning("Invalid %s value %r; using %d", MAX_RETRIES_ENV, raw, default)
+        return default
+    return value
 
 
 def _get_openrouter_api_key() -> str:
@@ -73,7 +97,7 @@ class OpenRouterAPI(OpenAIChatCompletionsAPI):
             api_key=_get_openrouter_api_key(),
             base_url=self.OPENROUTER_BASE_URL,
             timeout=self.REQUEST_TIMEOUT,
-            max_retries=self.MAX_RETRIES,
+            max_retries=configured_max_retries(self.MAX_RETRIES),
             default_headers={
                 "HTTP-Referer": "https://mathud.app",
                 "X-Title": "MatHud",
