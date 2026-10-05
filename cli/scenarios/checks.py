@@ -262,8 +262,49 @@ def _jsonable(value: Any) -> Any:
 
 
 @dataclass
+class BatchData:
+    """One tool batch of a step. A live turn can run several; replay steps run one.
+
+    ``view`` is the canvas after the batch (retrace records it, so invariants are
+    judged batch by batch); ``delta`` is the action trace's ``state_delta``
+    (``added``, ``removed``, ``modified`` names), all a live turn has per batch.
+    """
+
+    calls: list[dict[str, Any]] = field(default_factory=list)
+    undo_before: Optional[int] = None
+    undo_after: Optional[int] = None
+    redo_before: Optional[int] = None
+    redo_after: Optional[int] = None
+    view: Optional[CanvasView] = None
+    delta: Optional[dict[str, Any]] = None
+
+    @property
+    def counted_calls(self) -> list[dict[str, Any]]:
+        return [c for c in self.calls if c.get("function_name") not in UNCOUNTED_TOOLS]
+
+    @property
+    def delta_changed(self) -> bool:
+        """True when the trace's delta names an added, removed or modified drawable."""
+        return any(self.delta.get(key) for key in ("added", "removed", "modified")) if self.delta else False
+
+    def step_data(self, mode: str) -> "StepData":
+        return StepData(
+            calls=list(self.calls),
+            undo_before=self.undo_before,
+            undo_after=self.undo_after,
+            redo_before=self.redo_before,
+            redo_after=self.redo_after,
+            mode=mode,
+        )
+
+
+@dataclass
 class StepData:
-    """What a step left behind for its checks: executed calls, undo depths, final text."""
+    """What a step left behind for its checks: executed calls, undo depths, final text.
+
+    ``batches`` is set when the step ran its calls in more than one batch (a live
+    turn, or its retrace); ``calls`` then holds every batch's calls in order.
+    """
 
     calls: list[dict[str, Any]] = field(default_factory=list)
     undoable: list[bool] = field(default_factory=list)
@@ -273,10 +314,16 @@ class StepData:
     redo_after: Optional[int] = None
     final_text: Optional[str] = None
     mode: str = "replay"
+    batches: Optional[list[BatchData]] = None
 
     @property
     def counted_calls(self) -> list[dict[str, Any]]:
         return [c for c in self.calls if c.get("function_name") not in UNCOUNTED_TOOLS]
+
+    @property
+    def counted_batches(self) -> list[BatchData]:
+        """Batches with at least one counted call (a ``search_tools``-only batch is left out)."""
+        return [batch for batch in self.batches or [] if batch.counted_calls]
 
 
 @dataclass
@@ -1484,14 +1531,30 @@ def run_invariants(
     waivers: Optional[dict[str, str]] = None,
     allow_large: bool = False,
 ) -> list[CheckResult]:
-    """Evaluate I1 to I7 for one step that executed tool calls."""
+    """Evaluate I1 to I7 for one step that executed tool calls.
+
+    A step that ran several batches with counted calls (a live turn) is judged
+    batch by batch when every batch carries its canvas (retrace), and as a whole
+    otherwise: I4 and I5 then use the per-batch trace deltas (see
+    ``_inv_truthful_results_turn`` and ``_inv_undo_accounting_turn``).
+    """
     waivers = waivers or {}
+    truthful: Callable[[], list[str]] = lambda: _inv_truthful_results(before, after, step)  # noqa: E731
+    undo: Callable[[], list[str]] = lambda: _inv_undo_accounting(before, after, step)  # noqa: E731
+    if len(step.counted_batches) > 1:
+        batches = step.batches or []
+        if all(batch.view is not None for batch in batches):
+            truthful = lambda: _per_batch(before, batches, step.mode, _inv_truthful_results)  # noqa: E731
+            undo = lambda: _per_batch(before, batches, step.mode, _inv_undo_accounting)  # noqa: E731
+        else:
+            truthful = lambda: _inv_truthful_results_turn(before, after, step)  # noqa: E731
+            undo = lambda: _inv_undo_accounting_turn(before, after, step)  # noqa: E731
     checks: list[tuple[str, Callable[[], tuple[list[str], list[str]]]]] = [
         ("I1", lambda: _inv_unique_names(after)),
         ("I2", lambda: (_inv_references(after), [])),
         ("I3", lambda: (_inv_derived(after), [])),
-        ("I4", lambda: (_inv_truthful_results(before, after, step), [])),
-        ("I5", lambda: (_inv_undo_accounting(before, after, step), [])),
+        ("I4", lambda: (truthful(), [])),
+        ("I5", lambda: (undo(), [])),
         ("I6", lambda: (_inv_errors_flagged(step), [])),
         ("I7", lambda: (_inv_sane_numbers(after, allow_large), [])),
     ]
@@ -1821,7 +1884,8 @@ def _inv_truthful_results(before: CanvasView, after: CanvasView, step: StepData)
         return problems
     for call, failed in zip(calls, errors):
         tool = str(call.get("function_name"))
-        if failed or not tool.startswith(_NAMING_PREFIXES):
+        # A result the trace export cut short may name the created object past the cut.
+        if failed or not tool.startswith(_NAMING_PREFIXES) or call.get("result_truncated"):
             continue
         arguments = call.get("arguments") or {}
         for key in _NAME_HINT_KEYS:
@@ -1873,6 +1937,65 @@ def _inv_undo_accounting(before: CanvasView, after: CanvasView, step: StepData) 
         what = "changed the canvas" if changed else "changed nothing"
         return [f"batch ({', '.join(tools)}) {what} and added {added} undo entries, expected {expected}"]
     return []
+
+
+def _per_batch(
+    before: CanvasView,
+    batches: list[BatchData],
+    mode: str,
+    invariant: Callable[[CanvasView, CanvasView, StepData], list[str]],
+) -> list[str]:
+    """Run a batch invariant on each batch against the canvas the batch before it left."""
+    problems: list[str] = []
+    previous = before
+    for number, batch in enumerate(batches, start=1):
+        assert batch.view is not None
+        if batch.counted_calls:
+            problems.extend(f"batch {number}: {p}" for p in invariant(previous, batch.view, batch.step_data(mode)))
+        previous = batch.view
+    return problems
+
+
+def _inv_truthful_results_turn(before: CanvasView, after: CanvasView, step: StepData) -> list[str]:
+    """I4 for a turn of several batches when only the turn's start and end canvases are known.
+
+    "Every call failed but the drawables changed" and the naming rule hold for
+    the turn as a whole. Success claims on no-ops are left to the retrace, which
+    judges every batch on its own canvas: a later batch may undo what an earlier
+    one did (zoom then undo), so the turn's net change says nothing about them.
+    """
+    calls = step.counted_calls
+    problems: list[str] = []
+    errors = [call_is_error(call) for call in calls]
+    if calls and all(errors) and diff_views(before, after, _DERIVED_TOL):
+        problems.append("every call failed but the canvas changed")
+    naming = [p for p in _inv_truthful_results(before, after, step) if "no object got it" in p]
+    return problems + naming
+
+
+def _inv_undo_accounting_turn(before: CanvasView, after: CanvasView, step: StepData) -> list[str]:
+    """I5 for a turn of several batches when only the turn's undo depths are known.
+
+    Each batch whose trace delta names a changed drawable must have added one
+    entry, and no batch may add more than one, so the turn adds between the
+    number of such batches and the number of batches with counted calls.
+    Turns with undo or redo calls are left to retrace, which checks each batch.
+    """
+    if step.undo_before is None or step.undo_after is None:
+        return []
+    batches = step.counted_batches
+    tools = [str(c.get("function_name")) for c in step.counted_calls]
+    if any(tool in ("undo", "redo") for tool in tools):
+        return []
+    added = step.undo_after - step.undo_before
+    lowest = sum(1 for batch in batches if batch.delta_changed)
+    highest = len(batches)
+    if lowest <= added <= highest:
+        return []
+    return [
+        f"{len(batches)} batches ({lowest} changed drawables) added {added} undo entries, "
+        f"expected {lowest} to {highest}"
+    ]
 
 
 def _inv_errors_flagged(step: StepData) -> list[str]:

@@ -389,7 +389,8 @@ Dependencies:
     // Expose a helper for Brython to stream responses
     // onReasoning callback handles reasoning tokens from reasoning models
     // onLog callback handles server log events forwarded to the browser console
-    window.sendMessageStream = async function(payload, onToken, onFinal, onError, onReasoning, onLog) {
+    // onTurn callback receives the server's turn id (sent back when the turn is stopped)
+    window.sendMessageStream = async function(payload, onToken, onFinal, onError, onReasoning, onLog, onTurn) {
         // Abort any existing stream before starting a new one
         window.abortCurrentStream();
         
@@ -427,6 +428,8 @@ Dependencies:
                         const evt = JSON.parse(line);
                         if (evt.type === 'log' && typeof onLog === 'function') {
                             onLog(evt);
+                        } else if (evt.type === 'turn' && typeof onTurn === 'function') {
+                            onTurn(evt);
                         } else if (evt.type === 'reasoning' && typeof onReasoning === 'function') {
                             onReasoning(evt.text || '');
                         } else if (evt.type === 'token' && typeof onToken === 'function') {
@@ -450,6 +453,8 @@ Dependencies:
                     const evt = JSON.parse(buffer.trim());
                     if (evt.type === 'log' && typeof onLog === 'function') {
                         onLog(evt);
+                    } else if (evt.type === 'turn' && typeof onTurn === 'function') {
+                        onTurn(evt);
                     } else if (evt.type === 'reasoning' && typeof onReasoning === 'function') {
                         onReasoning(evt.text || '');
                     } else if (evt.type === 'token' && typeof onToken === 'function') {

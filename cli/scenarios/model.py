@@ -44,6 +44,8 @@ _ID_PATTERN = re.compile(r"^[A-Z]+-\d{2,}$")
 # Report order of the areas (section 5 of the design doc).
 AREA_ORDER = ("GEO", "CON", "FN", "AR", "TR", "GR", "ST", "MC", "CV", "WS", "NM", "MT")
 _STEP_KINDS = ("snapshot", "user", "do", "checks")
+# Per-turn limits in live mode (section 4.4): a model-quality check and two hard stops.
+TURN_LIMIT_KEYS = ("max_tool_calls", "max_requests", "timeout_s")
 
 
 class ScenarioError(Exception):
@@ -250,11 +252,7 @@ def _parse_step(raw: Any, index: int, counters: dict[str, int], where: str, prob
         if not raw.get("reference"):
             problems.append(f"{where}: a user turn needs a reference call list")
         step.calls = _calls(raw.get("reference"), f"{where} reference", problems)
-        limits = raw.get("limits") or {}
-        if not isinstance(limits, dict):
-            problems.append(f"{where}: limits must be an object")
-            limits = {}
-        step.limits = limits
+        step.limits = _limits(raw.get("limits"), where, problems)
     elif kind == "do":
         if not raw["do"]:
             problems.append(f"{where}: do needs calls")
@@ -267,6 +265,23 @@ def _parse_step(raw: Any, index: int, counters: dict[str, int], where: str, prob
         problems.extend(f"{where} check {number}: {problem}" for problem in validate_check(check))
     step.checks = [check for check in checks if isinstance(check, dict)]
     return step
+
+
+def _limits(raw: Any, where: str, problems: list[str]) -> dict[str, Any]:
+    """A turn's live-mode limits: ``max_tool_calls``, ``max_requests`` (whole numbers) and ``timeout_s``."""
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        problems.append(f"{where}: limits must be an object")
+        return {}
+    for key, value in raw.items():
+        if key not in TURN_LIMIT_KEYS:
+            problems.append(f"{where}: unknown limit {key!r}")
+        elif isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+            problems.append(f"{where}: limit {key} must be a positive number")
+        elif key != "timeout_s" and not isinstance(value, int):
+            problems.append(f"{where}: limit {key} must be a whole number")
+    return dict(raw)
 
 
 def _load_fixture(name: str, base: Path, where: str, problems: list[str]) -> Optional[dict[str, Any]]:

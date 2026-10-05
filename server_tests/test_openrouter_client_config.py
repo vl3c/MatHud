@@ -21,7 +21,7 @@ from openai import APITimeoutError
 
 from static.ai_model import AIModel
 from static.openai_api_base import PROVIDER_TIMEOUT_MESSAGE, stream_error_user_message
-from static.providers.openrouter_api import OpenRouterAPI
+from static.providers.openrouter_api import MAX_RETRIES_ENV, OpenRouterAPI, configured_max_retries
 
 
 def _timeout_error() -> APITimeoutError:
@@ -58,6 +58,17 @@ class TestOpenRouterClientConfig(unittest.TestCase):
         # Fail fast on a silent upstream: one retry, not the SDK default of 2.
         api = self._make_api()
         self.assertEqual(api.client.max_retries, 1)
+
+    def test_retries_env_override(self) -> None:
+        # The scenario harness pins 0 so each request it counts is one request sent.
+        with patch.dict("os.environ", {MAX_RETRIES_ENV: "0"}):
+            api = self._make_api()
+        self.assertEqual(api.client.max_retries, 0)
+
+    def test_invalid_retries_env_keeps_default(self) -> None:
+        for raw in ("-1", "many", ""):
+            with self.subTest(raw=raw), patch.dict("os.environ", {MAX_RETRIES_ENV: raw}):
+                self.assertEqual(configured_max_retries(1), 1)
 
 
 class TestStreamTimeoutMessage(unittest.TestCase):

@@ -383,10 +383,12 @@ class TestRegradeFromElsewhere:
 
 
 class TestScenariosCommand:
-    def test_live_mode_is_refused(self) -> None:
-        result = CliRunner().invoke(cli, ["test", "scenarios", "--mode", "live"])
+    def test_results_argument_needs_retrace_mode(self, tmp_path: Path) -> None:
+        results = tmp_path / "results.json"
+        results.write_text("{}")
+        result = CliRunner().invoke(cli, ["test", "scenarios", str(results)])
         assert result.exit_code == 2
-        assert "not implemented yet" in result.output
+        assert "--mode retrace" in result.output
 
     def test_dry_run_lists_the_catalogue(self) -> None:
         result = CliRunner().invoke(cli, ["test", "scenarios", "--dry-run", "--smoke"])

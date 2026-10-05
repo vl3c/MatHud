@@ -9,7 +9,7 @@ take and return JSON strings:
     runMatHudToolCalls(callsJson)        run one tool batch exactly as a model batch runs
     resetMatHudSession(optionsJson?)     clear canvas, undo history, traces, metrics and chat
     getMatHudTurnStatus()                whether a chat turn is running, and its progress
-    sendMatHudMessage(text, modelId?)    send a chat message as the user (live mode)
+    sendMatHudMessage(text, modelId?, optionsJson?)  send a chat message as the user (live mode)
     stopMatHudTurn()                     stop the running chat turn
 
 See documentation/development/agentic_scenario_testing.md (section 4.3).
@@ -170,15 +170,21 @@ class ScenarioHooks:
         except Exception as exc:
             return to_json({"status": "error", "error": str(exc)})
 
-    def send_message(self, text: Any, model_id: Any = None) -> str:
+    def send_message(self, text: Any, model_id: Any = None, options_json: Any = None) -> str:
         """Send ``text`` as the user; ``modelId`` selects an existing model option first.
 
         Vision is switched off for this request, so it does not depend on a canvas
         capture, and the user's toggle is restored once the request is built.
+        Options: ``max_requests`` caps the turn's model requests (the turn ends
+        instead of sending more); ``response_timeout_ms`` replaces the client's
+        response timeouts for this turn (a local model may think longer than 60 s).
         """
         try:
             if self.ai.is_processing:
                 return to_json({"status": "busy"})
+            options = parse_options(options_json)
+            request_limit = _positive_int(options.get("max_requests"))
+            timeout_ms = _positive_int(options.get("response_timeout_ms"))
             if model_id:
                 selector = document["ai-model-selector"]
                 values = [str(option.value) for option in selector.options]
@@ -191,7 +197,7 @@ class ScenarioHooks:
                 toggle.checked = False
             try:
                 # The prompt (including use_vision) is built synchronously inside this call.
-                self.ai.send_user_message(str(text))
+                self.ai.send_user_message(str(text), request_limit, timeout_ms)
             finally:
                 if toggle is not None:
                     toggle.checked = vision_was_on
@@ -254,6 +260,13 @@ def normalize_tool_calls(raw_calls: Any) -> List[Dict[str, Any]]:
             call["id"] = raw["id"]
         calls.append(call)
     return calls
+
+
+def _positive_int(value: Any) -> Optional[int]:
+    """``value`` as a positive int, or None (absent, not a number or not positive)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+        return None
+    return int(value)
 
 
 def undo_depths(canvas: "Canvas") -> tuple[int, int]:

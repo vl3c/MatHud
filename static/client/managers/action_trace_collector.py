@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
 from browser import window
 from constants import MAX_RESULT_STR_LEN, MAX_TRACES
+from json_safe import to_json_safe
 
 if TYPE_CHECKING:
     TracedCall = Dict[str, Any]
@@ -323,20 +324,17 @@ class ActionTraceCollector:
 
     @staticmethod
     def _stable_json(value: Any) -> str:
-        """JSON text for comparing drawable states.
+        """JSON text for comparing drawable states, with sorted keys.
 
-        Keys are sorted when possible; values JSON cannot express (or keys of mixed
-        types, which cannot be sorted) fall back to ``str`` without sorting, and
-        anything that still fails to serialize compares by ``repr``.
+        The state is first copied to plain JSON data (``to_json_safe``: string keys,
+        tuples as lists, objects as text), so the dump cannot fail part-way. A failed
+        Brython dump would break later dumps of the same objects (see json_safe).
         """
+        safe_value = to_json_safe(value)
         try:
-            return json.dumps(value, sort_keys=True)
+            return json.dumps(safe_value, sort_keys=True)
         except Exception:
-            pass
-        try:
-            return json.dumps(value, default=str)
-        except Exception:
-            return repr(value)
+            return repr(safe_value)
 
     @staticmethod
     def _truncate(value: Any) -> Any:
@@ -348,10 +346,7 @@ class ActionTraceCollector:
     @staticmethod
     def _results_match(original: Any, new: Any) -> bool:
         """Loose comparison of two results for replay matching."""
-        try:
-            return json.dumps(original, sort_keys=True) == json.dumps(new, sort_keys=True)
-        except (TypeError, ValueError):
-            return str(original) == str(new)
+        return ActionTraceCollector._stable_json(original) == ActionTraceCollector._stable_json(new)
 
     def _make_exportable_trace(self, trace: "ActionTrace") -> Dict[str, Any]:
         """Create an export-safe copy of a trace with truncated results."""

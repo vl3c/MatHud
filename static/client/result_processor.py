@@ -38,6 +38,7 @@ from constants import (
     successful_call_message,
 )
 from creation_report import CreationReport, CreationSnapshot
+from json_safe import ensure_json_safe, is_json_plain, to_json_safe
 from no_change_result import NoChangeResult
 
 # Largest JSON-serialized return value of a canvas-mutating tool passed back to the model;
@@ -175,6 +176,8 @@ class ResultProcessor:
             )
         except Exception as e:
             ResultProcessor._handle_exception(e, function_name, call_results, args)
+        # Results go back to the model as JSON: keep them plain data (see json_safe)
+        call_results = {key: to_json_safe(value) for key, value in call_results.items()}
         results.update(call_results)
         result_key, result_value = next(iter(call_results.items()), (function_name, None))
         is_error = ResultProcessor.is_error_result(result_value)
@@ -263,13 +266,40 @@ class ResultProcessor:
         """Pair each traced call with its tool-call id, in call order, for the server.
 
         Each entry is ``{"tool_call_id": id_or_None, "result": {result_key: value}}`` so the
-        provider can answer every parallel tool call with its own result.
+        provider can answer every parallel tool call with its own result. Results were made
+        plain data when they were recorded; one that is not is converted (see ``json_safe``).
         """
         entries: List[Dict[str, Any]] = []
         for call, traced in zip(calls, traced_calls):
-            tool_call_id = call.get("id") if isinstance(call, dict) else None
-            entries.append({"tool_call_id": tool_call_id, "result": {traced["result_key"]: traced["result"]}})
+            tool_call_id = ensure_json_safe(call.get("id")) if isinstance(call, dict) else None
+            result = {str(traced["result_key"]): ensure_json_safe(traced["result"])}
+            entries.append({"tool_call_id": tool_call_id, "result": result})
         return entries
+
+    @staticmethod
+    def serialize_tool_call_results(calls: List[Dict[str, Any]], traced_calls: List["TracedCall"]) -> str:
+        """JSON text of ``build_tool_call_results``, the tool results sent back to the model.
+
+        An entry that still cannot be serialized is replaced by an error result for that
+        call, so one bad result never fails the whole turn.
+        """
+        parts: List[str] = []
+        for entry, traced in zip(ResultProcessor.build_tool_call_results(calls, traced_calls), traced_calls):
+            try:
+                parts.append(json.dumps(entry))
+            except Exception as exc:
+                parts.append(json.dumps(ResultProcessor._unserializable_entry(entry, traced, exc)))
+        return "[" + ", ".join(parts) + "]"
+
+    @staticmethod
+    def _unserializable_entry(entry: Dict[str, Any], traced: "TracedCall", exc: Exception) -> Dict[str, Any]:
+        """Error result for a call whose result could not be serialized."""
+        function_name = str(traced.get("function_name", ""))
+        message = f"Error: the result of {function_name} could not be serialized ({exc})."
+        return {
+            "tool_call_id": entry.get("tool_call_id"),
+            "result": {str(traced.get("result_key", function_name)): message},
+        }
 
     @staticmethod
     def _validate_inputs(
@@ -448,11 +478,17 @@ class ResultProcessor:
 
     @staticmethod
     def _is_small_passthrough_result(result: Any) -> bool:
-        """Return True for non-empty strings/dicts whose JSON form fits the size cap."""
+        """Return True for non-empty strings/dicts of plain JSON data whose JSON form fits the size cap.
+
+        A dict holding objects, tuples or sets is not passed through. It is detected without
+        ``json.dumps``: a failed dump would break later dumps of the same objects (see json_safe).
+        """
         if not isinstance(result, (str, dict)) or not result:
             return False
+        if not is_json_plain(result):
+            return False
         try:
-            serialized: str = json.dumps(result)
+            serialized: str = json.dumps(to_json_safe(result))
         except Exception:
             return False
         return len(serialized) <= MAX_PASSTHROUGH_RESULT_CHARS

@@ -63,6 +63,8 @@ REASONING_EFFORT_ENV = "MATHUD_LOCAL_REASONING_EFFORT"
 REASONING_EFFORTS = ("low", "medium", "high", "xhigh", "max")
 DEFAULT_REASONING_EFFORT = "medium"
 _OMIT_REASONING_EFFORT = ("default",)
+# Values MATHUD_LOCAL_REASONING_EFFORT accepts (the benchmark and scenario CLIs offer these).
+REASONING_EFFORT_CHOICES = REASONING_EFFORTS + _OMIT_REASONING_EFFORT
 
 
 def get_configured_reasoning_effort() -> Optional[str]:
@@ -76,6 +78,16 @@ def get_configured_reasoning_effort() -> Optional[str]:
         return raw
     _logger.warning("Unknown %s value %r; using %r", REASONING_EFFORT_ENV, raw, DEFAULT_REASONING_EFFORT)
     return DEFAULT_REASONING_EFFORT
+
+
+def _close_stream(stream: Any) -> None:
+    """Release the HTTP response of a stream abandoned before its end."""
+    close = getattr(stream, "close", None)
+    if callable(close):
+        try:
+            close()
+        except Exception as exc:
+            _logger.debug(f"Closing the stream failed: {exc}")
 
 
 def normalize_model_name(model_name: str) -> str:
@@ -328,7 +340,9 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
 
     def reset_conversation(self) -> None:
         """Reset the conversation history."""
-        self.messages = [{"role": "system", "content": self._build_system_prompt()}]
+        with self._history_lock:
+            self.abandon_requests_in_flight()
+            self.messages = [{"role": "system", "content": self._build_system_prompt()}]
         self._last_canvas_state = None
 
     def create_chat_completion(self, full_prompt: str) -> Any:
@@ -340,6 +354,7 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         Returns:
             Response choice object compatible with OpenAI format
         """
+        generation = self.conversation_generation
         user_message = self._parse_and_prepare_message(full_prompt)
         if user_message is not None:
             self.messages.append(user_message)
@@ -360,9 +375,14 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
             self._finish_response_metrics(metrics, "error", 0, error=str(e))
             return self._create_error_response()
 
-        # Process response and update history
-        processed = self._process_response(choice)
         record_chat_completions_usage(response, metrics)
+        with self._reply_guard(generation) as current:
+            if current:
+                # Process response and update history
+                processed = self._process_response(choice)
+        if not current:
+            self._finish_response_metrics(metrics, "abandoned", 0)
+            return self._create_error_response()
         tool_calls = getattr(processed.message, "tool_calls", None) or []
         self._finish_response_metrics(metrics, processed.finish_reason, len(tool_calls))
         return processed
@@ -378,6 +398,7 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
             the request's ``metrics`` (see static/response_metrics.py), including
             llama-server ``timings`` when the server reports them.
         """
+        generation = self.conversation_generation
         user_message = self._parse_and_prepare_message(full_prompt)
         if user_message is not None:
             self.messages.append(user_message)
@@ -387,6 +408,7 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         tool_call_deltas: Dict[int, Dict[str, Any]] = {}
         finish_reason: Optional[str] = None
         metrics = self._start_response_metrics("chat_completions")
+        stream: Any = None
 
         try:
             stream, self._stream_usage_supported = create_stream_requesting_usage(
@@ -400,6 +422,10 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
             )
 
             for chunk in stream:
+                if self._drop_abandoned_reply(generation):
+                    # Stop generating for a turn nobody waits for any more (frees the server's slot).
+                    yield self._abandoned_final_event(metrics)
+                    return
                 # llama-server puts usage and timings on the last chunk, whose choices may be empty.
                 record_chat_completions_usage(chunk, metrics)
                 if not chunk.choices:
@@ -460,6 +486,9 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
                 "metrics": dict(self._finish_response_metrics(metrics, "error", 0, error=str(e))),
             }
             return
+        finally:
+            # Also when the caller closes this generator early: llama-server stops generating.
+            _close_stream(stream)
 
         # Convert tool call deltas to final format. Some local servers stream calls
         # without ids; give those a per-response id so results can be matched to them.
@@ -472,7 +501,12 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         # Update conversation history; calls of a reply that did not end in tool calls
         # (e.g. cut off at the token limit) do not run, so they are not stored.
         runs_tools = resolved_finish_reason in TOOL_CALL_FINISH_REASONS
-        self._finalize_stream(accumulated_text, tool_calls if runs_tools else [])
+        with self._reply_guard(generation) as current:
+            if current:
+                self._finalize_stream(accumulated_text, tool_calls if runs_tools else [])
+        if not current:
+            yield self._abandoned_final_event(metrics)
+            return
 
         # Prepare tool calls for response
         ai_tool_calls = self._prepare_tool_calls_for_response(tool_calls)

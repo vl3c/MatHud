@@ -44,6 +44,7 @@ This document contains comprehensive documentation extracted from all files in t
 11. Expression Validator (`expression_validator.py`)
 12. Markdown Parser (`markdown_parser.py`)
 13. Scenario Hooks (`scenario_hooks.py`)
+14. JSON-Safe Tool Results (`json_safe.py`)
 
 ### Drawable Classes
 1. Base Drawable (`drawables/drawable.py`)
@@ -478,7 +479,7 @@ Browser hooks for the agentic scenario-testing harness (`python -m cli.main test
 - `runMatHudToolCalls(callsJson)`: Refused with `{"status": "busy"}` while a chat turn runs. Otherwise, run one batch through `AIInterface.execute_tool_batch`, the path a model's batch takes (results, turn metrics, action trace). Calls are `[{"function_name", "arguments"}]` or `[{"tool", "args"}]`. Returns `traced` (per call: function name, arguments, result, `is_error`, duration), `undoable` (per call), `state` after the batch, `trace_id`, and `undo_depth_before/after` and `redo_depth_before/after`.
 - `resetMatHudSession(optionsJson?)`: Clear drawables, computations, name-generator state, undo and redo stacks, view, coordinate system (cartesian), grid visibility and grid spacing (through `Canvas.reset`), action traces and turn metrics, without archiving or saving a workspace. Options: `fixture` (a canvas state, or `{"state": ...}`) is restored afterwards and leaves no undo entries; `chat` (default true) clears the chat panel; `conversation` (default false) also POSTs `/new_conversation` (each POST starts a new server session log).
 - `getMatHudTurnStatus()`: `{"processing", "completed_turns", "last_outcome", "requests", "tool_batches", "tool_calls"}`; the last three count the active turn.
-- `sendMatHudMessage(text, modelId?)`: Select the `#ai-model-selector` option `modelId` (error if it is missing), switch vision off for this request (the user's toggle is restored afterwards) and send `text` as the user. Returns `{"status": "started"}` or `{"status": "busy"}`.
+- `sendMatHudMessage(text, modelId?, optionsJson?)`: Options `max_requests` (the client ends the turn instead of sending a request beyond it) and `response_timeout_ms` (replaces the client response timeouts for this turn). Select the `#ai-model-selector` option `modelId` (error if it is missing), switch vision off for this request (the user's toggle is restored afterwards) and send `text` as the user. Returns `{"status": "started"}` or `{"status": "busy"}`.
 - `stopMatHudTurn()`: `ai_interface.stop_ai_processing()` when a turn is running; `{"status": "stopped"}` or `{"status": "idle"}`.
 - Pure helpers (tested in `client_tests/test_scenario_hooks.py`): `parse_options`, `normalize_tool_calls`, `reset_canvas_session`, `build_inspection`, `describe_drawable`, `turn_status`.
 
@@ -533,6 +534,8 @@ computation history for mathematical operations.
 - `get_results(calls, available_functions, undoable_functions, canvas)`: Process function calls and collect their results (the results dict of `get_results_traced`)
 - `get_results_traced(calls, available_functions, undoable_functions, canvas)`: Execute the batch and return (results, traced calls with timing and `is_error`)
 - `is_error_result(value)`: Return True when a result value reports a failed call
+- `build_tool_call_results(calls, traced_calls)`: Pair each call's tool-call id with its result, in call order, converting any result that is not plain JSON data
+- `serialize_tool_call_results(calls, traced_calls)`: JSON text of those entries, the tool results sent back to the model; an entry that cannot be serialized becomes an error result for that call only
 - `_validate_inputs(calls, available_functions, undoable_functions)`: Validate the input parameters
 - `_prepare_helper_variables(undoable_functions)`: Prepare helper variables needed for processing
 - `_process_function_call(call, available_functions, non_computation_functions, unformattable_functions, canvas, results)`: Process a single function call and update results
@@ -542,6 +545,15 @@ computation history for mathematical operations.
 - `_process_result(function_name, args, result, key, unformattable_functions, non_computation_functions, canvas, results)`: Process the result based on function type
 - `_handle_exception(exception, function_name, results)`: Handle exceptions during function calls
 - `_add_computation_if_needed(result, function_name, non_computation_functions, expression, canvas)`: Add computation to canvas if needed
+
+#### JSON-Safe Tool Results (`json_safe.py`)
+
+Tool results go back to the model as JSON. Brython's `json.dumps` rejects tuples, sets, objects and `None` or float dict keys, and when it raises part-way through a value it leaves that value's containers on its circular-reference stack, so every later dump of the same objects fails with "Circular reference detected". `ResultProcessor` therefore converts each call's result to plain data when it records it, and the send path converts any result that is still not plain.
+
+**Key Functions:**
+- `to_json_safe(value)`: Copy of `value` that `json.dumps` accepts in Brython and CPython: tuples and sets become lists, keys become strings (`1` -> `"1"`, `True` -> `"true"`, `None` -> `"null"`), NaN and infinities become `"NaN"`, `"Infinity"` and `"-Infinity"`, a drawable becomes `"Point 'A'"`, another object `str(obj)`, and a self-reference `"<circular reference>"`. Never raises and never calls `json.dumps`.
+- `is_json_plain(value)`: True when `json.dumps` accepts `value` as it is (no tuples, sets, objects, cycles, or `None` or float keys); checked without serializing.
+- `ensure_json_safe(value)`: `value` itself when it is plain, else its `to_json_safe` copy.
 
 #### Test Runner (`test_runner.py`)
 
@@ -4033,6 +4045,8 @@ Dependencies:
 - `@app.route('/delete_workspace', methods=['POST'])`: Delete workspace by name (JSON body `{"name": ...}`; deleted files move to `.trash/`)
 - `@app.route('/send_message', methods=['POST'])`: Process AI chat messages with tool calling support (`/send_message_stream` streams the same); both enforce `MAX_IMAGE_BASE64_BYTES` on attached images and on the vision `canvas_snapshot` (`validate_canvas_snapshot`)
 - `@app.route('/api/available_models', methods=['GET'])`: Models of the providers that are available (API key set, or local server reachable)
+- `@app.route('/api/requests_in_flight', methods=['GET'])`: How many model requests (`/send_message`, `/send_message_stream`) are still running; the scenario harness waits for 0 after stopping a turn
+- Abandoned requests: each provider keeps a conversation generation (`OpenAIAPIBase.conversation_generation`), bumped by `reset_conversation` (new or restored conversation), by `begin_turn` (each new user message) and by `add_partial_assistant_message`; it also unloads tools `search_tools` loaded. Every reply stream starts with `{"type": "turn", "turn": "<id>:<generation>"}` (`/send_message` returns `turn` in its data); `/save_partial_response` (sent by the client on a stop or its own timeout) takes it back as `turn` and abandons only that provider's turn, and only while it is current (`abandon_turn`); without `turn` it abandons every provider's turn. A request whose generation is no longer current is dropped: its reply never reaches the history (the check and the update hold `_history_lock`), its tool calls are not filtered, logged or returned, the streaming providers stop and close the model stream and record the request's metrics as `abandoned`, and the stream ends with `{"type": "final", "finish_reason": "abandoned"}` (`/send_message` answers `finish_reason: "abandoned"`). Error finals carry `error_source`: `provider` or `server` (an exception in the route)
 
 **Key Functions:**
 - `register_routes(app)`: Register all routes with the Flask application instance
@@ -4441,10 +4455,14 @@ Agentic scenario tests check whole tool-call chains in the real app (design and 
 - `cli/scenarios/geometry.py`: `CanvasView` resolves point references to coordinates; `Tolerance` is absolute plus relative (default 1e-9 each).
 - `cli/scenarios/checks.py`: Selectors, outcome checks, relations and the invariants I1 to I7 that run after every step (unique names, no dangling references, derived fields consistent, truthful results, one undo entry per batch, errors flagged, sane numbers).
 - `cli/scenarios/runner.py`: Replay runner; drives headless Chrome through the scenario hooks with a per-step timeout and browser restart.
-- `cli/scenarios/report.py`: `results.jsonl`, `results.json`, `summary.md`, failure artifacts and `--regrade`.
-- Command: `python -m cli.main test scenarios --mode replay [--smoke] [--tags ...] [--ids ...] [--port N | --start-server] [--out DIR] [--json] [--regrade RESULTS] [--dry-run]`. A check marked `known: K<n>` is an expected failure (xfail), and an xpass ("fixed? K<n>") when it passes; the command exits non-zero only on unexpected failures. `--mode live` is not implemented yet.
+- `cli/scenarios/report.py`: `results.jsonl`, `results.json`, `summary.md` (with a per-model table for live runs), failure artifacts and `--regrade`.
+- `cli/scenarios/live.py`: `LiveRunner` sends each turn's prompt through `sendMatHudMessage`, polls `getMatHudTurnStatus`, stops the turn with `stopMatHudTurn` on its timeout or request cap, and records the executed batches (action traces), assistant texts and turn metrics; `RetraceRunner` re-executes a live run's batches with no model; `RequestBudget` is the OpenRouter hard stop.
+- `cli/scenarios/live_config.py`: The pinned server environment (`server_env`), the registration guard (`check_models`: every model must be listed under its provider in `/api/available_models`), the request-cap pre-check and the dry-run plan with a cost estimate from `static/model_prices.py`.
+- `cli/scenarios/classify.py`: Failure classes (app, model, nondeterministic, known, infra), the calls a retrace re-executes, the live-against-retrace comparison and the per-turn signals (dropped calls, calls against the reference, recovered tool errors).
+- Command: `python -m cli.main test scenarios --mode replay [--smoke] [--tags ...] [--ids ...] [--port N | --start-server] [--out DIR] [--json] [--regrade RESULTS] [--dry-run]`. A check marked `known: K<n>` is an expected failure (xfail), and an xpass ("fixed? K<n>") when it passes; the command exits non-zero only on unexpected failures.
+- Live: `--mode live [--provider local|openrouter] [--models ID,...] [--repeats N] [--max-requests N] [--local-reasoning-effort LEVEL] [--tool-exposure search|full] [--canvas-format text|min_json|json] [--canvas-budget N] [--tool-search-mode local|api|hybrid] [--turn-timeout S] [--turn-max-requests N] [--no-retrace]`, and `--mode retrace RESULTS`. Live runs start their own server, exit non-zero only on app or nondeterministic failures, and never send a message for a model the server has not registered under the provider. `MATHUD_OPENROUTER_MAX_RETRIES` sets the OpenRouter SDK retries (the harness pins 0).
 - `MATHUD_WORKSPACES_DIR` moves server workspace storage; `--start-server` points it at a temporary directory so scenario runs never write to `workspaces/`.
-- Pytest suites: `server_tests/test_cli/test_scenario_*.py` (checker on fixture states, loader, runner with a fake browser, and the catalogue gate that validates every reference call).
+- Pytest suites: `server_tests/test_cli/test_scenario_*.py` (checker on fixture states, loader, runner with a fake browser, live runner and guards with a fake chat, and the catalogue gate that validates every reference call).
 
 ### Graph and Tree Tools
 - `generate_graph(name?, graph_type, vertices, edges, adjacency_matrix?, directed?, root?, layout?, placement_box?)`: Programmatically place a graph, tree, or DAG on the canvas.

@@ -93,6 +93,11 @@ python -m cli.main test all [--port PORT]
 python -m cli.main test scenarios --mode replay [--smoke] [--tags TAG,...] [--ids ID|AREA,...] [--port PORT | --start-server] [--out DIR] [--json]
 python -m cli.main test scenarios --dry-run            # validate the scenario files, print the plan
 python -m cli.main test scenarios --regrade RESULTS    # re-check a results.json without a browser
+
+# Live: send the prompts to a model (LocalAgent by default; OpenRouter only when asked, with a request cap)
+python -m cli.main test scenarios --mode live [--smoke] [--models ID,...] [--repeats N] [--local-reasoning-effort LEVEL]
+python -m cli.main test scenarios --mode live --provider openrouter --models ID [--max-requests N] [--dry-run]
+python -m cli.main test scenarios --mode retrace RESULTS  # a live run's calls again, no model, to classify failures
 ```
 
 **Options:**
@@ -104,7 +109,7 @@ python -m cli.main test scenarios --regrade RESULTS    # re-check a results.json
 - `--screenshot-output, -o`: Screenshot output path (default: `cli/output/test_results_<timestamp>.png`)
 - `--no-screenshot`: Disable automatic screenshot capture
 
-**Scenario tests:** known app bugs (`scenarios/known_bugs.json`) are expected failures (xfail) and a known check that passes is reported as "fixed? K<n>" (xpass); the command exits non-zero only on unexpected failures. `--start-server` gives the server a temporary workspace directory (`MATHUD_WORKSPACES_DIR`); against a running server, scenarios that use workspaces are skipped unless `--allow-workspace-writes` is given. Reports go to `logs/scenario_runs/<time>/`. `--mode live` is not implemented yet. See `documentation/development/agentic_scenario_testing.md`.
+**Scenario tests:** known app bugs (`scenarios/known_bugs.json`) are expected failures (xfail) and a known check that passes is reported as "fixed? K<n>" (xpass); the command exits non-zero only on unexpected failures. `--start-server` gives the server a temporary workspace directory (`MATHUD_WORKSPACES_DIR`); against a running server, scenarios that use workspaces are skipped unless `--allow-workspace-writes` is given. Reports go to `logs/scenario_runs/<time>/`. Live mode starts its own server with the model-facing settings pinned (`--tool-exposure`, `--canvas-format`, `--canvas-budget`, `--tool-search-mode`, `--local-reasoning-effort`) and unused provider keys blanked, aborts unless every model is registered under its provider in `/api/available_models`, enforces `--turn-timeout` and `--turn-max-requests` per turn, retraces failing scenarios and classifies failures as app, model, nondeterministic, known or infra; it exits non-zero only on app or nondeterministic failures. See `documentation/development/agentic_scenario_testing.md`.
 
 **Note:** Client tests automatically capture a screenshot showing test results before the browser closes. Screenshots are saved to `cli/output/` by default.
 

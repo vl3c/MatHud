@@ -40,7 +40,7 @@ class TestAIResponseEndings(unittest.TestCase):
         def print_ai_message(message: str, turn_metrics: Optional[Any] = None, record: bool = False) -> None:
             self.printed.append(message)
 
-        def finish_turn(outcome: str, turn_token: Optional[int] = None) -> None:
+        def finish_turn(outcome: str, turn_token: Optional[int] = None, error_source: Optional[str] = None) -> None:
             self.outcomes.append(outcome)
 
         def finalize_stream(final_message: Optional[str] = None) -> None:

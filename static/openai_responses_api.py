@@ -263,15 +263,26 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
 
         The final event carries the request's ``metrics`` (see static/response_metrics.py).
         """
+        generation = self.conversation_generation
         self._prepare_messages_for_stream(full_prompt)
         state = self._create_stream_state()
+        state["generation"] = generation
 
+        stream: Any = None
         try:
             stream = self._create_api_stream_with_fallback()
             yield from self._process_stream_events(stream, state)
         except Exception as exc:
             yield from self._handle_stream_error(exc, state)
             return
+        finally:
+            # Also when the caller closes this generator early: the model stops generating.
+            close = getattr(stream, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception as exc:
+                    self._log(f"[Responses API] Closing the stream failed: {exc}")
 
         yield from self._build_final_events(state)
 
@@ -373,6 +384,8 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
     def _process_stream_events(self, stream: Any, state: Dict[str, Any]) -> Iterator[StreamEvent]:
         """Process all events from the stream."""
         for event in stream:
+            if self._drop_abandoned_reply(state.get("generation", self.conversation_generation)):
+                return  # the stream is closed by create_response_stream
             event_type = getattr(event, "type", None)
             self._log(f"[Responses API] Event type: {event_type}")
 
@@ -467,9 +480,10 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
 
         # Store response ID for multi-turn conversations
         response_id = getattr(response_obj, "id", None)
-        if response_id:
-            self._previous_response_id = response_id
-            self._log(f"[Responses API] Stored response ID: {response_id}")
+        with self._reply_guard(state.get("generation", self.conversation_generation)) as current:
+            if response_id and current:
+                self._previous_response_id = response_id
+                self._log(f"[Responses API] Stored response ID: {response_id}")
 
         status = getattr(response_obj, "status", "completed")
         self._log(f"[Responses API] Response status: {status}")
@@ -523,6 +537,9 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         the turn ends with the cut-off finish reason. The note is shown to the user
         but kept out of the conversation history.
         """
+        if self.is_abandoned(state.get("generation", self.conversation_generation)):
+            yield self._abandoned_final_event(state["metrics"])
+            return
         normalized = self._normalize_tool_calls(state["tool_calls_accumulator"])
         self._log(f"[Responses API] Normalized tool calls: {normalized}")
 
@@ -534,7 +551,12 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
                 self.clear_previous_response_id()
             normalized = []
 
-        self._finalize_stream(state["accumulated_text"], normalized)
+        with self._reply_guard(state.get("generation", self.conversation_generation)) as current:
+            if current:
+                self._finalize_stream(state["accumulated_text"], normalized)
+        if not current:
+            yield self._abandoned_final_event(state["metrics"])
+            return
         ai_tool_calls = self._prepare_tool_calls_for_response(normalized)
         self._log(f"[Responses API] Final ai_tool_calls: {ai_tool_calls}")
 
