@@ -11,7 +11,7 @@ import copy
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from cli.scenarios.checks import CheckContext, CheckResult, StepData, evaluate_checks, run_invariants
+from cli.scenarios.checks import BatchData, CheckContext, CheckResult, StepData, evaluate_checks, run_invariants
 from cli.scenarios.geometry import CanvasView, SampleRequests
 from cli.scenarios.model import Scenario, Step
 
@@ -29,6 +29,9 @@ class StepRecordData:
     redo_before: Optional[int] = None
     redo_after: Optional[int] = None
     final_text: Optional[str] = None
+    # Per-batch records of a live turn or its retrace: calls, undo depths, and the
+    # trace delta (live) or the canvas after the batch (retrace: state, inspection).
+    batches: Optional[list[dict[str, Any]]] = None
 
     def view(self) -> CanvasView:
         return CanvasView(self.state, self.inspection)
@@ -45,6 +48,7 @@ class StepRecordData:
             redo_after=self.redo_after,
             final_text=self.final_text,
             mode=mode,
+            batches=[batch_data(batch) for batch in self.batches] if self.batches else None,
         )
 
     @classmethod
@@ -59,7 +63,22 @@ class StepRecordData:
             redo_before=record.get("redo_before"),
             redo_after=record.get("redo_after"),
             final_text=record.get("final_text"),
+            batches=record.get("batches"),
         )
+
+
+def batch_data(record: dict[str, Any]) -> BatchData:
+    """A stored batch record as the invariants see it."""
+    state = record.get("state")
+    return BatchData(
+        calls=list(record.get("calls") or []),
+        undo_before=record.get("undo_before"),
+        undo_after=record.get("undo_after"),
+        redo_before=record.get("redo_before"),
+        redo_after=record.get("redo_after"),
+        view=CanvasView(state, record.get("inspection")) if isinstance(state, dict) else None,
+        delta=record.get("delta"),
+    )
 
 
 class ScenarioGrader:
@@ -119,6 +138,12 @@ class ScenarioGrader:
                 self.scenario.tolerance,
             )
             results.extend(evaluate_checks(step.checks, ctx, step_id))
+        limit = step.limits.get("max_tool_calls") if step is not None and self.mode == "live" else None
+        if isinstance(limit, int) and step_data is not None:
+            # The turn's max_tool_calls limit is a model-quality check, graded only live.
+            check = {"check": "max_tool_calls", "max": limit, "id": f"{step_id}.limit"}
+            ctx = CheckContext(view, step_data, self.snapshots, self.bindings, self.scenario.tolerance)
+            results.extend(evaluate_checks([check], ctx, step_id))
         if step is not None and step.kind == "snapshot" and step.snapshot:
             self.snapshots[step.snapshot] = view
         if step_id == "setup":

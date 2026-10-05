@@ -111,6 +111,20 @@ class TestComputeStateDeltaCanvasShape(unittest.TestCase):
         delta = ActionTraceCollector.compute_state_delta(before, after)
         self.assertEqual(delta["modified"], ["A"])
 
+    def test_state_holding_a_tuple_serialises_the_same_twice(self) -> None:
+        state = {"name": "A", "args": {"position": (1, 2)}}
+        first = ActionTraceCollector._stable_json(state)
+        second = ActionTraceCollector._stable_json(state)
+        self.assertEqual(json.loads(first), {"name": "A", "args": {"position": [1, 2]}})
+        self.assertEqual(second, first)
+
+    def test_states_holding_different_tuples_differ(self) -> None:
+        before = self._state(Points=[{"name": "A", "args": {"position": (0, 0)}}])
+        after = self._state(Points=[{"name": "A", "args": {"position": (5, 0)}}])
+        for _ in range(2):  # a second pass sees the same objects again
+            delta = ActionTraceCollector.compute_state_delta(before, after)
+            self.assertEqual(delta, {"added": [], "removed": [], "modified": ["A"]})
+
     def test_same_name_in_two_buckets(self) -> None:
         segment = {"name": "AB", "args": {"p1": "A", "p2": "B"}}
         vector = {"name": "AB", "args": {"origin": "A", "tip": "B"}}

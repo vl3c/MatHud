@@ -41,6 +41,10 @@ class HookError(Exception):
     """A scenario hook reported an error."""
 
 
+class RunStopped(Exception):
+    """The whole run must stop after this step (live mode: the request cap was reached)."""
+
+
 @dataclass
 class ReplayOptions:
     step_timeout_s: float = DEFAULT_STEP_TIMEOUT_S
@@ -155,7 +159,13 @@ def _artifact_name(scenario_id: str, step_id: str) -> str:
 
 
 class ReplayRunner:
-    """Runs scenarios in replay mode and records every step."""
+    """Runs scenarios in replay mode and records every step.
+
+    Subclasses (``cli.scenarios.live``) change how a step's calls are produced by
+    overriding ``_reset`` and ``_execute_step``; grading and recording are shared.
+    """
+
+    mode = "replay"
 
     def __init__(
         self,
@@ -170,11 +180,15 @@ class ReplayRunner:
         self.sink = sink
         self.options = options or ReplayOptions()
         self.log = log
+        # Why the run stopped early (RunStopped), or None.
+        self.stopped: Optional[str] = None
 
     def run(self, scenarios: list[Scenario], skipped: Optional[dict[str, str]] = None) -> list[ScenarioOutcome]:
         skipped = skipped or {}
         outcomes = []
         for number, scenario in enumerate(scenarios, start=1):
+            if self.stopped:
+                break
             if scenario.id in skipped:
                 outcome = ScenarioOutcome(scenario, skipped_reason=skipped[scenario.id])
             else:
@@ -182,7 +196,7 @@ class ReplayRunner:
             self.sink.add(outcome)
             outcomes.append(outcome)
             extra = f" ({outcome.infra_error})" if outcome.infra_error else ""
-            self.log(f"[{number}/{len(scenarios)}] {scenario.id} {outcome.status} {outcome.duration_s:.1f}s{extra}")
+            self.log(f"[{number}/{len(scenarios)}] {outcome.label} {outcome.status} {outcome.duration_s:.1f}s{extra}")
         return outcomes
 
     def run_scenario(self, scenario: Scenario) -> ScenarioOutcome:
@@ -190,11 +204,15 @@ class ReplayRunner:
         while True:
             attempts += 1
             started = time.time()
-            outcome = ScenarioOutcome(scenario, attempts=attempts)
+            outcome = self._new_outcome(scenario, attempts)
             try:
                 if self.session.browser is None:
                     self.session.open()
                 self._run_steps(scenario, outcome)
+            except RunStopped as exc:
+                # The step was recorded; the run ends here (e.g. the request cap was reached).
+                outcome.infra_error = f"run stopped: {exc}"
+                self.stopped = str(exc)
             except StepTimeout as exc:
                 outcome.infra_error = f"timeout: {exc}"
                 self._recover(restart=True)
@@ -211,6 +229,9 @@ class ReplayRunner:
             outcome.duration_s = time.time() - started
             return outcome
 
+    def _new_outcome(self, scenario: Scenario, attempts: int) -> ScenarioOutcome:
+        return ScenarioOutcome(scenario, attempts=attempts)
+
     def _recover(self, restart: bool) -> None:
         try:
             if restart or self.session.browser is None:
@@ -226,11 +247,8 @@ class ReplayRunner:
     # ------------------------------------------------------------------
 
     def _run_steps(self, scenario: Scenario, outcome: ScenarioOutcome) -> None:
-        grader = ScenarioGrader(scenario, self.catalogue.waivers_for(scenario), mode="replay")
-        reset_options: dict[str, Any] = {"chat": True}
-        if scenario.fixture_state is not None:
-            reset_options["fixture"] = scenario.fixture_state
-        self.session.hook("resetMatHudSession", json.dumps(reset_options))
+        grader = ScenarioGrader(scenario, self.catalogue.waivers_for(scenario), mode=self.mode)
+        self._reset(scenario)
         start = self._snapshot(None)
         grader.start(start)
         self._record(outcome, grader, "start", "start", None, start, 0.0)
@@ -242,9 +260,22 @@ class ReplayRunner:
 
         for step in scenario.steps:
             t0 = time.time()
-            batch = self._run_calls(step.calls) if step.runs_calls else None
-            data = self._with_samples(grader, step, batch)
-            self._record(outcome, grader, step.id, step.kind, step, data, time.time() - t0)
+            data, extra = self._execute_step(scenario, step, grader)
+            self._record(outcome, grader, step.id, step.kind, step, data, time.time() - t0, extra)
+
+    def _reset(self, scenario: Scenario) -> None:
+        """Reset the session for ``scenario``, restoring its fixture."""
+        reset_options: dict[str, Any] = {"chat": True}
+        if scenario.fixture_state is not None:
+            reset_options["fixture"] = scenario.fixture_state
+        self.session.hook("resetMatHudSession", json.dumps(reset_options))
+
+    def _execute_step(
+        self, scenario: Scenario, step: Step, grader: ScenarioGrader
+    ) -> tuple[StepRecordData, dict[str, Any]]:
+        """Run one step; returns its data and any extra fields for its record."""
+        batch = self._run_calls(step.calls) if step.runs_calls else None
+        return self._with_samples(grader, step, batch), {}
 
     def _run_calls(self, calls: list[ToolCall]) -> dict[str, Any]:
         return self.session.hook("runMatHudToolCalls", json.dumps([call.payload() for call in calls]))
@@ -286,6 +317,7 @@ class ReplayRunner:
         step: Optional[Step],
         data: StepRecordData,
         duration: float,
+        extra: Optional[dict[str, Any]] = None,
     ) -> None:
         if step_id == "start":
             results = []
@@ -294,7 +326,7 @@ class ReplayRunner:
         record: dict[str, Any] = {
             "step": step_id,
             "kind": kind,
-            "mode": "replay",
+            "mode": self.mode,
             "user": step.user if step is not None else None,
             "calls": data.calls,
             "undoable": data.undoable,
@@ -309,6 +341,9 @@ class ReplayRunner:
             "duration_s": round(duration, 3),
             "attempt": outcome.attempts,
         }
+        if data.batches is not None:
+            record["batches"] = data.batches
+        record.update(extra or {})
         statuses = {result.status for result in results}
         if statuses & {"fail", "error"} or (self.options.known_artifacts and "xfail" in statuses):
             record["artifacts"] = self._save_artifacts(outcome.scenario.id, step_id, data)

@@ -46,11 +46,13 @@ def turn_outcome(finish_reason: Any) -> str:
     """Turn outcome for the finish reason of the request that ended the turn.
 
     ``error``, ``truncated`` (token limit), ``filtered`` (content filter or
-    refusal) or ``stop`` for a normal answer.
+    refusal), ``abandoned`` (the server dropped the reply: the turn was stopped,
+    timed out or replaced, or the conversation was reset) or ``stop`` for a
+    normal answer.
     """
     reason = str(finish_reason or "stop").lower()
-    if reason == "error":
-        return "error"
+    if reason in ("error", "abandoned"):
+        return reason
     if reason in _TRUNCATED_FINISH_REASONS:
         return "truncated"
     if reason in _FILTERED_FINISH_REASONS:
@@ -136,7 +138,7 @@ def aggregate_turn(
             ``result``, ``is_error``).
         wall_time_s: Client-measured time from sending the message to the final answer.
         outcome: How the turn ended (``stop``, ``error``, ``truncated``, ``filtered``,
-            ``stopped``, ``timeout``).
+            ``stopped``, ``timeout``, ``abandoned``, ``max_requests``).
     """
     last = requests[-1] if requests else {}
     first = requests[0] if requests else {}
@@ -376,8 +378,15 @@ class TurnMetricsCollector:
                     }
                 )
 
-    def finish_turn(self, outcome: str = "stop", turn_token: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    def finish_turn(
+        self, outcome: str = "stop", turn_token: Optional[int] = None, error_source: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
         """Close the active turn, store its summary in the history and return it.
+
+        ``error_source`` says where an ``error`` outcome came from: ``provider``
+        (the model provider failed), ``transport`` (the request to the server
+        failed), ``server`` (an exception in the server route) or ``client`` (an
+        exception in the browser, e.g. while running tool calls).
 
         Returns None without closing anything when no turn is active or
         ``turn_token`` belongs to an earlier turn.
@@ -389,6 +398,8 @@ class TurnMetricsCollector:
             wall_time_s = max(self._clock_ms() - self._started_ms, 0.0) / 1000.0
         summary = aggregate_turn(self._requests, self._tool_results, wall_time_s, outcome)
         summary["turn_id"] = self._next_turn_id
+        if error_source is not None:
+            summary["error_source"] = error_source
         summary["user_message"] = self._preview(self._user_message)
         self._next_turn_id += 1
         self._active = False

@@ -17,6 +17,7 @@ import hmac
 import json
 import logging
 import math
+import threading
 import time
 from collections.abc import Callable, Iterator, Set as AbstractSet
 from typing import Any, Dict, List, Optional, Tuple, TypeVar, Union, cast
@@ -434,6 +435,66 @@ def require_auth(f: F) -> F:
     return cast(F, decorated_function)
 
 
+class RequestCounter:
+    """Counts the model requests that are running (thread-safe)."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._count = 0
+
+    @property
+    def count(self) -> int:
+        return self._count
+
+    def enter(self) -> None:
+        with self._lock:
+            self._count += 1
+
+    def leave(self) -> None:
+        with self._lock:
+            self._count = max(self._count - 1, 0)
+
+
+# The last event of a stream whose turn was abandoned (stopped, timed out, a new turn or
+# a new conversation): a client still waiting ends the turn quietly.
+ABANDONED_FINAL_EVENT: Dict[str, JsonValue] = {
+    "type": "final",
+    "ai_message": "",
+    "ai_tool_calls": [],
+    "finish_reason": "abandoned",
+}
+
+
+def _abandoned_reply_response() -> ResponseReturnValue:
+    """The reply to a request abandoned by a stop or a new conversation: nothing to show or run."""
+    return AppManager.make_response(
+        data={"ai_message": "", "ai_tool_calls": [], "finish_reason": "abandoned", "metrics": None}
+    )
+
+
+def _api_instances(app: MatHudFlask) -> List[OpenAIAPIBase]:
+    """Every provider instance that keeps a conversation, each once."""
+    apis: List[OpenAIAPIBase] = []
+    for api in [app.ai_api, app.responses_api, *app.providers.values()]:
+        if all(api is not known for known in apis):
+            apis.append(api)
+    return apis
+
+
+def _begin_turn_if_new(
+    app: MatHudFlask, request_api: OpenAIAPIBase, provider: OpenAIAPIBase, tool_call_results: Any
+) -> None:
+    """A request with a new user message (not tool results) starts a new turn.
+
+    Whatever an earlier turn still runs is abandoned, and tools its ``search_tools``
+    calls loaded are unloaded everywhere, so the turn starts from the default tools.
+    """
+    if isinstance(tool_call_results, str) and tool_call_results:
+        return
+    request_api.begin_turn()
+    reset_tools_for_all_providers(app, "new_turn", active_provider=provider)
+
+
 def register_routes(app: MatHudFlask) -> None:
     """Register all routes with the Flask application.
 
@@ -443,6 +504,7 @@ def register_routes(app: MatHudFlask) -> None:
     Args:
         app: Flask application instance
     """
+    in_flight = RequestCounter()
 
     @app.route("/login", methods=["GET", "POST"])
     def login() -> ResponseReturnValue:
@@ -784,6 +846,15 @@ def register_routes(app: MatHudFlask) -> None:
         # Store attached images in app context for API access
         app.current_attached_images = attached_images
 
+        model = provider.get_model()
+        stream_api = app.responses_api if model.provider == PROVIDER_OPENAI and model.is_reasoning_model else provider
+        # A new user message starts a new turn; a stop, a client timeout or a new conversation
+        # abandons the turn's request: from then on nothing more of it is streamed, logged
+        # or acted on, and the stream ends with an "abandoned" final event.
+        _begin_turn_if_new(app, stream_api, provider, tool_call_results_raw)
+        generation = stream_api.conversation_generation
+        turn = stream_api.turn_token
+
         @stream_with_context
         def generate() -> Iterator[str]:
             def _yield_pending_logs() -> Iterator[str]:
@@ -792,21 +863,35 @@ def register_routes(app: MatHudFlask) -> None:
                     log_event: StreamEventDict = {"type": "log", **log_entry}
                     yield json.dumps(log_event) + "\n"
 
+            in_flight.enter()
+            stream: Any = None
             try:
-                # Route to appropriate API based on model and provider
-                model = provider.get_model()
-                if model.provider == PROVIDER_OPENAI and model.is_reasoning_model:
+                # Route to appropriate API based on model and provider (the generator starts below)
+                if stream_api is app.responses_api:
                     stream = app.responses_api.create_response_stream(message)
                 else:
                     stream = provider.create_chat_completion_stream(message)
+                # The client sends the turn back with a stop, so the stop only abandons this turn.
+                yield json.dumps({"type": "turn", "turn": turn}) + "\n"
 
                 for event in stream:
+                    if isinstance(event, dict) and event.get("finish_reason") == "abandoned":
+                        _record_response_metrics(app, event.get("metrics"), tool_call_results_raw)
+                        yield json.dumps(ABANDONED_FINAL_EVENT) + "\n"
+                        return
+                    if stream_api.is_abandoned(generation):
+                        _logger.info("Dropped the rest of a stream whose turn was stopped or conversation reset")
+                        yield json.dumps(ABANDONED_FINAL_EVENT) + "\n"
+                        return
                     # Yield any pending log events before each stream event
                     yield from _yield_pending_logs()
 
                     if isinstance(event, dict):
                         event_dict = cast(StreamEventDict, event)
                         if event_dict.get("type") == "final":
+                            if event_dict.get("finish_reason") == "error":
+                                # The provider reported it (a provider or network failure).
+                                event_dict.setdefault("error_source", "provider")
                             _record_response_metrics(app, event_dict.get("metrics"), tool_call_results_raw)
                             try:
                                 app.log_manager.log_ai_response(str(event_dict.get("ai_message", "")))
@@ -831,6 +916,9 @@ def register_routes(app: MatHudFlask) -> None:
 
                 # Yield any remaining logs after stream completes
                 yield from _yield_pending_logs()
+                if stream_api.is_abandoned(generation):
+                    # The provider stopped early without a final event: tell a client still waiting.
+                    yield json.dumps(ABANDONED_FINAL_EVENT) + "\n"
             except Exception as exc:
                 error_msg = f"Streaming exception: {exc}"
                 _logger.error("%s", error_msg)
@@ -846,6 +934,8 @@ def register_routes(app: MatHudFlask) -> None:
                     "ai_tool_calls": [],
                     "finish_reason": "error",
                     "error_details": str(exc),
+                    # An exception the provider did not handle: an app bug, not the provider's failure.
+                    "error_source": "server",
                 }
                 try:
                     yield json.dumps(error_payload) + "\n"
@@ -858,8 +948,14 @@ def register_routes(app: MatHudFlask) -> None:
                         "ai_message": "I encountered an error processing your request.",
                         "ai_tool_calls": [],
                         "finish_reason": "error",
+                        "error_source": "server",
                     }
                     yield json.dumps(fallback_payload) + "\n"
+            finally:
+                close = getattr(stream, "close", None)
+                if callable(close):
+                    close()  # the provider's own cleanup closes its model stream
+                in_flight.leave()
 
         response = Response(generate(), mimetype="application/x-ndjson")
         # Headers to reduce buffering in some proxies
@@ -983,13 +1079,22 @@ def register_routes(app: MatHudFlask) -> None:
                     code=400,
                 )
 
-            # Always notify all APIs so they can clear stale conversation
-            # state (e.g. previous_response_id after interrupted tool calls).
-            # The base class skips appending empty text to history.
-            app.ai_api.add_partial_assistant_message(partial_message)
-            app.responses_api.add_partial_assistant_message(partial_message)
-            for provider in app.providers.values():
-                provider.add_partial_assistant_message(partial_message)
+            # A stop or client timeout sends the turn the server gave it: only that
+            # provider's turn is abandoned, and only while it is still the current one,
+            # so a stop that arrives after the next message cannot drop that message.
+            turn = request_payload.get("turn")
+            if isinstance(turn, str) and turn:
+                abandoned = [api for api in _api_instances(app) if api.abandon_turn(turn, partial_message)]
+                if abandoned:
+                    reset_tools_for_all_providers(app, "abandoned", active_provider=abandoned[0])
+                    return AppManager.make_response(message="Partial response saved.")
+                return AppManager.make_response(message="The turn already ended; nothing to stop.")
+
+            # Without a turn (the stop came before the server answered at all), notify all
+            # APIs so they can clear stale conversation state (e.g. previous_response_id
+            # after interrupted tool calls). The base class skips appending empty text.
+            for api in _api_instances(app):
+                api.add_partial_assistant_message(partial_message)
 
             return AppManager.make_response(message="Partial response saved.")
         except Exception as e:
@@ -1096,10 +1201,15 @@ def register_routes(app: MatHudFlask) -> None:
         # Store attached images in app context for API access
         app.current_attached_images = attached_images
 
+        model = provider.get_model()
+        request_api = app.responses_api if model.provider == PROVIDER_OPENAI and model.is_reasoning_model else provider
+        _begin_turn_if_new(app, request_api, provider, tool_call_results_raw)
+        generation = request_api.conversation_generation
+        turn = request_api.turn_token
+        in_flight.enter()
         try:
             # Route to appropriate API based on model and provider
-            model = provider.get_model()
-            if model.provider == PROVIDER_OPENAI and model.is_reasoning_model:
+            if request_api is app.responses_api:
                 stream = app.responses_api.create_response_stream(message)
                 final_event: Optional[StreamEventDict] = None
                 for event in stream:
@@ -1107,6 +1217,8 @@ def register_routes(app: MatHudFlask) -> None:
                         final_event = cast(StreamEventDict, event)
                         break
 
+                if request_api.is_abandoned(generation):
+                    return _abandoned_reply_response()
                 if final_event is None:
                     reset_tools_for_all_providers(app, "error", active_provider=provider)
                     return AppManager.make_response(
@@ -1140,6 +1252,7 @@ def register_routes(app: MatHudFlask) -> None:
                             "ai_tool_calls": cast(JsonValue, ai_tool_calls),
                             "finish_reason": finish_reason,
                             "metrics": cast(JsonValue, reasoning_metrics),
+                            "turn": turn,
                         },
                     )
                 )
@@ -1149,6 +1262,8 @@ def register_routes(app: MatHudFlask) -> None:
             # single-user workbench case). The streaming path carries metrics on its final event.
             provider.last_response_metrics = None
             choice = provider.create_chat_completion(message)
+            if request_api.is_abandoned(generation):
+                return _abandoned_reply_response()
             ai_message, ai_tool_calls_processed = _process_ai_response(app, choice)
             ai_tool_calls = cast(List[Dict[str, Any]], ai_tool_calls_processed)
             # Intercept search_tools and filter other tool calls
@@ -1168,6 +1283,7 @@ def register_routes(app: MatHudFlask) -> None:
                         "ai_tool_calls": cast(JsonValue, ai_tool_calls),
                         "finish_reason": finish_reason,
                         "metrics": cast(JsonValue, completion_metrics),
+                        "turn": turn,
                     },
                 )
             )
@@ -1177,7 +1293,22 @@ def register_routes(app: MatHudFlask) -> None:
                 message=str(exc),
                 status="error",
                 code=500,
+                data={"error_source": "server"},
             )
+        finally:
+            in_flight.leave()
+
+    @app.route("/api/requests_in_flight", methods=["GET"])
+    @require_auth
+    def requests_in_flight_route() -> ResponseReturnValue:
+        """How many model requests (/send_message, /send_message_stream) are still running.
+
+        A stopped turn's request goes on until the model's reply arrives (or its next
+        token, for the streaming providers, which then stop reading). The scenario
+        harness waits for this to reach 0 before it starts the next turn, so a
+        stopped request neither shares the model server with it nor skews its timing.
+        """
+        return AppManager.make_response(data={"requests_in_flight": in_flight.count})
 
     @app.route("/search_tools", methods=["POST"])
     @require_auth

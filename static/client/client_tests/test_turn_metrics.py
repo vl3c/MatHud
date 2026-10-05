@@ -375,3 +375,171 @@ class TestTurnBookkeeping(unittest.TestCase):
 
         self.assertEqual(calls, ["finalize", "enable"])
         self.assertEqual(self._last_outcome(ai), "stop")
+
+
+class _FakeAjax:
+    """Records the requests ``ai_interface`` sends through ``browser.ajax``."""
+
+    def __init__(self) -> None:
+        self.posts: List[Dict[str, Any]] = []
+
+    def post(
+        self, url: str, data: Any = None, headers: Any = None, oncomplete: Any = None, onerror: Any = None
+    ) -> None:
+        self.posts.append({"url": url, "data": json.loads(data) if isinstance(data, str) else data})
+
+    def ajax(self) -> Any:
+        recorder = self
+
+        class _Request:
+            def open(self, method: str, url: str, asynchronous: bool) -> None:
+                recorder.posts.append({"url": url, "method": method})
+
+            def set_header(self, *args: Any) -> None:
+                pass
+
+            def send(self, *args: Any) -> None:
+                pass
+
+        return _Request()
+
+
+class TestTurnLifecycle(unittest.TestCase):
+    """Stops, timeouts, request caps and abandoned replies end the turn and tell the server which turn."""
+
+    def setUp(self) -> None:
+        import ai_interface
+
+        self.module = ai_interface
+        self.original_ajax = ai_interface.ajax
+        self.fake_ajax = _FakeAjax()
+        ai_interface.ajax = self.fake_ajax
+
+    def tearDown(self) -> None:
+        self.module.ajax = self.original_ajax
+
+    def _ai(self) -> Any:
+        ai = TestTurnBookkeeping()._ai()
+        self.calls: List[str] = []
+        ai._finalize_stream_message = lambda msg=None: self.calls.append("finalize")
+        ai._enable_send_controls = lambda: self.calls.append("enable")
+        ai._print_ai_message_in_chat = lambda msg: self.calls.append(f"ai:{msg}")
+        ai._print_system_message_in_chat = lambda msg: self.calls.append(f"system:{msg}")
+        ai._abort_current_stream = lambda: self.calls.append("abort")
+        ai._cancel_response_timeout = lambda: None
+        ai.execute_tool_batch = lambda *args: self.calls.append("tools")
+        return ai
+
+    def _last(self, ai: Any) -> Dict[str, Any]:
+        turn = ai._turn_metrics.last_turn()
+        assert turn is not None
+        return turn
+
+    def test_turn_event_is_remembered_and_sent_back_with_a_stop(self) -> None:
+        ai = self._ai()
+        token = ai._turn_metrics.turn_token
+        ai._on_stream_turn({"type": "turn", "turn": "abc:3"}, token)
+        self.assertEqual(ai._server_turn, "abc:3")
+        ai._save_partial_response("partial")
+        self.assertEqual(self.fake_ajax.posts[-1]["data"], {"partial_message": "partial", "turn": "abc:3"})
+
+    def test_turn_event_of_an_old_turn_is_ignored(self) -> None:
+        ai = self._ai()
+        old = ai._turn_metrics.turn_token
+        ai._turn_metrics.start_turn("next")
+        ai._on_stream_turn({"type": "turn", "turn": "old:1"}, old)
+        self.assertIsNone(ai._server_turn)
+
+    def test_client_timeout_abandons_the_server_request(self) -> None:
+        ai = self._ai()
+        ai._server_turn = "abc:4"
+        ai._chat_ui.stream_buffer = "half an answer"
+        ai._on_response_timeout()
+        self.assertEqual(self._last(ai)["outcome"], "timeout")
+        post = self.fake_ajax.posts[-1]
+        self.assertEqual(post["url"], "/save_partial_response")
+        self.assertEqual(post["data"], {"partial_message": "half an answer", "turn": "abc:4"})
+
+    def test_abandoned_final_ends_the_turn_quietly(self) -> None:
+        ai = self._ai()
+        event = {"type": "final", "finish_reason": "abandoned", "ai_tool_calls": [], "ai_message": ""}
+        ai._on_stream_final(event, ai._turn_metrics.turn_token)
+        self.assertEqual(self._last(ai)["outcome"], "abandoned")
+        self.assertEqual(self.calls, ["finalize", "enable"])  # no message, no tools
+
+    def test_abandoned_non_streaming_reply_ends_the_turn_quietly(self) -> None:
+        ai = self._ai()
+        payload = {"data": {"ai_message": "", "ai_tool_calls": [], "finish_reason": "abandoned", "turn": "x:2"}}
+        ai._on_complete(_FakeRequest(200, payload), ai._turn_metrics.turn_token)
+        self.assertEqual(self._last(ai)["outcome"], "abandoned")
+        self.assertNotIn("tools", self.calls)
+        self.assertFalse([c for c in self.calls if c.startswith("ai:")])
+
+    def test_request_limit_ends_the_turn_without_another_request(self) -> None:
+        ai = self._ai()
+        sent: List[Any] = []
+        ai._send_prompt_json = lambda *args: sent.append(args)
+        ai._turn_request_limit = 2
+        ai._turn_requests_sent = 2
+        ai._send_prompt_to_ai(None, "[]", canvas_state={})
+        self.assertEqual(sent, [])
+        self.assertEqual(self._last(ai)["outcome"], "max_requests")
+        self.assertIn("enable", self.calls)
+
+    def test_request_below_the_limit_is_sent_and_counted(self) -> None:
+        ai = self._ai()
+        sent: List[Any] = []
+        ai._send_prompt_json = lambda *args: sent.append(args)
+        ai._turn_request_limit = 2
+        ai._turn_requests_sent = 1
+        ai._send_prompt_to_ai(None, "[]", canvas_state={})
+        self.assertEqual(len(sent), 1)
+        self.assertEqual(ai._turn_requests_sent, 2)
+
+    def test_new_conversation_stops_the_running_turn_first(self) -> None:
+        ai = self._ai()
+        order: List[str] = []
+        ai.stop_ai_processing = lambda: order.append("stop")
+
+        class _Workspace:
+            def save_workspace(self) -> None:
+                order.append("save")
+
+        class _Canvas:
+            def clear(self) -> None:
+                order.append("clear")
+
+        ai.workspace_manager = _Workspace()
+        ai.canvas = _Canvas()
+        ai._chat_ui.clear_chat = lambda: order.append("chat")
+        ai.start_new_conversation(None)
+        self.assertEqual(order[:2], ["stop", "save"])
+        self.assertEqual(self.fake_ajax.posts[-1]["url"], "/new_conversation")
+
+    def test_error_sources(self) -> None:
+        ai = self._ai()
+        ai._on_stream_error("network down", ai._turn_metrics.turn_token)
+        self.assertEqual(self._last(ai)["error_source"], "transport")
+
+        ai = self._ai()
+        event = {"type": "final", "finish_reason": "error", "ai_tool_calls": [], "ai_message": "x"}
+        ai._on_stream_final(event, ai._turn_metrics.turn_token)
+        self.assertEqual(self._last(ai)["error_source"], "provider")
+
+        ai = self._ai()
+        ai._on_stream_final(dict(event, error_source="server"), ai._turn_metrics.turn_token)
+        self.assertEqual(self._last(ai)["error_source"], "server")
+
+        ai = self._ai()
+
+        def broken(*args: Any) -> Any:
+            raise ValueError("bug while running tools")
+
+        ai.execute_tool_batch = broken
+        call = {"function_name": "create_point", "arguments": {}}
+        event = {"type": "final", "finish_reason": "tool_calls", "ai_tool_calls": [call], "ai_message": ""}
+        ai._on_stream_final(event, ai._turn_metrics.turn_token)
+        self.assertEqual(self._last(ai)["error_source"], "client")
+
+    def test_abandoned_finish_reason_has_its_own_outcome(self) -> None:
+        self.assertEqual(turn_outcome("abandoned"), "abandoned")
