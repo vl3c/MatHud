@@ -84,6 +84,7 @@ from .test_circle_manager import TestCircleManager
 from .test_ellipse_manager import TestEllipseManager
 from .test_colored_area_manager import TestColoredAreaManager
 from .test_function_manager import TestFunctionManager
+from .test_function_features import TestFunctionFeaturesAlgorithm, TestFunctionFeaturesCanvas
 from .test_function_analysis import (
     TestFunctionAreaTranslation,
     TestFunctionRedefinition,
@@ -567,6 +568,8 @@ class Tests:
             TestTransformationsManager,
             TestTransforms,
             TestFunctionManager,
+            TestFunctionFeaturesAlgorithm,
+            TestFunctionFeaturesCanvas,
             TestFunctionTranslationAnalysis,
             TestFunctionRedefinition,
             TestFunctionTangentGuard,
