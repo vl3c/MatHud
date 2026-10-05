@@ -461,11 +461,20 @@ class TestTurnLifecycle(unittest.TestCase):
         self.assertEqual(post["data"], {"partial_message": "half an answer", "turn": "abc:4"})
 
     def test_abandoned_final_ends_the_turn_quietly(self) -> None:
+        from ai_interface import ABANDONED_ELSEWHERE_NOTE
+
         ai = self._ai()
         event = {"type": "final", "finish_reason": "abandoned", "ai_tool_calls": [], "ai_message": ""}
         ai._on_stream_final(event, ai._turn_metrics.turn_token)
         self.assertEqual(self._last(ai)["outcome"], "abandoned")
-        self.assertEqual(self.calls, ["finalize", "enable"])  # no message, no tools
+        # No AI message and no tools; one short note says why the reply ended here.
+        self.assertEqual(self.calls, ["finalize", f"system:{ABANDONED_ELSEWHERE_NOTE}", "enable"])
+
+    def test_abandoned_turn_of_this_tabs_own_stop_gets_no_note(self) -> None:
+        ai = self._ai()
+        ai._stop_requested = True
+        ai._end_abandoned_turn(ai._turn_metrics.turn_token)
+        self.assertEqual(self.calls, ["finalize", "enable"])
 
     def test_abandoned_non_streaming_reply_ends_the_turn_quietly(self) -> None:
         ai = self._ai()
@@ -543,3 +552,108 @@ class TestTurnLifecycle(unittest.TestCase):
 
     def test_abandoned_finish_reason_has_its_own_outcome(self) -> None:
         self.assertEqual(turn_outcome("abandoned"), "abandoned")
+
+    def test_tool_results_carry_the_server_turn(self) -> None:
+        ai = self._ai()
+        sent: List[Any] = []
+        ai._send_request = lambda prompt, action_trace=None, turn=None: sent.append(turn)
+        ai._server_turn = "abc:5"
+        ai._send_prompt_to_ai(None, "[]", canvas_state={})
+        self.assertEqual(sent, ["abc:5"])
+
+    def test_request_payload_holds_the_turn_only_when_given(self) -> None:
+        ai = self._ai()
+        ai.canvas = None
+        self.assertEqual(ai._create_request_payload("{}", turn="abc:5")["turn"], "abc:5")
+        self.assertNotIn("turn", ai._create_request_payload("{}"))
+
+    def _tool_round_done(self, ai: Any) -> None:
+        """The state after a tool batch: the previous request's text is shown, its results are on their way."""
+        ai._server_turn = "abc:6"
+        ai._send_token = 0
+        ai._chat_ui.stream_buffer = "Drawing the segment."
+        ai._chat_ui.needs_continuation_separator = True
+
+    def test_stop_after_a_tool_round_sends_no_text_twice(self) -> None:
+        ai = self._ai()
+        self._tool_round_done(ai)
+        ai.stop_ai_processing()
+        post = self.fake_ajax.posts[-1]
+        self.assertEqual(post["url"], "/save_partial_response")
+        self.assertEqual(post["data"], {"partial_message": "", "turn": "abc:6"})
+
+    def test_timeout_after_a_tool_round_sends_no_text_twice(self) -> None:
+        ai = self._ai()
+        self._tool_round_done(ai)
+        ai._on_response_timeout()
+        self.assertEqual(self.fake_ajax.posts[-1]["data"], {"partial_message": "", "turn": "abc:6"})
+
+    def test_stop_sends_the_text_of_the_running_request(self) -> None:
+        ai = self._ai()
+        self._tool_round_done(ai)
+        # The follow-up's first token replaced the old text (ChatUIManager.on_stream_token).
+        ai._chat_ui.needs_continuation_separator = False
+        ai._chat_ui.stream_buffer = "Now the circle"
+        ai.stop_ai_processing()
+        self.assertEqual(self.fake_ajax.posts[-1]["data"]["partial_message"], "Now the circle")
+
+    def _tool_call_event(self) -> Dict[str, Any]:
+        call = {"function_name": "create_point", "arguments": {"x": 1, "y": 2}, "tool_call_id": "c1"}
+        return {"type": "final", "finish_reason": "tool_calls", "ai_tool_calls": [call], "ai_message": ""}
+
+    def test_request_cap_ends_the_turn_before_the_batch_runs(self) -> None:
+        ai = self._ai()
+        ai._server_turn = "abc:7"
+        ai._turn_request_limit = 1
+        ai._turn_requests_sent = 1
+        ai._on_stream_final(self._tool_call_event(), ai._turn_metrics.turn_token)
+        self.assertNotIn("tools", self.calls)
+        self.assertEqual(self._last(ai)["outcome"], "max_requests")
+        self.assertIn("enable", self.calls)
+        # The server's turn is abandoned, so its tool calls are not left awaiting results.
+        self.assertEqual(self.fake_ajax.posts[-1]["data"], {"partial_message": "", "turn": "abc:7"})
+
+    def test_request_cap_ends_a_non_streaming_turn_before_the_batch_runs(self) -> None:
+        ai = self._ai()
+        ai._turn_request_limit = 2
+        ai._turn_requests_sent = 2
+        event = self._tool_call_event()
+        ai._process_ai_response("", event["ai_tool_calls"], "tool_calls", ai._turn_metrics.turn_token)
+        self.assertNotIn("tools", self.calls)
+        self.assertEqual(self._last(ai)["outcome"], "max_requests")
+
+    def test_batch_below_the_cap_runs(self) -> None:
+        ai = self._ai()
+        ai._turn_request_limit = 2
+        ai._turn_requests_sent = 1
+        ai._send_prompt_to_ai = lambda *args, **kwargs: self.calls.append("send")
+        ai.execute_tool_batch = lambda *args: (self.calls.append("tools"), {
+            "call_results": {}, "traced_calls": [], "state_after": {}, "trace": None,
+        })[1]  # fmt: skip
+        ai._tool_call_log = _NoToolLog()
+        ai._chat_ui._stream_message_container = object()  # the reply's chat element exists already
+        ai._start_response_timeout = lambda use_reasoning_timeout=False: None
+        ai._on_stream_final(self._tool_call_event(), ai._turn_metrics.turn_token)
+        self.assertEqual([c for c in self.calls if c in ("tools", "send")], ["tools", "send"])
+
+    def test_http_error_status_is_a_server_error(self) -> None:
+        from browser import window
+
+        for err, source in (
+            ({"message": "HTTP 500", "status": 500}, "server"),
+            ({"message": "HTTP 400", "status": 400}, "server"),
+            (window.JSON.parse('{"message": "HTTP 502", "status": 502}'), "server"),
+            ({"message": "Empty response body", "status": 200}, "transport"),
+            ("network down", "transport"),
+        ):
+            ai = self._ai()
+            ai._on_stream_error(err, ai._turn_metrics.turn_token)
+            self.assertEqual(self._last(ai)["error_source"], source, str(err))
+
+
+class _NoToolLog:
+    def ensure_element(self, *args: Any) -> None:
+        pass
+
+    def add_entries(self, *args: Any) -> None:
+        pass

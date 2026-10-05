@@ -57,6 +57,10 @@ from managers.action_trace_collector import ActionTraceCollector
 if TYPE_CHECKING:
     from canvas import Canvas
 
+# Shown in a tab whose turn the server dropped because of a stop, a new message or a
+# new conversation in another tab: its partial reply stays here, but not on the server.
+ABANDONED_ELSEWHERE_NOTE = "This reply was stopped because the conversation changed elsewhere."
+
 
 class AIInterface:
     """Communication bridge between the mathematical canvas and backend AI services.
@@ -433,6 +437,12 @@ class AIInterface:
                 self._enable_send_controls()
                 return
 
+            # The batch's results would need one more request than the turn's cap allows:
+            # end the turn before running it, so the canvas matches what the model was told.
+            if self._request_limit_reached():
+                self._end_turn_at_request_limit(turn_token)
+                return
+
             # Processing tool calls - keep the "Thinking..." container visible
             # It will be removed/updated when the final response arrives
             try:
@@ -473,9 +483,16 @@ class AIInterface:
             self._enable_send_controls()
 
     def _end_abandoned_turn(self, turn_token: Optional[int]) -> None:
-        """End a turn whose reply the server dropped (stopped elsewhere, conversation reset) without a message."""
+        """End a turn whose reply the server dropped (stopped elsewhere, conversation reset).
+
+        The text streamed so far stays in this chat although the server did not keep
+        it, so a short note says why the reply ended. This tab's own stops and
+        timeouts abort the stream first and never get here.
+        """
         self._turn_metrics.finish_turn("abandoned", turn_token)
         self._finalize_stream_message()
+        if not self._stop_requested:
+            self._print_system_message_in_chat(ABANDONED_ELSEWHERE_NOTE)
         self._enable_send_controls()
 
     def _on_stream_turn(self, event_obj: Any, turn_token: Optional[int] = None) -> None:
@@ -574,9 +591,24 @@ class AIInterface:
             console.error("Streaming error", err)
         except Exception:
             pass
-        self._turn_metrics.finish_turn("error", turn_token, "transport")
+        self._turn_metrics.finish_turn("error", turn_token, self._stream_error_source(err))
         self._restore_user_message_on_error()
         self._enable_send_controls()
+
+    @staticmethod
+    def _stream_error_source(err: Any) -> str:
+        """``server`` when the route answered with an HTTP error status, else ``transport``.
+
+        The stream helper passes ``{"message", "status"}`` for a response that is not
+        OK; a network failure has no status.
+        """
+        try:
+            status = err.get("status") if isinstance(err, dict) else getattr(err, "status", None)
+            if isinstance(status, (int, float)) and 400 <= status < 600:
+                return "server"
+        except Exception:
+            pass
+        return "transport"
 
     def _is_stale_response(self, turn_token: Optional[int], kind: str) -> bool:
         """True when a response belongs to an earlier turn or arrives after its turn ended.
@@ -761,7 +793,7 @@ class AIInterface:
                 self._abort_current_stream()
                 # The request goes on in the server: abandon it there, as a stop does, so
                 # its late reply never reaches the conversation.
-                self._save_partial_response(self._chat_ui.stream_buffer or "")
+                self._save_partial_response(self._chat_ui.unsaved_reply_text() or "")
                 self._print_ai_message_in_chat(
                     "⚠️ Request timed out. The AI is taking too long to respond. Please try again."
                 )
@@ -787,7 +819,7 @@ class AIInterface:
         # Always notify the backend so it can clear stale conversation state
         # (e.g. previous_response_id pointing to unanswered tool calls).
         # The backend handles empty text gracefully.
-        self._save_partial_response(self._chat_ui.stream_buffer or "")
+        self._save_partial_response(self._chat_ui.unsaved_reply_text() or "")
         self._finalize_stream_message()
         self._print_system_message_in_chat("Generation stopped.")
         self._enable_send_controls()
@@ -825,6 +857,9 @@ class AIInterface:
             # Text sent with the calls (e.g. a cut-off note) is shown before they run.
             if isinstance(ai_message, str) and ai_message.strip():
                 self._chat_ui.print_ai_message(ai_message, record=True)
+            if self._request_limit_reached():
+                self._end_turn_at_request_limit(turn_token)
+                return
             try:
                 batch = self.execute_tool_batch(tool_calls, turn_token)
                 trace_summary = self._trace_summary(batch["trace"])
@@ -900,15 +935,19 @@ class AIInterface:
         self,
         prompt: Optional[str],
         action_trace: Optional[Dict[str, Any]] = None,
+        turn: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create the JSON payload for the request.
 
         The vision snapshot, when there is one, travels inside the prompt JSON
-        (``canvas_snapshot``), next to ``use_vision``.
+        (``canvas_snapshot``), next to ``use_vision``. ``turn`` is the server's turn
+        that tool results continue: the server drops them once that turn ended.
         """
         payload: Dict[str, Any] = {"message": prompt}
         if action_trace is not None:
             payload["action_trace"] = action_trace
+        if turn:
+            payload["turn"] = turn
         renderer_mode = getattr(self.canvas, "renderer_mode", None)
         if isinstance(renderer_mode, str):
             payload["renderer_mode"] = renderer_mode
@@ -950,8 +989,9 @@ class AIInterface:
         self,
         prompt: Optional[str],
         action_trace: Optional[Dict[str, Any]] = None,
+        turn: Optional[str] = None,
     ) -> None:
-        payload = self._create_request_payload(prompt, action_trace=action_trace)
+        payload = self._create_request_payload(prompt, action_trace=action_trace, turn=turn)
         self._start_streaming_request(payload)
 
     def _send_prompt_to_ai(
@@ -963,6 +1003,7 @@ class AIInterface:
         action_trace: Optional[Dict[str, Any]] = None,
     ) -> None:
         if tool_call_results is not None and self._request_limit_reached():
+            # Backstop: the tool-call handlers end the turn before running a batch at the cap.
             self._end_turn_at_request_limit()
             return
         self._turn_requests_sent += 1
@@ -998,18 +1039,25 @@ class AIInterface:
                 lambda snapshot: self._send_prompt_json_if_current(prompt_json, snapshot, action_trace, send_token)
             )
             return
-        self._send_prompt_json(prompt_json, None, action_trace)
+        # Tool results continue the server's turn; the server drops them once it ended.
+        turn = self._server_turn if tool_call_results is not None else None
+        self._send_prompt_json(prompt_json, None, action_trace, turn)
 
     def _request_limit_reached(self) -> bool:
         """True when the turn has sent as many requests as its cap allows."""
         limit = self._turn_request_limit
         return limit is not None and self._turn_requests_sent >= limit
 
-    def _end_turn_at_request_limit(self) -> None:
-        """End the turn instead of sending one more request than its cap allows."""
+    def _end_turn_at_request_limit(self, turn_token: Optional[int] = None) -> None:
+        """End the turn instead of sending one more request than its cap allows.
+
+        The server's turn is abandoned like a stop's, so the tool calls of the last
+        reply are not left awaiting results that will never be sent.
+        """
         print(f"Request limit reached ({self._turn_request_limit} requests); ending the turn")
-        self._turn_metrics.finish_turn("max_requests")
+        self._turn_metrics.finish_turn("max_requests", turn_token)
         self._cancel_response_timeout()
+        self._save_partial_response("")
         self._finalize_stream_message()
         self._print_system_message_in_chat("Stopped: the turn reached its request limit.")
         self._enable_send_controls()
@@ -1035,11 +1083,12 @@ class AIInterface:
         prompt_json: Dict[str, Any],
         canvas_snapshot: Optional[str],
         action_trace: Optional[Dict[str, Any]],
+        turn: Optional[str] = None,
     ) -> None:
         """Serialize the prompt (with the vision snapshot, if any) and send it."""
         if canvas_snapshot:
             prompt_json["canvas_snapshot"] = canvas_snapshot
-        self._send_request(json.dumps(prompt_json), action_trace=action_trace)
+        self._send_request(json.dumps(prompt_json), action_trace=action_trace, turn=turn)
 
     def send_user_message(
         self,

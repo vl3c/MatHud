@@ -75,7 +75,7 @@ class TestVisionSendCancellation(unittest.TestCase):
             ai.is_processing = False
             ai._stop_requested = False
 
-        def send_request(prompt: Optional[str], action_trace: Any = None) -> None:
+        def send_request(prompt: Optional[str], action_trace: Any = None, turn: Optional[str] = None) -> None:
             self.sent.append(json.loads(prompt or "{}"))
 
         for name in (
