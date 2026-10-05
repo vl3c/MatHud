@@ -1417,6 +1417,8 @@ A reasonable first milestone is phases 1 to 4 with the smoke subset. That alread
 
 Status: phases 1 to 5 are done, with the whole catalogue rather than only the smoke subset. Differences from the plan: the benchmark's price table and `ResultSink` were not moved into a shared module (the scenario reports have their own sink; the price table is needed only by live mode); a `grade.py` module shares step grading between the runner and `--regrade`; and the runner resets the session between scenarios, restarting Chrome only after a hang (it retries the scenario once).
 
+Phase 7 status: the `scenario-replay` job in `.github/workflows/tests.yml` replays the whole catalogue on pushes and pull requests with `--start-server`, non-blocking (`continue-on-error`) like `client-tests`; on a failure it uploads `logs/scenario_runs/ci` as the `scenario-replay-report` artifact. The pytest gates (`server_tests/test_cli/test_scenario_*.py`: loader, argument validation, catalogue and check engine) already run in the blocking `server-tests` job. Still to do: make the job blocking once it is stable, with XPASS failing it.
+
 ## 8. Open questions
 
 1. **Tolerance for vertex re-ordering (K19).** Should the fix keep the user's order and exact coordinates, or should the check accept any orientation as long as the letter order is documented? The catalogue assumes the former.
