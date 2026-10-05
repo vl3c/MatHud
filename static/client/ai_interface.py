@@ -140,9 +140,14 @@ class AIInterface:
         """Expose trace inspection functions on the browser ``window`` object."""
 
         def _safe_json_to_js(data: Any) -> Any:
-            """Serialize Python data to a JS object, returning error dict on failure."""
+            """Serialize Python data to a JS object, returning error dict on failure.
+
+            Values JSON cannot express become strings, as in the scenario hooks: Brython's
+            json rejects tuples (analyze_graph's MST edges), which would otherwise make
+            the whole trace list unreadable.
+            """
             try:
-                return window.JSON.parse(json.dumps(data))
+                return window.JSON.parse(json.dumps(data, default=str))
             except Exception as exc:
                 return window.JSON.parse(json.dumps({"error": str(exc)}))
 
