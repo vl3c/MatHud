@@ -1697,6 +1697,42 @@
       "difficulty": "normal"
     },
     {
+      "id": "u_find_function_features_1",
+      "query": "Find the roots and local extrema of the plotted function f.",
+      "expected_any": [
+        "find_function_features"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_find_function_features_2",
+      "query": "Where do the curves f and g intersect? Mark the points.",
+      "expected_any": [
+        "find_function_features"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_find_function_features_3",
+      "query": "What are the local maximum and minimum of f between -2 and 2?",
+      "expected_any": [
+        "find_function_features"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
       "id": "u_fit_regression_1",
       "query": "Fit a linear regression to points (1,2), (2,3), (3,5).",
       "expected_any": [

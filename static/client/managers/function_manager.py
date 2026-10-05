@@ -43,11 +43,20 @@ State Management:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
 
 from drawables.function import Function
 from managers.dependency_removal import remove_drawable_with_dependencies
 from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
+from utils.function_features import (
+    DEFAULT_FEATURES,
+    FeatureReport,
+    FunctionFeature,
+    find_function_features,
+    find_intersections,
+    round_report_value,
+    sample_count,
+)
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -333,3 +342,186 @@ class FunctionManager:
         if "left_bound" in pending_fields or "right_bound" in pending_fields:
             # Asymptotes (e.g. of tan), discontinuities and periodicity depend on the bounds
             function.reanalyze()
+
+    # ------------------- Roots, extrema and intersections -------------------
+
+    def find_function_features(
+        self,
+        function_names: Sequence[str],
+        features: Optional[Sequence[str]] = None,
+        left_bound: Optional[float] = None,
+        right_bound: Optional[float] = None,
+        place_points: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        """Find the roots, local extrema or inflection points of one plotted function, or where two intersect.
+
+        Works on functions and piecewise functions. The interval is [left_bound, right_bound];
+        a missing side defaults to the functions' own bound, else to the visible x range, and
+        the interval is clipped to where every function is defined. Sampling is at least as
+        fine as two samples per screen pixel. With two functions, ``features`` is ignored.
+
+        With ``place_points`` a point is created at every distinct feature location (an
+        existing point there is reused); together they are one undo step.
+
+        Returns:
+            Dict with the function names, the interval searched, the features (x, y, kind,
+            sorted by x), their count, a truncated flag, a note when nothing was found or the
+            list was cut, and point_name on each feature when points are placed.
+        """
+        curves = self._feature_curves(function_names)
+        left, right = self._feature_interval(curves, left_bound, right_bound)
+        breakpoints = self._feature_breakpoints(curves)
+        samples = self._feature_sample_count(curves, right - left)
+        if len(curves) == 1:
+            report = find_function_features(
+                curves[0].function,
+                left,
+                right,
+                features=list(features) if features else DEFAULT_FEATURES,
+                breakpoints=breakpoints,
+                samples=samples,
+            )
+        else:
+            report = find_intersections(
+                curves[0].function, curves[1].function, left, right, breakpoints=breakpoints, samples=samples
+            )
+        result = self._feature_result(curves, left, right, report)
+        if place_points and report["features"]:
+            placed = self._place_feature_points(report["features"])
+            reuse_note = placed.pop("note", None)
+            result.update(placed)
+            if reuse_note:
+                result["note"] = f"{result['note']} {reuse_note}" if result.get("note") else reuse_note
+        return result
+
+    def _feature_curves(self, function_names: Sequence[str]) -> List[Any]:
+        """Look up one or two plotted functions (plain or piecewise) by name."""
+        names = [str(name).strip() for name in (function_names or []) if str(name).strip()]
+        if len(names) not in (1, 2):
+            raise ValueError(
+                f"Give one function name (roots, extrema, inflections) or two (intersections); got {len(names)}."
+            )
+        if names[0] == names[-1] and len(names) == 2:
+            raise ValueError(f"Give two different functions to intersect; got '{names[0]}' twice.")
+        curves: List[Any] = []
+        for name in names:
+            curve = self._find_plotted_function(name)
+            if curve is None:
+                raise ValueError(f"No function or piecewise function named '{name}' is plotted.")
+            curves.append(curve)
+        return curves
+
+    def _find_plotted_function(self, name: str) -> Optional[Any]:
+        for curve in list(self.drawables.Functions) + list(self.drawables.PiecewiseFunctions):
+            if getattr(curve, "name", None) == name:
+                return curve
+        return None
+
+    def _feature_interval(
+        self, curves: List[Any], left_bound: Optional[float], right_bound: Optional[float]
+    ) -> Tuple[float, float]:
+        """Requested bounds, else the functions' own bounds, else the view; clipped to the functions' domain."""
+        if left_bound is not None and right_bound is not None:
+            left_bound, right_bound = self.ordered_bounds(float(left_bound), float(right_bound))
+        own_lefts = [float(c.left_bound) for c in curves if getattr(c, "left_bound", None) is not None]
+        own_rights = [float(c.right_bound) for c in curves if getattr(c, "right_bound", None) is not None]
+        mapper = self.canvas.coordinate_mapper
+        if left_bound is not None:
+            left = float(left_bound)
+        else:
+            left = max(own_lefts) if own_lefts else float(mapper.get_visible_left_bound())
+        if right_bound is not None:
+            right = float(right_bound)
+        else:
+            right = min(own_rights) if own_rights else float(mapper.get_visible_right_bound())
+        if own_lefts:
+            left = max(left, max(own_lefts))
+        if own_rights:
+            right = min(right, min(own_rights))
+        if not left < right:
+            names = " and ".join(str(c.name) for c in curves)
+            raise ValueError(f"Nothing to search: {names} is not defined between x = {left} and x = {right}.")
+        return left, right
+
+    @staticmethod
+    def _feature_breakpoints(curves: List[Any]) -> List[float]:
+        """Vertical asymptotes, point discontinuities and holes of every curve."""
+        breakpoints: List[float] = []
+        for curve in curves:
+            for attribute in ("vertical_asymptotes", "point_discontinuities", "undefined_at"):
+                breakpoints.extend(float(x) for x in (getattr(curve, attribute, None) or []))
+        return breakpoints
+
+    def _feature_sample_count(self, curves: List[Any], span: float) -> int:
+        """Samples for the interval: at least two per screen pixel and 40 per period of a periodic curve."""
+        periods = [
+            float(c.estimated_period)
+            for c in curves
+            if getattr(c, "is_periodic", False) and getattr(c, "estimated_period", None)
+        ]
+        scale = float(getattr(self.canvas.coordinate_mapper, "scale_factor", 0.0) or 0.0)
+        return int(sample_count(span, pixel_span=span * scale, period=min(periods) if periods else None))
+
+    @staticmethod
+    def _feature_result(curves: List[Any], left: float, right: float, report: FeatureReport) -> Dict[str, Any]:
+        found = report["features"]
+        interval = [round_report_value(left), round_report_value(right)]
+        result: Dict[str, Any] = {
+            "function_names": [str(c.name) for c in curves],
+            "interval": interval,
+            "features": found,
+            "count": report["total_found"],
+            "truncated": report["truncated"],
+        }
+        if not found:
+            what = "intersections" if len(curves) == 2 else "requested features"
+            result["note"] = f"No {what} found for x in [{interval[0]}, {interval[1]}]."
+        elif report["truncated"]:
+            result["note"] = (
+                f"Showing the first {len(found)} of {report['total_found']} features by x; "
+                "narrow the interval to see the rest."
+            )
+        return result
+
+    def _place_feature_points(self, found: List[FunctionFeature]) -> Dict[str, Any]:
+        """Create (or reuse) a point at each feature location, all as one undo step.
+
+        Sets ``point_name`` on every feature. Features at the same spot (a touching root and
+        its extremum) share one point. A point that already existed at a feature is reused and
+        left unchanged; it is reported apart from the created ones, so the caller never
+        deletes a point of the user's drawing thinking this call made it.
+
+        Returns:
+            point_names (distinct, in x order), created_point_names, reused_point_names, and a
+            note when points were reused (merged into the result's note).
+        """
+        point_manager = self.drawable_manager.point_manager
+        undo_manager = self.canvas.undo_redo_manager
+        names: List[str] = []
+        created: List[str] = []
+        reused: List[str] = []
+        undo_manager.begin_batch()
+        try:
+            for feature in found:
+                existed_before = point_manager.get_point(feature["x"], feature["y"]) is not None
+                point = point_manager.create_point(feature["x"], feature["y"], name="", extra_graphics=False)
+                name = str(point.name)
+                feature["point_name"] = name
+                if name in names:
+                    continue
+                names.append(name)
+                (reused if existed_before else created).append(name)
+        finally:
+            undo_manager.end_batch()
+        placed: Dict[str, Any] = {
+            "point_names": names,
+            "created_point_names": created,
+            "reused_point_names": reused,
+        }
+        if reused:
+            reused_text = ", ".join(reused)
+            placed["note"] = (
+                f"Points {reused_text} already existed at feature locations and were reused, not created; "
+                "to remove the feature points, delete only created_point_names."
+            )
+        return placed
