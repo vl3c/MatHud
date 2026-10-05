@@ -9,17 +9,19 @@ Responsibilities:
     - Populate MathJS scope objects for safe expression evaluation
     - Convert MathJS results back into Python-native structures
     - Surface clear error messages for invalid definitions or operations
+    - Provide rref(A) and rank(A), which math.js lacks, inside expressions
 """
 
 from __future__ import annotations
 
 import json
 import re
-from typing import Any, Dict, List, Tuple, Union, TypedDict
+from typing import Any, Dict, List, Optional, Tuple, Union, TypedDict
 
 from browser import window
 
 from expression_validator import ExpressionValidator
+from utils.matrix_rref import matrix_rank, rref
 
 
 class LinearAlgebraObject(TypedDict):
@@ -50,6 +52,10 @@ class LinearAlgebraUtils:
         "reshape",
         "size",
     )
+
+    # Helpers implemented here and bound into the expression scope (math.js has no rref/rank);
+    # an object with the same name wins
+    CUSTOM_FUNCTION_NAMES: Tuple[str, ...] = ("rref", "rank")
 
     ALLOWED_CONSTANT_NAMES: Tuple[str, ...] = ("pi", "e")
 
@@ -160,6 +166,37 @@ class LinearAlgebraUtils:
             if hasattr(window.math, constant_name):
                 scope[constant_name] = getattr(window.math, constant_name)
 
+        for custom_name in LinearAlgebraUtils.CUSTOM_FUNCTION_NAMES:
+            scope.setdefault(custom_name, getattr(LinearAlgebraUtils, f"_{custom_name}_binding"))
+
+    @staticmethod
+    def _rref_binding(matrix: Any, tol: Any = None) -> Any:
+        """rref(A) or rref(A, tol): reduced row echelon form as a math.js matrix."""
+        reduced, _ = rref(LinearAlgebraUtils._to_rows(matrix), LinearAlgebraUtils._to_tolerance(tol))
+        return window.math.matrix(reduced)
+
+    @staticmethod
+    def _rank_binding(matrix: Any, tol: Any = None) -> int:
+        """rank(A) or rank(A, tol): number of pivots in the reduced row echelon form."""
+        return int(matrix_rank(LinearAlgebraUtils._to_rows(matrix), LinearAlgebraUtils._to_tolerance(tol)))
+
+    @staticmethod
+    def _to_rows(matrix: Any) -> List[List[float]]:
+        data = LinearAlgebraUtils._convert_js_value(matrix.toArray()) if hasattr(matrix, "toArray") else matrix
+        if not isinstance(data, list) or not data or not all(isinstance(row, list) for row in data):
+            raise ValueError("rref and rank need a matrix, not a vector or scalar")
+        return data
+
+    @staticmethod
+    def _to_tolerance(tol: Any) -> Optional[float]:
+        if tol is None:
+            return None
+        if hasattr(tol, "toNumber"):
+            tol = tol.toNumber()
+        if isinstance(tol, bool) or not isinstance(tol, (int, float)):
+            raise ValueError("The tolerance of rref and rank must be a number")
+        return float(tol)
+
     @staticmethod
     def _validate_identifiers(expression: str, scope: Dict[str, Any]) -> None:
         allowed_tokens = set(scope.keys()) | set(LinearAlgebraUtils.ADDITIONAL_IDENTIFIER_ALLOWLIST)
@@ -264,6 +301,10 @@ class LinearAlgebraUtils:
             formatted = window.math.format(result)
             return {"type": "complex", "value": formatted}
 
+        if value_type == "Object":
+            # eigs -> {values, eigenvectors}, lup -> {L, U, p}, qr -> {Q, R}
+            return {"type": "object", "value": LinearAlgebraUtils._convert_js_object(result)}
+
         if value_type in {"BigNumber", "Fraction"}:
             if hasattr(result, "toNumber"):
                 return {"type": "scalar", "value": float(result.toNumber())}
@@ -304,6 +345,37 @@ class LinearAlgebraUtils:
             return json.loads(serialized)
         except Exception:
             return value
+
+    @staticmethod
+    def _convert_js_object(result: Any) -> Any:
+        """Turn a math.js object result into JSON-ready Python values.
+
+        JSON.stringify tags math.js types ({"mathjs": "DenseMatrix", "data": ...}); matrices
+        become nested lists and complex numbers formatted strings such as "1 + 2i".
+        """
+        try:
+            parsed = json.loads(window.JSON.stringify(result))
+        except Exception as exc:
+            raise ValueError(f"Cannot convert the result to JSON: {exc}")
+        return LinearAlgebraUtils._untag(parsed)
+
+    @staticmethod
+    def _untag(value: Any) -> Any:
+        if isinstance(value, list):
+            return [LinearAlgebraUtils._untag(item) for item in value]
+        if not isinstance(value, dict):
+            return value
+        kind = value.get("mathjs")
+        if kind in ("DenseMatrix", "SparseMatrix") and "data" in value:
+            return LinearAlgebraUtils._untag(value["data"])
+        if kind == "Complex":
+            return LinearAlgebraUtils._format_complex(value.get("re", 0), value.get("im", 0))
+        return {key: LinearAlgebraUtils._untag(item) for key, item in value.items()}
+
+    @staticmethod
+    def _format_complex(real: float, imag: float) -> str:
+        sign = "-" if imag < 0 else "+"
+        return f"{real:.12g} {sign} {abs(imag):.12g}i"
 
     @staticmethod
     def _wrap_sequence(sequence: Any) -> LinearAlgebraResult:

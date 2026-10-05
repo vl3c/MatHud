@@ -1422,7 +1422,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "evaluate_linear_algebra_expression",
-            "description": "Evaluates matrix/vector/scalar expressions (linear algebra). Use for determinant, inverse, transpose, matrix multiplication, and eigen computations with named objects.",
+            "description": "Evaluates matrix/vector/scalar expressions (linear algebra). Use for determinant, inverse, transpose, matrix multiplication, and eigen computations with named objects. Decompositions: eigs(A) returns {values, eigenvectors}, lup(A) returns {L, U, p} with P*A = L*U, where p[j] is the row of P that holds the 1 of column j (row i of A is row p[i] of L*U), qr(A) returns {Q, R}. rref(A) returns the reduced row echelon form (pivots below a 1e-10 relative tolerance count as zero; rref(A, tol) sets an absolute tolerance) and rank(A) the matrix rank.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -1457,7 +1457,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     },
                     "expression": {
                         "type": "string",
-                        "description": "Math.js compatible expression composed of the provided object names and supported linear algebra functions. Example: 'A + B' or 'inv(A) * b'.",
+                        "description": "Math.js compatible expression composed of the provided object names and supported linear algebra functions. Example: 'A + B', 'inv(A) * b', 'rref(A)' or 'qr(A)'.",
                     },
                 },
                 "required": ["objects", "expression"],
