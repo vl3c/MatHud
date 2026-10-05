@@ -14,6 +14,7 @@ import click
 
 from cli.config import DEFAULT_PORT, PROJECT_ROOT
 from cli.scenarios.classify import (
+    DEFAULT_MAX_INFRA_RATE,
     annotate_steps,
     apply_batch_verdicts,
     has_infra_turn,
@@ -180,6 +181,13 @@ def _fail(message: str, code: int = 2) -> int:
     help="Live: model requests per turn unless the scenario sets limits.max_requests",
 )
 @click.option("--no-retrace", is_flag=True, help="Live: do not retrace failing scenarios")
+@click.option(
+    "--max-infra-rate",
+    default=DEFAULT_MAX_INFRA_RATE,
+    type=click.FloatRange(0.0, 1.0),
+    show_default=True,
+    help="Live: fail the run when more than this share of the runs (or all of them) had an infrastructure failure",
+)
 def scenarios_cmd(
     results_path: Optional[str],
     mode: str,
@@ -209,6 +217,7 @@ def scenarios_cmd(
     turn_timeout: float,
     turn_max_requests: int,
     no_retrace: bool,
+    max_infra_rate: float,
 ) -> None:
     """Run the agentic scenario tests (see documentation/development/agentic_scenario_testing.md).
 
@@ -286,7 +295,7 @@ def scenarios_cmd(
                 options=options,
                 headless=not no_headless,
                 dry_run=dry_run,
-                config_extra=filters,
+                config_extra={**filters, "max_infra_rate": max_infra_rate},
             )
         )
 
@@ -494,7 +503,7 @@ def _print_live_plan(plan: dict[str, Any], as_json: bool) -> None:
         click.echo(
             f"Estimated cost for {model}: {shown} ({plan['estimated_prompt_tokens_per_request']} prompt and "
             f"{plan['estimated_completion_tokens_per_request']} completion tokens per request, prices as of "
-            f"{plan['prices_as_of']}; every turn assumed to send its request cap plus the request in flight when it is stopped)"
+            f"{plan['prices_as_of']}; every turn assumed to use its whole request cap)"
         )
 
 
@@ -747,6 +756,14 @@ def _print_summary(summary: dict[str, Any], as_json: bool, out_dir: Path, regrad
         )
     if summary.get("stopped"):
         click.echo(click.style(f"Stopped early: {summary['stopped']}", fg="red"))
+    if summary.get("infra_rate_exceeded") is not None:
+        click.echo(
+            click.style(
+                f"Too many infrastructure failures: {_percent(summary.get('infra_rate'))} of the runs "
+                f"(limit {_percent(summary['infra_rate_exceeded'])})",
+                fg="red",
+            )
+        )
     for scenario_id, bugs in summary.get("xpass", {}).items():
         click.echo(click.style(f"  fixed? {scenario_id}: {', '.join(bugs)}", fg="yellow"))
     for entry in summary.get("unused_waivers", []):

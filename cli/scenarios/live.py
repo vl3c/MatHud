@@ -36,6 +36,10 @@ from cli.scenarios.runner import BrowserSession, HookError, ReplayOptions, Repla
 from static.client.constants import MAX_RESULT_STR_LEN
 
 DEFAULT_TURN_TIMEOUT_S = 300.0
+# The client's response timeout is set this much above the turn timeout, so the harness stops first.
+CLIENT_TIMEOUT_MARGIN_S = 30.0
+# Client turn outcomes after which the turn's last request may still run in the server.
+UNFINISHED_OUTCOMES = frozenset({"timeout", "error", "stopped"})
 DEFAULT_TURN_MAX_REQUESTS = 8
 POLL_INTERVAL_S = 0.2
 # A turn that never starts processing within this many seconds is recorded as not started.
@@ -78,11 +82,11 @@ def turn_limits(step: Step, options: LiveOptions) -> tuple[float, int]:
 def turn_request_ceiling(max_requests: int) -> int:
     """The most requests a turn with cap ``max_requests`` can send.
 
-    The client sends the next request in the same task that records the previous
-    one, so a turn is stopped only once ``max_requests`` requests completed and
-    the next one is already on its way: it is aborted, but it was sent.
+    The harness hands the cap to the client (``sendMatHudMessage`` option
+    ``max_requests``), which ends the turn instead of sending a request beyond
+    it, so the cap is hard; the harness's own polling is only a backstop.
     """
-    return max_requests + 1
+    return max_requests
 
 
 def planned_requests(scenarios: list[Scenario], models: int, repeats: int, options: LiveOptions) -> int:
@@ -111,11 +115,15 @@ class RequestBudget:
 
     @property
     def exhausted(self) -> bool:
-        """True when no further turn may start: its first request would reach the cap and be aborted at once."""
-        return self.cap is not None and self.sent + 1 >= self.cap
+        """True when no further request may be sent."""
+        return self.cap is not None and self.sent >= self.cap
+
+    def room(self) -> Optional[int]:
+        """How many more requests the cap allows (None: no cap)."""
+        return None if self.cap is None else max(self.cap - self.sent, 0)
 
     def reached(self, in_turn: int) -> bool:
-        """True when ``in_turn`` requests of the running turn (in flight included) reach the cap."""
+        """True when ``in_turn`` requests of the running turn reach the cap."""
         return self.cap is not None and self.sent + in_turn >= self.cap
 
     def add(self, count: int) -> None:
@@ -251,6 +259,14 @@ class LiveRunner(ReplayRunner):
         if self.budget.exhausted:
             raise RunStopped(f"the request cap ({self.budget.cap}) is reached")
         timeout_s, max_requests = turn_limits(step, self.live)
+        # The client enforces the turn's request limit: the turn's own cap, or what the run's cap leaves.
+        room = self.budget.room()
+        limit = max_requests if room is None else min(max_requests, room)
+        options = {
+            "max_requests": limit,
+            # The client's own timeouts (60 s for a first reply) must not end the turn before the harness does.
+            "response_timeout_ms": int((timeout_s + CLIENT_TIMEOUT_MARGIN_S) * 1000),
+        }
         before = (self.session.hook("getMatHudCanvasState", json.dumps({"inspect": True})).get("inspection")) or {}
         texts_before = len(self._assistant_texts())
         self._js(_CLEAR_TRACES_JS)
@@ -259,16 +275,21 @@ class LiveRunner(ReplayRunner):
         accounted = False
         try:
             # From here on the turn may have sent requests: whatever happens, they are counted.
-            self.session.hook("sendMatHudMessage", step.user or "", self.model or "")
+            self.session.hook("sendMatHudMessage", step.user or "", self.model or "", json.dumps(options))
             started = self._clock()
-            stop_reason = self._wait_for_turn(completed_before, started, timeout_s, max_requests)
+            stop_reason = self._wait_for_turn(completed_before, started, timeout_s, limit)
             wall = self._clock() - started
-            drain_s = self.wait_idle() if stop_reason else 0.0
             metrics = self._last_turn_metrics(completed_before)
+            client_outcome = (metrics or {}).get("outcome")
+            # A stopped, timed-out or failed turn may leave its last request running in the server.
+            unfinished = bool(stop_reason) or client_outcome in UNFINISHED_OUTCOMES
+            drain_s = self.wait_idle() if unfinished else 0.0
             completed = max(int((metrics or {}).get("requests") or 0), self._turn_requests_seen)
-            requests_sent = completed + (1 if stop_reason else 0)
+            requests_sent = completed + (1 if unfinished else 0)
             self.budget.add(requests_sent)
             accounted = True
+            if stop_reason is None and client_outcome == "max_requests" and limit < max_requests:
+                stop_reason = "request_cap"  # the client stopped at what the run's cap left, not the turn's cap
         finally:
             if not accounted:
                 # The turn broke off (hook error, browser hang): count what was seen plus one in flight.
@@ -295,9 +316,12 @@ class LiveRunner(ReplayRunner):
             "wall_time_s": round(wall, 3),
             "requests_sent": requests_sent,
             "drain_s": round(drain_s, 3),
-            "limits": {"timeout_s": timeout_s, "max_requests": max_requests},
+            "limits": {"timeout_s": timeout_s, "max_requests": max_requests, "client_max_requests": limit},
             "metrics": metrics,
         }
+        error_source = (metrics or {}).get("error_source")
+        if error_source:
+            turn["error_source"] = error_source
         if trace_error:
             # The turn's calls are unknown, so its checks cannot be trusted (classified infra).
             turn["trace_error"] = trace_error
@@ -332,7 +356,9 @@ class LiveRunner(ReplayRunner):
             self._turn_requests_seen = max(self._turn_requests_seen, requests)
             elapsed = self._clock() - started
             reason: Optional[str] = None
-            if processing and self.budget.reached(requests + 1):
+            # Backstops: the client ends the turn at its request limit itself, so a turn still
+            # running once that many requests completed has a client that did not.
+            if processing and self.budget.reached(requests):
                 reason = "request_cap"
             elif processing and requests >= max_requests:
                 reason = "max_requests"

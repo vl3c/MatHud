@@ -15,9 +15,11 @@ from typing import Any, Optional, TextIO
 from cli.scenarios.checks import CheckResult
 from cli.scenarios.classify import (
     CLASSES,
+    DEFAULT_MAX_INFRA_RATE,
     FAILING_CLASSES,
     annotate_steps,
     apply_batch_verdicts,
+    infra_rate,
     retrace_invariant_failures,
     step_classes,
 )
@@ -175,7 +177,9 @@ class ResultSink:
         mode = str(self.config.get("mode", "replay"))
         for outcome in self.outcomes:
             outcome.annotate(mode)
-        summary = summarize(self.outcomes, catalogue.invariant_waivers, mode)
+        summary = summarize(
+            self.outcomes, catalogue.invariant_waivers, mode, self.config.get("max_infra_rate", DEFAULT_MAX_INFRA_RATE)
+        )
         summary["duration_s"] = round(duration, 1)
         summary["interrupted"] = interrupted
         if self.config.get("stopped"):
@@ -197,14 +201,19 @@ class ResultSink:
 
 
 def summarize(
-    outcomes: list[ScenarioOutcome], global_waivers: Optional[dict[str, str]] = None, mode: str = "replay"
+    outcomes: list[ScenarioOutcome],
+    global_waivers: Optional[dict[str, str]] = None,
+    mode: str = "replay",
+    max_infra_rate: Optional[float] = DEFAULT_MAX_INFRA_RATE,
 ) -> dict[str, Any]:
     """Counts of scenario outcomes and check statuses, plus the lists a reader needs.
 
     In replay any ``fail`` or ``error`` is unexpected. Live and retrace runs
     measure a model, so only ``app`` and ``nondeterministic`` failures are
     unexpected there; ``classes`` counts the runs in each failure class and
-    ``models`` holds the per-model figures.
+    ``models`` holds the per-model figures. A live run also fails when more
+    than ``max_infra_rate`` of its runs (or all of them) had an infrastructure
+    failure: an app regression that breaks every turn must not pass as infra.
     """
     scenario_counts = {status: 0 for status in SCENARIO_STATUSES}
     check_counts = {status: 0 for status in CHECK_STATUSES}
@@ -230,6 +239,13 @@ def summarize(
         "unrecorded": [o.label for o in outcomes if o.counts().get("unrecorded")],
         "exit_code": 1 if unexpected else 0,
     }
+    if mode == "live":
+        rate = infra_rate([o.classes() for o in outcomes if not o.skipped_reason])
+        summary["infra_rate"] = rate
+        limit = DEFAULT_MAX_INFRA_RATE if max_infra_rate is None else float(max_infra_rate)
+        if rate is not None and (rate > limit or rate == 1.0):
+            summary["infra_rate_exceeded"] = limit
+            summary["exit_code"] = 1
     if mode == "live" and any(o.model is not None for o in outcomes):
         summary["models"] = model_summaries(outcomes)
     return summary
@@ -343,6 +359,12 @@ def render_summary(
         lines += ["**Interrupted**: partial results.", ""]
     if summary.get("stopped"):
         lines += [f"**Stopped early**: {summary['stopped']}", ""]
+    if summary.get("infra_rate_exceeded") is not None:
+        lines += [
+            f"**Too many infrastructure failures**: {_pct(summary.get('infra_rate'))} of the runs "
+            f"(limit {_pct(summary['infra_rate_exceeded'])}); the run fails.",
+            "",
+        ]
     sc, cc = summary["scenario_counts"], summary["check_counts"]
     runs = "Runs" if mode != "replay" else "Scenarios"
     lines += [
@@ -653,7 +675,9 @@ def regrade(
             outcome.retrace = regrade_retrace(scenario, outcome, waivers, mode)
         outcome.annotate(mode)
         outcomes.append(outcome)
-    summary = summarize(outcomes, catalogue.invariant_waivers, mode)
+    summary = summarize(
+        outcomes, catalogue.invariant_waivers, mode, config.get("max_infra_rate", DEFAULT_MAX_INFRA_RATE)
+    )
     out_dir = results_path.parent
     payload = {"config": config, "summary": summary, "scenarios": [o.to_dict() for o in outcomes]}
     target = out_dir / "results_regraded.json"

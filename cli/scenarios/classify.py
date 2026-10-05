@@ -29,6 +29,12 @@ FAILING_CLASSES = frozenset({"app", "nondeterministic"})
 # Turn outcomes that are not the model's doing.
 # "infra" stands for a turn after one of those in the same run.
 INFRA_TURN_OUTCOMES = frozenset({"error", "timeout", "request_cap", "not_started", "trace_error", "infra"})
+# Where a turn's error came from (turn metrics ``error_source``): an exception in the
+# browser while handling the reply, or in the server route, is the app's failure.
+APP_ERROR_SOURCES = frozenset({"client", "server"})
+# The share of runs with an infrastructure failure above which a live run fails anyway:
+# an app regression that breaks every turn must not pass as "infra".
+DEFAULT_MAX_INFRA_RATE = 0.5
 # Calls a retrace leaves out: search_tools runs the server's tool search (which may
 # call the model) and changes nothing on the canvas.
 NOT_RETRACED = frozenset({"search_tools"})
@@ -53,7 +59,7 @@ def classify_result(
         return "known"
     if status not in ("fail", "error"):
         return None
-    if result.get("kind") == "invariant" or mode == "replay":
+    if result.get("kind") == "invariant" or mode == "replay" or turn_outcome == "app_error":
         return "app"
     if turn_outcome in INFRA_TURN_OUTCOMES:
         return "infra"
@@ -87,7 +93,10 @@ def annotate_steps(
         if differed_at is not None and step.get("step") == differed_at:
             reproduced = False
         infra_seen = infra_seen or turn_is_infra(step)
-        outcome = "infra" if infra_seen else (step.get("turn") or {}).get("outcome")
+        if turn_app_error(step):
+            outcome: Optional[str] = "app_error"
+        else:
+            outcome = "infra" if infra_seen else (step.get("turn") or {}).get("outcome")
         for result in step.get("results", []):
             klass = classify_result(result, mode, outcome, reproduced)
             if klass is None:
@@ -102,12 +111,25 @@ def step_classes(steps: list[dict[str, Any]]) -> set[str]:
     found = {str(r["class"]) for step in steps for r in step.get("results", []) if r.get("class")}
     if has_infra_turn(steps):
         found.add("infra")
+    if any(turn_app_error(step) for step in steps):
+        found.add("app")
     return found
 
 
-def turn_is_infra(step: dict[str, Any]) -> bool:
-    """True for a live turn that ended in an infrastructure outcome or whose calls could not be read."""
+def turn_app_error(step: dict[str, Any]) -> bool:
+    """True for a live turn that ended in an error raised by the app (browser or server route)."""
     turn = step.get("turn") or {}
+    return turn.get("outcome") == "error" and turn.get("error_source") in APP_ERROR_SOURCES
+
+
+def turn_is_infra(step: dict[str, Any]) -> bool:
+    """True for a live turn that ended in an infrastructure outcome or whose calls could not be read.
+
+    An error the app raised itself (``turn_app_error``) is not infrastructure.
+    """
+    turn = step.get("turn") or {}
+    if turn_app_error(step):
+        return False
     return bool(turn.get("trace_error")) or turn.get("outcome") in INFRA_TURN_OUTCOMES
 
 
@@ -232,6 +254,7 @@ def compare_runs(live_steps: list[dict[str, Any]], retrace_steps: list[dict[str,
             found = ["step not retraced"]
         else:
             found = diff_views(_view(live), _view(other), REPRODUCE_TOL, inspect=True, include_view=True)
+            found += _undo_difference(live, other)
         if found:
             differences[step_id] = found[:20]
             first = first or step_id
@@ -241,6 +264,28 @@ def compare_runs(live_steps: list[dict[str, Any]], retrace_steps: list[dict[str,
 # ----------------------------------------------------------------------
 # Signals
 # ----------------------------------------------------------------------
+
+
+def _undo_delta(record: dict[str, Any]) -> Optional[int]:
+    before, after = record.get("undo_before"), record.get("undo_after")
+    if isinstance(before, int) and isinstance(after, int):
+        return after - before
+    return None
+
+
+def _undo_difference(live: dict[str, Any], retrace: dict[str, Any]) -> list[str]:
+    """The undo stack must move the same way in both: the retrace's I5 verdict stands in for the live one."""
+    live_delta, retrace_delta = _undo_delta(live), _undo_delta(retrace)
+    if live_delta is None or retrace_delta is None or live_delta == retrace_delta:
+        return []
+    return [f"undo depth changed by {live_delta} live and by {retrace_delta} in the retrace"]
+
+
+def infra_rate(outcomes_classes: list[set[str]]) -> Optional[float]:
+    """The share of runs with an infrastructure failure (None without runs)."""
+    if not outcomes_classes:
+        return None
+    return round(sum(1 for classes in outcomes_classes if "infra" in classes) / len(outcomes_classes), 4)
 
 
 def efficiency_signals(

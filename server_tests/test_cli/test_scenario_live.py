@@ -88,6 +88,12 @@ class FakeChatBrowser(FakeBrowser):
         self.fail_after: Optional[int] = None
         # Every tool batch runs, but the final answer never arrives.
         self.stall_before_answer = False
+        self.options: list[dict[str, Any]] = []
+        self.limit: Optional[int] = None
+        # False: a client that ignores the request limit (the harness backstop must stop it).
+        self.honour_limit = True
+        # (outcome, error source): the turn ends that way after one request (e.g. a client timeout).
+        self.end_with: Optional[tuple[str, Optional[str]]] = None
         self.dropped = dropped
         self.drift_after_turn = drift_after_turn
         self.processing = False
@@ -106,7 +112,14 @@ class FakeChatBrowser(FakeBrowser):
             if self.processing:
                 return {"status": "busy"}
             self.sent.append((args[0], args[1]))
+            self.options.append(json.loads(args[2]) if len(args) > 2 else {})
+            # Like the client: no request beyond the turn's limit (None: the client ignores limits).
+            self.limit = self.options[-1].get("max_requests") if self.honour_limit else None
             self.processing, self.requests, self.executions = True, 0, 0
+            if self.end_with is not None:
+                self.requests = 1
+                self._run_batch(self.pending.pop(0)) if self.pending else None
+                self._finish(*self.end_with)
             self.pending = [list(batch) for batch in self.script.get(args[0], [])]
             return {"status": "started"}
         if name == "getMatHudTurnStatus":
@@ -132,7 +145,14 @@ class FakeChatBrowser(FakeBrowser):
             self._run_batch([SEARCH])
         elif self.pending:
             self._run_batch(self.pending.pop(0))
-        elif self.stall_before_answer:
+        else:
+            self._answer()
+            return
+        if self.limit is not None and self.requests >= self.limit:
+            self._finish("max_requests")  # the client ends the turn instead of sending one more
+
+    def _answer(self) -> None:
+        if self.stall_before_answer:
             self.requests -= 1  # the final answer never comes
         else:
             self.texts.append(self.final_text)
@@ -151,7 +171,7 @@ class FakeChatBrowser(FakeBrowser):
             }
         )
 
-    def _finish(self, outcome: str) -> None:
+    def _finish(self, outcome: str, error_source: Optional[str] = None) -> None:
         self.processing = False
         self.completed += 1
         self.metrics = {
@@ -164,6 +184,8 @@ class FakeChatBrowser(FakeBrowser):
             "completion_tokens": 50,
             "time_to_first_token_s": 0.5,
         }
+        if error_source is not None:
+            self.metrics["error_source"] = error_source
         self.moved_by_bug = self.drift_after_turn
 
     def execute_js(self, script: str, *args: Any, timeout: int = 30) -> Any:
@@ -493,10 +515,10 @@ class TestGuards:
     def test_planned_requests_use_scenario_limits(self, catalogue: Catalogue) -> None:
         scenarios = geo90(catalogue)
         options = LiveOptions(turn_max_requests=4)
-        # A turn capped at N requests can send N + 1: the next one is already sent when it is stopped.
-        assert planned_requests(scenarios, 2, 3, options) == 5 * 2 * 3
+        # The client enforces the cap, so a turn capped at N requests sends at most N.
+        assert planned_requests(scenarios, 2, 3, options) == 4 * 2 * 3
         scenarios[0].steps[0].limits = {"max_requests": 2}
-        assert planned_requests(scenarios, 1, 1, options) == 3
+        assert planned_requests(scenarios, 1, 1, options) == 2
 
     def test_plan_cost_estimate(self) -> None:
         settings = LiveSettings(provider="openrouter")
@@ -590,8 +612,38 @@ class TestLiveRunner:
         [outcome] = runner.run_live(geo90(catalogue), ["m"], 1)
         sink.close(catalogue)
         turn = next(step for step in outcome.steps if step["step"] == "t1")
-        assert turn["turn"]["outcome"] == "max_requests" and turn["turn"]["requests_sent"] == 4
+        # The client ends the turn at its limit: no request beyond it is sent.
+        assert turn["turn"]["outcome"] == "max_requests" and turn["turn"]["requests_sent"] == 3
+        assert turn["turn"]["stop_reason"] is None and browser.options[0]["max_requests"] == 3
         assert {r["class"] for r in turn["results"] if r["status"] == "fail"} == {"model"}
+
+    def test_request_cap_backstop_stops_a_client_that_ignores_it(self, catalogue: Catalogue, tmp_path: Path) -> None:
+        browser = FakeChatBrowser(loop=True)
+        browser.honour_limit = False
+        live = LiveOptions(turn_max_requests=3, poll_interval_s=1, retrace_failures=False)
+        runner, sink = live_runner(catalogue, browser, tmp_path / "out", live=live)
+        [outcome] = runner.run_live(geo90(catalogue), ["m"], 1)
+        turn = next(step for step in outcome.steps if step["step"] == "t1")
+        assert turn["turn"]["stop_reason"] == "max_requests" and browser.stops == 1
+        assert turn["turn"]["requests_sent"] == 4  # three completed and the one in flight
+
+    def test_client_timeouts_follow_the_turn_timeout(self, catalogue: Catalogue, tmp_path: Path) -> None:
+        browser = FakeChatBrowser()
+        live = LiveOptions(turn_timeout_s=120, turn_max_requests=6, poll_interval_s=1)
+        runner, sink = live_runner(catalogue, browser, tmp_path / "out", live=live)
+        runner.run_live(geo90(catalogue), ["m"], 1)
+        assert browser.options == [{"max_requests": 6, "response_timeout_ms": 150_000}]
+
+    def test_client_timeout_counts_the_request_left_running(self, catalogue: Catalogue, tmp_path: Path) -> None:
+        browser = FakeChatBrowser(script={PROMPT: [[create(1, 2)]]})
+        browser.end_with = ("timeout", None)
+        idle: list[int] = []
+        budget = RequestBudget(50)
+        runner, sink = live_runner(catalogue, browser, tmp_path / "out", budget=budget, idle_waits=idle)
+        [outcome] = runner.run_live(geo90(catalogue), ["m"], 1)
+        turn = next(step for step in outcome.steps if step["step"] == "t1")
+        assert turn["turn"]["outcome"] == "timeout" and turn["turn"]["requests_sent"] == 2 and idle
+        assert budget.sent == 2
 
     def test_run_request_cap_stops_everything(self, catalogue: Catalogue, tmp_path: Path) -> None:
         browser = FakeChatBrowser(loop=True)
@@ -601,8 +653,8 @@ class TestLiveRunner:
         outcomes = runner.run_live(geo90(catalogue), ["m"], repeats=3)
         assert len(outcomes) == 1 and runner.stopped and "request cap (3)" in runner.stopped
         turn = next(step for step in outcomes[0].steps if step["step"] == "t1")
-        assert turn["turn"]["outcome"] == "request_cap"
-        assert runner.budget.sent == 3  # two completed and the aborted third: never more than the cap
+        assert turn["turn"]["outcome"] == "request_cap" and browser.options[0]["max_requests"] == 3
+        assert runner.budget.sent == 3  # the client stopped at what the cap left: never more than the cap
         sink.config["stopped"] = runner.stopped
         summary = sink.close(catalogue)
         assert summary["exit_code"] == 1 and "infra" in outcomes[0].classes()
@@ -782,12 +834,21 @@ class TestBudgetOnErrors:
         self, catalogue: Catalogue, tmp_path: Path
     ) -> None:
         budget = RequestBudget(5)
-        budget.add(4)
+        budget.add(5)
         browser = FakeChatBrowser()
         runner, sink = live_runner(catalogue, browser, tmp_path / "out", budget=budget)
         outcomes = runner.run_live(geo90(catalogue), ["m"], 1)
         assert browser.sent == [] and runner.stopped and "request cap (5)" in runner.stopped
         assert outcomes[0].infra_error
+
+    def test_last_turn_gets_only_the_requests_the_cap_leaves(self, catalogue: Catalogue, tmp_path: Path) -> None:
+        budget = RequestBudget(5)
+        budget.add(4)
+        browser = FakeChatBrowser(loop=True)
+        runner, sink = live_runner(catalogue, browser, tmp_path / "out", budget=budget)
+        [outcome] = runner.run_live(geo90(catalogue), ["m"], 1)
+        assert browser.options[0]["max_requests"] == 1 and budget.sent == 5
+        assert runner.stopped and "request cap (5)" in runner.stopped
 
 
 class TestInfraHandling:
@@ -803,7 +864,8 @@ class TestInfraHandling:
         assert turn["turn"]["outcome"] == "timeout" and turn["turn"]["drain_s"] > 0 and idle
         assert outcome.status == "pass" and outcome.retrace is None and outcome.classes() == {"infra"}
         assert summary["models"]["m"]["scenario_pass_rate"] is None  # infra runs are left out of the rates
-        assert summary["exit_code"] == 0
+        # Every run had an infrastructure failure: the run fails rather than passing on nothing.
+        assert summary["exit_code"] == 1 and summary["infra_rate"] == 1.0
 
     def test_steps_after_an_infra_turn_are_infra(self) -> None:
         steps = [
@@ -830,7 +892,8 @@ class TestInfraHandling:
         [outcome] = runner.run_live(geo90(catalogue), ["m"], 1)
         summary = sink.close(catalogue)
         assert outcome.retrace is None and "infra" in outcome.classes()
-        assert not outcome.classes() & {"app", "nondeterministic"} and summary["exit_code"] == 0
+        assert not outcome.classes() & {"app", "nondeterministic"}
+        assert summary["exit_code"] == 1 and summary["infra_rate_exceeded"] == 0.5  # the only run is infra
 
 
 class TestMultiBatchRetrace:
@@ -977,3 +1040,89 @@ class TestCommandWiring:
         assert result.exit_code == 0, result.output
         plan = json.loads(result.output)
         assert plan["runs"] == ["GEO-01 [m #1]"] and plan["left_out_infra"] == 1 and plan["batches"] == 1
+
+
+class TestErrorSources:
+    def test_client_error_is_an_app_failure(self, catalogue: Catalogue, tmp_path: Path) -> None:
+        browser = FakeChatBrowser(script={PROMPT: [[create(1, 2)]]})
+        browser.end_with = ("error", "client")
+        runner, sink = live_runner(catalogue, browser, tmp_path / "out")
+        [outcome] = runner.run_live(geo90(catalogue), ["m"], 1)
+        summary = sink.close(catalogue)
+        turn = next(step for step in outcome.steps if step["step"] == "t1")
+        assert turn["turn"]["error_source"] == "client"
+        assert "app" in outcome.classes() and "infra" not in outcome.classes()
+        assert summary["exit_code"] == 1
+
+    def test_provider_error_is_infra(self, catalogue: Catalogue, tmp_path: Path) -> None:
+        browser = FakeChatBrowser(script={PROMPT: [[create(1, 2)]]})
+        browser.end_with = ("error", "provider")
+        runner, sink = live_runner(catalogue, browser, tmp_path / "out")
+        [outcome] = runner.run_live(geo90(catalogue), ["m"], 1)
+        assert outcome.classes() == {"infra"}
+
+    def test_route_error_steps_are_app(self) -> None:
+        steps = [{"step": "t1", "turn": {"outcome": "error", "error_source": "server"},
+                  "results": [{"status": "fail", "kind": "check"}]}]  # fmt: skip
+        annotate_steps(steps, "live")
+        assert steps[0]["results"][0]["class"] == "app"
+
+
+class TestInfraRate:
+    def outcome(self, catalogue: Catalogue, turn_outcome: str) -> ScenarioOutcome:
+        outcome = ScenarioOutcome(geo90(catalogue)[0], model="m")
+        outcome.steps = [{"step": "t1", "turn": {"outcome": turn_outcome}, "results": []}]
+        return outcome
+
+    def test_threshold(self, catalogue: Catalogue) -> None:
+        from cli.scenarios.report import summarize
+
+        half = [self.outcome(catalogue, "timeout"), self.outcome(catalogue, "stop")]
+        assert summarize(half, mode="live")["exit_code"] == 0
+        most = half + [self.outcome(catalogue, "error")]
+        result = summarize(most, mode="live")
+        assert result["exit_code"] == 1 and result["infra_rate"] == 0.6667
+        assert summarize(most, mode="live", max_infra_rate=0.9)["exit_code"] == 0
+        every = [self.outcome(catalogue, "timeout")]
+        assert summarize(every, mode="live", max_infra_rate=1.0)["exit_code"] == 1  # all runs infra
+        assert summarize(every, mode="replay")["exit_code"] == 0
+
+    def test_command_records_the_threshold(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(command_module, "_start_own_server", no_server)
+        result = CliRunner().invoke(cli, ["test", "scenarios", "--mode", "live", "--max-infra-rate", "2"])
+        assert result.exit_code == 2  # outside 0..1
+
+
+class TestUndoReproduction:
+    def test_retrace_with_another_undo_delta_is_not_reproduced(self) -> None:
+        live = [{"step": "t1", "state": state(point("P", 1, 2)), "undo_before": 0, "undo_after": 2}]
+        same = [dict(live[0])]
+        assert compare_runs(live, same)["reproduced"] is True
+        other = [dict(live[0], undo_after=1)]
+        result = compare_runs(live, other)
+        assert result["reproduced"] is False and "undo depth" in result["differences"]["t1"][0]
+
+    def test_failing_live_i5_kept_when_undo_depths_differ(self) -> None:
+        live = [
+            {
+                "step": "t1",
+                "state": state(),
+                "undo_before": 0,
+                "undo_after": 2,
+                "batches": [{"calls": [{"function_name": "zoom"}]}, {"calls": [{"function_name": "zoom"}]}],
+                "results": [{"id": "t1.I5", "kind": "invariant", "name": "I5", "status": "fail"}],
+            }
+        ]
+        retraced = [
+            {
+                "step": "t1",
+                "state": state(),
+                "undo_before": 0,
+                "undo_after": 1,
+                "results": [{"id": "t1.I5", "kind": "invariant", "name": "I5", "status": "pass"}],
+            }
+        ]
+        summary = compare_runs(live, retraced)
+        summary["steps"] = retraced
+        apply_batch_verdicts(live, summary)
+        assert live[0]["results"][0]["status"] == "fail"
