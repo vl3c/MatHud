@@ -1431,6 +1431,29 @@ class Canvas:
             )
         )
 
+    def find_function_features(
+        self,
+        function_names: List[str],
+        features: Optional[List[str]] = None,
+        left_bound: Optional[float] = None,
+        right_bound: Optional[float] = None,
+        place_points: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        """Find roots and local extrema of one plotted function, or where two plotted functions intersect.
+
+        Optionally places a point at each feature (one undo step); see FunctionManager.find_function_features.
+        """
+        return cast(
+            Dict[str, Any],
+            self.drawable_manager.find_function_features(
+                function_names,
+                features=features,
+                left_bound=left_bound,
+                right_bound=right_bound,
+                place_points=place_points,
+            ),
+        )
+
     def draw_piecewise_function(
         self,
         pieces: List[Dict[str, Any]],

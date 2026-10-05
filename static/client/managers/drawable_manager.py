@@ -575,6 +575,26 @@ class DrawableManager:
             )
         )
 
+    def find_function_features(
+        self,
+        function_names: List[str],
+        features: Optional[List[str]] = None,
+        left_bound: Optional[float] = None,
+        right_bound: Optional[float] = None,
+        place_points: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        """Find roots and extrema of one plotted function, or intersections of two."""
+        return cast(
+            Dict[str, Any],
+            self.function_manager.find_function_features(
+                function_names,
+                features=features,
+                left_bound=left_bound,
+                right_bound=right_bound,
+                place_points=place_points,
+            ),
+        )
+
     # ------------------- Piecewise Function Methods -------------------
 
     def get_piecewise_function(self, name: str) -> Optional["Drawable"]:
