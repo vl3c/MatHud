@@ -387,7 +387,11 @@ class FunctionManager:
             )
         result = self._feature_result(curves, left, right, report)
         if place_points and report["features"]:
-            result["point_names"] = self._place_feature_points(report["features"])
+            placed = self._place_feature_points(report["features"])
+            reuse_note = placed.pop("note", None)
+            result.update(placed)
+            if reuse_note:
+                result["note"] = f"{result['note']} {reuse_note}" if result.get("note") else reuse_note
         return result
 
     def _feature_curves(self, function_names: Sequence[str]) -> List[Any]:
@@ -477,22 +481,45 @@ class FunctionManager:
             )
         return result
 
-    def _place_feature_points(self, found: List[FunctionFeature]) -> List[str]:
+    def _place_feature_points(self, found: List[FunctionFeature]) -> Dict[str, Any]:
         """Create (or reuse) a point at each feature location, all as one undo step.
 
-        Sets ``point_name`` on every feature and returns the distinct point names in x order.
-        Features at the same spot (a touching root and its extremum) share one point.
+        Sets ``point_name`` on every feature. Features at the same spot (a touching root and
+        its extremum) share one point. A point that already existed at a feature is reused and
+        left unchanged; it is reported apart from the created ones, so the caller never
+        deletes a point of the user's drawing thinking this call made it.
+
+        Returns:
+            point_names (distinct, in x order), created_point_names, reused_point_names, and a
+            note when points were reused (merged into the result's note).
         """
         point_manager = self.drawable_manager.point_manager
         undo_manager = self.canvas.undo_redo_manager
         names: List[str] = []
+        created: List[str] = []
+        reused: List[str] = []
         undo_manager.begin_batch()
         try:
             for feature in found:
+                existed_before = point_manager.get_point(feature["x"], feature["y"]) is not None
                 point = point_manager.create_point(feature["x"], feature["y"], name="", extra_graphics=False)
-                feature["point_name"] = str(point.name)
-                if point.name not in names:
-                    names.append(str(point.name))
+                name = str(point.name)
+                feature["point_name"] = name
+                if name in names:
+                    continue
+                names.append(name)
+                (reused if existed_before else created).append(name)
         finally:
             undo_manager.end_batch()
-        return names
+        placed: Dict[str, Any] = {
+            "point_names": names,
+            "created_point_names": created,
+            "reused_point_names": reused,
+        }
+        if reused:
+            reused_text = ", ".join(reused)
+            placed["note"] = (
+                f"Points {reused_text} already existed at feature locations and were reused, not created; "
+                "to remove the feature points, delete only created_point_names."
+            )
+        return placed

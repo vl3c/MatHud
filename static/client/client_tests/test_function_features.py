@@ -362,6 +362,9 @@ class TestFunctionFeaturesCanvas(unittest.TestCase):
         self.canvas.draw_function("x^2 - 4", name="f")
         result = self._find(["f"], bounds=(-5, 5), place_points=True)
         self.assertEqual(len(result["point_names"]), 3)
+        self.assertEqual(result["created_point_names"], result["point_names"])
+        self.assertEqual(result["reused_point_names"], [])
+        self.assertNotIn("note", result)
         points = {p.name: (p.x, p.y) for p in self._points()}
         for feature in result["features"]:
             self.assertEqual(points[feature["point_name"]], (feature["x"], feature["y"]))
@@ -392,6 +395,18 @@ class TestFunctionFeaturesCanvas(unittest.TestCase):
         result = self._find(["f"], features=["roots"], bounds=(-5, 5), place_points=True)
         self.assertIn(existing.name, result["point_names"])
         self.assertEqual(len(self._points()), 2)
+        # The user's point is reported as reused, never as created (so the AI won't delete it)
+        self.assertEqual(result["reused_point_names"], [existing.name])
+        self.assertEqual(len(result["created_point_names"]), 1)
+        self.assertNotIn(existing.name, result["created_point_names"])
+        self.assertIn(existing.name, result["note"])
+
+    def test_shared_point_of_touching_root_counts_as_created_once(self) -> None:
+        self.canvas.draw_function("x^2", name="f")
+        result = self._find(["f"], bounds=(-3, 2.2), place_points=True)
+        self.assertEqual(result["created_point_names"], result["point_names"])
+        self.assertEqual(len(result["created_point_names"]), 1)
+        self.assertEqual(result["reused_point_names"], [])
 
     def test_without_place_points_nothing_is_archived(self) -> None:
         self.canvas.draw_function("x^2 - 4", name="f")

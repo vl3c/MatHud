@@ -938,7 +938,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "find_function_features",
-            "description": "Numerically finds the roots (zeros) and local extrema (minima and maxima) of one plotted function, or the intersection points of two plotted functions, on an interval. Works on functions and piecewise functions already on the canvas. Returns each feature's exact x and y (rounded to about 7-10 significant digits) and kind: 'root', 'local_min', 'local_max' or 'intersection'; a root where the curve only touches the x-axis (like x^2 at 0) has touching=true and is also listed as an extremum. Poles and jumps (1/x, tan(x)) are not reported as roots. At most 50 features are returned, sorted by x; truncated=true means there were more (narrow the interval). Optionally places a labelled point at each feature (one undo step).",
+            "description": "Numerically finds the roots (zeros) and local extrema (minima and maxima) of one plotted function, or the intersection points of two plotted functions, on an interval. Works on functions and piecewise functions already on the canvas. Returns each feature's exact x and y (rounded to about 7-10 significant digits) and kind: 'root', 'local_min', 'local_max' or 'intersection'; a root where the curve only touches the x-axis (like x^2 at 0) has touching=true and is also listed as an extremum. Poles and jumps (1/x, tan(x)) are not reported as roots. At most 50 features are returned, sorted by x; truncated=true means there were more (narrow the interval). Optionally places a labelled point at each feature (one undo step); the result then lists point_names, created_point_names (points this call added) and reused_point_names (points that already existed there and belong to the user's drawing: never delete those to undo this call).",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -963,7 +963,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     },
                     "place_points": {
                         "type": ["boolean", "null"],
-                        "description": "If true, create a point at each feature found and report its name. Null or false only reports the values.",
+                        "description": "If true, place a point at each feature found (reusing a point already there) and report its name. Null or false only reports the values.",
                     },
                 },
                 "required": ["function_names", "features", "left_bound", "right_bound", "place_points"],
