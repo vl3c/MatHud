@@ -17,14 +17,20 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Callable, Dict, Iterator, List, Optional
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+import anthropic
+import httpx2
 
 from static.ai_model import AIModel
 from static.app_manager import AppManager
 from static.functions_definitions import FUNCTIONS
 from static.openai_api_base import TOOL_RESULT_NOT_RETURNED, TOOL_RESULT_PLACEHOLDER
 from static.openai_completions_api import OpenAIChatCompletionsAPI
+from static.openai_responses_api import OpenAIResponsesAPI
+from static.providers.anthropic_api import AnthropicAPI
 from static.providers.local.local_agent_api import LocalAgentAPI
+from server_tests.test_anthropic_stop_reasons import _opus_model, _sse, _text_block
 
 
 def tool_chunk(name: str = "create_segment") -> Any:
@@ -552,45 +558,120 @@ class TestContinueTurn(unittest.TestCase):
         self.assertIsNotNone(self.make().continue_turn(None))
 
 
+class ProviderCase:
+    """One provider with a fake model client: ``calls()`` counts the model requests it got."""
+
+    def __init__(self, name: str, api: Any, calls: Callable[[], int], streams: Callable[[str, Optional[int]], Any]):
+        self.name = name
+        self.api = api
+        self.calls = calls
+        self.stream = streams
+
+
+def chat_case(name: str, api: Any) -> ProviderCase:
+    recording = RecordingClient(FakeStream([text_chunk("Done."), finish_chunk("stop")]))
+    api.client = recording
+    return ProviderCase(
+        name,
+        api,
+        lambda: len(recording.sent),
+        lambda text, gen: api.create_chat_completion_stream(text, generation=gen),
+    )
+
+
+def completions_api() -> OpenAIChatCompletionsAPI:
+    with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        return OpenAIChatCompletionsAPI(model=AIModel.from_identifier("gpt-4.1"), tools=None)
+
+
+def anthropic_case() -> ProviderCase:
+    requests: List[Any] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        requests.append(request)
+        return httpx2.Response(
+            200, headers={"content-type": "text/event-stream"}, text=_sse(_text_block(0, "Done."), "end_turn")
+        )
+
+    with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}):
+        api = AnthropicAPI(model=_opus_model(), tools=[])
+    http_client = httpx2.Client(transport=httpx2.MockTransport(handler))
+    api._anthropic_client = anthropic.Anthropic(api_key="test-key", http_client=http_client, max_retries=0)
+    return ProviderCase(
+        "anthropic",
+        api,
+        lambda: len(requests),
+        lambda text, gen: api.create_chat_completion_stream(text, generation=gen),
+    )
+
+
+def responses_case() -> ProviderCase:
+    def reply(**_kwargs: Any) -> Iterator[Any]:
+        return iter(
+            [
+                SimpleNamespace(type="response.output_text.delta", delta="Done."),
+                SimpleNamespace(type="response.completed", response=SimpleNamespace(status="stop", output=[])),
+            ]
+        )
+
+    with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        api = OpenAIResponsesAPI()
+    client = MagicMock()
+    client.responses.create.side_effect = reply
+    api.client = client
+    return ProviderCase(
+        "responses",
+        api,
+        lambda: client.responses.create.call_count,
+        lambda text, gen: api.create_response_stream(text, generation=gen),
+    )
+
+
+def provider_cases() -> List[ProviderCase]:
+    return [
+        chat_case("completions", completions_api()),
+        chat_case("local", local_api()),
+        anthropic_case(),
+        responses_case(),
+    ]
+
+
+def conversation_roles(api: Any) -> List[str]:
+    return [role for role in roles(api) if role not in ("system", "developer")]
+
+
 class TestEagerGeneration(unittest.TestCase):
     """The provider uses the route's generation and adds the prompt before its stream is read (finding 1b)."""
 
-    def make(self) -> OpenAIChatCompletionsAPI:
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-            return OpenAIChatCompletionsAPI(model=AIModel.from_identifier("gpt-4.1"), tools=None)
-
     def test_prompt_joins_the_history_before_the_stream_is_read(self) -> None:
-        for api in (self.make(), local_api()):
-            with self.subTest(api=type(api).__name__):
-                api.client = RecordingClient(FakeStream([tool_chunk(), finish_chunk()]))  # type: ignore[assignment]
-                api.create_chat_completion_stream(prompt())
-                self.assertEqual(roles(api)[1:], ["user"])
-                self.assertEqual(api.client.sent, [])  # type: ignore[attr-defined]
+        for case in provider_cases():
+            with self.subTest(provider=case.name):
+                case.stream(prompt(), None)
+                self.assertEqual(conversation_roles(case.api), ["user"])
+                self.assertEqual(case.calls(), 0)
 
     def test_stop_after_the_call_drops_the_reply_and_keeps_the_prompt(self) -> None:
-        for api in (self.make(), local_api()):
-            with self.subTest(api=type(api).__name__):
-                api.client = RecordingClient(FakeStream([tool_chunk(), finish_chunk()]))  # type: ignore[assignment]
-                generation = api.begin_turn()
-                stream = api.create_chat_completion_stream(prompt(), generation=generation)
-                self.assertTrue(api.abandon_turn(api.turn_token, ""))  # the stop lands before the stream is read
-                self.assertTrue(abandoned_only(list(stream)))
-                self.assertEqual(roles(api)[1:], ["user"])  # no tool calls, no stubs
+        for case in provider_cases():
+            with self.subTest(provider=case.name):
+                generation = case.api.begin_turn()
+                stream = case.stream(prompt(), generation)
+                self.assertTrue(case.api.abandon_turn(case.api.turn_token, ""))  # lands before the stream is read
+                finals = [e for e in stream if e.get("type") == "final"]
+                self.assertEqual([e["finish_reason"] for e in finals], ["abandoned"])
+                self.assertEqual(conversation_roles(case.api), ["user"])  # no reply, no tool calls
 
     def test_abandoned_generation_adds_nothing_and_calls_no_model(self) -> None:
-        for api in (self.make(), local_api()):
-            with self.subTest(api=type(api).__name__):
-                recording = RecordingClient(FakeStream([tool_chunk(), finish_chunk()]))
-                api.client = recording  # type: ignore[assignment]
-                generation = api.begin_turn()
-                api.abandon_requests_in_flight()  # e.g. a new conversation between the route and the provider
-                events = list(api.create_chat_completion_stream(prompt(), generation=generation))
+        for case in provider_cases():
+            with self.subTest(provider=case.name):
+                generation = case.api.begin_turn()
+                case.api.abandon_requests_in_flight()  # e.g. a new conversation between the route and the provider
+                events = list(case.stream(prompt(), generation))
                 self.assertEqual([e["finish_reason"] for e in events], ["abandoned"])
-                self.assertEqual(roles(api)[1:], [])
-                self.assertEqual(recording.sent, [])
-                choice = api.create_chat_completion(prompt(), generation=generation)
-                self.assertFalse(choice.message.tool_calls)
-                self.assertEqual(recording.sent, [])
+                self.assertEqual(conversation_roles(case.api), [])
+                if hasattr(case.api, "create_chat_completion") and case.name != "responses":
+                    choice = case.api.create_chat_completion(prompt(), generation=generation)
+                    self.assertFalse(choice.message.tool_calls)
+                self.assertEqual(case.calls(), 0)
 
     def test_route_stop_after_the_turn_event_drops_the_reply(self) -> None:
         # The reviewer's lazy-capture race: the stop lands after the turn event, before the provider runs.
@@ -618,6 +699,23 @@ class TestEagerGeneration(unittest.TestCase):
 
 class TestAlternation(unittest.TestCase):
     """A turn stopped before any text leaves two user messages in a row (finding 5)."""
+
+    def test_chat_completions_requests_merge_them(self) -> None:
+        for streamed in (True, False):
+            with self.subTest(streamed=streamed):
+                api = completions_api()
+                recording = RecordingClient(FakeStream([text_chunk("Hi"), finish_chunk("stop")]))
+                api.client = recording  # type: ignore[assignment]
+                api.messages.append({"role": "user", "content": "first"})
+                api.add_partial_assistant_message("")  # stopped before any text
+                if streamed:
+                    list(api.create_chat_completion_stream(prompt("second")))
+                else:
+                    api.create_chat_completion(prompt("second"))
+                sent = recording.sent[0]
+                self.assertEqual([m["role"] for m in sent], ["developer", "user"])
+                self.assertTrue(sent[1]["content"].startswith("first\n\n"))
+                self.assertEqual(roles(api)[:3], ["developer", "user", "user"])  # the history keeps both
 
     def test_consecutive_user_messages_are_merged_in_the_request_only(self) -> None:
         api = local_api()
