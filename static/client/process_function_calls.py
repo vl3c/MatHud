@@ -138,6 +138,18 @@ class ProcessFunctionCalls:
         return cast(List[Dict[str, Any]], ResultProcessor.build_tool_call_results(calls, traced_calls))
 
     @staticmethod
+    def serialize_tool_call_results(
+        calls: List[Dict[str, Any]],
+        traced_calls: List[Dict[str, Any]],
+    ) -> str:
+        """JSON text of the per-call results sent back to the model.
+
+        Delegates to ResultProcessor; a result that cannot be serialized becomes an
+        error result for its call instead of failing the turn.
+        """
+        return str(ResultProcessor.serialize_tool_call_results(calls, traced_calls))
+
+    @staticmethod
     def validate_results(results: Dict[str, Any]) -> bool:
         """Validates result structure and data types for integrity.
 
