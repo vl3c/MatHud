@@ -13,7 +13,13 @@ from typing import Any, Callable, Optional
 import click
 
 from cli.config import DEFAULT_PORT, PROJECT_ROOT
-from cli.scenarios.classify import annotate_steps, step_classes
+from cli.scenarios.classify import (
+    annotate_steps,
+    apply_batch_verdicts,
+    has_infra_turn,
+    retrace_batches,
+    step_classes,
+)
 from cli.scenarios.live import (
     DEFAULT_TURN_MAX_REQUESTS,
     DEFAULT_TURN_TIMEOUT_S,
@@ -241,6 +247,7 @@ def scenarios_cmd(
                 as_json=as_json,
                 options=options,
                 headless=not no_headless,
+                dry_run=dry_run,
             )
         )
 
@@ -443,6 +450,33 @@ def _conversation_resetter(base_url: str) -> Callable[[], None]:
     return reset
 
 
+# How long a run waits for a stopped turn's request to end in the server before it goes on.
+IDLE_WAIT_S = 120.0
+
+
+def _idle_waiter(base_url: str, timeout_s: float = IDLE_WAIT_S) -> Callable[[], float]:
+    """Wait until the server runs no model request (GET /api/requests_in_flight); returns the seconds waited.
+
+    The server drops a stopped turn's reply anyway; waiting keeps that request from
+    sharing the model server with the next turn and skewing its timing.
+    """
+    import requests
+
+    def wait() -> float:
+        started = time.time()
+        while time.time() - started < timeout_s:
+            try:
+                response = requests.get(f"{base_url}/api/requests_in_flight", timeout=10)
+                if int(response.json()["data"]["requests_in_flight"]) == 0:
+                    break
+            except Exception:
+                break  # an older server without the endpoint: nothing to wait for
+            time.sleep(0.25)
+        return time.time() - started
+
+    return wait
+
+
 def _print_live_plan(plan: dict[str, Any], as_json: bool) -> None:
     if as_json:
         click.echo(json.dumps(plan, indent=2))
@@ -460,7 +494,7 @@ def _print_live_plan(plan: dict[str, Any], as_json: bool) -> None:
         click.echo(
             f"Estimated cost for {model}: {shown} ({plan['estimated_prompt_tokens_per_request']} prompt and "
             f"{plan['estimated_completion_tokens_per_request']} completion tokens per request, prices as of "
-            f"{plan['prices_as_of']}; every turn assumed to use its whole request cap)"
+            f"{plan['prices_as_of']}; every turn assumed to send its request cap plus the request in flight when it is stopped)"
         )
 
 
@@ -552,6 +586,7 @@ def _run_live(
         provider=settings.provider,
         reset_conversation=_conversation_resetter(manager.base_url),
         budget=RequestBudget(cap),
+        wait_idle=_idle_waiter(manager.base_url),
         log=lambda line: click.echo(line, err=as_json),
     )
     click.echo(
@@ -586,8 +621,13 @@ def _run_retrace(
     as_json: bool,
     options: ReplayOptions,
     headless: bool,
+    dry_run: bool = False,
 ) -> int:
-    """Retrace every stored live run on a server of its own (a clean workspace directory)."""
+    """Retrace every stored live run on a server of its own (a clean workspace directory).
+
+    Runs that did not finish, or with a turn that ended in an infrastructure
+    outcome, are left out: their recorded calls may be incomplete.
+    """
     from cli.browser import BrowserAutomation
 
     data = json.loads(source.read_text(encoding="utf-8"))
@@ -595,7 +635,7 @@ def _run_retrace(
     if source_config.get("mode") != "live":
         return _fail(f"{source} is not a live run's results (mode {source_config.get('mode')!r})")
     by_id = {scenario.id: scenario for scenario in catalogue.scenarios}
-    stored = [
+    candidates = [
         item
         for item in data.get("scenarios", [])
         if item.get("id") in by_id
@@ -603,8 +643,27 @@ def _run_retrace(
         and not item.get("skipped_reason")
         and item.get("steps")
     ]
+    stored = [item for item in candidates if not item.get("infra_error") and not has_infra_turn(item["steps"])]
+    left_out = len(candidates) - len(stored)
     if not stored:
         return _fail("No live runs to retrace match the filters.")
+    if dry_run:
+        plan: dict[str, Any] = {
+            "retrace": str(source),
+            "runs": [f"{item['id']} [{item.get('model')} #{item.get('repeat') or 1}]" for item in stored],
+            "batches": sum(len(retrace_batches(step)) for item in stored for step in item["steps"] if step.get("turn")),
+            "left_out_infra": left_out,
+        }
+        if as_json:
+            click.echo(json.dumps(plan, indent=2))
+        else:
+            click.echo(
+                f"Would retrace {len(plan['runs'])} live run(s) ({plan['batches']} turn batches) from {source}; "
+                f"{left_out} left out for infrastructure failures"
+            )
+            for run_label in plan["runs"]:
+                click.echo(f"  {run_label}")
+        return 0
 
     workspaces_tmp = tempfile.mkdtemp(prefix="mathud-scenario-workspaces-")
     # No model is involved, but the server still gets no provider keys.
@@ -629,7 +688,11 @@ def _run_retrace(
     sink = ResultSink(out_dir, config)
     session = BrowserSession(lambda: BrowserAutomation(port=manager.port, headless=headless), options.step_timeout_s)
     runner = RetraceRunner(catalogue, session, sink, options, log=lambda line: click.echo(line, err=as_json))
-    click.echo(f"Retracing {len(stored)} live run(s) from {source} on port {manager.port}; output in {out_dir}")
+    click.echo(
+        f"Retracing {len(stored)} live run(s) from {source} on port {manager.port} ({left_out} left out for "
+        f"infrastructure failures); output in {out_dir}",
+        err=as_json,
+    )
 
     def run() -> None:
         for number, item in enumerate(stored, start=1):
@@ -637,7 +700,10 @@ def _run_retrace(
                 by_id[item["id"]], item["steps"], item.get("provider"), item.get("model"), int(item.get("repeat") or 1)
             )
             comparison = retrace_summary(item["steps"], outcome)
-            live_steps = annotate_steps(copy.deepcopy(item["steps"]), "live", comparison)
+            live_steps = copy.deepcopy(item["steps"])
+            apply_batch_verdicts(live_steps, comparison)
+            annotate_steps(live_steps, "live", comparison)
+            comparison.pop("steps", None)  # they are this run's own steps
             live_classes = step_classes(live_steps) | ({"infra"} if item.get("infra_error") else set())
             comparison.update(live_status=item.get("status"), live_classes=sorted(live_classes))
             outcome.retrace = comparison

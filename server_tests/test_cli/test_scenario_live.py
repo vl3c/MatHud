@@ -19,6 +19,8 @@ from cli.scenarios import command as command_module
 from cli.scenarios.checks import BatchData, CheckResult, StepData, run_invariants
 from cli.scenarios.classify import (
     annotate_steps,
+    apply_batch_verdicts,
+    needs_retrace,
     classify_result,
     compare_runs,
     efficiency_signals,
@@ -30,6 +32,7 @@ from cli.scenarios.live import (
     LiveRunner,
     RequestBudget,
     RetraceRunner,
+    mark_truncated,
     planned_requests,
     retrace_summary,
 )
@@ -81,6 +84,10 @@ class FakeChatBrowser(FakeBrowser):
         self.final_text = final_text
         self.loop = loop
         self.hang = hang
+        # The status hook fails once this many requests completed (a page that broke mid-turn).
+        self.fail_after: Optional[int] = None
+        # Every tool batch runs, but the final answer never arrives.
+        self.stall_before_answer = False
         self.dropped = dropped
         self.drift_after_turn = drift_after_turn
         self.processing = False
@@ -103,6 +110,8 @@ class FakeChatBrowser(FakeBrowser):
             self.pending = [list(batch) for batch in self.script.get(args[0], [])]
             return {"status": "started"}
         if name == "getMatHudTurnStatus":
+            if self.processing and self.fail_after is not None and self.requests >= self.fail_after:
+                return {"status": "error", "error": "the page broke"}
             if self.processing and not self.hang:
                 self._advance()
             return {"processing": self.processing, "completed_turns": self.completed, "requests": self.requests}
@@ -123,6 +132,8 @@ class FakeChatBrowser(FakeBrowser):
             self._run_batch([SEARCH])
         elif self.pending:
             self._run_batch(self.pending.pop(0))
+        elif self.stall_before_answer:
+            self.requests -= 1  # the final answer never comes
         else:
             self.texts.append(self.final_text)
             self._finish("stop")
@@ -187,6 +198,7 @@ def live_runner(
     live: Optional[LiveOptions] = None,
     budget: Optional[RequestBudget] = None,
     resets: Optional[list[int]] = None,
+    idle_waits: Optional[list[int]] = None,
 ) -> tuple[LiveRunner, ResultSink]:
     sink = ResultSink(out, {"mode": "live", "provider": "local"})
     session = BrowserSession(lambda: browser, timeout_s=5)
@@ -201,6 +213,7 @@ def live_runner(
         provider="local",
         reset_conversation=lambda: calls.append(1),
         budget=budget,
+        wait_idle=lambda: float(len(idle_waits.append(1) or idle_waits)) if idle_waits is not None else 0.0,
         log=lambda _line: None,
         clock=clock.time,
         sleep=clock.sleep,
@@ -363,15 +376,23 @@ class TestBatchedInvariants:
             step = self.turn(added, first, recolour)
             assert by_id(run_invariants(self.empty, self.one, step, "t1"), "I5").passed
 
-    def test_live_turn_success_claims_judged_by_deltas(self) -> None:
+    def test_live_turn_leaves_success_claims_to_the_retrace(self) -> None:
         made = BatchData(calls=[call("create_point", x=0, y=0, name="A")], delta={"added": ["A"]})
         removed = BatchData(calls=[call("delete_point", x=0, y=0)], delta={"removed": ["A"]})
         step = self.turn(2, made, removed)
         assert by_id(run_invariants(self.empty, self.empty, step, "t1"), "I4").passed
-        noop = BatchData(calls=[call("create_point", x=0, y=0)], delta={})
-        step = self.turn(0, noop, BatchData(calls=[call("update_point", name="A")], delta={}))
-        result = by_id(run_invariants(self.one, self.one, step, "t1"), "I4")
-        assert result.status == "fail" and "reported success but the batch changed nothing" in result.message
+        # Batches that cancel out (zoom, then undo) leave the canvas as it was: not a false claim.
+        zoom = BatchData(calls=[call("zoom", center_x=0, center_y=0, range_val=5)], delta={})
+        undo = BatchData(calls=[call("undo")], delta={})
+        step = self.turn(0, zoom, undo)
+        assert by_id(run_invariants(self.one, self.one, step, "t1"), "I4").passed
+        recolour = BatchData(calls=[call("update_point", name="A", new_color="red")], delta={})
+        step = self.turn(1, recolour, BatchData(calls=[call("undo")], delta={}))
+        assert by_id(run_invariants(self.one, self.one, step, "t1"), "I4").passed
+        # Every call failing while the drawables changed is still caught for the turn as a whole.
+        failed = [BatchData(calls=[call("create_point", "Error: no", is_error=True)], delta={}) for _ in range(2)]
+        result = by_id(run_invariants(self.empty, self.one, self.turn(1, *failed), "t1"), "I4")
+        assert result.status == "fail" and "every call failed" in result.message
 
     def test_retraced_batches_are_judged_one_by_one(self) -> None:
         first = BatchData(
@@ -472,9 +493,10 @@ class TestGuards:
     def test_planned_requests_use_scenario_limits(self, catalogue: Catalogue) -> None:
         scenarios = geo90(catalogue)
         options = LiveOptions(turn_max_requests=4)
-        assert planned_requests(scenarios, 2, 3, options) == 4 * 2 * 3
+        # A turn capped at N requests can send N + 1: the next one is already sent when it is stopped.
+        assert planned_requests(scenarios, 2, 3, options) == 5 * 2 * 3
         scenarios[0].steps[0].limits = {"max_requests": 2}
-        assert planned_requests(scenarios, 1, 1, options) == 2
+        assert planned_requests(scenarios, 1, 1, options) == 3
 
     def test_plan_cost_estimate(self) -> None:
         settings = LiveSettings(provider="openrouter")
@@ -738,3 +760,220 @@ class TestLiveCommand:
         results.write_text(json.dumps({"config": {"mode": "replay"}, "scenarios": []}))
         result = self.invoke("--mode", "retrace", str(results))
         assert result.exit_code == 2 and "not a live run" in result.output
+
+
+# ----------------------------------------------------------------------
+# Review follow-ups: budget on errors, infra handling, multi-batch retrace, regrade
+# ----------------------------------------------------------------------
+
+
+class TestBudgetOnErrors:
+    def test_hook_error_mid_turn_still_counts_its_requests(self, catalogue: Catalogue, tmp_path: Path) -> None:
+        browser = FakeChatBrowser(loop=True)
+        browser.fail_after = 3
+        budget = RequestBudget(100)
+        runner, sink = live_runner(catalogue, browser, tmp_path / "out", budget=budget)
+        [outcome] = runner.run_live(geo90(catalogue), ["m"], 1)
+        sink.close(catalogue)
+        assert outcome.infra_error and "hook error" in outcome.infra_error
+        assert budget.sent == 3 + 1  # the requests seen, plus the one in flight
+
+    def test_no_turn_starts_when_its_first_request_would_reach_the_cap(
+        self, catalogue: Catalogue, tmp_path: Path
+    ) -> None:
+        budget = RequestBudget(5)
+        budget.add(4)
+        browser = FakeChatBrowser()
+        runner, sink = live_runner(catalogue, browser, tmp_path / "out", budget=budget)
+        outcomes = runner.run_live(geo90(catalogue), ["m"], 1)
+        assert browser.sent == [] and runner.stopped and "request cap (5)" in runner.stopped
+        assert outcomes[0].infra_error
+
+
+class TestInfraHandling:
+    def test_timeout_with_passing_checks_is_infra_and_not_retraced(self, catalogue: Catalogue, tmp_path: Path) -> None:
+        browser = FakeChatBrowser(script={PROMPT: [[create(1, 2)]]})
+        browser.stall_before_answer = True
+        idle: list[int] = []
+        live = LiveOptions(turn_timeout_s=3, poll_interval_s=1)
+        runner, sink = live_runner(catalogue, browser, tmp_path / "out", live=live, idle_waits=idle)
+        [outcome] = runner.run_live(geo90(catalogue), ["m"], 1)
+        summary = sink.close(catalogue)
+        turn = next(step for step in outcome.steps if step["step"] == "t1")
+        assert turn["turn"]["outcome"] == "timeout" and turn["turn"]["drain_s"] > 0 and idle
+        assert outcome.status == "pass" and outcome.retrace is None and outcome.classes() == {"infra"}
+        assert summary["models"]["m"]["scenario_pass_rate"] is None  # infra runs are left out of the rates
+        assert summary["exit_code"] == 0
+
+    def test_steps_after_an_infra_turn_are_infra(self) -> None:
+        steps = [
+            {"step": "t1", "turn": {"outcome": "timeout"}, "results": []},
+            {"step": "t2", "turn": {"outcome": "stop"}, "results": [{"status": "fail", "kind": "check"}]},
+            {"step": "chk1", "results": [{"status": "fail", "kind": "check"}, {"status": "fail", "kind": "invariant"}]},
+        ]
+        annotate_steps(steps, "live")
+        assert steps[1]["results"][0]["class"] == "infra"
+        assert [r["class"] for r in steps[2]["results"]] == ["infra", "app"]
+        assert not needs_retrace(steps, None)
+
+    def test_unreadable_traces_with_retrace_on_are_infra(self, catalogue: Catalogue, tmp_path: Path) -> None:
+        browser = FakeChatBrowser()
+        runner, sink = live_runner(catalogue, browser, tmp_path / "out")
+        original = browser.execute_js
+
+        def broken_traces(script: str, *args: Any, timeout: int = 30) -> Any:
+            if "JSON.stringify(window.getActionTraces" in script:
+                return json.dumps({"error": "Circular reference detected"})
+            return original(script, *args, timeout=timeout)
+
+        browser.execute_js = broken_traces  # type: ignore[method-assign]
+        [outcome] = runner.run_live(geo90(catalogue), ["m"], 1)
+        summary = sink.close(catalogue)
+        assert outcome.retrace is None and "infra" in outcome.classes()
+        assert not outcome.classes() & {"app", "nondeterministic"} and summary["exit_code"] == 0
+
+
+class TestMultiBatchRetrace:
+    def test_every_multi_batch_turn_is_retraced_and_judged_per_batch(
+        self, catalogue: Catalogue, tmp_path: Path
+    ) -> None:
+        script = {PROMPT: [[create(1, 2)], [create(3, 3, "Q")], [{"tool": "undo", "args": {}}]]}
+        runner, sink = live_runner(catalogue, FakeChatBrowser(script=script), tmp_path / "out")
+        [outcome] = runner.run_live(geo90(catalogue), ["m"], 1)
+        sink.close(catalogue)
+        assert outcome.retrace and outcome.retrace["reproduced"] is True
+        turn = next(step for step in outcome.steps if step["step"] == "t1")
+        judged = {r["name"]: r for r in turn["results"] if r.get("judged_by") == "retrace"}
+        assert set(judged) == {"I4", "I5"} and all(r["status"] == "pass" for r in judged.values())
+        assert outcome.status == "pass"
+
+    def test_single_batch_passing_turn_is_not_retraced(self, catalogue: Catalogue, tmp_path: Path) -> None:
+        runner, sink = live_runner(catalogue, FakeChatBrowser(script={PROMPT: [[create(1, 2)]]}), tmp_path / "out")
+        [outcome] = runner.run_live(geo90(catalogue), ["m"], 1)
+        assert outcome.retrace is None
+
+    def test_verdicts_apply_only_when_reproduced(self) -> None:
+        live = [
+            {
+                "step": "t1",
+                "batches": [{"calls": [{"function_name": "zoom"}]}, {"calls": [{"function_name": "undo"}]}],
+                "results": [{"id": "t1.I4", "kind": "invariant", "name": "I4", "status": "fail"}],
+            }
+        ]
+        retraced = [{"step": "t1", "results": [{"id": "t1.I4", "kind": "invariant", "name": "I4", "status": "pass"}]}]
+        apply_batch_verdicts(live, {"reproduced": False, "steps": retraced})
+        assert live[0]["results"][0]["status"] == "fail"
+        apply_batch_verdicts(live, {"reproduced": True, "steps": retraced})
+        assert live[0]["results"][0] == {
+            "id": "t1.I4",
+            "kind": "invariant",
+            "name": "I4",
+            "status": "pass",
+            "judged_by": "retrace",
+        }
+
+
+class TestRegradeRetrace:
+    def test_stored_retrace_steps_are_regraded(self, catalogue: Catalogue, tmp_path: Path) -> None:
+        browser = FakeChatBrowser(script={PROMPT: [[create(5, 5)]]})
+        runner, sink = live_runner(catalogue, browser, tmp_path / "out")
+        runner.run_live(geo90(catalogue), ["m"], 1)
+        sink.close(catalogue)
+        results = tmp_path / "out" / "results.json"
+        data = json.loads(results.read_text(encoding="utf-8"))
+        retrace = data["scenarios"][0]["retrace"]
+        assert retrace["steps"] and retrace["invariant_failures"] == []
+        # A stale verdict stored in the file is replaced by the regraded one.
+        retrace["invariant_failures"] = ["t1.I5"]
+        results.write_text(json.dumps(data), encoding="utf-8")
+        summary, target = regrade(results, catalogue)
+        stored = json.loads(target.read_text(encoding="utf-8"))["scenarios"][0]
+        assert stored["retrace"]["invariant_failures"] == [] and summary["classes"]["app"] == 0
+
+    def test_retrace_without_steps_is_marked_stale(self, catalogue: Catalogue, tmp_path: Path) -> None:
+        browser = FakeChatBrowser(script={PROMPT: [[create(5, 5)]]})
+        runner, sink = live_runner(catalogue, browser, tmp_path / "out")
+        runner.run_live(geo90(catalogue), ["m"], 1)
+        sink.close(catalogue)
+        results = tmp_path / "out" / "results.json"
+        data = json.loads(results.read_text(encoding="utf-8"))
+        data["scenarios"][0]["retrace"].pop("steps")
+        data["scenarios"][0]["retrace"]["invariant_failures"] = ["t1.I5"]
+        results.write_text(json.dumps(data), encoding="utf-8")
+        summary, target = regrade(results, catalogue)
+        stored = json.loads(target.read_text(encoding="utf-8"))["scenarios"][0]["retrace"]
+        assert "invariant_failures" not in stored and stored["stale"]
+        assert summary["classes"]["app"] == 0
+
+
+def test_truncated_results_skip_the_naming_rule() -> None:
+    long_result = "x" * 500 + "..."
+    calls = mark_truncated([{"function_name": "create_point", "arguments": {"name": "P"}, "result": long_result}])
+    assert calls[0]["result_truncated"] is True
+    before, after = CanvasView(state()), CanvasView(state(point("A", 0, 0)))
+    step = StepData(calls=calls, undo_before=0, undo_after=1)
+    result = next(r for r in run_invariants(before, after, step, "t1") if r.name == "I4")
+    assert result.passed
+    calls[0].pop("result_truncated")
+    assert not next(r for r in run_invariants(before, after, step, "t1") if r.name == "I4").passed
+
+
+class TestCommandWiring:
+    def test_openrouter_cap_and_no_retries_reach_the_runner(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured: dict[str, Any] = {}
+
+        class CapturingRunner:
+            def __init__(self, catalogue: Any, session: Any, sink: Any, options: Any, live: Any, **kwargs: Any) -> None:
+                captured.update(options=options, live=live, **kwargs)
+                self.budget = kwargs["budget"]
+                self.stopped = None
+
+            def run_live(self, *args: Any) -> list[Any]:
+                return []
+
+        manager = FakeManager()
+        available = {"openrouter_paid": [{"id": "deepseek/deepseek-v4.1-flash"}]}
+        monkeypatch.setattr(command_module, "_start_own_server", lambda port, env: (manager, ""))
+        monkeypatch.setattr(command_module, "_available_models", lambda _url: available)
+        monkeypatch.setattr(command_module, "LiveRunner", CapturingRunner)
+        args = ["--mode", "live", "--provider", "openrouter", "--models", "deepseek/deepseek-v4.1-flash"]
+        result = CliRunner().invoke(cli, ["test", "scenarios", *args, "--ids", "GEO-01", "--max-requests", "40"])
+        assert result.exit_code == 0, result.output
+        assert captured["budget"].cap == 40 and captured["options"].retries == 0
+        assert captured["provider"] == "openrouter" and manager.stopped
+
+    def test_local_run_has_no_cap_but_never_retries(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured: dict[str, Any] = {}
+
+        class CapturingRunner:
+            def __init__(self, catalogue: Any, session: Any, sink: Any, options: Any, live: Any, **kwargs: Any) -> None:
+                captured.update(options=options, **kwargs)
+                self.budget = kwargs["budget"]
+                self.stopped = None
+
+            def run_live(self, *args: Any) -> list[Any]:
+                return []
+
+        monkeypatch.setattr(command_module, "_start_own_server", lambda port, env: (FakeManager(), ""))
+        monkeypatch.setattr(command_module, "_available_models", lambda _url: AVAILABLE)
+        monkeypatch.setattr(command_module, "LiveRunner", CapturingRunner)
+        result = CliRunner().invoke(cli, ["test", "scenarios", "--mode", "live", "--ids", "GEO-01"])
+        assert result.exit_code == 0, result.output
+        assert captured["budget"].cap is None and captured["options"].retries == 0
+
+    def test_retrace_dry_run_starts_nothing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(command_module, "_start_own_server", no_server)
+        live = {"step": "t1", "turn": {"outcome": "stop"}, "batches": [{"calls": [{"function_name": "undo"}]}]}
+        timed_out = dict(live, turn={"outcome": "timeout"})
+        results = tmp_path / "results.json"
+        scenarios = [
+            {"id": "GEO-01", "model": "m", "repeat": 1, "steps": [live]},
+            {"id": "GEO-02", "model": "m", "repeat": 1, "steps": [timed_out]},
+        ]
+        results.write_text(json.dumps({"config": {"mode": "live"}, "scenarios": scenarios}))
+        result = CliRunner().invoke(
+            cli, ["test", "scenarios", "--mode", "retrace", str(results), "--dry-run", "--json"]
+        )
+        assert result.exit_code == 0, result.output
+        plan = json.loads(result.output)
+        assert plan["runs"] == ["GEO-01 [m #1]"] and plan["left_out_infra"] == 1 and plan["batches"] == 1

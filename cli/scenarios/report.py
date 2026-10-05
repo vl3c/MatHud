@@ -13,7 +13,14 @@ from pathlib import Path
 from typing import Any, Optional, TextIO
 
 from cli.scenarios.checks import CheckResult
-from cli.scenarios.classify import CLASSES, FAILING_CLASSES, annotate_steps, step_classes
+from cli.scenarios.classify import (
+    CLASSES,
+    FAILING_CLASSES,
+    annotate_steps,
+    apply_batch_verdicts,
+    retrace_invariant_failures,
+    step_classes,
+)
 from cli.scenarios.grade import ScenarioGrader, StepRecordData
 from cli.scenarios.model import Catalogue, Scenario
 
@@ -641,7 +648,9 @@ def regrade(
             retrace=stored.get("retrace"),
         )
         if not outcome.skipped_reason:
-            outcome.steps = regrade_steps(scenario, stored.get("steps", []), catalogue.waivers_for(scenario), mode)
+            waivers = catalogue.waivers_for(scenario)
+            outcome.steps = regrade_steps(scenario, stored.get("steps", []), waivers, mode)
+            outcome.retrace = regrade_retrace(scenario, outcome, waivers, mode)
         outcome.annotate(mode)
         outcomes.append(outcome)
     summary = summarize(outcomes, catalogue.invariant_waivers, mode)
@@ -653,6 +662,31 @@ def regrade(
         render_summary(outcomes, summary, catalogue, config, out_dir), encoding="utf-8"
     )
     return summary, target
+
+
+def regrade_retrace(
+    scenario: Scenario, outcome: ScenarioOutcome, waivers: dict[str, str], mode: str
+) -> Optional[dict[str, Any]]:
+    """The stored retrace of a run, with its verdicts from the current checker.
+
+    A live run's retrace steps are graded again and their per-batch I4 and I5
+    replace the live turn-level ones again; a retrace run's own invariant failures
+    are its regraded steps'. A stored retrace without its steps (an older run)
+    keeps its canvas comparison, but its invariant verdicts are dropped as stale.
+    """
+    retrace = dict(outcome.retrace) if outcome.retrace else None
+    if retrace is None:
+        return None
+    if mode == "retrace":
+        retrace["invariant_failures"] = retrace_invariant_failures(outcome.steps)
+    elif retrace.get("steps"):
+        retrace["steps"] = regrade_steps(scenario, retrace["steps"], waivers, "retrace")
+        retrace["invariant_failures"] = retrace_invariant_failures(retrace["steps"])
+        apply_batch_verdicts(outcome.steps, retrace)
+    elif "invariant_failures" in retrace:
+        retrace.pop("invariant_failures")
+        retrace["stale"] = "the retrace's steps were not stored, so its invariant verdicts could not be regraded"
+    return retrace
 
 
 def regrade_steps(

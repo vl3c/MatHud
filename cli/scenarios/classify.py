@@ -27,7 +27,8 @@ CLASSES = ("app", "model", "nondeterministic", "known", "infra")
 # Classes that make a live or retrace run exit non-zero: the app, not the model, is at fault.
 FAILING_CLASSES = frozenset({"app", "nondeterministic"})
 # Turn outcomes that are not the model's doing.
-INFRA_TURN_OUTCOMES = frozenset({"error", "timeout", "request_cap", "not_started", "trace_error"})
+# "infra" stands for a turn after one of those in the same run.
+INFRA_TURN_OUTCOMES = frozenset({"error", "timeout", "request_cap", "not_started", "trace_error", "infra"})
 # Calls a retrace leaves out: search_tools runs the server's tool search (which may
 # call the model) and changes nothing on the canvas.
 NOT_RETRACED = frozenset({"search_tools"})
@@ -74,17 +75,19 @@ def annotate_steps(
 ) -> list[dict[str, Any]]:
     """Set ``class`` on every failing or expected-failing result of ``steps`` (in place); returns them.
 
-    A step at or after the retrace's first difference counts as not reproduced.
+    A step at or after the retrace's first difference counts as not reproduced,
+    and every outcome failure from an infrastructure turn on is ``infra``: the
+    scenario's later turns build on a turn that did not finish.
     """
     differed_at = first_difference(retrace)
     # Without a retrace (or when it could not finish) an outcome failure counts as the model's.
     reproduced: Optional[bool] = None if not retrace or retrace.get("reproduced") is None else True
+    infra_seen = False
     for step in steps:
         if differed_at is not None and step.get("step") == differed_at:
             reproduced = False
-        turn = step.get("turn") or {}
-        # Without the turn's calls (unreadable action traces) its checks cannot be judged.
-        outcome = "trace_error" if turn.get("trace_error") else turn.get("outcome")
+        infra_seen = infra_seen or turn_is_infra(step)
+        outcome = "infra" if infra_seen else (step.get("turn") or {}).get("outcome")
         for result in step.get("results", []):
             klass = classify_result(result, mode, outcome, reproduced)
             if klass is None:
@@ -95,7 +98,87 @@ def annotate_steps(
 
 
 def step_classes(steps: list[dict[str, Any]]) -> set[str]:
-    return {str(r["class"]) for step in steps for r in step.get("results", []) if r.get("class")}
+    """Failure classes of the steps' results; ``infra`` when a turn did not finish properly."""
+    found = {str(r["class"]) for step in steps for r in step.get("results", []) if r.get("class")}
+    if has_infra_turn(steps):
+        found.add("infra")
+    return found
+
+
+def turn_is_infra(step: dict[str, Any]) -> bool:
+    """True for a live turn that ended in an infrastructure outcome or whose calls could not be read."""
+    turn = step.get("turn") or {}
+    return bool(turn.get("trace_error")) or turn.get("outcome") in INFRA_TURN_OUTCOMES
+
+
+def has_infra_turn(steps: list[dict[str, Any]]) -> bool:
+    return any(turn_is_infra(step) for step in steps)
+
+
+def counted_batches(step: dict[str, Any]) -> int:
+    """How many of a step's batches ran calls other than ``search_tools``."""
+    return sum(
+        1
+        for batch in step.get("batches") or []
+        if any(call.get("function_name") not in UNCOUNTED_TOOLS for call in batch.get("calls") or [])
+    )
+
+
+def needs_retrace(steps: list[dict[str, Any]], infra_error: Optional[str]) -> bool:
+    """Whether a live run is retraced: it failed, or a turn ran several batches.
+
+    A turn of several batches is judged batch by batch only by its retrace (I4,
+    I5). Runs that did not finish, or with a turn that ended in an infrastructure
+    outcome (its calls may be incomplete), are not retraced: they are ``infra``.
+    """
+    if infra_error or has_infra_turn(steps):
+        return False
+    failed = any(r.get("status") in ("fail", "error") for step in steps for r in step.get("results", []))
+    return failed or any(counted_batches(step) > 1 for step in steps)
+
+
+BATCH_INVARIANTS = ("I4", "I5")
+
+
+def apply_batch_verdicts(live_steps: list[dict[str, Any]], retrace: Optional[dict[str, Any]]) -> None:
+    """Replace the turn-level I4 and I5 of multi-batch live turns by the retrace's per-batch verdicts.
+
+    Only when the retrace reproduced the live canvas: then its batches are the
+    live batches, each judged on its own canvas and undo depths.
+    """
+    if not retrace or retrace.get("reproduced") is not True:
+        return
+    retraced = {str(record.get("step")): record for record in retrace.get("steps") or []}
+    for step in live_steps:
+        other = retraced.get(str(step.get("step")))
+        if other is None or counted_batches(step) <= 1:
+            continue
+        verdicts = {r.get("name"): r for r in other.get("results", []) if r.get("kind") == "invariant"}
+        results = step.get("results", [])
+        for index, result in enumerate(results):
+            replacement = verdicts.get(result.get("name"))
+            if result.get("kind") == "invariant" and result.get("name") in BATCH_INVARIANTS and replacement:
+                updated = {k: v for k, v in replacement.items() if k != "class"}
+                updated["judged_by"] = "retrace"
+                results[index] = updated
+
+
+def retrace_invariant_failures(steps: list[dict[str, Any]]) -> list[str]:
+    """Ids of the invariants a retrace broke (each batch judged on its own canvas)."""
+    return [
+        str(r.get("id"))
+        for step in steps
+        for r in step.get("results", [])
+        if r.get("kind") == "invariant" and r.get("status") in ("fail", "error")
+    ]
+
+
+def summarize_retrace(live_steps: list[dict[str, Any]], retrace_steps: list[dict[str, Any]]) -> dict[str, Any]:
+    """The comparison with the live run, the retrace's invariant failures, and its step records."""
+    summary = compare_runs(live_steps, retrace_steps)
+    summary["invariant_failures"] = retrace_invariant_failures(retrace_steps)
+    summary["steps"] = retrace_steps
+    return summary
 
 
 # ----------------------------------------------------------------------

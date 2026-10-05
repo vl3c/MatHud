@@ -22,11 +22,18 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 from cli.scenarios.checks import UNCOUNTED_TOOLS
-from cli.scenarios.classify import compare_runs, efficiency_signals, retrace_batches
+from cli.scenarios.classify import (
+    apply_batch_verdicts,
+    efficiency_signals,
+    retrace_batches,
+    summarize_retrace,
+)
+from cli.scenarios.classify import needs_retrace as classify_needs_retrace
 from cli.scenarios.grade import ScenarioGrader, StepRecordData
 from cli.scenarios.model import Catalogue, Scenario, Step
 from cli.scenarios.report import ResultSink, ScenarioOutcome
 from cli.scenarios.runner import BrowserSession, HookError, ReplayOptions, ReplayRunner, RunStopped
+from static.client.constants import MAX_RESULT_STR_LEN
 
 DEFAULT_TURN_TIMEOUT_S = 300.0
 DEFAULT_TURN_MAX_REQUESTS = 8
@@ -68,9 +75,24 @@ def turn_limits(step: Step, options: LiveOptions) -> tuple[float, int]:
     return float(timeout), int(max_requests)
 
 
+def turn_request_ceiling(max_requests: int) -> int:
+    """The most requests a turn with cap ``max_requests`` can send.
+
+    The client sends the next request in the same task that records the previous
+    one, so a turn is stopped only once ``max_requests`` requests completed and
+    the next one is already on its way: it is aborted, but it was sent.
+    """
+    return max_requests + 1
+
+
 def planned_requests(scenarios: list[Scenario], models: int, repeats: int, options: LiveOptions) -> int:
-    """The most requests a live run may send: every turn's request cap, per model and repeat."""
-    per_pass = sum(turn_limits(step, options)[1] for s in scenarios for step in s.steps if step.kind == "user")
+    """The most requests a live run may send: every turn's ceiling, per model and repeat."""
+    per_pass = sum(
+        turn_request_ceiling(turn_limits(step, options)[1])
+        for s in scenarios
+        for step in s.steps
+        if step.kind == "user"
+    )
     return per_pass * models * repeats
 
 
@@ -89,7 +111,8 @@ class RequestBudget:
 
     @property
     def exhausted(self) -> bool:
-        return self.cap is not None and self.sent >= self.cap
+        """True when no further turn may start: its first request would reach the cap and be aborted at once."""
+        return self.cap is not None and self.sent + 1 >= self.cap
 
     def reached(self, in_turn: int) -> bool:
         """True when ``in_turn`` requests of the running turn (in flight included) reach the cap."""
@@ -134,6 +157,7 @@ class LiveRunner(ReplayRunner):
         provider: str,
         reset_conversation: Callable[[], None],
         budget: Optional[RequestBudget] = None,
+        wait_idle: Callable[[], float] = lambda: 0.0,
         log: Callable[[str], None] = print,
         clock: Callable[[], float] = time.time,
         sleep: Callable[[float], None] = time.sleep,
@@ -142,7 +166,11 @@ class LiveRunner(ReplayRunner):
         self.live = live
         self.provider = provider
         self.reset_conversation = reset_conversation
+        # Waits until the server runs no model request (a stopped turn's request goes on
+        # there for a while); returns the seconds waited.
+        self.wait_idle = wait_idle
         self.budget = budget or RequestBudget()
+        self._turn_requests_seen = 0
         self.model: Optional[str] = None
         self.repeat = 1
         self._clock = clock
@@ -174,9 +202,9 @@ class LiveRunner(ReplayRunner):
 
     def run_scenario(self, scenario: Scenario) -> ScenarioOutcome:
         outcome = super().run_scenario(scenario)
-        failed = any(r["status"] in ("fail", "error") for r in outcome.results())
-        if failed and self.live.retrace_failures and not outcome.infra_error and not self.stopped:
+        if self.live.retrace_failures and not self.stopped and needs_retrace(outcome):
             outcome.retrace = self.retrace(outcome)
+            apply_batch_verdicts(outcome.steps, outcome.retrace)
         return outcome
 
     def _new_outcome(self, scenario: Scenario, attempts: int) -> ScenarioOutcome:
@@ -186,6 +214,7 @@ class LiveRunner(ReplayRunner):
 
     def _reset(self, scenario: Scenario) -> None:
         try:
+            self.wait_idle()
             self.reset_conversation()
         except Exception as exc:
             raise HookError(f"could not reset the server conversation: {exc}") from exc
@@ -226,19 +255,29 @@ class LiveRunner(ReplayRunner):
         texts_before = len(self._assistant_texts())
         self._js(_CLEAR_TRACES_JS)
         completed_before = int(self.session.hook("getMatHudTurnStatus").get("completed_turns") or 0)
-        self.session.hook("sendMatHudMessage", step.user or "", self.model or "")
-        started = self._clock()
-        stop_reason = self._wait_for_turn(completed_before, started, timeout_s, max_requests)
-        wall = self._clock() - started
+        self._turn_requests_seen = 0
+        accounted = False
+        try:
+            # From here on the turn may have sent requests: whatever happens, they are counted.
+            self.session.hook("sendMatHudMessage", step.user or "", self.model or "")
+            started = self._clock()
+            stop_reason = self._wait_for_turn(completed_before, started, timeout_s, max_requests)
+            wall = self._clock() - started
+            drain_s = self.wait_idle() if stop_reason else 0.0
+            metrics = self._last_turn_metrics(completed_before)
+            completed = max(int((metrics or {}).get("requests") or 0), self._turn_requests_seen)
+            requests_sent = completed + (1 if stop_reason else 0)
+            self.budget.add(requests_sent)
+            accounted = True
+        finally:
+            if not accounted:
+                # The turn broke off (hook error, browser hang): count what was seen plus one in flight.
+                self.budget.add(self._turn_requests_seen + 1)
 
-        metrics = self._last_turn_metrics(completed_before)
         traces, trace_error = self._traces()
         texts = self._assistant_texts()[texts_before:]
-        requests_sent = int((metrics or {}).get("requests") or 0) + (1 if stop_reason else 0)
-        self.budget.add(requests_sent)
-
         batches: list[dict[str, Any]] = [
-            {"calls": trace.get("tool_calls") or [], "delta": trace.get("state_delta"),
+            {"calls": mark_truncated(trace.get("tool_calls") or []), "delta": trace.get("state_delta"),
              "duration_ms": trace.get("total_duration_ms")}
             for trace in traces
         ]  # fmt: skip
@@ -255,6 +294,7 @@ class LiveRunner(ReplayRunner):
             "stop_reason": stop_reason,
             "wall_time_s": round(wall, 3),
             "requests_sent": requests_sent,
+            "drain_s": round(drain_s, 3),
             "limits": {"timeout_s": timeout_s, "max_requests": max_requests},
             "metrics": metrics,
         }
@@ -289,6 +329,7 @@ class LiveRunner(ReplayRunner):
             if not processing and completed > completed_before:
                 return None
             requests = int(status.get("requests") or 0)
+            self._turn_requests_seen = max(self._turn_requests_seen, requests)
             elapsed = self._clock() - started
             reason: Optional[str] = None
             if processing and self.budget.reached(requests + 1):
@@ -350,14 +391,23 @@ class LiveRunner(ReplayRunner):
 
 
 def retrace_summary(live_steps: list[dict[str, Any]], retraced: ScenarioOutcome) -> dict[str, Any]:
-    """What a retrace showed: whether it reproduced the live canvas, and its own invariant failures."""
+    """What a retrace showed: whether it reproduced the live canvas, its invariant failures and its steps."""
     if retraced.infra_error:
         return {"reproduced": None, "error": retraced.infra_error}
-    summary = compare_runs(live_steps, retraced.steps)
-    summary["invariant_failures"] = [
-        r["id"] for r in retraced.results() if r.get("kind") == "invariant" and r["status"] in ("fail", "error")
-    ]
-    return summary
+    return summarize_retrace(live_steps, retraced.steps)
+
+
+def needs_retrace(outcome: ScenarioOutcome) -> bool:
+    return classify_needs_retrace(outcome.steps, outcome.infra_error)
+
+
+def mark_truncated(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Flag results the action-trace export cut short (I4's naming rule cannot judge those)."""
+    for call in calls:
+        result = call.get("result")
+        if isinstance(result, str) and len(result) == MAX_RESULT_STR_LEN + 3 and result.endswith("..."):
+            call["result_truncated"] = True
+    return calls
 
 
 class RetraceRunner(ReplayRunner):

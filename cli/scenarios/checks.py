@@ -1884,7 +1884,8 @@ def _inv_truthful_results(before: CanvasView, after: CanvasView, step: StepData)
         return problems
     for call, failed in zip(calls, errors):
         tool = str(call.get("function_name"))
-        if failed or not tool.startswith(_NAMING_PREFIXES):
+        # A result the trace export cut short may name the created object past the cut.
+        if failed or not tool.startswith(_NAMING_PREFIXES) or call.get("result_truncated"):
             continue
         arguments = call.get("arguments") or {}
         for key in _NAME_HINT_KEYS:
@@ -1959,18 +1960,15 @@ def _inv_truthful_results_turn(before: CanvasView, after: CanvasView, step: Step
     """I4 for a turn of several batches when only the turn's start and end canvases are known.
 
     "Every call failed but the drawables changed" and the naming rule hold for
-    the turn as a whole. A success claim on a no-op is judged only when the turn
-    changed nothing and no batch's trace delta names a change, since a later
-    batch may undo what an earlier one did.
+    the turn as a whole. Success claims on no-ops are left to the retrace, which
+    judges every batch on its own canvas: a later batch may undo what an earlier
+    one did (zoom then undo), so the turn's net change says nothing about them.
     """
     calls = step.counted_calls
     problems: list[str] = []
     errors = [call_is_error(call) for call in calls]
     if calls and all(errors) and diff_views(before, after, _DERIVED_TOL):
         problems.append("every call failed but the canvas changed")
-    unchanged = not diff_views(before, after, _DERIVED_TOL, inspect=True, include_view=True)
-    if unchanged and not any(batch.delta_changed for batch in step.batches or []):
-        problems.extend(p for p in _inv_truthful_results(before, after, step) if "changed nothing" in p)
     naming = [p for p in _inv_truthful_results(before, after, step) if "no object got it" in p]
     return problems + naming
 
