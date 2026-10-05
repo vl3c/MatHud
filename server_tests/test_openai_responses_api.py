@@ -419,6 +419,7 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
             SimpleNamespace(
                 type="response.incomplete",
                 response=SimpleNamespace(
+                    id="resp_cut",
                     status="incomplete",
                     incomplete_details=SimpleNamespace(reason="max_output_tokens"),
                     output=[],
@@ -443,6 +444,8 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
         self.assertEqual(api.messages[-1]["role"], "assistant")
         self.assertEqual(api.messages[-1]["content"], "Drawing it")
         self.assertFalse(api.messages[-1].get("tool_calls"))
+        # The next turn must not continue from a response with unanswered tool calls.
+        self.assertIsNone(api._previous_response_id)
 
     @patch("static.openai_api_base.OpenAI")
     def test_create_response_stream_incomplete_content_filter(self, mock_openai: Mock) -> None:

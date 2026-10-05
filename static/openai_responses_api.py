@@ -529,6 +529,9 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         note = ""
         if state["finish_reason"] in _CUT_OFF_FINISH_REASONS:
             note = self._cut_off_note(state["finish_reason"], len(normalized))
+            if normalized:
+                # The stored response ends in tool calls that will never get results.
+                self.clear_previous_response_id()
             normalized = []
 
         self._finalize_stream(state["accumulated_text"], normalized)
