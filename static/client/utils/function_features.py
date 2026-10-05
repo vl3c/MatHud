@@ -101,6 +101,9 @@ _VALUE_ZERO_FLOOR = 1e-12
 _KIND_ORDER = {KIND_ROOT: 0, KIND_INTERSECTION: 0, KIND_LOCAL_MIN: 1, KIND_LOCAL_MAX: 1, KIND_INFLECTION: 2}
 # A second difference within this many rounding units of its terms counts as zero curvature
 _CURVATURE_NOISE_FACTOR = 64.0
+# Rounding-noise estimate (in ulps) used only to decide how many digits of x to report:
+# deciding whether an inflection exists stays conservative, reporting its digits does not
+_ROUNDING_NOISE_FACTOR = 4.0
 # Step of the numeric second derivative as a fraction of the sample spacing (first refinement),
 # and the further fraction of that step used to polish the answer
 _CURVATURE_STEP_FRACTION = 0.125
@@ -599,18 +602,22 @@ def _segment_inflections(
     return inflections
 
 
-def _curvature_sign(y0: float, y1: float, y2: float, extra_noise: float = 0.0) -> Optional[int]:
+def _curvature_sign(
+    y0: float, y1: float, y2: float, extra_noise: float = 0.0, factor: float = _CURVATURE_NOISE_FACTOR
+) -> Optional[int]:
     """Sign of the second difference y0 - 2*y1 + y2: 0 within rounding noise, None if undefined."""
     if not (math.isfinite(y0) and math.isfinite(y1) and math.isfinite(y2)):
         return None
     second = y0 - 2.0 * y1 + y2
-    noise = _CURVATURE_NOISE_FACTOR * _EPS * (abs(y0) + 2.0 * abs(y1) + abs(y2)) + extra_noise
+    noise = factor * _EPS * (abs(y0) + 2.0 * abs(y1) + abs(y2)) + extra_noise
     if abs(second) <= noise:
         return 0
     return 1 if second > 0 else -1
 
 
-def _second_derivative(evaluate: Callable[[float], float], step: float) -> Callable[[float], float]:
+def _second_derivative(
+    evaluate: Callable[[float], float], step: float, factor: float = _CURVATURE_NOISE_FACTOR
+) -> Callable[[float], float]:
     """Central-difference second derivative: 0 within rounding noise, NaN where f is undefined.
 
     The noise includes the rounding of the arguments x -/+ step (about eps * |x| times the
@@ -621,8 +628,8 @@ def _second_derivative(evaluate: Callable[[float], float], step: float) -> Calla
         y0, y1, y2 = evaluate(x - step), evaluate(x), evaluate(x + step)
         argument_noise = 0.0
         if math.isfinite(y0) and math.isfinite(y2):
-            argument_noise = _CURVATURE_NOISE_FACTOR * _EPS * abs(x) * abs(y2 - y0) / step
-        sign = _curvature_sign(y0, y1, y2, argument_noise)
+            argument_noise = factor * _EPS * abs(x) * abs(y2 - y0) / step
+        sign = _curvature_sign(y0, y1, y2, argument_noise, factor)
         if sign is None:
             return math.nan
         if sign == 0:
@@ -669,14 +676,17 @@ def _refine_inflection(
     # A true inflection moves by O(step^2) when the step halves; a stencil reaching across
     # a pole puts the sign change one step from the pole, so it moves with the step.
     # (Skipped when the half step drowns in rounding noise, which a pole never does.)
-    radius = _noise_radius(polish, x, reach, span)
+    radius = _noise_radius(evaluate, polish_step, x, reach, span, _ROUNDING_NOISE_FACTOR)
     half = _second_derivative(evaluate, 0.5 * polish_step)
     if half(x - reach) != 0.0 and half(x + reach) != 0.0:
         x_half = _curvature_root(evaluate, 0.5 * polish_step, x - reach, x + reach, span)
         if x_half is None:
             return None
         shift = abs(x_half - x)
-        tolerance = 2.0 * max(radius, _noise_radius(half, x_half, reach, span))
+        tolerance = 2.0 * max(
+            _noise_radius(evaluate, polish_step, x, reach, span),
+            _noise_radius(evaluate, 0.5 * polish_step, x_half, reach, span),
+        )
         if shift > _STEP_STABILITY * polish_step + tolerance:
             return None
         # The bias is O(step^2): the half step's is a third of the shift, which Richardson
@@ -692,8 +702,16 @@ def _changes_sign_around(second: Callable[[float], float], x: float, offset: flo
     return _changes_sign(second(x - offset), second(x + offset))
 
 
-def _noise_radius(second: Callable[[float], float], x: float, limit: float, span: float) -> float:
-    """Half-width around x where ``second`` is lost in rounding noise (at least a few ulps)."""
+def _noise_radius(
+    evaluate: Callable[[float], float],
+    step: float,
+    x: float,
+    limit: float,
+    span: float,
+    factor: float = _CURVATURE_NOISE_FACTOR,
+) -> float:
+    """Half-width around x where the second derivative is lost in rounding noise (at least a few ulps)."""
+    second = _second_derivative(evaluate, step, factor)
     radius = max(_EPS * span, 4.0 * _EPS * abs(x))
     while radius < limit and (second(x - radius) == 0.0 or second(x + radius) == 0.0):
         radius *= 2.0
@@ -930,10 +948,13 @@ def _extremum_feature(extremum: _Extremum, span: float) -> FunctionFeature:
 def _inflection_feature(evaluate: Callable[[float], float], x: float, radius: float, span: float) -> FunctionFeature:
     # Keep the digits of x that rounding noise and the step's bias leave certain
     decimals = -(math.floor(math.log10(radius)) + 1)
-    x = _round_x(round(x, decimals), _INFLECTION_X_DIGITS, span)
+    # y at the precise x, to the precision the uncertainty of x allows (0 at sin's inflections)
+    y = evaluate(x)
+    slope = abs(evaluate(x + radius) - evaluate(x - radius)) / (2.0 * radius)
+    y_floor = max(_VALUE_ZERO_FLOOR, slope * radius) if math.isfinite(slope) else _VALUE_ZERO_FLOOR
     return {
-        "x": x,
-        "y": _round_value(evaluate(x), _VALUE_DIGITS, _VALUE_ZERO_FLOOR),
+        "x": _round_x(round(x, decimals), _INFLECTION_X_DIGITS, span),
+        "y": _round_value(y, _VALUE_DIGITS, y_floor),
         "kind": KIND_INFLECTION,
     }
 

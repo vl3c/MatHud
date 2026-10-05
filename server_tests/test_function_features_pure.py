@@ -140,7 +140,7 @@ class TestInflectionPoints(unittest.TestCase):
     def test_smooth_functions_are_located_accurately(self) -> None:
         sine = [x for x, _ in _inflections(math.sin, -7, 7)]
         for found, expected in zip(sine, [-2 * math.pi, -math.pi, 0.0, math.pi, 2 * math.pi]):
-            self.assertAlmostEqual(found, expected, places=4)
+            self.assertAlmostEqual(found, expected, places=6)
         self.assertEqual(len(sine), 5)
         gauss = [x for x, _ in _inflections(lambda x: math.exp(-x * x), -3, 3)]
         self.assertEqual(len(gauss), 2)
@@ -202,9 +202,15 @@ class TestInflectionPoints(unittest.TestCase):
                 # Rounded to the digits it is sure of: within one unit of the last digit
                 digits = len(repr(found).split(".")[1]) if "." in repr(found) else 0
                 self.assertLessEqual(abs(found - expected), 10.0**-digits)
-            # y is evaluated at the reported x
+            # y is f at the inflection: exp(-1/2) on both sides
             for feature in report["features"]:
-                self.assertAlmostEqual(feature["y"], math.exp(-((feature["x"] - centre) ** 2)), places=9)
+                self.assertAlmostEqual(feature["y"], math.exp(-0.5), places=7)
+
+    def test_y_is_zero_where_the_inflection_is_on_the_axis(self) -> None:
+        report = find_function_features(math.sin, 0, 10, features=["inflections"])
+        self.assertEqual([feature["y"] for feature in report["features"]], [0.0, 0.0, 0.0])
+        for feature, k in zip(report["features"], (1, 2, 3)):
+            self.assertAlmostEqual(feature["x"], k * math.pi, places=6)
 
     def test_underflowing_values_do_not_crash(self) -> None:
         report = find_function_features(lambda x: 1e-200 * x**3, -3, 3, features=["roots", "inflections"])
