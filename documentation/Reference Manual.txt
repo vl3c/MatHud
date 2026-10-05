@@ -4011,6 +4011,8 @@ Dependencies:
 - `@app.route('/delete_workspace', methods=['POST'])`: Delete workspace by name (JSON body `{"name": ...}`; deleted files move to `.trash/`)
 - `@app.route('/send_message', methods=['POST'])`: Process AI chat messages with tool calling support (`/send_message_stream` streams the same); both enforce `MAX_IMAGE_BASE64_BYTES` on attached images and on the vision `canvas_snapshot` (`validate_canvas_snapshot`)
 - `@app.route('/api/available_models', methods=['GET'])`: Models of the providers that are available (API key set, or local server reachable)
+- `@app.route('/api/requests_in_flight', methods=['GET'])`: How many model requests (`/send_message`, `/send_message_stream`) are still running; the scenario harness waits for 0 after stopping a turn
+- Abandoned requests: each provider keeps a conversation generation (`OpenAIAPIBase.conversation_generation`), bumped by `reset_conversation` (new or restored conversation) and by `add_partial_assistant_message` (`/save_partial_response`, sent when the user stops a turn). A request whose generation is no longer current is dropped: its reply never reaches the history, its tool calls are not filtered, logged or returned, nothing more is streamed, and the streaming providers stop reading the model's stream (`/send_message` answers `finish_reason: "abandoned"`)
 
 **Key Functions:**
 - `register_routes(app)`: Register all routes with the Flask application instance
