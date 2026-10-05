@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 import click
+from click.core import ParameterSource
 
 from cli.config import DEFAULT_PORT, PROJECT_ROOT
 from cli.scenarios.classify import (
@@ -235,7 +236,9 @@ def scenarios_cmd(
     filtered = smoke or bool(_split(tags)) or bool(_split(ids))
     if regrade_path:
         wanted = {s.id for s in catalogue.select(smoke=smoke, tags=_split(tags), ids=_split(ids))} if filtered else None
-        summary, target = regrade(Path(regrade_path), catalogue, wanted)
+        # A --max-infra-rate given on the command line replaces the one the run stored.
+        infra_limit = max_infra_rate if _given_on_command_line("max_infra_rate") else None
+        summary, target = regrade(Path(regrade_path), catalogue, wanted, max_infra_rate=infra_limit)
         _print_summary(summary, as_json, Path(target).parent, regraded=True)
         raise SystemExit(summary["exit_code"])
 
@@ -725,6 +728,15 @@ def _run_retrace(
     return _drive(run, session, sink, catalogue, manager, workspaces_tmp, as_json, out_dir)
 
 
+def _given_on_command_line(param: str) -> bool:
+    """True when option ``param`` of the running command was given explicitly, not left at its default."""
+    context = click.get_current_context(silent=True)
+    if context is None:
+        return False
+    source = context.get_parameter_source(param)
+    return source is not None and source not in (ParameterSource.DEFAULT, ParameterSource.DEFAULT_MAP)
+
+
 def _print_summary(summary: dict[str, Any], as_json: bool, out_dir: Path, regraded: bool = False) -> None:
     if as_json:
         payload = dict(summary)
@@ -772,6 +784,8 @@ def _print_summary(summary: dict[str, Any], as_json: bool, out_dir: Path, regrad
         click.echo(click.style(f"  not evaluated (data not recorded): {', '.join(summary['unrecorded'])}", fg="yellow"))
     if summary["unexpected"]:
         click.echo(click.style(f"Unexpected failures: {', '.join(summary['unexpected'])}", fg="red"))
+    elif summary.get("exit_code"):
+        click.echo(click.style("No unexpected failures, but the run fails (see above).", fg="red"))
     else:
         click.echo(click.style("No unexpected failures.", fg="green"))
     click.echo(f"Reports: {out_dir}")

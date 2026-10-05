@@ -635,12 +635,16 @@ def artifact_link(path: str, out_dir: Path) -> str:
 
 
 def regrade(
-    results_path: Path, catalogue: Catalogue, scenario_ids: Optional[set[str]] = None
+    results_path: Path,
+    catalogue: Catalogue,
+    scenario_ids: Optional[set[str]] = None,
+    max_infra_rate: Optional[float] = None,
 ) -> tuple[dict[str, Any], Path]:
     """Re-run every check on the stored states of ``results_path``.
 
     ``scenario_ids`` limits the regrade to those scenarios (the command's
-    ``--ids``, ``--tags`` and ``--smoke`` filters). Writes
+    ``--ids``, ``--tags`` and ``--smoke`` filters). ``max_infra_rate`` replaces
+    the limit the run stored (the command's explicit ``--max-infra-rate``). Writes
     ``results_regraded.json`` and ``summary_regraded.md`` next to the results.
     A check that needs a function sample the run did not record is reported as
     ``unrecorded``.
@@ -652,6 +656,8 @@ def regrade(
     by_id = {scenario.id: scenario for scenario in catalogue.scenarios}
     config = dict(data.get("config") or {})
     config["regraded_from"] = str(results_path)
+    if max_infra_rate is not None:
+        config["max_infra_rate"] = max_infra_rate
     mode = str(config.get("mode", "replay"))
     outcomes: list[ScenarioOutcome] = []
     for stored in data.get("scenarios", []):

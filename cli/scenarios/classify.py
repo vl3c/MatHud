@@ -26,9 +26,10 @@ from cli.scenarios.geometry import CanvasView, Tolerance
 CLASSES = ("app", "model", "nondeterministic", "known", "infra")
 # Classes that make a live or retrace run exit non-zero: the app, not the model, is at fault.
 FAILING_CLASSES = frozenset({"app", "nondeterministic"})
-# Turn outcomes that are not the model's doing.
+# Turn outcomes that are not the model's doing ("abandoned": the server dropped the
+# turn's reply because it was stopped or its conversation reset from elsewhere).
 # "infra" stands for a turn after one of those in the same run.
-INFRA_TURN_OUTCOMES = frozenset({"error", "timeout", "request_cap", "not_started", "trace_error", "infra"})
+INFRA_TURN_OUTCOMES = frozenset({"error", "timeout", "request_cap", "not_started", "trace_error", "abandoned", "infra"})
 # Where a turn's error came from (turn metrics ``error_source``): an exception in the
 # browser while handling the reply, or in the server route, is the app's failure.
 APP_ERROR_SOURCES = frozenset({"client", "server"})
