@@ -19,6 +19,9 @@ from static.response_metrics import ResponseMetricsTracker, tool_call_argument_t
 # Use the shared MatHud logger for file logging
 _logger = logging.getLogger("mathud")
 
+# Finish reasons of a reply that stopped before the model finished it.
+_CUT_OFF_FINISH_REASONS = frozenset({"length", "content_filter"})
+
 
 class OpenAIResponsesAPI(OpenAIAPIBase):
     """OpenAI Responses API for reasoning models (GPT-6 Sol/Astra/Luna, GPT-5.6 Sol).
@@ -270,7 +273,7 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
             yield from self._handle_stream_error(exc, state)
             return
 
-        yield self._build_final_response(state)
+        yield from self._build_final_events(state)
 
     def _prepare_messages_for_stream(self, full_prompt: str) -> None:
         """Prepare messages for the streaming request."""
@@ -382,7 +385,7 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
                 yield from self._handle_output_text_delta(event, state)
             elif event_type == "response.function_call_arguments.delta":
                 self._handle_function_call_delta(event, state["tool_calls_accumulator"])
-            elif event_type == "response.completed":
+            elif event_type in ("response.completed", "response.incomplete"):
                 self._handle_response_completed(event, state)
                 break
             elif event_type == "response.done":
@@ -471,7 +474,9 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         status = getattr(response_obj, "status", "completed")
         self._log(f"[Responses API] Response status: {status}")
 
-        state["finish_reason"] = self._normalize_finish_reason(status)
+        state["finish_reason"] = self._normalize_finish_reason(
+            status, getattr(response_obj, "incomplete_details", None)
+        )
         self._log(f"[Responses API] Set finish_reason to: {state['finish_reason']}")
 
         usage = getattr(response_obj, "usage", None)
@@ -480,12 +485,19 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
 
         self._extract_tool_calls(response_obj, state["tool_calls_accumulator"])
 
-    def _normalize_finish_reason(self, status: str) -> str:
-        """Normalize API status to client-compatible finish_reason."""
+    def _normalize_finish_reason(self, status: str, incomplete_details: Any = None) -> str:
+        """Normalize API status to client-compatible finish_reason.
+
+        An ``incomplete`` response was cut off: ``content_filter`` when the filter
+        stopped it, otherwise ``length`` (output token limit).
+        """
         if status == "completed":
             return "stop"
         elif status == "requires_action":
             return "tool_calls"
+        elif status == "incomplete":
+            reason = getattr(incomplete_details, "reason", None)
+            return "content_filter" if reason == "content_filter" else "length"
         return status
 
     def _handle_stream_error(self, exc: Exception, state: Optional[Dict[str, Any]] = None) -> Iterator[StreamEvent]:
@@ -504,10 +516,20 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
             "metrics": dict(self._finish_response_metrics(metrics, "error", 0, error=str(exc))),
         }
 
-    def _build_final_response(self, state: Dict[str, Any]) -> StreamEvent:
-        """Build and return the final response event."""
+    def _build_final_events(self, state: Dict[str, Any]) -> Iterator[StreamEvent]:
+        """Yield the closing events: a cut-off note token when needed, then the final event.
+
+        A reply cut off before it finished may hold partial tool calls; none run and
+        the turn ends with the cut-off finish reason. The note is shown to the user
+        but kept out of the conversation history.
+        """
         normalized = self._normalize_tool_calls(state["tool_calls_accumulator"])
         self._log(f"[Responses API] Normalized tool calls: {normalized}")
+
+        note = ""
+        if state["finish_reason"] in _CUT_OFF_FINISH_REASONS:
+            note = self._cut_off_note(state["finish_reason"], len(normalized))
+            normalized = []
 
         self._finalize_stream(state["accumulated_text"], normalized)
         ai_tool_calls = self._prepare_tool_calls_for_response(normalized)
@@ -519,15 +541,33 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         )
         self._flush_log()
 
+        note_text = ""
+        if note:
+            note_text = f"\n\n{note}" if state["accumulated_text"] else note
+            yield {"type": "token", "text": note_text}
+
         metrics: ResponseMetricsTracker = state["metrics"]
         metrics.add_output_text(tool_call_argument_text(normalized))
-        return {
+        yield {
             "type": "final",
-            "ai_message": state["accumulated_text"],
+            "ai_message": state["accumulated_text"] + note_text,
             "ai_tool_calls": ai_tool_calls,
             "finish_reason": final_finish_reason,
             "metrics": dict(self._finish_response_metrics(metrics, final_finish_reason, len(ai_tool_calls))),
         }
+
+    def _cut_off_note(self, finish_reason: str, dropped_tool_calls: int) -> str:
+        """The note telling the user why the reply stopped early."""
+        if finish_reason == "content_filter":
+            note = "The reply was stopped by the content filter."
+        else:
+            note = f"The reply was cut off at the {self.max_tokens}-token output limit."
+        if dropped_tool_calls == 1:
+            note += " 1 unfinished tool call was not run."
+        elif dropped_tool_calls > 1:
+            note += f" {dropped_tool_calls} unfinished tool calls were not run."
+        _logger.warning("[Responses API] %s", note)
+        return note
 
     def _handle_function_call_delta(self, event: Any, acc: Dict[int, Dict[str, Any]]) -> None:
         """Handle function call argument delta events."""
