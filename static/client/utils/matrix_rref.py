@@ -12,9 +12,13 @@ from typing import List, Optional, Sequence, Tuple
 
 Matrix = List[List[float]]
 
-# A pivot or entry counts as zero when its magnitude is at most this fraction of the
-# largest entry of the matrix
+# A pivot counts as zero when its magnitude is at most this fraction of the largest
+# entry of the matrix
 DEFAULT_RELATIVE_TOLERANCE: float = 1e-10
+# A result entry counts as round-off (and becomes 0) when its magnitude is at most this
+# fraction of the largest result entry. Kept separate from the pivot tolerance: results are
+# pivot-normalised, so an input-scaled threshold would erase real small entries.
+_RESULT_ZERO_TOLERANCE: float = 1e-12
 # Results keep this many significant digits (cleans 0.9999999999999999 and 0.20000000000000012)
 _SIGNIFICANT_DIGITS: int = 12
 
@@ -25,7 +29,8 @@ def rref(matrix: Sequence[Sequence[float]], tol: Optional[float] = None) -> Tupl
     Gauss-Jordan elimination with partial pivoting: each column uses the row with the
     largest remaining entry as pivot. Pivots with magnitude <= ``tol`` are treated as zero
     (so the column has no pivot); ``tol`` defaults to ``1e-10`` times the largest absolute
-    entry. Values within ``tol`` of zero become 0; the rest are rounded to 12 significant digits.
+    entry. Result values that are round-off relative to the largest result entry become 0;
+    the rest are rounded to 12 significant digits.
     The input is not modified.
     """
     rows = _copy_rows(matrix)
@@ -38,13 +43,18 @@ def rref(matrix: Sequence[Sequence[float]], tol: Optional[float] = None) -> Tupl
             break
         best = _find_pivot_row(rows, pivot_row, col)
         if abs(rows[best][col]) <= threshold:
+            # A negligible column: its remaining entries are zero within the tolerance
+            for row in rows[pivot_row:]:
+                row[col] = 0.0
             continue
         rows[pivot_row], rows[best] = rows[best], rows[pivot_row]
         _normalize_row(rows[pivot_row], col)
         _eliminate_column(rows, pivot_row, col)
         pivot_row += 1
 
-    return [[_clean(value, threshold) for value in row] for row in rows], pivot_row
+    largest_result = max(abs(value) for row in rows for value in row)
+    zero_threshold = _RESULT_ZERO_TOLERANCE * largest_result
+    return [[_clean(value, zero_threshold) for value in row] for row in rows], pivot_row
 
 
 def matrix_rank(matrix: Sequence[Sequence[float]], tol: Optional[float] = None) -> int:

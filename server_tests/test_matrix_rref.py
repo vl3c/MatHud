@@ -79,10 +79,21 @@ class TestRref(unittest.TestCase):
         self.assertEqual(rank, 2)
         self.assertEqual(reduced, [[1.0, 0.0], [0.0, 1.0]])
 
+    def test_small_result_entries_of_a_large_matrix_are_kept(self) -> None:
+        # The pivot tolerance scales with the input; result entries are pivot-normalised,
+        # so a small one must not be zeroed against the input's scale.
+        reduced, rank = rref([[1e6, 1], [0, 1e6]])
+        self.assertEqual(rank, 2)
+        self.assertEqual(reduced, [[1.0, 0.0], [0.0, 1.0]])
+        reduced, _ = rref([[1e6, 2, 0], [0, 0, 1e6]])
+        self.assertEqual(reduced, [[1.0, 2e-6, 0.0], [0.0, 0.0, 1.0]])
+
     def test_explicit_tolerance_is_absolute(self) -> None:
         _, loose = rref([[1, 0], [0, 0.01]], tol=0.1)
         _, tight = rref([[1, 0], [0, 0.01]], tol=0.001)
         self.assertEqual((loose, tight), (1, 2))
+        # Entries of a column without a pivot are zero within the tolerance
+        self.assertEqual(rref([[1, 0], [0, 0.01]], tol=0.1)[0], [[1.0, 0.0], [0.0, 0.0]])
 
     def test_float_noise_is_snapped_to_clean_values(self) -> None:
         reduced, _ = rref([[0.1, 0.2, 0.3], [0.3, 0.1, 0.2]])
