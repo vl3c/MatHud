@@ -56,11 +56,21 @@ _GOLDEN = 0.5 * (3.0 - math.sqrt(5.0))
 
 # Breakpoints are approached no closer than this fraction of the interval width
 _BREAKPOINT_GAP = 1e-9
-# A refined root must have |f| below this fraction of the bracket's end values...
-_ROOT_RESIDUAL_RATIO = 1e-6
-# ...and stay below this fraction just beside it (a pole flips sign at a huge |f|)
-_ROOT_CONTINUITY_RATIO = 1e-2
-_ROOT_CONTINUITY_OFFSET = 1e-7
+# A refined root must have |f| below this fraction of the bracket's end values (loose
+# enough for a vertical tangent: cbrt(x) is 8e-6 at Brent's x resolution of 6e-16)...
+_ROOT_RESIDUAL_RATIO = 1e-3
+# ...and |f| must shrink towards it: at _ROOT_PROBE_OFFSET (relative) from the point it must be
+# at most _ROOT_SHRINK_RATIO of |f| ten times further out. Near a pole |f| grows instead, and
+# across a jump it stays level; a steep root (cbrt(x), tanh(1e5 x)) still shrinks.
+_ROOT_PROBE_OFFSET = 1e-7
+_ROOT_PROBE_FACTOR = 10.0
+_ROOT_SHRINK_RATIO = 0.95
+# An interval endpoint whose |f| is below this fraction of the largest |f| sampled is a root
+# that rounding moved off zero (sin(2*pi) is -2.4e-16)...
+_ENDPOINT_ZERO_RATIO = 1e-12
+# ...provided f rises away from it like a root: the next sample inwards is at least this many
+# times larger (exp(x) at x = -40 is tiny but not a root: its neighbour is about as small)
+_ENDPOINT_RISE_FACTOR = 1e6
 # An extremum value within this fraction of its bump depth counts as zero (touching root)
 _ZERO_EXTREMUM_RATIO = 1e-9
 # A refined extremum may move past the best sample by at most this many bump depths
@@ -300,9 +310,10 @@ def _scan(
     extrema: List[_Extremum] = []
     for a, b in _segments(left, right, breakpoints):
         count = max(MIN_SEGMENT_SAMPLES, int(round(total_samples * (b - a) / span)))
-        xs = [a + (b - a) * i / count for i in range(count + 1)]
+        xs = [a + (b - a) * i / count for i in range(count)] + [b]
         ys = [evaluate(x) for x in xs]
         roots.extend(_segment_roots(evaluate, xs, ys, span))
+        roots.extend(_endpoint_roots(xs, ys, a == left, b == right))
         extrema.extend(_segment_extrema(evaluate, xs, ys, span))
     return roots, extrema
 
@@ -319,6 +330,28 @@ def _segment_roots(evaluate: Callable[[float], float], xs: List[float], ys: List
         if root is not None:
             roots.append(_Root(root))
     roots.sort(key=lambda root: root.x)
+    return roots
+
+
+def _endpoint_roots(xs: List[float], ys: List[float], at_left: bool, at_right: bool) -> List[_Root]:
+    """Roots at the ends of the search interval that rounding moved slightly off zero.
+
+    No sign change brackets them (cos(x) on [0, pi/2] ends at 6e-17), so an end sample
+    counts as a root when |f| there is at rounding level next to the largest |f| sampled
+    and f rises away from it. Exact zeros are already found by ``_zero_sample_roots``;
+    near-duplicates are merged later.
+    """
+    finite = [abs(y) for y in ys if math.isfinite(y)]
+    scale = max(finite) if finite else 0.0
+    if scale == 0.0 or len(ys) < 2:
+        return []
+    roots: List[_Root] = []
+    for wanted, index, inner in ((at_left, 0, 1), (at_right, len(ys) - 1, len(ys) - 2)):
+        y, neighbour = ys[index], ys[inner]
+        if not wanted or not (math.isfinite(y) and math.isfinite(neighbour)) or y == 0.0:
+            continue
+        if abs(y) <= _ENDPOINT_ZERO_RATIO * scale and abs(y) * _ENDPOINT_RISE_FACTOR <= abs(neighbour):
+            roots.append(_Root(xs[index]))
     return roots
 
 
@@ -348,12 +381,21 @@ def _refine_root(
     scale = max(abs(fa), abs(fb))
     if abs(fx) > _ROOT_RESIDUAL_RATIO * scale:
         return None
-    offset = _ROOT_CONTINUITY_OFFSET * max(span, abs(x))
-    for beside in (x - offset, x + offset):
-        value = evaluate(beside)
-        if not math.isfinite(value) or abs(value) > _ROOT_CONTINUITY_RATIO * scale:
-            return None
+    if not _shrinks_towards(evaluate, x, _ROOT_PROBE_OFFSET * max(span, abs(x))):
+        return None
     return x
+
+
+def _shrinks_towards(evaluate: Callable[[float], float], x: float, offset: float) -> bool:
+    """True if |f| gets smaller approaching x from both sides (a root), not larger (a pole) or level (a jump)."""
+    for side in (-1.0, 1.0):
+        near = evaluate(x + side * offset)
+        far = evaluate(x + side * offset * _ROOT_PROBE_FACTOR)
+        if not (math.isfinite(near) and math.isfinite(far)):
+            return False
+        if abs(near) > _ROOT_SHRINK_RATIO * abs(far):
+            return False
+    return True
 
 
 def _segment_extrema(
