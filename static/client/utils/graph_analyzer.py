@@ -165,7 +165,8 @@ class GraphAnalyzer:
                 edges, weight_lookup=weights, vertices=list(adjacency.keys())
             )
             edge_names = GraphAnalyzer._edge_names_from_edges(state, mst_edges, directed=False)
-            result["edges"] = [e.as_tuple() for e in mst_edges]
+            # [source, target] lists: the result is sent back to the model as JSON
+            result["edges"] = [[e.source, e.target] for e in mst_edges]
             result["highlight_vectors"] = edge_names
             result["connected"] = components <= 1
             if components > 1:
@@ -190,7 +191,7 @@ class GraphAnalyzer:
                 name = GraphAnalyzer._edge_name_for_endpoints(state, u, v, directed=False)
                 if name:
                     names.append(name)
-            return {"bridges": bridges, "highlight_vectors": names}
+            return {"bridges": [[u, v] for u, v in bridges], "highlight_vectors": names}
 
         if operation == "articulation_points":
             points = list(GraphUtils.find_articulation_points(undirected_adjacency))
