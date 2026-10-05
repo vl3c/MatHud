@@ -103,7 +103,7 @@ Ordered by value for exploring math; cheap, independent items first.
 12. **Loci and points on paths** *(GeoGebra-inspired)* — a point constrained to a curve by parameter; the trace of a dependent point as a driver moves (or a slider varies), with adaptive step control.
 13. **Probability distributions** *(GeoGebra-inspired)* — t, χ², F, exponential, gamma, beta, uniform, log-normal, binomial, Poisson, geometric; pdf/cdf/quantile and shaded `P(a < X < b)` (incomplete gamma/beta, Lanczos log-gamma, Brent for quantiles). Then hypothesis tests and confidence intervals.
 14. **Sequences, iteration, cobweb diagrams** *(GeoGebra-inspired)* — `sequence(expr(k), k, a, b)` creates many objects in one call (one undo step); `iterate(g, x0, n)` for orbits and cobweb plots.
-15. **Linear algebra hardening** — tests for `eigs`, `lup`, `qr`; add `rref`.
+15. ~~**Linear algebra hardening**~~ Done: tests for `eigs`, `lup`, `qr` against the real math.js; `eigs`/`lup`/`qr` object results now convert to plain lists and dicts (they used to come back as `unknown`); added `rref(A[, tol])` and `rank(A[, tol])`.
 16. **Relation checks "in general"** *(GeoGebra-inspired)* — after dependent constructions exist: randomly perturb free objects, recompute, re-check the relation (randomized identity testing).
 17. **Point-set geometry** *(GeoGebra-inspired, lower priority)* — Delaunay (Bowyer–Watson), Voronoi as its dual, TSP tour (nearest neighbour + 2-opt).
 18. **Scatter plot and histogram with binning** — small additions on existing plot infrastructure.

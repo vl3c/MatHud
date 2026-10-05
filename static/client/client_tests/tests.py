@@ -32,6 +32,12 @@ from .test_functions_bounded_colored_area import TestFunctionsBoundedColoredArea
 from .test_function_segment_bounded_colored_area import TestFunctionSegmentBoundedColoredArea
 from .test_closed_shape_colored_area import TestClosedShapeColoredArea
 from .test_linear_algebra_utils import TestLinearAlgebraUtils
+from .test_linear_algebra_decompositions import (
+    TestEigs,
+    TestLup,
+    TestQr,
+    TestRrefExpression,
+)
 from .test_label import TestLabel
 from .test_label_overlap_resolver import TestLabelOverlapResolver
 from .test_screen_offset_label_layout import TestScreenOffsetLabelLayout
@@ -651,6 +657,10 @@ class Tests:
             TestDrawablesContainer,
             TestFunctionBoundedColoredAreaIntegration,
             TestLinearAlgebraUtils,
+            TestEigs,
+            TestLup,
+            TestQr,
+            TestRrefExpression,
             TestCoerceFontSize,
             TestComputeZoomAdjustedFontSize,
             TestPointsClose,
