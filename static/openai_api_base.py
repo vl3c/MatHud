@@ -11,8 +11,11 @@ import json
 import logging
 import os
 import re
+import threading
 import time
+import uuid
 from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from types import SimpleNamespace
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
@@ -158,11 +161,15 @@ class OpenAIAPIBase:
 
     # Metrics of the most recent model request (see static/response_metrics.py).
     last_response_metrics: Optional[ResponseMetrics] = None
-    # Bumped when the conversation is replaced (new, restored) and when the user stops a
-    # turn. A request remembers the generation it started under; once that is no longer
-    # current, its late reply is dropped: it never reaches the history, runs no tool calls
-    # and streams nothing (see ``abandon_requests_in_flight``).
+    # Bumped when the conversation is replaced (new, restored), when a new user turn
+    # starts and when the user stops or times out a turn. A request remembers the
+    # generation it started under; once that is no longer current, its late reply is
+    # dropped: it never reaches the history, runs no tool calls and streams nothing
+    # (see ``abandon_requests_in_flight``).
     _conversation_generation: int = 0
+    # Guards "is this reply still current?" plus the history update that follows, against a
+    # stop or reset landing in between. One lock for every provider: requests are rare and short.
+    _history_lock = threading.RLock()
 
     SEARCH_MODE_MSG = """Tool loading: at the start only search_tools and a few essential tools (undo, redo, get_current_canvas_state) are available. Before using any other tool, call search_tools with a short description of what you want to do (e.g. "plot a function", "evaluate an expression at a point"); the matching tools are then loaded for your following calls until you give your final answer. Calls to tools that were not loaded fail."""
 
@@ -355,14 +362,64 @@ class OpenAIAPIBase:
         """The generation a request starting now belongs to."""
         return self._conversation_generation
 
+    @property
+    def turn_token(self) -> str:
+        """Identifies this provider's current turn: ``<instance id>:<generation>``.
+
+        The client gets it with every reply and sends it back when it stops or
+        times out the turn, so a stop that arrives after the next turn started
+        cannot abandon that next turn (see ``abandon_turn``).
+        """
+        instance_id = self.__dict__.get("_instance_id")
+        if instance_id is None:
+            instance_id = self.__dict__.setdefault("_instance_id", uuid.uuid4().hex[:12])
+        return f"{instance_id}:{self._conversation_generation}"
+
     def abandon_requests_in_flight(self) -> None:
-        """Drop the late replies of every request started so far (conversation reset or turn stopped).
+        """Drop the late replies of every request started so far (conversation reset, new turn, stop).
 
         The browser's stop only aborts its fetch: the request goes on here, and a
         reply that ends in tool calls would otherwise append those calls and their
         "Awaiting result..." placeholders to whatever conversation is current then.
+        Tools a ``search_tools`` call loaded for the abandoned turn are unloaded too.
         """
-        self._conversation_generation += 1
+        with self._history_lock:
+            self._conversation_generation += 1
+            if getattr(self, "_injected_tools", False):
+                self.reset_tools()
+
+    def begin_turn(self) -> None:
+        """A new user message starts a new turn: whatever is still running for an earlier one is abandoned."""
+        self.abandon_requests_in_flight()
+
+    def abandon_turn(self, turn_token: str, partial_message: str) -> bool:
+        """Abandon the turn ``turn_token`` (stop or client timeout), keeping its partial text.
+
+        Returns False, changing nothing, when that turn is no longer the current
+        one: a stop that arrives after the next message was sent must neither drop
+        the new turn nor add the old turn's text after the new message.
+        """
+        with self._history_lock:
+            if turn_token != self.turn_token:
+                return False
+            self.add_partial_assistant_message(partial_message)
+            return True
+
+    @contextmanager
+    def _reply_guard(self, generation: int) -> Iterator[bool]:
+        """Yield whether the reply of a request started under ``generation`` may update the history.
+
+        Held across the check and the update, so a stop or reset cannot land in between.
+        """
+        with self._history_lock:
+            yield not self._drop_abandoned_reply(generation)
+
+    def _abandoned_final_event(self, metrics: Optional[ResponseMetricsTracker] = None) -> StreamEvent:
+        """The final event of a dropped reply: nothing to show or run (the request's metrics are kept)."""
+        event: Dict[str, Any] = {"type": "final", "ai_message": "", "ai_tool_calls": [], "finish_reason": "abandoned"}
+        if metrics is not None:
+            event["metrics"] = dict(self._finish_response_metrics(metrics, "abandoned", 0))
+        return event
 
     def is_abandoned(self, generation: int) -> bool:
         """True when a request started under ``generation`` was abandoned since."""
@@ -380,9 +437,10 @@ class OpenAIAPIBase:
 
     def reset_conversation(self) -> None:
         """Reset the conversation history to start a new session."""
-        self.abandon_requests_in_flight()
-        self.messages = [{"role": "developer", "content": self._build_system_prompt()}]
-        self._last_canvas_state = None
+        with self._history_lock:
+            self.abandon_requests_in_flight()
+            self.messages = [{"role": "developer", "content": self._build_system_prompt()}]
+            self._last_canvas_state = None
 
     def restore_conversation(self, history: Sequence[HistoryTurn]) -> None:
         """Start over from restored plain-text turns (e.g. a chat loaded with a workspace).
@@ -390,9 +448,10 @@ class OpenAIAPIBase:
         Resets the conversation (subclasses clear their own state, such as a stored
         response id), then appends each ``{"role", "content"}`` turn as given.
         """
-        self.reset_conversation()
-        for turn in history:
-            self.messages.append({"role": turn["role"], "content": turn["content"]})
+        with self._history_lock:
+            self.reset_conversation()
+            for turn in history:
+                self.messages.append({"role": turn["role"], "content": turn["content"]})
 
     def add_partial_assistant_message(self, content: str) -> None:
         """Add a partial assistant message that was interrupted by the user.
@@ -400,9 +459,10 @@ class OpenAIAPIBase:
         The client sends it when the user stops a turn, so the request still running
         for that turn is abandoned: its reply must not land in the history later.
         """
-        self.abandon_requests_in_flight()
-        if content and content.strip():
-            self.messages.append({"role": "assistant", "content": content})
+        with self._history_lock:
+            self.abandon_requests_in_flight()
+            if content and content.strip():
+                self.messages.append({"role": "assistant", "content": content})
 
     def set_model(self, identifier: str) -> None:
         """Set the AI model by identifier string."""

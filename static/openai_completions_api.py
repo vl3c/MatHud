@@ -170,15 +170,15 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
         tool_calls = getattr(choice.message, "tool_calls", None)
         record_chat_completions_usage(response, metrics)
         self._finish_response_metrics(metrics, finish_reason, len(tool_calls or []))
-        if self._drop_abandoned_reply(generation):
+        with self._reply_guard(generation) as current:
+            if current:
+                runs_tools = finish_reason in TOOL_CALL_FINISH_REASONS
+                assistant_message = self._create_assistant_message(choice.message, include_tool_calls=runs_tools)
+                self.messages.append(assistant_message)
+                self._append_tool_messages(tool_calls if runs_tools else None)
+                self._clean_conversation_history()
+        if not current:
             return self._create_error_response()
-
-        runs_tools = finish_reason in TOOL_CALL_FINISH_REASONS
-        assistant_message = self._create_assistant_message(choice.message, include_tool_calls=runs_tools)
-        self.messages.append(assistant_message)
-
-        self._append_tool_messages(tool_calls if runs_tools else None)
-        self._clean_conversation_history()
 
         return choice
 
@@ -197,6 +197,7 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
         chunks_after_finish = 0
         post_finish_watchdog: Optional[threading.Timer] = None
         metrics = self._start_response_metrics("chat_completions")
+        stream: Any = None
 
         try:
             stream, self._stream_usage_supported = create_stream_requesting_usage(
@@ -211,7 +212,7 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
 
             for chunk in stream:
                 if self._drop_abandoned_reply(generation):
-                    self._close_stream(stream)
+                    yield self._abandoned_final_event(metrics)
                     return
                 has_usage = record_chat_completions_usage(chunk, metrics)
                 if finish_reason is not None:
@@ -277,13 +278,19 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
         finally:
             if post_finish_watchdog is not None:
                 post_finish_watchdog.cancel()
+            # Also when the caller closes this generator early: the provider stops generating.
+            if stream is not None:
+                self._close_stream(stream)
 
         normalized_tool_calls = self._normalize_tool_calls(tool_calls_accumulator)
         resolved_finish_reason = finish_reason or "stop"
         stored_tool_calls = normalized_tool_calls if resolved_finish_reason in TOOL_CALL_FINISH_REASONS else []
-        if self._drop_abandoned_reply(generation):
+        with self._reply_guard(generation) as current:
+            if current:
+                self._finalize_stream(accumulated_text, stored_tool_calls, reasoning_details)
+        if not current:
+            yield self._abandoned_final_event(metrics)
             return
-        self._finalize_stream(accumulated_text, stored_tool_calls, reasoning_details)
 
         ai_tool_calls_json_ready = self._prepare_tool_calls_for_response(normalized_tool_calls)
         metrics.add_output_text(tool_call_argument_text(normalized_tool_calls))
