@@ -45,6 +45,7 @@ Draw a tangent line to the function f1 at x = 1 with length 6 in blue.
 
 # Roots, Extrema and Intersections
 Plot f(x) = x^3 - 3x and find its roots and local extrema; mark them with points.
+Plot g(x) = e^(-x^2) and find its inflection points.
 Find the local maximum and minimum of f between x = -2 and x = 2.
 Plot y = tan(x) and find its roots between -5 and 5 (the asymptotes are not roots).
 Plot f(x) = x^2 and g(x) = x + 2 and find where they intersect.

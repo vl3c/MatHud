@@ -735,6 +735,8 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         _curve_words = {"function", "functions", "curve", "curves", "graph", "graphs", "plotted", "plot", "local"}
         if token_set & {"extrema", "extremum", "maxima", "minima", "turning"}:
             scores["find_function_features"] += 8.0
+        if token_set & {"inflection", "inflections", "concavity", "concave", "convex"}:
+            scores["find_function_features"] += 10.0
         if token_set & {"maximum", "minimum", "maximums", "minimums"} and not (
             token_set & {"spanning", "tree", "path", "weight", "weighted", "flow"}
         ):

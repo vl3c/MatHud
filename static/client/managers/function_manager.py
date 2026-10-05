@@ -49,7 +49,7 @@ from drawables.function import Function
 from managers.dependency_removal import remove_drawable_with_dependencies
 from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
 from utils.function_features import (
-    SUPPORTED_FEATURES,
+    DEFAULT_FEATURES,
     FeatureReport,
     FunctionFeature,
     find_function_features,
@@ -353,7 +353,7 @@ class FunctionManager:
         right_bound: Optional[float] = None,
         place_points: Optional[bool] = None,
     ) -> Dict[str, Any]:
-        """Find the roots and local extrema of one plotted function, or where two of them intersect.
+        """Find the roots, local extrema or inflection points of one plotted function, or where two intersect.
 
         Works on functions and piecewise functions. The interval is [left_bound, right_bound];
         a missing side defaults to the functions' own bound, else to the visible x range, and
@@ -377,7 +377,7 @@ class FunctionManager:
                 curves[0].function,
                 left,
                 right,
-                features=list(features) if features else SUPPORTED_FEATURES,
+                features=list(features) if features else DEFAULT_FEATURES,
                 breakpoints=breakpoints,
                 samples=samples,
             )
@@ -398,7 +398,9 @@ class FunctionManager:
         """Look up one or two plotted functions (plain or piecewise) by name."""
         names = [str(name).strip() for name in (function_names or []) if str(name).strip()]
         if len(names) not in (1, 2):
-            raise ValueError(f"Give one function name (roots and extrema) or two (intersections); got {len(names)}.")
+            raise ValueError(
+                f"Give one function name (roots, extrema, inflections) or two (intersections); got {len(names)}."
+            )
         if names[0] == names[-1] and len(names) == 2:
             raise ValueError(f"Give two different functions to intersect; got '{names[0]}' twice.")
         curves: List[Any] = []

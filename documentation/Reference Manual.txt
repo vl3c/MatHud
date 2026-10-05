@@ -2022,7 +2022,7 @@ This class coordinates specialized managers for each drawable type:
 - `draw_function(function_string, name, left_bound=None, right_bound=None)`: Draw a function on the canvas
 - `delete_function(name)`: Delete a function by its name
 - `update_function(name, new_color=None, new_left_bound=None, new_right_bound=None)`: Update a function's color or bounds
-- `find_function_features(function_names, features=None, left_bound=None, right_bound=None, place_points=None)`: Roots and extrema of one plotted function, or intersections of two; optionally places points (one undo step)
+- `find_function_features(function_names, features=None, left_bound=None, right_bound=None, place_points=None)`: Roots, extrema and (on request) inflection points of one plotted function, or intersections of two; optionally places points (one undo step)
 - `get_parametric_function(name)`: Get a parametric function by its name
 - `draw_parametric_function(x_expression, y_expression, name=None, t_min=0, t_max=2*pi, color=None)`: Draw a parametric curve defined by x(t) and y(t)
 - `delete_parametric_function(name)`: Delete a parametric function by its name
@@ -2781,7 +2781,7 @@ parsing through visualization to deletion with proper cleanup of dependencies.
 - `get_function(name)`: Get a function by its name
 - `draw_function(function_string, name, left_bound=None, right_bound=None)`: Draw a function on the canvas or update existing function
 - `delete_function(name)`: Delete a function by its name with cleanup of associated colored areas
-- `find_function_features(function_names, features=None, left_bound=None, right_bound=None, place_points=None)`: Find roots and local extrema of one function or piecewise function, or the intersections of two, on the requested interval (default: the functions' own bounds, else the visible x range, clipped to the functions' domain), sampling at least two points per screen pixel and splitting at asymptotes and discontinuities; with `place_points`, create or reuse a point at each feature inside one undo batch (`undo_redo_manager.begin_batch()` / `end_batch()`)
+- `find_function_features(function_names, features=None, left_bound=None, right_bound=None, place_points=None)`: Find roots and local extrema (the default) and/or inflection points (`features` includes `inflections`) of one function or piecewise function, or the intersections of two, on the requested interval (default: the functions' own bounds, else the visible x range, clipped to the functions' domain), sampling at least two points per screen pixel and splitting at asymptotes and discontinuities; with `place_points`, create or reuse a point at each feature inside one undo batch (`undo_redo_manager.begin_batch()` / `end_batch()`)
 
 #### Parametric Function Manager (`managers/parametric_function_manager.py`)
 
@@ -3217,7 +3217,7 @@ Numeric roots, local extrema and intersections of functions y = f(x), used by th
 
 **Key Functions:**
 - `sample_count(span, pixel_span=None, period=None)`: Samples for an interval: at least 500, 25 per unit of x, 2 per screen pixel and 40 per period, at most 10000
-- `find_function_features(f, left, right, features=("roots", "extrema"), breakpoints=(), samples=None, max_results=50)`: Roots (kind `root`) and/or local extrema (`local_min`, `local_max`) of f on [left, right]. Returns `features` (sorted by x), `total_found`, `truncated` (more than `max_results` were found) and `samples`. Raises `ValueError` for a non-finite or empty interval or an unknown feature
+- `find_function_features(f, left, right, features=("roots", "extrema"), breakpoints=(), samples=None, max_results=50)`: Roots (kind `root`), local extrema (`local_min`, `local_max`) and/or inflection points (`inflection`, only when `features` includes `"inflections"`) of f on [left, right]. Inflection points are sign changes of the second difference, refined with Brent's method on a numeric second derivative and kept only where the sign change persists at a finer step, does not move when the step halves (as it does next to a pole), and f is continuous. Returns `features` (sorted by x), `total_found`, `truncated` (more than `max_results` were found) and `samples`. Raises `ValueError` for a non-finite or empty interval or an unknown feature
 - `find_intersections(f, g, left, right, breakpoints=(), samples=None, max_results=50)`: The roots of f - g as kind `intersection`, each with y = f(x); a tangency is a touching intersection
 - `round_report_value(value)`: Round a number like the reported values (10 significant digits)
 

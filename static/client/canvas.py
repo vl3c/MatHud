@@ -1439,7 +1439,7 @@ class Canvas:
         right_bound: Optional[float] = None,
         place_points: Optional[bool] = None,
     ) -> Dict[str, Any]:
-        """Find roots and local extrema of one plotted function, or where two plotted functions intersect.
+        """Find roots, local extrema or inflection points of one plotted function, or where two intersect.
 
         Optionally places a point at each feature (one undo step); see FunctionManager.find_function_features.
         """

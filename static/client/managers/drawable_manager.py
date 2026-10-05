@@ -583,7 +583,7 @@ class DrawableManager:
         right_bound: Optional[float] = None,
         place_points: Optional[bool] = None,
     ) -> Dict[str, Any]:
-        """Find roots and extrema of one plotted function, or intersections of two."""
+        """Find roots, extrema or inflection points of one plotted function, or intersections of two."""
         return cast(
             Dict[str, Any],
             self.function_manager.find_function_features(

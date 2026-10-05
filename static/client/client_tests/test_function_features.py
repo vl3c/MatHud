@@ -183,7 +183,7 @@ class TestFunctionFeaturesAlgorithm(unittest.TestCase):
         with self.assertRaises(ValueError):
             find_function_features(math.sin, 0, float("inf"))
         with self.assertRaises(ValueError):
-            find_function_features(math.sin, 0, 1, features=["inflections"])
+            find_function_features(math.sin, 0, 1, features=["inflection_points"])
         with self.assertRaises(ValueError):
             find_function_features(math.sin, 0, 1, features=[])
 
@@ -292,6 +292,21 @@ class TestFunctionFeaturesCanvas(unittest.TestCase):
             [(f["x"], f["y"], f["kind"]) for f in result["features"]],
             [(-1.0, 2.0, "local_max"), (1.0, -2.0, "local_min")],
         )
+
+    def test_inflection_points_through_the_canvas(self) -> None:
+        self.canvas.draw_function("x^3 - 3*x", name="f")
+        result = self._find(["f"], features=["inflections"], bounds=(-3, 3))
+        self.assertEqual([(f["x"], f["y"], f["kind"]) for f in result["features"]], [(0.0, 0.0, "inflection")])
+        self.canvas.draw_function("tan(x)", name="t")
+        tangent = self._find(["t"], features=["inflections"], bounds=(-3, 3))
+        self.assertEqual([(f["x"], f["kind"]) for f in tangent["features"]], [(0.0, "inflection")])
+
+    def test_inflection_points_can_be_placed(self) -> None:
+        self.canvas.draw_function("x^3", name="f")
+        result = self._find(["f"], features=["inflections"], bounds=(-2, 2.1), place_points=True)
+        self.assertEqual(len(result["created_point_names"]), 1)
+        points = self._points()
+        self.assertEqual([(p.x, p.y) for p in points], [(0.0, 0.0)])
 
     def test_function_bounds_are_the_default_interval(self) -> None:
         self.canvas.draw_function("x^2 - 1", name="f", left_bound=0, right_bound=5)

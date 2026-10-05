@@ -121,5 +121,68 @@ class TestFunctionFeaturesPure(unittest.TestCase):
             find_function_features(math.sin, 1, 1)
 
 
+def _inflections(f, left: float, right: float) -> list:
+    report = find_function_features(f, left, right, features=["inflections"])
+    return [(feature["x"], feature["kind"]) for feature in report["features"]]
+
+
+class TestInflectionPoints(unittest.TestCase):
+    def test_default_features_do_not_include_inflections(self) -> None:
+        kinds = {f["kind"] for f in find_function_features(lambda x: x**3 - 3 * x, -3, 3)["features"]}
+        self.assertNotIn("inflection", kinds)
+
+    def test_polynomial_inflections(self) -> None:
+        self.assertEqual(_inflections(lambda x: x**3 - 3 * x, -3, 3), [(0.0, "inflection")])
+        report = find_function_features(lambda x: (x - 1) ** 3 + 2, -2, 4, features=["inflections"])
+        self.assertEqual(_summary(report), [(1.0, 2.0, "inflection")])
+        self.assertEqual(_inflections(lambda x: x**5, -1.3, 1.1), [(0.0, "inflection")])
+
+    def test_smooth_functions_are_located_accurately(self) -> None:
+        sine = [x for x, _ in _inflections(math.sin, -7, 7)]
+        for found, expected in zip(sine, [-2 * math.pi, -math.pi, 0.0, math.pi, 2 * math.pi]):
+            self.assertAlmostEqual(found, expected, places=6)
+        self.assertEqual(len(sine), 5)
+        gauss = [x for x, _ in _inflections(lambda x: math.exp(-x * x), -3, 3)]
+        self.assertEqual(len(gauss), 2)
+        self.assertAlmostEqual(gauss[1], 1 / math.sqrt(2), places=5)
+        self.assertAlmostEqual(gauss[0], -1 / math.sqrt(2), places=5)
+        self.assertEqual(_inflections(lambda x: 1 / (1 + math.exp(-x)), -8, 8), [(0.0, "inflection")])
+
+    def test_no_inflection_without_a_concavity_change(self) -> None:
+        for f in (
+            lambda x: x**4,
+            lambda x: x**2,
+            lambda x: 2 * x + 1,
+            lambda x: 1e6 * x + 3,
+            lambda x: 7.0,
+            math.exp,
+            abs,
+        ):
+            self.assertEqual(_inflections(f, -2, 2.1), [])
+
+    def test_poles_and_jumps_are_not_inflections(self) -> None:
+        self.assertEqual(_inflections(lambda x: 1 / x, -1.37, 1.3), [])
+        self.assertEqual(_inflections(lambda x: 1 / x**2, -1.37, 1.3), [])
+        self.assertEqual(_inflections(lambda x: 1.0 if x >= 0.3 else -1.0, -2, 2), [])
+        # tan changes concavity at its roots, not at its poles
+        tangent = [x for x, _ in _inflections(math.tan, -5, 5)]
+        self.assertEqual(tangent, [-3.1415927, 0.0, 3.1415927])
+
+    def test_steep_and_non_smooth_inflections(self) -> None:
+        cbrt = lambda x: math.copysign(abs(x) ** (1 / 3), x)  # noqa: E731
+        self.assertEqual(_inflections(cbrt, -1.37, 1.3), [(0.0, "inflection")])
+        self.assertEqual(_inflections(lambda x: x * abs(x), -2, 2.1), [(0.0, "inflection")])
+
+    def test_scale_does_not_matter(self) -> None:
+        self.assertEqual(_inflections(lambda x: 1e-9 * (x**3 - x), -2, 2), [(0.0, "inflection")])
+        self.assertEqual(_inflections(lambda x: 1e9 * (x**3 - x), -2, 2), [(0.0, "inflection")])
+        self.assertEqual(_inflections(lambda x: x**3 - 1e6 * x, -2, 2.3), [(0.0, "inflection")])
+        self.assertEqual(_inflections(lambda x: (x - 1000) ** 3, 990, 1010), [(1000.0, "inflection")])
+
+    def test_unknown_feature_is_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            find_function_features(math.sin, 0, 1, features=["inflection_points"])
+
+
 if __name__ == "__main__":
     unittest.main()
