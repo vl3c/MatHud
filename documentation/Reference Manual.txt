@@ -44,6 +44,7 @@ This document contains comprehensive documentation extracted from all files in t
 11. Expression Validator (`expression_validator.py`)
 12. Markdown Parser (`markdown_parser.py`)
 13. Scenario Hooks (`scenario_hooks.py`)
+14. JSON-Safe Tool Results (`json_safe.py`)
 
 ### Drawable Classes
 1. Base Drawable (`drawables/drawable.py`)
@@ -531,6 +532,8 @@ computation history for mathematical operations.
 - `get_results(calls, available_functions, undoable_functions, canvas)`: Process function calls and collect their results (the results dict of `get_results_traced`)
 - `get_results_traced(calls, available_functions, undoable_functions, canvas)`: Execute the batch and return (results, traced calls with timing and `is_error`)
 - `is_error_result(value)`: Return True when a result value reports a failed call
+- `build_tool_call_results(calls, traced_calls)`: Pair each call's tool-call id with its result, in call order, converting any result that is not plain JSON data
+- `serialize_tool_call_results(calls, traced_calls)`: JSON text of those entries, the tool results sent back to the model; an entry that cannot be serialized becomes an error result for that call only
 - `_validate_inputs(calls, available_functions, undoable_functions)`: Validate the input parameters
 - `_prepare_helper_variables(undoable_functions)`: Prepare helper variables needed for processing
 - `_process_function_call(call, available_functions, non_computation_functions, unformattable_functions, canvas, results)`: Process a single function call and update results
@@ -540,6 +543,15 @@ computation history for mathematical operations.
 - `_process_result(function_name, args, result, key, unformattable_functions, non_computation_functions, canvas, results)`: Process the result based on function type
 - `_handle_exception(exception, function_name, results)`: Handle exceptions during function calls
 - `_add_computation_if_needed(result, function_name, non_computation_functions, expression, canvas)`: Add computation to canvas if needed
+
+#### JSON-Safe Tool Results (`json_safe.py`)
+
+Tool results go back to the model as JSON. Brython's `json.dumps` rejects tuples, sets, objects and `None` or float dict keys, and when it raises part-way through a value it leaves that value's containers on its circular-reference stack, so every later dump of the same objects fails with "Circular reference detected". `ResultProcessor` therefore converts each call's result to plain data when it records it, and the send path converts any result that is still not plain.
+
+**Key Functions:**
+- `to_json_safe(value)`: Copy of `value` that `json.dumps` accepts in Brython and CPython: tuples and sets become lists, keys become strings (`1` -> `"1"`, `True` -> `"true"`, `None` -> `"null"`), NaN and infinities become `"NaN"`, `"Infinity"` and `"-Infinity"`, a drawable becomes `"Point 'A'"`, another object `str(obj)`, and a self-reference `"<circular reference>"`. Never raises and never calls `json.dumps`.
+- `is_json_plain(value)`: True when `json.dumps` accepts `value` as it is (no tuples, sets, objects, cycles, or `None` or float keys); checked without serializing.
+- `ensure_json_safe(value)`: `value` itself when it is plain, else its `to_json_safe` copy.
 
 #### Test Runner (`test_runner.py`)
 

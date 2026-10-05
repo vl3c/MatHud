@@ -459,7 +459,7 @@ class AIInterface:
                     self._chat_ui.needs_continuation_separator = True
                 self._send_prompt_to_ai(
                     None,
-                    json.dumps(ProcessFunctionCalls.build_tool_call_results(ai_tool_calls, batch["traced_calls"])),
+                    ProcessFunctionCalls.serialize_tool_call_results(ai_tool_calls, batch["traced_calls"]),
                     canvas_state=batch["state_after"],
                     action_trace=trace_summary,
                 )
@@ -831,7 +831,7 @@ class AIInterface:
 
                 self._send_prompt_to_ai(
                     None,
-                    json.dumps(ProcessFunctionCalls.build_tool_call_results(tool_calls, batch["traced_calls"])),
+                    ProcessFunctionCalls.serialize_tool_call_results(tool_calls, batch["traced_calls"]),
                     canvas_state=batch["state_after"],
                     action_trace=trace_summary,
                 )
