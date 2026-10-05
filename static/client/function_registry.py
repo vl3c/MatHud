@@ -253,6 +253,7 @@ class FunctionRegistry:
             "draw_function": FunctionRegistry._draw_function_tool(canvas),
             "delete_function": canvas.delete_function,
             "update_function": no_op_tools.update_tool(canvas, "update_function", canvas.update_function),
+            "find_function_features": canvas.find_function_features,
             # ===== PIECEWISE FUNCTION PLOTTING =====
             "draw_piecewise_function": canvas.draw_piecewise_function,
             "delete_piecewise_function": canvas.delete_piecewise_function,
@@ -505,7 +506,9 @@ class FunctionRegistry:
             "plot_distribution",
             "plot_bars",
             "delete_plot",
-            # Note: fit_regression is NOT undoable - it returns stats to the AI
+            # Note: fit_regression is NOT undoable - it returns stats to the AI.
+            # Neither is find_function_features: its values must reach the AI, and the
+            # points it may place form one undo step of their own.
             # Angle operations
             "create_angle",
             "delete_angle",

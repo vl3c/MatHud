@@ -163,12 +163,14 @@ TOOL_CATEGORIES: Dict[str, CategoryEntry] = {
             "draw_parametric_function", "delete_parametric_function",
             "update_parametric_function",
             "draw_tangent_line", "draw_normal_line",
+            "find_function_features",
         ],
         "keywords": [
             "function", "plot", "curve", "equation", "parametric",
             "piecewise", "tangent", "normal", "y=", "f(x)",
             "parabola", "sine", "cosine", "exponential", "logarithm",
             "polynomial", "lissajous", "spiral",
+            "extrema", "extremum", "maxima", "minima", "zeros",
         ],
     },
     "math": {
@@ -728,6 +730,25 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["draw_tangent_line"] += 6.0
         if "normal" in token_set and token_set & {"line", "perpendicular"}:
             scores["draw_normal_line"] += 6.0
+
+        # -- Roots, extrema and intersections of plotted functions --
+        _curve_words = {"function", "functions", "curve", "curves", "graph", "graphs", "plotted", "plot", "local"}
+        if token_set & {"extrema", "extremum", "maxima", "minima", "turning"}:
+            scores["find_function_features"] += 8.0
+        if token_set & {"inflection", "inflections", "concavity", "concave", "convex"}:
+            scores["find_function_features"] += 10.0
+        if token_set & {"maximum", "minimum", "maximums", "minimums"} and not (
+            token_set & {"spanning", "tree", "path", "weight", "weighted", "flow"}
+        ):
+            scores["find_function_features"] += 12.0 if "local" in token_set else 8.0
+        _shape_words = {"segment", "segments", "line", "lines", "circle", "circles", "ellipse", "polygon", "vector"}
+        if token_set & {"intersect", "intersection", "intersections", "intersects", "meet", "cross"} and (
+            token_set & _curve_words or not token_set & _shape_words
+        ):
+            scores["find_function_features"] += 8.0
+        _on_canvas_words = {"plotted", "curve", "graph", "place", "mark"}
+        if token_set & {"roots", "root", "zeros", "zero"} and token_set & _on_canvas_words:
+            scores["find_function_features"] += 8.0
 
         # -- Constructions --
         if "inscribed" in token_set and token_set & {"circle"}:
