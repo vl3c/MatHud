@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import json
 import os
+import threading
+import time
 import unittest
 from types import SimpleNamespace
 from typing import Any, Dict, Iterator, List, Optional
@@ -576,6 +578,31 @@ class TestChatCompletionsStreamMetrics(_OpenAIStreamCase):
 
         self.assertEqual(read_past_finish, [])
         self.assertEqual(final["metrics"]["prompt_tokens"], 5)
+
+    def test_silent_stream_after_finish_is_closed(self) -> None:
+        # A stream that sends the finish reason, then neither usage nor its end, is
+        # closed by the watchdog instead of holding the answer until the read timeout.
+        closed = threading.Event()
+
+        class SilentStream:
+            def __iter__(self) -> Iterator[Any]:
+                yield TestChatCompletionsStreamMetrics._chunk("Hi")
+                yield TestChatCompletionsStreamMetrics._chunk(None, "stop")
+                if not closed.wait(5):
+                    raise AssertionError("stream was not closed")
+                raise RuntimeError("connection closed")
+
+            def close(self) -> None:
+                closed.set()
+
+        api = self._api_with_stream(SilentStream())  # type: ignore[arg-type]
+        api.POST_FINISH_TIMEOUT_SECONDS = 0.05
+        started = time.monotonic()
+        final = self._final(list(api.create_chat_completion_stream(json.dumps({"user_message": "hi"}))))
+
+        self.assertLess(time.monotonic() - started, 2)
+        self.assertEqual(final["ai_message"], "Hi")
+        self.assertEqual(final["finish_reason"], "stop")
 
     def test_post_finish_wait_for_usage_is_bounded(self) -> None:
         read_chunks: List[int] = []

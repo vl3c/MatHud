@@ -402,6 +402,77 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
         self.assertEqual(len(final_event["ai_tool_calls"]), 1)
 
     @patch("static.openai_api_base.OpenAI")
+    def test_create_response_stream_incomplete_drops_partial_tool_calls(self, mock_openai: Mock) -> None:
+        """A reply cut off at the token limit ends the turn as 'length' and runs no tool calls."""
+        mock_client = MagicMock()
+        mock_openai.return_value = mock_client
+
+        events = [
+            SimpleNamespace(type="response.output_text.delta", delta="Drawing it"),
+            SimpleNamespace(
+                type="response.function_call_arguments.delta",
+                output_index=1,
+                call_id="call_cut",
+                name="create_point",
+                delta='{"x": 5, "y"',
+            ),
+            SimpleNamespace(
+                type="response.incomplete",
+                response=SimpleNamespace(
+                    id="resp_cut",
+                    status="incomplete",
+                    incomplete_details=SimpleNamespace(reason="max_output_tokens"),
+                    output=[],
+                ),
+            ),
+        ]
+        mock_client.responses.create.return_value = iter(events)
+
+        api = OpenAIResponsesAPI()
+        prompt = json.dumps({"user_message": "Create point", "use_vision": False})
+
+        result_events = list(api.create_response_stream(prompt))
+
+        final_event = [e for e in result_events if e.get("type") == "final"][0]
+        self.assertEqual(final_event["finish_reason"], "length")
+        self.assertEqual(final_event["ai_tool_calls"], [])
+        expected_note = "\n\nThe reply was cut off at the 16000-token output limit. 1 unfinished tool call was not run."
+        self.assertEqual(final_event["ai_message"], "Drawing it" + expected_note)
+        tokens = [e["text"] for e in result_events if e.get("type") == "token"]
+        self.assertEqual(tokens[-1], expected_note)
+        # History keeps the model's own text and no pending tool calls.
+        self.assertEqual(api.messages[-1]["role"], "assistant")
+        self.assertEqual(api.messages[-1]["content"], "Drawing it")
+        self.assertFalse(api.messages[-1].get("tool_calls"))
+        # The next turn must not continue from a response with unanswered tool calls.
+        self.assertIsNone(api._previous_response_id)
+
+    @patch("static.openai_api_base.OpenAI")
+    def test_create_response_stream_incomplete_content_filter(self, mock_openai: Mock) -> None:
+        """A reply stopped by the content filter ends the turn as 'content_filter'."""
+        mock_client = MagicMock()
+        mock_openai.return_value = mock_client
+
+        events = [
+            SimpleNamespace(
+                type="response.incomplete",
+                response=SimpleNamespace(
+                    status="incomplete",
+                    incomplete_details=SimpleNamespace(reason="content_filter"),
+                    output=[],
+                ),
+            ),
+        ]
+        mock_client.responses.create.return_value = iter(events)
+
+        api = OpenAIResponsesAPI()
+        prompt = json.dumps({"user_message": "Test", "use_vision": False})
+
+        final_event = [e for e in api.create_response_stream(prompt) if e.get("type") == "final"][0]
+        self.assertEqual(final_event["finish_reason"], "content_filter")
+        self.assertEqual(final_event["ai_message"], "The reply was stopped by the content filter.")
+
+    @patch("static.openai_api_base.OpenAI")
     def test_create_response_stream_reasoning_placeholder_sent_once(self, mock_openai: Mock) -> None:
         """Test that reasoning placeholder is only sent once per stream."""
         mock_client = MagicMock()
