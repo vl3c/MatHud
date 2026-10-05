@@ -80,6 +80,16 @@ def get_configured_reasoning_effort() -> Optional[str]:
     return DEFAULT_REASONING_EFFORT
 
 
+def _close_stream(stream: Any) -> None:
+    """Release the HTTP response of a stream abandoned before its end."""
+    close = getattr(stream, "close", None)
+    if callable(close):
+        try:
+            close()
+        except Exception as exc:
+            _logger.debug(f"Closing the stream failed: {exc}")
+
+
 def normalize_model_name(model_name: str) -> str:
     """Normalize a model name by extracting the base family name.
 
@@ -330,6 +340,7 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
 
     def reset_conversation(self) -> None:
         """Reset the conversation history."""
+        self.abandon_requests_in_flight()
         self.messages = [{"role": "system", "content": self._build_system_prompt()}]
         self._last_canvas_state = None
 
@@ -342,6 +353,7 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         Returns:
             Response choice object compatible with OpenAI format
         """
+        generation = self.conversation_generation
         user_message = self._parse_and_prepare_message(full_prompt)
         if user_message is not None:
             self.messages.append(user_message)
@@ -362,6 +374,9 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
             self._finish_response_metrics(metrics, "error", 0, error=str(e))
             return self._create_error_response()
 
+        if self._drop_abandoned_reply(generation):
+            return self._create_error_response()
+
         # Process response and update history
         processed = self._process_response(choice)
         record_chat_completions_usage(response, metrics)
@@ -380,6 +395,7 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
             the request's ``metrics`` (see static/response_metrics.py), including
             llama-server ``timings`` when the server reports them.
         """
+        generation = self.conversation_generation
         user_message = self._parse_and_prepare_message(full_prompt)
         if user_message is not None:
             self.messages.append(user_message)
@@ -402,6 +418,10 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
             )
 
             for chunk in stream:
+                if self._drop_abandoned_reply(generation):
+                    # Stop generating for a turn nobody waits for any more (frees the server's slot).
+                    _close_stream(stream)
+                    return
                 # llama-server puts usage and timings on the last chunk, whose choices may be empty.
                 record_chat_completions_usage(chunk, metrics)
                 if not chunk.choices:
@@ -474,6 +494,8 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         # Update conversation history; calls of a reply that did not end in tool calls
         # (e.g. cut off at the token limit) do not run, so they are not stored.
         runs_tools = resolved_finish_reason in TOOL_CALL_FINISH_REASONS
+        if self._drop_abandoned_reply(generation):
+            return
         self._finalize_stream(accumulated_text, tool_calls if runs_tools else [])
 
         # Prepare tool calls for response

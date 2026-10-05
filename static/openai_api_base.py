@@ -158,6 +158,11 @@ class OpenAIAPIBase:
 
     # Metrics of the most recent model request (see static/response_metrics.py).
     last_response_metrics: Optional[ResponseMetrics] = None
+    # Bumped when the conversation is replaced (new, restored) and when the user stops a
+    # turn. A request remembers the generation it started under; once that is no longer
+    # current, its late reply is dropped: it never reaches the history, runs no tool calls
+    # and streams nothing (see ``abandon_requests_in_flight``).
+    _conversation_generation: int = 0
 
     SEARCH_MODE_MSG = """Tool loading: at the start only search_tools and a few essential tools (undo, redo, get_current_canvas_state) are available. Before using any other tool, call search_tools with a short description of what you want to do (e.g. "plot a function", "evaluate an expression at a point"); the matching tools are then loaded for your following calls until you give your final answer. Calls to tools that were not loaded fail."""
 
@@ -345,8 +350,37 @@ class OpenAIAPIBase:
         """Stream a chat completion. Implemented by subclasses."""
         raise NotImplementedError
 
+    @property
+    def conversation_generation(self) -> int:
+        """The generation a request starting now belongs to."""
+        return self._conversation_generation
+
+    def abandon_requests_in_flight(self) -> None:
+        """Drop the late replies of every request started so far (conversation reset or turn stopped).
+
+        The browser's stop only aborts its fetch: the request goes on here, and a
+        reply that ends in tool calls would otherwise append those calls and their
+        "Awaiting result..." placeholders to whatever conversation is current then.
+        """
+        self._conversation_generation += 1
+
+    def is_abandoned(self, generation: int) -> bool:
+        """True when a request started under ``generation`` was abandoned since."""
+        return generation != self._conversation_generation
+
+    def _drop_abandoned_reply(self, generation: int) -> bool:
+        """True (and logged) when the reply of a request started under ``generation`` must be dropped."""
+        if not self.is_abandoned(generation):
+            return False
+        _logger.info(
+            "[%s] Dropped the reply of a request whose turn was stopped or whose conversation was reset",
+            type(self).__name__,
+        )
+        return True
+
     def reset_conversation(self) -> None:
         """Reset the conversation history to start a new session."""
+        self.abandon_requests_in_flight()
         self.messages = [{"role": "developer", "content": self._build_system_prompt()}]
         self._last_canvas_state = None
 
@@ -361,7 +395,12 @@ class OpenAIAPIBase:
             self.messages.append({"role": turn["role"], "content": turn["content"]})
 
     def add_partial_assistant_message(self, content: str) -> None:
-        """Add a partial assistant message that was interrupted by the user."""
+        """Add a partial assistant message that was interrupted by the user.
+
+        The client sends it when the user stops a turn, so the request still running
+        for that turn is abandoned: its reply must not land in the history later.
+        """
+        self.abandon_requests_in_flight()
         if content and content.strip():
             self.messages.append({"role": "assistant", "content": content})
 

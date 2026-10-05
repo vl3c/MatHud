@@ -263,8 +263,10 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
 
         The final event carries the request's ``metrics`` (see static/response_metrics.py).
         """
+        generation = self.conversation_generation
         self._prepare_messages_for_stream(full_prompt)
         state = self._create_stream_state()
+        state["generation"] = generation
 
         try:
             stream = self._create_api_stream_with_fallback()
@@ -373,6 +375,11 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
     def _process_stream_events(self, stream: Any, state: Dict[str, Any]) -> Iterator[StreamEvent]:
         """Process all events from the stream."""
         for event in stream:
+            if self._drop_abandoned_reply(state.get("generation", self.conversation_generation)):
+                close = getattr(stream, "close", None)
+                if callable(close):
+                    close()
+                return
             event_type = getattr(event, "type", None)
             self._log(f"[Responses API] Event type: {event_type}")
 
@@ -467,7 +474,7 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
 
         # Store response ID for multi-turn conversations
         response_id = getattr(response_obj, "id", None)
-        if response_id:
+        if response_id and not self.is_abandoned(state.get("generation", self.conversation_generation)):
             self._previous_response_id = response_id
             self._log(f"[Responses API] Stored response ID: {response_id}")
 
@@ -523,6 +530,8 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         the turn ends with the cut-off finish reason. The note is shown to the user
         but kept out of the conversation history.
         """
+        if self._drop_abandoned_reply(state.get("generation", self.conversation_generation)):
+            return
         normalized = self._normalize_tool_calls(state["tool_calls_accumulator"])
         self._log(f"[Responses API] Normalized tool calls: {normalized}")
 

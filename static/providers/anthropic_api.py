@@ -211,6 +211,7 @@ class AnthropicAPI(OpenAIAPIBase):
 
     def reset_conversation(self) -> None:
         """Reset the conversation history."""
+        self.abandon_requests_in_flight()
         self.messages = []
         self._last_canvas_state = None
 
@@ -409,6 +410,7 @@ class AnthropicAPI(OpenAIAPIBase):
 
     def create_chat_completion(self, full_prompt: str) -> Any:
         """Create chat completion with Anthropic API."""
+        generation = self.conversation_generation
         user_message = self._parse_and_prepare_message(full_prompt)
         if user_message is not None:
             self.messages.append(user_message)
@@ -436,6 +438,8 @@ class AnthropicAPI(OpenAIAPIBase):
             print(error_msg)
             _logger.error(error_msg)
             self._finish_response_metrics(metrics, "error", 0, error=str(e))
+            return self._create_error_response()
+        if self._drop_abandoned_reply(generation):
             return self._create_error_response()
 
         # Convert Anthropic response to OpenAI-like format
@@ -508,6 +512,7 @@ class AnthropicAPI(OpenAIAPIBase):
 
         The final event carries the request's ``metrics`` (see static/response_metrics.py).
         """
+        generation = self.conversation_generation
         user_message = self._parse_and_prepare_message(full_prompt)
         if user_message is not None:
             self.messages.append(user_message)
@@ -539,6 +544,8 @@ class AnthropicAPI(OpenAIAPIBase):
 
             with self._anthropic_client.messages.stream(**stream_kwargs) as stream:
                 for event in stream:
+                    if self._drop_abandoned_reply(generation):
+                        return  # leaving the context manager closes the stream
                     event_type = getattr(event, "type", "")
                     self._record_stream_metrics(event, event_type, metrics)
 
@@ -599,6 +606,8 @@ class AnthropicAPI(OpenAIAPIBase):
         metrics.add_output_text(tool_call_argument_text(tool_calls))
         outcome = _resolve_stop(stop_reason, stop_details, tool_calls, cut_off_tool_id, max_tokens)
 
+        if self._drop_abandoned_reply(generation):
+            return
         # Update conversation history
         self._finalize_anthropic_stream(accumulated_text if outcome.keep_text else "", outcome.tool_calls)
         if outcome.finish_reason == "refusal":

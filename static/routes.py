@@ -17,6 +17,7 @@ import hmac
 import json
 import logging
 import math
+import threading
 import time
 from collections.abc import Callable, Iterator, Set as AbstractSet
 from typing import Any, Dict, List, Optional, Tuple, TypeVar, Union, cast
@@ -434,6 +435,33 @@ def require_auth(f: F) -> F:
     return cast(F, decorated_function)
 
 
+class RequestCounter:
+    """Counts the model requests that are running (thread-safe)."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._count = 0
+
+    @property
+    def count(self) -> int:
+        return self._count
+
+    def enter(self) -> None:
+        with self._lock:
+            self._count += 1
+
+    def leave(self) -> None:
+        with self._lock:
+            self._count = max(self._count - 1, 0)
+
+
+def _abandoned_reply_response() -> ResponseReturnValue:
+    """The reply to a request abandoned by a stop or a new conversation: nothing to show or run."""
+    return AppManager.make_response(
+        data={"ai_message": "", "ai_tool_calls": [], "finish_reason": "abandoned", "metrics": None}
+    )
+
+
 def register_routes(app: MatHudFlask) -> None:
     """Register all routes with the Flask application.
 
@@ -443,6 +471,7 @@ def register_routes(app: MatHudFlask) -> None:
     Args:
         app: Flask application instance
     """
+    in_flight = RequestCounter()
 
     @app.route("/login", methods=["GET", "POST"])
     def login() -> ResponseReturnValue:
@@ -792,15 +821,28 @@ def register_routes(app: MatHudFlask) -> None:
                     log_event: StreamEventDict = {"type": "log", **log_entry}
                     yield json.dumps(log_event) + "\n"
 
+            model = provider.get_model()
+            stream_api = (
+                app.responses_api if model.provider == PROVIDER_OPENAI and model.is_reasoning_model else provider
+            )
+            # A stop (/save_partial_response) or a new conversation abandons this request:
+            # from then on nothing more of it is streamed, logged or acted on.
+            generation = stream_api.conversation_generation
+            in_flight.enter()
             try:
                 # Route to appropriate API based on model and provider
-                model = provider.get_model()
-                if model.provider == PROVIDER_OPENAI and model.is_reasoning_model:
+                if stream_api is app.responses_api:
                     stream = app.responses_api.create_response_stream(message)
                 else:
                     stream = provider.create_chat_completion_stream(message)
 
                 for event in stream:
+                    if stream_api.is_abandoned(generation):
+                        _logger.info("Dropped the rest of a stream whose turn was stopped or conversation reset")
+                        close = getattr(stream, "close", None)
+                        if callable(close):
+                            close()  # the provider's generator ends without touching the history
+                        return
                     # Yield any pending log events before each stream event
                     yield from _yield_pending_logs()
 
@@ -860,6 +902,8 @@ def register_routes(app: MatHudFlask) -> None:
                         "finish_reason": "error",
                     }
                     yield json.dumps(fallback_payload) + "\n"
+            finally:
+                in_flight.leave()
 
         response = Response(generate(), mimetype="application/x-ndjson")
         # Headers to reduce buffering in some proxies
@@ -1096,10 +1140,13 @@ def register_routes(app: MatHudFlask) -> None:
         # Store attached images in app context for API access
         app.current_attached_images = attached_images
 
+        model = provider.get_model()
+        request_api = app.responses_api if model.provider == PROVIDER_OPENAI and model.is_reasoning_model else provider
+        generation = request_api.conversation_generation
+        in_flight.enter()
         try:
             # Route to appropriate API based on model and provider
-            model = provider.get_model()
-            if model.provider == PROVIDER_OPENAI and model.is_reasoning_model:
+            if request_api is app.responses_api:
                 stream = app.responses_api.create_response_stream(message)
                 final_event: Optional[StreamEventDict] = None
                 for event in stream:
@@ -1107,6 +1154,8 @@ def register_routes(app: MatHudFlask) -> None:
                         final_event = cast(StreamEventDict, event)
                         break
 
+                if request_api.is_abandoned(generation):
+                    return _abandoned_reply_response()
                 if final_event is None:
                     reset_tools_for_all_providers(app, "error", active_provider=provider)
                     return AppManager.make_response(
@@ -1149,6 +1198,8 @@ def register_routes(app: MatHudFlask) -> None:
             # single-user workbench case). The streaming path carries metrics on its final event.
             provider.last_response_metrics = None
             choice = provider.create_chat_completion(message)
+            if request_api.is_abandoned(generation):
+                return _abandoned_reply_response()
             ai_message, ai_tool_calls_processed = _process_ai_response(app, choice)
             ai_tool_calls = cast(List[Dict[str, Any]], ai_tool_calls_processed)
             # Intercept search_tools and filter other tool calls
@@ -1178,6 +1229,20 @@ def register_routes(app: MatHudFlask) -> None:
                 status="error",
                 code=500,
             )
+        finally:
+            in_flight.leave()
+
+    @app.route("/api/requests_in_flight", methods=["GET"])
+    @require_auth
+    def requests_in_flight_route() -> ResponseReturnValue:
+        """How many model requests (/send_message, /send_message_stream) are still running.
+
+        A stopped turn's request goes on until the model's reply arrives (or its next
+        token, for the streaming providers, which then stop reading). The scenario
+        harness waits for this to reach 0 before it starts the next turn, so a
+        stopped request neither shares the model server with it nor skews its timing.
+        """
+        return AppManager.make_response(data={"requests_in_flight": in_flight.count})
 
     @app.route("/search_tools", methods=["POST"])
     @require_auth

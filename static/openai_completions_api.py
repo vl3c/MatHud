@@ -147,6 +147,7 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
 
     def create_chat_completion(self, full_prompt: str) -> Any:
         """Create chat completion with OpenAI API."""
+        generation = self.conversation_generation
         self._prepare_messages_for_request(full_prompt)
         metrics = self._start_response_metrics("chat_completions", streamed=False)
 
@@ -169,6 +170,8 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
         tool_calls = getattr(choice.message, "tool_calls", None)
         record_chat_completions_usage(response, metrics)
         self._finish_response_metrics(metrics, finish_reason, len(tool_calls or []))
+        if self._drop_abandoned_reply(generation):
+            return self._create_error_response()
 
         runs_tools = finish_reason in TOOL_CALL_FINISH_REASONS
         assistant_message = self._create_assistant_message(choice.message, include_tool_calls=runs_tools)
@@ -184,6 +187,7 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
 
         The final event carries the request's ``metrics`` (see static/response_metrics.py).
         """
+        generation = self.conversation_generation
         self._prepare_messages_for_request(full_prompt)
 
         accumulated_text = ""
@@ -206,6 +210,9 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
             )
 
             for chunk in stream:
+                if self._drop_abandoned_reply(generation):
+                    self._close_stream(stream)
+                    return
                 has_usage = record_chat_completions_usage(chunk, metrics)
                 if finish_reason is not None:
                     # Only the trailing usage chunk follows the finish reason. Stop once it
@@ -274,6 +281,8 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
         normalized_tool_calls = self._normalize_tool_calls(tool_calls_accumulator)
         resolved_finish_reason = finish_reason or "stop"
         stored_tool_calls = normalized_tool_calls if resolved_finish_reason in TOOL_CALL_FINISH_REASONS else []
+        if self._drop_abandoned_reply(generation):
+            return
         self._finalize_stream(accumulated_text, stored_tool_calls, reasoning_details)
 
         ai_tool_calls_json_ready = self._prepare_tool_calls_for_response(normalized_tool_calls)
