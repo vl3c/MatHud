@@ -26,10 +26,14 @@ from cli.scenarios.geometry import CanvasView, Tolerance
 CLASSES = ("app", "model", "nondeterministic", "known", "infra")
 # Classes that make a live or retrace run exit non-zero: the app, not the model, is at fault.
 FAILING_CLASSES = frozenset({"app", "nondeterministic"})
-# Turn outcomes that are not the model's doing ("abandoned": the server dropped the
-# turn's reply because it was stopped or its conversation reset from elsewhere).
+# Turn outcomes that are not the model's doing.
 # "infra" stands for a turn after one of those in the same run.
-INFRA_TURN_OUTCOMES = frozenset({"error", "timeout", "request_cap", "not_started", "trace_error", "abandoned", "infra"})
+INFRA_TURN_OUTCOMES = frozenset({"error", "timeout", "request_cap", "not_started", "trace_error", "infra"})
+# Turn outcomes that are the app's failure. "abandoned": the server dropped the turn's reply
+# as stopped or superseded, but the harness drives one tab on a server of its own and stops
+# turns only through the client, which aborts the stream first, so nothing should abandon a
+# turn there: one that is abandoned points at the turn bookkeeping (continue_turn, turn tokens).
+APP_TURN_OUTCOMES = frozenset({"abandoned"})
 # Where a turn's error came from (turn metrics ``error_source``): an exception in the
 # browser while handling the reply, or in the server route, is the app's failure.
 APP_ERROR_SOURCES = frozenset({"client", "server"})
@@ -118,8 +122,14 @@ def step_classes(steps: list[dict[str, Any]]) -> set[str]:
 
 
 def turn_app_error(step: dict[str, Any]) -> bool:
-    """True for a live turn that ended in an error raised by the app (browser or server route)."""
+    """True for a live turn that failed because of the app.
+
+    That is an error the app raised (browser or server route), or a turn the
+    server abandoned (see ``APP_TURN_OUTCOMES``).
+    """
     turn = step.get("turn") or {}
+    if turn.get("outcome") in APP_TURN_OUTCOMES:
+        return True
     return turn.get("outcome") == "error" and turn.get("error_source") in APP_ERROR_SOURCES
 
 

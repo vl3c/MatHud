@@ -1133,12 +1133,14 @@ class TestUndoReproduction:
 # ----------------------------------------------------------------------
 
 
-def test_abandoned_turn_is_infra() -> None:
-    fail = {"status": "fail", "kind": "check"}
-    assert classify_result(fail, "live", turn_outcome="abandoned") == "infra"
-    steps = [{"step": "t1", "turn": {"outcome": "abandoned"}, "results": [fail]}]
+def test_abandoned_turn_is_an_app_failure(catalogue: Catalogue) -> None:
+    # The harness's tab is the only client of its server: nothing should abandon its turns.
+    steps = [{"step": "t1", "turn": {"outcome": "abandoned"}, "results": [{"status": "fail", "kind": "check"}]}]
     annotate_steps(steps, "live")
-    assert steps[0]["results"][0]["class"] == "infra"
+    assert steps[0]["results"][0]["class"] == "app"
+    passing = ScenarioOutcome(geo90(catalogue)[0], model="m")
+    passing.steps = [{"step": "t1", "turn": {"outcome": "abandoned"}, "results": [{"status": "pass", "kind": "check"}]}]
+    assert passing.classes() == {"app"} and passing.app_failure()
 
 
 class TestRegradeInfraLimit:
@@ -1152,7 +1154,7 @@ class TestRegradeInfraLimit:
         results = tmp_path / "out" / "results.json"
         data = json.loads(results.read_text(encoding="utf-8"))
         turn = next(step for step in data["scenarios"][1]["steps"] if step["step"] == "t1")
-        turn["turn"]["outcome"] = "abandoned"  # the server dropped one of the two runs' replies
+        turn["turn"]["outcome"] = "timeout"  # one of the two runs timed out
         results.write_text(json.dumps(data), encoding="utf-8")
         return results
 
