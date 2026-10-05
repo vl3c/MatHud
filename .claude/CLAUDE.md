@@ -129,6 +129,7 @@ Then navigate to `http://127.0.0.1:5004/` in the browser.
 14. `rendering/base_telemetry.py` provides a shared telemetry base for renderers.
 15. `client_tests/` plus `test_runner.py` implement the Brython test harness (register new tests in `client_tests/tests.py`).
 16. `turn_metrics.py` aggregates per-request metrics into per-turn summaries (chat footer under the final answer; `window.getMatHudLastTurnMetrics()` / `window.getMatHudTurnMetricsHistory()` return them as JSON strings for benchmarks).
+17. `json_safe.py` converts tool results to plain JSON data (`to_json_safe`, `is_json_plain`) before they are sent back to the model; a failed Brython `json.dumps` breaks later dumps of the same objects ("Circular reference detected").
 
 ---
 
