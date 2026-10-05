@@ -888,7 +888,7 @@ class TestRoutesForwardMetrics(unittest.TestCase):
                 "metrics": {"model": "chat-completions-test-model", "total_latency_s": 0.4},
             }
 
-        mock_stream.side_effect = lambda message: stream()
+        mock_stream.side_effect = lambda message, generation=None: stream()
         with patch.object(self.app.log_manager, "log_response_metrics") as log_metrics:
             events = self._post_stream({"user_message": None, "tool_call_results": "[]x"})
 
@@ -898,7 +898,7 @@ class TestRoutesForwardMetrics(unittest.TestCase):
 
     @patch.object(OpenAIChatCompletionsAPI, "create_chat_completion")
     def test_send_message_returns_provider_metrics(self, mock_chat: Mock) -> None:
-        def complete(message: str) -> Any:
+        def complete(message: str, generation: Optional[int] = None) -> Any:
             self.app.ai_api.last_response_metrics = {"model": "chat-completions-test-model", "total_latency_s": 1.0}
             return SimpleNamespace(message=SimpleNamespace(content="ok", tool_calls=None), finish_reason="stop")
 

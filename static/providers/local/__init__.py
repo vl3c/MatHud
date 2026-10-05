@@ -345,25 +345,32 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
             self.messages = [{"role": "system", "content": self._build_system_prompt()}]
         self._last_canvas_state = None
 
-    def create_chat_completion(self, full_prompt: str) -> Any:
+    def _add_prompt_to_history(self, full_prompt: str) -> None:
+        """Add the prompt to the history: the user message, or the tool results it answers."""
+        user_message = self._parse_and_prepare_message(full_prompt)
+        if user_message is not None:
+            self.messages.append(user_message)
+
+    def create_chat_completion(self, full_prompt: str, generation: Optional[int] = None) -> Any:
         """Create a chat completion using the local LLM.
 
         Args:
             full_prompt: The prompt JSON string
+            generation: The generation the route claimed for the request (see ``_start_request``)
 
         Returns:
             Response choice object compatible with OpenAI format
         """
-        generation = self.conversation_generation
-        user_message = self._parse_and_prepare_message(full_prompt)
-        if user_message is not None:
-            self.messages.append(user_message)
+        claimed = self._start_request(generation, lambda: self._add_prompt_to_history(full_prompt))
+        if claimed is None:
+            return self._create_error_response()
+        generation = claimed
         metrics = self._start_response_metrics("chat_completions", streamed=False)
 
         try:
             response = self.client.chat.completions.create(
                 model=self.model.id,
-                messages=self.messages,
+                messages=self._messages_for_request(),
                 tools=list(self.tools) if self.tools else None,
                 **self._completion_options(),
             )
@@ -387,22 +394,31 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         self._finish_response_metrics(metrics, processed.finish_reason, len(tool_calls))
         return processed
 
-    def create_chat_completion_stream(self, full_prompt: str) -> Iterator[StreamEvent]:
+    def create_chat_completion_stream(
+        self, full_prompt: str, generation: Optional[int] = None
+    ) -> Iterator[StreamEvent]:
         """Stream chat completion tokens from the local LLM.
+
+        The prompt joins the history right away, under ``generation`` (the one the
+        route claimed for the request; see ``_start_request``); the model is called
+        once the returned stream is iterated.
 
         Args:
             full_prompt: The prompt JSON string
+            generation: The generation the route claimed for the request
 
-        Yields:
+        Returns:
             Stream events with type 'token' or 'final'; the final event carries
             the request's ``metrics`` (see static/response_metrics.py), including
             llama-server ``timings`` when the server reports them.
         """
-        generation = self.conversation_generation
-        user_message = self._parse_and_prepare_message(full_prompt)
-        if user_message is not None:
-            self.messages.append(user_message)
+        claimed = self._start_request(generation, lambda: self._add_prompt_to_history(full_prompt))
+        if claimed is None:
+            return iter([self._abandoned_final_event()])
+        return self._stream_chat_completion(claimed)
 
+    def _stream_chat_completion(self, generation: int) -> Iterator[StreamEvent]:
+        """Stream the reply to the prepared history (see ``create_chat_completion_stream``)."""
         accumulated_text = ""
         tool_calls: List[Dict[str, Any]] = []
         tool_call_deltas: Dict[int, Dict[str, Any]] = {}
@@ -415,7 +431,7 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
                 self.client.chat.completions.create,
                 self._stream_usage_supported,
                 model=self.model.id,
-                messages=self.messages,
+                messages=self._messages_for_request(),
                 tools=list(self.tools) if self.tools else None,
                 **self._completion_options(),
                 stream=True,

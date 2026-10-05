@@ -253,8 +253,9 @@ class AnthropicAPI(OpenAIAPIBase):
         swaps tools), so replaying them after such edits would be rejected.
 
         Assistant messages with no text and no tool calls (a thinking-only reply, for
-        instance) are skipped: the API rejects empty assistant content, and it merges
-        the consecutive user messages this leaves.
+        instance) are skipped: the API rejects empty assistant content. Consecutive
+        user messages (this leaves, or a turn stopped before any text left) are sent
+        as one turn.
         """
         anthropic_messages: List[Dict[str, Any]] = []
 
@@ -267,13 +268,11 @@ class AnthropicAPI(OpenAIAPIBase):
                 continue
 
             elif role == "user":
-                # Convert user message
+                # Convert user message (multi-modal content holds images)
                 if isinstance(content, str):
-                    anthropic_messages.append({"role": "user", "content": content})
+                    self._append_user_turn(anthropic_messages, content)
                 elif isinstance(content, list):
-                    # Handle multi-modal content (images)
-                    anthropic_content = self._convert_content_blocks(content)
-                    anthropic_messages.append({"role": "user", "content": anthropic_content})
+                    self._append_user_turn(anthropic_messages, self._convert_content_blocks(content))
 
             elif role == "assistant":
                 # Convert assistant message
@@ -324,6 +323,24 @@ class AnthropicAPI(OpenAIAPIBase):
                     anthropic_messages.append({"role": "user", "content": [tool_result]})
 
         return anthropic_messages
+
+    @staticmethod
+    def _append_user_turn(anthropic_messages: List[Dict[str, Any]], content: Any) -> None:
+        """Append a user turn, merged into the previous one when that is a user turn too.
+
+        User and assistant turns must alternate. A turn stopped before any text (or a
+        skipped empty reply) leaves its user message without an answer, so the next
+        one follows it directly; both are sent as one turn, the history keeps both.
+        """
+        previous = anthropic_messages[-1] if anthropic_messages else None
+        if previous is None or previous.get("role") != "user":
+            anthropic_messages.append({"role": "user", "content": content})
+            return
+
+        def blocks(value: Any) -> List[Dict[str, Any]]:
+            return [{"type": "text", "text": value}] if isinstance(value, str) else list(value)
+
+        previous["content"] = blocks(previous.get("content", [])) + blocks(content)
 
     def _convert_content_blocks(self, content: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Convert OpenAI content blocks to Anthropic format."""
@@ -409,12 +426,21 @@ class AnthropicAPI(OpenAIAPIBase):
         max_tokens = max(self.max_tokens, _STREAM_MAX_TOKENS) if streaming else self.max_tokens
         return min(max_tokens, _MODEL_MAX_OUTPUT_TOKENS.get(self.model.id, max_tokens))
 
-    def create_chat_completion(self, full_prompt: str) -> Any:
-        """Create chat completion with Anthropic API."""
-        generation = self.conversation_generation
+    def _add_prompt_to_history(self, full_prompt: str) -> None:
+        """Add the prompt to the history: the user message, or the tool results it answers."""
         user_message = self._parse_and_prepare_message(full_prompt)
         if user_message is not None:
             self.messages.append(user_message)
+
+    def create_chat_completion(self, full_prompt: str, generation: Optional[int] = None) -> Any:
+        """Create chat completion with Anthropic API.
+
+        ``generation`` is the one the route claimed for the request (see ``_start_request``).
+        """
+        claimed = self._start_request(generation, lambda: self._add_prompt_to_history(full_prompt))
+        if claimed is None:
+            return self._create_error_response()
+        generation = claimed
         metrics = self._start_response_metrics("anthropic_messages", streamed=False)
 
         try:
@@ -510,16 +536,23 @@ class AnthropicAPI(OpenAIAPIBase):
             finish_reason=outcome.finish_reason,
         )
 
-    def create_chat_completion_stream(self, full_prompt: str) -> Iterator[StreamEvent]:
+    def create_chat_completion_stream(
+        self, full_prompt: str, generation: Optional[int] = None
+    ) -> Iterator[StreamEvent]:
         """Stream chat completion tokens with Anthropic API.
 
-        The final event carries the request's ``metrics`` (see static/response_metrics.py).
+        The prompt joins the history right away, under ``generation`` (the one the
+        route claimed for the request; see ``_start_request``); the model is called
+        once the returned stream is iterated. The final event carries the request's
+        ``metrics`` (see static/response_metrics.py).
         """
-        generation = self.conversation_generation
-        user_message = self._parse_and_prepare_message(full_prompt)
-        if user_message is not None:
-            self.messages.append(user_message)
+        claimed = self._start_request(generation, lambda: self._add_prompt_to_history(full_prompt))
+        if claimed is None:
+            return iter([self._abandoned_final_event()])
+        return self._stream_chat_completion(claimed)
 
+    def _stream_chat_completion(self, generation: int) -> Iterator[StreamEvent]:
+        """Stream the reply to the prepared history (see ``create_chat_completion_stream``)."""
         accumulated_text = ""
         tool_calls: List[Dict[str, Any]] = []
         current_tool: Optional[Dict[str, Any]] = None
