@@ -102,6 +102,15 @@ class ChatUIManager:
         """Set the continuation separator flag."""
         self._needs_continuation_separator = value
 
+    def unsaved_reply_text(self) -> str:
+        """The reply text streamed since the last final event: what a stop or timeout saves.
+
+        After a tool batch the buffer still holds the previous request's text until
+        the next request's first token replaces it. The server already keeps that
+        text with its tool calls, so it is not sent again.
+        """
+        return "" if self._needs_continuation_separator else self._stream_buffer
+
     @property
     def request_start_time(self) -> Optional[float]:
         """Return the timestamp when the current request started."""

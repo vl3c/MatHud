@@ -145,16 +145,21 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
 
         return assistant_message
 
-    def create_chat_completion(self, full_prompt: str) -> Any:
-        """Create chat completion with OpenAI API."""
-        generation = self.conversation_generation
-        self._prepare_messages_for_request(full_prompt)
+    def create_chat_completion(self, full_prompt: str, generation: Optional[int] = None) -> Any:
+        """Create chat completion with OpenAI API.
+
+        ``generation`` is the one the route claimed for the request (see ``_start_request``).
+        """
+        claimed = self._start_request(generation, lambda: self._prepare_messages_for_request(full_prompt))
+        if claimed is None:
+            return self._create_error_response()
+        generation = claimed
         metrics = self._start_response_metrics("chat_completions", streamed=False)
 
         try:
             response = self.client.chat.completions.create(
                 model=self.model.id,
-                messages=self.messages,
+                messages=self._messages_for_request(),
                 tools=self.tools,
                 max_tokens=self.max_tokens,
             )
@@ -182,14 +187,23 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
 
         return choice
 
-    def create_chat_completion_stream(self, full_prompt: str) -> Iterator[StreamEvent]:
+    def create_chat_completion_stream(
+        self, full_prompt: str, generation: Optional[int] = None
+    ) -> Iterator[StreamEvent]:
         """Stream chat completion tokens with OpenAI API.
 
-        The final event carries the request's ``metrics`` (see static/response_metrics.py).
+        The prompt joins the history right away, under ``generation`` (the one the
+        route claimed for the request; see ``_start_request``); the model is called
+        once the returned stream is iterated. The final event carries the request's
+        ``metrics`` (see static/response_metrics.py).
         """
-        generation = self.conversation_generation
-        self._prepare_messages_for_request(full_prompt)
+        claimed = self._start_request(generation, lambda: self._prepare_messages_for_request(full_prompt))
+        if claimed is None:
+            return iter([self._abandoned_final_event()])
+        return self._stream_chat_completion(claimed)
 
+    def _stream_chat_completion(self, generation: int) -> Iterator[StreamEvent]:
+        """Stream the reply to the prepared history (see ``create_chat_completion_stream``)."""
         accumulated_text = ""
         tool_calls_accumulator: Dict[int, Dict[str, Any]] = {}
         reasoning_details: List[Dict[str, Any]] = []
@@ -204,7 +218,7 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
                 self.client.chat.completions.create,
                 self._stream_usage_supported,
                 model=self.model.id,
-                messages=self.messages,
+                messages=self._messages_for_request(),
                 tools=self.tools,
                 max_tokens=self.max_tokens,
                 stream=True,

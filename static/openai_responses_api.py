@@ -258,13 +258,21 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         content = "Function results: " + " | ".join(tool_results)
         return {"role": "user", "content": content}
 
-    def create_response_stream(self, full_prompt: str) -> Iterator[StreamEvent]:
+    def create_response_stream(self, full_prompt: str, generation: Optional[int] = None) -> Iterator[StreamEvent]:
         """Stream response using the Responses API with reasoning support.
 
-        The final event carries the request's ``metrics`` (see static/response_metrics.py).
+        The prompt joins the history right away, under ``generation`` (the one the
+        route claimed for the request; see ``_start_request``); the model is called
+        once the returned stream is iterated. The final event carries the request's
+        ``metrics`` (see static/response_metrics.py).
         """
-        generation = self.conversation_generation
-        self._prepare_messages_for_stream(full_prompt)
+        claimed = self._start_request(generation, lambda: self._prepare_messages_for_stream(full_prompt))
+        if claimed is None:
+            return iter([self._abandoned_final_event()])
+        return self._stream_response(claimed)
+
+    def _stream_response(self, generation: int) -> Iterator[StreamEvent]:
+        """Stream the reply to the prepared history (see ``create_response_stream``)."""
         state = self._create_stream_state()
         state["generation"] = generation
 
@@ -385,7 +393,7 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         """Process all events from the stream."""
         for event in stream:
             if self._drop_abandoned_reply(state.get("generation", self.conversation_generation)):
-                return  # the stream is closed by create_response_stream
+                return  # the stream is closed by _stream_response
             event_type = getattr(event, "type", None)
             self._log(f"[Responses API] Event type: {event_type}")
 

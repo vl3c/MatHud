@@ -103,10 +103,13 @@ def planned_requests(scenarios: list[Scenario], models: int, repeats: int, optio
 class RequestBudget:
     """The running total of model requests a run has sent, against an optional hard cap.
 
-    A request still in flight counts as sent, so a turn is stopped (and the
-    request aborted) as soon as the total would reach the cap: the client sends
-    the next request the moment a tool batch finishes, so waiting longer could
-    exceed it.
+    The cap is hard because the client enforces it: each turn is sent with a
+    request limit no larger than what the cap leaves (``room``), and the client
+    ends the turn instead of sending a request beyond it. A turn that ends
+    unfinished (stopped, timed out, failed) counts one request more than it
+    completed, since its last request may still be running in the server.
+    ``reached`` is only the harness's polling backstop for a client that does
+    not stop at its limit.
     """
 
     def __init__(self, cap: Optional[int] = None) -> None:

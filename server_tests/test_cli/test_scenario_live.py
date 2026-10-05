@@ -1126,3 +1126,56 @@ class TestUndoReproduction:
         summary["steps"] = retraced
         apply_batch_verdicts(live, summary)
         assert live[0]["results"][0]["status"] == "fail"
+
+
+# ----------------------------------------------------------------------
+# Abandoned turns and --regrade's infra limit
+# ----------------------------------------------------------------------
+
+
+def test_abandoned_turn_is_an_app_failure(catalogue: Catalogue) -> None:
+    # The harness's tab is the only client of its server: nothing should abandon its turns.
+    steps = [{"step": "t1", "turn": {"outcome": "abandoned"}, "results": [{"status": "fail", "kind": "check"}]}]
+    annotate_steps(steps, "live")
+    assert steps[0]["results"][0]["class"] == "app"
+    passing = ScenarioOutcome(geo90(catalogue)[0], model="m")
+    passing.steps = [{"step": "t1", "turn": {"outcome": "abandoned"}, "results": [{"status": "pass", "kind": "check"}]}]
+    assert passing.classes() == {"app"} and passing.app_failure()
+
+
+class TestRegradeInfraLimit:
+    """--regrade honours an explicit --max-infra-rate and never reports a failing run in green."""
+
+    def half_infra_results(self, catalogue: Catalogue, tmp_path: Path) -> Path:
+        browser = FakeChatBrowser(script={PROMPT: [[create(5, 5)]]})
+        runner, sink = live_runner(catalogue, browser, tmp_path / "out")
+        runner.run_live(geo90(catalogue), ["m"], 2)
+        sink.close(catalogue)
+        results = tmp_path / "out" / "results.json"
+        data = json.loads(results.read_text(encoding="utf-8"))
+        turn = next(step for step in data["scenarios"][1]["steps"] if step["step"] == "t1")
+        turn["turn"]["outcome"] = "timeout"  # one of the two runs timed out
+        results.write_text(json.dumps(data), encoding="utf-8")
+        return results
+
+    def test_regrade_takes_the_given_limit(self, catalogue: Catalogue, tmp_path: Path) -> None:
+        results = self.half_infra_results(catalogue, tmp_path)
+        summary, _ = regrade(results, catalogue)
+        assert summary["infra_rate"] == 0.5 and summary["exit_code"] == 0  # the stored limit is 0.5
+        summary, target = regrade(results, catalogue, max_infra_rate=0.4)
+        assert summary["infra_rate_exceeded"] == 0.4 and summary["exit_code"] == 1
+        assert json.loads(target.read_text(encoding="utf-8"))["config"]["max_infra_rate"] == 0.4
+
+    def test_command_passes_an_explicit_limit_and_reports_the_failure(
+        self, catalogue: Catalogue, tmp_path: Path
+    ) -> None:
+        results = self.half_infra_results(catalogue, tmp_path)
+        base = ["test", "scenarios", "--regrade", str(results), "--scenarios-dir", str(tmp_path / "scenarios")]
+        passing = CliRunner().invoke(cli, base)
+        assert passing.exit_code == 0, passing.output
+        assert "No unexpected failures." in passing.output
+        failing = CliRunner().invoke(cli, [*base, "--max-infra-rate", "0.4"])
+        assert failing.exit_code == 1, failing.output
+        assert "Too many infrastructure failures" in failing.output
+        assert "No unexpected failures." not in failing.output
+        assert "the run fails" in failing.output

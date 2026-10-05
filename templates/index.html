@@ -407,7 +407,11 @@ Dependencies:
             });
 
             if (!resp.ok || !resp.body) {
-                onError('Network error');
+                // The status tells a route's 4xx/5xx (an app error) from a network failure.
+                onError({
+                    message: resp.ok ? 'Empty response body' : `HTTP ${resp.status} from /send_message_stream`,
+                    status: resp.status
+                });
                 return;
             }
 

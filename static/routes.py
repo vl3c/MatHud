@@ -481,18 +481,44 @@ def _api_instances(app: MatHudFlask) -> List[OpenAIAPIBase]:
     return apis
 
 
-def _begin_turn_if_new(
-    app: MatHudFlask, request_api: OpenAIAPIBase, provider: OpenAIAPIBase, tool_call_results: Any
-) -> None:
-    """A request with a new user message (not tool results) starts a new turn.
+def _abandoned_stream_response() -> Response:
+    """The stream answering tool results of a turn that already ended: only an abandoned final event."""
+    return Response(json.dumps(ABANDONED_FINAL_EVENT) + "\n", mimetype="application/x-ndjson")
 
-    Whatever an earlier turn still runs is abandoned, and tools its ``search_tools``
-    calls loaded are unloaded everywhere, so the turn starts from the default tools.
+
+def _claim_generation(
+    app: MatHudFlask,
+    request_api: OpenAIAPIBase,
+    provider: OpenAIAPIBase,
+    tool_call_results: Any,
+    request_turn: Any,
+) -> Optional[int]:
+    """The conversation generation a request runs under, or None when its turn already ended.
+
+    A request with a new user message starts a new turn: whatever an earlier turn
+    still runs is abandoned, and tools its ``search_tools`` calls loaded are unloaded
+    everywhere, so the turn starts from the default tools. A request with tool
+    results continues the turn ``request_turn`` (the client sends the turn it got
+    from the server); once a stop, a timeout or a new conversation has ended that
+    turn, the request is dropped. The provider is handed the generation claimed
+    here, so the route and the provider never disagree about it.
     """
     if isinstance(tool_call_results, str) and tool_call_results:
-        return
-    request_api.begin_turn()
+        turn = request_turn if isinstance(request_turn, str) and request_turn else None
+        return request_api.continue_turn(turn)
+    generation = request_api.begin_turn()
     reset_tools_for_all_providers(app, "new_turn", active_provider=provider)
+    return generation
+
+
+def _inject_searched_tools(app: MatHudFlask, provider: OpenAIAPIBase, tool_call_results: Any) -> None:
+    """Load the tools a ``search_tools`` call of the previous request found (see ``_maybe_inject_search_tools``)."""
+    if isinstance(tool_call_results, str) and tool_call_results:
+        _maybe_inject_search_tools(app.ai_api, tool_call_results)
+        _maybe_inject_search_tools(app.responses_api, tool_call_results)
+        # Also inject into the active provider if different
+        if provider not in (app.ai_api, app.responses_api):
+            _maybe_inject_search_tools(provider, tool_call_results)
 
 
 def register_routes(app: MatHudFlask) -> None:
@@ -826,6 +852,20 @@ def register_routes(app: MatHudFlask) -> None:
 
         # Get the provider for this model and update all relevant APIs
         provider = get_active_provider(app, ai_model)
+        model = provider.get_model()
+        stream_api = app.responses_api if model.provider == PROVIDER_OPENAI and model.is_reasoning_model else provider
+
+        # A new user message starts a new turn; a stop, a client timeout or a new conversation
+        # abandons the turn's request: from then on nothing more of it is streamed, logged
+        # or acted on, and the stream ends with an "abandoned" final event. Tool results of
+        # a turn that already ended get only that event.
+        tool_call_results_raw = message_json.get("tool_call_results")
+        claimed = _claim_generation(app, stream_api, provider, tool_call_results_raw, request_payload.get("turn"))
+        if claimed is None:
+            _logger.info("Dropped the tool results of a turn that was stopped or whose conversation was reset")
+            return _abandoned_stream_response()
+        generation: int = claimed
+        turn = stream_api.turn_token_of(generation)
 
         app.log_manager.log_user_message(message)
 
@@ -835,25 +875,10 @@ def register_routes(app: MatHudFlask) -> None:
             app.log_manager.log_action_trace(action_trace_raw)
 
         # Check for search_tools results and inject tools if found
-        tool_call_results_raw = message_json.get("tool_call_results")
-        if isinstance(tool_call_results_raw, str) and tool_call_results_raw:
-            _maybe_inject_search_tools(app.ai_api, tool_call_results_raw)
-            _maybe_inject_search_tools(app.responses_api, tool_call_results_raw)
-            # Also inject into the active provider if different
-            if provider not in (app.ai_api, app.responses_api):
-                _maybe_inject_search_tools(provider, tool_call_results_raw)
+        _inject_searched_tools(app, provider, tool_call_results_raw)
 
         # Store attached images in app context for API access
         app.current_attached_images = attached_images
-
-        model = provider.get_model()
-        stream_api = app.responses_api if model.provider == PROVIDER_OPENAI and model.is_reasoning_model else provider
-        # A new user message starts a new turn; a stop, a client timeout or a new conversation
-        # abandons the turn's request: from then on nothing more of it is streamed, logged
-        # or acted on, and the stream ends with an "abandoned" final event.
-        _begin_turn_if_new(app, stream_api, provider, tool_call_results_raw)
-        generation = stream_api.conversation_generation
-        turn = stream_api.turn_token
 
         @stream_with_context
         def generate() -> Iterator[str]:
@@ -866,11 +891,12 @@ def register_routes(app: MatHudFlask) -> None:
             in_flight.enter()
             stream: Any = None
             try:
-                # Route to appropriate API based on model and provider (the generator starts below)
+                # Route to appropriate API based on model and provider. The prompt joins the
+                # history now, before the turn event; the model is called when the stream is read.
                 if stream_api is app.responses_api:
-                    stream = app.responses_api.create_response_stream(message)
+                    stream = app.responses_api.create_response_stream(message, generation=generation)
                 else:
-                    stream = provider.create_chat_completion_stream(message)
+                    stream = provider.create_chat_completion_stream(message, generation=generation)
                 # The client sends the turn back with a stop, so the stop only abandons this turn.
                 yield json.dumps({"type": "turn", "turn": turn}) + "\n"
 
@@ -1181,6 +1207,15 @@ def register_routes(app: MatHudFlask) -> None:
 
         # Get the provider for this model and update all relevant APIs
         provider = get_active_provider(app, ai_model)
+        model = provider.get_model()
+        request_api = app.responses_api if model.provider == PROVIDER_OPENAI and model.is_reasoning_model else provider
+        tool_call_results_raw = message_json_raw.get("tool_call_results")
+        claimed = _claim_generation(app, request_api, provider, tool_call_results_raw, request_payload.get("turn"))
+        if claimed is None:
+            _logger.info("Dropped the tool results of a turn that was stopped or whose conversation was reset")
+            return _abandoned_reply_response()
+        generation: int = claimed
+        turn = request_api.turn_token_of(generation)
 
         app.log_manager.log_user_message(message)
 
@@ -1190,27 +1225,15 @@ def register_routes(app: MatHudFlask) -> None:
             app.log_manager.log_action_trace(action_trace_raw_legacy)
 
         # Check for search_tools results and inject tools if found
-        tool_call_results_raw = message_json_raw.get("tool_call_results")
-        if isinstance(tool_call_results_raw, str) and tool_call_results_raw:
-            _maybe_inject_search_tools(app.ai_api, tool_call_results_raw)
-            _maybe_inject_search_tools(app.responses_api, tool_call_results_raw)
-            # Also inject into the active provider if different
-            if provider not in (app.ai_api, app.responses_api):
-                _maybe_inject_search_tools(provider, tool_call_results_raw)
+        _inject_searched_tools(app, provider, tool_call_results_raw)
 
         # Store attached images in app context for API access
         app.current_attached_images = attached_images
-
-        model = provider.get_model()
-        request_api = app.responses_api if model.provider == PROVIDER_OPENAI and model.is_reasoning_model else provider
-        _begin_turn_if_new(app, request_api, provider, tool_call_results_raw)
-        generation = request_api.conversation_generation
-        turn = request_api.turn_token
         in_flight.enter()
         try:
             # Route to appropriate API based on model and provider
             if request_api is app.responses_api:
-                stream = app.responses_api.create_response_stream(message)
+                stream = app.responses_api.create_response_stream(message, generation=generation)
                 final_event: Optional[StreamEventDict] = None
                 for event in stream:
                     if isinstance(event, dict) and event.get("type") == "final":
@@ -1261,7 +1284,7 @@ def register_routes(app: MatHudFlask) -> None:
             # history, so it is only reliable while one request per provider runs at a time (the
             # single-user workbench case). The streaming path carries metrics on its final event.
             provider.last_response_metrics = None
-            choice = provider.create_chat_completion(message)
+            choice = provider.create_chat_completion(message, generation=generation)
             if request_api.is_abandoned(generation):
                 return _abandoned_reply_response()
             ai_message, ai_tool_calls_processed = _process_ai_response(app, choice)

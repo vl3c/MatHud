@@ -342,7 +342,9 @@ class TestEmptyAssistantTurns(_AnthropicTransportTest):
         list(api.create_chat_completion_stream("Second"))
 
         sent = self.request_bodies[1]["messages"]
-        self.assertEqual([message["role"] for message in sent], ["user", "user"])
+        # The unanswered first message and the second one go as one user turn.
+        self.assertEqual([message["role"] for message in sent], ["user"])
+        self.assertEqual([block["text"] for block in sent[0]["content"]], ["First", "Second"])
 
     def test_empty_assistant_message_in_history_is_skipped(self) -> None:
         api = self._make_api()
@@ -354,7 +356,7 @@ class TestEmptyAssistantTurns(_AnthropicTransportTest):
 
         converted = api._convert_messages_to_anthropic()
 
-        self.assertEqual([message["role"] for message in converted], ["user", "user"])
+        self.assertEqual([message["role"] for message in converted], ["user"])
 
     def test_non_streaming_empty_reply_is_not_stored(self) -> None:
         api = self._make_api()

@@ -17,7 +17,7 @@ import uuid
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from types import SimpleNamespace
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 
 import httpx2
 from openai import APITimeoutError, OpenAI
@@ -42,6 +42,9 @@ StreamEvent = Dict[str, Any]
 ToolMode = Literal["full", "search"]
 
 TOOL_RESULT_PLACEHOLDER = "Awaiting result..."
+# Replaces the placeholders a turn leaves when it ends before its tool results were sent
+# (stopped, timed out, or ended at its request limit), so no call is left waiting.
+TOOL_RESULT_NOT_RETURNED = "No result: the turn ended before this result was returned."
 
 # Finish reasons whose tool calls the client runs (see AIInterface._should_run_tools).
 # Tool calls of any other ending (e.g. partial calls of a "length" reply) are not
@@ -51,6 +54,22 @@ TOOL_CALL_FINISH_REASONS = frozenset({"tool_calls", "function_call"})
 PROVIDER_TIMEOUT_MESSAGE = (
     "The AI provider timed out before responding. Please try again or switch to a different model."
 )
+
+
+def _is_plain_user_message(message: MessageDict) -> bool:
+    """A user message with text or content parts (not a tool result)."""
+    return message.get("role") == "user" and isinstance(message.get("content"), (str, list))
+
+
+def _join_user_contents(first: MessageContent, second: MessageContent) -> MessageContent:
+    """The content of two consecutive user messages as one message."""
+    if isinstance(first, str) and isinstance(second, str):
+        return f"{first}\n\n{second}"
+
+    def parts(content: MessageContent) -> List[Dict[str, Any]]:
+        return [{"type": "text", "text": content}] if isinstance(content, str) else list(content)
+
+    return parts(first) + parts(second)
 
 
 def stream_error_user_message(exc: BaseException, default: str) -> str:
@@ -167,6 +186,9 @@ class OpenAIAPIBase:
     # dropped: it never reaches the history, runs no tool calls and streams nothing
     # (see ``abandon_requests_in_flight``).
     _conversation_generation: int = 0
+    # True once the current generation was ended by a stop, a timeout or a reset and no
+    # new user turn has started since: tool results sent without a turn id are dropped then.
+    _turn_ended: bool = False
     # Guards "is this reply still current?" plus the history update that follows, against a
     # stop or reset landing in between. One lock for every provider: requests are rare and short.
     _history_lock = threading.RLock()
@@ -349,12 +371,14 @@ class OpenAIAPIBase:
         self.last_response_metrics = metrics
         return metrics
 
-    def create_chat_completion(self, full_prompt: str) -> Any:
-        """Create a chat completion. Implemented by subclasses."""
+    def create_chat_completion(self, full_prompt: str, generation: Optional[int] = None) -> Any:
+        """Create a chat completion under ``generation`` (see ``_start_request``). Implemented by subclasses."""
         raise NotImplementedError
 
-    def create_chat_completion_stream(self, full_prompt: str) -> Iterator[StreamEvent]:
-        """Stream a chat completion. Implemented by subclasses."""
+    def create_chat_completion_stream(
+        self, full_prompt: str, generation: Optional[int] = None
+    ) -> Iterator[StreamEvent]:
+        """Stream a chat completion under ``generation`` (see ``_start_request``). Implemented by subclasses."""
         raise NotImplementedError
 
     @property
@@ -368,12 +392,18 @@ class OpenAIAPIBase:
 
         The client gets it with every reply and sends it back when it stops or
         times out the turn, so a stop that arrives after the next turn started
-        cannot abandon that next turn (see ``abandon_turn``).
+        cannot abandon that next turn (see ``abandon_turn``). It also sends it with
+        the turn's tool results, which are dropped once the turn is no longer
+        current (see ``continue_turn``).
         """
+        return self.turn_token_of(self._conversation_generation)
+
+    def turn_token_of(self, generation: int) -> str:
+        """The turn token of ``generation`` on this provider."""
         instance_id = self.__dict__.get("_instance_id")
         if instance_id is None:
             instance_id = self.__dict__.setdefault("_instance_id", uuid.uuid4().hex[:12])
-        return f"{instance_id}:{self._conversation_generation}"
+        return f"{instance_id}:{generation}"
 
     def abandon_requests_in_flight(self) -> None:
         """Drop the late replies of every request started so far (conversation reset, new turn, stop).
@@ -385,12 +415,48 @@ class OpenAIAPIBase:
         """
         with self._history_lock:
             self._conversation_generation += 1
+            self._turn_ended = True
+            self._close_unanswered_tool_calls()
             if getattr(self, "_injected_tools", False):
                 self.reset_tools()
 
-    def begin_turn(self) -> None:
-        """A new user message starts a new turn: whatever is still running for an earlier one is abandoned."""
-        self.abandon_requests_in_flight()
+    def _close_unanswered_tool_calls(self) -> None:
+        """Answer the tool calls still awaiting a result: the turn that made them has ended.
+
+        Their results never reach the model (the follow-up request is dropped, or was
+        never sent because the turn hit its request limit), so no call is left with
+        the "Awaiting result..." placeholder.
+        """
+        if not getattr(self, "messages", None):
+            return  # e.g. a reset while the instance is being built
+        for message in self._get_pending_tool_messages():
+            if message.get("content") == TOOL_RESULT_PLACEHOLDER:
+                message["content"] = TOOL_RESULT_NOT_RETURNED
+
+    def begin_turn(self) -> int:
+        """A new user message starts a new turn: whatever is still running for an earlier one is abandoned.
+
+        Returns the new turn's generation, which the request runs under.
+        """
+        with self._history_lock:
+            self.abandon_requests_in_flight()
+            self._turn_ended = False
+            return self._conversation_generation
+
+    def continue_turn(self, turn_token: Optional[str]) -> Optional[int]:
+        """The generation a tool-results request of turn ``turn_token`` runs under; None when that turn ended.
+
+        The client sends the turn it got from the server with every tool-results
+        request. A stop, a timeout, a new turn or a new conversation processed
+        before that request arrived has ended the turn: the request is dropped,
+        so the stopped turn's next reply never lands after the partial message.
+        A request without a turn (an older client) continues the current turn
+        unless that turn was stopped or the conversation reset since.
+        """
+        with self._history_lock:
+            if turn_token is None:
+                return None if self._turn_ended else self._conversation_generation
+            return self._conversation_generation if turn_token == self.turn_token else None
 
     def abandon_turn(self, turn_token: str, partial_message: str) -> bool:
         """Abandon the turn ``turn_token`` (stop or client timeout), keeping its partial text.
@@ -404,6 +470,41 @@ class OpenAIAPIBase:
                 return False
             self.add_partial_assistant_message(partial_message)
             return True
+
+    def _start_request(self, generation: Optional[int], prepare: Callable[[], None]) -> Optional[int]:
+        """Run ``prepare`` (add the prompt to the history) for a request of ``generation``.
+
+        ``generation`` is the one the route claimed for the request (None: the
+        current one), so the route and the provider agree on it even when a stop
+        lands between them. Returns it, or None, without preparing anything, when
+        that generation was abandoned already. Providers call this eagerly, before
+        their stream is iterated, so a stop that follows the route's turn event
+        always finds the prompt in the history.
+        """
+        with self._history_lock:
+            if generation is None:
+                generation = self._conversation_generation
+            if self._drop_abandoned_reply(generation):
+                return None
+            prepare()
+            return generation
+
+    def _messages_for_request(self, messages: Optional[Sequence[MessageDict]] = None) -> List[MessageDict]:
+        """The history as sent to the model: consecutive user messages are merged into one.
+
+        A turn stopped before any text leaves its user message without a reply, so
+        the next one follows it directly. Several chat templates (Gemma, Mistral)
+        and APIs require user and assistant turns to alternate; the history itself
+        keeps both messages as they were sent.
+        """
+        merged: List[MessageDict] = []
+        for message in self.messages if messages is None else messages:
+            previous = merged[-1] if merged else None
+            if previous is not None and _is_plain_user_message(previous) and _is_plain_user_message(message):
+                merged[-1] = {**previous, "content": _join_user_contents(previous["content"], message["content"])}
+            else:
+                merged.append(message)
+        return merged
 
     @contextmanager
     def _reply_guard(self, generation: int) -> Iterator[bool]:
