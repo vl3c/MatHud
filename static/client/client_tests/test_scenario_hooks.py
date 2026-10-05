@@ -271,6 +271,19 @@ class TestScenarioHookEndpoints(unittest.TestCase):
         self.ai.is_processing = True
         self.assertEqual(json.loads(self.hooks.send_message("hello")), {"status": "busy"})
 
+    def test_send_message_passes_the_turn_limits(self) -> None:
+        sent: List[Any] = []
+        ai_class = type(self.ai)
+        original = ai_class.send_user_message
+        ai_class.send_user_message = lambda _self, *args: sent.append(args)
+        try:
+            options = json.dumps({"max_requests": 3, "response_timeout_ms": 330000})
+            self.assertEqual(json.loads(self.hooks.send_message("hello", None, options)), {"status": "started"})
+            self.assertEqual(json.loads(self.hooks.send_message("again")), {"status": "started"})
+        finally:
+            ai_class.send_user_message = original
+        self.assertEqual(sent, [("hello", 3, 330000), ("again", None, None)])
+
 
 class _Recorder:
     """Accepts any method call, recording (name, args)."""

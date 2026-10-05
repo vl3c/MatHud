@@ -302,6 +302,7 @@ from .test_turn_metrics import (
     TestMetricsFooterElement,
     TestTurnOutcomes,
     TestTurnBookkeeping,
+    TestTurnLifecycle,
 )
 from .test_numeric_solver import (
     TestNumericSolverHelpers,
@@ -727,6 +728,7 @@ class Tests:
             TestMetricsFooterElement,
             TestTurnOutcomes,
             TestTurnBookkeeping,
+            TestTurnLifecycle,
             TestNumericSolverHelpers,
             TestNumericSolverIntegration,
             TestNumericSolverFallback,

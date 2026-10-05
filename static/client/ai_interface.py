@@ -73,6 +73,16 @@ class AIInterface:
         _chat_ui (ChatUIManager): Manages chat message rendering and streaming display
     """
 
+    # The server's id of the running turn (its first stream event); sent back with a stop or
+    # client timeout so the server abandons that turn only, never the next one.
+    _server_turn: Optional[str] = None
+    # Per-turn request cap (None: no cap) and requests sent in the turn so far; the
+    # scenario harness sets the cap so a looping model cannot send more.
+    _turn_request_limit: Optional[int] = None
+    _turn_requests_sent: int = 0
+    # Per-turn response timeout overriding AI_RESPONSE_TIMEOUT_MS and REASONING_TIMEOUT_MS.
+    _turn_timeout_ms: Optional[int] = None
+
     def __init__(self, canvas: "Canvas") -> None:
         """Initialize the AI interface with canvas integration and function registry.
 
@@ -403,12 +413,16 @@ class AIInterface:
             # Log error details to console for debugging
             if finish_reason == "error":
                 console.error(f"[AI Error] {error_details or ai_message}")
+            if finish_reason == "abandoned":
+                self._end_abandoned_turn(turn_token)
+                return
 
             if not self._should_run_tools(finish_reason, ai_tool_calls):
                 if not self._chat_ui.stream_buffer and ai_message:
                     self._chat_ui.stream_buffer = ai_message
                 outcome = turn_outcome(finish_reason)
-                self._chat_ui.pending_turn_metrics = self._turn_metrics.finish_turn(outcome, turn_token)
+                error_source = (event.get("error_source") or "provider") if outcome == "error" else None
+                self._chat_ui.pending_turn_metrics = self._turn_metrics.finish_turn(outcome, turn_token, error_source)
                 self._finalize_stream_message(ai_message or None)
                 # Restore user message on error so they can retry
                 if finish_reason == "error":
@@ -451,12 +465,29 @@ class AIInterface:
                 )
             except Exception as e:
                 print(f"Error processing streamed tool calls: {e}")
-                self._turn_metrics.finish_turn("error", turn_token)
+                self._turn_metrics.finish_turn("error", turn_token, "client")
                 self._enable_send_controls()
         except Exception as e:
             print(f"Error handling stream final: {e}")
-            self._turn_metrics.finish_turn("error", turn_token)
+            self._turn_metrics.finish_turn("error", turn_token, "client")
             self._enable_send_controls()
+
+    def _end_abandoned_turn(self, turn_token: Optional[int]) -> None:
+        """End a turn whose reply the server dropped (stopped elsewhere, conversation reset) without a message."""
+        self._turn_metrics.finish_turn("abandoned", turn_token)
+        self._finalize_stream_message()
+        self._enable_send_controls()
+
+    def _on_stream_turn(self, event_obj: Any, turn_token: Optional[int] = None) -> None:
+        """Remember the server's id of the running turn (sent back with a stop or timeout)."""
+        if self._is_stale_response(turn_token, "turn event"):
+            return
+        try:
+            turn = self._normalize_stream_event(event_obj).get("turn")
+            if isinstance(turn, str) and turn:
+                self._server_turn = turn
+        except Exception as e:
+            print(f"Error reading the turn event: {e}")
 
     def execute_tool_batch(self, tool_calls: Any, turn_token: Optional[int] = None) -> Dict[str, Any]:
         """Run one batch of tool calls the way a model's batch runs.
@@ -543,7 +574,7 @@ class AIInterface:
             console.error("Streaming error", err)
         except Exception:
             pass
-        self._turn_metrics.finish_turn("error", turn_token)
+        self._turn_metrics.finish_turn("error", turn_token, "transport")
         self._restore_user_message_on_error()
         self._enable_send_controls()
 
@@ -620,6 +651,8 @@ class AIInterface:
                 "ai_tool_calls",
                 "finish_reason",
                 "error_details",
+                "error_source",
+                "turn",
                 "metrics",
                 "level",
                 "message",
@@ -703,6 +736,8 @@ class AIInterface:
             # Cancel any existing timeout first
             self._cancel_response_timeout()
             timeout_ms = REASONING_TIMEOUT_MS if use_reasoning_timeout else AI_RESPONSE_TIMEOUT_MS
+            if self._turn_timeout_ms is not None:
+                timeout_ms = self._turn_timeout_ms
             self._response_timeout_id = window.setTimeout(self._on_response_timeout, timeout_ms)
         except Exception as e:
             print(f"Error starting response timeout: {e}")
@@ -724,6 +759,9 @@ class AIInterface:
                 print("AI response timeout - aborting stream and re-enabling send controls")
                 self._turn_metrics.finish_turn("timeout")
                 self._abort_current_stream()
+                # The request goes on in the server: abandon it there, as a stop does, so
+                # its late reply never reaches the conversation.
+                self._save_partial_response(self._chat_ui.stream_buffer or "")
                 self._print_ai_message_in_chat(
                     "⚠️ Request timed out. The AI is taking too long to respond. Please try again."
                 )
@@ -757,7 +795,11 @@ class AIInterface:
     def _save_partial_response(self, partial_message: str) -> None:
         """Save interrupted partial response to the backend conversation history."""
         try:
-            payload = json.dumps({"partial_message": partial_message})
+            body: Dict[str, Any] = {"partial_message": partial_message}
+            if self._server_turn:
+                # Only this turn is abandoned, even if the next message is already on its way.
+                body["turn"] = self._server_turn
+            payload = json.dumps(body)
             ajax.post(
                 "/save_partial_response",
                 data=payload,
@@ -774,7 +816,9 @@ class AIInterface:
         self._debug_log_ai_response(ai_message, tool_calls, finish_reason)
 
         if not self._should_run_tools(finish_reason, tool_calls):
-            turn_metrics = self._turn_metrics.finish_turn(turn_outcome(finish_reason), turn_token)
+            outcome = turn_outcome(finish_reason)
+            error_source = "provider" if outcome == "error" else None
+            turn_metrics = self._turn_metrics.finish_turn(outcome, turn_token, error_source)
             self._chat_ui.print_ai_message(ai_message, turn_metrics=turn_metrics, record=True)
             self._enable_send_controls()
         else:
@@ -794,7 +838,7 @@ class AIInterface:
             except Exception as e:
                 print(f"Error processing tool calls: {e}")
                 traceback.print_exc()
-                self._turn_metrics.finish_turn("error", turn_token)
+                self._turn_metrics.finish_turn("error", turn_token, "client")
                 self._enable_send_controls()  # Enable controls if there's an error
 
     def _on_error(self, request: Any, turn_token: Optional[int] = None) -> None:
@@ -802,8 +846,19 @@ class AIInterface:
         if self._is_stale_response(turn_token, "request error"):
             return
         print(f"Error: {request.status}, {request.text}")
-        self._turn_metrics.finish_turn("error", turn_token)
+        self._turn_metrics.finish_turn("error", turn_token, self._error_source_of(request))
         self._enable_send_controls()
+
+    @staticmethod
+    def _error_source_of(request: Any) -> str:
+        """``server`` when the route reported an exception of its own, else ``transport``."""
+        try:
+            data = (request.json or {}).get("data") or {}
+            if isinstance(data, dict) and data.get("error_source") == "server":
+                return "server"
+        except Exception:
+            pass
+        return "transport"
 
     def _on_complete(self, request: Any, turn_token: Optional[int] = None) -> None:
         """Handle request completion and process AI response."""
@@ -824,6 +879,11 @@ class AIInterface:
                 ai_message = response_data.get("ai_message")
                 ai_function_calls = response_data.get("ai_tool_calls")
                 finish_reason = response_data.get("finish_reason")
+                if isinstance(response_data.get("turn"), str):
+                    self._server_turn = response_data.get("turn")
+                if finish_reason == "abandoned":
+                    self._end_abandoned_turn(turn_token)
+                    return
                 self._turn_metrics.record_request(response_data.get("metrics"), turn_token)
 
                 # Parse the AI's response and create / delete drawables as needed
@@ -833,7 +893,7 @@ class AIInterface:
         except Exception as e:
             print(f"Error processing AI response: {e}")
             traceback.print_exc()
-            self._turn_metrics.finish_turn("error", turn_token)
+            self._turn_metrics.finish_turn("error", turn_token, "client")
             self._enable_send_controls()
 
     def _create_request_payload(
@@ -880,6 +940,7 @@ class AIInterface:
                 lambda err: self._on_stream_error(err, turn_token),
                 self._on_stream_reasoning,
                 self._on_stream_log,
+                lambda event_obj: self._on_stream_turn(event_obj, turn_token),
             )
         except Exception as e:
             print(f"Falling back to non-streaming request due to error: {e}")
@@ -901,6 +962,10 @@ class AIInterface:
         canvas_state: Optional[Dict[str, Any]] = None,
         action_trace: Optional[Dict[str, Any]] = None,
     ) -> None:
+        if tool_call_results is not None and self._request_limit_reached():
+            self._end_turn_at_request_limit()
+            return
+        self._turn_requests_sent += 1
         if canvas_state is None:
             canvas_state = self.canvas.get_canvas_state()
 
@@ -935,6 +1000,20 @@ class AIInterface:
             return
         self._send_prompt_json(prompt_json, None, action_trace)
 
+    def _request_limit_reached(self) -> bool:
+        """True when the turn has sent as many requests as its cap allows."""
+        limit = self._turn_request_limit
+        return limit is not None and self._turn_requests_sent >= limit
+
+    def _end_turn_at_request_limit(self) -> None:
+        """End the turn instead of sending one more request than its cap allows."""
+        print(f"Request limit reached ({self._turn_request_limit} requests); ending the turn")
+        self._turn_metrics.finish_turn("max_requests")
+        self._cancel_response_timeout()
+        self._finalize_stream_message()
+        self._print_system_message_in_chat("Stopped: the turn reached its request limit.")
+        self._enable_send_controls()
+
     def _send_prompt_json_if_current(
         self,
         prompt_json: Dict[str, Any],
@@ -962,13 +1041,23 @@ class AIInterface:
             prompt_json["canvas_snapshot"] = canvas_snapshot
         self._send_request(json.dumps(prompt_json), action_trace=action_trace)
 
-    def send_user_message(self, message: str) -> None:
+    def send_user_message(
+        self,
+        message: str,
+        request_limit: Optional[int] = None,
+        response_timeout_ms: Optional[int] = None,
+    ) -> None:
         """Sends a message as if the user typed it.
 
         If the message is a slash command (starts with "/"), it is executed
         locally without sending to the AI backend.
 
         Allows sending with just attached images (empty message).
+
+        ``request_limit`` caps the model requests of this turn (the first one
+        included): the turn ends instead of sending more. ``response_timeout_ms``
+        replaces the client's response timeouts for this turn. Both are for the
+        scenario harness; the chat sends with neither.
         """
         has_text = bool(message.strip())
         has_images = len(self._image_attachment.images) > 0
@@ -998,6 +1087,10 @@ class AIInterface:
         self._image_attachment.clear()
 
         # Regular AI flow
+        self._turn_request_limit = request_limit
+        self._turn_requests_sent = 0
+        self._turn_timeout_ms = response_timeout_ms
+        self._server_turn = None
         self._send_token += 1
         self._disable_send_controls()
         self._send_prompt_to_ai(ai_message, attached_images=images_to_send)
@@ -1099,6 +1192,10 @@ class AIInterface:
 
     def start_new_conversation(self, event: Any) -> None:
         """Saves the current workspace, resets the canvas and chat, and starts a new backend session."""
+        # 0. Stop a turn still running, so its reply is not shown in the new chat
+        if self.is_processing:
+            self.stop_ai_processing()
+
         # 1. Save the current workspace (canvas and chat) automatically
         self.workspace_manager.save_workspace()
 
