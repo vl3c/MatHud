@@ -440,7 +440,11 @@ def mark_truncated(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 class RetraceRunner(ReplayRunner):
-    """Re-executes a live run's calls batch by batch, with no model."""
+    """Re-executes a live run's calls batch by batch, with no model.
+
+    A turn's batches run in one undo group, as the chat turn ran them, so the
+    retrace's undo stack moves as the live one did.
+    """
 
     mode = "retrace"
 
@@ -485,29 +489,9 @@ class RetraceRunner(ReplayRunner):
         live = self._source.get(step.id)
         if live is None:
             raise HookError(f"the live run has no record of step {step.id}")
-        batches: list[dict[str, Any]] = []
-        for calls in retrace_batches(live):
-            reply = self.session.hook("runMatHudToolCalls", json.dumps(calls))
-            snapshot = self.session.hook("getMatHudCanvasState", json.dumps({"inspect": True}))
-            batches.append(
-                {
-                    "calls": list(reply.get("traced") or []),
-                    "undo_before": reply.get("undo_depth_before"),
-                    "undo_after": reply.get("undo_depth_after"),
-                    "redo_before": reply.get("redo_depth_before"),
-                    "redo_after": reply.get("redo_depth_after"),
-                    "state": snapshot.get("state") or {},
-                    "inspection": snapshot.get("inspection"),
-                }
-            )
-        data = self._with_samples(grader, step, None)
-        inspection = data.inspection or {}
-        data.calls = [call for batch in batches for call in batch["calls"]]
-        data.undo_before = batches[0]["undo_before"] if batches else inspection.get("undo_depth")
-        data.redo_before = batches[0]["redo_before"] if batches else inspection.get("redo_depth")
-        data.undo_after, data.redo_after = inspection.get("undo_depth"), inspection.get("redo_depth")
+        batches = self._run_turn_batches(retrace_batches(live))
+        data = self._turn_data(grader, step, batches)
         data.final_text = live.get("final_text")
-        data.batches = batches if len(batches) > 1 else None
         extra = {
             "provider": live.get("provider"),
             "model": live.get("model"),

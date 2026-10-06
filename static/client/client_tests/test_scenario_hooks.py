@@ -6,6 +6,8 @@ import json
 import unittest
 from typing import Any, Dict, List
 
+from browser import document
+
 from canvas import Canvas
 from function_registry import FunctionRegistry
 from managers.action_trace_collector import ActionTraceCollector
@@ -355,3 +357,137 @@ class TestToolBatchTraceFailure(unittest.TestCase):
         self.assertEqual(self.ai._turn_metrics.last_turn()["outcome"], "stopped")
         self.assertEqual(messages, ["Generation stopped."])
         self.assertEqual(self.sent, [])
+
+
+class TestTurnUndoGroup(unittest.TestCase):
+    """One assistant reply is one undo step, over all its tool batches."""
+
+    def setUp(self) -> None:
+        self.canvas = Canvas(500, 500, draw_enabled=False)
+        self.ai = _make_ai(self.canvas)
+        self.hooks = ScenarioHooks(self.ai)
+
+    def _depth(self) -> int:
+        return len(self.canvas.undo_redo_manager.undo_stack)
+
+    def _chat_batch(self, *calls: Dict[str, Any]) -> None:
+        """Run a batch as a chat turn does (``is_processing`` is set while a turn runs)."""
+        self.ai.is_processing = True
+        self.ai.execute_tool_batch(list(calls), None)
+
+    def _end_turn(self) -> None:
+        self.ai._close_turn_undo_group()
+        self.ai.is_processing = False
+
+    def test_batches_of_one_turn_are_one_undo_step(self) -> None:
+        vertices = [{"x": 0, "y": 0}, {"x": 6, "y": 0}, {"x": 2, "y": 4}]
+        self._chat_batch(_call("create_polygon", vertices=vertices, polygon_type="triangle", name="ABC"))
+        self._chat_batch(_call("construct_circumcircle", triangle_name="ABC"))
+        self.assertEqual(self._depth(), 0)  # the group stays open until the turn ends
+        self._end_turn()
+        self.assertEqual(self._depth(), 1)
+
+        self.assertTrue(self.canvas.undo())
+        state = self.canvas.get_canvas_state()
+        self.assertEqual(state.get("Points", []), [])
+        self.assertEqual(state.get("Circles", []), [])
+
+    def test_a_turn_that_changed_nothing_adds_no_entry(self) -> None:
+        self._chat_batch(_call("delete_point", x=9, y=9))
+        self._chat_batch(_call("no_such_tool"))
+        self._end_turn()
+        self.assertEqual(self._depth(), 0)
+
+    def test_closing_twice_is_harmless(self) -> None:
+        self._chat_batch(_call("create_point", x=1, y=1, name="P"))
+        self._end_turn()
+        self._end_turn()
+        self.assertEqual(self._depth(), 1)
+
+    def test_undo_at_the_start_of_a_turn_reverts_the_previous_turn(self) -> None:
+        self._chat_batch(_call("create_point", x=1, y=1, name="P"))
+        self._end_turn()
+        self._chat_batch(_call("translate_object", name="P", x_offset=1, y_offset=0))
+        self._end_turn()
+        self._chat_batch(_call("undo"))
+        self._end_turn()
+        self.assertEqual(self.canvas.get_canvas_state()["Points"][0]["args"]["position"], {"x": 1, "y": 1})
+        self.assertEqual(self._depth(), 1)
+        self.assertEqual(len(self.canvas.undo_redo_manager.redo_stack), 1)
+
+    def test_undo_inside_a_turn_reverts_the_turns_changes_so_far(self) -> None:
+        self._chat_batch(_call("create_point", x=1, y=1, name="P"))
+        self._end_turn()
+        # "Make Q; undo; make R": the undo closes the group (Q) and reverts it; R is a new step.
+        self._chat_batch(_call("create_point", x=2, y=2, name="Q"))
+        self._chat_batch(_call("undo"))
+        self.assertEqual(_point_names(self.canvas.get_canvas_state()), ["P"])
+        self._chat_batch(_call("create_point", x=3, y=3, name="R"))
+        self._end_turn()
+        self.assertEqual(_point_names(self.canvas.get_canvas_state()), ["P", "R"])
+        self.assertEqual(self._depth(), 2)
+        self.assertEqual(self.canvas.undo_redo_manager.redo_stack, [])
+        self.canvas.undo()
+        self.assertEqual(_point_names(self.canvas.get_canvas_state()), ["P"])
+
+    def test_redo_inside_a_turn_acts_on_the_history_first(self) -> None:
+        self._chat_batch(_call("create_point", x=1, y=1, name="P"))
+        self._end_turn()
+        self.canvas.undo()
+        self._chat_batch(_call("redo"))
+        self._chat_batch(_call("create_point", x=2, y=2, name="Q"))
+        self._end_turn()
+        self.assertEqual(_point_names(self.canvas.get_canvas_state()), ["P", "Q"])
+        self.assertEqual(self._depth(), 2)
+
+    def test_a_group_left_open_is_closed_before_the_next_turn(self) -> None:
+        self._chat_batch(_call("create_point", x=1, y=1, name="P"))
+        self.ai.is_processing = False
+        self.assertTrue(self.ai._turn_undo_group_open)
+        self.ai._close_turn_undo_group()  # what send_user_message does before a new turn
+        self.assertEqual(self._depth(), 1)
+
+    def test_enable_send_controls_ends_the_turns_group(self) -> None:
+        button = document["send-button"] if "send-button" in document else None
+        saved = (button.disabled, button.text) if button is not None else None
+        self.ai._response_timeout_id = None
+        self._chat_batch(_call("create_point", x=1, y=1, name="P"))
+        try:
+            self.ai._enable_send_controls()
+        finally:
+            if button is not None and saved is not None:
+                button.disabled, button.text = saved
+                button.classList.remove("stop-mode")
+        self.assertFalse(self.ai._turn_undo_group_open)
+        self.assertFalse(self.ai.is_processing)
+        self.assertEqual(self._depth(), 1)
+
+    def test_hook_turn_option_runs_batches_in_one_group(self) -> None:
+        first = json.loads(
+            self.hooks.run_tool_calls(json.dumps([_call("create_point", x=1, y=1, name="P")]), '{"turn": "continue"}')
+        )
+        last = json.loads(
+            self.hooks.run_tool_calls(json.dumps([_call("create_point", x=2, y=2, name="Q")]), '{"turn": "end"}')
+        )
+        self.assertEqual((first["undo_depth_before"], first["undo_depth_after"]), (0, 0))
+        self.assertEqual((last["undo_depth_before"], last["undo_depth_after"]), (0, 1))
+        self.canvas.undo()
+        self.assertEqual(_point_names(self.canvas.get_canvas_state()), [])
+
+    def test_hook_without_option_closes_a_group_left_open(self) -> None:
+        self.hooks.run_tool_calls(json.dumps([_call("create_point", x=1, y=1, name="P")]), '{"turn": "continue"}')
+        reply = json.loads(self.hooks.run_tool_calls(json.dumps([_call("create_point", x=2, y=2, name="Q")])))
+        self.assertEqual((reply["undo_depth_before"], reply["undo_depth_after"]), (1, 2))
+        self.assertFalse(self.ai._turn_undo_group_open)
+
+    def test_hook_rejects_an_unknown_turn_option(self) -> None:
+        reply = json.loads(self.hooks.run_tool_calls(json.dumps([_call("zoom")]), '{"turn": "maybe"}'))
+        self.assertEqual(reply["status"], "error")
+
+    def test_reset_session_drops_an_open_group(self) -> None:
+        self.hooks.run_tool_calls(json.dumps([_call("create_point", x=1, y=1, name="P")]), '{"turn": "continue"}')
+        self.hooks.reset_session(json.dumps({"chat": False}))
+        self.assertFalse(self.ai._turn_undo_group_open)
+        self.assertEqual(self._depth(), 0)
+        self.hooks.run_tool_calls(json.dumps([_call("create_point", x=2, y=2, name="Q")]))
+        self.assertEqual(self._depth(), 1)

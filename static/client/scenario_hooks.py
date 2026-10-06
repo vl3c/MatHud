@@ -6,7 +6,7 @@ to it only through these ``window`` functions. Like ``getMatHudTestResults`` the
 take and return JSON strings:
 
     getMatHudCanvasState(optionsJson?)   canvas state, optionally with an inspection view
-    runMatHudToolCalls(callsJson)        run one tool batch exactly as a model batch runs
+    runMatHudToolCalls(callsJson, optionsJson?)  run one tool batch exactly as a model batch runs
     resetMatHudSession(optionsJson?)     clear canvas, undo history, traces, metrics and chat
     getMatHudTurnStatus()                whether a chat turn is running, and its progress
     sendMatHudMessage(text, modelId?, optionsJson?)  send a chat message as the user (live mode)
@@ -85,23 +85,41 @@ class ScenarioHooks:
         except Exception as exc:
             return to_json({"status": "error", "error": str(exc)})
 
-    def run_tool_calls(self, calls_json: Any) -> str:
+    def run_tool_calls(self, calls_json: Any, options_json: Any = None) -> str:
         """Run one batch through ``AIInterface.execute_tool_batch``, the model's batch path.
 
         Returns the traced calls, the state after the batch, the undo and redo
         depths before and after, and which calls are undoable. Refused with
         ``{"status": "busy"}`` while a chat turn runs, so scripted calls never
         mix into a user turn's canvas or metrics.
+
+        By default the batch is one undo step, as a one-batch reply is. Option
+        ``turn`` replays a reply of several batches as a chat turn runs it, in one
+        undo group: ``"continue"`` runs the batch in the turn's group (opening it)
+        and leaves the group open; ``"end"`` runs it in the group and then closes
+        it, adding one entry if the turn changed the canvas. A batch without the
+        option first closes a group a previous call left open.
         """
         try:
             calls = normalize_tool_calls(json.loads(str(calls_json)))
+            turn = parse_options(options_json).get("turn")
+            if turn not in (None, "continue", "end"):
+                raise ValueError(f"turn must be 'continue' or 'end', got {turn!r}")
         except Exception as exc:
             return to_json({"status": "error", "error": f"Invalid tool calls: {exc}"})
         if self.ai.is_processing or self.ai._turn_metrics.is_active:
             return to_json({"status": "busy", "error": "a chat turn is running"})
+        if turn is None:
+            self.ai._close_turn_undo_group()
         undo_before, redo_before = undo_depths(self.canvas)
+        if turn is not None:
+            self.ai._open_turn_undo_group()
         try:
-            batch = self.ai.execute_tool_batch(calls, None)
+            try:
+                batch = self.ai.execute_tool_batch(calls, None)
+            finally:
+                if turn == "end":
+                    self.ai._close_turn_undo_group()
         except Exception as exc:
             undo_after, redo_after = undo_depths(self.canvas)
             return to_json(
@@ -143,6 +161,8 @@ class ScenarioHooks:
             options = parse_options(options_json)
             if self.ai.is_processing:
                 self.ai.stop_ai_processing()
+            # A turn group a replayed reply left open must not survive into the next scenario.
+            self.ai._close_turn_undo_group()
             reset_canvas_session(self.canvas)
             fixture = options.get("fixture")
             if isinstance(fixture, dict):
