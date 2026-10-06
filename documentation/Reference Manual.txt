@@ -451,6 +451,8 @@ Attributes:
 - `_render_math()`: Trigger MathJax rendering for newly added content
 - `_store_results_in_canvas_state(call_results)`: Store valid function call results in the canvas state
 - `_send_prompt_to_ai(user_message=None, tool_call_results=None)`: Send request to AI backend with canvas state; with vision on, captures the canvas first and sends from the capture callback
+- `turn_model_id()`: The model a turn's requests go to: the one selected when the user sent the message (`_turn_model`), else the selector's value. Turn tokens belong to a provider instance, so every request of a turn, including its tool-result follow-ups and `search_tools` searches, goes to the model that started it; a model picked mid-turn answers from the next message
+- `on_model_selected(event)`: Bound to the model selector's `change` event; when the model changes while a reply runs, adds a chat note that the new model answers from the next message
 - `_send_prompt_json(prompt_json, canvas_snapshot, action_trace)`: Add the `canvas_snapshot` data URL (if any) to the prompt JSON and send it
 - `_create_request_payload(prompt, action_trace=None)`: Create JSON payload for AI requests
 - `_disable_send_controls()`: Disable send functionality while processing
