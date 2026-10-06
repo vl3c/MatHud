@@ -15,6 +15,7 @@ from function_registry import FunctionRegistry
 from process_function_calls import ProcessFunctionCalls
 from workspace_manager import WorkspaceManager
 from utils.function_features import (
+    KIND_INFLECTION,
     KIND_INTERSECTION,
     KIND_LOCAL_MAX,
     KIND_LOCAL_MIN,
@@ -230,6 +231,35 @@ class TestFunctionFeaturesAlgorithm(unittest.TestCase):
     def test_intersections_skip_poles(self) -> None:
         # 1/x and -1/x never meet; their difference 2/x changes sign only at the pole
         report = find_intersections(lambda x: 1 / x, lambda x: -1 / x, -3, 3)
+        self.assertEqual(report["features"], [])
+
+    # ---- features closer than the sampling, and far from 0 ----
+
+    def test_two_roots_inside_one_sample_step(self) -> None:
+        report = find_function_features(lambda x: (x - 0.5) * (x - 0.5001), 0.0123, 1.1)
+        self.assertEqual(_xs(report, KIND_ROOT), [0.5, 0.5001])
+        self.assertEqual(_xs(report, KIND_LOCAL_MIN), [0.50005])
+
+    def test_close_inflections_are_resolved(self) -> None:
+        # (x^2 - 1e-6)^3 changes concavity at -0.001, -0.000447, 0.000447 and 0.001 (steps of 0.005)
+        report = find_function_features(lambda x: (x * x - 1e-6) ** 3, -1.37, 1.3, features=["inflections"])
+        s = 0.001 / math.sqrt(5)
+        self.assertValues(_xs(report, KIND_INFLECTION), [-0.001, -s, s, 0.001], places=9)
+
+    def test_steep_inflection_between_two_samples(self) -> None:
+        report = find_function_features(lambda x: math.tanh(1e4 * (x - 0.123)), -1.37, 1.3, features=["inflections"])
+        self.assertEqual(_xs(report, KIND_INFLECTION), [0.123])
+
+    def test_inflections_far_from_zero(self) -> None:
+        report = find_function_features(lambda x: (x - 1e7) ** 3, 1e7 - 5.3, 1e7 + 4.1, features=["inflections"])
+        self.assertEqual(_xs(report, KIND_INFLECTION), [1e7])
+        report = find_function_features(
+            lambda x: math.exp(-((x - 1e6) ** 2)), 1e6 - 5.3, 1e6 + 4.1, features=["inflections"]
+        )
+        self.assertValues(_xs(report, KIND_INFLECTION), [1e6 - math.sqrt(0.5), 1e6 + math.sqrt(0.5)], places=2)
+
+    def test_refined_samples_find_no_extrema_beside_poles(self) -> None:
+        report = find_function_features(lambda x: 1 / (x - 0.37) ** 2, -2.5, 2.5, features=["extrema", "inflections"])
         self.assertEqual(report["features"], [])
 
 
