@@ -222,6 +222,14 @@ class TestLoadCatalogue:
         assert "duplicate scenario id GEO-90" in text
         assert "known bugs not in known_bugs.json: ['K9']" in text
 
+    def test_duplicate_ids_across_files(self, tmp_path: Path) -> None:
+        write_catalogue(tmp_path, [scenario()])
+        other = {"schema": 1, "area": "GEO", "scenarios": [scenario(title="Same id, other file")]}
+        (tmp_path / "more_geometry.json").write_text(json.dumps(other))
+        with pytest.raises(ScenarioError) as info:
+            load_catalogue(tmp_path)
+        assert "more_geometry.json: duplicate scenario id GEO-90 (first in geometry.json)" in info.value.problems
+
     def test_bad_file(self, tmp_path: Path) -> None:
         (tmp_path / "broken.json").write_text("{not json")
         with pytest.raises(ScenarioError, match="not valid JSON"):

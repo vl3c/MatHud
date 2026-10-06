@@ -491,11 +491,12 @@ def load_catalogue(directory: Optional[Path] = None) -> Catalogue:
         if path.name == KNOWN_BUGS_FILE:
             continue
         scenarios.extend(load_file(path, problems))
-    seen: set[str] = set()
+    # Ids are unique across the whole catalogue, not just within a file.
+    seen: dict[str, str] = {}
     for scenario in scenarios:
         if scenario.id in seen:
-            problems.append(f"{scenario.file}: duplicate scenario id {scenario.id}")
-        seen.add(scenario.id)
+            problems.append(f"{scenario.file}: duplicate scenario id {scenario.id} (first in {seen[scenario.id]})")
+        seen.setdefault(scenario.id, scenario.file)
         if bugs:
             unknown = sorted(scenario.all_known() - set(bugs))
             if unknown:
