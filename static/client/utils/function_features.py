@@ -23,6 +23,9 @@ Method:
       opposite signs on both sides and f must be continuous there, so poles and jumps
       are not inflections.
     - Intersections of f and g are the roots of f - g on the shared interval.
+    - ``scan_roots`` returns the raw roots for callers that map them to points
+      (utils/object_intersections.py), splitting an extremum that dips across zero
+      between two samples into its two roots.
 
 Results closer than the sampling can resolve are merged, values are rounded to the
 accuracy the methods reach, and at most ``max_results`` features are returned (the
@@ -32,7 +35,7 @@ report's ``truncated`` flag says when more were found).
 from __future__ import annotations
 
 import math
-from typing import Callable, Iterable, List, Optional, Sequence, Tuple, TypedDict
+from typing import Callable, Iterable, List, NamedTuple, Optional, Sequence, Tuple, TypedDict
 
 DEFAULT_MAX_RESULTS = 50
 
@@ -150,6 +153,18 @@ class FeatureReport(TypedDict):
     samples: int
 
 
+class RawRoot(NamedTuple):
+    """An unrounded root from ``scan_roots``.
+
+    ``end`` is set when f is zero on the whole interval [x, end] of samples; ``touching``
+    when f touches zero there without crossing it.
+    """
+
+    x: float
+    end: Optional[float]
+    touching: bool
+
+
 class _Root:
     """A raw root found in one segment; ``end`` is set for a run of zero samples."""
 
@@ -258,6 +273,29 @@ def find_intersections(
     roots = _with_touching_roots(roots, extrema, span)
     found = [_root_feature(root, KIND_INTERSECTION, evaluate_f(root.x), span) for root in roots]
     return _report(found, max_results, total_samples)
+
+
+def scan_roots(
+    f: Callable[[float], float],
+    left: float,
+    right: float,
+    breakpoints: Iterable[float] = (),
+    samples: Optional[int] = None,
+) -> List[RawRoot]:
+    """Unrounded, uncapped roots of f on [left, right], for callers that map them to points.
+
+    Finds what ``find_function_features`` finds as roots (sign changes, exact zeros and runs
+    of them, touching roots) and, in addition, two crossings closer together than the sample
+    spacing: a local extremum whose refined value has the other sign than the samples beside
+    it is split into its two roots.
+    """
+    left, right = _checked_interval(left, right)
+    evaluate = _safe_evaluator(f)
+    total_samples = samples if samples is not None else sample_count(right - left)
+    span = right - left
+    roots, extrema = _scan(evaluate, left, right, breakpoints, total_samples)
+    roots.extend(_close_crossing_pairs(evaluate, roots, extrema, span))
+    return [RawRoot(root.x, root.end, root.touching) for root in _with_touching_roots(roots, extrema, span)]
 
 
 def round_report_value(value: float) -> float:
@@ -884,6 +922,32 @@ def _brent_minimize(
 # ---------------------------------------------------------------------------
 # Touching roots, merging, rounding and the report
 # ---------------------------------------------------------------------------
+
+
+def _close_crossing_pairs(
+    evaluate: Callable[[float], float], roots: List[_Root], extrema: List[_Extremum], span: float
+) -> List[_Root]:
+    """The two roots of each extremum that dips across zero between two samples of one sign.
+
+    No sign change between samples brackets such a pair; the refined extremum does, with
+    each end of its sample bracket. An extremum within rounding of zero is a touching
+    root instead (``_with_touching_roots``).
+    """
+    pairs: List[_Root] = []
+    for extremum in extrema:
+        if abs(extremum.y) <= _ZERO_EXTREMUM_RATIO * extremum.depth:
+            continue
+        low, high = extremum.bracket
+        f_low, f_high = evaluate(low), evaluate(high)
+        if not (_changes_sign(f_low, extremum.y) and _changes_sign(extremum.y, f_high)):
+            continue
+        if any(low <= root.x <= high for root in roots):
+            continue
+        for a, b, fa, fb in ((low, extremum.x, f_low, extremum.y), (extremum.x, high, extremum.y, f_high)):
+            root = _refine_root(evaluate, a, b, fa, fb, span)
+            if root is not None:
+                pairs.append(_Root(root))
+    return pairs
 
 
 def _with_touching_roots(roots: List[_Root], extrema: List[_Extremum], span: float) -> List[_Root]:
