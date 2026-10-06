@@ -17,6 +17,8 @@ This module turns the state into prompt text. It is pure (no Flask, no I/O):
 ``render_state``     dispatch on a ``CanvasFormat``
 ``render_update``    what to tell the model after a tool batch changed the canvas
                      (the changes are text lines in every format; see render_delta)
+``view_note``        a one-line hint when the drawings are too small on screen or
+                     outside the view (see the "view note" section below)
 
 Budget: ``render_text`` and ``render_min_json`` accept ``budget_tokens``. In
 text, large scenes first pack points several per line, then drop the least
@@ -60,6 +62,10 @@ _MAX_COMPUTATION_RESULT_CHARS = 200
 _PACK_POINTS_THRESHOLD = 8
 _POINTS_PER_PACKED_ROW = 6
 
+# The canvas size in CSS pixels, {"width": w, "height": h}: the client adds it to the
+# prompt's canvas_state (never to saved workspaces) so the view note can measure pixels.
+CANVAS_SIZE_KEY = "canvas_size_px"
+
 # Top-level keys describing the viewport rather than drawables.
 _VIEW_KEYS = frozenset(
     {
@@ -70,6 +76,7 @@ _VIEW_KEYS = frozenset(
         "min_tick_spacing",
         "visible",
         "coordinate_system",
+        CANVAS_SIZE_KEY,
     }
 )
 _COMPUTATIONS_KEY = "computations"
@@ -1031,6 +1038,7 @@ def render_text(
     state: Mapping[str, Any],
     budget_tokens: Optional[int] = None,
     count_tokens: Callable[[str], int] = estimate_tokens_from_text,
+    view_note: Optional[str] = None,
 ) -> str:
     """Render the state one object per line with engine-computed facts.
 
@@ -1038,9 +1046,11 @@ def render_text(
         state: A ``get_canvas_state()`` dict (possibly filtered).
         budget_tokens: Optional token budget; larger scenes are packed and truncated.
         count_tokens: Token counter used for the budget (heuristic by default).
+        view_note: Optional ``view_note`` line, placed under the view line; header
+            lines are never trimmed, so it survives the budget.
     """
     state = _single_line_strings(state)
-    return _render_text_groups(state, _collect_groups(state), budget_tokens, count_tokens)
+    return _render_text_groups(state, _collect_groups(state), budget_tokens, count_tokens, view_note)
 
 
 def _render_text_groups(
@@ -1048,9 +1058,10 @@ def _render_text_groups(
     groups: List[_Group],
     budget_tokens: Optional[int],
     count_tokens: Callable[[str], int] = estimate_tokens_from_text,
+    view_note: Optional[str] = None,
 ) -> str:
     """Assemble already-rendered groups of a single-line state, fitting the budget."""
-    header = [line for line in (_view_line(state), _duplicate_warning(state)) if line]
+    header = [line for line in (_view_line(state), view_note, _duplicate_warning(state)) if line]
     text = _assemble(header, groups)
     if budget_tokens is None or budget_tokens <= 0 or count_tokens(text) <= budget_tokens:
         return text
@@ -1124,13 +1135,17 @@ def render_min_json(
     state: Mapping[str, Any],
     budget_tokens: Optional[int] = None,
     count_tokens: Callable[[str], int] = estimate_tokens_from_text,
+    view_note: Optional[str] = None,
 ) -> str:
     """Return the state as minified JSON without render-only fields, defaults or float noise.
 
     Over ``budget_tokens``, every object list is cut to the same kept fraction and
     ``"omitted"`` (counts per bucket) plus ``"note"`` say how to get the rest.
+    A ``view_note`` goes into a ``"view_note"`` key, which trimming never removes.
     """
     output = _min_json_output(state)
+    if view_note:
+        output["view_note"] = view_note
     text = _dump_min_json(output)
     if budget_tokens is None or budget_tokens <= 0 or count_tokens(text) <= budget_tokens:
         return text
@@ -1270,21 +1285,430 @@ def _delta_text(
     return "\n".join(added + changed + removed)
 
 
+# --------------------------------------------------------------------------- view note
+# The app never moves or zooms the view on its own. When the shapes are too small on
+# screen, or (partly) outside the view, the model gets one "View note:" line so it can
+# offer the user a zoom; the system prompt tells it to change the view only when the
+# user asks or agrees. The view is a uniform linear map (CoordinateMapper.math_to_screen),
+# so pixel sizes follow exactly from the view bounds and the canvas size in CSS pixels.
+#
+# Only bounded objects are measured: points (so every segment, vector, polygon, angle
+# and graph through them), circles, ellipses, arcs (by their whole circle), text labels,
+# bars and bar charts. Function graphs, curves, shaded areas and distribution plots
+# have no bounded extent in the state and are left out.
+#
+# Repeats: the whole-scene problems (too small, mostly outside the view) are reported
+# only when the shapes' bounding box differs from the one in the last canvas the model
+# was shown, and "changed objects outside the view" only for objects that are new or
+# changed since then. So a declined offer is not repeated when the user replies, pans
+# or zooms; it comes back only when the drawing itself grows, shrinks or moves.
+
+VIEW_NOTE_PREFIX = "View note:"
+# "Too small": the shapes' larger side on screen is under max(TINY_PX, TINY_CANVAS_FRACTION
+# x the canvas's smaller side). Point labels are 14 px text, so below about 40 px the labels
+# of neighbouring points cover each other and the shape; the fraction keeps the rule
+# proportional on very large canvases (smaller side above about 1330 px).
+TINY_PX = 40.0
+TINY_CANVAS_FRACTION = 0.03
+# Without a canvas size (older clients): under this fraction of the view's smaller side,
+# which is 40 px of an 800 px canvas.
+TINY_VIEW_FRACTION = 0.05
+# "Outside the view": less than this fraction of the shapes' bounding box is visible.
+MIN_VISIBLE_FRACTION = 0.5
+# The suggested view shows the shapes' bounding box enlarged this much around its centre.
+SUGGESTED_VIEW_MARGIN = 1.25
+_MAX_NOTE_NAMES = 3
+# Two boxes are the same when no edge moved by more than this fraction of their size.
+_SAME_BOX_RELATIVE_TOLERANCE = 1e-6
+
+
+@dataclass(frozen=True)
+class Box:
+    """An axis-aligned box in math units."""
+
+    left: float
+    right: float
+    bottom: float
+    top: float
+
+    @staticmethod
+    def around(x: float, y: float, half_width: float = 0.0, half_height: float = 0.0) -> "Box":
+        return Box(x - half_width, x + half_width, y - half_height, y + half_height)
+
+    @property
+    def width(self) -> float:
+        return self.right - self.left
+
+    @property
+    def height(self) -> float:
+        return self.top - self.bottom
+
+    @property
+    def center(self) -> Point2D:
+        return ((self.left + self.right) / 2.0, (self.bottom + self.top) / 2.0)
+
+    def union(self, other: "Box") -> "Box":
+        return Box(
+            min(self.left, other.left),
+            max(self.right, other.right),
+            min(self.bottom, other.bottom),
+            max(self.top, other.top),
+        )
+
+    def intersects(self, other: "Box") -> bool:
+        return (
+            self.left <= other.right
+            and other.left <= self.right
+            and self.bottom <= other.top
+            and other.bottom <= self.top
+        )
+
+    def fraction_inside(self, view: "Box") -> float:
+        """Share of this box inside ``view`` (of its length when it is flat, 0 or 1 for a point)."""
+        return _axis_fraction(self.left, self.right, view.left, view.right) * _axis_fraction(
+            self.bottom, self.top, view.bottom, view.top
+        )
+
+    def same_as(self, other: "Box") -> bool:
+        scale = max(self.width, self.height, other.width, other.height)
+        tolerance = _SAME_BOX_RELATIVE_TOLERANCE * scale
+        return all(
+            math.isclose(a, b, rel_tol=1e-12, abs_tol=tolerance)
+            for a, b in zip(
+                (self.left, self.right, self.bottom, self.top), (other.left, other.right, other.bottom, other.top)
+            )
+        )
+
+
+def _axis_fraction(low: float, high: float, view_low: float, view_high: float) -> float:
+    if high <= low:
+        return 1.0 if view_low <= low <= view_high else 0.0
+    return max(0.0, min(high, view_high) - max(low, view_low)) / (high - low)
+
+
+@dataclass(frozen=True)
+class ViewSummary:
+    """Where the measurable shapes are relative to the view (see ``summarize_view``)."""
+
+    view: Box
+    canvas_px: Optional[Tuple[float, float]]
+    objects: Dict[Tuple[str, str], Box]
+    content: Optional[Box]
+
+    @property
+    def pixels_per_unit(self) -> Optional[float]:
+        return self.canvas_px[0] / self.view.width if self.canvas_px else None
+
+    def content_px(self) -> Optional[Tuple[float, float]]:
+        """The shapes' bounding box size in screen pixels, when the canvas size is known."""
+        scale = self.pixels_per_unit
+        if scale is None or self.content is None:
+            return None
+        return (self.content.width * scale, self.content.height * scale)
+
+    def visible_fraction(self) -> float:
+        return self.content.fraction_inside(self.view) if self.content is not None else 1.0
+
+    def is_tiny(self) -> bool:
+        """True when the shapes have a size but it is too small to read on screen."""
+        if self.content is None:
+            return False
+        size = max(self.content.width, self.content.height)
+        if size <= 0:
+            return False  # one point (or several on one spot) is readable at any zoom
+        if self.canvas_px is not None and self.pixels_per_unit is not None:
+            threshold = max(TINY_PX, TINY_CANVAS_FRACTION * min(self.canvas_px))
+            return size * self.pixels_per_unit < threshold
+        return size < TINY_VIEW_FRACTION * min(self.view.width, self.view.height)
+
+
+def summarize_view(state: Mapping[str, Any]) -> Optional[ViewSummary]:
+    """Measure the state's bounded shapes against its view; None without a usable view."""
+    view = _view_box(state)
+    if view is None:
+        return None
+    objects = _object_extents(state)
+    return ViewSummary(view, _canvas_px(state), objects, _union_box(objects.values()))
+
+
+def _view_box(state: Mapping[str, Any]) -> Optional[Box]:
+    visibility = state.get("Cartesian_System_Visibility")
+    if not isinstance(visibility, dict):
+        return None
+    bounds = [_as_float(visibility.get(key)) for key in ("left_bound", "right_bound", "bottom_bound", "top_bound")]
+    left, right, bottom, top = bounds
+    if left is None or right is None or bottom is None or top is None or right <= left or top <= bottom:
+        return None
+    return Box(left, right, bottom, top)
+
+
+def _canvas_px(state: Mapping[str, Any]) -> Optional[Tuple[float, float]]:
+    size = state.get(CANVAS_SIZE_KEY)
+    if not isinstance(size, dict):
+        return None
+    width, height = _as_float(size.get("width")), _as_float(size.get("height"))
+    if width is None or height is None or width <= 0 or height <= 0:
+        return None
+    return (width, height)
+
+
+def _union_box(boxes: Any) -> Optional[Box]:
+    result: Optional[Box] = None
+    for box in boxes:
+        result = box if result is None else result.union(box)
+    return result
+
+
+def _keyed_items(state: Mapping[str, Any], bucket: str) -> List[Tuple[Tuple[str, str], JsonDict]]:
+    keyed: List[Tuple[Tuple[str, str], JsonDict]] = []
+    occurrences: Dict[str, int] = {}
+    for item in _items(state, bucket):
+        name = str(item.get("name", ""))
+        occurrence = occurrences.get(name, 0)
+        occurrences[name] = occurrence + 1
+        keyed.append((_entry_key(bucket, name, occurrence), item))
+    return keyed
+
+
+def _position_xy(args: Mapping[str, Any]) -> Optional[Point2D]:
+    position = _position(args)
+    x, y = _as_float(position.get("x")), _as_float(position.get("y"))
+    return (x, y) if x is not None and y is not None else None
+
+
+def _object_extents(state: Mapping[str, Any]) -> Dict[Tuple[str, str], Box]:
+    """The math-unit bounding box of every bounded object, keyed like the rendered entries."""
+    extents: Dict[Tuple[str, str], Box] = {}
+    positions: Dict[str, Point2D] = {}
+    for bucket in ("Points", "Labels"):
+        for key, item in _keyed_items(state, bucket):
+            xy = _position_xy(_args(item))
+            if xy is None:
+                continue
+            extents[key] = Box.around(*xy)
+            if bucket == "Points":
+                positions.setdefault(str(item.get("name", "")), xy)
+    for bucket, measure in _EXTENT_MEASURES:
+        for key, item in _keyed_items(state, bucket):
+            box = measure(_args(item), positions)
+            if box is not None and all(math.isfinite(v) for v in (box.left, box.right, box.bottom, box.top)):
+                extents[key] = box
+    return extents
+
+
+def _circle_extent(args: Mapping[str, Any], positions: Mapping[str, Point2D]) -> Optional[Box]:
+    center = positions.get(str(args.get("center")))
+    radius = _as_float(args.get("radius"))
+    if center is None or radius is None or radius < 0:
+        return None
+    return Box.around(center[0], center[1], radius, radius)
+
+
+def _ellipse_extent(args: Mapping[str, Any], positions: Mapping[str, Point2D]) -> Optional[Box]:
+    center = positions.get(str(args.get("center")))
+    rx, ry = _as_float(args.get("radius_x")), _as_float(args.get("radius_y"))
+    if center is None or rx is None or ry is None:
+        return None
+    angle = math.radians(_as_float(args.get("rotation_angle")) or 0.0)
+    cos, sin = math.cos(angle), math.sin(angle)
+    half_width = math.hypot(rx * cos, ry * sin)
+    half_height = math.hypot(rx * sin, ry * cos)
+    return Box.around(center[0], center[1], half_width, half_height)
+
+
+def _arc_extent(args: Mapping[str, Any], positions: Mapping[str, Point2D]) -> Optional[Box]:
+    cx, cy, radius = _as_float(args.get("center_x")), _as_float(args.get("center_y")), _as_float(args.get("radius"))
+    if cx is None or cy is None or radius is None or radius < 0:
+        return None
+    return Box.around(cx, cy, radius, radius)
+
+
+def _bar_extent(args: Mapping[str, Any], positions: Mapping[str, Point2D]) -> Optional[Box]:
+    values = [_as_float(args.get(key)) for key in ("x_left", "x_right", "y_bottom", "y_top")]
+    left, right, bottom, top = values
+    if left is None or right is None or bottom is None or top is None:
+        return None
+    return Box(min(left, right), max(left, right), min(bottom, top), max(bottom, top))
+
+
+def _bars_plot_extent(args: Mapping[str, Any], positions: Mapping[str, Point2D]) -> Optional[Box]:
+    """Bars of width w every w + spacing from x_start, each from y_base to y_base + value."""
+    values = [v for v in (_as_float(value) for value in _as_list(args.get("values"))) if v is not None]
+    if not values:
+        return None
+    width = _as_float(args.get("bar_width")) or 1.0
+    spacing = _as_float(args.get("bar_spacing"))
+    spacing = 0.2 if spacing is None else spacing
+    x_start = _as_float(args.get("x_start")) or 0.0
+    y_base = _as_float(args.get("y_base")) or 0.0
+    right = x_start + (len(values) - 1) * (width + spacing) + width
+    return Box(x_start, right, y_base + min(0.0, *values), y_base + max(0.0, *values))
+
+
+_ExtentMeasure = Callable[[Mapping[str, Any], Mapping[str, Point2D]], Optional[Box]]
+_EXTENT_MEASURES: Tuple[Tuple[str, _ExtentMeasure], ...] = (
+    ("Circles", _circle_extent),
+    ("Ellipses", _ellipse_extent),
+    ("CircleArcs", _arc_extent),
+    ("Bars", _bar_extent),
+    ("BarsPlots", _bars_plot_extent),
+)
+
+
+def view_note(previous: Optional[Mapping[str, Any]], current: Mapping[str, Any]) -> Optional[str]:
+    """One "View note:" line when the shapes in ``current`` are hard to see, else None.
+
+    ``previous`` is the last canvas state the model was shown (None at the start of a
+    conversation); it decides what counts as new, so a note is not repeated for a
+    drawing that did not change (see the comment above ``VIEW_NOTE_PREFIX``). Never raises.
+    """
+    try:
+        note = _view_note(previous, current)
+        # Object names go into the note; it must stay one line.
+        return _single_line_strings(note) if note is not None else None
+    except Exception:
+        _logger.warning("Could not measure the canvas view; sending no view note", exc_info=True)
+        return None
+
+
+def _view_note(previous: Optional[Mapping[str, Any]], current: Mapping[str, Any]) -> Optional[str]:
+    summary = summarize_view(current)
+    if summary is None or summary.content is None:
+        return None
+    before = _object_extents(previous) if isinstance(previous, Mapping) else None
+    before_content = _union_box(before.values()) if before is not None else None
+    drawing_changed = before_content is None or not before_content.same_as(summary.content)
+    problem: Optional[str] = None
+    if drawing_changed and summary.visible_fraction() < MIN_VISIBLE_FRACTION:
+        problem = _outside_problem(summary)
+    elif before is not None:
+        problem = _changed_objects_outside_problem(summary, before)
+    if problem is None and drawing_changed and summary.is_tiny():
+        problem = _tiny_problem(summary)
+    if problem is None:
+        return None
+    return (
+        f"{VIEW_NOTE_PREFIX} {problem}. Offer to {_suggestion(summary)}; don't change the view unless the user agrees."
+    )
+
+
+def _outside_problem(summary: ViewSummary) -> str:
+    fraction = summary.visible_fraction()
+    where = _content_and_view(summary)
+    if fraction <= 0:
+        return f"the shapes are entirely outside the view ({where})"
+    percent = "<1" if fraction < 0.01 else f"~{round(fraction * 100)}"
+    return f"only {percent}% of the shapes' extent is inside the view ({where})"
+
+
+def _changed_objects_outside_problem(summary: ViewSummary, before: Mapping[Tuple[str, str], Box]) -> Optional[str]:
+    outside = [
+        key[1]
+        for key, box in summary.objects.items()
+        if (key not in before or not box.same_as(before[key])) and not box.intersects(summary.view)
+    ]
+    if not outside:
+        return None
+    names = ", ".join(outside[:_MAX_NOTE_NAMES])
+    if len(outside) > _MAX_NOTE_NAMES:
+        names += f" (+{len(outside) - _MAX_NOTE_NAMES} more)"
+    verb = "is" if len(outside) == 1 else "are"
+    return f"new or changed {names} {verb} outside the view ({_view_ranges(summary.view)})"
+
+
+def _tiny_problem(summary: ViewSummary) -> str:
+    size = summary.content_px()
+    content = summary.content
+    assert content is not None
+    if size is not None:
+        extent = f"~{_pixels(size[0])}x{_pixels(size[1])} px on screen"
+    else:
+        share = max(content.width / summary.view.width, content.height / summary.view.height) * 100
+        extent = f"~{format_number(share, 2)}% of the view"
+    return f"the shapes span only {extent} ({_content_and_view(summary)})"
+
+
+def _pixels(value: float) -> str:
+    return "<1" if value < 1 else str(round(value))
+
+
+def _content_and_view(summary: ViewSummary) -> str:
+    content = summary.content
+    assert content is not None
+    step = _coordinate_step(max(content.width, content.height) / 2.0) or _coordinate_step(summary.view.width / 2.0)
+    shapes = f"x {_span(content.left, content.right, step)}, y {_span(content.bottom, content.top, step)}"
+    return f"shapes {shapes}; view {_view_ranges(summary.view)}"
+
+
+def _view_ranges(view: Box) -> str:
+    step = _coordinate_step(view.width / 2.0)
+    return f"x {_span(view.left, view.right, step)}, y {_span(view.bottom, view.top, step)}"
+
+
+def _suggestion(summary: ViewSummary) -> str:
+    """A view showing every shape: zoom when they are tiny or too big, else just move the view."""
+    content, view = summary.content, summary.view
+    assert content is not None
+    aspect = view.height / view.width
+    fit = max(content.width / 2.0, content.height / 2.0 / aspect) * SUGGESTED_VIEW_MARGIN
+    current = view.width / 2.0
+    pan_only = fit <= 0 or (fit <= current and not summary.is_tiny())
+    half = _nice_ceil(current if pan_only else fit)
+    step = _coordinate_step(half)
+    cx, cy = (_snap(value, step) for value in content.center)
+    shown = Box.around(cx, cy, half, half * aspect)
+    return (
+        f"{'move the view' if pan_only else 'zoom'} to about "
+        f"x {_span(shown.left, shown.right, step)}, y {_span(shown.bottom, shown.top, step)} "
+        f"(zoom center_x={format_number(cx)}, center_y={format_number(cy)}, "
+        f"range_val={format_number(half)}, range_axis=x)"
+    )
+
+
+def _nice_ceil(value: float) -> float:
+    """Round up to two significant digits (4.13 -> 4.2, 0.0123 -> 0.013)."""
+    exponent = math.floor(math.log10(value))
+    unit = 10.0 ** (exponent - 1)
+    return math.ceil(value / unit - 1e-9) * unit
+
+
+def _coordinate_step(half_size: float) -> float:
+    """A rounding step for coordinates a tenth of the magnitude of ``half_size`` (0 for 0)."""
+    if not half_size > 0 or not math.isfinite(half_size):
+        return 0.0
+    return 10.0 ** (math.floor(math.log10(half_size)) - 1)
+
+
+def _snap(value: float, step: float) -> float:
+    return round(value / step) * step if step > 0 else value
+
+
+def _span(low: float, high: float, step: float) -> str:
+    return f"{format_number(_snap(low, step))}..{format_number(_snap(high, step))}"
+
+
 # --------------------------------------------------------------------------- dispatch
 
 
-def render_state(state: Mapping[str, Any], fmt: CanvasFormat, budget_tokens: Optional[int] = None) -> str:
+def render_state(
+    state: Mapping[str, Any],
+    fmt: CanvasFormat,
+    budget_tokens: Optional[int] = None,
+    view_note: Optional[str] = None,
+) -> str:
     """Render a state in the requested format (``json`` is the raw state, unchanged).
 
-    Never raises: a state the renderers cannot handle is sent as compact JSON instead,
-    so one malformed object cannot fail the whole request.
+    ``view_note`` (see ``view_note``) becomes a line under the view in text and a
+    ``"view_note"`` key in min_json and json. Never raises: a state the renderers
+    cannot handle is sent as compact JSON instead, so one malformed object cannot
+    fail the whole request.
     """
     try:
         if fmt == "text":
-            return render_text(state, budget_tokens=budget_tokens)
+            return render_text(state, budget_tokens=budget_tokens, view_note=view_note)
         if fmt == "min_json":
-            return render_min_json(state, budget_tokens=budget_tokens)
-        return json.dumps(state)
+            return render_min_json(state, budget_tokens=budget_tokens, view_note=view_note)
+        return json.dumps(dict(state, view_note=view_note) if view_note else state)
     except Exception:
         _logger.warning("Could not render the canvas state as %s; sending compact JSON", fmt, exc_info=True)
         return _fallback_json(state)
@@ -1306,17 +1730,19 @@ def render_update(
     current: Mapping[str, Any],
     fmt: CanvasFormat,
     budget_tokens: Optional[int] = None,
+    view_note: Optional[str] = None,
 ) -> str:
     """Describe the canvas after a tool batch; empty string when nothing changed.
 
     Sends the delta when it is smaller than the full rendering, else the full
     state (e.g. after clear_canvas or when no previous state was shown). The
     delta is the text of ``render_delta`` in every format (for min_json too:
-    one changed object per line reads better than a JSON diff). Never
-    raises: if the states cannot be compared, the current state is sent as JSON.
+    one changed object per line reads better than a JSON diff); a ``view_note``
+    is its last line. Never raises: if the states cannot be compared, the
+    current state is sent as JSON.
     """
     try:
-        return _render_update(previous, current, fmt, budget_tokens)
+        return _render_update(previous, current, fmt, budget_tokens, view_note)
     except Exception:
         _logger.warning("Could not describe the canvas changes; sending the state as JSON", exc_info=True)
         return f"{CURRENT_HEADER}\n{_fallback_json(current)}"
@@ -1327,19 +1753,22 @@ def _render_update(
     current: Mapping[str, Any],
     fmt: CanvasFormat,
     budget_tokens: Optional[int],
+    view_note: Optional[str] = None,
 ) -> str:
     if previous is None:
-        return f"{CURRENT_HEADER}\n{render_state(current, fmt, budget_tokens)}"
+        return f"{CURRENT_HEADER}\n{render_state(current, fmt, budget_tokens, view_note)}"
     # Each state is rendered once; the current groups serve both the delta and the full text.
     previous, current = _single_line_strings(previous), _single_line_strings(current)
     current_groups = _collect_groups(current)
     delta = _delta_text(previous, current, _collect_groups(previous), current_groups)
     if not delta:
-        return ""
+        return f"{CHANGES_HEADER}\n{view_note}" if view_note else ""
     if fmt == "text":
-        full = _render_text_groups(current, current_groups, budget_tokens)
+        full = _render_text_groups(current, current_groups, budget_tokens, view_note=view_note)
     else:
-        full = render_state(current, fmt, budget_tokens)
+        full = render_state(current, fmt, budget_tokens, view_note)
+    if view_note:
+        delta = f"{delta}\n{view_note}"
     if estimate_tokens_from_text(delta) >= estimate_tokens_from_text(full):
         return f"{CURRENT_HEADER}\n{full}"
     return f"{CHANGES_HEADER}\n{delta}"
