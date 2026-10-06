@@ -166,6 +166,7 @@ static/
 ├── openai_responses_api.py            # OpenAI Responses API (reasoning models)
 ├── providers/                         # Anthropic, OpenRouter and LocalAgent (local/) providers + ProviderRegistry
 ├── canvas_state_formatter.py          # Canvas state -> prompt text / compact JSON / change report
+├── canvas_view_note.py                # "View note:" when drawings are too small, flat or off-screen
 ├── canvas_state_summarizer.py         # Summaries for the legacy json canvas format
 ├── token_estimation.py                # Token estimates for canvas budgets and telemetry
 ├── tool_search_service.py             # search_tools discovery (local / api / hybrid)
@@ -474,6 +475,7 @@ server_tests/
   - The client sends `Canvas.get_canvas_state()` with every message; the provider renders it according to `MATHUD_CANVAS_FORMAT`. The default `text` format puts a `<canvas>` block in front of the user's text with one object per line in math notation and facts computed from the coordinates (lengths, areas, angle sizes, graph edge weights), numbers limited to 6 significant digits. `min_json` puts compact JSON in the same block; `json` keeps the legacy behaviour of sending the whole prompt JSON (summarized per `AI_CANVAS_SUMMARY_MODE` by `canvas_state_summarizer.py`).
   - `MATHUD_CANVAS_BUDGET_TOKENS` caps the block (default 4000 estimated tokens for cloud providers, 1500 for local ones, `0` = unlimited); larger scenes pack points several per line, then list the least important objects as omitted with a pointer to `get_current_canvas_state`.
   - After each tool batch the provider compares the client's `state_after` with the state it last showed the model and appends a `[canvas changes]` report (or `[canvas now]` with the full canvas) to the batch's last tool message. `get_current_canvas_state` results are rendered in the same format and never shortened. Only the latest user message keeps its canvas block.
+  - View notes (`static/canvas_view_note.py`): with the canvas size and the curves' sampled boxes, which the client adds to the prompt's copy of the state, the provider tells the model in one `View note:` line when the drawings became too small on screen, too flat or went outside the view, so it can offer a zoom; the app never moves the view itself.
   - Details and measurements: `documentation/development/canvas_prompt_summary_rollout.md`.
 - **Server-Side Logging (`static/log_manager.py`)**:
   - `LogManager` class handles application logging on the server.

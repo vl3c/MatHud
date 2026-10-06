@@ -343,7 +343,7 @@ llama-server passes the variable to the template, and templates that do not use 
 
 1. `app.py` – entry point with graceful shutdown and threaded dev server.
 2. `static/`
-   a. `app_manager.py`, `routes.py`, `openai_api_base.py` / `openai_completions_api.py` / `openai_responses_api.py`, `ai_model.py`, `tool_call_processor.py`, `tool_search_service.py`, `canvas_state_formatter.py`, `workspace_manager.py`, `log_manager.py`.
+   a. `app_manager.py`, `routes.py`, `openai_api_base.py` / `openai_completions_api.py` / `openai_responses_api.py`, `ai_model.py`, `tool_call_processor.py`, `tool_search_service.py`, `canvas_state_formatter.py`, `canvas_view_note.py`, `workspace_manager.py`, `log_manager.py`.
    b. `providers/` – Multi-provider AI backend (LocalAgent, Anthropic, OpenRouter; OpenAI lives in the `openai_*_api.py` modules) with `ProviderRegistry` for provider detection.
    c. `client/` – Brython modules (canvas, managers, rendering, slash commands, tests, utilities, workspace manager).
 3. `templates/index.html` – main HTML shell that loads Brython, MathJax, styles, and UI controls.

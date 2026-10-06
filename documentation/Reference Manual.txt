@@ -141,7 +141,7 @@ Note: All drawables are math-only. They do not hold screen-space coordinates and
 ### Server-Side Components
 1. Server-Side Workspace Manager (`static/workspace_manager.py`)
 2. Provider API Base (`static/openai_api_base.py`, `openai_completions_api.py`, `openai_responses_api.py`)
-3. Canvas State Formatter (`static/canvas_state_formatter.py`)
+3. Canvas State Formatter (`static/canvas_state_formatter.py`) and Canvas View Note (`static/canvas_view_note.py`)
 4. AI Function Definitions (`static/functions_definitions.py`), including a tool quick reference
 5. Tool Search Service (`static/tool_search_service.py`)
 6. Flask Application Manager (`static/app_manager.py`)
@@ -450,7 +450,7 @@ Attributes:
 - `_parse_markdown_to_html(text)`: Parse markdown text to HTML using the dedicated markdown parser
 - `_render_math()`: Trigger MathJax rendering for newly added content
 - `_store_results_in_canvas_state(call_results)`: Store valid function call results in the canvas state
-- `_send_prompt_to_ai(user_message=None, tool_call_results=None)`: Send request to AI backend with canvas state (a copy with the canvas size in CSS pixels added as `canvas_size_px`, by `prompt_canvas_state.with_canvas_size`, so the server can measure the drawings on screen); with vision on, captures the canvas first and sends from the capture callback
+- `_send_prompt_to_ai(user_message=None, tool_call_results=None)`: Send request to AI backend with canvas state (a copy with the canvas size in CSS pixels, `canvas_size_px`, and each function graph's and curve's sampled box, `curve_extents`, added by `prompt_canvas_state.with_view_info`, so the server can measure the drawings on screen); with vision on, captures the canvas first and sends from the capture callback
 - `turn_model_id()`: The model a turn's requests go to: the one selected when the user sent the message (`_turn_model`), else the selector's value. Turn tokens belong to a provider instance, so every request of a turn, including its tool-result follow-ups and `search_tools` searches, goes to the model that started it; a model picked mid-turn answers from the next message
 - `on_model_selected(event)`: Bound to the model selector's `change` event; when the model that will answer the next message changes while a reply runs, adds a chat note: the new model answers from the next message, or, after switching back to the turn's model, that model keeps answering (`_announced_model` tracks the last note, so re-selecting the same model adds none)
 - `_send_prompt_json(prompt_json, canvas_snapshot, action_trace)`: Add the `canvas_snapshot` data URL (if any) to the prompt JSON and send it
@@ -3847,7 +3847,7 @@ for both Chat Completions and Responses APIs.
 - Tool exposure: `MATHUD_TOOL_EXPOSURE=search` (default) starts the model with `search_tools` plus the essentials (`undo`, `redo`, `get_current_canvas_state`) and injects further tools after `search_tools` returns; `full` sends every tool up front.
 - Canvas rendering: with `MATHUD_CANVAS_FORMAT` `text` (default) or `min_json`, each user message becomes a `<canvas>` block rendered by `canvas_state_formatter` followed by the user's text; `json` sends the whole prompt JSON, summarized per `AI_CANVAS_SUMMARY_MODE`. `MATHUD_CANVAS_BUDGET_TOKENS` overrides the canvas token budget (default 4000 for cloud providers, 1500 for local ones, `0` = unlimited). Older user messages lose their canvas block; the latest keeps it.
 - Tool results: each result is written into the tool message of its own call, matched by tool-call id (falling back to call order; the legacy combined-dict shape is still accepted). Unanswered calls are marked as errors. After a tool batch, `[canvas changes]` (or `[canvas now]`) is appended to the batch's last tool message, and `get_current_canvas_state` results are rendered in the configured format.
-- View notes: `_next_view_note(canvas_state)` measures each canvas the model is shown (user message or tool batch) against the previous one with `canvas_state_formatter.view_note` and remembers it. A note goes into the `<canvas>` block under the view line, at the end of `[canvas changes]`, as a `"view_note"` key in min_json and in the json prompt JSON, and as a line after LocalAgent's json object counts. The system prompt (`VIEW_NOTE_GUIDANCE`) tells the model to mention the problem in one sentence at the end of its reply and offer the suggested zoom, and never to change the view because of a note unless the user asks or agrees; the app never moves the view on its own.
+- View notes: `_next_view_note(canvas_state)` measures each canvas the model is shown (user message or tool batch) against the previous one with `canvas_view_note.view_note` and remembers it; for a user message (`_next_user_view_note`) it first removes the view-note lines of earlier turns from the history. A note goes into the `<canvas>` block under the view line, at the end of `[canvas changes]`, as a `"view_note"` key in min_json and in the json prompt JSON, and as a line after LocalAgent's json object counts. When a user message is dropped unanswered (an Anthropic refusal), `_forget_dropped_user_message` restores the canvas shown before it. The system prompt (`VIEW_NOTE_GUIDANCE`) tells the model to mention a note in the latest canvas or `[canvas changes]` in one sentence at the end of its reply and offer the suggested zoom, and never to change the view because of a note unless the user asks or agrees; the app never moves the view on its own.
 
 **Key Methods:**
 - `__init__(...)`: Initialize the client, model, tools and conversation state
@@ -3895,18 +3895,26 @@ Pure module (no Flask, no I/O) that turns `Canvas.get_canvas_state()` output int
 - `render_delta(previous, current)`: Per-object changes (`+` added, `~` changed, `-` removed), compared by rendered line
 - `render_state(state, fmt, budget_tokens=None)`: Dispatch on a `CanvasFormat` (`"text"`, `"min_json"`, `"json"`); never raises, falling back to compact JSON if a malformed state cannot be rendered
 - `render_update(...)`: What to tell the model after a tool batch: `[canvas changes]` (text lines in every format), or `[canvas now]` with the full canvas when the delta would be larger
-- `view_note(previous, current)`: One `View note:` line when the shapes in `current` are too small on screen or outside the view, else None; never raises. `render_text`, `render_min_json`, `render_state` and `render_update` take it as `view_note=` (a header line in text, which budget trimming never removes; a `"view_note"` key in JSON; the last line of `[canvas changes]`)
-- `summarize_view(state)`: The measurement behind it (`ViewSummary`: the view and every bounded object as a math-unit `Box`, their union `content`, `canvas_px`, `content_px()`, `visible_fraction()`, `is_tiny()`)
 - `parse_canvas_format(raw)`: Validate a `MATHUD_CANVAS_FORMAT` value
 
-**View note rules:**
-- Measured: points (and so every segment, vector, polygon, angle and graph through them), circles, ellipses (rotated bounding box), arcs (by their whole circle), text labels, bars and bar charts. Function graphs, curves, shaded areas and distribution plots have no bounded extent in the state and are not measured. Pixels follow from the view bounds and `canvas_size_px` (the view is a uniform linear map).
-- Too small: the shapes' larger side on screen is under `max(TINY_PX, TINY_CANVAS_FRACTION x the canvas's smaller side)` = max(40 px, 3%); point labels are 14 px text, so below about 40 px labels cover each other and the shape. Without a canvas size: under `TINY_VIEW_FRACTION` (5%) of the view's smaller side. A lone point (zero size) is never too small.
-- Outside: less than `MIN_VISIBLE_FRACTION` (half) of the shapes' bounding box is in the view, or an object that is new or changed since the previous canvas lies entirely outside it.
-- Repeats: the whole-drawing problems are reported only when the shapes' bounding box differs from the previous canvas shown to the model, and the per-object problem only for new or changed objects. A declined offer is therefore not repeated when the user replies, pans or zooms; it comes back when the drawing grows, shrinks or moves, or after `reset_conversation`.
-- The note suggests a view: the bounding box enlarged by `SUGGESTED_VIEW_MARGIN` (1.25) at the canvas's aspect ratio, as ranges and as `zoom` arguments (only a move when the shapes are readable and fit at the current zoom). Example: `View note: the shapes span only ~6x6 px on screen (shapes x -0.2..6.2, y -2.2..4.2; view x -400..400, y -300..300). Offer to zoom to about x -2.3..8.3, y -3..5 (zoom center_x=3, center_y=1, range_val=5.3, range_axis=x); don't change the view unless the user agrees.`
+`render_text`, `render_min_json`, `render_state` and `render_update` take an optional `view_note=` line (from `static/canvas_view_note.py`): a header line in text, which budget trimming never removes; a `"view_note"` key in JSON; the last line of `[canvas changes]`. `CANVAS_SIZE_KEY` and `CURVE_EXTENTS_KEY` name the measuring data the client adds to a prompt's state; neither is rendered as an object.
 
 Token counts come from `static/token_estimation.py` (`estimate_tokens_from_text` counts one token per digit, matching the default local model's tokenizer, and one per CJK character).
+
+### Canvas View Note (`static/canvas_view_note.py`)
+
+Pure module that tells the model when the drawings are too small on screen, too flat or outside the view, so it can offer a zoom. See `documentation/development/canvas_prompt_summary_rollout.md` section 3.5 for the full rules.
+
+**Key Functions:**
+- `view_note(previous, current)`: One `View note:` line, or None; `previous` is the last canvas the model was shown (None at the start of a conversation). Never raises
+- `summarize_view(state)`: `ViewSummary` (the view `Box`, `canvas_px`, every measured `Shape` keyed by bucket and name, `content`, `size_px()`, `is_tiny()`, `is_flat()`, `visible_fraction()`)
+- `measure_shapes(state)`: The measured shapes: points, segments, vectors, polygons, circles, ellipses, arcs, labels, bars, bar charts, function-bounded areas with bounds, and graphs and curves from the client's `curve_extents`
+
+**Rules:**
+- Problems, in order, one per note: less than half of the drawing (by outline samples) in the view; new or changed objects entirely outside the view; the whole drawing under max(40 px, 3% of the canvas's smaller side) (`TINY_PX`, `TINY_CANVAS_FRACTION`; 5% of the view without a canvas size); new or changed shapes and the small shapes near them under that size inside a larger drawing; a function graph varying by less than 16 px vertically (`FLAT_PX`).
+- Transitions: whole-drawing problems need the drawing itself to change, so the user's own pan or zoom brings no note; a problem the previous canvas already had is reported again only when the shapes' size on screen changed by more than 2 times (`REPEAT_SIZE_RATIO`); objects already outside the view are not news. At the first message, outside is reported only when nothing is on screen.
+- Extents below `min_tick_spacing` (1e-6) or 1e-9 of the coordinates' magnitude count as a point; huge coordinates are written in scientific notation.
+- The suggested view encloses the target 1.25 times (`SUGGESTED_VIEW_MARGIN`), as ranges and `zoom` arguments; for a flat graph its variation fills a quarter of the view's height. Example: `View note: the shapes span only ~6x6 px on screen (shapes x -0.2..6.2, y -2.2..4.2; view x -400..400, y -300..300). Offer to zoom to about x -2.3..8.3, y -3..5 (zoom center_x=3, center_y=1, range_val=5.3, range_axis=x); don't change the view unless the user agrees.`
 
 ### AI Function Definitions (`static/functions_definitions.py`)
 

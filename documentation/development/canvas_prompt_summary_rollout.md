@@ -16,7 +16,7 @@ This document captures the implementation and operational model for how canvas s
 7. Telemetry logging (`canvas_prompt_telemetry`) with structured JSON payloads.
 8. Filtered `get_current_canvas_state` tool contract (drawable-type and object-name filters).
 9. Dev-only comparison endpoint and browser helper for side-by-side inspection.
-10. View notes (section 3.5): one `View note:` line when the drawings are too small on screen or outside the view, so the model offers the user a zoom; the app never moves the view on its own.
+10. View notes (section 3.5): one `View note:` line when the drawings are too small on screen, too flat or outside the view, so the model offers the user a zoom; the app never moves the view on its own.
 
 ## 2. Key Files
 
@@ -36,7 +36,7 @@ This document captures the implementation and operational model for how canvas s
 14. `server_tests/test_canvas_state_summarizer.py`
 15. `server_tests/test_openai_api_base.py`
 16. `server_tests/test_canvas_state_tool_schema.py`
-17. `static/client/prompt_canvas_state.py` (adds the canvas size in pixels to the prompt's state)
+17. `static/canvas_view_note.py` (view notes) and `static/client/prompt_canvas_state.py` (the canvas size and curve extents in the prompt's state)
 18. `server_tests/test_canvas_view_note.py` and `static/client/client_tests/test_prompt_canvas_state.py`
 
 ## 3. Canvas Formats
@@ -101,22 +101,34 @@ The `<canvas>` block stays on the latest user message (tool results describe cha
 
 ### 3.5 View notes
 
-The app never moves or zooms the view on its own; the user keeps control of it. When the drawings are hard to see, the model is told so and offers a view, and the system prompt (`VIEW_NOTE_GUIDANCE` in `static/openai_api_base.py`) tells it to mention the problem in one short sentence at the end of its reply and never to change the view because of a note unless the user asks for a view change or agrees. The motivating case: at the default view (about +-400 units) a triangle at (0,0), (6,0), (2,4) with its circumcircle is a speck of a few pixels at the origin, and the model said nothing.
+The app never moves or zooms the view on its own; the user keeps control of it. When the drawings are hard to see, the model is told so and offers a view, and the system prompt (`VIEW_NOTE_GUIDANCE` in `static/openai_api_base.py`) tells it to mention the problem in one short sentence at the end of its reply and never to change the view because of a note unless the user asks for a view change or agrees. The motivating case: at the default view (about +-400 units) a triangle at (0,0), (6,0), (2,4) with its circumcircle is a speck of a few pixels at the origin, and the model said nothing. The measuring is `static/canvas_view_note.py`; the formatter only places the line.
 
 ```
-view x [-400, 400] y [-300, 300]; grid 100
-View note: the shapes span only ~6x6 px on screen (shapes x -0.2..6.2, y -2.2..4.2; view x -400..400, y -300..300). Offer to zoom to about x -2.3..8.3, y -3..5 (zoom center_x=3, center_y=1, range_val=5.3, range_axis=x); don't change the view unless the user agrees.
-A = (0, 0)
-...
+view x [-628, 628] y [-481.5, 481.5]; grid 100
+View note: f varies only ~2 px vertically on screen (y -1..1 over x -628..628; view x -628..628, y -481.5..481.5). Offer to zoom to about x -5.3..5.3, y -4.1..4.1 (zoom center_x=0, center_y=0, range_val=5.3, range_axis=x); don't change the view unless the user agrees.
+f(x) = sin(x)
 ```
 
-1. Measurement. The client adds the canvas size in CSS pixels to the prompt's copy of the state (`canvas_size_px`, `static/client/prompt_canvas_state.py`; saved workspaces, traces and scenario states do not get it). The view is a uniform linear map (`CoordinateMapper.math_to_screen`), so the server derives pixels exactly from the view bounds and that size (`summarize_view` in `canvas_state_formatter.py`). Measured objects: points (and so every segment, vector, polygon, angle and graph through them), circles, ellipses (rotated bounding box), arcs (by their whole circle), text labels, bars and bar charts. Function graphs, curves, shaded areas and distribution plots have no bounded extent in the state and are not measured, so a scene of only those never gets a note.
-2. Too small: the shapes' bounding box has a size, and its larger side on screen is under max(40 px, 3% of the canvas's smaller side). Point labels are 14 px text, so below about 40 px the labels of neighbouring points cover each other and the shape; the 3% keeps the rule proportional on canvases whose smaller side is above about 1330 px. A lone point, or several on one spot, is never too small. Without a canvas size (an older client) the rule is 5% of the view's smaller side (40 px of an 800 px canvas).
-3. Outside the view: less than half of the shapes' bounding box is inside the view ("entirely outside" at 0%), or an object that is new or changed since the previous canvas lies entirely outside the view (`new or changed P is outside the view`, at most three names).
-4. Suggested view: the bounding box enlarged 1.25 times around its centre at the canvas's aspect ratio, given as ranges and as `zoom` arguments rounded to two significant digits. When the shapes are readable and fit at the current zoom, the suggestion only moves the view (same `range_val`).
-5. Repeats: the whole-drawing problems (too small, mostly outside) are reported only when the shapes' bounding box differs from the one in the previous canvas the model was shown (`_last_canvas_state`), and the per-object problem only for new or changed objects. So a note appears right after the tool batch that drew the speck (`[canvas changes]` ends with it), and a declined offer is not repeated on the next message, nor after the user pans or zooms (that is their choice); it comes back when the drawing grows, shrinks or moves, or after `reset_conversation`. The first message of a conversation counts as new.
-6. Formats: a line under the view line in text (header lines are never trimmed, so the note survives the budget; it costs about 110 estimated tokens), a `"view_note"` key in min_json, the last line of `[canvas changes]` in every format, a top-level `"view_note"` field in the json prompt JSON (history cleanup drops it with the state; json reports no tool-batch changes, so the note comes with the next user message), and a line after LocalAgent's json object counts. `get_current_canvas_state` results carry no note.
-7. Scenario CV-08 (`scenarios/canvas.json`) draws the motivating triangle; replay checks that the view is unchanged and no view tool ran, and live mode also checks that the reply mentions zooming.
+1. Measurement. The client adds to the prompt's copy of the state (never to saved workspaces, traces or scenario states; `static/client/prompt_canvas_state.py`):
+   - `canvas_size_px`, the canvas size in CSS pixels. The view is a uniform linear map (`CoordinateMapper.math_to_screen`), so the server derives screen sizes exactly from the view bounds and this size.
+   - `curve_extents`, the box each function graph, piecewise function and parametric curve spans, sampled with the drawable's own evaluator (64 samples, at most 20 curves, so at most 1280 evaluations a prompt). A function without both bounds is sampled over the visible x range and marked `clipped`, since its graph runs across the whole view; its y range drops the top and bottom 2% of the samples, so the steep ends near an asymptote (tan, 1/x) do not stretch it.
+   The server measures the rest from the state: points, segments, vectors, polygons, circles, ellipses (rotated box), arcs (by their whole circle), text labels, bars, bar charts, and areas between functions with explicit bounds (the bounds by the functions' sampled y ranges). Discrete distribution plots and shaded regions without bounds are not measured. Extents below the grid's finest spacing (`min_tick_spacing`, 1e-6) or 1e-9 of the coordinates' magnitude count as a point; coordinates from 1e15 on are written in short scientific notation.
+2. Problems, in this order (one per note):
+   1. Outside: less than half of the drawing is in the view, measured by samples along the outlines (a diagonal segment through the view counts the share of its length on screen; clipped graphs aside).
+   2. New or changed objects entirely outside the view (at most three names; a point that a segment on screen is drawn through is not "outside").
+   3. Too small: the whole drawing's larger side on screen is under max(40 px, 3% of the canvas's smaller side). Point labels are 14 px text, so below about 40 px the labels of neighbouring points cover each other and the shape; the 3% keeps the rule proportional on canvases whose smaller side is above about 1330 px. A lone point, or several on one spot, is never too small. Without a canvas size (an older client) the rule is 5% of the view's smaller side (40 px of an 800 px canvas).
+   4. Too small among large shapes: new or changed shapes, together with the small shapes within 40 px of them, are under that size while something larger (a radius-250 circle) keeps the whole drawing big. The note names the new shapes (`the new or changed shapes (ABC) span only ~6x4 px`).
+   5. Flat: a function graph wide enough to see whose vertical variation on screen is under 16 px (about one label height), such as `sin(x)` at the default view (2 px). A constant has no variation and is a readable line. The suggested view makes the variation fill a quarter of the view's height.
+3. Suggested view: the target (the drawing, the new shapes or the graph) enlarged 1.25 times around its centre at the canvas's aspect ratio, given as ranges and as `zoom` arguments rounded to two significant digits. When the target is readable and fits at the current zoom, the suggestion only moves the view (same `range_val`). View bounds are rounded like the canvas view line.
+4. Transitions, not states: each canvas is compared with the previous one the model was shown (`_last_canvas_state`), and a problem is reported when it appears.
+   - The whole-drawing problems need the drawing itself to have changed (its bounding box in math units), so the user's own pan or zoom never brings a note.
+   - A problem the previous canvas already had is not reported again unless the affected shapes' size on screen changed by more than 2 times. After a declined offer for the tiny triangle, adding a point inside it or one unit beyond it brings no note; a drawing four times as big does.
+   - "Outside" and "too small among large shapes" only count new or changed objects, and not ones that were already outside the view.
+   - At the start of a conversation (no previous canvas) the whole drawing is judged: too small and flat are reported, outside only when nothing at all is on screen, since a view zoomed into part of a big drawing is the user's choice.
+5. Placement: a line under the view line in text (header lines are never trimmed, so the note survives the budget; a note costs about 110 estimated tokens), a `"view_note"` key in min_json, the last line of `[canvas changes]` in every format, a top-level `"view_note"` field in the json prompt JSON (history cleanup drops it with the state; json reports no tool-batch changes, so the note comes with the next user message), and a line after LocalAgent's json object counts. `get_current_canvas_state` results carry no note.
+6. History: notes describe the canvas at one point of a turn. When the user sends a new message, view-note lines of earlier turns are removed from the history (tool messages, and the line under LocalAgent's json object counts; earlier canvas blocks are already stripped), and the guidance refers to the latest canvas or `[canvas changes]` only (the Responses API keeps earlier turns on OpenAI's side). Notes of the running turn stay until its final answer.
+7. A note is not used up by a message the model never got: Anthropic's refusal path drops the refused round and restores the canvas shown before it (`_forget_dropped_user_message`), and LocalAgent's json format measures nothing for a prompt without user text, which it sends as is.
+8. Scenario CV-08 (`scenarios/canvas.json`) draws the motivating triangle; replay checks that the view is unchanged and no view tool ran, and live mode also checks that the reply mentions zooming.
 
 ### 3.6 Measurements
 
@@ -214,5 +226,5 @@ Interpretation:
 1. Keep `text` as the default; use `MATHUD_CANVAS_FORMAT=json` to compare against the original canvas payload (see section 3 for how it differs from the old requests).
 2. Run a comprehension benchmark (questions about lengths, names, graph edges and changes after tool calls) per format and provider once models are reachable, and tune `MATHUD_CANVAS_BUDGET_TOKENS` for the local model's context size.
 3. Client-side state gaps limit the text format: `Function.get_state` omits the curve color, `Point`/`Segment` states omit colors, and graph states omit isolated points.
-4. View notes do not measure function graphs, parametric curves or distribution plots, and they judge the drawing as a whole: two small shapes far apart make a large bounding box and get no "too small" note.
+4. View notes do not measure discrete distribution plots or shaded regions without bounds, and two small shapes far apart drawn in one batch make a large bounding box and get no "too small" note.
 5. Keep `get_current_canvas_state` filter semantics backward-compatible (empty filters == full state behavior).
