@@ -221,5 +221,157 @@ class TestInflectionPoints(unittest.TestCase):
             find_function_features(math.sin, 0, 1, features=["inflection_points"])
 
 
+ALL_FEATURES = ["roots", "extrema", "inflections"]
+
+
+def _xs_of(report: dict, kind: str) -> list:
+    return [feature["x"] for feature in report["features"] if feature["kind"] == kind]
+
+
+def _assert_within_last_digit(test: unittest.TestCase, found: float, expected: float) -> None:
+    """``found`` is rounded to the digits it is sure of: within one unit of its last decimal."""
+    text = repr(found)
+    decimals = len(text.split(".")[1]) if "." in text and not text.endswith(".0") else 0
+    test.assertLessEqual(abs(found - expected), 10.0**-decimals, f"{found} vs {expected}")
+
+
+class TestFeaturesCloserThanTheSampling(unittest.TestCase):
+    """Features within a sample step or two of each other (500 samples, steps of about 0.005)."""
+
+    def test_two_roots_inside_one_sample_step(self) -> None:
+        # Samples either side are positive; the minimum between them is below the axis
+        report = find_function_features(lambda x: (x - 0.5) * (x - 0.5001), 0.0123, 1.1)
+        self.assertEqual(
+            _summary(report), [(0.5, 0.0, "root"), (0.50005, -2.5e-09, "local_min"), (0.5001, 0.0, "root")]
+        )
+        report = find_function_features(lambda x: x * x - 1e-10, -1.37, 1.3)
+        self.assertEqual(_summary(report), [(-1e-05, 0.0, "root"), (0.0, -1e-10, "local_min"), (1e-05, 0.0, "root")])
+
+    def test_close_inflections_of_a_sixth_power(self) -> None:
+        # (x^2 - a^2)^3 changes concavity at -a, -a/sqrt(5), a/sqrt(5) and a, all within two steps
+        for a in (0.01, 0.001):
+            with self.subTest(a=a):
+                report = find_function_features(lambda x, a=a: (x * x - a * a) ** 3, -1.37, 1.3, features=ALL_FEATURES)
+                inflections = _xs_of(report, "inflection")
+                expected = [-a, -a / math.sqrt(5), a / math.sqrt(5), a]
+                self.assertEqual(len(inflections), 4)
+                for found, value in zip(inflections, expected):
+                    self.assertAlmostEqual(found, value, delta=1e-6 * a)
+                self.assertEqual(_xs_of(report, "root"), [-a, a])
+                self.assertEqual(_xs_of(report, "local_min"), [0.0])
+
+    def test_steep_inflections_between_two_samples(self) -> None:
+        # The samples are +/-1 (or 0 and 1) to the last bit beyond a transition 1e-4 wide
+        report = find_function_features(lambda x: math.tanh(1e4 * (x - 0.123)), -1.37, 1.3, features=ALL_FEATURES)
+        self.assertEqual(_summary(report), [(0.123, 0.0, "root"), (0.123, 0.0, "inflection")])
+
+        def logistic(x: float) -> float:
+            exponent = -1e4 * x
+            return 0.0 if exponent > 700 else 1.0 / (1.0 + math.exp(exponent))
+
+        report = find_function_features(logistic, -1.37, 1.3, features=["inflections"])
+        self.assertEqual(_summary(report), [(0.0, 0.5, "inflection")])
+
+    def test_cusp_on_the_axis_is_a_touching_root(self) -> None:
+        report = find_function_features(lambda x: abs(x) ** (1 / 3), -0.8609, 3.948)
+        self.assertEqual(_summary(report), [(0.0, 0.0, "root"), (0.0, 0.0, "local_min")])
+        self.assertTrue(report["features"][0]["touching"])
+
+    def test_wide_intervals_stay_within_the_evaluation_budget(self) -> None:
+        calls = [0]
+
+        def counted_tan(x: float) -> float:
+            calls[0] += 1
+            return math.tan(x)
+
+        report = find_function_features(counted_tan, -1000, 1000, samples=10000)
+        self.assertEqual(report["total_found"], 637)
+        # Two scans' worth of samples at most, plus a few dozen evaluations per root
+        self.assertLess(calls[0], 2 * 10001 + 637 * 200)
+
+
+class TestFeaturesFarFromZero(unittest.TestCase):
+    """Intervals about 10 wide around x = 1e6 and beyond, where x itself is rounded to ~1e-10."""
+
+    def test_inflections_far_from_zero(self) -> None:
+        for centre in (1e7, 1e9):
+            report = find_function_features(
+                lambda x, c=centre: (x - c) ** 3, centre - 5.3, centre + 4.1, features=["inflections"]
+            )
+            self.assertEqual(_xs_of(report, "inflection"), [centre])
+        for centre in (1e6, 1e8):
+            report = find_function_features(
+                lambda x, c=centre: math.exp(-((x - c) ** 2)), centre - 5.3, centre + 4.1, features=["inflections"]
+            )
+            found = _xs_of(report, "inflection")
+            self.assertEqual(len(found), 2)
+            for x, expected in zip(found, (centre - 1 / math.sqrt(2), centre + 1 / math.sqrt(2))):
+                _assert_within_last_digit(self, x, expected)
+                self.assertNotEqual(x, round(x, 2), "more digits than eight significant ones of x")
+
+    def test_sine_inflections_far_from_zero(self) -> None:
+        report = find_function_features(math.sin, 1e6, 1e6 + 10, features=["inflections"])
+        found = _xs_of(report, "inflection")
+        expected = [k * math.pi for k in range(318310, 318314)]
+        self.assertEqual(len(found), 4)
+        for x, value in zip(found, expected):
+            _assert_within_last_digit(self, x, value)
+
+    def test_roots_and_extrema_far_from_zero(self) -> None:
+        # Probing and merging at a fraction of |x| used to lose these (0.1 at 1e6, 10 at 1e8)
+        c = 1e6
+        report = find_function_features(lambda x: (x - c - 0.3) * (x - c - 1.4) * (x - c - 2.2), c - 1, c + 3)
+        self.assertEqual(_xs_of(report, "root"), [c + 0.3, c + 1.4, c + 2.2])
+        self.assertEqual(len(_xs_of(report, "local_max")), 1)
+        self.assertEqual(len(_xs_of(report, "local_min")), 1)
+        report = find_function_features(math.sin, 1e8, 1e8 + 20)
+        roots = _xs_of(report, "root")
+        expected = [k * math.pi for k in range(31830989, 31830995)]
+        self.assertEqual(len(roots), len(expected))
+        for x, value in zip(roots, expected):
+            _assert_within_last_digit(self, x, value)
+        self.assertEqual(len(_xs_of(report, "local_min")) + len(_xs_of(report, "local_max")), 6)
+
+
+class TestNoFalseFeatures(unittest.TestCase):
+    """Poles, jumps and rounding noise next to the refined sampling and the large-|x| handling."""
+
+    def test_no_extrema_beside_poles(self) -> None:
+        # Refined samples land close to the poles; none of them is an extremum
+        report = find_function_features(math.tan, -91.90248507255576, 67.58290293488042, features=["extrema"])
+        self.assertEqual(report["features"], [])
+        report = find_function_features(lambda x: 1 / (x - 0.37) ** 2, -2.5, 2.5, features=ALL_FEATURES)
+        self.assertEqual(report["features"], [])
+        report = find_function_features(lambda x: math.log(abs(x)), -0.5911260420880353, 1.2789270879870989)
+        self.assertEqual(_summary(report), [(1.0, 0.0, "root")])
+        cosecant = find_function_features(
+            lambda x: 1 / math.sin(x), 11.030146530938426, 69.14722590157838, features=["extrema"]
+        )
+        for feature in cosecant["features"]:
+            # Only the true extrema, at odd multiples of pi/2
+            self.assertAlmostEqual(feature["x"] / (math.pi / 2) % 2, 1.0, places=5)
+
+    def test_no_features_at_poles_far_from_zero(self) -> None:
+        report = find_function_features(math.tan, 29999998.4817316, 30000000.565277524, features=ALL_FEATURES)
+        self.assertEqual(report["features"], [])
+        report = find_function_features(lambda x: 1 / (x - 1e8), 1e8 - 0.5553, 1e8 + 1.7216, features=ALL_FEATURES)
+        self.assertEqual(report["features"], [])
+
+    def test_underflowing_values_are_not_inflections(self) -> None:
+        # exp(-x^2) near |x| = 27 is a staircase of subnormal numbers
+        report = find_function_features(lambda x: math.exp(-x * x), -1000, 1000, features=ALL_FEATURES)
+        self.assertEqual(
+            [feature["kind"] for feature in report["features"]],
+            ["root", "inflection", "local_max", "inflection", "root"],
+        )
+
+    def test_steps_sampled_at_their_jumps_are_not_inflections(self) -> None:
+        # Every jump of floor lands on a sample: the straight stretches between are not inflections
+        report = find_function_features(math.floor, -1000, 1000, features=ALL_FEATURES)
+        self.assertEqual(len(report["features"]), 1)
+        self.assertEqual(report["features"][0]["zero_interval"][0], 0.0)
+        self.assertEqual(find_function_features(math.floor, -5, 5, features=["inflections"])["features"], [])
+
+
 if __name__ == "__main__":
     unittest.main()
