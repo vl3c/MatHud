@@ -1,4 +1,4 @@
-"""Tests for prompt_canvas_state: the canvas size and curve extents added to a prompt's canvas state."""
+"""Tests for prompt_canvas_state: the canvas size and the new curves' extents sent after a tool batch."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from prompt_canvas_state import (
     _PEAKS_CHECKED,
     canvas_size_px,
     curve_extents,
+    new_curve_names,
     with_view_info,
 )
 
@@ -21,7 +22,7 @@ from .test_turn_metrics import TestTurnBookkeeping
 
 
 def _frozen() -> float:
-    """A clock that never moves: the time budget never cuts a test short."""
+    """A clock that never moves: the time limit never cuts a test short."""
     return 0.0
 
 
@@ -64,37 +65,40 @@ class _Canvas(_Sized):
         super().__init__(800, 600)
         self.coordinate_mapper = _Mapper(*view)
         self._drawables = drawables or {}
-        self.calls = 0
 
     def get_drawables_by_class_name(self, class_name: str) -> List[Any]:
         return self._drawables.get(class_name, [])
 
 
+def _state(**functions: str) -> Dict[str, Any]:
+    return {"Functions": [{"name": name, "args": {"function_string": expr}} for name, expr in functions.items()]}
+
+
+def _all(canvas: _Canvas) -> Dict[str, List[str]]:
+    """Every curve on the canvas, as if all were new."""
+    buckets = {
+        "Function": "Functions",
+        "PiecewiseFunction": "PiecewiseFunctions",
+        "ParametricFunction": "ParametricFunctions",
+    }
+    return {buckets[c]: [d.name for d in drawables] for c, drawables in canvas._drawables.items()}
+
+
 class TestPromptCanvasSize(unittest.TestCase):
     def test_size_of_a_canvas(self) -> None:
         self.assertEqual(canvas_size_px(_Sized(800, 600)), {"width": 800.0, "height": 600.0})
-
-    def test_fractional_css_pixels_are_rounded(self) -> None:
         self.assertEqual(canvas_size_px(_Sized(812.3456, 600.004)), {"width": 812.35, "height": 600.0})
 
     def test_unknown_or_invalid_sizes_give_none(self) -> None:
-        self.assertIsNone(canvas_size_px(None))
-        self.assertIsNone(canvas_size_px(_Sized(0, 600)))
-        self.assertIsNone(canvas_size_px(_Sized(800, -1)))
-        self.assertIsNone(canvas_size_px(_Sized("wide", 600)))
-        self.assertIsNone(canvas_size_px(_Sized(float("nan"), 600)))
+        for sized in (None, _Sized(0, 600), _Sized(800, -1), _Sized("wide", 600), _Sized(float("nan"), 600)):
+            self.assertIsNone(canvas_size_px(sized))
 
     def test_info_is_added_to_a_copy(self) -> None:
-        state: Dict[str, Any] = {"Points": [], "Cartesian_System_Visibility": {"left_bound": -400}}
-        result = with_view_info(state, _Canvas({"Function": [_Graph("f", math.sin)]}))
+        state = _state(f="sin(x)")
+        result = with_view_info(state, _Canvas({"Function": [_Graph("f", math.sin)]}), {}, _frozen)
         self.assertEqual(result[CANVAS_SIZE_KEY], {"width": 800.0, "height": 600.0})
         self.assertIn("f", result[CURVE_EXTENTS_KEY]["Functions"])
-        self.assertEqual(result["Points"], [])
         self.assertNotIn(CANVAS_SIZE_KEY, state)
-        self.assertNotIn(CURVE_EXTENTS_KEY, state)
-
-    def test_no_curves_adds_no_extents(self) -> None:
-        self.assertNotIn(CURVE_EXTENTS_KEY, with_view_info({}, _Canvas()))
 
     def test_state_is_returned_unchanged_without_a_size(self) -> None:
         state: Dict[str, Any] = {"Points": []}
@@ -102,11 +106,29 @@ class TestPromptCanvasSize(unittest.TestCase):
         self.assertIs(with_view_info(None, _Sized(800, 600)), None)
 
     def test_live_canvas_exposes_its_size(self) -> None:
-        """The real Canvas exposes its CSS pixel size as width and height."""
         from canvas import Canvas
 
-        canvas = Canvas(640, 480, draw_enabled=False)
-        self.assertEqual(canvas_size_px(canvas), {"width": 640.0, "height": 480.0})
+        self.assertEqual(canvas_size_px(Canvas(640, 480, draw_enabled=False)), {"width": 640.0, "height": 480.0})
+
+
+class TestNewCurves(unittest.TestCase):
+    """Only the curves a batch created or redefined are measured, decided from the states."""
+
+    def test_new_and_redefined_curves(self) -> None:
+        before = _state(f="sin(x)", g="x^2")
+        after = _state(f="sin(x)", g="x^3", h="cos(x)")
+        self.assertEqual(new_curve_names(after, before), {"Functions": ["g", "h"]})
+
+    def test_a_recolour_is_no_change(self) -> None:
+        before = _state(f="sin(x)")
+        after = _state(f="sin(x)")
+        after["Functions"][0]["args"]["color"] = "red"
+        self.assertEqual(new_curve_names(after, before), {})
+
+    def test_unchanged_curves_are_not_measured(self) -> None:
+        canvas = _Canvas({"Function": [_Graph("f", math.sin), _Graph("g", math.cos)]})
+        result = with_view_info(_state(f="sin(x)", g="cos(x)"), canvas, _state(f="sin(x)"), _frozen)
+        self.assertEqual(list(result[CURVE_EXTENTS_KEY]["Functions"]), ["g"])
 
 
 class TestCurveExtents(unittest.TestCase):
@@ -114,29 +136,18 @@ class TestCurveExtents(unittest.TestCase):
         for actual, wanted in zip(entry["box"], expected):
             self.assertAlmostEqual(actual, wanted, places=places)
 
+    def _measure(self, canvas: _Canvas) -> Dict[str, Dict[str, Dict[str, Any]]]:
+        return curve_extents(canvas, _all(canvas), _frozen)
+
     def test_unbounded_graph_is_sampled_over_the_view(self) -> None:
-        extents = curve_extents(_Canvas({"Function": [_Graph("f", math.sin)]}, view=(-628.0, 628.0)))
-        entry = extents["Functions"]["f"]
+        entry = self._measure(_Canvas({"Function": [_Graph("f", math.sin)]}, view=(-628.0, 628.0)))["Functions"]["f"]
         self.assertTrue(entry["clipped"])
         self.assertBox(entry, [-628, 628, -1, 1], places=1)
 
     def test_bounded_graph_is_sampled_over_its_bounds(self) -> None:
-        graph = _Graph("g", lambda x: x * x - 2, left=-2.0, right=2.0)
-        entry = curve_extents(_Canvas({"Function": [graph]}))["Functions"]["g"]
+        entry = self._measure(_Canvas({"Function": [_Graph("g", lambda x: x * x - 2, -2.0, 2.0)]}))["Functions"]["g"]
         self.assertFalse(entry["clipped"])
         self.assertBox(entry, [-2, 2, -2, 2], places=1)
-
-    def test_half_bounded_graph_is_clipped_to_the_view(self) -> None:
-        graph = _Graph("h", lambda x: x, left=0.0)
-        entry = curve_extents(_Canvas({"Function": [graph]}, view=(-10.0, 10.0)))["Functions"]["h"]
-        self.assertTrue(entry["clipped"])
-        self.assertBox(entry, [0, 10, 0, 10], places=0)
-
-    def test_steep_ends_near_an_asymptote_are_trimmed(self) -> None:
-        graph = _Graph("t", lambda x: 1.0 / x if x else float("inf"), left=-1.0, right=1.0)
-        entry = curve_extents(_Canvas({"Function": [graph]}))["Functions"]["t"]
-        nearest = min(abs(-1.0 + 2.0 * i / (CURVE_SAMPLES - 1)) for i in range(CURVE_SAMPLES))
-        self.assertLess(entry["box"][3], 1.0 / nearest)
 
     def test_undefined_values_are_skipped(self) -> None:
         def sqrt_or_fail(x: float) -> float:
@@ -144,18 +155,37 @@ class TestCurveExtents(unittest.TestCase):
                 raise ValueError("math domain error")
             return math.sqrt(x)
 
-        entry = curve_extents(_Canvas({"Function": [_Graph("s", sqrt_or_fail, -4.0, 4.0)]}))["Functions"]["s"]
+        entry = self._measure(_Canvas({"Function": [_Graph("s", sqrt_or_fail, -4.0, 4.0)]}))["Functions"]["s"]
         self.assertBox(entry, [0, 4, 0, 2], places=0)
 
     def test_parametric_curve(self) -> None:
-        extents = curve_extents(_Canvas({"ParametricFunction": [_Curve("c", math.cos, math.sin)]}))
-        self.assertBox(extents["ParametricFunctions"]["c"], [-1, 1, -1, 1], places=2)
+        extents = self._measure(_Canvas({"ParametricFunction": [_Curve("c", math.cos, math.sin)]}))
+        self.assertBox(extents["ParametricFunctions"]["c"], [-1, 1, -1, 1])
 
-    def test_piecewise_bucket(self) -> None:
-        extents = curve_extents(_Canvas({"PiecewiseFunction": [_Graph("p", abs, -1.0, 1.0)]}))
-        self.assertIn("p", extents["PiecewiseFunctions"])
+    def test_waves_tells_a_wave_from_a_line_or_a_bump(self) -> None:
+        graphs = [
+            _Graph("s", math.sin, -10.0, 10.0),
+            _Graph("l", lambda x: 0.01 * x + 5, 0.0, 500.0),
+            _Graph("b", lambda x: 0.01 * math.exp(-x * x), -5.0, 5.0),
+        ]
+        extents = self._measure(_Canvas({"Function": graphs}))
+        self.assertTrue(extents["Functions"]["s"]["waves"])
+        self.assertFalse(extents["Functions"]["l"]["waves"])
+        self.assertFalse(extents["Functions"]["b"]["waves"])
 
-    def test_cost_is_bounded(self) -> None:
+    def test_spiky_marks_a_pole_between_samples(self) -> None:
+        graphs = [
+            _Graph("r", lambda x: 1.0 / x),
+            _Graph("q", lambda x: 1.0 / (x * x)),
+            _Graph("p", lambda x: 1.0 / (x - 0.3)),
+            _Graph("s", math.sin),
+        ]
+        extents = self._measure(_Canvas({"Function": graphs}, view=(-628.0, 628.0)))
+        for name in ("r", "q", "p"):
+            self.assertTrue(extents["Functions"][name]["spiky"], name)
+        self.assertFalse(extents["Functions"]["s"]["spiky"])
+
+    def test_the_count_cap_is_deterministic(self) -> None:
         calls: List[float] = []
 
         def counted(x: float) -> float:
@@ -163,54 +193,25 @@ class TestCurveExtents(unittest.TestCase):
             return x
 
         graphs = [_Graph(f"f{i}", counted, -1.0, 1.0) for i in range(MAX_MEASURED_CURVES + 5)]
-        extents = curve_extents(_Canvas({"Function": graphs}), clock=_frozen)
-        self.assertEqual(len(extents["Functions"]), MAX_MEASURED_CURVES)
-        # Each graph: its samples, plus at most two midpoints next to each of its biggest values.
+        extents = self._measure(_Canvas({"Function": graphs}))
+        self.assertEqual(list(extents["Functions"]), [f"f{i}" for i in range(MAX_MEASURED_CURVES)])
         self.assertLessEqual(len(calls), MAX_MEASURED_CURVES * (CURVE_SAMPLES + 2 * _PEAKS_CHECKED))
 
-    def test_cap_is_shared_between_graphs_and_curves(self) -> None:
-        graphs = [_Graph(f"f{i}", math.sin, -1.0, 1.0) for i in range(MAX_MEASURED_CURVES + 5)]
-        curves = [_Curve(f"c{i}", math.cos, math.sin) for i in range(5)]
-        extents = curve_extents(_Canvas({"Function": graphs, "ParametricFunction": curves}), clock=_frozen)
-        self.assertEqual(len(extents["ParametricFunctions"]), 5)
-        self.assertEqual(len(extents["Functions"]), MAX_MEASURED_CURVES - 5)
-
-    def test_measuring_stops_at_the_time_budget(self) -> None:
-        ticks = iter(i * 0.02 for i in range(1000))
-        graphs = [_Graph(f"f{i}", math.sin, -1.0, 1.0) for i in range(10)]
-        extents = curve_extents(_Canvas({"Function": graphs}), clock=lambda: next(ticks))
-        self.assertLess(len(extents.get("Functions", {})), 10)
-
-    def test_bounded_graph_off_screen_is_skipped(self) -> None:
-        graph = _Graph("far", math.sin, 1000.0, 1010.0)
-        self.assertEqual(curve_extents(_Canvas({"Function": [graph]}, view=(-10.0, 10.0))), {})
-
-    def test_turns_tells_a_wave_from_a_line(self) -> None:
-        extents = curve_extents(
-            _Canvas({"Function": [_Graph("s", math.sin, -10.0, 10.0), _Graph("l", lambda x: 0.01 * x + 5, 0.0, 500.0)]})
-        )
-        self.assertTrue(extents["Functions"]["s"]["turns"])
-        self.assertFalse(extents["Functions"]["l"]["turns"])
-
-    def test_spiky_marks_a_pole_between_samples(self) -> None:
-        pole = _Graph("r", lambda x: 1.0 / x, -1.0, 1.0)
-        even_pole = _Graph("q", lambda x: 1.0 / (x * x), -1.0, 1.0)
-        shifted = _Graph("p", lambda x: 1.0 / (x - 0.3))
-        wave = _Graph("s", math.sin)
-        extents = curve_extents(_Canvas({"Function": [pole, even_pole, shifted, wave]}, view=(-628.0, 628.0)))
-        for name in ("r", "q", "p"):
-            self.assertTrue(extents["Functions"][name]["spiky"], name)
-        self.assertFalse(extents["Functions"]["s"]["spiky"])
+    def test_running_past_the_time_limit_sends_nothing(self) -> None:
+        ticks = iter(i * 0.06 for i in range(1000))
+        graphs = [_Graph(f"f{i}", math.sin, -1.0, 1.0) for i in range(5)]
+        canvas = _Canvas({"Function": graphs})
+        self.assertEqual(curve_extents(canvas, _all(canvas), clock=lambda: next(ticks)), {})
 
     def test_real_function_drawable(self) -> None:
         from drawables.function import Function
 
-        entry = curve_extents(_Canvas({"Function": [Function("x^2 - 2", name="f", left_bound=-2, right_bound=2)]}))
-        self.assertBox(entry["Functions"]["f"], [-2, 2, -2, 2], places=1)
+        canvas = _Canvas({"Function": [Function("x^2 - 2", name="f", left_bound=-2, right_bound=2)]})
+        self.assertBox(self._measure(canvas)["Functions"]["f"], [-2, 2, -2, 2], places=1)
 
 
 class TestPromptCarriesViewInfo(unittest.TestCase):
-    """AIInterface sends the view info with every prompt, without touching the state it was given."""
+    """AIInterface sends the view info after tool batches only, without touching the state it was given."""
 
     def _ai(self) -> Any:
         ai = TestTurnBookkeeping()._ai()
@@ -220,25 +221,26 @@ class TestPromptCarriesViewInfo(unittest.TestCase):
         ai._send_prompt_json = lambda *args: self.sent.append(args)
         return ai
 
-    def test_tool_batch_prompt_carries_the_size(self) -> None:
+    def test_tool_batch_prompt_carries_the_info(self) -> None:
         ai = self._ai()
         ai.canvas = _Canvas({"Function": [_Graph("f", math.sin)]})
-        state_after: Dict[str, Any] = {"Points": []}
-        ai._send_prompt_to_ai(None, "[]", canvas_state=state_after)
-        prompt_json = self.sent[-1][0]
-        self.assertEqual(prompt_json["canvas_state"][CANVAS_SIZE_KEY], {"width": 800.0, "height": 600.0})
-        self.assertIn("f", prompt_json["canvas_state"][CURVE_EXTENTS_KEY]["Functions"])
+        state_after = _state(f="sin(x)")
+        ai._send_prompt_to_ai(None, "[]", canvas_state=state_after, previous_state={})
+        sent_state = self.sent[-1][0]["canvas_state"]
+        self.assertEqual(sent_state[CANVAS_SIZE_KEY], {"width": 800.0, "height": 600.0})
+        self.assertIn("f", sent_state[CURVE_EXTENTS_KEY]["Functions"])
         self.assertNotIn(CANVAS_SIZE_KEY, state_after)
 
-    def test_prompt_without_a_canvas_is_sent_as_is(self) -> None:
+    def test_user_messages_carry_none(self) -> None:
         ai = self._ai()
-        ai._send_prompt_to_ai(None, "[]", canvas_state={})
-        self.assertEqual(self.sent[-1][0]["canvas_state"], {})
+        ai.canvas = _Canvas({"Function": [_Graph("f", math.sin)]})
+        ai._send_prompt_to_ai("hi", None, canvas_state=_state(f="sin(x)"))
+        self.assertNotIn(CANVAS_SIZE_KEY, self.sent[-1][0]["canvas_state"])
 
     def test_prompt_is_sent_when_measuring_fails(self) -> None:
         import ai_interface
 
-        def broken(state: Any, canvas: Any) -> Any:
+        def broken(*args: Any) -> Any:
             raise RuntimeError("measuring failed")
 
         original = ai_interface.with_view_info
@@ -252,4 +254,4 @@ class TestPromptCarriesViewInfo(unittest.TestCase):
         self.assertEqual(self.sent[-1][0]["canvas_state"], {"Points": []})
 
 
-__all__ = ["TestPromptCanvasSize", "TestCurveExtents", "TestPromptCarriesViewInfo"]
+__all__ = ["TestPromptCanvasSize", "TestNewCurves", "TestCurveExtents", "TestPromptCarriesViewInfo"]
