@@ -219,7 +219,7 @@ class UndoRedoManager:
             return
         self._view_tracking = True
         self._tracked_view_parts = set()
-        self._view_mark = self._comparable_view(self._capture_view())
+        self._view_mark = None  # no stretch is open until mark_batch_view
 
     def mark_batch_view(self) -> None:
         """Start a stretch whose view changes belong to the tracked batch (before a tool batch)."""
@@ -268,9 +268,11 @@ class UndoRedoManager:
         self._batch_view = self._comparable_view(self._capture_view())
         self._batch_changed = False
         if self._view_tracking:
-            # After an undo or redo inside a tracked batch the new group starts here.
+            # After an undo or redo inside a tracked batch the new group starts here; a stretch
+            # in progress (a tool batch) goes on from the restored view.
             self._tracked_view_parts = set()
-            self._view_mark = self._batch_view
+            if self._view_mark is not None:
+                self._view_mark = self._batch_view
 
     def _live_signature(self, with_view: bool = True) -> Optional[str]:
         """Serialized live state (optionally without the view), or None when it cannot be serialized."""
