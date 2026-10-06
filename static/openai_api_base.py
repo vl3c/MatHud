@@ -24,7 +24,7 @@ from openai import APITimeoutError, OpenAI
 
 from static.ai_model import AIModel
 from static.env_config import get_api_key
-from static.canvas_state_formatter import CanvasFormat, parse_canvas_format, render_state, render_update
+from static.canvas_state_formatter import CanvasFormat, parse_canvas_format, render_state, render_update, view_note
 from static.canvas_state_summarizer import compare_canvas_states
 from static.functions_definitions import FUNCTIONS, FunctionDefinition
 from static.response_metrics import ResponseMetrics, ResponseMetricsTracker
@@ -119,6 +119,11 @@ _CANVAS_PROMPT_SENTENCES: Dict[CanvasFormat, str] = {
     "text": "Each user message starts with the current canvas in a <canvas> block (one object per line as name = definition, followed after tool calls by [canvas changes] at the end of the last tool result); the lengths, areas and angles it lists come from the math engine and can be quoted directly.",
 }
 
+# The canvas may carry a view note (canvas_state_formatter.view_note) when the shapes are
+# too small on screen or outside the view. The app never changes the view on its own, and
+# neither should the model: it mentions the problem and offers the suggested view.
+VIEW_NOTE_GUIDANCE = "If the canvas has a view note (the shapes are too small on screen or outside the visible area), end your reply with one short sentence that mentions it and offers the suggested zoom. Never call zoom or other view tools because of a view note: change the view only when the user asks for it or agrees."
+
 
 def _is_canvas_state_result(value: Any) -> bool:
     """True for a get_current_canvas_state result value: ``{"type": "canvas_state", "value": {...}}``."""
@@ -127,7 +132,7 @@ def _is_canvas_state_result(value: Any) -> bool:
 
 def build_developer_message(canvas_format: CanvasFormat) -> str:
     """Return the system prompt describing how canvas state is presented in ``canvas_format``."""
-    return f"{_DEV_MSG_INTRO} {_CANVAS_PROMPT_SENTENCES[canvas_format]} {_DEV_MSG_OUTRO}"
+    return f"{_DEV_MSG_INTRO} {_CANVAS_PROMPT_SENTENCES[canvas_format]} {VIEW_NOTE_GUIDANCE} {_DEV_MSG_OUTRO}"
 
 
 # Essential tool names that should always be available after injection
@@ -596,6 +601,7 @@ class OpenAIAPIBase:
                                 if isinstance(text_json, dict):
                                     text_json.pop("canvas_state", None)
                                     text_json.pop("canvas_state_summary", None)
+                                    text_json.pop("view_note", None)
                                     part["text"] = json.dumps(text_json)
                             except json.JSONDecodeError:
                                 pass
@@ -607,6 +613,7 @@ class OpenAIAPIBase:
                         if isinstance(message_content_json, dict):
                             message_content_json.pop("canvas_state", None)
                             message_content_json.pop("canvas_state_summary", None)
+                            message_content_json.pop("view_note", None)
                             message["content"] = json.dumps(message_content_json)
                     except json.JSONDecodeError:
                         pass
@@ -747,13 +754,26 @@ class OpenAIAPIBase:
         if not isinstance(canvas_state, dict):
             return text
         self._strip_canvas_blocks(keep_latest=False)
-        self._last_canvas_state = canvas_state
-        block = self._render_canvas_block(canvas_state, canvas_format)
+        note = self._next_view_note(canvas_state)
+        block = self._render_canvas_block(canvas_state, canvas_format, note)
         return f"{block}\n\n{text}" if text else block
 
-    def _render_canvas_block(self, canvas_state: Dict[str, Any], canvas_format: CanvasFormat) -> str:
-        rendered = render_state(canvas_state, canvas_format, self._get_canvas_budget_tokens())
+    def _render_canvas_block(
+        self, canvas_state: Dict[str, Any], canvas_format: CanvasFormat, note: Optional[str] = None
+    ) -> str:
+        rendered = render_state(canvas_state, canvas_format, self._get_canvas_budget_tokens(), note)
         return f"{CANVAS_BLOCK_START}\n{rendered}\n{CANVAS_BLOCK_END}"
+
+    def _next_view_note(self, canvas_state: Dict[str, Any]) -> Optional[str]:
+        """Measure ``canvas_state`` against the last canvas shown to the model, then remember it.
+
+        Returns a "View note:" line when the shapes are too small on screen or outside
+        the view, only for a drawing that changed since the last canvas shown, so an
+        offer the user declined is not repeated (see canvas_state_formatter.view_note).
+        """
+        note: Optional[str] = view_note(self._last_canvas_state, canvas_state)
+        self._last_canvas_state = canvas_state
+        return note
 
     @staticmethod
     def _extract_attached_images(prompt_json: Dict[str, Any]) -> Optional[List[str]]:
@@ -790,6 +810,7 @@ class OpenAIAPIBase:
         telemetry_enabled = self._is_canvas_summary_telemetry_enabled()
         start_time = time.perf_counter() if telemetry_enabled else 0.0
         normalized_prompt, summary_metrics = self._normalize_prompt_canvas_state_with_metrics(full_prompt)
+        normalized_prompt = self._add_json_view_note(full_prompt, normalized_prompt)
         prompt_kind = "text"
         message_content: MessageContent = normalized_prompt
         prompt_json: Optional[Dict[str, Any]] = None
@@ -827,6 +848,21 @@ class OpenAIAPIBase:
                 summary_metrics=summary_metrics,
             )
         return message_content
+
+    def _json_prompt_view_note(self, full_prompt: str) -> Optional[str]:
+        """json format: the view note for the prompt's canvas_state (see ``_next_view_note``)."""
+        prompt_json = self._parse_prompt_json(full_prompt)
+        canvas_state = prompt_json.get("canvas_state") if prompt_json is not None else None
+        return self._next_view_note(canvas_state) if isinstance(canvas_state, dict) else None
+
+    def _add_json_view_note(self, full_prompt: str, normalized_prompt: str) -> str:
+        """json format: add the view note to the prompt JSON as a top-level "view_note" field."""
+        note = self._json_prompt_view_note(full_prompt)
+        normalized_json = self._parse_prompt_json(normalized_prompt) if note else None
+        if normalized_json is None:
+            return normalized_prompt
+        normalized_json["view_note"] = note
+        return json.dumps(normalized_json)
 
     def _normalize_prompt_canvas_state(self, full_prompt: str) -> str:
         """Normalize prompt canvas payload according to summary mode."""
@@ -991,8 +1027,9 @@ class OpenAIAPIBase:
         pending = self._get_pending_tool_messages()
         if not pending or pending[-1].get("content") == TOOL_RESULT_PLACEHOLDER:
             return
-        update = render_update(self._last_canvas_state, canvas_state, canvas_format, self._get_canvas_budget_tokens())
-        self._last_canvas_state = canvas_state
+        previous = self._last_canvas_state
+        note = self._next_view_note(canvas_state)
+        update = render_update(previous, canvas_state, canvas_format, self._get_canvas_budget_tokens(), note)
         if update:
             pending[-1]["content"] = f"{pending[-1]['content']}\n{update}"
 
