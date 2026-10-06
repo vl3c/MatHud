@@ -11,12 +11,18 @@ from prompt_canvas_state import (
     CURVE_EXTENTS_KEY,
     CURVE_SAMPLES,
     MAX_MEASURED_CURVES,
+    _PEAKS_CHECKED,
     canvas_size_px,
     curve_extents,
     with_view_info,
 )
 
 from .test_turn_metrics import TestTurnBookkeeping
+
+
+def _frozen() -> float:
+    """A clock that never moves: the time budget never cuts a test short."""
+    return 0.0
 
 
 class _Sized:
@@ -157,14 +163,15 @@ class TestCurveExtents(unittest.TestCase):
             return x
 
         graphs = [_Graph(f"f{i}", counted, -1.0, 1.0) for i in range(MAX_MEASURED_CURVES + 5)]
-        extents = curve_extents(_Canvas({"Function": graphs}))
+        extents = curve_extents(_Canvas({"Function": graphs}), clock=_frozen)
         self.assertEqual(len(extents["Functions"]), MAX_MEASURED_CURVES)
-        self.assertEqual(len(calls), MAX_MEASURED_CURVES * CURVE_SAMPLES)
+        # Each graph: its samples, plus at most two midpoints next to each of its biggest values.
+        self.assertLessEqual(len(calls), MAX_MEASURED_CURVES * (CURVE_SAMPLES + 2 * _PEAKS_CHECKED))
 
     def test_cap_is_shared_between_graphs_and_curves(self) -> None:
         graphs = [_Graph(f"f{i}", math.sin, -1.0, 1.0) for i in range(MAX_MEASURED_CURVES + 5)]
         curves = [_Curve(f"c{i}", math.cos, math.sin) for i in range(5)]
-        extents = curve_extents(_Canvas({"Function": graphs, "ParametricFunction": curves}))
+        extents = curve_extents(_Canvas({"Function": graphs, "ParametricFunction": curves}), clock=_frozen)
         self.assertEqual(len(extents["ParametricFunctions"]), 5)
         self.assertEqual(len(extents["Functions"]), MAX_MEASURED_CURVES - 5)
 

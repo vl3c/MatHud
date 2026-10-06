@@ -723,7 +723,9 @@ _NAME_ORDER = {"Points": 2, "Labels": 2, "Segments": 1, "Vectors": 1}
 
 
 def _names(keys: Sequence[Key]) -> str:
-    keys = sorted(keys, key=lambda key: _NAME_ORDER.get(key[0], 0))
+    """The most whole objects only: a triangle is named without its edges and vertices."""
+    top = min(_NAME_ORDER.get(key[0], 0) for key in keys)
+    keys = [key for key in keys if _NAME_ORDER.get(key[0], 0) == top]
     names = ", ".join(key[1] for key in keys[:_MAX_NOTE_NAMES])
     if len(keys) > _MAX_NOTE_NAMES:
         names += f" (+{len(keys) - _MAX_NOTE_NAMES} more)"
