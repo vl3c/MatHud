@@ -8,6 +8,7 @@ answers CDP commands, and target discovery talks to a tiny HTTP server on
 from __future__ import annotations
 
 import base64
+import re
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -20,6 +21,8 @@ from cli.cdp import (
     CDPBrowser,
     CDPConnection,
     CDPError,
+    CDPUnavailable,
+    _default_connect,
     app_base_url,
     find_app_target,
     is_loopback_url,
@@ -219,27 +222,34 @@ class FakePage:
 
     def __init__(self) -> None:
         self.reloads = 0
-        self.marker = False
+        self.marker: Optional[str] = None
         self.ready = True
         self.png = b"\x89PNG fake"
+        # Hook calls answered "missing" (as while a page reloaded from outside is loading).
+        self.missing_hook_calls = 0
 
     def __call__(self, message: dict[str, Any]) -> dict[str, Any]:
         method, params = message["method"], message.get("params") or {}
         result: dict[str, Any] = {}
         if method == "Runtime.evaluate":
             expression = params["expression"]
-            if expression.startswith("window.__mathudCdpReloadPending = true"):
-                self.marker = True
-                result = _value(True)
+            if expression.startswith("window.__mathudCdpReloadPending = "):
+                self.marker = json.loads(expression.split("= ", 1)[1])
+                result = _value(self.marker)
             elif "typeof window.sendMatHudMessage" in expression:
-                result = _value(self.ready and not self.marker)
+                waiting = re.search(r'!== "([0-9a-f]+)"', expression)
+                result = _value(self.ready and not (waiting and self.marker == waiting.group(1)))
             elif "getMatHudTurnStatus" in expression:
-                result = _value(json.dumps({"processing": False, "completed_turns": 3}))
+                if self.missing_hook_calls:
+                    self.missing_hook_calls -= 1
+                    result = _value(None)  # call_hook: typeof window.getMatHudTurnStatus !== 'function'
+                else:
+                    result = _value(json.dumps({"processing": False, "completed_turns": 3}))
             else:
                 result = _value(None)
         elif method == "Page.reload":
             self.reloads += 1
-            self.marker = False  # the new document has no marker
+            self.marker = None  # the new document has no marker
         elif method == "Page.captureScreenshot":
             result = {"data": base64.b64encode(self.png).decode()}
         return {"id": message["id"], "result": result}
@@ -281,6 +291,57 @@ class TestCDPBrowser:
         assert browser.reload() is True
         assert page.reloads == 1
         assert browser.wait_for_app_ready(2) is True
+
+    def test_a_reload_that_did_not_happen_is_not_mistaken_for_ready(self) -> None:
+        page = FakePage()
+        browser, sockets = _browser(page)
+        browser.setup()
+        page_reload = page.__call__
+
+        def no_reload(message: dict[str, Any]) -> dict[str, Any]:
+            if message["method"] == "Page.reload":
+                return {"id": message["id"], "result": {}}  # the old page stays, marker and all
+            return page_reload(message)
+
+        sockets[0].responder = no_reload
+        browser.reload()
+        assert browser.wait_for_app_ready(0.3) is False
+
+    def test_a_stale_marker_from_another_client_does_not_block(self) -> None:
+        page = FakePage()
+        page.marker = "0123abcd"  # left by a client that died before its reload
+        browser, _ = _browser(page)
+        browser.setup()
+        assert browser.wait_for_app_ready(1) is True
+
+    def test_a_missing_hook_waits_for_the_app_and_retries_once(self) -> None:
+        page = FakePage()
+        browser, _ = _browser(page)
+        browser.setup()
+        page.missing_hook_calls = 1
+        assert browser.call_hook("getMatHudTurnStatus")["completed_turns"] == 3
+        page.missing_hook_calls = 2
+        with pytest.raises(RuntimeError, match="not available"):
+            browser.call_hook("getMatHudTurnStatus")
+
+    def test_refused_connection_is_cdp_unavailable(self) -> None:
+        with pytest.raises(CDPUnavailable):
+            list_targets(_unused_port(), timeout=5)  # Windows refuses only after its SYN retries (~2 s)
+
+    def test_default_connect_suppresses_the_origin_header(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import websocket
+
+        seen: dict[str, Any] = {}
+
+        def create_connection(url: str, **kwargs: Any) -> str:
+            seen.update(kwargs, url=url)
+            return "ws"
+
+        monkeypatch.setattr(websocket, "create_connection", create_connection)
+        assert _default_connect("ws://127.0.0.1:9301/devtools/page/P1", 5) == "ws"
+        # Chromium refuses DevTools websockets that send an Origin header (403).
+        assert seen["suppress_origin"] is True
+        assert "origin" not in seen
 
     def test_wait_for_app_ready_gives_up(self) -> None:
         page = FakePage()

@@ -127,7 +127,7 @@ def _fail(message: str, code: int = 2) -> int:
 @click.option(
     "--allow-workspace-writes",
     is_flag=True,
-    help="With --port: run workspace scenarios against that server's workspace directory",
+    help="With --port: run workspace scenarios against that server's workspace directory (refused when attached)",
 )
 @click.option("--known-artifacts", is_flag=True, help="Also save state and screenshot for expected failures")
 @click.option(
@@ -463,13 +463,19 @@ def _drive(
     workspaces_tmp: Optional[str],
     as_json: bool,
     out_dir: Path,
+    on_interrupt: Optional[Callable[[], None]] = None,
 ) -> int:
-    """Run, then always write the reports and clean up (also on Ctrl+C); returns the exit code."""
+    """Run, then always write the reports and clean up (also on Ctrl+C); returns the exit code.
+
+    ``on_interrupt`` runs first on Ctrl+C (attach mode: stop the turn running in the window).
+    """
     interrupted = False
     try:
         run()
     except KeyboardInterrupt:
         interrupted = True
+        if on_interrupt is not None:
+            on_interrupt()
         click.echo(click.style("Interrupted; writing partial results.", fg="yellow"), err=True)
     finally:
         session.kill()
@@ -502,21 +508,29 @@ def _start_own_server(port: int, extra_env: dict[str, str]) -> tuple[Optional[Se
     return None, f"no free port from {port} to {port + OWN_SERVER_PORT_TRIES - 1}"
 
 
-def _available_models(base_url: str) -> Any:
+def _local_session() -> Any:
+    """A requests session for the app on localhost: system and environment proxies are not consulted."""
     import requests
 
-    response = requests.get(f"{base_url}/api/available_models", timeout=60)
-    response.raise_for_status()
-    return response.json()
+    session = requests.Session()
+    session.trust_env = False
+    return session
+
+
+def _available_models(base_url: str) -> Any:
+    with _local_session() as session:
+        response = session.get(f"{base_url}/api/available_models", timeout=60)
+        response.raise_for_status()
+        return response.json()
 
 
 def _conversation_resetter(base_url: str) -> Callable[[], None]:
     """POST /new_conversation and wait for it, so a scenario never starts on the previous one's history."""
-    import requests
 
     def reset() -> None:
-        response = requests.post(f"{base_url}/new_conversation", timeout=30)
-        response.raise_for_status()
+        with _local_session() as session:
+            response = session.post(f"{base_url}/new_conversation", timeout=30)
+            response.raise_for_status()
 
     return reset
 
@@ -531,13 +545,13 @@ def _idle_waiter(base_url: str, timeout_s: float = IDLE_WAIT_S) -> Callable[[], 
     The server drops a stopped turn's reply anyway; waiting keeps that request from
     sharing the model server with the next turn and skewing its timing.
     """
-    import requests
+    session = _local_session()
 
     def wait() -> float:
         started = time.time()
         while time.time() - started < timeout_s:
             try:
-                response = requests.get(f"{base_url}/api/requests_in_flight", timeout=10)
+                response = session.get(f"{base_url}/api/requests_in_flight", timeout=10)
                 if int(response.json()["data"]["requests_in_flight"]) == 0:
                     break
             except Exception:

@@ -42,6 +42,11 @@ def desktop(
     screenshot subcommands drive a window opened with --automation-port.
     """
     if ctx.invoked_subcommand is not None:
+        if port is not None or browser or devtools or automation_port is not None:
+            _fail(
+                f"desktop's own options open a window; they do not apply to `desktop {ctx.invoked_subcommand}`. "
+                f"Give the automation port after the subcommand: desktop {ctx.invoked_subcommand} --port N"
+            )
         return
     if str(PROJECT_ROOT) not in sys.path:
         sys.path.insert(0, str(PROJECT_ROOT))
@@ -116,16 +121,27 @@ def prompt_cmd(
     --no-fit-view.
     """
     from cli.desktop_automation import (
+        PAID_PROVIDER_WARNING,
         DesktopError,
         available_models,
         choose_prompt_model,
         connect_desktop,
+        ensure_model_listed,
         format_prompt_result,
+        paid_provider_guard,
         run_prompt,
+        stop_turn,
+        validate_prompt,
     )
     from cli.desktop_automation import fit_view as fit_window_view
     from cli.scenarios.live_config import GuardError
 
+    try:
+        validate_prompt(text)
+    except DesktopError as exc:
+        _fail(f"Not sent: {exc}")
+    if provider != "local":
+        click.echo(click.style(PAID_PROVIDER_WARNING, fg="yellow"), err=True)
     try:
         browser = connect_desktop(port)
     except DesktopError as exc:
@@ -134,16 +150,26 @@ def prompt_cmd(
         assert browser.base_url is not None
         try:
             chosen = choose_prompt_model(available_models(browser.base_url), provider, model)
+            paid_provider_guard(browser.base_url, provider)
         except GuardError as exc:
             _fail(f"Not sent: {exc}")
         except Exception as exc:
             _fail(f"Not sent: could not read {browser.base_url}/api/available_models: {exc}")
+        try:
+            ensure_model_listed(browser, chosen)
+        except DesktopError as exc:
+            _fail(f"Not sent: {exc}")
         if not as_json:
             click.echo(f"Sending to {browser.base_url} with {chosen} ...", err=True)
         try:
             result = run_prompt(browser, text, chosen, timeout_s=timeout_s, max_requests=max_requests)
         except DesktopError as exc:
             _fail(str(exc))
+        except KeyboardInterrupt:
+            # Do not leave the turn running in the window (it would keep sending requests).
+            stop_turn(browser)
+            click.echo(click.style("Interrupted; the turn was stopped.", fg="yellow"), err=True)
+            raise SystemExit(130)
         if fit_view:
             try:
                 result["fit_view"] = fit_window_view(browser)

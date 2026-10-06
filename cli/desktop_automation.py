@@ -9,6 +9,8 @@ Spend guard: the desktop app runs with the user's own ``.env`` (real API keys),
 so a prompt is always sent with an explicit model id that ``/api/available_models``
 lists under the requested provider. Without ``--model`` the single local model
 is used; the window's current selection is never used, since it may be a paid model.
+A paid provider also needs the app to search tools locally and OpenRouter not to
+retry (``/api/automation_settings``), since those requests are not counted.
 """
 
 from __future__ import annotations
@@ -83,6 +85,101 @@ def choose_prompt_model(available: Any, provider: str, model: Optional[str]) -> 
     raise GuardError(f"several local models are served ({', '.join(local)}); pick one with --model")
 
 
+def validate_prompt(text: str) -> None:
+    """Refuse an empty prompt or a slash command (those run in the window without the model)."""
+    if not text.strip():
+        raise DesktopError("the prompt is empty")
+    if text.lstrip().startswith("/"):
+        raise DesktopError("slash commands run in the window without the model; type them there")
+
+
+def automation_settings(base_url: str, timeout: float = 30.0) -> dict[str, Any]:
+    """``GET /api/automation_settings``: the server's effective tool-search mode and OpenRouter retries."""
+    import requests
+
+    with requests.Session() as session:
+        session.trust_env = False
+        response = session.get(f"{base_url}/api/automation_settings", timeout=timeout)
+        response.raise_for_status()
+        data = response.json().get("data")
+    if not isinstance(data, dict):
+        raise DesktopError(f"unexpected reply from {base_url}/api/automation_settings")
+    return data
+
+
+PAID_PROVIDER_WARNING = (
+    "Warning: this uses a paid provider through the desktop app, which runs with its own .env. "
+    "Every request it sends is billed; it is refused unless the app's TOOL_SEARCH_MODE is local and "
+    "MATHUD_OPENROUTER_MAX_RETRIES is 0, since API tool searches and retries are requests no cap counts."
+)
+
+
+def check_paid_provider_settings(settings: Optional[dict[str, Any]]) -> None:
+    """Refuse a paid provider unless the app searches tools locally and OpenRouter does not retry.
+
+    An ``api`` or ``hybrid`` tool search, and SDK retries, send paid requests that
+    no request cap counts. ``settings`` is ``automation_settings``'s reply, or None
+    when the server could not report them (an older app), which is refused too.
+    """
+    if settings is None:
+        raise GuardError(
+            "the desktop app does not report its tool-search mode and OpenRouter retries "
+            "(GET /api/automation_settings); update it before using a paid provider"
+        )
+    problems = []
+    if settings.get("tool_search_mode") != "local":
+        problems.append(f"TOOL_SEARCH_MODE is {settings.get('tool_search_mode')!r}, not 'local'")
+    if settings.get("openrouter_max_retries") != 0:
+        problems.append(f"MATHUD_OPENROUTER_MAX_RETRIES is {settings.get('openrouter_max_retries')!r}, not 0")
+    if problems:
+        raise GuardError(
+            "the desktop app would send paid requests no cap counts: "
+            + "; ".join(problems)
+            + ". Set them in its .env and restart it"
+        )
+
+
+def paid_provider_guard(base_url: str, provider: str) -> Optional[dict[str, Any]]:
+    """For a paid provider, read the app's settings and refuse unsafe ones; returns them (None for local)."""
+    if provider == "local":
+        return None
+    try:
+        settings: Optional[dict[str, Any]] = automation_settings(base_url)
+    except Exception:
+        settings = None
+    check_paid_provider_settings(settings)
+    return settings
+
+
+_MODEL_LISTED_JS = """
+var wanted = arguments[0];
+var selector = document.getElementById('ai-model-selector');
+return !!selector && Array.prototype.some.call(selector.options, function (o) { return o.value === wanted; });
+"""
+_REFRESH_MODELS_JS = "return window.refreshMatHudModels ? window.refreshMatHudModels() : false;"
+
+
+def ensure_model_listed(browser: CDPBrowser, model: str) -> None:
+    """Make sure the window's model dropdown offers ``model``, refreshing the list once if not.
+
+    The page lists models when it loads; a window opened before llama-server
+    started lacks the local model the server now registers.
+    """
+    if browser.execute_js(_MODEL_LISTED_JS, model) is True:
+        return
+    browser.execute_js(_REFRESH_MODELS_JS, timeout=60)
+    if browser.execute_js(_MODEL_LISTED_JS, model) is not True:
+        raise DesktopError(f"the window's model list does not offer {model}, even after refreshing it")
+
+
+def stop_turn(browser: CDPBrowser) -> None:
+    """Stop the window's running turn, if any (after Ctrl+C); errors are ignored."""
+    try:
+        browser.call_hook("stopMatHudTurn")
+    except Exception:
+        pass
+
+
 def _status(browser: CDPBrowser) -> dict[str, Any]:
     return browser.call_hook("getMatHudTurnStatus")
 
@@ -114,10 +211,7 @@ def run_prompt(
     the executed tool calls from the action traces, the turn metrics, the turn
     outcome and, when the harness had to stop the turn, ``stop_reason``.
     """
-    if not text.strip():
-        raise DesktopError("the prompt is empty")
-    if text.lstrip().startswith("/"):
-        raise DesktopError("slash commands run in the window without the model; type them there")
+    validate_prompt(text)
     status = _status(browser)
     if status.get("processing"):
         raise DesktopError("a turn is already running in the window; wait for it or stop it there")

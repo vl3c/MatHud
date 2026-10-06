@@ -48,17 +48,27 @@ class AttachedWindow(FakeChatBrowser):
         self.closes = 0
         self.view = dict(VIEW)
         self.fits = 0
+        self.guards: list[bool] = []
 
     def _state(self) -> dict[str, Any]:
         state = super()._state()
         state["Cartesian_System_Visibility"] = dict(self.view)
         return state
 
+    def execute_js(self, script: str, *args: Any, timeout: int = 30) -> Any:
+        if "ai-model-selector" in script:
+            return True  # every model is in the window's dropdown
+        return super().execute_js(script, *args, timeout=timeout)
+
     def call_hook(self, name: str, *args: Any, timeout: int = 30) -> dict[str, Any]:
         if name == "getMatHudTurnStatus" and self.busy:
             return {"processing": True, "completed_turns": 0, "requests": 0}
         if name == "fitMatHudView":
             return self._fit()
+        if name == "setMatHudAutomationGuards":
+            blocked = bool(json.loads(args[0])["block_workspace_tools"])
+            self.guards.append(blocked)
+            return {"status": "ok", "workspace_tools_blocked": blocked}
         return super().call_hook(name, *args, timeout=timeout)
 
     def _fit(self) -> dict[str, Any]:
@@ -92,7 +102,7 @@ def scenarios_dir(tmp_path: Path) -> Path:
 def window(monkeypatch: pytest.MonkeyPatch) -> AttachedWindow:
     fake = AttachedWindow()
     monkeypatch.setattr(attach_module, "_connect", lambda port: fake)
-    monkeypatch.setattr(attach_module, "CDPBrowser", lambda port: fake)
+    monkeypatch.setattr(attach_module, "attached_browser", lambda port: fake)
     monkeypatch.setattr(command_module, "_available_models", lambda base_url: AVAILABLE)
     monkeypatch.setattr(command_module, "_conversation_resetter", lambda base_url: lambda: None)
     monkeypatch.setattr(command_module, "_idle_waiter", lambda base_url: lambda: 0.0)
@@ -152,7 +162,8 @@ class TestHelpers:
 
     def test_confirmation_text_names_the_resets_and_openrouter_caveats(self) -> None:
         replay = confirmation_text("http://127.0.0.1:5110", "replay", 3, None)
-        assert "resets its canvas, undo history and chat" in replay and "server conversation" not in replay
+        assert "resets its canvas, undo history and chat." in replay
+        assert "The server conversation is reset once first." in replay
         live = confirmation_text("http://127.0.0.1:5110", "live", 3, "openrouter")
         assert "server conversation" in live and "TOOL_SEARCH_MODE must be local" in live
 
@@ -208,16 +219,140 @@ class TestAttachedReplay:
         assert pauses and set(pauses) == {ATTACHED_PACE_S}
         assert window.closes >= 1  # the session disconnected; nothing closed the window
 
-    def test_workspace_scenarios_run_only_when_allowed(
-        self, tmp_path: Path, scenarios_dir: Path, window: AttachedWindow, pauses: list[float]
+    def test_workspace_writes_are_refused_when_attached(
+        self, tmp_path: Path, scenarios_dir: Path, window: AttachedWindow
     ) -> None:
         out = tmp_path / "out"
-        result = invoke(
-            scenarios_dir, out, "--attach-desktop", "9301", "--yes", "--allow-workspace-writes", "--pace", "0"
-        )
-        data = json.loads((out / "results.json").read_text())
-        assert not any(item.get("skipped_reason") for item in data["scenarios"]), result.output
-        assert pauses == []
+        result = invoke(scenarios_dir, out, "--attach-desktop", "9301", "--yes", "--allow-workspace-writes")
+        assert result.exit_code == 2 and "cannot be used with --attach-desktop" in result.output
+        assert not (out / "results.json").exists()
+
+    def test_workspace_tools_are_blocked_during_the_run_and_unblocked_after(
+        self, tmp_path: Path, scenarios_dir: Path, window: AttachedWindow, pauses: list[float]
+    ) -> None:
+        from cli.scenarios.attach import AttachedBrowser
+
+        # The session's browser blocks them whenever the app is ready (AttachedBrowser); the run unblocks them.
+        result = invoke(scenarios_dir, tmp_path / "out", "--attach-desktop", "9301", "--yes")
+        assert result.exit_code == 0, result.output
+        assert window.guards[-1] is False
+        assert issubclass(AttachedBrowser, attach_module.CDPBrowser)
+
+    def test_replay_resets_the_server_conversation_once(
+        self, tmp_path: Path, scenarios_dir: Path, window: AttachedWindow, monkeypatch: pytest.MonkeyPatch,
+        pauses: list[float],
+    ) -> None:  # fmt: skip
+        resets: list[str] = []
+        monkeypatch.setattr(command_module, "_conversation_resetter", lambda url: lambda: resets.append(url))
+        result = invoke(scenarios_dir, tmp_path / "out", "--attach-desktop", "9301", "--yes")
+        assert result.exit_code == 0, result.output
+        assert resets == ["http://127.0.0.1:5110"]
+        assert "(1 skipped)" in result.output  # GEO-91 saves a workspace
+
+    def test_ctrl_c_stops_the_turn_in_the_window(
+        self, tmp_path: Path, scenarios_dir: Path, window: AttachedWindow, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def interrupted(self: Any, *args: Any) -> Any:
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(attach_module.LiveRunner, "run_live", interrupted)
+        result = invoke(scenarios_dir, tmp_path / "out", "--mode", "live", "--attach-desktop", "9301", "--yes")
+        assert result.exit_code == 130
+        assert window.stops == 1
+        assert window.guards[-1] is False
+
+    def test_live_attached_run_never_retries(
+        self, tmp_path: Path, scenarios_dir: Path, window: AttachedWindow, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        captured: dict[str, Any] = {}
+        real = attach_module.LiveRunner
+
+        def capturing(*args: Any, **kwargs: Any) -> Any:
+            captured["options"] = args[3]
+            return real(*args, **kwargs)
+
+        monkeypatch.setattr(attach_module, "LiveRunner", capturing)
+        args = ["--mode", "live", "--attach-desktop", "9301", "--yes", "--ids", "GEO-90", "--pace", "0"]
+        result = invoke(scenarios_dir, tmp_path / "out", *args)
+        assert result.exit_code == 0, result.output
+        assert captured["options"].retries == 0
+
+    def test_openrouter_is_refused_unless_the_app_searches_locally_without_retries(
+        self, tmp_path: Path, scenarios_dir: Path, window: AttachedWindow, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import cli.desktop_automation as desktop_automation
+
+        available = {"openrouter_paid": [{"id": "x/y"}]}
+        monkeypatch.setattr(command_module, "_available_models", lambda base_url: available)
+        reported = {"tool_search_mode": "hybrid", "openrouter_max_retries": 0}
+        monkeypatch.setattr(desktop_automation, "automation_settings", lambda base_url: reported)
+        args = ["--mode", "live", "--attach-desktop", "9301", "--yes", "--provider", "openrouter", "--models", "x/y"]
+        result = invoke(scenarios_dir, tmp_path / "out", *args, "--ids", "GEO-90")
+        assert result.exit_code == 2 and "TOOL_SEARCH_MODE is 'hybrid'" in result.output
+        assert window.sent == []
+
+    def test_attached_browser_blocks_workspace_tools_whenever_the_app_is_ready(self) -> None:
+        from cli.scenarios.attach import AttachedBrowser
+        from server_tests.test_cli.test_cdp import PAGE, FakePage, FakeSocket, _value
+
+        class GuardPage(FakePage):
+            def __init__(self) -> None:
+                super().__init__()
+                self.guards: list[str] = []
+
+            def __call__(self, message: dict[str, Any]) -> dict[str, Any]:
+                expression = (message.get("params") or {}).get("expression", "")
+                if "setMatHudAutomationGuards" in expression:
+                    self.guards.append(expression)
+                    reply = json.dumps({"status": "ok", "workspace_tools_blocked": True})
+                    return {"id": message["id"], "result": _value(reply)}
+                if "resetMatHudSession" in expression or "getMatHudCanvasState" in expression:
+                    return {"id": message["id"], "result": _value(json.dumps({"status": "ok"}))}
+                return super().__call__(message)
+
+        page = GuardPage()
+        browser = AttachedBrowser(9301, connect=lambda url, timeout: FakeSocket(page), targets=lambda p, h: [PAGE])
+        browser.setup()
+        assert browser.wait_for_app_ready(2) is True
+        assert len(page.guards) == 1 and "block_workspace_tools" in page.guards[0]
+        browser.reload()  # a reload lifts the block in the page, so readiness applies it again
+        assert browser.wait_for_app_ready(2) is True
+        assert len(page.guards) == 2
+        # A reload from outside is not seen, so hooks that can run tools re-apply it first.
+        browser.call_hook("resetMatHudSession", "{}")
+        assert len(page.guards) == 3
+        browser.call_hook("getMatHudCanvasState", "{}")  # reads only: no extra round trip
+        assert len(page.guards) == 3
+
+    def test_a_window_that_cannot_block_its_workspace_tools_stops_the_run(self) -> None:
+        from cli.scenarios.attach import AttachedBrowser
+        from cli.scenarios.runner import RunStopped
+        from server_tests.test_cli.test_cdp import PAGE, FakePage, FakeSocket, _value
+
+        class OldPage(FakePage):
+            def __call__(self, message: dict[str, Any]) -> dict[str, Any]:
+                expression = (message.get("params") or {}).get("expression", "")
+                if "setMatHudAutomationGuards" in expression:
+                    reply = json.dumps({"status": "ok", "workspace_tools_blocked": False})
+                    return {"id": message["id"], "result": _value(reply)}
+                return super().__call__(message)
+
+        page = OldPage()
+        browser = AttachedBrowser(9301, connect=lambda url, timeout: FakeSocket(page), targets=lambda p, h: [PAGE])
+        browser.setup()
+        with pytest.raises(RunStopped, match="did not block its workspace tools"):
+            browser.wait_for_app_ready(2)
+
+    def test_a_closed_window_stops_the_run(self) -> None:
+        from cli.cdp import CDPUnavailable
+        from cli.scenarios.attach import AttachedBrowser
+        from cli.scenarios.runner import RunStopped
+
+        def gone(port: int, host: str) -> Any:
+            raise CDPUnavailable("nothing listens")
+
+        with pytest.raises(RunStopped, match="window is gone"):
+            AttachedBrowser(9301, targets=gone).setup()
 
     def test_asks_before_resetting_the_window(
         self, tmp_path: Path, scenarios_dir: Path, window: AttachedWindow, monkeypatch: pytest.MonkeyPatch
@@ -234,8 +369,15 @@ class TestAttachedReplay:
         result = invoke(scenarios_dir, out, "--attach-desktop", "9301")
         assert result.exit_code == 2
         assert "Not confirmed" in result.output
-        assert asked and "resets its canvas, undo history and chat" in asked[0]
+        assert asked == ["Continue?"]
+        assert "resets its canvas, undo history and chat" in result.output
         assert not (out / "results.json").exists()
+
+    def test_the_warning_is_shown_with_yes_too(
+        self, tmp_path: Path, scenarios_dir: Path, window: AttachedWindow, pauses: list[float]
+    ) -> None:
+        result = invoke(scenarios_dir, tmp_path / "out", "--attach-desktop", "9301", "--yes")
+        assert "resets its canvas, undo history and chat" in result.output
 
     def test_refuses_without_a_terminal_or_yes(
         self, tmp_path: Path, scenarios_dir: Path, window: AttachedWindow

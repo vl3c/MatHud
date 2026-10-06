@@ -14,9 +14,19 @@ tool exposure, canvas format, search mode) and their workspace directory. So:
 - the model guard still holds: every model must be listed under the provider in
   the app's ``/api/available_models`` and each prompt names its model; OpenRouter
   still needs ``--models``, its request cap and its dry run;
+- a paid provider is refused unless the app reports (``/api/automation_settings``)
+  that it searches tools locally and that OpenRouter does not retry: both would
+  send requests the cap cannot count;
 - every scenario resets the window's canvas and chat (live mode also the
-  server conversation), so the run asks first unless ``--yes`` is given;
-- scenarios that save or load workspaces are skipped unless ``--allow-workspace-writes``;
+  server conversation; replay resets the conversation once at the start, since
+  it never adds to it), so the run prints what it will do and asks first unless
+  ``--yes`` is given;
+- scenarios that save or load workspaces are always skipped, and while the run
+  drives the window its workspace tools answer with an error
+  (``setMatHudAutomationGuards``), so neither a model nor a retrace can touch
+  the user's workspace directory; the block is lifted when the run ends;
+- Ctrl+C stops the turn running in the window before the run ends, and closing
+  the window stops the run;
 - with ``--fit-view`` (the default when attached) the view is zoomed to the drawings
   after each graded step, for display only (``ReplayOptions.fit_view``): grading and
   artifacts come first, the grader takes the fitted canvas as the next step's
@@ -32,12 +42,13 @@ from typing import Any, Callable, Optional
 
 import click
 
-from cli.cdp import CDPBrowser
+from cli.browser_backend import HookClient
+from cli.cdp import CDPBrowser, CDPUnavailable
 from cli.scenarios.live import LiveOptions, LiveRunner, RequestBudget, planned_requests
 from cli.scenarios.live_config import GuardError, LiveSettings, check_models, check_request_cap, live_plan
 from cli.scenarios.model import Catalogue, Scenario
 from cli.scenarios.report import ResultSink
-from cli.scenarios.runner import BrowserSession, ReplayOptions, ReplayRunner
+from cli.scenarios.runner import BrowserSession, ReplayOptions, ReplayRunner, RunStopped
 
 # The pause after each step when attached, unless --pace says otherwise.
 ATTACHED_PACE_S = 1.5
@@ -54,6 +65,50 @@ UNPINNED_SETTINGS = (
 )
 # Command-line options that set a pin (refused when attached).
 PIN_OPTIONS = ("tool_exposure", "canvas_format", "canvas_budget", "tool_search_mode", "local_reasoning_effort")
+
+
+BLOCK_WORKSPACE_TOOLS = json.dumps({"block_workspace_tools": True})
+UNBLOCK_WORKSPACE_TOOLS = json.dumps({"block_workspace_tools": False})
+# Hooks that can run tools: the block is re-applied before each (cheap, and idempotent).
+GUARDED_HOOKS = frozenset({"resetMatHudSession", "runMatHudToolCalls", "sendMatHudMessage"})
+
+
+class AttachedBrowser(CDPBrowser):
+    """The run's session browser: the desktop window, with the run's guards applied whenever the app is ready.
+
+    Workspace tools are blocked each time the page is ready and before every
+    hook that can run tools (a reload, also one from outside, lifts the block).
+    A DevTools port that refuses connections means the window was closed: the
+    run stops instead of erroring on every remaining scenario.
+    """
+
+    def setup(self) -> None:
+        try:
+            super().setup()
+        except CDPUnavailable as exc:
+            raise RunStopped(f"the desktop window is gone ({exc})") from exc
+
+    def wait_for_app_ready(self, timeout: float = 60.0) -> bool:
+        if not super().wait_for_app_ready(timeout):
+            return False
+        self._block_workspace_tools()
+        return True
+
+    def call_hook(self, name: str, *args: Any, timeout: int = 30) -> dict[str, Any]:
+        # The page may have been reloaded from outside since the block was applied (a reload
+        # lifts it), so it is applied again before anything that can run tools.
+        if name in GUARDED_HOOKS:
+            self._block_workspace_tools()
+        return super().call_hook(name, *args, timeout=timeout)
+
+    def _block_workspace_tools(self) -> None:
+        reply = HookClient.call_hook(self, "setMatHudAutomationGuards", BLOCK_WORKSPACE_TOOLS)
+        if reply.get("workspace_tools_blocked") is not True:
+            raise RunStopped(f"the window did not block its workspace tools: {reply}")
+
+
+def attached_browser(port: int) -> CDPBrowser:
+    return AttachedBrowser(port)
 
 
 def default_pace(pace: Optional[float], attached: bool) -> float:
@@ -81,10 +136,12 @@ def confirmation_text(base_url: str, mode: str, scenarios: int, provider: Option
         f"This drives the MatHud desktop window at {base_url}: each of {scenarios} scenario run(s) resets its "
         f"{resets}. Nothing is saved first."
     )
+    if mode == "replay":
+        text += " The server conversation is reset once first."
     if provider == "openrouter":
         text += (
             " The app uses its own .env: its TOOL_SEARCH_MODE must be local and MATHUD_OPENROUTER_MAX_RETRIES 0 "
-            "for the request cap to count every paid request."
+            "for the request cap to count every paid request (checked: both are)."
         )
     return text
 
@@ -162,10 +219,15 @@ def run_attached(
 
     if mode not in ("replay", "live"):
         return _fail("--attach-desktop works with --mode replay or --mode live")
+    if allow_workspace_writes:
+        return _fail(
+            "--allow-workspace-writes cannot be used with --attach-desktop: the desktop app's workspace "
+            "directory is the user's own. Workspace scenarios are skipped when attached."
+        )
     refusal = pin_conflicts(given_options) if mode == "live" else None
     if refusal:
         return _fail(refusal)
-    skipped = {} if allow_workspace_writes else _workspace_skips(chosen)
+    skipped = _workspace_skips(chosen)
     live = mode == "live"
     settings = settings or LiveSettings()
     live_options = live_options or LiveOptions()
@@ -207,6 +269,14 @@ def run_attached(
         except GuardError as exc:
             return _fail(f"Aborting: {exc}")
 
+    from cli.desktop_automation import (
+        DesktopError,
+        automation_settings,
+        ensure_model_listed,
+        paid_provider_guard,
+        stop_turn,
+    )
+
     try:
         probe = connect(debug_port)
     except Exception as exc:
@@ -216,20 +286,65 @@ def run_attached(
         if probe.call_hook("getMatHudTurnStatus").get("processing"):
             return _fail("A turn is running in the desktop window; wait for it or stop it, then run again.")
         run_models: list[str] = []
+        server_settings: Optional[dict[str, Any]] = None
         if live:
             try:
                 run_models = check_models(_available_models(base_url), settings.provider, models)
-            except Exception as exc:  # GuardError, or the server did not answer
+                server_settings = paid_provider_guard(base_url, settings.provider)
+                for model in run_models:
+                    ensure_model_listed(probe, model)
+            except (GuardError, DesktopError) as exc:
                 return _fail(f"Aborting before the first message: {exc}")
+            except Exception as exc:  # the server did not answer
+                return _fail(f"Aborting before the first message: {exc}")
+            if server_settings is None:
+                try:
+                    server_settings = automation_settings(base_url)
+                except Exception:
+                    server_settings = None  # an older app; only recorded for a local run
         config = attached_config(probe, debug_port, mode, options.pace_s, options.fit_view)
+        if server_settings is not None:
+            config["server_settings"] = server_settings
     finally:
         probe.close()
 
     runs = len(runnable) * (len(run_models) * repeats if live else 1)
     text = confirmation_text(base_url, mode, runs, settings.provider if live else None)
+    # The text says what the run will do to the window (and, for a paid provider, what was
+    # checked), so it is always shown, also with --yes.
+    click.echo(text, err=True)
     tty = _stdin_is_terminal() if interactive is None else interactive
-    if not confirm(text, yes, ask, tty):
+    if not confirm("", yes, lambda _text: ask("Continue?"), tty):
         return _fail("Not confirmed; nothing was run. Pass --yes to run without asking.")
+    if not live:
+        try:
+            # Replay never adds to the server conversation; reset it once so it matches the cleared chat.
+            _conversation_resetter(base_url)()
+        except Exception as exc:
+            return _fail(f"Could not reset the server conversation: {exc}")
+
+    def stop_window_turn() -> None:
+        """Ctrl+C: stop the turn running in the window over a connection of its own."""
+        try:
+            browser = connect(debug_port)
+        except Exception:
+            return
+        try:
+            stop_turn(browser)
+        finally:
+            browser.close()
+
+    def unblock_workspace_tools() -> None:
+        try:
+            browser = connect(debug_port)
+        except Exception:
+            return  # the window is gone, and with it the block
+        try:
+            browser.call_hook("setMatHudAutomationGuards", UNBLOCK_WORKSPACE_TOOLS)
+        except Exception:
+            pass
+        finally:
+            browser.close()
 
     config.update({"mode": mode, "step_timeout_s": options.step_timeout_s})
     if live:
@@ -247,12 +362,13 @@ def run_attached(
         )
     config.update(config_extra)
     sink = ResultSink(out_dir, config)
-    session = BrowserSession(lambda: CDPBrowser(debug_port), options.step_timeout_s)
+    session = BrowserSession(lambda: attached_browser(debug_port), options.step_timeout_s)
     log = lambda line: click.echo(line, err=as_json)  # noqa: E731
+    fitting = "on" if options.fit_view else "off"
     click.echo(
         f"Attached to the desktop window at {base_url} (automation port {debug_port}); {mode} run of "
-        f"{len(runnable)} scenario(s), pause {options.pace_s:g} s per step, view fitting {'on' if options.fit_view else 'off'}; "
-        f"output in {out_dir}",
+        f"{len(chosen)} scenario(s) ({len(skipped)} skipped), pause {options.pace_s:g} s per step, "
+        f"view fitting {fitting}; output in {out_dir}",
         err=as_json,
     )
     if live:
@@ -277,9 +393,20 @@ def run_attached(
                 if runner.stopped:
                     config["stopped"] = runner.stopped
 
-        return _drive(run, session, sink, catalogue, None, None, as_json, out_dir)
-    replay = ReplayRunner(catalogue, session, sink, options, log=log)
-    return _drive(lambda: replay.run(chosen, skipped), session, sink, catalogue, None, None, as_json, out_dir)
+    else:
+        replay = ReplayRunner(catalogue, session, sink, options, log=log)
+
+        def run() -> None:
+            try:
+                replay.run(chosen, skipped)
+            finally:
+                if replay.stopped:
+                    config["stopped"] = replay.stopped
+
+    try:
+        return _drive(run, session, sink, catalogue, None, None, as_json, out_dir, on_interrupt=stop_window_turn)
+    finally:
+        unblock_workspace_tools()
 
 
 def _stdin_is_terminal() -> bool:

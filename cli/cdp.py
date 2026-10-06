@@ -22,6 +22,7 @@ import json
 import threading
 import time
 import urllib.error
+import uuid
 import urllib.request
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -33,7 +34,8 @@ LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "[::1]", "::1")
 DEFAULT_CDP_TIMEOUT_S = 30.0
 APP_READY_TIMEOUT_S = 60.0
 _READY_POLL_S = 0.25
-# Set on the page before a reload; the reload is done once the new page has no marker.
+# Set on the page (to a fresh nonce) before a reload; the reload is done once the page no
+# longer carries that nonce, so a marker left by another client's reload never blocks this one.
 _RELOAD_MARKER = "__mathudCdpReloadPending"
 # Readiness checks talk to localhost directly; system or environment proxies must not be consulted.
 _LOCAL_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -41,6 +43,10 @@ _LOCAL_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 class CDPError(Exception):
     """The DevTools endpoint could not be reached, or a command failed."""
+
+
+class CDPUnavailable(CDPError):
+    """Nothing listens on the DevTools port: the window was closed (or never opened with automation)."""
 
 
 def is_loopback_url(url: str) -> bool:
@@ -61,7 +67,8 @@ def list_targets(port: int, host: str = "127.0.0.1", timeout: float = 5.0) -> li
         with _LOCAL_OPENER.open(url, timeout=timeout) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except (urllib.error.URLError, OSError, ValueError) as exc:
-        raise CDPError(
+        refused = isinstance(getattr(exc, "reason", exc), ConnectionRefusedError)
+        raise (CDPUnavailable if refused else CDPError)(
             f"no DevTools endpoint at {url} ({exc}); start the desktop app with "
             f"`python mathud_desktop.py --automation-port {port}`"
         ) from exc
@@ -212,6 +219,7 @@ class CDPBrowser(HookClient):
         self.connection: Optional[CDPConnection] = None
         self.page_url: Optional[str] = None
         self.base_url: Optional[str] = None
+        self._reload_nonce: Optional[str] = None
 
     # -- lifecycle ---------------------------------------------------------------
 
@@ -254,25 +262,40 @@ class CDPBrowser(HookClient):
     def reload(self) -> bool:
         """Reload the page; ``wait_for_app_ready`` then waits for the new document."""
         conn = self._conn()
+        nonce = uuid.uuid4().hex
         try:
-            conn.evaluate(f"window.{_RELOAD_MARKER} = true")
+            conn.evaluate(f"window.{_RELOAD_MARKER} = {json.dumps(nonce)}")
         except CDPError:
             pass  # a hung or broken page: reload anyway
         conn.send("Page.reload", {"ignoreCache": False})
+        self._reload_nonce = nonce
         return True
 
     def wait_for_app_ready(self, timeout: float = APP_READY_TIMEOUT_S) -> bool:
-        """Wait until the (new) page defines the app's hooks."""
-        check = f"!window.{_RELOAD_MARKER} && typeof window.sendMatHudMessage === 'function'"
+        """Wait until the page (the new one, after ``reload``) defines the app's hooks."""
+        check = "typeof window.sendMatHudMessage === 'function'"
+        if self._reload_nonce is not None:
+            check = f"window.{_RELOAD_MARKER} !== {json.dumps(self._reload_nonce)} && {check}"
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             try:
                 if self._conn().evaluate(check, timeout=5) is True:
+                    self._reload_nonce = None
                     return True
             except CDPError:
                 pass  # the page is navigating
             time.sleep(_READY_POLL_S)
         return False
+
+    def call_hook(self, name: str, *args: Any, timeout: int = 30) -> dict[str, Any]:
+        """``HookClient.call_hook``; when the hook is missing (the page was reloaded from
+        outside and is still loading), wait for the app once and retry."""
+        try:
+            return super().call_hook(name, *args, timeout=timeout)
+        except RuntimeError as exc:
+            if "is not available" not in str(exc) or not self.wait_for_app_ready(APP_READY_TIMEOUT_S):
+                raise
+        return super().call_hook(name, *args, timeout=timeout)
 
     # -- scripts and screenshots ------------------------------------------------
 

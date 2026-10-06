@@ -85,7 +85,18 @@ class FakeWindow:
         )
         self.metrics = {"turn_id": self.completed, "outcome": "stop", "requests": 2, "wall_time_s": 1.5}
 
+    # The window's model dropdown, and what a refresh of it (window.refreshMatHudModels) adds.
+    listed = frozenset({"qwen-local"})
+    listed_after_refresh = frozenset({"qwen-local"})
+    refreshes = 0
+
     def execute_js(self, script: str, *args: Any, timeout: float = 30) -> Any:
+        if "ai-model-selector" in script:
+            return args[0] in self.listed
+        if "refreshMatHudModels" in script:
+            self.refreshes += 1
+            self.listed = self.listed_after_refresh
+            return True
         if "chat-message" in script:
             return list(self.texts)
         if "getActionTraces" in script:
@@ -162,8 +173,11 @@ class TestRunPrompt:
         assert result["metrics"] is None  # no turn finished after the prompt
 
     def test_refuses_while_a_turn_runs(self) -> None:
+        # A fake clock: without the guard the prompt would time out at once instead of hanging.
+        window, clock = FakeWindow(busy=True), FakeClock()
         with pytest.raises(DesktopError, match="already running"):
-            run_prompt(FakeWindow(busy=True), "Create A", "qwen-local")  # type: ignore[arg-type]
+            run_prompt(window, "Create A", "qwen-local", timeout_s=1, clock=clock, sleep=clock.sleep)  # type: ignore[arg-type]
+        assert window.sent == []
 
     def test_refuses_slash_commands_and_empty_prompts(self) -> None:
         with pytest.raises(DesktopError, match="slash"):
@@ -261,3 +275,85 @@ class TestDesktopCommands:
         assert json.loads(state.output) == {"Points": [{"name": "A"}]}
         assert json.loads(inspected.output)["inspection"] == {"undo_depth": 1}
         assert shot.exit_code == 0 and (tmp_path / "w.png").read_bytes() == b"png"
+
+    def test_slash_commands_are_refused_before_connecting(self) -> None:
+        with patch("cli.desktop_automation.connect_desktop") as connect:
+            result = CliRunner().invoke(cli, ["desktop", "prompt", "/clear"])
+        assert result.exit_code == 2 and "slash commands" in result.output
+        connect.assert_not_called()
+
+    def test_group_options_with_a_subcommand_are_refused(self) -> None:
+        with patch("cli.desktop_automation.connect_desktop") as connect:
+            result = CliRunner().invoke(cli, ["desktop", "--automation-port", "9301", "prompt", "x"])
+        assert result.exit_code == 2
+        assert "desktop prompt --port N" in result.output
+        connect.assert_not_called()
+
+    def test_a_model_missing_from_the_dropdown_is_refreshed_once(self) -> None:
+        window = FakeWindow()
+        window.listed = frozenset()
+        with (
+            patch("cli.desktop_automation.connect_desktop", return_value=window),
+            patch("cli.desktop_automation.available_models", return_value=AVAILABLE),
+            patch("cli.desktop_automation.time.sleep"),
+        ):
+            result = CliRunner().invoke(cli, ["desktop", "prompt", "Create A", "--json"])
+        assert result.exit_code == 0, result.output
+        assert window.refreshes == 1 and len(window.sent) == 1
+
+        window = FakeWindow()
+        window.listed = window.listed_after_refresh = frozenset()
+        with (
+            patch("cli.desktop_automation.connect_desktop", return_value=window),
+            patch("cli.desktop_automation.available_models", return_value=AVAILABLE),
+        ):
+            result = CliRunner().invoke(cli, ["desktop", "prompt", "Create A"])
+        assert result.exit_code == 2 and "even after refreshing" in result.output
+        assert window.sent == []
+
+    def test_ctrl_c_stops_the_turn_in_the_window(self) -> None:
+        window = FakeWindow()
+        with (
+            patch("cli.desktop_automation.connect_desktop", return_value=window),
+            patch("cli.desktop_automation.available_models", return_value=AVAILABLE),
+            patch("cli.desktop_automation.run_prompt", side_effect=KeyboardInterrupt),
+        ):
+            result = CliRunner().invoke(cli, ["desktop", "prompt", "Create A"])
+        assert result.exit_code == 130
+        assert window.stopped and window.closed
+
+    @pytest.mark.parametrize(
+        "settings, refused",
+        [
+            ({"tool_search_mode": "hybrid", "openrouter_max_retries": 0}, "TOOL_SEARCH_MODE is 'hybrid'"),
+            ({"tool_search_mode": "local", "openrouter_max_retries": 1}, "MATHUD_OPENROUTER_MAX_RETRIES is 1"),
+            (None, "does not report"),
+            ({"tool_search_mode": "local", "openrouter_max_retries": 0}, None),
+        ],
+    )
+    def test_openrouter_needs_local_search_and_no_retries(
+        self, settings: Optional[dict[str, Any]], refused: Optional[str]
+    ) -> None:
+        window = FakeWindow()
+
+        def report(_base_url: str) -> dict[str, Any]:
+            if settings is None:
+                raise RuntimeError("404")
+            return settings
+
+        args = ["desktop", "prompt", "Create A", "--provider", "openrouter", "--model", "deepseek/deepseek-v4.1-flash"]
+        window.listed = frozenset({"deepseek/deepseek-v4.1-flash"})
+        with (
+            patch("cli.desktop_automation.connect_desktop", return_value=window),
+            patch("cli.desktop_automation.available_models", return_value=AVAILABLE),
+            patch("cli.desktop_automation.automation_settings", side_effect=report),
+            patch("cli.desktop_automation.time.sleep"),
+        ):
+            result = CliRunner().invoke(cli, args)
+        assert "Warning: this uses a paid provider" in result.output  # always shown
+        if refused:
+            assert result.exit_code == 2 and refused in result.output
+            assert window.sent == []
+        else:
+            assert result.exit_code == 0, result.output
+            assert window.sent[0][1] == "deepseek/deepseek-v4.1-flash"
