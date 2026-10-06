@@ -595,5 +595,39 @@ class TestToolErrorResults(_ToolBatchTestCase):
         self.assertEqual(turn["tool_errors"], 1)
 
 
+class TestEditRefusalGuidance(_ToolBatchTestCase):
+    """A refused in-place edit says which call does the job instead (MT-01 in the first live run)."""
+
+    def point_at(self, name: str) -> Tuple[float, float]:
+        point = self.canvas.get_point_by_name(name)
+        return (point.x, point.y)
+
+    def test_moving_a_triangle_vertex_names_translate_object_with_the_offset(self) -> None:
+        self.run_single("create_polygon", vertices=TRIANGLE_VERTICES, polygon_type="triangle", name="ABC")
+        depth = self.undo_depth()
+
+        result = self.run_single("update_point", point_name="A", new_x=1, new_y=1)
+
+        self.assertTrue(str(result).startswith("Error: Point 'A' is referenced by other drawables"), result)
+        self.assertIn("translate_object with name 'A', x_offset 1 and y_offset 1", str(result))
+        self.assertEqual(self.undo_depth(), depth)
+        # The suggested call moves only the vertex.
+        self.run_single("translate_object", name="A", x_offset=1, y_offset=1)
+        self.assertEqual(self.point_at("A"), (1, 1))
+        self.assertEqual(self.point_at("B"), (4, 0))
+        self.assertEqual(self.point_at("C"), (0, 3))
+
+    def test_moving_a_circle_center_names_translate_object(self) -> None:
+        self.run_single("create_point", x=2, y=1, name="O")
+        self.run_single("create_circle", center_x=2, center_y=1, radius=3)
+
+        result = str(self.run_single("update_point", point_name="O", new_x=5, new_y=-1))
+
+        self.assertIn("translate_object with name 'O', x_offset 3 and y_offset -2", result)
+        self.run_single("translate_object", name="O", x_offset=3, y_offset=-2)
+        circle = self.canvas.drawable_manager.drawables.Circles[0]
+        self.assertEqual((circle.center.x, circle.center.y), (5, -1))
+
+
 if __name__ == "__main__":
     unittest.main()

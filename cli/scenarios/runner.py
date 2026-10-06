@@ -354,11 +354,53 @@ class ReplayRunner:
         self, scenario: Scenario, step: Step, grader: ScenarioGrader
     ) -> tuple[StepRecordData, dict[str, Any]]:
         """Run one step; returns its data and any extra fields for its record."""
+        if step.runs_calls and len(step.call_batches) > 1:
+            batches = self._run_turn_batches([[call.payload() for call in calls] for calls in step.call_batches])
+            return self._turn_data(grader, step, batches), {}
         batch = self._run_calls(step.calls) if step.runs_calls else None
         return self._with_samples(grader, step, batch), {}
 
     def _run_calls(self, calls: list[ToolCall]) -> dict[str, Any]:
         return self.session.hook("runMatHudToolCalls", json.dumps([call.payload() for call in calls]))
+
+    def _run_turn_batches(self, batches: list[list[dict[str, Any]]]) -> list[dict[str, Any]]:
+        """Run the batches of one reply as a chat turn runs them, in one undo group.
+
+        Each batch record holds its traced calls, the undo and redo depths around it
+        and the canvas after it, so the invariants can follow the turn batch by batch.
+        A single batch runs on its own, as a one-batch reply does.
+        """
+        records: list[dict[str, Any]] = []
+        for number, calls in enumerate(batches, start=1):
+            if len(batches) == 1:
+                reply = self.session.hook("runMatHudToolCalls", json.dumps(calls))
+            else:
+                turn = {"turn": "end" if number == len(batches) else "continue"}
+                reply = self.session.hook("runMatHudToolCalls", json.dumps(calls), json.dumps(turn))
+            snapshot = self.session.hook("getMatHudCanvasState", json.dumps({"inspect": True}))
+            records.append(
+                {
+                    "calls": list(reply.get("traced") or []),
+                    "undo_before": reply.get("undo_depth_before"),
+                    "undo_after": reply.get("undo_depth_after"),
+                    "redo_before": reply.get("redo_depth_before"),
+                    "redo_after": reply.get("redo_depth_after"),
+                    "state": snapshot.get("state") or {},
+                    "inspection": snapshot.get("inspection"),
+                }
+            )
+        return records
+
+    def _turn_data(self, grader: ScenarioGrader, step: Step, batches: list[dict[str, Any]]) -> StepRecordData:
+        """The step data of a turn run batch by batch (``_run_turn_batches``)."""
+        data = self._with_samples(grader, step, None)
+        inspection = data.inspection or {}
+        data.calls = [call for batch in batches for call in batch["calls"]]
+        data.undo_before = batches[0]["undo_before"] if batches else inspection.get("undo_depth")
+        data.redo_before = batches[0]["redo_before"] if batches else inspection.get("redo_depth")
+        data.undo_after, data.redo_after = inspection.get("undo_depth"), inspection.get("redo_depth")
+        data.batches = batches if len(batches) > 1 else None
+        return data
 
     def _snapshot(self, batch: Optional[dict[str, Any]], options: Optional[dict[str, Any]] = None) -> StepRecordData:
         request = {"inspect": True}

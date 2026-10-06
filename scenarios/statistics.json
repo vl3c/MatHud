@@ -131,7 +131,7 @@
             {
               "check": "relation",
               "relation": "function_value",
-              "select": [{"type": "Function", "name": "fit1"}],
+              "select": [{"type": "Function", "only": true}],
               "x": 0,
               "y": 1
             },

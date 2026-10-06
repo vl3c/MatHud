@@ -266,6 +266,48 @@
           ]
         }
       ]
+    },
+    {
+      "id": "NM-09",
+      "title": "Moving a triangle vertex: the refusal names the call that works",
+      "tags": ["points", "errors", "transforms", "undo", "multi-batch"],
+      "smoke": false,
+      "targets": "update_point on a referenced point is refused with the translate_object call and offset that move it (MT-01 in the first live run moved the whole triangle instead)",
+      "setup": {
+        "calls": [
+          {
+            "tool": "create_polygon",
+            "args": {"vertices": [{"x": 0, "y": 0}, {"x": 4, "y": 0}, {"x": 0, "y": 3}], "polygon_type": "triangle", "name": "ABC"}
+          }
+        ]
+      },
+      "steps": [
+        {
+          "do": [{"tool": "update_point", "args": {"point_name": "A", "new_x": 1, "new_y": 1}}],
+          "checks": [
+            {"check": "tool_error", "tool": "update_point"},
+            {"check": "tool_result", "tool": "update_point", "contains": "translate_object with name 'A', x_offset 1 and y_offset 1"},
+            {"check": "state_equals", "snapshot": "setup"}
+          ]
+        },
+        {
+          "user": "Move A to (1, 1).",
+          "note": "The reference tries update_point, is refused, and follows the refusal: a reply of two batches.",
+          "reference": [
+            [{"tool": "update_point", "args": {"point_name": "A", "new_x": 1, "new_y": 1}}],
+            [{"tool": "translate_object", "args": {"name": "A", "x_offset": 1, "y_offset": 1}}]
+          ],
+          "checks": [
+            {"check": "point_at", "select": {"type": "Point", "name": "A"}, "at": [1, 1]},
+            {"check": "point_at", "select": {"type": "Point", "name": "B"}, "at": [4, 0]},
+            {"check": "point_at", "select": {"type": "Point", "name": "C"}, "at": [0, 3]}
+          ]
+        },
+        {
+          "do": [{"tool": "undo", "args": {}}],
+          "checks": [{"check": "state_equals", "snapshot": "setup"}]
+        }
+      ]
     }
   ]
 }

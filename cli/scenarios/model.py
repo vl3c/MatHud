@@ -9,6 +9,7 @@ of documentation/development/agentic_scenario_testing.md)::
          "steps": [
             {"snapshot": "before"},
             {"user": "prompt", "reference": [calls], "limits": {...}, "checks": [...]},
+            {"user": "prompt", "reference": [[calls], [calls]], ...},  (a reply of several batches)
             {"do": [calls], "checks": [...]},
             {"checks": [...]}
          ]}
@@ -78,10 +79,19 @@ class Step:
     snapshot: Optional[str] = None
     checks: list[dict[str, Any]] = field(default_factory=list)
     limits: dict[str, Any] = field(default_factory=dict)
+    # The reference reply's tool batches, in order; ``calls`` is all of them flattened.
+    # A reference written as a list of call lists is a reply of several batches, which
+    # replay runs as a chat turn runs them: in one undo group.
+    batches: list[list[ToolCall]] = field(default_factory=list)
 
     @property
     def runs_calls(self) -> bool:
         return self.kind in ("user", "do")
+
+    @property
+    def call_batches(self) -> list[list[ToolCall]]:
+        """The step's calls batch by batch (one batch unless the reference gives several)."""
+        return self.batches or [self.calls]
 
 
 @dataclass
@@ -251,7 +261,8 @@ def _parse_step(raw: Any, index: int, counters: dict[str, int], where: str, prob
         step.user = str(raw["user"])
         if not raw.get("reference"):
             problems.append(f"{where}: a user turn needs a reference call list")
-        step.calls = _calls(raw.get("reference"), f"{where} reference", problems)
+        step.batches = _reference_batches(raw.get("reference"), f"{where} reference", problems)
+        step.calls = [call for batch in step.batches for call in batch]
         step.limits = _limits(raw.get("limits"), where, problems)
     elif kind == "do":
         if not raw["do"]:
@@ -265,6 +276,18 @@ def _parse_step(raw: Any, index: int, counters: dict[str, int], where: str, prob
         problems.extend(f"{where} check {number}: {problem}" for problem in validate_check(check))
     step.checks = [check for check in checks if isinstance(check, dict)]
     return step
+
+
+def _reference_batches(raw: Any, where: str, problems: list[str]) -> list[list[ToolCall]]:
+    """A reference as batches: a list of calls is one batch, a list of call lists is several."""
+    if isinstance(raw, list) and raw and all(isinstance(item, list) for item in raw):
+        if any(not item for item in raw):
+            problems.append(f"{where}: a reference batch needs calls")
+        return [_calls(item, f"{where} batch {number}", problems) for number, item in enumerate(raw, start=1)]
+    if isinstance(raw, list) and any(isinstance(item, list) for item in raw):
+        problems.append(f"{where}: a reference is a list of calls or a list of call lists, not both")
+        return []
+    return [_calls(raw, where, problems)]
 
 
 def _limits(raw: Any, where: str, problems: list[str]) -> dict[str, Any]:

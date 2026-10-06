@@ -11,7 +11,7 @@ import pytest
 from click.testing import CliRunner
 
 from cli.main import cli
-from cli.scenarios.model import Catalogue, load_catalogue
+from cli.scenarios.model import Catalogue, ScenarioError, load_catalogue
 from cli.scenarios.report import ResultSink, regrade
 from cli.scenarios.runner import BrowserSession, ReplayOptions, ReplayRunner, StepTimeout
 
@@ -19,12 +19,18 @@ from server_tests.test_cli.scenario_states import VIEW
 
 
 class FakeBrowser:
-    """A tiny canvas behind the scenario hooks: create_point, undo and a point-moving bug."""
+    """A tiny canvas behind the scenario hooks: create_point, undo and a point-moving bug.
+
+    Like the app, a turn's batches (``runMatHudToolCalls`` with option ``turn``, or
+    a chat turn) share one undo group: it adds one entry if the points changed.
+    """
 
     def __init__(self, hang_on: Optional[str] = None, moved_by_bug: float = 0.0, double_archive: bool = False) -> None:
         self.double_archive = double_archive
         self.points: list[dict[str, Any]] = []
         self.undo: list[list[dict[str, Any]]] = []
+        # The points when the open turn group started, or None when no group is open.
+        self.group: Optional[list[dict[str, Any]]] = None
         self.hang_on = hang_on
         self.moved_by_bug = moved_by_bug
         self.cleaned = False
@@ -71,18 +77,24 @@ class FakeBrowser:
 
     def call_hook(self, name: str, *args: Any, timeout: int = 30) -> dict[str, Any]:
         if name == "resetMatHudSession":
-            self.points, self.undo = [], []
+            self.points, self.undo, self.group = [], [], None
             return {"status": "ok"}
         if name == "getMatHudCanvasState":
             return {"state": self._state(), "inspection": {"drawables": [], "undo_depth": len(self.undo)}}
         if name == "runMatHudToolCalls":
             calls = json.loads(args[0])
+            turn = json.loads(args[1]).get("turn") if len(args) > 1 else None
             if self.hang_on and any(c["function_name"] == self.hang_on for c in calls):
                 time.sleep(5)
+            if turn is None:
+                self._close_group()
             before = len(self.undo)
+            self._open_group()
             traced = []
             for call in calls:
                 traced.append(self._run(call["function_name"], call["arguments"]))
+            if turn != "continue":
+                self._close_group()
             return {
                 "status": "ok",
                 "traced": traced,
@@ -95,17 +107,31 @@ class FakeBrowser:
             }
         raise AssertionError(f"unexpected hook {name}")
 
+    def _open_group(self) -> None:
+        if self.group is None:
+            self.group = [dict(p) for p in self.points]
+
+    def _close_group(self) -> None:
+        if self.group is not None and self.group != self.points:
+            self.undo.append(self.group)
+        self.group = None
+
     def _run(self, tool: str, args: dict[str, Any]) -> dict[str, Any]:
         if tool == "create_point":
-            self.undo.append([dict(p) for p in self.points])
-            if self.double_archive:  # like K1: one extra undo entry per create
+            if self.double_archive:  # like K1: an extra undo entry per create, outside the group
                 self.undo.append([dict(p) for p in self.points])
             name = args.get("name") or "ABCDEFG"[len(self.points)]
             self.points.append(
                 {"name": name, "args": {"position": {"x": args["x"] + self.moved_by_bug, "y": args["y"]}}}
             )
-        elif tool == "undo" and self.undo:
-            self.points = self.undo.pop()
+        elif tool == "undo":
+            # An undo closes the turn's group first, then a new group starts.
+            reopen = self.group is not None
+            self._close_group()
+            if self.undo:
+                self.points = self.undo.pop()
+            if reopen:
+                self._open_group()
         return {"function_name": tool, "arguments": args, "result": "Call successful!", "is_error": False}
 
 
@@ -180,6 +206,45 @@ class TestReplayRunner:
         assert results["scenarios"][0]["counts"]["pass"] > 0
         summary = (out / "summary.md").read_text()
         assert "GEO-90 Point and undo (smoke)" in summary and "no unexpected failures" in summary
+
+    def test_reference_batches_replay_as_one_turn(self, tmp_path: Path) -> None:
+        scenario = {
+            "id": "GEO-93",
+            "title": "Two batches, one undo step",
+            "steps": [
+                {
+                    "user": "Points P and Q.",
+                    "reference": [
+                        [{"tool": "create_point", "args": {"x": 1, "y": 2, "name": "P"}}],
+                        [{"tool": "create_point", "args": {"x": 3, "y": 3, "name": "Q"}}],
+                    ],
+                    "checks": [{"check": "count", "select": {"type": "Point"}, "eq": 2}],
+                },
+                {"do": [{"tool": "undo"}], "checks": [{"check": "state_equals", "snapshot": "setup"}]},
+            ],
+        }
+        directory = tmp_path / "scenarios"
+        directory.mkdir()
+        (directory / "geometry.json").write_text(json.dumps({"schema": 1, "area": "GEO", "scenarios": [scenario]}))
+        (directory / "known_bugs.json").write_text(json.dumps({"bugs": {}, "invariant_waivers": {}}))
+        catalogue = load_catalogue(directory)
+        step = catalogue.scenarios[0].steps[0]
+        assert [len(batch) for batch in step.call_batches] == [1, 1] and len(step.calls) == 2
+        sink = ResultSink(tmp_path / "out", {"mode": "replay"})
+        runner = ReplayRunner(catalogue, BrowserSession(FakeBrowser, 30), sink, ReplayOptions(), log=lambda _l: None)
+        [outcome] = runner.run(catalogue.scenarios)
+        assert outcome.status == "pass", outcome.steps
+        turn = next(s for s in outcome.steps if s["step"] == "t1")
+        assert (turn["undo_before"], turn["undo_after"]) == (0, 1)
+        assert [(b["undo_before"], b["undo_after"]) for b in turn["batches"]] == [(0, 0), (0, 1)]
+        assert [c["function_name"] for c in turn["calls"]] == ["create_point", "create_point"]
+
+    def test_reference_mixing_calls_and_batches_is_refused(self, tmp_path: Path) -> None:
+        call = {"tool": "create_point", "args": {"x": 1, "y": 2}}
+        scenario = {"id": "GEO-94", "title": "mixed", "steps": [{"user": "x", "reference": [call, [call]]}]}
+        (tmp_path / "geometry.json").write_text(json.dumps({"schema": 1, "area": "GEO", "scenarios": [scenario]}))
+        with pytest.raises(ScenarioError, match="list of calls or a list of call lists"):
+            load_catalogue(tmp_path)
 
     def test_unexpected_failure_saves_artifacts(self, tmp_path: Path) -> None:
         browser = FakeBrowser(moved_by_bug=1.0)

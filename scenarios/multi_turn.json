@@ -78,18 +78,16 @@
             }
           ],
           "checks": [
-            {
-              "check": "exists",
-              "select": {"type": "FunctionsBoundedColoredArea", "where": {"args.func1": "f", "args.func2": "g"}}
-            }
+            {"check": "count", "select": {"type": "FunctionsBoundedColoredArea"}, "eq": 1},
+            {"check": "exists", "select": {"type": "FunctionsBoundedColoredArea", "where": {"args.left_bound": 0}}}
           ]
         },
         {
           "user": "Delete the derivative.",
           "reference": [{"tool": "delete_function", "args": {"name": "g"}}],
           "checks": [
-            {"check": "absent", "select": {"type": "Function", "name": "g"}},
-            {"check": "exists", "select": {"type": "Function", "name": "f"}},
+            {"check": "absent", "select": {"type": "Function", "samples": [[0, 1], [3.141592653589793, -1]]}},
+            {"check": "exists", "select": {"type": "Function", "samples": [[0, 0], [1.5707963267948966, 1]]}},
             {"check": "count", "select": {"type": "ColoredArea"}, "eq": 0}
           ]
         }

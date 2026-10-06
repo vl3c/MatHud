@@ -65,6 +65,8 @@ class AttachedWindow(FakeChatBrowser):
             return {"processing": True, "completed_turns": 0, "requests": 0}
         if name == "fitMatHudView":
             return self._fit()
+        if name == "resetMatHudSession":
+            self.view = dict(VIEW)  # like the app: a reset restores the default view
         if name == "setMatHudAutomationGuards":
             blocked = bool(json.loads(args[0])["block_workspace_tools"])
             self.guards.append(blocked)
@@ -664,6 +666,43 @@ class TestFitView:
         assert result.exit_code == 1
         assert json.loads((out / "results.json").read_text())["scenarios"][0]["status"] == "fail"
 
+    def test_a_reply_of_several_batches_is_one_group_and_fitted_after_it(
+        self, tmp_path: Path, window: AttachedWindow, pauses: list[float]
+    ) -> None:
+        """Attach mode keeps one undo group per reply: the fit comes after the group, and I5 holds."""
+        directory = tmp_path / "multi"
+        directory.mkdir()
+        create = {"tool": "create_point", "args": {"x": 5, "y": 5, "name": "P"}}
+        again = {"tool": "create_point", "args": {"x": 5, "y": 6, "name": "Q"}}
+        scenario = {
+            "id": "GEO-81",
+            "title": "Make, undo, make again in one reply",
+            "tags": ["points", "undo"],
+            "setup": {"calls": [{"tool": "create_point", "args": {"x": 0, "y": 0, "name": "A"}}]},
+            "steps": [
+                {
+                    "user": "Put P at (5, 5); actually undo that and put Q at (5, 6).",
+                    "reference": [[create], [{"tool": "undo", "args": {}}], [again]],
+                    "checks": [{"check": "count", "select": {"type": "Point"}, "eq": 2}],
+                },
+                {"do": [{"tool": "undo", "args": {}}], "checks": [{"check": "state_equals", "snapshot": "setup"}]},
+            ],
+        }
+        (directory / "geometry.json").write_text(json.dumps({"schema": 1, "area": "GEO", "scenarios": [scenario]}))
+        (directory / "known_bugs.json").write_text(json.dumps({"bugs": {}, "invariant_waivers": {}}))
+        out = tmp_path / "out"
+
+        result = invoke(directory, out, "--attach-desktop", "9301", "--yes", "--ids", "GEO-81")
+
+        assert result.exit_code == 0, result.output
+        assert window.fits == 3  # after setup, t1 and do1: never between a reply's batches
+        steps = json.loads((out / "results.json").read_text())["scenarios"][0]["steps"]
+        t1 = next(step for step in steps if step["step"] == "t1")
+        # The undo closes the group (P) and reverts it; Q opens a new group, one entry at the end.
+        assert [(b["undo_before"], b["undo_after"]) for b in t1["batches"]] == [(1, 1), (1, 1), (1, 2)]
+        assert next(r for r in t1["results"] if r["name"] == "I5")["status"] == "pass"
+        assert "fitted_view" in t1
+
     def test_view_sensitive_scenarios_and_no_fit_view_are_not_fitted(
         self, tmp_path: Path, fit_dir: Path, window: AttachedWindow, pauses: list[float]
     ) -> None:
@@ -682,6 +721,23 @@ class TestFitView:
         assert result.exit_code == 0, result.output
         assert window.sent == [(PROMPT, "qwen-local")]
         assert window.fits >= 2
+
+    def test_live_attached_retrace_runs_each_turn_in_one_group(
+        self, tmp_path: Path, scenarios_dir: Path, window: AttachedWindow, pauses: list[float]
+    ) -> None:
+        # A reply of two batches: one undo step live, and the retrace in the same window groups it alike.
+        window.script = {PROMPT: [[{"tool": "create_point", "args": {"x": 1, "y": 2, "name": "P"}}],
+                                  [{"tool": "create_point", "args": {"x": 3, "y": 3, "name": "Q"}}]]}  # fmt: skip
+        out = tmp_path / "out"
+        result = invoke(scenarios_dir, out, "--mode", "live", "--attach-desktop", "9301", "--yes", "--ids", "GEO-90")
+        assert result.exit_code == 0, result.output
+        scenario = json.loads((out / "results.json").read_text())["scenarios"][0]
+        t1 = next(step for step in scenario["steps"] if step["step"] == "t1")
+        assert (t1["undo_before"], t1["undo_after"]) == (0, 1)
+        assert scenario["retrace"]["reproduced"] is True
+        retraced = next(step for step in scenario["retrace"]["steps"] if step["step"] == "t1")
+        assert [(b["undo_before"], b["undo_after"]) for b in retraced["batches"]] == [(0, 0), (0, 1)]
+        assert next(r for r in t1["results"] if r["name"] == "I5")["status"] == "pass"
 
     def test_fit_view_needs_attach_mode(self, tmp_path: Path, fit_dir: Path) -> None:
         result = invoke(fit_dir, tmp_path / "out", "--fit-view", "--dry-run")
