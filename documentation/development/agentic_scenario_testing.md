@@ -1146,7 +1146,7 @@ Added after the K1 and K2 fixes merged (not part of the original 72).
 - Targets: success claims and undo entries for no-op changes.
 - Known bugs: K26 (expected to fail until fixed; see section 6).
 
-#### CV-07: A drawing too small to see: offer a zoom, never zoom unasked
+#### CV-08: A drawing too small to see: offer a zoom, never zoom unasked
 
 Added with the view note (`documentation/development/canvas_prompt_summary_rollout.md`, section 3.5).
 

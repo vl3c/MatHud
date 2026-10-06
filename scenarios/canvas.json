@@ -173,7 +173,7 @@
       ]
     },
     {
-      "id": "CV-07",
+      "id": "CV-08",
       "title": "A drawing too small to see: offer a zoom, never zoom unasked",
       "tags": ["view", "constructions"],
       "smoke": false,
