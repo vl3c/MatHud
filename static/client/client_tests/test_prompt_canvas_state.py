@@ -119,6 +119,14 @@ class TestNewCurves(unittest.TestCase):
         after = _state(f="sin(x)", g="x^3", h="cos(x)")
         self.assertEqual(new_curve_names(after, before), {"Functions": ["g", "h"]})
 
+    def test_derived_lists_are_no_change(self) -> None:
+        """Asymptote and discontinuity lists follow from the definition; comparing them is not needed."""
+        before = _state(f="1/x")
+        after = _state(f="1/x")
+        after["Functions"][0]["args"]["vertical_asymptotes"] = [0]
+        after["Functions"][0]["args"]["point_discontinuities"] = [1]
+        self.assertEqual(new_curve_names(after, before), {})
+
     def test_a_recolour_is_no_change(self) -> None:
         before = _state(f="sin(x)")
         after = _state(f="sin(x)")
@@ -172,6 +180,23 @@ class TestCurveExtents(unittest.TestCase):
         self.assertTrue(extents["Functions"]["s"]["waves"])
         self.assertFalse(extents["Functions"]["l"]["waves"])
         self.assertFalse(extents["Functions"]["b"]["waves"])
+
+    def test_an_aliased_wave_is_unresolved_with_its_period(self) -> None:
+        """sin sampled every 20 units misses its shape; the period comes from finer runs."""
+        extents = self._measure(
+            _Canvas(
+                {"Function": [_Graph("s", math.sin), _Graph("w", lambda x: math.sin(20 * x))]}, view=(-628.0, 628.0)
+            )
+        )
+        for name, period in (("s", 2 * math.pi), ("w", math.pi / 10)):
+            entry = extents["Functions"][name]
+            self.assertFalse(entry["resolved"], name)
+            self.assertAlmostEqual(entry["period"] / period, 1.0, delta=0.2)
+
+    def test_a_low_wave_the_samples_follow_is_resolved(self) -> None:
+        entry = self._measure(_Canvas({"Function": [_Graph("a", lambda x: 0.1 * math.sin(x))]}, view=(-10.0, 10.0)))
+        self.assertTrue(entry["Functions"]["a"]["resolved"])
+        self.assertNotIn("period", entry["Functions"]["a"])
 
     def test_spiky_marks_a_pole_between_samples(self) -> None:
         graphs = [
@@ -236,6 +261,30 @@ class TestPromptCarriesViewInfo(unittest.TestCase):
         ai.canvas = _Canvas({"Function": [_Graph("f", math.sin)]})
         ai._send_prompt_to_ai("hi", None, canvas_state=_state(f="sin(x)"))
         self.assertNotIn(CANVAS_SIZE_KEY, self.sent[-1][0]["canvas_state"])
+
+    def _run_batch(self, streamed: bool) -> Dict[str, Any]:
+        """Run a tool reply whose batch leaves an existing graph f unchanged; return the canvas sent."""
+        ai = self._ai()
+        ai.canvas = _Canvas({"Function": [_Graph("f", math.sin)]})
+        state = _state(f="sin(x)")
+        batch = {"call_results": {}, "traced_calls": [], "trace": None, "state_before": state, "state_after": state}
+        ai.execute_tool_batch = lambda *args: batch
+        ai._start_response_timeout = lambda *args, **kwargs: None
+        calls = [{"id": "c1", "function_name": "get_current_canvas_state", "arguments": {}}]
+        if streamed:
+            event = {"type": "final", "finish_reason": "tool_calls", "ai_tool_calls": calls, "ai_message": ""}
+            ai._on_stream_final(event, ai._turn_metrics.turn_token)
+        else:
+            ai._process_ai_response("", calls, "tool_calls", ai._turn_metrics.turn_token)
+        self.assertTrue(self.sent, "the tool results were not sent")
+        return self.sent[-1][0]["canvas_state"]
+
+    def test_batches_are_measured_against_their_state_before(self) -> None:
+        """f was there before the batch: it is not measured, on either reply path."""
+        for streamed in (True, False):
+            sent = self._run_batch(streamed)
+            self.assertIn(CANVAS_SIZE_KEY, sent)
+            self.assertNotIn(CURVE_EXTENTS_KEY, sent, f"streamed={streamed}")
 
     def test_prompt_is_sent_when_measuring_fails(self) -> None:
         import ai_interface

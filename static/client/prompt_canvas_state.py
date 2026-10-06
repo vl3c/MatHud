@@ -13,7 +13,10 @@ what the server needs to tell whether something the batch drew can be seen
 
 A function without both bounds is sampled over the visible x range only (``clipped``).
 ``waves`` says the samples change direction at least ``_MIN_TURNS`` times (sin does; a
-line, a parabola or a single bump does not, and zooming in on one cannot show it better);
+line, a parabola or a single bump does not, and zooming in on one cannot show it better).
+For a wave, ``resolved`` says whether the samples follow it (halfway between two samples
+it is about their average); an aliased wave is not, and ``period`` estimates its period
+so the server only suggests a zoom that shows at least one;
 ``spiky`` says the graph has a vertical asymptote among the samples: a few of them reach
 far beyond the rest, or it blows up halfway between the samples next to its biggest
 values.
@@ -51,8 +54,18 @@ _SPIKE_RATIO = 10.0
 _PEAKS_CHECKED = 3
 # Waves: an oscillating graph changes direction at least this often among its samples.
 _MIN_TURNS = 3
-# Args that only change how a curve looks (mirrors canvas_view_note._STYLE_ARGS for curves).
-_STYLE_ARGS = frozenset({"color"})
+# Args left out when telling a redefined curve from an unchanged one: its colour, and lists
+# derived from its definition (comparing them would cost Brython time for nothing).
+_IGNORED_ARGS = frozenset({"color", "vertical_asymptotes", "horizontal_asymptotes", "point_discontinuities"})
+# Resolved: a value halfway between two samples stays within this share of the samples' range
+# of their average. Checked at this many midpoints spread over the samples.
+_RESOLVED_TOLERANCE = 0.25
+_MIDPOINTS_CHECKED = 16
+_CHECK_FRACTIONS = (0.5, 0.31)
+# Finding the period of an unresolved wave: halve the step this often at most, and sample
+# this many steps each time.
+_MAX_HALVINGS = 24
+_PERIOD_STEPS = 16
 
 # Drawable class -> state bucket.
 _CURVE_CLASSES = (
@@ -154,12 +167,64 @@ def _graph_extent(function: Any, view: Optional[Tuple[float, float]]) -> Optiona
     trim = int(len(ordered) * _Y_TRIM)
     kept = ordered[trim : len(ordered) - trim] if len(ordered) > 2 * trim + 1 else ordered
     full_range, kept_range = ordered[-1] - ordered[0], kept[-1] - kept[0]
-    return {
+    entry: Dict[str, Any] = {
         "box": [points[0][0], points[-1][0], kept[0], kept[-1]],
         "clipped": clipped,
         "waves": _turn_count(ys) >= _MIN_TURNS,
         "spiky": full_range > _SPIKE_RATIO * kept_range or _pole_between_samples(evaluate, points),
     }
+    if entry["waves"] and not entry["spiky"]:
+        entry["resolved"] = _resolved(evaluate, points, _MIDPOINTS_CHECKED)
+        if not entry["resolved"]:
+            entry["period"] = _period(evaluate, (left + right) / 2.0, (right - left) / (CURVE_SAMPLES - 1))
+    return entry
+
+
+def _resolved(evaluate: Callable[[float], Any], points: List[Tuple[float, float]], checks: int) -> bool:
+    """True when the samples follow the graph: halfway between two of them it is about their average.
+
+    An aliased wave (sin sampled every 20 units) fails: its midpoints land anywhere.
+    """
+    span = max(y for _, y in points) - min(y for _, y in points)
+    stride = max(1, (len(points) - 1) // checks)
+    for index in range(0, len(points) - 1, stride):
+        (x1, y1), (x2, y2) = points[index], points[index + 1]
+        # Two offsets, one of them not a power of two, so a step that happens to be a
+        # multiple of the period cannot fool the check.
+        for fraction in _CHECK_FRACTIONS:
+            try:
+                value = float(evaluate(x1 + fraction * (x2 - x1)))
+            except Exception:
+                continue
+            expected = y1 + fraction * (y2 - y1)
+            if math.isfinite(value) and abs(value - expected) > _RESOLVED_TOLERANCE * span:
+                return False
+    return True
+
+
+def _period(evaluate: Callable[[float], Any], center: float, step: float) -> Optional[float]:
+    """Estimate an unresolved wave's period: halve the step until short runs of samples resolve it.
+
+    Two turns make a period. A step that happens to be near a multiple of the period can look
+    resolved by chance, so the estimate must hold at the next finer step too.
+    """
+    previous: Optional[float] = None
+    for _ in range(_MAX_HALVINGS):
+        step /= 2.0
+        points = _sample(lambda x: (x, evaluate(x)), center, center + _PERIOD_STEPS * step, _PERIOD_STEPS + 1)
+        if len(points) < _PERIOD_STEPS or not _resolved(evaluate, points, _PERIOD_STEPS):
+            previous = None
+            continue
+        turns = _turn_count([y for _, y in points])
+        if turns < 2:
+            if previous is not None:
+                return previous  # the finer run is too short to see two turns of it
+            continue
+        estimate = 2.0 * _PERIOD_STEPS * step / turns
+        if previous is not None and 2.0 / 3.0 <= estimate / previous <= 1.5:
+            return (estimate + previous) / 2.0
+        previous = estimate
+    return None
 
 
 def _turn_count(ys: List[float]) -> int:
@@ -199,10 +264,12 @@ def _curve_extent(curve: Any) -> Optional[Dict[str, Any]]:
     return {"box": [min(xs), max(xs), min(ys), max(ys)], "clipped": False}
 
 
-def _sample(point_at: Callable[[float], Any], low: float, high: float) -> List[Tuple[float, float]]:
+def _sample(
+    point_at: Callable[[float], Any], low: float, high: float, count: int = CURVE_SAMPLES
+) -> List[Tuple[float, float]]:
     points: List[Tuple[float, float]] = []
-    for index in range(CURVE_SAMPLES):
-        t = low + (high - low) * index / (CURVE_SAMPLES - 1)
+    for index in range(count):
+        t = low + (high - low) * index / (count - 1)
         try:
             x, y = point_at(t)
             x, y = float(x), float(y)
@@ -215,7 +282,7 @@ def _sample(point_at: Callable[[float], Any], low: float, high: float) -> List[T
 
 def _definition(item: Dict[str, Any]) -> str:
     args = item.get("args") if isinstance(item.get("args"), dict) else {}
-    return json.dumps({k: v for k, v in args.items() if k not in _STYLE_ARGS}, sort_keys=True, default=str)
+    return json.dumps({k: v for k, v in args.items() if k not in _IGNORED_ARGS}, sort_keys=True, default=str)
 
 
 def _items(state: Dict[str, Any], bucket: str) -> List[Dict[str, Any]]:
