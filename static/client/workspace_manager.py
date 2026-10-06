@@ -698,6 +698,7 @@ class WorkspaceManager:
                 name=item_state.get("name", ""),
                 color=self._saved_color(item_state),
                 extra_graphics=False,
+                reuse_existing=False,
             )
 
     def _create_functions(self, state: Dict[str, Any]) -> None:

@@ -389,7 +389,7 @@ class PointManager(BaseDrawableManager):
                 circle.regenerate_name()
         for ellipse in getattr(self.drawables, "Ellipses", []):
             if getattr(ellipse, "center", None) is point and hasattr(ellipse, "regenerate_name"):
-                ellipse.regenerate_name()
+                ellipse.regenerate_name(self.drawables.names_in_use(exclude=ellipse))
 
     def _validate_point_policy(self, requested_fields: List[str]) -> Dict[str, EditRule]:
         """Ensure every requested field is allowed by the policy definition."""
