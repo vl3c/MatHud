@@ -16,6 +16,12 @@ Mathematical Properties:
     - Renderer-agnostic; no viewport scaling stored in model
     - Rotation angle preservation and application
 
+Naming:
+    - Default names follow the geometry, '<center>(<radius_x>, <radius_y>)', and are
+      refreshed when the centre is renamed or a radius changes; a default name that is
+      already in use gets the first free '_<n>' suffix
+    - A custom name (passed to the constructor) never changes
+
 Dependencies:
     - constants: Default styling values
     - drawables.drawable: Base class interface
@@ -26,7 +32,7 @@ from __future__ import annotations
 
 import math
 from copy import deepcopy
-from typing import Any, Dict, Optional, Tuple, cast
+from typing import Any, Collection, Dict, Optional, Tuple, cast
 
 from constants import default_color
 from drawables.drawable import Drawable
@@ -47,6 +53,7 @@ class Ellipse(Drawable):
         radius_y (float): Vertical radius in mathematical coordinate units
         rotation_angle (float): Rotation angle in degrees for ellipse orientation
         ellipse_formula (str): Algebraic ellipse equation, computed from the current geometry
+        has_custom_name (bool): True when the name was chosen rather than generated
     """
 
     def __init__(
@@ -56,6 +63,7 @@ class Ellipse(Drawable):
         radius_y: float,
         rotation_angle: float = 0,
         color: str = default_color,
+        name: str = "",
     ) -> None:
         """Initialize an ellipse with center point, radii, and rotation.
 
@@ -65,12 +73,14 @@ class Ellipse(Drawable):
             radius_y (float): Vertical radius in mathematical coordinate units
             rotation_angle (float): Rotation angle in degrees (default: 0)
             color (str): CSS color value for ellipse visualization
+            name (str): Custom name kept through transforms; empty for the default name
         """
         self.center: Point = center_point
         self.radius_x: float = radius_x
         self.radius_y: float = radius_y
         self.rotation_angle: float = rotation_angle  # Initialize with provided angle
-        super().__init__(name=self._generate_default_name(), color=color)
+        self.has_custom_name: bool = bool(name)
+        super().__init__(name=name or self._generate_default_name(), color=color)
 
     def get_class_name(self) -> str:
         return "Ellipse"
@@ -113,6 +123,7 @@ class Ellipse(Drawable):
             new_center, self.radius_x, self.radius_y, color=self.color, rotation_angle=self.rotation_angle
         )
         new_ellipse.name = self.name
+        new_ellipse.has_custom_name = self.has_custom_name
         memo[id(self)] = new_ellipse
         return new_ellipse
 
@@ -206,6 +217,12 @@ class Ellipse(Drawable):
         """Set the rotation angle directly."""
         self.rotation_angle = float(rotation_angle) % 360
 
+    def is_default_name(self, name: str) -> bool:
+        """True when name is the default name, with or without a '_<n>' suffix."""
+        base = self._generate_default_name()
+        suffix = name[len(base) + 1 :] if name.startswith(base + "_") else ""
+        return name == base or suffix.isdigit()
+
     def _generate_default_name(self) -> str:
         return f"{self.center.name}({self._format_radius(self.radius_x)}, {self._format_radius(self.radius_y)})"
 
@@ -215,6 +232,30 @@ class Ellipse(Drawable):
             return str(int(value))
         return str(value)
 
-    def regenerate_name(self) -> None:
-        """Refresh the ellipse name from its current center/radii."""
-        self.name = self._generate_default_name()
+    def regenerate_name(self, taken_names: Collection[str] = ()) -> None:
+        """Refresh a default name from the current centre and radii; a custom name is kept.
+
+        A default name that still fits the centre and radii and is not in taken_names is
+        kept as it is, so an ellipse keeps its '_<n>' suffix through transforms. Otherwise
+        the name becomes the default name, with the first free '_<n>' suffix when the
+        default name is in taken_names.
+
+        Args:
+            taken_names: Names other drawables already use
+        """
+        if self.has_custom_name:
+            return
+        current_name = self.get_name()
+        if current_name not in taken_names and self.is_default_name(current_name):
+            return
+        self.name = self.unique_name(self._generate_default_name(), taken_names)
+
+    @staticmethod
+    def unique_name(base_name: str, taken_names: Collection[str]) -> str:
+        """base_name, or base_name with the first '_<n>' suffix not in taken_names."""
+        candidate = base_name
+        suffix = 1
+        while candidate in taken_names:
+            candidate = f"{base_name}_{suffix}"
+            suffix += 1
+        return candidate

@@ -53,7 +53,7 @@ Follow-ups:
 - ~~Serialize drawable colors/styles (points, segments, vectors, circles, polygons, graphs, function curves) so they survive reload and reach the model; colours not stored in drawable state are missing from every canvas format, and `text` also omits default colours.~~ Done: those drawables (and ellipses) store a non-default colour in their state, so it survives save/load and undo and shows in every canvas format; the formats omit only each type's default colour (blue for angles, black otherwise). Angle names and grid visibility survive a load too.
 - OpenAI Responses API keeps earlier turns (including their `<canvas>` blocks) in server-side history via previous_response_id, so MatHud can't strip old canvas blocks there; consider sending the canvas as a separate input item or not chaining responses.
 - `localStorage` mirror of the canvas so an accidental page reload doesn't lose work.
-- Custom names for circles and ellipses (currently always `<center>(<radius>)`; needs a custom-name flag honoured by `regenerate_name()` and `__deepcopy__`).
+- Custom names for circles (currently always `<center>(<radius>)`; needs a custom-name flag honoured by `regenerate_name()` and `__deepcopy__`). Done for ellipses: `create_ellipse` keeps a requested name such as `E1` through transforms, undo and reload, and a name in use gets a `_<n>` suffix, so two ellipses never share a name.
 - Region boolean operations ignore holes and use only outer boundaries when results are combined further.
 - Undirected graph analysis collapses parallel edges (a doubled edge is still reported as a bridge).
 - Server-side: remaining mypy `no-any-return` warnings in modules outside `mypy.ini`'s file list; a route test can make a live OpenAI call when a key is configured.

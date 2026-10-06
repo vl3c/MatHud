@@ -40,7 +40,7 @@ Access Patterns:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Set
 
 if TYPE_CHECKING:
     from drawables.drawable import Drawable
@@ -164,6 +164,18 @@ class DrawablesContainer:
         for drawable_type in self._drawables:
             all_drawables.extend(self._drawables[drawable_type])
         return all_drawables
+
+    def names_in_use(self, exclude: Optional["Drawable"] = None) -> Set[str]:
+        """
+        Get the names of every drawable except exclude.
+
+        Args:
+            exclude: A drawable whose own name does not count, such as one being renamed
+
+        Returns:
+            set: Non-empty names of the other drawables
+        """
+        return {drawable.name for drawable in self.get_all() if drawable is not exclude and drawable.name}
 
     def get_colored_areas(self) -> List["Drawable"]:
         """

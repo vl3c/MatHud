@@ -9,6 +9,7 @@ Core Responsibilities:
     - Ellipse Retrieval: Lookup by center/radii parameters or ellipse name
     - Ellipse Deletion: Safe removal with proper cleanup
     - Center Point Management: Automatic creation and tracking of ellipse centers
+    - Naming: Honours a requested ellipse name and keeps every ellipse name unique
 
 Manager Features:
     - Collision Detection: Checks for existing ellipses before creation (without rotation angle)
@@ -34,6 +35,7 @@ Dependencies:
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
 from drawables.ellipse import Ellipse
@@ -48,6 +50,12 @@ if TYPE_CHECKING:
     from managers.drawable_manager_proxy import DrawableManagerProxy
     from managers.point_manager import PointManager
     from name_generator.drawable import DrawableNameGenerator
+
+# A requested name that only names the centre point: one letter with optional primes.
+_CENTER_HINT_PATTERN = re.compile(r"^[A-Za-z]'*$")
+# A requested name in the default '<center>(<radius_x>, <radius_y>)' form, as saved workspaces
+# store it, with an optional '_<n>' suffix.
+_DEFAULT_NAME_PATTERN = re.compile(r"^[^()]+\([^(),]+, [^(),]+\)(?:_\d+)?$")
 
 
 class EllipseManager(BaseDrawableManager):
@@ -153,7 +161,11 @@ class EllipseManager(BaseDrawableManager):
             radius_x (float): Horizontal radius of the ellipse
             radius_y (float): Vertical radius of the ellipse
             rotation_angle (float): Rotation angle in degrees (default: 0)
-            name (str): Optional name for the ellipse (default: "")
+            name (str): Optional name (default: ""). Its letters name the centre point. A
+                point name such as "A" or "B'", or a name already in the default
+                '<center>(<radius_x>, <radius_y>)' form, gives the ellipse the default name;
+                any other name, such as "E1", becomes the ellipse's own name and is kept
+                through transforms. A name in use gets the first free '_<n>' suffix.
             color (str): Optional color for the ellipse
             extra_graphics (bool): Whether to create additional graphics (default: True)
 
@@ -168,8 +180,11 @@ class EllipseManager(BaseDrawableManager):
         if existing_ellipse:
             return existing_ellipse
 
+        requested_name = str(name or "").strip()
+        custom_name = self._custom_name_from_request(requested_name)
+
         # Extract point name from ellipse name
-        point_names: List[str] = self.name_generator.split_point_names(name, 1)
+        point_names: List[str] = self.name_generator.split_point_names(requested_name, 1)
 
         # Create center point with the correct name
         center = self.point_manager.create_point(center_x, center_y, point_names[0], extra_graphics=False)
@@ -183,9 +198,11 @@ class EllipseManager(BaseDrawableManager):
                 radius_y,
                 rotation_angle=rotation_angle,
                 color=color_value,
+                name=custom_name,
             )
         else:
-            new_ellipse = Ellipse(center, radius_x, radius_y, rotation_angle=rotation_angle)
+            new_ellipse = Ellipse(center, radius_x, radius_y, rotation_angle=rotation_angle, name=custom_name)
+        self._name_new_ellipse(new_ellipse, requested_name)
 
         # Add to drawables
         self.drawables.add(new_ellipse)
@@ -202,6 +219,30 @@ class EllipseManager(BaseDrawableManager):
             self.canvas.draw()
 
         return new_ellipse
+
+    def _custom_name_from_request(self, requested_name: str) -> str:
+        """The requested name when it names the ellipse itself; "" when it only hints at the centre."""
+        if _CENTER_HINT_PATTERN.match(requested_name) or _DEFAULT_NAME_PATTERN.match(requested_name):
+            return ""
+        return requested_name
+
+    def _name_new_ellipse(self, ellipse: Ellipse, requested_name: str) -> None:
+        """Give a new ellipse a name no other drawable uses.
+
+        A requested default name that fits the ellipse is kept as it is, so a workspace
+        restores an '_<n>' suffix and the colored areas that refer to it.
+        """
+        taken_names = self.drawables.names_in_use(exclude=ellipse)
+        if ellipse.has_custom_name:
+            ellipse.name = Ellipse.unique_name(ellipse.name, taken_names)
+        elif requested_name not in taken_names and ellipse.is_default_name(requested_name):
+            ellipse.name = requested_name
+        else:
+            ellipse.regenerate_name(taken_names)
+
+    def refresh_ellipse_name(self, ellipse: Ellipse) -> None:
+        """Regenerate a default name after the geometry changed, avoiding names in use."""
+        ellipse.regenerate_name(self.drawables.names_in_use(exclude=ellipse))
 
     def delete_ellipse(self, name: str) -> bool:
         """
@@ -428,3 +469,5 @@ class EllipseManager(BaseDrawableManager):
 
         if "center" in pending_fields and new_center_x is not None and new_center_y is not None:
             ellipse.update_center_position(float(new_center_x), float(new_center_y))
+
+        self.refresh_ellipse_name(ellipse)

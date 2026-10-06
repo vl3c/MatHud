@@ -699,7 +699,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "color": {"type": ["string", "null"], "description": "Optional color for the ellipse"},
                     "name": {
                         "type": ["string", "null"],
-                        "description": "Optional name hint used to name the center point; the ellipse itself is named '<center>(<radius_x>, <radius_y>)'",
+                        "description": "Optional name. A point name such as 'A' names the center point and the ellipse is named '<center>(<radius_x>, <radius_y>)'; any other name, such as 'E1', names the ellipse itself (its letters still name the center) and is kept through transforms. A name already in use gets a '_<n>' suffix",
                     },
                 },
                 "required": ["center_x", "center_y", "radius_x", "radius_y", "rotation_angle", "color", "name"],
