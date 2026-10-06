@@ -16,7 +16,7 @@ Shapes:
 Method:
     - Closed forms for line/line, line/circle, circle/circle and line/ellipse (the line is
       mapped into the frame where the ellipse is the unit circle). A double root (a gap
-      within ``TANGENT_TOLERANCE`` of the radii) is one point with ``tangent``.
+      within the rounding error of its computation) is one point with ``tangent``.
     - Circle/ellipse and ellipse/ellipse: the roots of the other conic's implicit equation
       along the ellipse's parametrisation, over one full turn.
     - Functions and parametric curves: the roots of the other object's implicit equation
@@ -28,8 +28,10 @@ Method:
     point of a cubic) is also a tangency.
 
 Coinciding objects (collinear overlapping segments, identical circles, arcs of one circle,
-a function running along a segment) are reported as overlaps, not as points. Points are
-rounded to 10 significant digits, sorted by (x, y) and capped at ``max_results``.
+a function running along a segment) are reported as overlaps, not as points. Whether two
+objects coincide is judged against their size (radius, segment length), never their
+distance from the origin. Points are rounded to 10 significant digits, sorted by (x, y)
+and capped at ``max_results``.
 """
 
 from __future__ import annotations
@@ -41,13 +43,13 @@ from utils.function_features import MAX_SAMPLES, scan_roots, sample_count
 
 DEFAULT_MAX_RESULTS = 50
 
-# Relative gap (to the radius, or the unit circle of an ellipse) within which a line or
-# circle touches instead of crossing: one tangent point, not two
-TANGENT_TOLERANCE = 1e-12
+# Rounding units (of every term of a computation) within which a gap is zero: a line or
+# circle that close to touching is tangent, and a coordinate that close is the same
+_ROUNDING_UNITS = 16.0
 # Sine of the angle between two lines below which they are parallel
 _PARALLEL_TOLERANCE = 1e-12
-# Distance (relative to the objects' size) within which parallel lines are one line, and a
-# degenerate point lies on an object
+# Distance (relative to the objects' size, plus coordinate rounding) within which parallel
+# lines are one line, circles are one circle, and a degenerate point lies on an object
 _ON_OBJECT_TOLERANCE = 1e-10
 # Slack of a segment parameter beyond [0, 1] and of an angle beyond an arc's ends
 _T_SLACK = 1e-10
@@ -56,6 +58,10 @@ _ANGLE_SLACK = 1e-9
 _TANGENT_ANGLE = 1e-7
 # Points closer than this (relative to their size) are one point
 _MERGE_TOLERANCE = 1e-9
+# A point this close (relative to its size) to an overlap's end is part of the overlap
+_ABSORB_TOLERANCE = 1e-7
+# Rounding units of the coordinates within which two computed points are one point
+_SAME_POINT_ULPS = 4.0
 # An implicit value within this many rounding units of its terms counts as zero
 _NOISE_FACTOR = 64.0
 _EPS = 2.220446049250313e-16
@@ -67,6 +73,8 @@ _SAMPLES_PER_PIXEL = 2
 # Padding of a function's search range beyond the other object's x extent
 _EXTENT_PADDING = 1e-3
 _REPORT_DIGITS = 10
+# Most significant digits a coordinate can need (a small object far from the origin)
+_MAX_DIGITS = 17
 _ZERO_FLOOR = 1e-12
 _BISECTION_STEPS = 60
 _TWO_PI = 2.0 * math.pi
@@ -129,14 +137,11 @@ class PointShape:
         self.x = float(x)
         self.y = float(y)
 
-    def scale(self) -> float:
-        return max(1.0, abs(self.x), abs(self.y))
-
     def implicit(self, x: float, y: float) -> float:
         return math.hypot(x - self.x, y - self.y)
 
     def noise(self, x: float, y: float) -> float:
-        return _ON_OBJECT_TOLERANCE * max(self.scale(), abs(x), abs(y))
+        return _coincidence_tolerance(1.0, x, y, self.x, self.y)
 
     def accepts(self, x: float, y: float) -> Optional[Params]:
         return {}
@@ -192,9 +197,15 @@ class LineShape:
     def noise(self, x: float, y: float) -> float:
         return _NOISE_FACTOR * _EPS * (abs(x) + abs(y) + self.scale())
 
+    def params_for_t(self, t: float) -> Params:
+        return {"t": t}
+
     def accepts(self, x: float, y: float) -> Optional[Params]:
         t = self.accepted_t(self.parameter_of(x, y))
-        return None if t is None else {"t": t}
+        return None if t is None else self.params_for_t(t)
+
+    def coordinates(self) -> Tuple[float, float, float, float]:
+        return (self.x1, self.y1, self.x2, self.y2)
 
     def tangent_at(self, x: float, y: float) -> Optional[Point2]:
         return (self.dx, self.dy)
@@ -425,6 +436,13 @@ class ParametricShape:
     def params(self, t: float) -> Params:
         return {"t": t}
 
+    def extent(self) -> float:
+        """Diagonal of the box around a coarse sampling of the curve (its size for tolerances)."""
+        points = [self.point(self.t_min + (self.t_max - self.t_min) * i / 64) for i in range(65)]
+        xs = [x for x, y in points if math.isfinite(x) and math.isfinite(y)]
+        ys = [y for x, y in points if math.isfinite(x) and math.isfinite(y)]
+        return math.hypot(max(xs) - min(xs), max(ys) - min(ys)) if xs else 0.0
+
     def samples(self, span: float) -> int:
         """Two samples per screen pixel of the curve's length (at least _MIN_CURVE_SAMPLES)."""
         if not self.pixels_per_unit:
@@ -439,6 +457,22 @@ class ParametricShape:
             previous = current
         wanted = math.ceil(length * self.pixels_per_unit * _SAMPLES_PER_PIXEL)
         return int(min(max(_MIN_CURVE_SAMPLES, wanted), MAX_SAMPLES))
+
+
+class _EllipseAxis(LineShape):
+    """An ellipse with one zero radius: the segment along its other axis, still reporting the angle.
+
+    The segment runs from the parametric angle pi to 0 (or 3*pi/2 to pi/2 for an upright
+    one), so its t maps to the angle in [0, pi] (or [-pi/2, pi/2]) at the same point.
+    """
+
+    def __init__(self, name: str, start: Point2, end: Point2, upright: bool) -> None:
+        super().__init__(name, start, end)
+        self.upright = upright
+
+    def params_for_t(self, t: float) -> Params:
+        along = min(max(2.0 * t - 1.0, -1.0), 1.0)
+        return {"angle": math.asin(along) if self.upright else math.acos(along)}
 
 
 Shape = Union[PointShape, LineShape, CircleShape, EllipseShape, FunctionShape, ParametricShape]
@@ -506,7 +540,7 @@ def find_object_intersections(
     low, high = (first, second) if first.rank <= second.rank else (second, first)
     found = _dispatch(low, high)
     found.notes[:0] = [shape.note for shape in (first, second) if shape.note]
-    return _report(found, max_results)
+    return _report(found, max_results, _pair_size(first, second))
 
 
 def line_shape(name: str, start: Point2, end: Point2, bounded: bool = True) -> Shape:
@@ -535,12 +569,14 @@ def ellipse_shape(name: str, center: Point2, radius_x: float, radius_y: float, r
         return _degenerate_point(name, "zero radii", (ellipse.cx, ellipse.cy))
     if ellipse.rx > tiny and ellipse.ry > tiny:
         return ellipse
-    angle = 0.0 if ellipse.rx > tiny else 0.5 * math.pi
+    upright = ellipse.rx <= tiny
+    angle = 0.5 * math.pi if upright else 0.0
     start, end = ellipse.point_at_angle(angle + math.pi), ellipse.point_at_angle(angle)
-    axis = LineShape(name, start, end)
+    axis = _EllipseAxis(name, start, end, upright)
     axis.note = (
         f"{name} has a zero radius; it was treated as the segment from "
-        f"({_round(start[0])}, {_round(start[1])}) to ({_round(end[0])}, {_round(end[1])})."
+        f"({_round(start[0])}, {_round(start[1])}) to ({_round(end[0])}, {_round(end[1])}), "
+        f"its angle still the ellipse's parametric angle."
     )
     return axis
 
@@ -595,15 +631,15 @@ def _line_line(a: LineShape, b: LineShape) -> _Found:
     u = b.accepted_t((wx * a.dy - wy * a.dx) / cross)
     if t is not None and u is not None:
         x, y = a.point_at(t)
-        found.hits.append(_Hit(x, y, {a.name: {"t": t}, b.name: {"t": u}}))
+        found.hits.append(_Hit(x, y, {a.name: a.params_for_t(t), b.name: b.params_for_t(u)}))
     return found
 
 
 def _parallel_lines(a: LineShape, b: LineShape) -> _Found:
     """Parallel lines: apart, one line, or segments that overlap (or touch end to end)."""
     found = _Found()
-    scale = max(a.scale(), b.scale())
-    if abs(a.implicit(b.x1, b.y1)) > _ON_OBJECT_TOLERANCE * scale:
+    tolerance = _coincidence_tolerance(max(a.length, b.length), *a.coordinates(), *b.coordinates())
+    if abs(a.implicit(b.x1, b.y1)) > tolerance:
         found.notes.append(f"{a.name} and {b.name} are parallel and do not meet.")
         return found
     if not (a.bounded or b.bounded):
@@ -622,7 +658,7 @@ def _parallel_lines(a: LineShape, b: LineShape) -> _Found:
         t = min(max(low, 0.0), 1.0)
         x, y = a.point_at(t)
         u = min(max(b.parameter_of(x, y), 0.0), 1.0)
-        found.hits.append(_Hit(x, y, {a.name: {"t": t}, b.name: {"t": u}}))
+        found.hits.append(_Hit(x, y, {a.name: a.params_for_t(t), b.name: b.params_for_t(u)}))
     else:
         found.notes.append(f"{a.name} and {b.name} lie on one line but do not meet.")
     return found
@@ -630,18 +666,20 @@ def _parallel_lines(a: LineShape, b: LineShape) -> _Found:
 
 def _line_circle(line: LineShape, circle: CircleShape) -> _Found:
     found = _Found()
+    # Relative to the centre, so rounding scales with the circle and line, not their offset
+    rx, ry = line.x1 - circle.cx, line.y1 - circle.cy
     length2 = line.dx * line.dx + line.dy * line.dy
-    t0 = ((circle.cx - line.x1) * line.dx + (circle.cy - line.y1) * line.dy) / length2
-    foot = line.point_at(t0)
-    distance = math.hypot(foot[0] - circle.cx, foot[1] - circle.cy)
-    for t, tangent in _chord_parameters(t0, distance, circle.r, length2):
+    t0 = -(rx * line.dx + ry * line.dy) / length2
+    distance = math.hypot(rx + t0 * line.dx, ry + t0 * line.dy)
+    terms = abs(rx) + abs(ry) + abs(t0) * math.sqrt(length2) + circle.r
+    for t, tangent in _chord_parameters(t0, distance, circle.r, length2, _ROUNDING_UNITS * _EPS * terms):
         accepted = line.accepted_t(t)
         if accepted is None:
             continue
         x, y = line.point_at(accepted)
         params = circle.accepts(x, y)
         if params is not None:
-            found.hits.append(_Hit(x, y, {line.name: {"t": accepted}, circle.name: params}, tangent))
+            found.hits.append(_Hit(x, y, {line.name: line.params_for_t(accepted), circle.name: params}, tangent))
     return found
 
 
@@ -654,22 +692,29 @@ def _line_ellipse(line: LineShape, ellipse: EllipseShape) -> _Found:
     length2 = du * du + dv * dv
     t0 = -(u1 * du + v1 * dv) / length2
     distance = math.hypot(u1 + t0 * du, v1 + t0 * dv)
-    for t, tangent in _chord_parameters(t0, distance, 1.0, length2):
+    # to_unit subtracts the centre first, so rounding scales with the unit-frame coordinates
+    terms = 1.0 + abs(u1) + abs(v1) + abs(t0) * math.sqrt(length2)
+    for t, tangent in _chord_parameters(t0, distance, 1.0, length2, _ROUNDING_UNITS * _EPS * terms):
         accepted = line.accepted_t(t)
         if accepted is None:
             continue
         x, y = line.point_at(accepted)
         params = ellipse.accepts(x, y) or {}
-        found.hits.append(_Hit(x, y, {line.name: {"t": accepted}, ellipse.name: params}, tangent))
+        found.hits.append(_Hit(x, y, {line.name: line.params_for_t(accepted), ellipse.name: params}, tangent))
     return found
 
 
-def _chord_parameters(t0: float, distance: float, radius: float, length2: float) -> List[Tuple[float, bool]]:
-    """Line parameters where a line at ``distance`` from a circle's centre (foot at t0) meets it."""
-    gap = (radius - distance) / radius
-    if gap < -TANGENT_TOLERANCE:
+def _chord_parameters(
+    t0: float, distance: float, radius: float, length2: float, error: float
+) -> List[Tuple[float, bool]]:
+    """Line parameters where a line at ``distance`` from a circle's centre (foot at t0) meets it.
+
+    A gap within ``error`` (the rounding error of the distance) is a tangency: one point.
+    """
+    gap = radius - distance
+    if gap < -error:
         return []
-    if gap <= TANGENT_TOLERANCE:
+    if gap <= error:
         return [(t0, True)]
     half = math.sqrt((radius - distance) * (radius + distance) / length2)
     return [(t0 - half, False), (t0 + half, False)]
@@ -679,16 +724,18 @@ def _circle_circle(a: CircleShape, b: CircleShape) -> _Found:
     """The radical-line construction; tangency when the centre distance is r1 + r2 or |r1 - r2|."""
     dx, dy = b.cx - a.cx, b.cy - a.cy
     d = math.hypot(dx, dy)
-    if d <= _ON_OBJECT_TOLERANCE * max(a.scale(), b.scale()):
+    if d <= _coincidence_tolerance(max(a.r, b.r), a.cx, a.cy, b.cx, b.cy):
         return _concentric_circles(a, b)
     found = _Found()
-    outer_gap = (a.r + b.r - d) / (a.r + b.r)
-    inner_gap = (d - abs(a.r - b.r)) / max(a.r, b.r)
-    if outer_gap < -TANGENT_TOLERANCE or inner_gap < -TANGENT_TOLERANCE:
+    outer_gap = a.r + b.r - d
+    inner_gap = d - abs(a.r - b.r)
+    # d comes from the centres' difference, rounded relative to d itself
+    error = _ROUNDING_UNITS * _EPS * (a.r + b.r + d)
+    if outer_gap < -error or inner_gap < -error:
         return found
     ux, uy = dx / d, dy / d
     along = (d * d + a.r * a.r - b.r * b.r) / (2.0 * d)
-    if abs(outer_gap) <= TANGENT_TOLERANCE or abs(inner_gap) <= TANGENT_TOLERANCE:
+    if abs(outer_gap) <= error or abs(inner_gap) <= error:
         reach = a.r if along >= 0.0 else -a.r
         candidates = [((a.cx + reach * ux, a.cy + reach * uy), True)]
     else:
@@ -707,7 +754,7 @@ def _circle_circle(a: CircleShape, b: CircleShape) -> _Found:
 
 def _concentric_circles(a: CircleShape, b: CircleShape) -> _Found:
     found = _Found()
-    if abs(a.r - b.r) > _ON_OBJECT_TOLERANCE * max(a.scale(), b.scale()):
+    if abs(a.r - b.r) > _coincidence_tolerance(max(a.r, b.r)):
         found.notes.append(f"{a.name} and {b.name} are concentric with different radii and do not meet.")
         return found
     _shared_arcs(a, b, found)
@@ -757,18 +804,31 @@ def _conic_conic(low: Union[CircleShape, EllipseShape], ellipse: EllipseShape) -
         curve, other = _EllipseCurve(low), ellipse
     # Run a little past a full turn so a root or tangency at angle 0 is inside the range
     pad = 4.0 * _TWO_PI / _CONIC_SAMPLES
-    return _curve_hits(curve, other, -pad, _TWO_PI + pad)
+    # Distinct conics share at most four points: a stretch where they agree to rounding
+    # (nearly equal ellipses) is a tangency, not an overlap
+    return _curve_hits(curve, other, -pad, _TWO_PI + pad, runs_touch=True)
 
 
 def _same_conic(a: Union[CircleShape, EllipseShape], b: EllipseShape) -> bool:
     """Same centre and same quadratic form (any rotation that maps the ellipse onto itself)."""
-    scale = max(a.scale(), b.scale())
-    if math.hypot(a.cx - b.cx, a.cy - b.cy) > _ON_OBJECT_TOLERANCE * scale:
+    size = max(_conic_size(a), _conic_size(b))
+    if math.hypot(a.cx - b.cx, a.cy - b.cy) > _coincidence_tolerance(size, a.cx, a.cy, b.cx, b.cy):
         return False
     form_a = _circle_form(a) if isinstance(a, CircleShape) else a.quadratic_form()
     form_b = b.quadratic_form()
     size = max(abs(value) for value in form_a + form_b)
     return all(abs(p - q) <= _ON_OBJECT_TOLERANCE * size for p, q in zip(form_a, form_b))
+
+
+def _conic_size(conic: Union[CircleShape, EllipseShape]) -> float:
+    return conic.r if isinstance(conic, CircleShape) else max(conic.rx, conic.ry)
+
+
+def _coincidence_tolerance(size: float, *coordinates: float) -> float:
+    """How far apart two things may be and still be one: 1e-10 of the objects' size, plus the
+    rounding of their coordinates (never a fraction of the coordinates themselves)."""
+    largest = max((abs(c) for c in coordinates), default=0.0)
+    return _ON_OBJECT_TOLERANCE * size + _ROUNDING_UNITS * _EPS * largest
 
 
 def _circle_form(circle: CircleShape) -> Tuple[float, float, float]:
@@ -799,8 +859,11 @@ def _function_hits(function: FunctionShape, other: _ImplicitShape) -> _Found:
     return _curve_hits(function, other, left, right)
 
 
-def _curve_hits(curve: _Curve, other: _ImplicitShape, low: float, high: float) -> _Found:
-    """Roots of the other object's implicit value along the curve, filtered to both objects."""
+def _curve_hits(curve: _Curve, other: _ImplicitShape, low: float, high: float, runs_touch: bool = False) -> _Found:
+    """Roots of the other object's implicit value along the curve, filtered to both objects.
+
+    A run where the value is zero is an overlap, or with ``runs_touch`` one tangent point.
+    """
     found = _Found()
 
     def gap(s: float) -> float:
@@ -815,14 +878,23 @@ def _curve_hits(curve: _Curve, other: _ImplicitShape, low: float, high: float) -
     breakpoints = list(curve.breakpoints)
     if isinstance(other, FunctionShape):
         breakpoints.extend(other.breakpoints)
+    pieces: List[Tuple[float, float]] = []
     for root in scan_roots(gap, low, high, breakpoints=breakpoints, samples=samples):
+        touching = root.touching
+        s = root.x
         if root.end is not None:
-            _add_run(found, curve, other, gap, (root.x, root.end), (low, high), spacing)
-            continue
-        s = _polished_tangency(curve, other, root.x, spacing) if root.touching else root.x
-        hit = _curve_hit(curve, other, s, root.touching)
+            if not runs_touch:
+                pieces.extend(_run_pieces(curve, other, gap, (root.x, root.end), (low, high), spacing))
+                continue
+            s, touching = 0.5 * (root.x + root.end), True
+        if touching:
+            s = _polished_tangency(curve, other, s, spacing)
+        hit = _curve_hit(curve, other, s, touching)
         if hit is not None:
             found.hits.append(hit)
+    size = _pair_size(curve, other)
+    for first, last, span in _joined_at_seam(curve, pieces, (low, high), size):
+        _add_piece(found, curve, other, (first, last), span >= spacing, size)
     return found
 
 
@@ -899,16 +971,15 @@ def _runs_parallel(first: Point2, second: Optional[Point2]) -> bool:
     return abs(first[0] * second[1] - first[1] * second[0]) <= _TANGENT_ANGLE * sizes
 
 
-def _add_run(
-    found: _Found,
+def _run_pieces(
     curve: _Curve,
     other: _ImplicitShape,
     gap: Callable[[float], float],
     run: Tuple[float, float],
     domain: Tuple[float, float],
     spacing: float,
-) -> None:
-    """Turn a run of zero gaps into overlaps, cut where the other object (segment, arc) ends."""
+) -> List[Tuple[float, float]]:
+    """The parameter intervals of a run of zero gaps that both objects share (cut where a segment or arc ends)."""
 
     def shared(s: float) -> bool:
         x, y = curve.point(s)
@@ -918,6 +989,7 @@ def _add_run(
     count = max(2, int(math.ceil((end - start) / spacing)))
     grid = [start + (end - start) * i / count for i in range(count)] + [end]
     flags = [shared(s) for s in grid]
+    pieces: List[Tuple[float, float]] = []
     i = 0
     while i < len(grid):
         if not flags[i]:
@@ -928,19 +1000,63 @@ def _add_run(
             j += 1
         first = grid[i] if i == 0 else _boundary(shared, grid[i], grid[i - 1])
         last = grid[j] if j == len(grid) - 1 else _boundary(shared, grid[j], grid[j + 1])
-        _add_piece(found, curve, other, first, last)
+        pieces.append((first, last))
         i = j + 1
+    return pieces
 
 
-def _add_piece(found: _Found, curve: _Curve, other: _ImplicitShape, first: float, last: float) -> None:
+def _joined_at_seam(
+    curve: _Curve, pieces: List[Tuple[float, float]], domain: Tuple[float, float], size: float
+) -> List[Tuple[float, float, float]]:
+    """Pieces as (first, last, parameter span); on a closed curve, the pieces at both ends of
+    its parameter range are one piece running across the seam."""
+    spans = [(first, last, last - first) for first, last in sorted(pieces)]
+    if len(spans) < 2 or not _is_closed(curve, domain, size):
+        return spans
+    head, tail = spans[0], spans[-1]
+    if head[0] != domain[0] or tail[1] != domain[1]:
+        return spans
+    return [(tail[0], head[1], tail[2] + head[2])] + spans[1:-1]
+
+
+def _is_closed(curve: _Curve, domain: Tuple[float, float], size: float) -> bool:
+    start, end = curve.point(domain[0]), curve.point(domain[1])
+    if not all(math.isfinite(value) for value in start + end):
+        return False
+    return _same_point(start, end, size)
+
+
+def _add_piece(
+    found: _Found,
+    curve: _Curve,
+    other: _ImplicitShape,
+    piece: Tuple[float, float],
+    long_run: bool,
+    size: float,
+) -> None:
+    """An overlap from the curve at ``first`` to ``last``; a single point when it has no length.
+
+    A piece longer than a sample step whose ends meet went once round a closed curve: the
+    whole circle or ellipse (or closed curve) is shared.
+    """
+    first, last = piece
     start, end = _snapped_end(other, curve.point(first)), _snapped_end(other, curve.point(last))
-    size = max(1.0, abs(start[0]), abs(start[1]), abs(end[0]), abs(end[1]))
-    if math.hypot(end[0] - start[0], end[1] - start[1]) <= _MERGE_TOLERANCE * size:
+    if not _same_point(start, end, size):
+        found.overlaps.append({"kind": "curve", "start": list(start), "end": list(end)})
+    elif long_run:
+        found.overlaps.append({"kind": _closed_overlap_kind(other)})
+    else:
         hit = _curve_hit(curve, other, first, False)
         if hit is not None:
             found.hits.append(hit)
-        return
-    found.overlaps.append({"kind": "curve", "start": list(start), "end": list(end)})
+
+
+def _closed_overlap_kind(other: _ImplicitShape) -> str:
+    if isinstance(other, CircleShape) and not other.is_arc:
+        return "circle"
+    if isinstance(other, EllipseShape):
+        return "ellipse"
+    return "curve"
 
 
 def _snapped_end(other: _ImplicitShape, point: Point2) -> Point2:
@@ -984,17 +1100,25 @@ def _point_hits(point: PointShape, other: Shape) -> _Found:
         params: Optional[Params] = {} if on_object else None
     else:
         value = other.implicit(point.x, point.y)
-        tolerance = _ON_OBJECT_TOLERANCE * max(point.scale(), _shape_scale(other))
+        tolerance = _on_object_tolerance(other, point.x, point.y)
         params = other.accepts(point.x, point.y) if abs(value) <= tolerance else None
     if params is not None:
         found.hits.append(_Hit(point.x, point.y, {point.name: {}, other.name: params}))
     return found
 
 
-def _shape_scale(shape: _ImplicitShape) -> float:
+def _on_object_tolerance(shape: _ImplicitShape, x: float, y: float) -> float:
+    """How far (in the shape's implicit value) a point may be off the shape and still lie on it."""
+    if isinstance(shape, LineShape):
+        return _coincidence_tolerance(shape.length, x, y, *shape.coordinates())
+    if isinstance(shape, CircleShape):
+        return _coincidence_tolerance(shape.r, x, y, shape.cx, shape.cy)
+    if isinstance(shape, EllipseShape):
+        # The implicit value is relative to the radii
+        return _coincidence_tolerance(max(shape.rx, shape.ry), x, y, shape.cx, shape.cy) / min(shape.rx, shape.ry)
     if isinstance(shape, FunctionShape):
-        return max(1.0, abs(shape.left), abs(shape.right))
-    return shape.scale()
+        return _coincidence_tolerance(max(1.0, abs(y)), x, y)
+    return shape.noise(x, y)
 
 
 # ---------------------------------------------------------------------------
@@ -1002,11 +1126,13 @@ def _shape_scale(shape: _ImplicitShape) -> float:
 # ---------------------------------------------------------------------------
 
 
-def _report(found: _Found, max_results: int) -> IntersectionReport:
-    hits = [hit for hit in _merged_hits(found.hits) if not _is_overlap_end(hit, found.overlaps)]
-    points = sorted((_rounded_point(hit) for hit in hits), key=lambda point: (point["x"], point["y"]))
+def _report(found: _Found, max_results: int, size: float) -> IntersectionReport:
+    """``size`` is the smaller object's size: it, not the distance from the origin, sets which
+    points are one point and how many digits tell the points apart."""
+    hits = [hit for hit in _merged_hits(found.hits, size) if not _is_overlap_end(hit, found.overlaps, size)]
+    points = sorted((_rounded_point(hit, size) for hit in hits), key=lambda point: (point["x"], point["y"]))
     limit = max(0, int(max_results))
-    overlaps = [_rounded_overlap(overlap) for overlap in found.overlaps]
+    overlaps = [_rounded_overlap(overlap, size) for overlap in found.overlaps]
     return {
         "points": points[:limit],
         "overlaps": overlaps,
@@ -1016,12 +1142,11 @@ def _report(found: _Found, max_results: int) -> IntersectionReport:
     }
 
 
-def _merged_hits(hits: List[_Hit]) -> List[_Hit]:
+def _merged_hits(hits: List[_Hit], size: float) -> List[_Hit]:
     """One hit per location (a root found from both ends of a closed curve's turn)."""
     merged: List[_Hit] = []
     for hit in hits:
-        size = max(1.0, abs(hit.x), abs(hit.y))
-        same = [m for m in merged if math.hypot(m.x - hit.x, m.y - hit.y) <= _MERGE_TOLERANCE * size]
+        same = [m for m in merged if _same_point((m.x, m.y), (hit.x, hit.y), size)]
         if same:
             same[0].tangent = same[0].tangent or hit.tangent
             continue
@@ -1029,17 +1154,46 @@ def _merged_hits(hits: List[_Hit]) -> List[_Hit]:
     return merged
 
 
-def _is_overlap_end(hit: _Hit, overlaps: List[Overlap]) -> bool:
-    """A point at the end of a reported overlap is part of it, not a separate intersection."""
-    size = max(1.0, abs(hit.x), abs(hit.y))
+def _is_overlap_end(hit: _Hit, overlaps: List[Overlap], size: float) -> bool:
+    """A point at (or within rounding of) the end of a reported overlap is part of it."""
     ends = [overlap["start"] for overlap in overlaps if "start" in overlap]
     ends += [overlap["end"] for overlap in overlaps if "end" in overlap]
-    return any(math.hypot(end[0] - hit.x, end[1] - hit.y) <= _MERGE_TOLERANCE * size for end in ends)
+    return any(_same_point((end[0], end[1]), (hit.x, hit.y), size, _ABSORB_TOLERANCE) for end in ends)
 
 
-def _rounded_point(hit: _Hit) -> IntersectionPoint:
-    size = max(1.0, abs(hit.x), abs(hit.y))
-    point: IntersectionPoint = {"x": _round(hit.x, size), "y": _round(hit.y, size)}
+def _same_point(p: Point2, q: Point2, size: float, tolerance: float = _MERGE_TOLERANCE) -> bool:
+    """p and q are one point: within ``tolerance`` of the objects' size, plus coordinate rounding."""
+    magnitude = max(abs(p[0]), abs(p[1]), abs(q[0]), abs(q[1]))
+    limit = tolerance * size + _SAME_POINT_ULPS * _EPS * magnitude
+    return math.hypot(p[0] - q[0], p[1] - q[1]) <= limit
+
+
+def _shape_size(shape: Union[Shape, _EllipseCurve]) -> float:
+    """The object's own size (length, radius, extent), which tolerances are relative to."""
+    if isinstance(shape, LineShape):
+        return shape.length
+    if isinstance(shape, CircleShape):
+        return shape.r
+    if isinstance(shape, EllipseShape):
+        return max(shape.rx, shape.ry)
+    if isinstance(shape, _EllipseCurve):
+        return max(shape.ellipse.rx, shape.ellipse.ry)
+    if isinstance(shape, FunctionShape):
+        return shape.right - shape.left
+    if isinstance(shape, ParametricShape):
+        return shape.extent()
+    return 0.0
+
+
+def _pair_size(a: Union[Shape, _EllipseCurve], b: Union[Shape, _EllipseCurve]) -> float:
+    """The smaller positive size of the two objects (1 when neither has one)."""
+    sizes = [size for size in (_shape_size(a), _shape_size(b)) if math.isfinite(size) and size > 0.0]
+    return min(sizes) if sizes else 1.0
+
+
+def _rounded_point(hit: _Hit, size: float) -> IntersectionPoint:
+    x, y = _round_pair((hit.x, hit.y), size)
+    point: IntersectionPoint = {"x": x, "y": y}
     params = {name: _rounded_params(values) for name, values in hit.params.items() if values}
     if params:
         point["params"] = params
@@ -1059,18 +1213,36 @@ def _rounded_params(values: Params) -> Params:
     return rounded
 
 
-def _rounded_overlap(overlap: Overlap) -> Overlap:
+def _rounded_overlap(overlap: Overlap, size: float) -> Overlap:
     result: Overlap = {"kind": overlap["kind"]}
     if "start" in overlap:
-        result["start"] = _round_pair(overlap["start"])
+        result["start"] = _round_pair(overlap["start"], size)
     if "end" in overlap:
-        result["end"] = _round_pair(overlap["end"])
+        result["end"] = _round_pair(overlap["end"], size)
     return result
 
 
-def _round_pair(pair: Sequence[float]) -> List[float]:
-    size = max(1.0, abs(pair[0]), abs(pair[1]))
-    return [_round(pair[0], size), _round(pair[1], size)]
+def _round_pair(pair: Sequence[float], size: float) -> List[float]:
+    """Round a point's coordinates to 10 significant digits of the object's size.
+
+    Near the origin that is 10 significant digits; a small object far from it keeps more
+    (up to all 17), so points a radius apart stay apart. Values within rounding of zero, or
+    within 1e-12 of the size, are 0.
+    """
+    magnitude = max(1.0, abs(pair[0]), abs(pair[1]))
+    digits = _REPORT_DIGITS
+    if 0.0 < size < magnitude:
+        digits = min(_MAX_DIGITS, _REPORT_DIGITS + int(math.ceil(math.log10(magnitude / size))))
+    floor = max(_ZERO_FLOOR * min(magnitude, size), _ROUNDING_UNITS * _EPS * magnitude)
+    return [_round_digits(value, digits, floor) for value in pair[:2]]
+
+
+def _round_digits(value: float, digits: int, floor: float) -> float:
+    if not math.isfinite(value):
+        return value
+    if abs(value) <= floor:
+        return 0.0
+    return float(f"{value:.{digits}g}") + 0.0
 
 
 def _round(value: float, size: float = 1.0) -> float:

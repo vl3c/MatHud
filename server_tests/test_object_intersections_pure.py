@@ -465,5 +465,99 @@ class TestScanRoots(unittest.TestCase):
         self.assertIsNotNone(run[0].end)
 
 
+class TestToleranceAndOverlapEdgeCases(_Assertions):
+    """Tolerances follow the objects' size, not their offset; overlaps of closed curves."""
+
+    def test_small_circles_far_from_the_origin_are_not_one_circle(self) -> None:
+        report = find_object_intersections(circle_shape("a", (1e6, 0), 1), circle_shape("b", (1e6 + 1e-5, 0), 1))
+        self.assertEqual(report["overlaps"], [])
+        self.assertEqual(len(report["points"]), 2)
+        tiny = find_object_intersections(
+            circle_shape("a", (1e6, 1e6), 1e-6), circle_shape("b", (1e6 + 1e-6, 1e6), 1e-6)
+        )
+        self.assertEqual(tiny["overlaps"], [])
+        self.assertEqual(len(tiny["points"]), 2)
+
+    def test_close_parallel_segments_far_from_the_origin_do_not_overlap(self) -> None:
+        report = find_object_intersections(
+            line_shape("s1", (1e6, 1e6), (1e6 + 1, 1e6)), line_shape("s2", (1e6, 1e6 + 1e-4), (1e6 + 1, 1e6 + 1e-4))
+        )
+        self.assertEqual(report["overlaps"], [])
+        self.assertEqual(report["points"], [])
+        self.assertIn("parallel", report["notes"][0])
+
+    def test_identical_objects_far_from_the_origin_still_coincide(self) -> None:
+        circles = find_object_intersections(circle_shape("a", (1e6, 1e6), 1e-3), circle_shape("b", (1e6, 1e6), 1e-3))
+        self.assertEqual(circles["overlaps"], [{"kind": "circle"}])
+        segments = find_object_intersections(
+            line_shape("s1", (1e6, 1e6), (1e6 + 2, 1e6)), line_shape("s2", (1e6 + 1, 1e6), (1e6 + 3, 1e6))
+        )
+        self.assertEqual(len(segments["overlaps"]), 1)
+
+    def test_nearly_tangent_line_on_a_large_circle_meets_it_twice(self) -> None:
+        y = 1e6 - 1e-7
+        report = find_object_intersections(line_shape("s", (-10, y), (10, y)), circle_shape("c", (0, 0), 1e6))
+        # 1e6 - y is exact (Sterbenz), so this is the true half-chord of the line as stored
+        half = math.sqrt((1e6 - y) * (1e6 + y))
+        self.assertPoints(report, [(-half, y), (half, y)], tol=1e-6)
+        self.assertFalse(any(p.get("tangent") for p in report["points"]))
+
+    def test_exact_tangencies_far_from_the_origin_are_one_point(self) -> None:
+        line = find_object_intersections(
+            line_shape("s", (1e6 - 5, 1e6 + 3), (1e6 + 5, 1e6 + 3)), circle_shape("c", (1e6, 1e6), 3)
+        )
+        self.assertEqual(_xy(line), [(1e6, 1e6 + 3)])
+        self.assertTrue(line["points"][0]["tangent"])
+        circles = find_object_intersections(circle_shape("a", (1e6, 0), 2), circle_shape("b", (1e6 + 5, 0), 3))
+        self.assertEqual(_xy(circles), [(1e6 + 2, 0.0)])
+        self.assertTrue(circles["points"][0]["tangent"])
+
+    def test_closed_parametric_curve_on_an_identical_circle_or_ellipse_overlaps(self) -> None:
+        unit = ParametricShape("p", math.cos, math.sin, 0, 2 * math.pi)
+        report = find_object_intersections(unit, circle_shape("c", (0, 0), 1))
+        self.assertEqual(report["points"], [])
+        self.assertEqual(report["overlaps"], [{"kind": "circle"}])
+        stretched = ParametricShape("p", lambda t: 2 * math.cos(t), math.sin, 0, 2 * math.pi)
+        ellipse = find_object_intersections(stretched, ellipse_shape("e", (0, 0), 2, 1, 0))
+        self.assertEqual(ellipse["points"], [])
+        self.assertEqual(ellipse["overlaps"], [{"kind": "ellipse"}])
+
+    def test_closed_parametric_curve_on_an_arc_gives_one_overlap_and_no_stray_point(self) -> None:
+        unit = ParametricShape("p", math.cos, math.sin, 0, 2 * math.pi)
+        report = find_object_intersections(unit, circle_shape("a", (0, 0), 1, arc_start=0.0, arc_sweep=1.0))
+        self.assertEqual(report["points"], [])
+        self.assertEqual(
+            report["overlaps"], [{"kind": "curve", "start": [1.0, 0.0], "end": [0.5403023059, 0.8414709848]}]
+        )
+
+    def test_arc_across_the_seam_of_a_closed_curve_is_one_overlap(self) -> None:
+        unit = ParametricShape("p", math.cos, math.sin, 0, 2 * math.pi)
+        report = find_object_intersections(unit, circle_shape("a", (0, 0), 1, arc_start=-0.5, arc_sweep=1.0))
+        self.assertEqual(report["points"], [])
+        self.assertEqual(len(report["overlaps"]), 1)
+        overlap = report["overlaps"][0]
+        self.assertAlmostEqual(overlap["start"][0], math.cos(0.5), places=9)
+        self.assertAlmostEqual(overlap["start"][1], -math.sin(0.5), places=9)
+        self.assertAlmostEqual(overlap["end"][1], math.sin(0.5), places=9)
+
+    def test_flattened_ellipse_reports_its_angle(self) -> None:
+        report = find_object_intersections(ellipse_shape("e", (0, 0), 3, 0, 0), circle_shape("c", (0, 0), 2))
+        angles = [p["params"]["e"] for p in report["points"]]
+        self.assertEqual([sorted(a) for a in angles], [["angle"], ["angle"]])
+        # x = 3 cos(angle): -2 and 2
+        self.assertAlmostEqual(angles[0]["angle"], math.acos(-2 / 3), places=9)
+        self.assertAlmostEqual(angles[1]["angle"], math.acos(2 / 3), places=9)
+        upright = find_object_intersections(ellipse_shape("e", (0, 0), 0, 3, 0), line_shape("s", (-1, 1.5), (1, 1.5)))
+        self.assertAlmostEqual(upright["points"][0]["params"]["e"]["angle"], math.asin(0.5), places=9)
+
+    def test_nearly_identical_ellipses_touch_instead_of_overlapping(self) -> None:
+        report = find_object_intersections(
+            ellipse_shape("e1", (0, 0), 4, 2, 0), ellipse_shape("e2", (0, 0), 4 + 1e-9, 2, 0)
+        )
+        self.assertEqual(report["overlaps"], [])
+        self.assertPoints(report, [(0.0, -2.0), (0.0, 2.0)], tol=1e-6)
+        self.assertTrue(all(p.get("tangent") for p in report["points"]))
+
+
 if __name__ == "__main__":
     unittest.main()
