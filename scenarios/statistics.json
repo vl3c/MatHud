@@ -131,7 +131,7 @@
             {
               "check": "relation",
               "relation": "function_value",
-              "select": [{"type": "Function", "name": "fit1"}],
+              "select": [{"type": "Function", "only": true}],
               "x": 0,
               "y": 1
             },
@@ -197,6 +197,37 @@
           "checks": [
             {"check": "tool_error", "tool": "rotate_object"},
             {"check": "state_equals", "snapshot": "setup"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ST-06",
+      "title": "Measure the shaded area under the normal curve",
+      "tags": ["statistics", "functions", "colored-areas", "area"],
+      "smoke": false,
+      "targets": "calculate_area on a function-bounded coloured area (ST-01 in the first live run: not found or cannot be converted to a region)",
+      "steps": [
+        {
+          "user": "Plot the standard normal density phi from -4 to 4, shade it between -1 and 1 and tell me the shaded area.",
+          "reference": [
+            [
+              {
+                "tool": "draw_function",
+                "args": {"function_string": "(1/sqrt(2*pi))*exp(-x^2/2)", "name": "phi", "left_bound": -4, "right_bound": 4}
+              },
+              {
+                "tool": "create_colored_area",
+                "args": {"drawable1_name": "phi", "drawable2_name": "x_axis", "left_bound": -1, "right_bound": 1}
+              }
+            ],
+            [{"tool": "calculate_area", "args": {"expression": "area_between_phi_and_x_axis"}}]
+          ],
+          "checks": [
+            {"check": "count", "select": {"type": "FunctionsBoundedColoredArea"}, "eq": 1},
+            {"check": "tool_result", "tool": "calculate_area", "path": "value", "eq": 0.682689492137, "tol": 1e-06},
+            {"check": "tool_result", "tool": "calculate_area", "path": "method", "contains": "Simpson"},
+            {"check": "answer_mentions", "numbers": [0.6827]}
           ]
         }
       ]

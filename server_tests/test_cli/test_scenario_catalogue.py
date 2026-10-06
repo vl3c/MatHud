@@ -7,6 +7,9 @@ unknown argument or an invalid value anywhere in the catalogue.
 
 from __future__ import annotations
 
+import re
+from typing import Any
+
 from cli.scenarios.model import AREA_ORDER, load_catalogue
 
 # The design doc's catalogue (section 5): 72 scenarios, 11 of them in the smoke subset.
@@ -71,3 +74,54 @@ def test_fixed_bugs_are_not_marked() -> None:
     for scenario in catalogue.scenarios:
         assert not scenario.all_known() & set(catalogue.fixed), scenario.id
     assert not catalogue.invariant_waivers, "the global I5:K1 waiver went away with the K1 fix"
+
+
+def test_null_string_arguments_load_as_null() -> None:
+    """GEO-19 sends "null", "None" and "undefined" as a local model does; the loader applies the server's rule."""
+    catalogue = load_catalogue()
+    [scenario] = [s for s in catalogue.scenarios if s.id == "GEO-19"]
+    polygon, function = scenario.steps[0].calls
+    assert (polygon.args["color"], polygon.args["name"], polygon.args["subtype"]) == (None, None, None)
+    assert (function.args["name"], function.args["left_bound"], function.args["color"]) == (None, None, None)
+    assert function.args["function_string"] == "x^2/4"
+
+
+_CREATING_PREFIXES = ("create_", "draw_", "construct_", "plot_", "fit_", "generate_")
+
+
+def _created_names(scenario: Any) -> set[str]:
+    """Names a user turn's reference gives to the objects it creates (the model may choose others)."""
+    return {
+        str(call.args["name"])
+        for step in scenario.steps
+        if step.kind == "user"
+        for call in step.calls
+        if isinstance(call.args.get("name"), str) and call.tool.startswith(_CREATING_PREFIXES)
+    }
+
+
+def _selected_names(value: Any) -> list[str]:
+    if isinstance(value, dict):
+        own = [value["name"]] if isinstance(value.get("type"), str) and isinstance(value.get("name"), str) else []
+        return own + [name for item in value.values() for name in _selected_names(item)]
+    if isinstance(value, list):
+        return [name for item in value for name in _selected_names(item)]
+    return []
+
+
+def test_checks_select_only_names_the_prompt_gives() -> None:
+    """A live model names what the prompt does not name as it likes, so checks must not select those names.
+
+    MC-01 selected the parabola as "p", a name only its reference chose, and failed a correct live run.
+    """
+    catalogue = load_catalogue()
+    problems = []
+    for scenario in catalogue.scenarios:
+        chosen = _created_names(scenario)
+        prompts = " ".join(step.user or "" for step in scenario.steps)
+        for step in scenario.steps:
+            for name in _selected_names(step.checks):
+                named = re.search(rf"(?<![A-Za-z0-9_]){re.escape(name)}(?![A-Za-z0-9_])", prompts)
+                if name in chosen and not named:
+                    problems.append(f"{scenario.id} {step.id}: selects {name!r}, a name only the reference chose")
+    assert not problems, problems

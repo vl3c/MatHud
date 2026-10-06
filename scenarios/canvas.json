@@ -30,20 +30,23 @@
       "title": "Undo a multi-object construction in one step",
       "tags": ["undo", "redo", "constructions"],
       "smoke": true,
-      "targets": "undo stack out of sync with tool batches",
+      "targets": "undo stack out of sync with tool batches; one undo step per reply, over all its batches",
       "steps": [
         {
           "user": "Draw triangle ABC with vertices (0,0), (6,0), (2,4) and its circumcircle.",
+          "note": "The reference is a reply of two batches; the first live run took three, and 'Undo that' then removed only the circle.",
           "reference": [
-            {
-              "tool": "create_polygon",
-              "args": {
-                "vertices": [{"x": 0, "y": 0}, {"x": 6, "y": 0}, {"x": 2, "y": 4}],
-                "polygon_type": "triangle",
-                "name": "ABC"
+            [
+              {
+                "tool": "create_polygon",
+                "args": {
+                  "vertices": [{"x": 0, "y": 0}, {"x": 6, "y": 0}, {"x": 2, "y": 4}],
+                  "polygon_type": "triangle",
+                  "name": "ABC"
+                }
               }
-            },
-            {"tool": "construct_circumcircle", "args": {"triangle_name": "ABC"}}
+            ],
+            [{"tool": "construct_circumcircle", "args": {"triangle_name": "ABC"}}]
           ],
           "checks": [
             {"check": "exists", "select": {"type": "Circle", "center": [3, 1], "radius": 3.1622776601683795}}
@@ -169,6 +172,38 @@
             {"check": "attribute", "target": "inspection", "path": "undo_depth", "same_as": "after_colour"},
             {"check": "tool_result", "tool": "zoom", "ne": "Call successful!"}
           ]
+        }
+      ]
+    },
+    {
+      "id": "CV-07",
+      "title": "An undo inside a reply reverts that reply's changes",
+      "tags": ["undo", "multi-batch"],
+      "smoke": false,
+      "targets": "undo and redo calls inside a turn close the turn's undo group first; later changes form one new step",
+      "setup": {"calls": [{"tool": "create_point", "args": {"x": 0, "y": 0, "name": "A"}}]},
+      "steps": [
+        {
+          "user": "Put a point P at (5, 5). Actually, undo that and put P at (5, 6) instead.",
+          "reference": [
+            [{"tool": "create_point", "args": {"x": 5, "y": 5, "name": "P"}}],
+            [{"tool": "undo", "args": {}}],
+            [{"tool": "create_point", "args": {"x": 5, "y": 6, "name": "P"}}]
+          ],
+          "checks": [
+            {"check": "point_at", "select": {"type": "Point", "name": "P"}, "at": [5, 6]},
+            {"check": "absent", "select": {"type": "Point", "at": [5, 5]}},
+            {"check": "point_at", "select": {"type": "Point", "name": "A"}, "at": [0, 0]},
+            {"check": "attribute", "target": "inspection", "path": "redo_depth", "eq": 0}
+          ]
+        },
+        {
+          "do": [{"tool": "undo", "args": {}}],
+          "checks": [{"check": "state_equals", "snapshot": "setup"}]
+        },
+        {
+          "do": [{"tool": "redo", "args": {}}],
+          "checks": [{"check": "point_at", "select": {"type": "Point", "name": "P"}, "at": [5, 6]}]
         }
       ]
     }
