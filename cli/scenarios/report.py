@@ -185,6 +185,13 @@ class ResultSink:
         if self.config.get("stopped"):
             summary["stopped"] = self.config["stopped"]
             summary["exit_code"] = 1
+        if self.config.get("attached_desktop"):
+            summary["attached_desktop"] = {
+                "url": self.config.get("desktop_app_url"),
+                "pins_applied": False,
+                "unpinned_settings": self.config.get("unpinned_settings") or [],
+                "fit_view": bool(self.config.get("fit_view")),
+            }
         payload = {
             "config": self.config,
             "started": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(self.started)),
@@ -375,6 +382,17 @@ def render_summary(
         f"- Run time: {summary.get('duration_s', 0)} s",
         f"- Result: {'unexpected failures' if summary['exit_code'] else 'no unexpected failures'}",
     ]
+    if config.get("attached_desktop"):
+        lines.append(
+            f"- Attached to the desktop app at {config.get('desktop_app_url')} (automation port "
+            f"{config.get('automation_port')}); settings not pinned, its .env applies: "
+            + ", ".join(config.get("unpinned_settings") or [])
+        )
+        if config.get("fit_view"):
+            lines.append(
+                "- View fitted to the drawings after each graded step (display only; view-sensitive "
+                "scenarios are not fitted; a live model sees the fitted view)"
+            )
     if mode != "replay":
         classes = summary.get("classes") or {}
         lines.append("- Failure classes (runs): " + ", ".join(f"{k} {v}" for k, v in classes.items()))
@@ -736,6 +754,10 @@ def regrade_steps(
         elif step_id == "setup" or step_id in steps_by_id:
             results = grader.grade(step_id, steps_by_id.get(step_id), data)
             record["results"] = [result.to_dict() for result in results]
+            fitted = record.get("fitted_view")
+            if isinstance(fitted, dict):
+                # Attach mode fitted the view after this step: the next step started from it.
+                grader.rebase_view(StepRecordData(state=fitted.get("state") or {}, inspection=fitted.get("inspection")))
         else:
             record["results"] = [
                 CheckResult(f"{step_id}.regrade", "check", "regrade", False, error=True,

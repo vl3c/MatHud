@@ -48,6 +48,20 @@ class FakeBrowser:
         self.screenshots.append(path)
         return True
 
+    # The AppBrowser interface (cli/browser_backend.py) the session uses.
+    attached = False
+    reloads = 0
+
+    def reload(self) -> bool:
+        self.reloads += 1
+        return self.navigate_to_app()
+
+    def close(self) -> None:
+        self.cleanup()
+
+    def screenshot(self, path: str) -> bool:
+        return self.capture_screenshot(path)
+
     def _state(self) -> dict[str, Any]:
         return {
             "Points": [dict(p) for p in self.points],

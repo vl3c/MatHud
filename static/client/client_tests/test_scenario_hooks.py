@@ -3,15 +3,21 @@
 from __future__ import annotations
 
 import json
+import types
 import unittest
 from typing import Any, Dict, List
 
+from browser import document, html
 from canvas import Canvas
 from function_registry import FunctionRegistry
 from managers.action_trace_collector import ActionTraceCollector
 from scenario_hooks import (
+    WORKSPACE_TOOLS,
     ScenarioHooks,
+    WorkspaceToolsBlock,
     build_inspection,
+    content_extent,
+    fit_window,
     normalize_tool_calls,
     parse_options,
     reset_canvas_session,
@@ -284,6 +290,82 @@ class TestScenarioHookEndpoints(unittest.TestCase):
             ai_class.send_user_message = original
         self.assertEqual(sent, [("hello", 3, 330000), ("again", None, None)])
 
+    def test_send_message_refuses_while_images_are_attached(self) -> None:
+        sent: List[Any] = []
+        self.ai._image_attachment = types.SimpleNamespace(images=["data:image/png;base64,AAAA"])
+        ai_class = type(self.ai)
+        original = ai_class.send_user_message
+        ai_class.send_user_message = lambda _self, *args: sent.append(args)
+        try:
+            reply = json.loads(self.hooks.send_message("hello"))
+        finally:
+            ai_class.send_user_message = original
+        self.assertEqual(reply["status"], "error")
+        self.assertIn("images are attached", reply["error"])
+        self.assertEqual(sent, [])
+
+    def test_send_message_restores_the_model_selection(self) -> None:
+        selector = document["ai-model-selector"]
+        before = str(selector.value)
+        added = [html.OPTION("zz-a", value="zz-test-a"), html.OPTION("zz-b", value="zz-test-b")]
+        for option in added:
+            selector <= option
+        selector.value = "zz-test-a"
+        seen: List[str] = []
+        ai_class = type(self.ai)
+        original = ai_class.send_user_message
+        ai_class.send_user_message = lambda _self, *args: seen.append(str(document["ai-model-selector"].value))
+        try:
+            reply = json.loads(self.hooks.send_message("hello", "zz-test-b"))
+            self.assertEqual(reply, {"status": "started"})
+            self.assertEqual(seen, ["zz-test-b"])  # the request was built with the requested model
+            self.assertEqual(str(selector.value), "zz-test-a")  # and the user's choice is back
+        finally:
+            ai_class.send_user_message = original
+            for option in added:
+                option.remove()
+            selector.value = before
+
+    def test_automation_guards_block_and_restore_workspace_tools(self) -> None:
+        originals = {name: self.ai.available_functions[name] for name in WORKSPACE_TOOLS}
+
+        reply = json.loads(self.hooks.set_automation_guards('{"block_workspace_tools": true}'))
+        self.assertEqual(reply["status"], "ok")
+        self.assertTrue(reply["workspace_tools_blocked"])
+        self.assertGreater(reply["expires_in_s"], 80)  # the default 90 s lease
+        self.hooks.set_automation_guards('{"block_workspace_tools": true}')  # twice keeps the originals
+        batch = json.loads(self.hooks.run_tool_calls(json.dumps([_call("save_workspace", name="mine")])))
+        call = batch["traced"][0]
+        self.assertTrue(call["is_error"])
+        self.assertIn("blocked by an automated run", str(call["result"]))
+        self.assertIn("reload the window", str(call["result"]))
+        self.assertEqual(batch["undo_depth_after"], batch["undo_depth_before"])
+
+        reply = json.loads(self.hooks.set_automation_guards('{"block_workspace_tools": false}'))
+        self.assertEqual(reply["workspace_tools_blocked"], False)
+        for name, function in originals.items():
+            self.assertIs(self.ai.available_functions[name], function)
+
+    def test_workspace_block_is_a_lease_that_lapses(self) -> None:
+        now = [1000.0]
+        calls: List[Any] = []
+        functions: Dict[str, Any] = {"save_workspace": lambda name=None: calls.append(name) or "saved"}
+        block = WorkspaceToolsBlock(functions, clock=lambda: now[0])
+
+        block.block(60)
+        self.assertTrue(block.active)
+        self.assertIn("blocked by an automated run", functions["save_workspace"](name="w"))
+        now[0] += 50
+        block.block(60)  # renewed by the CLI
+        now[0] += 50
+        self.assertTrue(block.active)
+        refusal = functions["save_workspace"]
+        now[0] += 11  # the CLI stopped renewing (crashed or killed)
+        self.assertEqual(refusal(name="w"), "saved")  # the lapsed refusal runs the real tool
+        self.assertEqual(calls, ["w"])
+        self.assertFalse(block.active)
+        self.assertEqual(functions["save_workspace"](name="x"), "saved")
+
 
 class _Recorder:
     """Accepts any method call, recording (name, args)."""
@@ -355,3 +437,122 @@ class TestToolBatchTraceFailure(unittest.TestCase):
         self.assertEqual(self.ai._turn_metrics.last_turn()["outcome"], "stopped")
         self.assertEqual(messages, ["Generation stopped."])
         self.assertEqual(self.sent, [])
+
+
+class TestScenarioHookFitView(unittest.TestCase):
+    """fitMatHudView: a presentation-only zoom to the content, for automated runs."""
+
+    def setUp(self) -> None:
+        self.canvas = Canvas(500, 500, draw_enabled=False)
+        self.ai = _make_ai(self.canvas)
+        self.hooks = ScenarioHooks(self.ai)
+
+    def _run(self, *calls: Dict[str, Any]) -> None:
+        self.ai.execute_tool_batch(list(calls))
+
+    def _bounds(self) -> Dict[str, float]:
+        return dict(self.canvas.get_canvas_state()["Cartesian_System_Visibility"])
+
+    def test_fit_window_picks_the_binding_axis_and_a_minimum_span(self) -> None:
+        center_x, center_y, half, axis = fit_window([0, 0, 10, 2], 500, 500, padding=0.1)
+        self.assertEqual((center_x, center_y, axis), (5.0, 1.0, "x"))
+        self.assertAlmostEqual(half, 6.0)
+        _, _, half, axis = fit_window([0, 0, 2, 10], 1000, 500, padding=0.1)
+        self.assertEqual(axis, "y")
+        self.assertAlmostEqual(half, 6.0)
+        center_x, center_y, half, _ = fit_window([3, 4, 3, 4], 500, 500, min_half_span=1.0)
+        self.assertEqual((center_x, center_y, half), (3.0, 4.0, 1.0))
+
+    def test_extent_covers_points_circles_rotated_ellipses_and_labels(self) -> None:
+        self.assertIsNone(content_extent(self.canvas))
+        self._run(
+            _call("create_point", x=-1, y=1, name="A"),
+            _call("create_circle", center_x=5, center_y=0, radius=2),
+            _call("create_ellipse", center_x=0, center_y=-5, radius_x=3, radius_y=1, rotation_angle=90),
+            _call("create_label", x=0, y=6, text="top"),
+        )
+        x_min, y_min, x_max, y_max = content_extent(self.canvas)
+        self.assertAlmostEqual(x_min, -1.0)
+        self.assertAlmostEqual(x_max, 7.0)
+        self.assertAlmostEqual(y_min, -8.0)  # the ellipse turned upright reaches y = -5 - 3
+        self.assertAlmostEqual(y_max, 6.0)
+
+    def test_function_samples_ignore_asymptote_spikes(self) -> None:
+        self._run(_call("draw_function", function_string="1/x", name="f", left_bound=-4, right_bound=4))
+        x_min, y_min, x_max, y_max = content_extent(self.canvas)
+        self.assertEqual((x_min, x_max), (-4.0, 4.0))
+        self.assertLess(y_max, 20)
+        self.assertGreater(y_min, -20)
+
+    def test_fit_zooms_without_touching_undo_redo_or_drawables(self) -> None:
+        self._run(
+            _call(
+                "create_polygon",
+                vertices=[{"x": 0, "y": 0}, {"x": 6, "y": 0}, {"x": 2, "y": 4}],
+                polygon_type="triangle",
+                name="ABC",
+            )
+        )
+        self._run(_call("create_point", x=1, y=1, name="P"))
+        self.canvas.undo()
+        manager = self.canvas.undo_redo_manager
+        depths = (len(manager.undo_stack), len(manager.redo_stack))
+        state = self.canvas.get_canvas_state()
+        drawables = {key: value for key, value in state.items() if key in ("Points", "Segments", "Triangles")}
+
+        reply = json.loads(self.hooks.fit_view())
+
+        self.assertEqual(reply["status"], "ok")
+        self.assertTrue(reply["fitted"])
+        self.assertEqual((len(manager.undo_stack), len(manager.redo_stack)), depths)
+        after = self.canvas.get_canvas_state()
+        for key, value in drawables.items():
+            self.assertEqual(after.get(key), value)
+        bounds = self._bounds()
+        self.assertLess(bounds["left_bound"], 0)
+        self.assertGreater(bounds["right_bound"], 6)
+        self.assertLess(bounds["bottom_bound"], 0)
+        self.assertGreater(bounds["top_bound"], 4)
+        self.assertLess(bounds["right_bound"] - bounds["left_bound"], 10)
+        # The redo entry still brings P back.
+        self.canvas.redo()
+        self.assertIn("P", _point_names(self.canvas.get_canvas_state()))
+
+    def test_fit_keeps_polar_mode_and_adapts_its_grid(self) -> None:
+        self._run(_call("set_coordinate_system", mode="polar"))
+        self._run(_call("create_circle", center_x=0, center_y=0, radius=3))
+        polar_grid = self.canvas.coordinate_system_manager.polar_grid
+        default_spacing = polar_grid._default_radial_spacing
+
+        reply = json.loads(self.hooks.fit_view())
+
+        self.assertTrue(reply["fitted"])
+        self.assertEqual(self.canvas.coordinate_system_manager.mode, "polar")
+        bounds = self._bounds()
+        width = bounds["right_bound"] - bounds["left_bound"]
+        self.assertAlmostEqual(width, bounds["top_bound"] - bounds["bottom_bound"])
+        self.assertGreater(bounds["right_bound"], 3)
+        self.assertLess(bounds["right_bound"], 5)
+        self.assertLessEqual(polar_grid._current_radial_spacing, default_spacing)
+
+    def test_empty_canvas_leaves_the_view_alone(self) -> None:
+        before = self._bounds()
+        reply = json.loads(self.hooks.fit_view())
+        self.assertEqual(reply["status"], "ok")
+        self.assertFalse(reply["fitted"])
+        self.assertEqual(self._bounds(), before)
+
+    def test_single_point_gets_a_small_window_around_it(self) -> None:
+        self._run(_call("create_point", x=100, y=-50, name="A"))
+        json.loads(self.hooks.fit_view())
+        bounds = self._bounds()
+        self.assertAlmostEqual((bounds["left_bound"] + bounds["right_bound"]) / 2, 100)
+        self.assertAlmostEqual((bounds["top_bound"] + bounds["bottom_bound"]) / 2, -50)
+        self.assertAlmostEqual(bounds["right_bound"] - bounds["left_bound"], 2.0)
+
+    def test_fit_refuses_during_a_chat_turn(self) -> None:
+        self._run(_call("create_point", x=1, y=1, name="A"))
+        before = self._bounds()
+        self.ai.is_processing = True
+        self.assertEqual(json.loads(self.hooks.fit_view())["status"], "busy")
+        self.assertEqual(self._bounds(), before)
