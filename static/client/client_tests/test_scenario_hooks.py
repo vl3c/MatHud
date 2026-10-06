@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import json
+import types
 import unittest
 from typing import Any, Dict, List
 
+from browser import document, html
 from canvas import Canvas
 from function_registry import FunctionRegistry
 from managers.action_trace_collector import ActionTraceCollector
 from scenario_hooks import (
+    WORKSPACE_TOOLS,
     ScenarioHooks,
     build_inspection,
     content_extent,
@@ -285,6 +288,59 @@ class TestScenarioHookEndpoints(unittest.TestCase):
         finally:
             ai_class.send_user_message = original
         self.assertEqual(sent, [("hello", 3, 330000), ("again", None, None)])
+
+    def test_send_message_refuses_while_images_are_attached(self) -> None:
+        sent: List[Any] = []
+        self.ai._image_attachment = types.SimpleNamespace(images=["data:image/png;base64,AAAA"])
+        ai_class = type(self.ai)
+        original = ai_class.send_user_message
+        ai_class.send_user_message = lambda _self, *args: sent.append(args)
+        try:
+            reply = json.loads(self.hooks.send_message("hello"))
+        finally:
+            ai_class.send_user_message = original
+        self.assertEqual(reply["status"], "error")
+        self.assertIn("images are attached", reply["error"])
+        self.assertEqual(sent, [])
+
+    def test_send_message_restores_the_model_selection(self) -> None:
+        selector = document["ai-model-selector"]
+        before = str(selector.value)
+        added = [html.OPTION("zz-a", value="zz-test-a"), html.OPTION("zz-b", value="zz-test-b")]
+        for option in added:
+            selector <= option
+        selector.value = "zz-test-a"
+        seen: List[str] = []
+        ai_class = type(self.ai)
+        original = ai_class.send_user_message
+        ai_class.send_user_message = lambda _self, *args: seen.append(str(document["ai-model-selector"].value))
+        try:
+            reply = json.loads(self.hooks.send_message("hello", "zz-test-b"))
+            self.assertEqual(reply, {"status": "started"})
+            self.assertEqual(seen, ["zz-test-b"])  # the request was built with the requested model
+            self.assertEqual(str(selector.value), "zz-test-a")  # and the user's choice is back
+        finally:
+            ai_class.send_user_message = original
+            for option in added:
+                option.remove()
+            selector.value = before
+
+    def test_automation_guards_block_and_restore_workspace_tools(self) -> None:
+        originals = {name: self.ai.available_functions[name] for name in WORKSPACE_TOOLS}
+
+        reply = json.loads(self.hooks.set_automation_guards('{"block_workspace_tools": true}'))
+        self.assertEqual(reply, {"status": "ok", "workspace_tools_blocked": True})
+        self.hooks.set_automation_guards('{"block_workspace_tools": true}')  # twice keeps the originals
+        batch = json.loads(self.hooks.run_tool_calls(json.dumps([_call("save_workspace", name="mine")])))
+        call = batch["traced"][0]
+        self.assertTrue(call["is_error"])
+        self.assertIn("workspace tools are disabled", str(call["result"]))
+        self.assertEqual(batch["undo_depth_after"], batch["undo_depth_before"])
+
+        reply = json.loads(self.hooks.set_automation_guards('{"block_workspace_tools": false}'))
+        self.assertEqual(reply["workspace_tools_blocked"], False)
+        for name, function in originals.items():
+            self.assertIs(self.ai.available_functions[name], function)
 
 
 class _Recorder:

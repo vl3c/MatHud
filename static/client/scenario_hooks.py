@@ -12,6 +12,7 @@ take and return JSON strings:
     sendMatHudMessage(text, modelId?, optionsJson?)  send a chat message as the user (live mode)
     stopMatHudTurn()                     stop the running chat turn
     fitMatHudView(optionsJson?)          zoom the view to fit every drawable (automation display only)
+    setMatHudAutomationGuards(optionsJson)  refuse workspace tools while an automated run drives the window
 
 ``fitMatHudView`` is for the automation paths only (the CLI's attach mode,
 ``desktop prompt`` and ``desktop fit``): in regular use the app never pans or
@@ -60,6 +61,13 @@ FIT_SAMPLES = 64
 FIT_DEFAULT_X_RANGE = (-10.0, 10.0)
 FIT_FENCE = 3.0
 FIT_VALUE_LIMIT = 1e9
+# Tools that read or write the server's workspace directory: an attached automated run
+# (the CLI driving someone's desktop window) refuses them, since that directory is the user's.
+WORKSPACE_TOOLS = ("save_workspace", "load_workspace", "list_workspaces", "delete_workspace")
+WORKSPACE_TOOLS_BLOCKED_MESSAGE = (
+    "Error: workspace tools are disabled while an automated run drives this window "
+    "(they would use the user's own workspace directory)."
+)
 
 
 class ScenarioHooks:
@@ -67,6 +75,8 @@ class ScenarioHooks:
 
     def __init__(self, ai_interface: "AIInterface") -> None:
         self.ai = ai_interface
+        # Workspace tool functions set aside while setMatHudAutomationGuards blocks them.
+        self._blocked_tools: Dict[str, Any] = {}
 
     @property
     def canvas(self) -> "Canvas":
@@ -81,6 +91,7 @@ class ScenarioHooks:
         window.sendMatHudMessage = self.send_message
         window.stopMatHudTurn = self.stop_turn
         window.fitMatHudView = self.fit_view
+        window.setMatHudAutomationGuards = self.set_automation_guards
 
     # ------------------------------------------------------------------
     # Hooks
@@ -195,30 +206,59 @@ class ScenarioHooks:
         Options: ``max_requests`` caps the turn's model requests (the turn ends
         instead of sending more); ``response_timeout_ms`` replaces the client's
         response timeouts for this turn (a local model may think longer than 60 s).
+        Refused while images are attached in the chat input, so they are not sent
+        with the automated prompt. The selector's previous choice is restored once
+        the request is built (the turn keeps the model it started with).
         """
         try:
             if self.ai.is_processing:
                 return to_json({"status": "busy"})
+            if pending_images(self.ai):
+                return to_json(
+                    {"status": "error", "error": "images are attached in the chat input; remove them first"}
+                )
             options = parse_options(options_json)
             request_limit = _positive_int(options.get("max_requests"))
             timeout_ms = _positive_int(options.get("response_timeout_ms"))
-            if model_id:
-                selector = document["ai-model-selector"]
+            selector = document["ai-model-selector"] if model_id else None
+            previous_model: Optional[str] = None
+            if selector is not None:
                 values = [str(option.value) for option in selector.options]
                 if str(model_id) not in values:
                     return to_json({"status": "error", "error": f"Model option not found: {model_id}"})
+                # Put back only a choice the list still offers (a placeholder would blank the dropdown).
+                previous_model = str(selector.value) if str(selector.value) in values and selector.value else None
                 selector.value = str(model_id)
             toggle = document["vision-toggle"] if "vision-toggle" in document else None
             vision_was_on = bool(toggle.checked) if toggle is not None else False
             if toggle is not None:
                 toggle.checked = False
             try:
-                # The prompt (including use_vision) is built synchronously inside this call.
+                # The prompt (including use_vision and the turn's model) is built synchronously inside this call.
                 self.ai.send_user_message(str(text), request_limit, timeout_ms)
             finally:
                 if toggle is not None:
                     toggle.checked = vision_was_on
+                if selector is not None and previous_model is not None:
+                    selector.value = previous_model
             return to_json({"status": "started"})
+        except Exception as exc:
+            return to_json({"status": "error", "error": str(exc)})
+
+    def set_automation_guards(self, options_json: Any = None) -> str:
+        """Option ``block_workspace_tools`` (bool): refuse the workspace tools, or allow them again.
+
+        A blocked tool answers with an error result instead of reading or writing
+        the server's workspace directory. The CLI blocks them while it drives
+        someone's desktop window and unblocks them when its run ends; a page
+        reload also lifts the block.
+        """
+        try:
+            options = parse_options(options_json)
+            if "block_workspace_tools" in options:
+                set_workspace_tools_blocked(self.ai.available_functions, self._blocked_tools,
+                                            bool(options["block_workspace_tools"]))  # fmt: skip
+            return to_json({"status": "ok", "workspace_tools_blocked": bool(self._blocked_tools)})
         except Exception as exc:
             return to_json({"status": "error", "error": str(exc)})
 
@@ -493,6 +533,35 @@ def _safe_eval_pair(evaluate: Any, t: float) -> List[Optional[float]]:
         return [float(x), float(y)]
     except Exception:
         return [None, None]
+
+
+def pending_images(ai: Any) -> int:
+    """How many images are attached in the chat input (they would go out with the next message)."""
+    attachment = getattr(ai, "_image_attachment", None)
+    try:
+        return len(attachment.images) if attachment is not None else 0
+    except Exception:
+        return 0
+
+
+def set_workspace_tools_blocked(functions: Dict[str, Any], set_aside: Dict[str, Any], blocked: bool) -> None:
+    """Swap the workspace tools in ``functions`` for refusals (``blocked``), or put them back.
+
+    ``set_aside`` keeps the real functions while they are blocked; blocking twice keeps them.
+    """
+    if blocked:
+        for name in WORKSPACE_TOOLS:
+            if name in functions and name not in set_aside:
+                set_aside[name] = functions[name]
+                functions[name] = _workspace_tool_refusal
+    else:
+        for name, function in list(set_aside.items()):
+            functions[name] = function
+            del set_aside[name]
+
+
+def _workspace_tool_refusal(*_args: Any, **_kwargs: Any) -> str:
+    return WORKSPACE_TOOLS_BLOCKED_MESSAGE
 
 
 def content_extent(canvas: "Canvas", samples: int = FIT_SAMPLES) -> Optional[List[float]]:
