@@ -45,6 +45,19 @@ class TestRoutes(unittest.TestCase):
         self.app.workspace_manager = WorkspaceManager(temp_dir.name)
         return temp_dir.name
 
+    def test_automation_settings_report_search_mode_and_retries(self) -> None:
+        env = {"TOOL_SEARCH_MODE": "hybrid", "MATHUD_OPENROUTER_MAX_RETRIES": ""}
+        with patch.dict(os.environ, env):
+            data = self.client.get("/api/automation_settings").get_json()["data"]
+        self.assertEqual(data["tool_search_mode"], "hybrid")
+        self.assertEqual(data["openrouter_max_retries"], 1)  # OpenRouterAPI.MAX_RETRIES
+        with patch.dict(os.environ, {"TOOL_SEARCH_MODE": " LOCAL ", "MATHUD_OPENROUTER_MAX_RETRIES": "0"}):
+            data = self.client.get("/api/automation_settings").get_json()["data"]
+        self.assertEqual((data["tool_search_mode"], data["openrouter_max_retries"]), ("local", 0))
+        with patch.dict(os.environ, {"TOOL_SEARCH_MODE": "bogus"}):
+            data = self.client.get("/api/automation_settings").get_json()["data"]
+        self.assertEqual(data["tool_search_mode"], "local")  # unknown modes search locally
+
     def test_workspace_operations(self) -> None:
         """Test workspace CRUD operations."""
         self._use_temp_workspaces_dir()

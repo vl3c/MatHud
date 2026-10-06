@@ -1351,6 +1351,28 @@ def register_routes(app: MatHudFlask) -> None:
         """
         return AppManager.make_response(data={"requests_in_flight": in_flight.count})
 
+    @app.route("/api/automation_settings", methods=["GET"])
+    @require_auth
+    def automation_settings_route() -> ResponseReturnValue:
+        """The server's effective settings that bear on what an automated run may send.
+
+        The CLI's desktop automation (``desktop prompt``, ``test scenarios
+        --attach-desktop``) drives a server it did not start and cannot pin, so
+        it reads these and refuses a paid provider unless tool searches stay
+        local and OpenRouter does not retry (both would send requests its
+        request cap cannot count).
+        """
+        from static.providers.openrouter_api import OpenRouterAPI, configured_max_retries
+        from static.tool_search_service import configured_search_mode
+
+        return AppManager.make_response(
+            data={
+                "tool_search_mode": configured_search_mode(),
+                "openrouter_max_retries": configured_max_retries(OpenRouterAPI.MAX_RETRIES),
+                "tool_exposure": get_configured_tool_mode(),
+            }
+        )
+
     @app.route("/search_tools", methods=["POST"])
     @require_auth
     def search_tools_route() -> ResponseReturnValue:

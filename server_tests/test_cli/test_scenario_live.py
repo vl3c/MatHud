@@ -855,6 +855,26 @@ class TestBudgetOnErrors:
         assert outcome.infra_error and "hook error" in outcome.infra_error
         assert budget.sent == 3 + 1  # the requests seen, plus the one in flight
 
+    @pytest.mark.parametrize(
+        "error, counted",
+        [("Model option not found: m", 0), ("images are attached in the chat input", 0), ("boom", 1)],
+    )
+    def test_a_send_refused_before_sending_counts_no_request(
+        self, catalogue: Catalogue, tmp_path: Path, error: str, counted: int
+    ) -> None:
+        class RefusingBrowser(FakeChatBrowser):
+            def call_hook(self, name: str, *args: Any, timeout: int = 30) -> dict[str, Any]:
+                if name == "sendMatHudMessage":
+                    return {"status": "error", "error": error}
+                return super().call_hook(name, *args, timeout=timeout)
+
+        budget = RequestBudget(100)
+        runner, sink = live_runner(catalogue, RefusingBrowser(), tmp_path / "out", budget=budget)
+        [outcome] = runner.run_live(geo90(catalogue), ["m"], 1)
+        sink.close(catalogue)
+        assert "hook error" in str(outcome.infra_error)
+        assert budget.sent == counted  # an unknown error may have sent one
+
     def test_no_turn_starts_when_its_first_request_would_reach_the_cap(
         self, catalogue: Catalogue, tmp_path: Path
     ) -> None:

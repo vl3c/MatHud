@@ -44,6 +44,8 @@ DEFAULT_TURN_MAX_REQUESTS = 8
 POLL_INTERVAL_S = 0.2
 # A turn that never starts processing within this many seconds is recorded as not started.
 TURN_START_GRACE_S = 10.0
+# sendMatHudMessage refusals that come before anything is sent (no request to count).
+UNSENT_REFUSALS = ("sendMatHudMessage: busy", "Model option not found", "images are attached")
 # How long to wait for the client to settle after stopMatHudTurn.
 STOP_SETTLE_S = 10.0
 
@@ -277,8 +279,14 @@ class LiveRunner(ReplayRunner):
         self._turn_requests_seen = 0
         accounted = False
         try:
-            # From here on the turn may have sent requests: whatever happens, they are counted.
-            self.session.hook("sendMatHudMessage", step.user or "", self.model or "", json.dumps(options))
+            # From here on the turn may have sent requests: whatever happens, they are counted,
+            # except when the window refused the message before sending anything (busy, a model
+            # missing from its list, images attached).
+            try:
+                self.session.hook("sendMatHudMessage", step.user or "", self.model or "", json.dumps(options))
+            except HookError as exc:
+                accounted = any(marker in str(exc) for marker in UNSENT_REFUSALS)
+                raise
             started = self._clock()
             stop_reason = self._wait_for_turn(completed_before, started, timeout_s, limit)
             wall = self._clock() - started

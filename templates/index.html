@@ -527,8 +527,15 @@ Dependencies:
             }
         }
 
-        // Fetch available models from server and populate dropdown
-        fetch('/api/available_models')
+        // Fetch available models from server and populate dropdown. Called again by
+        // window.refreshMatHudModels() (the CLI's desktop automation, when a model the
+        // server lists is missing because the page loaded before llama-server), which
+        // keeps the current choice when it is still listed.
+        function loadAvailableModels(keepSelection) {
+            var previous = keepSelection ? aiModelSelector.value : null;
+            // The CLI's desktop automation waits for this before it picks a model.
+            window.matHudModelsLoaded = false;
+            return fetch('/api/available_models')
             .then(function(response) { return response.json(); })
             .then(function(models) {
                 aiModelSelector.innerHTML = '';
@@ -581,15 +588,27 @@ Dependencies:
                     // Select first available model if default not found
                     aiModelSelector.selectedIndex = 0;
                 }
+                if (previous && Array.prototype.some.call(aiModelSelector.options, function(o) { return o.value === previous; })) {
+                    aiModelSelector.value = previous;
+                }
 
                 // Update window reference for Brython slash commands
                 window.VISION_MODELS = VISION_MODELS;
                 updateVisionToggle();
+                window.matHudModelsLoaded = true;
+                return true;
             })
             .catch(function(error) {
                 console.error('Failed to fetch available models:', error);
-                aiModelSelector.innerHTML = '<option value="">Failed to load models</option>';
+                if (!keepSelection) {
+                    aiModelSelector.innerHTML = '<option value="">Failed to load models</option>';
+                }
+                window.matHudModelsLoaded = true;
+                return false;
             });
+        }
+        loadAvailableModels(false);
+        window.refreshMatHudModels = function() { return loadAvailableModels(true); };
 
         // Update vision toggle when AI model selection changes
         aiModelSelector.addEventListener("change", updateVisionToggle);

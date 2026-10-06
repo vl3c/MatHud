@@ -13,6 +13,9 @@ PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 # Default server settings
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 5000
+# DevTools port of a desktop window opened with `mathud_desktop.py --automation-port`
+# (mathud_desktop.DEFAULT_AUTOMATION_PORT).
+DEFAULT_AUTOMATION_PORT = 9333
 
 # PID file for tracking server process
 PID_FILE = PROJECT_ROOT / ".mathud_server.pid"

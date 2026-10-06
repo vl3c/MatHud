@@ -340,6 +340,7 @@ from .test_scenario_hooks import (
     TestScenarioHookHelpers,
     TestScenarioHookCanvas,
     TestScenarioHookEndpoints,
+    TestScenarioHookFitView,
     TestToolBatchTraceFailure,
     TestTurnUndoGroup,
 )
@@ -771,6 +772,7 @@ class Tests:
             TestScenarioHookHelpers,
             TestScenarioHookCanvas,
             TestScenarioHookEndpoints,
+            TestScenarioHookFitView,
             TestToolBatchTraceFailure,
             TestTurnUndoGroup,
             TestBuildTrace,
