@@ -109,15 +109,22 @@ def with_graph(
     clipped: bool,
     waves: bool = True,
     spiky: bool = False,
+    resolved: bool = False,
+    period: Optional[float] = 6.3,
     **args: Any,
 ) -> Dict[str, Any]:
-    """``state`` plus a function graph whose client-sampled box is ``box``."""
+    """``state`` plus a function graph whose client-sampled box is ``box``.
+
+    By default an aliased wave with sin's period, as the client reports sin at the default view.
+    """
     grown = add(state, Functions=[{"name": name, "args": dict({"function_string": f"{name}(x)"}, **args)}])
     grown.setdefault(CURVE_EXTENTS_KEY, {}).setdefault("Functions", {})[name] = {
         "box": list(box),
         "clipped": clipped,
         "waves": waves,
         "spiky": spiky,
+        "resolved": resolved,
+        "period": period,
     }
     return grown
 
@@ -177,10 +184,18 @@ class TestTooSmall(unittest.TestCase):
 
 
 class TestMarkersOnReadableShapes(unittest.TestCase):
-    """Small shapes drawn on a readable shape are part of it: never a note."""
+    """Small shapes drawn on a readable shape are part of it: never a note.
+
+    Each marker is checked drawn after the figure (it builds on an earlier shape) and drawn in
+    the same batch as the figure (it is attached to a readable shape).
+    """
 
     def setUp(self) -> None:
         self.figure = triangle_scene("ABC", [(0, 0), (240, 0), (0, 180)])
+
+    def assertSilent(self, after: Dict[str, Any], figure: Optional[Dict[str, Any]] = None) -> None:  # noqa: N802
+        self.assertIsNone(view_note(figure or self.figure, after))
+        self.assertIsNone(view_note(empty(), after))
 
     def test_right_angle_square_at_a_vertex(self) -> None:
         marker = add(
@@ -191,25 +206,40 @@ class TestMarkersOnReadableShapes(unittest.TestCase):
             Quadrilaterals=[{"name": "ADEF", "args": {"p1": "A", "p2": "D", "p3": "E", "p4": "F"}}],
             Segments=edges("ADEF"),
         )
-        self.assertIsNone(view_note(self.figure, marker))
+        self.assertSilent(marker)
 
     def test_highlight_circle_on_a_vertex(self) -> None:
-        self.assertIsNone(view_note(self.figure, add(self.figure, Circles=[circle("B(8)", "B", 8)])))
-        moved_center = add(self.figure, point("G", 240, 0), Circles=[circle("G(8)", "G", 8)])
-        self.assertIsNone(view_note(self.figure, moved_center))
+        self.assertSilent(add(self.figure, Circles=[circle("B(8)", "B", 8)]))
+        self.assertSilent(add(self.figure, point("G", 240, 0), Circles=[circle("G(8)", "G", 8)]))
 
     def test_angle_arc_at_a_vertex(self) -> None:
         arc = {"name": "arc", "args": {"center_x": 240, "center_y": 0, "radius": 12, "point1_name": "B"}}
-        self.assertIsNone(view_note(self.figure, add(self.figure, CircleArcs=[arc])))
+        self.assertSilent(add(self.figure, CircleArcs=[arc]))
+
+    def test_a_mark_beside_a_corner_touching_nothing(self) -> None:
+        """The corner check alone: a small square just off vertex B, clear of both edges."""
+        mark = add(
+            self.figure,
+            point("P", 242, -14),
+            point("Q", 254, -14),
+            point("R", 254, -2),
+            point("S", 242, -2),
+            Quadrilaterals=[{"name": "PQRS", "args": {"p1": "P", "p2": "Q", "p3": "R", "p4": "S"}}],
+        )
+        # Drawn after the figure, without touching it: only the corner check keeps it silent.
+        self.assertIsNone(view_note(self.figure, mark))
+        apart = copy.deepcopy(mark)
+        for item in apart["Points"][3:]:
+            item["args"]["position"]["x"] += 100
+        self.assertIn("the new PQRS spans only ~12x12 px", view_note(self.figure, apart) or "")
 
     def test_tick_marks_across_an_edge(self) -> None:
-        ticks = add(self.figure, point("T1", 60, -6), point("T2", 60, 6), Segments=[segment("T1", "T2")])
-        self.assertIsNone(view_note(self.figure, ticks))
+        """The outline check alone: ticks across the middle of an edge, far from its corners."""
+        self.assertSilent(add(self.figure, point("T1", 60, -6), point("T2", 60, 6), Segments=[segment("T1", "T2")]))
 
     def test_small_circle_on_a_readable_circle(self) -> None:
         figure = scene([point("O", 0, 0)], Circles=[circle("O(200)", "O", 200)])
-        after = add(figure, point("P", 200, 0), Circles=[circle("P(5)", "P", 5)])
-        self.assertIsNone(view_note(figure, after))
+        self.assertSilent(add(figure, point("P", 200, 0), Circles=[circle("P(5)", "P", 5)]), figure)
 
     def test_label_or_point_next_to_a_vertex(self) -> None:
         label = {"name": "alpha", "args": {"position": {"x": 0.35, "y": 0.15}, "text": "alpha"}}
@@ -229,6 +259,42 @@ class TestMarkersOnReadableShapes(unittest.TestCase):
         self.assertIn("the new PQR spans only ~4x3 px", view_note(self.figure, speck) or "")
 
 
+class TestBuildingOnEarlierShapes(unittest.TestCase):
+    """A small new shape that touches what was drawn before builds on a scene the user already sees."""
+
+    def test_circumcircle_after_a_declined_tiny_triangle(self) -> None:
+        speck = triangle_scene("ABC", TINY)
+        self.assertIsNotNone(view_note(empty(), speck))
+        circumcircle = add(speck, point("D", 3, 1), Circles=[circle("D(3.16)", "D", math.sqrt(10))])
+        self.assertIsNone(view_note(speck, circumcircle))
+
+    def test_a_diagonal_after_the_user_zoomed_out(self) -> None:
+        square = scene(
+            [point("A", 0, 0), point("B", 4, 0), point("C", 4, 4), point("D", 0, 4)],
+            VIEW_10,
+            Segments=edges("ABCD"),
+            Quadrilaterals=[polygon("ABCD")],
+        )
+        zoomed_out = with_bounds(square, -400, 400, -300, 300)
+        self.assertIsNone(view_note(square, zoomed_out))
+        self.assertIsNone(view_note(zoomed_out, add(zoomed_out, Segments=[segment("A", "C")])))
+
+    def test_a_ring_around_a_point_that_was_there(self) -> None:
+        lone = scene([point("P", 100, 50)])
+        self.assertIsNone(view_note(lone, add(lone, Circles=[circle("P(5)", "P", 5)])))
+
+    def test_a_separate_speck_is_still_noted(self) -> None:
+        speck = triangle_scene("ABC", TINY)
+        far = add(speck, point("P", 300, 300), point("Q", 304, 300), point("R", 302, 303), Triangles=[polygon("PQR")])
+        self.assertIn("the new PQR spans only", view_note(speck, far) or "")
+
+    def test_a_clipped_graph_has_no_size_of_its_own(self) -> None:
+        after = with_graph(empty(), "h", (0, 5, 0, 5), True, waves=False)
+        self.assertIsNone(view_note(empty(), after))
+        bounded = with_graph(empty(), "h", (0, 5, 0, 5), False, waves=False, left_bound=0, right_bound=5)
+        self.assertIsNotNone(view_note(empty(), bounded))
+
+
 class TestWhatCountsAsNew(unittest.TestCase):
     def test_recolouring_is_no_change(self) -> None:
         before = triangle_scene("ABC", TINY)
@@ -242,9 +308,14 @@ class TestWhatCountsAsNew(unittest.TestCase):
         self.assertIsNone(view_note(before, copy.deepcopy(before)))
 
     def test_moving_a_point_changes_the_shapes_through_it(self) -> None:
-        before = triangle_scene("ABC", [(0, 0), (300, 0), (100, 200)])
-        after = triangle_scene("ABC", [(0, 0), (3, 0), (1, 2)])
-        self.assertIn("the new or changed ABC spans only", view_note(before, after) or "")
+        before = scene([point("O", 0, 0)], Circles=[circle("O(5)", "O", 5)])
+        after = scene([point("O", 5000, 0)], Circles=[circle("O(5)", "O", 5)])
+        self.assertIn("the new or changed O(5) is outside the view", view_note(before, after) or "")
+
+    def test_new_or_changed_follows_the_named_objects(self) -> None:
+        before = scene([point("O", 0, 0)], Circles=[circle("O(5)", "O", 5)])
+        after = add(before, point("P", 5000, 0), Circles=[circle("P(5)", "P", 5)])
+        self.assertIn("the new P(5) is outside", view_note(before, after) or "")
 
     def test_a_view_change_alone_is_never_noted(self) -> None:
         before = triangle_scene("ABC", [(0, 0), (300, 0), (100, 200)])
@@ -291,8 +362,25 @@ class TestFunctionsAndCurves(unittest.TestCase):
         self.assertIsNone(view_note(base, with_graph(base, "r", (-628, 628, -0.03, 0.03), True, spiky=True)))
         listed = with_graph(base, "r", (-628, 628, -0.03, 0.03), True, vertical_asymptotes=[0])
         self.assertIsNone(view_note(base, listed))
-        elsewhere = with_graph(base, "r", (-628, 628, -0.03, 0.03), True, vertical_asymptotes=[5000])
+        elsewhere = with_graph(base, "r", (-628, 628, -0.03, 0.03), True, period=0.2, vertical_asymptotes=[5000])
         self.assertIsNotNone(view_note(base, elsewhere))
+
+    def test_a_wave_the_samples_resolve_is_drawn_as_it_is(self) -> None:
+        """0.1*sin(x) at +-10: a low wave, and zooming keeps the aspect ratio, so no note."""
+        resolved = with_graph(empty(VIEW_10), "a", (-10, 10, -0.1, 0.1), True, resolved=True, period=None)
+        self.assertIsNone(view_note(empty(VIEW_10), resolved))
+
+    def test_a_wave_already_wide_on_screen_is_not_flat(self) -> None:
+        """sin(x) at +-100: a 40 px period, a low wave the screen draws as one."""
+        view = with_bounds(empty(), -100, 100, -75, 75)
+        self.assertIsNone(view_note(view, with_graph(view, "s", (-100, 100, -1, 1), True, period=6.3)))
+
+    def test_no_note_when_the_zoom_would_show_less_than_a_period(self) -> None:
+        """0.001*sin(x) at the default view: a zoom high enough to show it shows a straight piece."""
+        tiny_wave = with_graph(empty(WIDE_VIEW), "b", (-628, 628, -0.001, 0.001), True, period=6.3)
+        self.assertIsNone(view_note(empty(WIDE_VIEW), tiny_wave))
+        unknown = with_graph(empty(WIDE_VIEW), "f", (-628, 628, -1, 1), True, period=None)
+        self.assertIsNone(view_note(empty(WIDE_VIEW), unknown))
 
     def test_a_flat_graph_mostly_beside_the_view_is_not_flat(self) -> None:
         after = with_graph(empty(), "f", (395, 1000, -1, 1), False, left_bound=395, right_bound=1000)
@@ -335,6 +423,13 @@ class TestOutsideTheView(unittest.TestCase):
         note = view_note(before, after) or ""
         self.assertIn("the new B(100) is outside the view (view x -400..400, y -300..300)", note)
         self.assertIn("Offer to move the view to about x 4600..5400, y 4700..5300", note)
+
+    def test_the_suggestion_keeps_the_batch_on_screen_objects_in_view(self) -> None:
+        """Data points fitted partly above the view: zoom out to all of them, not to the hidden ones."""
+        after = scene([point("D1", 0, 0), point("D2", 100, 150), point("D3", 0, 500)])
+        note = view_note(empty(), after) or ""
+        self.assertIn("the new D3 is outside the view", note)
+        self.assertIn("center_x=50, center_y=250", note)
 
     def test_several_points_and_the_verb(self) -> None:
         after = scene([point(name, 420 + i, 0) for i, name in enumerate("PQRST")])

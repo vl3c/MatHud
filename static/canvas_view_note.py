@@ -11,9 +11,13 @@ better than a false or useless one, so every rule stays silent when unsure:
 1. outside: a new object lies entirely outside the view;
 2. tiny: the batch's new shapes with a real extent span fewer than 16 px on screen,
    leaving out small shapes attached to a readable shape (angle arcs, right-angle
-   squares, highlight circles, tick marks, markers);
+   squares, highlight circles, tick marks, markers), and silent when they touch or
+   share a point with anything drawn before the batch (the user already sees that
+   scene at this scale, or declined to zoom on it);
 3. flat: a new function graph that waves (turns at least three times, like sin) varies by
-   fewer than 16 px vertically, with no spike or vertical asymptote in its sampled range.
+   fewer than 16 px vertically, with no spike or vertical asymptote, and is squeezed on
+   screen (the samples miss it and its period is under 16 px), when the suggested zoom
+   shows at least one period of it.
 
 "New" means created or geometrically changed by the batch, decided from the
 previous canvas's objects by bucket, name and geometry (style changes such as a
@@ -56,9 +60,13 @@ _RELATIVE_MIN_EXTENT = 1e-9
 _SCIENTIFIC_ABOVE = 1e15
 _MAX_NOTE_NAMES = 3
 _SAME_BOX_RELATIVE_TOLERANCE = 1e-6
-# Args that change how an object looks, not where it is or how big: a recolour is no change.
-_STYLE_ARGS = frozenset(
+# Args that change how an object looks, not where it is or how big (a recolour is no change),
+# and lists derived from a function's definition.
+_IGNORED_ARGS = frozenset(
     {
+        "vertical_asymptotes",
+        "horizontal_asymptotes",
+        "point_discontinuities",
         "color",
         "opacity",
         "fill_color",
@@ -174,6 +182,10 @@ class Shape:
     clipped: bool = False
     waves: bool = False
     spiky: bool = False
+    # Whether the samples follow the graph (a value halfway between two samples is about their
+    # average); an aliased wave is not, and its estimated period then says how far to zoom.
+    resolved: bool = True
+    period: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -206,9 +218,15 @@ class ViewSummary:
         return box.size < TINY_VIEW_FRACTION * min(self.view.width, self.view.height)
 
     def is_flat(self, shape: Shape) -> bool:
-        """A waving function graph, wide enough to see, with a few pixels of vertical variation."""
+        """An unresolved waving graph, wide enough to see, with a few pixels of vertical variation.
+
+        A wave the samples already follow is drawn as it is: zooming keeps the aspect ratio,
+        so it would only show a straight piece of it.
+        """
         box = shape.box
-        if not shape.graph or not shape.waves or shape.spiky or self.is_point_like(Box(0.0, 0.0, box.bottom, box.top)):
+        if not shape.graph or not shape.waves or shape.spiky or shape.resolved:
+            return False
+        if self.is_point_like(Box(0.0, 0.0, box.bottom, box.top)):
             return False
         visible_width = min(box.right, self.view.right) - max(box.left, self.view.left)
         return box.height * self.scale() < FLAT_PX and visible_width * self.scale() >= FLAT_PX
@@ -369,6 +387,8 @@ def _curve_shapes(state: Mapping[str, Any]) -> Dict[Key, Shape]:
                 clipped=bool(entry.get("clipped")),
                 waves=bool(entry.get("waves")),
                 spiky=bool(entry.get("spiky")) or (graph and asymptote),
+                resolved=entry.get("resolved") is not False,
+                period=_as_float(entry.get("period")),
             )
     return shapes
 
@@ -407,14 +427,14 @@ def _view_note(previous: Optional[Mapping[str, Any]], current: Mapping[str, Any]
     before = {key: _signature(item) for key, item in _all_items(previous)}
     signatures = {key: _signature(item) for key, item in _all_items(current)}
     new = [key for key in now.shapes if before.get(key) != signatures.get(key)]
-    created = all(key not in before for key in new)
     for find in (_outside, _tiny, _flat):
         found = find(now, new)
         if found is not None:
             keys, template, target, flat = found
-            names, count = _names(keys)
+            names, named = _names(keys)
             # The verb agrees with the names as printed: "the new ABC spans", "the new P, Q are".
-            verbs = _SINGULAR if count == 1 else _PLURAL
+            verbs = _SINGULAR if len(named) == 1 else _PLURAL
+            created = all(key not in before for key in named)
             subject = f"the {'new' if created else 'new or changed'} {names}"
             return (
                 f"{VIEW_NOTE_PREFIX} {subject} {template.format(**verbs)}. "
@@ -436,9 +456,12 @@ def _outside(now: ViewSummary, new: List[Key]) -> Optional[_Found]:
     outside = [
         key for key in new if now.is_outside(now.shapes[key]) and not (key[0] == "Points" and key[1] in attached)
     ]
-    target = _union(now.shapes[key].box for key in outside)
-    if target is None:
+    if not outside:
         return None
+    # When some of the batch's objects are on screen, the suggested view keeps them in it too.
+    target = _union(now.shapes[key].box for key in new if not now.shapes[key].clipped)
+    target = target or _union(now.shapes[key].box for key in outside)
+    assert target is not None
     return outside, f"{{is}} outside the view (view {_view_ranges(now.view)})", target, False
 
 
@@ -456,6 +479,8 @@ def _tiny(now: ViewSummary, new: List[Key]) -> Optional[_Found]:
     ]
     # Edges of a new polygon are named by the polygon.
     sized = [key for key in sized if not _is_edge_of(now, key, sized)]
+    if _builds_on_earlier_shapes(now, sized, new):
+        return None
     target = _union(now.shapes[key].box for key in sized)
     if target is None or not now.is_tiny(target):
         return None
@@ -464,11 +489,30 @@ def _tiny(now: ViewSummary, new: List[Key]) -> Optional[_Found]:
     return sized, f"{{spans}} only {extent} ({_where(now, target)})", target, False
 
 
+def _builds_on_earlier_shapes(now: ViewSummary, sized: List[Key], new: List[Key]) -> bool:
+    """True when a new small shape touches or shares a point with anything drawn before the batch.
+
+    Then the batch builds on a scene the user already sees at this scale (a circumcircle after
+    a declined tiny triangle, a diagonal after the user zoomed out, a ring around a point).
+    """
+    fresh = set(new)
+    earlier = [(key, shape) for key, shape in now.shapes.items() if key not in fresh]
+    for key in sized:
+        shape = now.shapes[key]
+        for old_key, old in earlier:
+            if old_key[0] == "Points":
+                if old_key[1] in shape.points:
+                    return True
+            elif shape.box.intersects(old.box) or set(shape.points) & set(old.points):
+                return True
+    return False
+
+
 def _flat(now: ViewSummary, new: List[Key]) -> Optional[_Found]:
-    """A new waving function graph with only a few pixels of vertical variation."""
+    """A new aliased waving graph with only a few pixels of vertical variation, when a zoom would show it."""
     for key in new:
         shape = now.shapes[key]
-        if not now.is_flat(shape):
+        if not now.is_flat(shape) or not _zoom_shows_a_period(now, shape):
             continue
         box = shape.box
         visible = Box(max(box.left, now.view.left), min(box.right, now.view.right), box.bottom, box.top)
@@ -483,9 +527,27 @@ def _flat(now: ViewSummary, new: List[Key]) -> Optional[_Found]:
     return None
 
 
+def _flat_zoom_half_width(summary: ViewSummary, box: Box) -> float:
+    """Half the width of the view in which the graph's variation fills FLAT_FILL of the height."""
+    aspect = summary.view.height / summary.view.width
+    return _nice_ceil(box.height / (2.0 * FLAT_FILL) / aspect)
+
+
+def _zoom_shows_a_period(summary: ViewSummary, shape: Shape) -> bool:
+    """A wave squeezed on screen (a period of under 16 px) that the suggested zoom shows at least once.
+
+    A wave whose period already spans more pixels is drawn as a wave, just a low one: zooming
+    keeps the aspect ratio, so it would not help.
+    """
+    if shape.period is None or shape.period * summary.scale() >= FLAT_PX:
+        return False
+    return 2.0 * _flat_zoom_half_width(summary, shape.box) >= shape.period
+
+
 def _part_of_readable_shape(now: ViewSummary, key: Key) -> bool:
-    """A small shape drawn on a readable one: sharing a point with it, centred near one of its
-    corners, or lying on its outline (angle arcs, right-angle squares, highlight circles, ticks)."""
+    """A small shape drawn on a readable one: centred within its own size of one of the other's
+    corners (which covers sharing a vertex with it), or lying on its outline (angle arcs,
+    right-angle squares, highlight circles, ticks)."""
     shape = now.shapes[key]
     reach = shape.box.size
     center = shape.box.center
@@ -494,8 +556,6 @@ def _part_of_readable_shape(now: ViewSummary, key: Key) -> bool:
             continue
         if other.box.size <= shape.box.size:
             continue
-        if set(shape.points) & set(other.points):
-            return True
         if any(math.dist(center, corner) <= reach for corner in other.corners):
             return True
         if other.radius is not None and other.corners:
@@ -545,14 +605,14 @@ def _is_edge_of(now: ViewSummary, key: Key, keys: List[Key]) -> bool:
 # --------------------------------------------------------------------------- text
 
 
-def _names(keys: Sequence[Key]) -> Tuple[str, int]:
-    """The most whole objects only (a triangle without its edges and vertices), and how many."""
+def _names(keys: Sequence[Key]) -> Tuple[str, List[Key]]:
+    """The most whole objects only (a triangle without its edges and vertices), and their keys."""
     top = min(_NAME_ORDER.get(key[0], 0) for key in keys)
-    keys = [key for key in keys if _NAME_ORDER.get(key[0], 0) == top]
-    names = ", ".join(key[1] for key in keys[:_MAX_NOTE_NAMES])
-    if len(keys) > _MAX_NOTE_NAMES:
-        names += f" (+{len(keys) - _MAX_NOTE_NAMES} more)"
-    return names, len(keys)
+    named = [key for key in keys if _NAME_ORDER.get(key[0], 0) == top]
+    names = ", ".join(key[1] for key in named[:_MAX_NOTE_NAMES])
+    if len(named) > _MAX_NOTE_NAMES:
+        names += f" (+{len(named) - _MAX_NOTE_NAMES} more)"
+    return names, named
 
 
 def _pixels(value: float) -> str:
@@ -580,8 +640,7 @@ def _suggestion(summary: ViewSummary, target: Box, flat: bool) -> str:
     aspect = view.height / view.width
     current = view.width / 2.0
     if flat:
-        # The graph's vertical variation fills FLAT_FILL of the view's height.
-        half = _nice_ceil(target.height / (2.0 * FLAT_FILL) / aspect)
+        half = _flat_zoom_half_width(summary, target)
         pan_only = False
     else:
         fit = max(target.width / 2.0, target.height / 2.0 / aspect) * SUGGESTED_VIEW_MARGIN
@@ -695,7 +754,7 @@ def _all_items(state: Mapping[str, Any]) -> List[Tuple[Key, JsonDict]]:
 
 def _signature(item: Mapping[str, Any]) -> str:
     """The object's geometry args as text; style args (colour, label text, ...) are left out."""
-    geometry = {key: value for key, value in _args(item).items() if key not in _STYLE_ARGS}
+    geometry = {key: value for key, value in _args(item).items() if key not in _IGNORED_ARGS}
     try:
         return json.dumps(geometry, sort_keys=True, default=str)
     except (TypeError, ValueError):
