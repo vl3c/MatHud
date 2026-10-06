@@ -25,7 +25,8 @@ from typing import Any, Dict, Iterator, List, Optional
 from unittest.mock import patch
 
 from static.ai_model import AIModel
-from static.canvas_state_formatter import render_state, render_update, view_note
+from static.canvas_state_formatter import render_state, render_update
+from static.canvas_view_note import view_note
 from static.providers.local.local_agent_api import LocalAgentAPI
 from static.providers.openrouter_api import OpenRouterAPI
 
