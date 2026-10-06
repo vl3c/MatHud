@@ -565,8 +565,10 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         canvas_format = self._get_canvas_format()
         if canvas_format == "json":
             content = self._prepare_object_count_content(full_prompt)
+            if content == full_prompt:
+                return content  # not a user message the note could go with; nothing is measured
             note = self._json_prompt_view_note(full_prompt)
-            return f"{content}\n{note}" if note and content != full_prompt else content
+            return f"{content}\n{note}" if note else content
         prompt_json = self._parse_prompt_json(full_prompt)
         if prompt_json is None:
             return full_prompt

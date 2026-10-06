@@ -635,5 +635,85 @@ class TestViewNoteInPrompts(CanvasFormatEnv):
         self.assertIn("]\nView note: the shapes span only", str(local.get("content")))
 
 
+def with_point(state: Dict[str, Any], name: str, x: float, y: float) -> Dict[str, Any]:
+    grown = json.loads(json.dumps(state))
+    grown["Points"].append({"name": name, "args": {"position": {"x": x, "y": y}}})
+    return grown
+
+
+class TestViewNoteHistory(CanvasFormatEnv):
+    """Notes of finished turns leave the history; a note is never used up by a message the model did not get."""
+
+    def _turn_with_note(self, api: OpenAIChatCompletionsAPI) -> None:
+        api._prepare_messages_for_request(user_prompt("Draw a triangle", state=EMPTY_STATE))
+        api._finalize_stream("", ONE_CALL)
+        api._prepare_messages_for_request(one_call_results_prompt(TINY_STATE))
+        api._finalize_stream("Drawn; it is tiny at this zoom, want me to zoom in?", [])
+
+    def test_declined_offer_with_a_point_just_beyond_the_speck(self) -> None:
+        """M3 as reproduced live: decline, add D inside, then E one unit beyond the triangle."""
+        api = self.chat_api()
+        self._turn_with_note(api)
+        with_d = with_point(TINY_STATE, "D", 1, 1)
+        with_e = with_point(with_d, "E", 7, 1)
+        for text, state in (("No thanks. Add D at (1, 1).", with_d), ("Add E at (7, 1).", with_e)):
+            api._prepare_messages_for_request(user_prompt(text, state=state))
+            self.assertNotIn("View note:", api.messages[-1]["content"])
+            api._finalize_stream("Done.", [])
+
+    def test_a_new_message_strips_notes_of_earlier_turns(self) -> None:
+        api = self.chat_api()
+        self._turn_with_note(api)
+        self.assertIn("View note:", tool_contents(api)["call_t"])
+        api._prepare_messages_for_request(user_prompt("What is its area?", state=TINY_STATE))
+        content = tool_contents(api)["call_t"]
+        self.assertNotIn("View note:", content)
+        self.assertIn("[canvas changes]\n+ A = (0, 0)", content)
+
+    def test_notes_of_the_running_turn_are_kept(self) -> None:
+        api = self.chat_api()
+        api._prepare_messages_for_request(user_prompt("Draw a triangle and label it", state=EMPTY_STATE))
+        api._finalize_stream("", ONE_CALL)
+        api._prepare_messages_for_request(one_call_results_prompt(TINY_STATE))
+        api._finalize_stream("", [{"id": "call_l", "function": {"name": "create_label", "arguments": "{}"}}])
+        entries = [{"tool_call_id": "call_l", "result": {"create_label()": "Call successful!"}}]
+        prompt = json.loads(one_call_results_prompt(with_point(TINY_STATE, "D", 1, 1)))
+        prompt["tool_call_results"] = json.dumps(entries)
+        api._prepare_messages_for_request(json.dumps(prompt))
+        self.assertIn("View note:", tool_contents(api)["call_t"])
+
+    def test_a_note_alone_in_canvas_changes_leaves_no_empty_header(self) -> None:
+        api = self.chat_api()
+        api.messages.append({"role": "tool", "tool_call_id": "x", "content": "ok\n[canvas changes]\nView note: tiny"})
+        api._prepare_messages_for_request(user_prompt())
+        self.assertEqual(tool_contents(api)["x"], "ok")
+
+    def test_local_json_note_line_is_stripped_but_user_text_is_kept(self) -> None:
+        with patch.dict(os.environ, {"MATHUD_CANVAS_FORMAT": "json"}):
+            api = self.local_api()
+            first = api._parse_and_prepare_message(user_prompt("View note: my own words", state=TINY_STATE)) or {}
+            api.messages.append(first)
+            self.assertIn("]\nView note: the shapes", first["content"])
+            api.messages.append({"role": "assistant", "content": "ok"})
+            api.messages.append(api._parse_and_prepare_message(user_prompt("again", state=TINY_STATE)) or {})
+        self.assertTrue(first["content"].startswith("View note: my own words\n[Canvas: 3 Points"))
+        self.assertNotIn("View note: the shapes", first["content"])
+
+    def test_refused_message_does_not_use_up_the_note(self) -> None:
+        """L2: Anthropic drops a refused round from the history; the next message gets the note."""
+        api = self.anthropic_api()
+        api.messages.append(api._parse_and_prepare_message(user_prompt(state=TINY_STATE)) or {})
+        api._drop_refused_user_message()
+        message = api._parse_and_prepare_message(user_prompt("Draw it again", state=TINY_STATE)) or {}
+        self.assertIn("View note: the shapes span only", str(message.get("content")))
+
+    def test_local_json_prompt_without_text_measures_nothing(self) -> None:
+        """L2: a prompt LocalAgent sends as is (no user text) cannot carry the note, so it is not spent."""
+        with patch.dict(os.environ, {"MATHUD_CANVAS_FORMAT": "json"}):
+            api = self.local_api()
+            self.assertNotIn("View note", api._prepare_message_content(user_prompt(text="", state=TINY_STATE)))
+            self.assertIn("View note:", api._prepare_message_content(user_prompt("hi", state=TINY_STATE)))
+
+
 if __name__ == "__main__":
     unittest.main()
