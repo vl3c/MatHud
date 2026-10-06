@@ -12,7 +12,7 @@ Core Responsibilities:
     - Naming: Honours a requested ellipse name and keeps every ellipse name unique
 
 Manager Features:
-    - Collision Detection: Checks for existing ellipses before creation (without rotation angle)
+    - Collision Detection: Reuses an existing ellipse only when centre, radii and orientation all match
     - Dependency Tracking: Registers ellipse relationships with center points
     - State Archiving: Automatic undo/redo state capture before modifications
     - Extra Graphics: Optional creation of related geometric objects
@@ -50,6 +50,8 @@ if TYPE_CHECKING:
     from managers.drawable_manager_proxy import DrawableManagerProxy
     from managers.point_manager import PointManager
     from name_generator.drawable import DrawableNameGenerator
+
+ROTATION_MATCH_TOLERANCE_DEGREES: float = 1e-6
 
 # A requested name that only names the centre point: one letter with optional primes.
 _CENTER_HINT_PATTERN = re.compile(r"^[A-Za-z]'*$")
@@ -99,17 +101,27 @@ class EllipseManager(BaseDrawableManager):
         )
         self.point_manager: "PointManager" = point_manager
 
-    def get_ellipse(self, center_x: float, center_y: float, radius_x: float, radius_y: float) -> Optional[Ellipse]:
+    def get_ellipse(
+        self,
+        center_x: float,
+        center_y: float,
+        radius_x: float,
+        radius_y: float,
+        rotation_angle: Optional[float] = None,
+    ) -> Optional[Ellipse]:
         """
-        Get an ellipse by its center coordinates and radii.
+        Get an ellipse by its center coordinates, radii and (optionally) rotation angle.
 
-        Note: This method does not consider rotation angle when matching ellipses.
+        Rotation angles are compared modulo 180 degrees, since an ellipse turned by a
+        half revolution is the same shape. When the radii are equal the ellipse is a
+        circle and rotation is ignored.
 
         Args:
             center_x (float): X-coordinate of the ellipse center
             center_y (float): Y-coordinate of the ellipse center
             radius_x (float): Horizontal radius of the ellipse
             radius_y (float): Vertical radius of the ellipse
+            rotation_angle (float, optional): Rotation angle in degrees; None matches any rotation
 
         Returns:
             Ellipse: The matching ellipse object, or None if not found
@@ -121,9 +133,16 @@ class EllipseManager(BaseDrawableManager):
                 and ellipse.center.y == center_y
                 and ellipse.radius_x == radius_x
                 and ellipse.radius_y == radius_y
+                and self._rotation_matches(ellipse, rotation_angle)
             ):
                 return ellipse
         return None
+
+    def _rotation_matches(self, ellipse: Ellipse, rotation_angle: Optional[float]) -> bool:
+        if rotation_angle is None or ellipse.radius_x == ellipse.radius_y:
+            return True
+        difference = (float(rotation_angle) - float(ellipse.rotation_angle)) % 180
+        return min(difference, 180 - difference) <= ROTATION_MATCH_TOLERANCE_DEGREES
 
     def get_ellipse_by_name(self, name: str) -> Optional[Ellipse]:
         """
@@ -170,13 +189,14 @@ class EllipseManager(BaseDrawableManager):
             extra_graphics (bool): Whether to create additional graphics (default: True)
 
         Returns:
-            Ellipse: The newly created ellipse object, or existing ellipse if already present
+            Ellipse: The newly created ellipse object, or the existing ellipse with the
+                same centre, radii and orientation if one is already present
         """
         # Archive before creation
         self.canvas.undo_redo_manager.archive()
 
         # Check if the ellipse already exists
-        existing_ellipse = self.get_ellipse(center_x, center_y, radius_x, radius_y)
+        existing_ellipse = self.get_ellipse(center_x, center_y, radius_x, radius_y, rotation_angle)
         if existing_ellipse:
             return existing_ellipse
 
