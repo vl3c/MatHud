@@ -88,6 +88,7 @@ from .test_polygon_manager import TestPolygonManager
 from .test_vector_manager import TestVectorManager
 from .test_circle_manager import TestCircleManager
 from .test_ellipse_manager import TestEllipseManager, TestEllipseReuseMatching
+from .test_ellipse_naming import TestEllipseNameModel, TestEllipseNamingOnCanvas
 from .test_colored_area_manager import TestColoredAreaManager
 from .test_function_manager import TestFunctionManager
 from .test_function_features import TestFunctionFeaturesAlgorithm, TestFunctionFeaturesCanvas
@@ -581,6 +582,8 @@ class Tests:
             TestCircleManager,
             TestEllipseManager,
             TestEllipseReuseMatching,
+            TestEllipseNameModel,
+            TestEllipseNamingOnCanvas,
             TestColoredAreaManager,
             TestTransformationsManager,
             TestTransforms,

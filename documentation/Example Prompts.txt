@@ -11,6 +11,7 @@ Create point D at (-10, -10) and point E at (20, 20). Define segment DE.
 Construct a circle with center A and radius 50. (Circles are named after their center and radius, so this one is A(50).)
 Draw a circle centered at (0,0) with a radius of 75 units and name its center O.
 Create an ellipse centered at the origin with horizontal radius 100 and vertical radius 60.
+Create an ellipse named orbit centered at (0, 0) with radii 4 and 2, then rotate orbit by 45 degrees.
 Create point F at (30,40) and point G at (50,10). Draw an angle with vertex at A, and other points F and G. (This will be angle FAG)
 Define an angle using points P, Q, R, where Q is the vertex. (Assuming P, Q, R are already defined points)
 Create a triangle with vertices (0,0), (4,0), (2,3.464) using `create_polygon` with `polygon_type="triangle"` and `subtype="equilateral"`.

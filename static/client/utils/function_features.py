@@ -5,23 +5,31 @@ server-side pytest suites as well as the Brython test runner.
 
 Method:
     The interval is split at the known breakpoints (vertical asymptotes and point
-    discontinuities) and each piece is sampled on a uniform grid.
+    discontinuities) and each piece is sampled on a uniform grid. Where the grid does not
+    resolve the curve (the fourth difference of the samples is comparable to their
+    second differences: close or steep features), finer samples are added, at most
+    three levels of eight times finer steps, within a budget of one extra evaluation
+    per sample.
 
     - Roots: sign changes between consecutive finite samples are refined with
       Brent's method. A bracket whose refined point is not a true zero (|f| does not
       shrink there, or f blows up right beside it) is a pole or a jump and is dropped,
       so 1/x and tan(x) report no false roots. Samples that are exactly zero are roots
-      as they stand; a run of them means f vanishes on a whole interval.
+      as they stand; a run of them means f vanishes on a whole interval. An extremum
+      that dips across the axis between two samples on the same side splits their step
+      into two sign-change brackets ((x - 0.5)(x - 0.5001), x^2 - 1e-10).
     - Extrema: sign changes of the slope between samples are refined with Brent's
-      bounded minimizer. A refined value that runs far past the samples is a pole and
-      is dropped.
+      bounded minimizer. A refined value that runs far past the samples, or one beside a
+      pole (f is clearly better nearby, or changes as much over one float as over a
+      wider offset), is dropped.
     - A local extremum whose value is zero (x^2 at 0) is also reported as a touching
       root, which no sign change can find.
     - Inflection points (only when asked for): sign changes of the second difference
       between samples, above rounding noise, are refined with Brent's method on a
       numeric second derivative, then confirmed: the second derivative must have
       opposite signs on both sides and f must be continuous there, so poles and jumps
-      are not inflections.
+      are not inflections. The numeric derivatives use the steps actually taken, so
+      rounding x -/+ step costs no accuracy at a large |x| (an inflection at 1e8 is found).
     - Intersections of f and g are the roots of f - g on the shared interval.
 
 Results closer than the sampling can resolve are merged, values are rounded to the
@@ -31,6 +39,7 @@ report's ``truncated`` flag says when more were found).
 
 from __future__ import annotations
 
+import bisect
 import math
 from typing import Callable, Iterable, List, Optional, Sequence, Tuple, TypedDict
 
@@ -46,6 +55,24 @@ SAMPLES_PER_PIXEL = 2
 SAMPLES_PER_PERIOD = 40
 MIN_SEGMENT_SAMPLES = 16
 
+# Local refinement: where the samples do not resolve the curve, each sample step is split
+# into _REFINE_FACTOR steps, at most _REFINE_DEPTH times over, spending at most
+# _REFINE_BUDGET extra evaluations per sample taken
+_REFINE_FACTOR = 8
+_REFINE_DEPTH = 3
+_REFINE_BUDGET = 1.0
+# The curve is unresolved where the fourth difference of the samples is above this fraction
+# of their second differences: the curvature changes within about two sample steps
+_UNRESOLVED_RATIO = 0.5
+# Steps refined either side of an unresolved stretch, and steps left alone next to a
+# breakpoint (the curve is steep next to a vertical asymptote, not unresolved)
+_REFINE_MARGIN = 1
+_BREAKPOINT_SKIP = 4
+# Steps are not refined below this many units in the last place of x
+_REFINE_MIN_ULPS = 64.0
+# Neighbouring steps that differ by less than this fraction (rounding of x) are equal
+_UNIFORM_STEP_TOLERANCE = 1e-6
+
 FEATURE_ROOTS = "roots"
 FEATURE_EXTREMA = "extrema"
 FEATURE_INFLECTIONS = "inflections"
@@ -60,6 +87,9 @@ KIND_INTERSECTION = "intersection"
 KIND_INFLECTION = "inflection"
 
 _EPS = 2.220446049250313e-16
+# Rounding noise of values that underflow: subnormal numbers are spaced 5e-324 apart, so
+# their relative precision is far worse than _EPS (exp(-x^2) near x = 27 is a staircase)
+_UNDERFLOW_NOISE = 4.0 * 5e-324
 _SQRT_EPS = math.sqrt(_EPS)
 _GOLDEN = 0.5 * (3.0 - math.sqrt(5.0))
 
@@ -68,10 +98,14 @@ _BREAKPOINT_GAP = 1e-9
 # A refined root must have |f| below this fraction of the bracket's end values (loose
 # enough for a vertical tangent: cbrt(x) is 8e-6 at Brent's x resolution of 6e-16)...
 _ROOT_RESIDUAL_RATIO = 1e-3
-# ...and |f| must shrink towards it: at _ROOT_PROBE_OFFSET (relative) from the point it must be
-# at most _ROOT_SHRINK_RATIO of |f| ten times further out. Near a pole |f| grows instead, and
+# ...plus the change of f to the next float, when that is below this fraction of those values
+_FLOAT_STEP_SHARE = 0.1
+# ...and |f| must shrink towards it: at _ROOT_PROBE_OFFSET of the interval width (at least
+# _ROOT_PROBE_ULPS units in the last place of x) from the point it must be at most
+# _ROOT_SHRINK_RATIO of |f| ten times further out. Near a pole |f| grows instead, and
 # across a jump it stays level; a steep root (cbrt(x), tanh(1e5 x)) still shrinks.
 _ROOT_PROBE_OFFSET = 1e-7
+_ROOT_PROBE_ULPS = 64.0
 _ROOT_PROBE_FACTOR = 10.0
 _ROOT_SHRINK_RATIO = 0.95
 # An interval endpoint whose |f| is below this fraction of the largest |f| sampled is a root
@@ -84,16 +118,28 @@ _ENDPOINT_RISE_FACTOR = 1e6
 _ZERO_EXTREMUM_RATIO = 1e-9
 # A refined extremum may move past the best sample by at most this many bump depths
 _EXTREMUM_RUNAWAY_FACTOR = 10.0
+# An extremum must have no clearly better value at these fractions of its flatness radius
+# (better by more than noise and this fraction of its bump depth)
+_NEIGHBOUR_DEPTH_RATIO = 1e-3
+_NEIGHBOUR_FRACTIONS = (0.25, 0.0625)
 # Slope sign changes separated by more flat steps than this are plateaus, not extrema
 _MAX_FLAT_STEPS = 3
 # Differences below this multiple of the rounding error of the values are flat
 _FLAT_NOISE_FACTOR = 16.0
-# Results closer than this fraction of the interval width (or of |x|) are one result
+# Results closer than this fraction of the interval width (or this many units in the last
+# place of x) are one result
 _MERGE_DISTANCE = 1e-7
+_MERGE_ULPS = 64.0
 # Significant digits reported: Brent's root finder reaches ~1e-15 relative accuracy,
 # an extremum position only ~sqrt(eps) (less where f is flatter), so it gets fewer
 _ROOT_DIGITS = 10
 _EXTREMUM_X_DIGITS = 8
+# More than 10^_FAR_X_MAGNITUDES interval widths from 0 an x keeps more significant digits
+# (see _round_x): a root up to 14, which leaves over 40 units of margin over the rounding
+# of x itself; an extremum or inflection up to 15, its uncertainty radius setting the decimals
+_FAR_X_MAGNITUDES = 3
+_ROOT_MAX_DIGITS = 14
+_MAX_X_DIGITS = 15
 _VALUE_DIGITS = 10
 # Function values below this are reported as 0 (sin(pi) is 1.2e-16, not a value to show)
 _VALUE_ZERO_FLOOR = 1e-12
@@ -101,6 +147,9 @@ _VALUE_ZERO_FLOOR = 1e-12
 _KIND_ORDER = {KIND_ROOT: 0, KIND_INTERSECTION: 0, KIND_LOCAL_MIN: 1, KIND_LOCAL_MAX: 1, KIND_INFLECTION: 2}
 # A second difference within this many rounding units of its terms counts as zero curvature
 _CURVATURE_NOISE_FACTOR = 64.0
+# Share of that factor charged for rounding x inside f (eps * |x| times the slope); the
+# rounding of the stencil's own arguments is avoided by using the steps really taken
+_ARGUMENT_NOISE_SHARE = 0.125
 # Rounding-noise estimate (in ulps) used only to decide how many digits of x to report:
 # deciding whether an inflection exists stays conservative, reporting its digits does not
 _ROUNDING_NOISE_FACTOR = 4.0
@@ -112,12 +161,32 @@ _CURVATURE_POLISH_FRACTION = 0.125
 # inflection, and this many polishing steps either side of it
 _INFLECTION_CHECK_STEPS = 2.0
 _LOCAL_CHECK_STEPS = 4.0
+# Where f is flat to rounding at that distance, the check is repeated at up to this many
+# halvings of the spacing
+_CONFIRM_HALVINGS = 6
+# Measured noise: second differences of 2 * _NOISE_PROBE_POINTS + 1 points this fraction of
+# the step apart; a curvature (or an unresolved stretch) must exceed it this many times
+_NOISE_PROBE_FRACTION = 1.0 / 1024.0
+_NOISE_PROBE_POINTS = 3
+_NOISE_MARGIN = 4.0
+# Noise beside an inflection: probe points this fraction of the spacing apart (not a power
+# of two), centred this many spacings either side
+_SIDE_PROBE_FRACTION = 0.3713
+_SIDE_PROBE_DISTANCE = 3.0
+# A bracket end whose curvature is lost in noise moves out by this fraction of the bracket,
+# at most this many times
+_BRACKET_WIDENING = 0.125
+_BRACKET_WIDENINGS = 4
 # Halving the polishing step may move an inflection by at most this fraction of the step
 _STEP_STABILITY = 0.25
 # Continuity check across an inflection: the change of f over a tiny offset (relative to
 # max(1, |x|)) must be at most this fraction of its change over a nearby offset
 _CONTINUITY_OFFSET = 1e-9
 _CONTINUITY_RATIO = 0.1
+# ...and at most this fraction of the nearby offset, which a large |x| would otherwise exceed
+_CONTINUITY_NEAR_FRACTION = 1e-3
+# The same check beside an extremum, with a smaller tiny offset so that cusps pass
+_EXTREMUM_CONTINUITY_FRACTION = 1e-4
 _INFLECTION_X_DIGITS = 8
 
 
@@ -160,10 +229,18 @@ class _Root:
 
 
 class _Extremum:
-    """A raw local extremum: its sample bracket, bump depth and the radius within which x is uncertain."""
+    """A raw local extremum: its sample bracket, bump depth, the radius within which x is
+    uncertain and the largest |y| that still counts as on the x-axis."""
 
     def __init__(
-        self, x: float, y: float, kind: str, bracket: Tuple[float, float], depth: float, radius: float
+        self,
+        x: float,
+        y: float,
+        kind: str,
+        bracket: Tuple[float, float],
+        depth: float,
+        radius: float,
+        zero_tolerance: float,
     ) -> None:
         self.x = x
         self.y = y
@@ -171,6 +248,28 @@ class _Extremum:
         self.bracket = bracket
         self.depth = depth
         self.radius = radius
+        self.zero_tolerance = zero_tolerance
+
+    def is_on_axis(self) -> bool:
+        return abs(self.y) <= self.zero_tolerance
+
+
+class _Piece:
+    """A continuous piece [a, b] of the interval: its samples and the step of its uniform grid.
+
+    The samples are the uniform grid plus finer ones where it did not resolve the curve.
+    """
+
+    def __init__(self, a: float, b: float, xs: List[float], ys: List[float], step: float) -> None:
+        self.a = a
+        self.b = b
+        self.xs = xs
+        self.ys = ys
+        self.step = step
+
+    def flat_limit(self) -> float:
+        """Sign changes further apart than this are separated by a plateau (_MAX_FLAT_STEPS grid steps)."""
+        return (_MAX_FLAT_STEPS + 1) * self.step * (1.0 + _UNIFORM_STEP_TOLERANCE)
 
 
 # ---------------------------------------------------------------------------
@@ -216,17 +315,19 @@ def find_function_features(
     wanted = _checked_features(features)
     evaluate = _safe_evaluator(f)
     total_samples = samples if samples is not None else sample_count(right - left)
-    # Extrema are always scanned: a touching root is found as an extremum on the x-axis
-    roots, extrema = _scan(evaluate, left, right, breakpoints, total_samples)
+    pieces = _sampled_segments(evaluate, left, right, breakpoints, total_samples)
     span = right - left
     found: List[FunctionFeature] = []
-    if FEATURE_ROOTS in wanted:
-        roots = _with_touching_roots(roots, extrema, span)
-        found.extend(_root_feature(root, KIND_ROOT, 0.0, span) for root in roots)
-    if FEATURE_EXTREMA in wanted:
-        found.extend(_extremum_feature(extremum, span) for extremum in extrema)
+    if FEATURE_ROOTS in wanted or FEATURE_EXTREMA in wanted:
+        # Extrema are always scanned: a touching root is found as an extremum on the x-axis
+        roots, extrema = _scan(evaluate, left, right, pieces)
+        if FEATURE_ROOTS in wanted:
+            roots = _with_touching_roots(roots, extrema, span)
+            found.extend(_root_feature(root, KIND_ROOT, 0.0, span) for root in roots)
+        if FEATURE_EXTREMA in wanted:
+            found.extend(_extremum_feature(extremum, span) for extremum in extrema)
     if FEATURE_INFLECTIONS in wanted:
-        inflections = _scan_inflections(evaluate, left, right, breakpoints, total_samples)
+        inflections = _scan_inflections(evaluate, span, pieces)
         found.extend(_inflection_feature(evaluate, x, radius, span) for x, radius in inflections)
     return _report(found, max_results, total_samples)
 
@@ -254,7 +355,8 @@ def find_intersections(
 
     total_samples = samples if samples is not None else sample_count(right - left)
     span = right - left
-    roots, extrema = _scan(difference, left, right, breakpoints, total_samples)
+    pieces = _sampled_segments(difference, left, right, breakpoints, total_samples)
+    roots, extrema = _scan(difference, left, right, pieces)
     roots = _with_touching_roots(roots, extrema, span)
     found = [_root_feature(root, KIND_INTERSECTION, evaluate_f(root.x), span) for root in roots]
     return _report(found, max_results, total_samples)
@@ -335,32 +437,186 @@ def _sampled_segments(
     right: float,
     breakpoints: Iterable[float],
     total_samples: int,
-) -> List[Tuple[float, float, List[float], List[float]]]:
-    """Each continuous piece (a, b) of [left, right] with its uniform sample grid and values."""
+) -> List[_Piece]:
+    """Each continuous piece of [left, right] with its sample grid and values.
+
+    The grid is uniform, plus finer samples where it does not resolve the curve.
+    """
     span = right - left
-    pieces: List[Tuple[float, float, List[float], List[float]]] = []
-    for a, b in _segments(left, right, breakpoints):
+    cuts = _discontinuities(evaluate, breakpoints, span / max(1, total_samples))
+    pieces: List[_Piece] = []
+    for a, b in _segments(left, right, cuts):
         count = max(MIN_SEGMENT_SAMPLES, int(round(total_samples * (b - a) / span)))
         xs = [a + (b - a) * i / count for i in range(count)] + [b]
-        pieces.append((a, b, xs, [evaluate(x) for x in xs]))
+        ys = [evaluate(x) for x in xs]
+        budget = int(_REFINE_BUDGET * count)
+        xs, ys = _refined_samples(evaluate, xs, ys, budget, a != left, b != right)
+        pieces.append(_Piece(a, b, xs, ys, (b - a) / count))
     return pieces
+
+
+def _discontinuities(evaluate: Callable[[float], float], breakpoints: Iterable[float], step: float) -> List[float]:
+    """The breakpoints where f really is discontinuous: undefined, a pole, a jump or a hole.
+
+    A breakpoint where f is defined and continuous (the corner where two pieces of a
+    piecewise function meet) is sampled through like any other point, so a root or an
+    extremum right there (|x| with a breakpoint at 0) is not lost in the gap around a cut.
+    """
+    near = _CURVATURE_STEP_FRACTION * step
+    cuts: List[float] = []
+    for breakpoint in breakpoints:
+        x = float(breakpoint)
+        value = evaluate(x)
+        if not (math.isfinite(value) and _is_continuous_beside(evaluate, x, value, near)):
+            cuts.append(x)
+    return cuts
+
+
+def _refined_samples(
+    evaluate: Callable[[float], float],
+    xs: List[float],
+    ys: List[float],
+    budget: int,
+    cut_before: bool,
+    cut_after: bool,
+) -> Tuple[List[float], List[float]]:
+    """Add finer samples where the uniform grid does not resolve the curve.
+
+    Stretches whose curvature changes within about two steps (close or steep features)
+    are resampled with steps _REFINE_FACTOR times finer, and so on _REFINE_DEPTH times,
+    worst stretches first, until the evaluation budget is spent. Features are then found
+    on the merged grid by the same tests as everywhere else.
+    """
+    added: List[Tuple[float, float]] = []
+    grids = [(xs, ys, cut_before, cut_after)]
+    for _ in range(_REFINE_DEPTH):
+        # (severity, grid xs, grid ys, starts at a breakpoint, ends at a breakpoint)
+        stretches: List[Tuple[float, List[float], List[float], bool, bool]] = []
+        for grid_xs, grid_ys, before, after in grids:
+            for first, last, severity in _unresolved_stretches(grid_ys, before, after):
+                stretches.append(
+                    (
+                        severity,
+                        grid_xs[first : last + 1],
+                        grid_ys[first : last + 1],
+                        before and first == 0,
+                        after and last == len(grid_xs) - 1,
+                    )
+                )
+        stretches.sort(key=lambda stretch: (-stretch[0], stretch[1][0]))
+        grids = []
+        for _, coarse_xs, coarse_ys, before, after in stretches:
+            cost = (len(coarse_xs) - 1) * (_REFINE_FACTOR - 1)
+            fine_step = (coarse_xs[1] - coarse_xs[0]) / _REFINE_FACTOR
+            if cost > budget or fine_step <= _REFINE_MIN_ULPS * _EPS * max(abs(coarse_xs[0]), abs(coarse_xs[-1])):
+                continue
+            budget -= 2 * _NOISE_PROBE_POINTS + 1
+            if _is_noise(evaluate, coarse_xs, coarse_ys):
+                continue
+            budget -= cost
+            fine_xs, fine_ys = _subdivided(evaluate, coarse_xs, coarse_ys)
+            added.extend((x, y) for k, (x, y) in enumerate(zip(fine_xs, fine_ys)) if k % _REFINE_FACTOR)
+            grids.append((fine_xs, fine_ys, before, after))
+        if not grids:
+            break
+    if not added:
+        return xs, ys
+    merged = dict(zip(xs, ys))
+    for x, y in added:
+        merged.setdefault(x, y)
+    ordered = sorted(merged)
+    return ordered, [merged[x] for x in ordered]
+
+
+def _is_noise(evaluate: Callable[[float], float], xs: List[float], ys: List[float]) -> bool:
+    """The second differences of an unresolved stretch are no larger than f's measured noise.
+
+    Noise looks unresolved at every step (its fourth differences are as large as its second
+    ones); refining it would only multiply the sign changes it makes.
+    """
+    scale = 0.0
+    for i in range(1, len(ys) - 1):
+        second = ys[i - 1] - 2.0 * ys[i] + ys[i + 1]
+        if math.isfinite(second):
+            scale = max(scale, abs(second))
+    middle = len(xs) // 2
+    return scale <= _NOISE_MARGIN * _measured_noise(evaluate, xs[middle], xs[middle + 1] - xs[middle])
+
+
+def _subdivided(
+    evaluate: Callable[[float], float], xs: List[float], ys: List[float]
+) -> Tuple[List[float], List[float]]:
+    """Split every step of the grid into _REFINE_FACTOR equal steps, keeping the known samples."""
+    fine_xs: List[float] = [xs[0]]
+    fine_ys: List[float] = [ys[0]]
+    for i in range(len(xs) - 1):
+        a, b = xs[i], xs[i + 1]
+        for k in range(1, _REFINE_FACTOR):
+            x = a + (b - a) * k / _REFINE_FACTOR
+            fine_xs.append(x)
+            fine_ys.append(evaluate(x))
+        fine_xs.append(b)
+        fine_ys.append(ys[i + 1])
+    return fine_xs, fine_ys
+
+
+def _unresolved_stretches(ys: List[float], cut_before: bool, cut_after: bool) -> List[Tuple[int, int, float]]:
+    """Sample index ranges (first, last, severity) of a uniform grid that the samples do not resolve.
+
+    There the fourth difference is comparable to the second differences around it (the
+    curvature changes within about two steps), the second differences being above rounding
+    noise. Steps next to a breakpoint are left alone, as are undefined samples.
+    """
+    count = len(ys)
+    low = _BREAKPOINT_SKIP if cut_before else 2
+    high = count - 1 - (_BREAKPOINT_SKIP if cut_after else 2)
+    # seconds[i] and noise[i] belong to sample i + 1; an undefined sample makes its seconds non-finite
+    seconds = [ys[i] - 2.0 * ys[i + 1] + ys[i + 2] for i in range(count - 2)]
+    sizes = [abs(y) for y in ys]
+    noise = [
+        _CURVATURE_NOISE_FACTOR * (_EPS * (sizes[i] + 2.0 * sizes[i + 1] + sizes[i + 2]) + _UNDERFLOW_NOISE)
+        for i in range(count - 2)
+    ]
+    flagged: List[Tuple[int, float]] = []
+    for i in range(low, high):
+        s0, s1, s2 = seconds[i - 2], seconds[i - 1], seconds[i]
+        fourth = s0 - 2.0 * s1 + s2
+        scale = max(abs(s0), abs(s1), abs(s2))
+        # Cheap test first: almost every sample of a resolved curve fails it
+        if not abs(fourth) > _UNRESOLVED_RATIO * scale or not math.isfinite(fourth):
+            continue
+        if scale <= max(noise[i - 2], noise[i - 1], noise[i]):
+            continue
+        flagged.append((i, abs(fourth) / scale))
+    stretches: List[Tuple[int, int, float]] = []
+    for i, severity in flagged:
+        first = max(0, i - 1 - _REFINE_MARGIN)
+        last = min(count - 1, i + 1 + _REFINE_MARGIN)
+        if stretches and first <= stretches[-1][1]:
+            previous = stretches[-1]
+            stretches[-1] = (previous[0], last, max(previous[2], severity))
+        else:
+            stretches.append((first, last, severity))
+    return stretches
 
 
 def _scan(
     evaluate: Callable[[float], float],
     left: float,
     right: float,
-    breakpoints: Iterable[float],
-    total_samples: int,
+    pieces: List[_Piece],
 ) -> Tuple[List[_Root], List[_Extremum]]:
-    """Sample every continuous piece of [left, right] and collect its roots and extrema."""
+    """Collect the roots and extrema of every sampled continuous piece of [left, right]."""
     span = right - left
     roots: List[_Root] = []
     extrema: List[_Extremum] = []
-    for a, b, xs, ys in _sampled_segments(evaluate, left, right, breakpoints, total_samples):
+    for piece in pieces:
+        xs, ys = piece.xs, piece.ys
+        segment_extrema = _segment_extrema(evaluate, xs, ys, span, piece.flat_limit())
         roots.extend(_segment_roots(evaluate, xs, ys, span))
-        roots.extend(_endpoint_roots(xs, ys, a == left, b == right))
-        extrema.extend(_segment_extrema(evaluate, xs, ys, span))
+        roots.extend(_roots_beside_extrema(evaluate, xs, ys, segment_extrema, span))
+        roots.extend(_endpoint_roots(xs, ys, piece.a == left, piece.b == right))
+        extrema.extend(segment_extrema)
     return roots, extrema
 
 
@@ -376,6 +632,36 @@ def _segment_roots(evaluate: Callable[[float], float], xs: List[float], ys: List
         if root is not None:
             roots.append(_Root(root))
     roots.sort(key=lambda root: root.x)
+    return roots
+
+
+def _roots_beside_extrema(
+    evaluate: Callable[[float], float],
+    xs: List[float],
+    ys: List[float],
+    extrema: List[_Extremum],
+    span: float,
+) -> List[_Root]:
+    """The two roots either side of an extremum that dips across the axis between two samples.
+
+    Samples on the same side of the axis hide two close roots ((x - 0.5)(x - 0.5001), x^2 - 1e-10)
+    when the extremum between them lies on the other side; it splits their step into two
+    sign-change brackets. An extremum on the axis within rounding is a touching root instead.
+    """
+    roots: List[_Root] = []
+    for extremum in extrema:
+        x_m, y_m = extremum.x, extremum.y
+        if not math.isfinite(y_m) or extremum.is_on_axis():
+            continue
+        k = bisect.bisect_right(xs, x_m) - 1
+        if k < 0 or k >= len(xs) - 1 or xs[k] == x_m:
+            continue
+        for a, b, fa, fb in ((xs[k], x_m, ys[k], y_m), (x_m, xs[k + 1], y_m, ys[k + 1])):
+            if not _changes_sign(fa, fb):
+                continue
+            root = _refine_root(evaluate, a, b, fa, fb, span)
+            if root is not None:
+                roots.append(_Root(root))
     return roots
 
 
@@ -425,11 +711,25 @@ def _refine_root(
     if not math.isfinite(fx):
         return None
     scale = max(abs(fa), abs(fb))
-    if abs(fx) > _ROOT_RESIDUAL_RATIO * scale:
+    if abs(fx) > _ROOT_RESIDUAL_RATIO * scale + _float_step_change(evaluate, x, fx, scale):
         return None
-    if not _shrinks_towards(evaluate, x, _ROOT_PROBE_OFFSET * max(span, abs(x))):
+    if not _shrinks_towards(evaluate, x, max(_ROOT_PROBE_OFFSET * span, _ROOT_PROBE_ULPS * _EPS * abs(x))):
         return None
     return x
+
+
+def _float_step_change(evaluate: Callable[[float], float], x: float, fx: float, scale: float) -> float:
+    """How much f changes from x to the next float either side, if small next to ``scale``.
+
+    Far from 0 the floats are coarse (1.2e-4 apart at 1e12), so no x makes f smaller than
+    that change; beside a pole the change is huge, and counts as nothing.
+    """
+    offset = 0.75 * _EPS * abs(x)
+    change = 0.0
+    for value in (evaluate(x - offset), evaluate(x + offset)):
+        if math.isfinite(value):
+            change = max(change, abs(value - fx))
+    return change if change <= _FLOAT_STEP_SHARE * scale else 0.0
 
 
 def _shrinks_towards(evaluate: Callable[[float], float], x: float, offset: float) -> bool:
@@ -445,9 +745,12 @@ def _shrinks_towards(evaluate: Callable[[float], float], x: float, offset: float
 
 
 def _segment_extrema(
-    evaluate: Callable[[float], float], xs: List[float], ys: List[float], span: float
+    evaluate: Callable[[float], float], xs: List[float], ys: List[float], span: float, flat_limit: float
 ) -> List[_Extremum]:
-    """Bracket slope sign changes between samples and refine each with Brent's minimizer."""
+    """Bracket slope sign changes between samples and refine each with Brent's minimizer.
+
+    Sign changes more than ``flat_limit`` apart are the ends of a plateau, not an extremum.
+    """
     extrema: List[_Extremum] = []
     last_sign = 0
     last_index = -1
@@ -458,7 +761,7 @@ def _segment_extrema(
             continue
         if sign == 0:
             continue
-        if last_sign == -sign and i - last_index <= _MAX_FLAT_STEPS + 1:
+        if last_sign == -sign and xs[i] - xs[last_index] <= flat_limit:
             kind = KIND_LOCAL_MAX if last_sign > 0 else KIND_LOCAL_MIN
             extremum = _refine_extremum(evaluate, xs, ys, last_index, i + 1, kind, span)
             if extremum is not None:
@@ -472,7 +775,7 @@ def _slope_sign(ya: float, yb: float) -> Optional[int]:
     if not (math.isfinite(ya) and math.isfinite(yb)):
         return None
     difference = yb - ya
-    if abs(difference) <= _FLAT_NOISE_FACTOR * _EPS * max(abs(ya), abs(yb)):
+    if abs(difference) <= _FLAT_NOISE_FACTOR * (_EPS * max(abs(ya), abs(yb)) + _UNDERFLOW_NOISE):
         return 0
     return 1 if difference > 0 else -1
 
@@ -507,7 +810,58 @@ def _refine_extremum(
     if abs(y - best_sample) > _EXTREMUM_RUNAWAY_FACTOR * depth:
         return None
     radius = _flatness_radius(objective, x, scaled, high - low)
-    return _Extremum(x, y, kind, (low, high), depth, radius)
+    # How much f changes within the minimizer's resolution of x: large at a cusp
+    # (|x|^(2/3) is 4e-12 where x misses 0 by 7e-18), negligible at a smooth extremum
+    resolution = 2.0 * (4.0 * _EPS * abs(x) + _EPS * span)
+    blur = 0.0
+    for value in (evaluate(x - resolution), evaluate(x + resolution)):
+        if math.isfinite(value):
+            blur = max(blur, abs(value - y))
+    if (
+        radius >= high - low
+        or _has_better_neighbour(objective, x, scaled, radius, blur, depth)
+        or not _is_continuous_beside(evaluate, x, y, _CURVATURE_STEP_FRACTION * (high - low) / (last - first))
+    ):
+        # x is beside a pole (a sample close to tan's asymptote), not an extremum
+        return None
+    return _Extremum(x, y, kind, (low, high), depth, radius, max(_ZERO_EXTREMUM_RATIO * depth, blur))
+
+
+def _is_continuous_beside(evaluate: Callable[[float], float], x: float, fx: float, near: float) -> bool:
+    """On each side, the change of f from x shrinks with the offset (rules out x beside a pole).
+
+    At a large |x| the float next to a pole is the largest value on its side, so no
+    neighbour beats it; but its change over one float is as large as over a wider offset.
+    Smooth extrema, kinks and cusps such as |x|^(1/3) change far less over the tiny offset.
+    """
+    tiny = max(_EXTREMUM_CONTINUITY_FRACTION * near, 0.75 * _EPS * abs(x))
+    for side in (-1.0, 1.0):
+        tiny_value, near_value = evaluate(x + side * tiny), evaluate(x + side * near)
+        if not (math.isfinite(tiny_value) and math.isfinite(near_value)):
+            return False
+        noise = _CURVATURE_NOISE_FACTOR * (_EPS * max(abs(fx), abs(tiny_value), abs(near_value)) + _UNDERFLOW_NOISE)
+        if abs(tiny_value - fx) > _CONTINUITY_RATIO * abs(near_value - fx) + noise:
+            return False
+    return True
+
+
+def _has_better_neighbour(
+    f: Callable[[float], float], x: float, fx: float, radius: float, blur: float, depth: float
+) -> bool:
+    """f is clearly lower than fx somewhere inside the flatness radius.
+
+    A minimum has no such point, beyond rounding noise and beyond ``blur``, what f changes
+    within the minimizer's resolution of x (a cusp such as |x|^(1/3) is 4e-6 where x misses
+    0 by 5e-17). Next to a pole the radius ends just past the pole (where f changes sign),
+    so a quarter of it is still on the pole's side, where f runs away by a sizeable part of
+    the bump depth; rounding noise of f, which can be far above a few eps (exp(-x/2) *
+    sin(5*x) near x = 140 rounds sin's argument 700), stays far below that.
+    """
+    margin = _FLAT_NOISE_FACTOR * (_EPS * abs(fx) + _UNDERFLOW_NOISE) + blur + _NEIGHBOUR_DEPTH_RATIO * depth
+    for fraction in _NEIGHBOUR_FRACTIONS:
+        if min(f(x - fraction * radius), f(x + fraction * radius)) < fx - margin:
+            return True
+    return False
 
 
 def _polish_minimum(
@@ -562,39 +916,47 @@ def _flatness_radius(f: Callable[[float], float], x: float, fx: float, limit: fl
 
 def _scan_inflections(
     evaluate: Callable[[float], float],
-    left: float,
-    right: float,
-    breakpoints: Iterable[float],
-    total_samples: int,
+    span: float,
+    pieces: List[_Piece],
 ) -> List[Tuple[float, float]]:
-    """Inflection points (x, uncertainty radius) of every continuous piece, merged and sorted."""
-    span = right - left
+    """Inflection points (x, uncertainty radius) of every sampled continuous piece, merged and sorted."""
     found: List[Tuple[float, float]] = []
-    for _, _, xs, ys in _sampled_segments(evaluate, left, right, breakpoints, total_samples):
-        found.extend(_segment_inflections(evaluate, xs, ys, span))
+    for piece in pieces:
+        found.extend(_segment_inflections(evaluate, piece.xs, piece.ys, span, piece.flat_limit()))
     merged: List[Tuple[float, float]] = []
     for inflection in sorted(found):
-        if not (merged and _is_near(merged[-1][0], inflection[0], span)):
-            merged.append(inflection)
+        if merged and _is_near(merged[-1][0], inflection[0], span, merged[-1][1] + inflection[1]):
+            continue
+        merged.append(inflection)
     return merged
 
 
 def _segment_inflections(
-    evaluate: Callable[[float], float], xs: List[float], ys: List[float], span: float
+    evaluate: Callable[[float], float], xs: List[float], ys: List[float], span: float, flat_limit: float
 ) -> List[Tuple[float, float]]:
-    """Bracket sign changes of the second difference between samples and refine each."""
-    spacing = xs[1] - xs[0]
+    """Bracket sign changes of the second difference between samples and refine each.
+
+    Where the grid was refined the steps differ, so the second difference is the divided
+    one and the refinement works on the finest step around the bracket. Sign changes more
+    than ``flat_limit`` apart are separated by a straight stretch, not an inflection.
+    """
     inflections: List[Tuple[float, float]] = []
     last_sign = 0
     last_index = -1
     for i in range(1, len(xs) - 1):
-        sign = _curvature_sign(ys[i - 1], ys[i], ys[i + 1])
+        sign = _sample_curvature_sign(xs, ys, i)
         if sign is None:
             last_sign, last_index = 0, -1
             continue
         if sign == 0:
             continue
-        if last_sign == -sign and i - last_index <= _MAX_FLAT_STEPS + 1:
+        if last_sign == -sign and xs[i] - xs[last_index] <= flat_limit:
+            # The finest step there, unless the bracket spans many steps of flat curvature
+            # (x^5 - x near 0 on a refined grid), where a step that small drowns in noise
+            spacing = max(
+                min(xs[k + 1] - xs[k] for k in range(last_index - 1, i + 1)),
+                (xs[i] - xs[last_index]) / (_MAX_FLAT_STEPS + 1),
+            )
             inflection = _refine_inflection(evaluate, xs[last_index], xs[i], spacing, span)
             if inflection is not None:
                 inflections.append(inflection)
@@ -602,14 +964,39 @@ def _segment_inflections(
     return inflections
 
 
+def _sample_curvature_sign(xs: List[float], ys: List[float], i: int) -> Optional[int]:
+    """Sign of the second difference of the samples around sample i (weighted where the steps differ)."""
+    h1, h2 = xs[i] - xs[i - 1], xs[i + 1] - xs[i]
+    if abs(h1 - h2) <= _UNIFORM_STEP_TOLERANCE * max(h1, h2):
+        # The uniform grid (its steps differ only by the rounding of x)
+        return _curvature_sign(ys[i - 1], ys[i], ys[i + 1])
+    return _curvature_sign(ys[i - 1], ys[i], ys[i + 1], h1=h1, h2=h2)
+
+
 def _curvature_sign(
-    y0: float, y1: float, y2: float, extra_noise: float = 0.0, factor: float = _CURVATURE_NOISE_FACTOR
+    y0: float,
+    y1: float,
+    y2: float,
+    extra_noise: float = 0.0,
+    factor: float = _CURVATURE_NOISE_FACTOR,
+    h1: float = 1.0,
+    h2: float = 1.0,
 ) -> Optional[int]:
-    """Sign of the second difference y0 - 2*y1 + y2: 0 within rounding noise, None if undefined."""
+    """Sign of the second difference y0 - 2*y1 + y2: 0 within rounding noise, None if undefined.
+
+    With unequal steps h1 (before y1) and h2 (after) it is the weighted difference
+    (2*h2*y0 - 2*(h1 + h2)*y1 + 2*h1*y2) / (h1 + h2), which is the same for equal steps.
+    """
     if not (math.isfinite(y0) and math.isfinite(y1) and math.isfinite(y2)):
         return None
-    second = y0 - 2.0 * y1 + y2
-    noise = factor * _EPS * (abs(y0) + 2.0 * abs(y1) + abs(y2)) + extra_noise
+    if h1 == h2:
+        second = y0 - 2.0 * y1 + y2
+        size = abs(y0) + 2.0 * abs(y1) + abs(y2)
+    else:
+        w0, w2 = 2.0 * h2 / (h1 + h2), 2.0 * h1 / (h1 + h2)
+        second = w0 * y0 - 2.0 * y1 + w2 * y2
+        size = w0 * abs(y0) + 2.0 * abs(y1) + w2 * abs(y2)
+    noise = factor * (_EPS * size + _UNDERFLOW_NOISE) + extra_noise
     if abs(second) <= noise:
         return 0
     return 1 if second > 0 else -1
@@ -620,23 +1007,44 @@ def _second_derivative(
 ) -> Callable[[float], float]:
     """Central-difference second derivative: 0 within rounding noise, NaN where f is undefined.
 
-    The noise includes the rounding of the arguments x -/+ step (about eps * |x| times the
-    slope), which dominates at large |x|.
+    The steps are the ones actually taken (x -/+ step rounds to a float), so rounding the
+    arguments costs no accuracy. The noise still includes the rounding of x inside f
+    (sin(2*x + 1) rounds 2*x + 1: about eps * |x| times the slope), which dominates at large |x|.
     """
+    argument_factor = factor * _ARGUMENT_NOISE_SHARE
 
     def second(x: float) -> float:
-        y0, y1, y2 = evaluate(x - step), evaluate(x), evaluate(x + step)
+        stencil = _stencil(evaluate, x, step)
+        if stencil is None:
+            return 0.0
+        h1, h2, y0, y1, y2 = stencil
         argument_noise = 0.0
         if math.isfinite(y0) and math.isfinite(y2):
-            argument_noise = factor * _EPS * abs(x) * abs(y2 - y0) / step
-        sign = _curvature_sign(y0, y1, y2, argument_noise, factor)
+            argument_noise = argument_factor * _EPS * abs(x) * abs(y2 - y0) / (0.5 * (h1 + h2))
+        sign = _curvature_sign(y0, y1, y2, argument_noise, factor, h1, h2)
         if sign is None:
             return math.nan
         if sign == 0:
             return 0.0
-        return (y0 - 2.0 * y1 + y2) / (step * step)
+        return _divided_second(h1, h2, y0, y1, y2)
 
     return second
+
+
+def _stencil(
+    evaluate: Callable[[float], float], x: float, step: float
+) -> Optional[Tuple[float, float, float, float, float]]:
+    """(h1, h2, f(x - h1), f(x), f(x + h2)) with the steps x -/+ step really takes; None below x's precision."""
+    before, after = x - step, x + step
+    h1, h2 = x - before, after - x
+    if h1 <= 0.0 or h2 <= 0.0:
+        return None
+    return h1, h2, evaluate(before), evaluate(x), evaluate(after)
+
+
+def _divided_second(h1: float, h2: float, y0: float, y1: float, y2: float) -> float:
+    """Second divided difference of samples h1 before and h2 after the middle one."""
+    return 2.0 * (h2 * y0 - (h1 + h2) * y1 + h1 * y2) / (h1 * h2 * (h1 + h2))
 
 
 def _refine_inflection(
@@ -653,7 +1061,7 @@ def _refine_inflection(
     """
     x: Optional[float] = None
     for fraction in (_CURVATURE_STEP_FRACTION, 1.0):
-        x = _curvature_root(evaluate, spacing * fraction, low, high, span)
+        x = _curvature_root(evaluate, spacing * fraction, low, high, span, widen=True)
         if x is not None:
             break
     if x is None:
@@ -665,8 +1073,14 @@ def _refine_inflection(
     # large constant offset in f, or a large |x|), up to the spacing that found the change
     while polish(x - reach) == 0.0 or polish(x + reach) == 0.0:
         if polish_step >= spacing:
-            # Below noise this close to x at any usable step: keep the sampled sign change
-            # (a pole's curvature is never lost in noise)
+            # Below noise this close to x at any usable step: keep the sampled sign change if
+            # f is not exactly straight beside x (the flat stretch between two steps of floor
+            # sampled right at its jumps) and the change holds still at twice the step (at a
+            # large |x| a pole's curvature drowns too)
+            if _is_straight_beside(evaluate, x, reach, spacing):
+                return None
+            if _step_shift(evaluate, x, spacing, 2.0 * spacing, 2.0 * spacing, span) is None:
+                return None
             return (x, reach) if _is_confirmed_inflection(evaluate, x, spacing) else None
         polish_step = min(2.0 * polish_step, spacing)
         polish = _second_derivative(evaluate, polish_step)
@@ -675,26 +1089,58 @@ def _refine_inflection(
         return None
     # A true inflection moves by O(step^2) when the step halves; a stencil reaching across
     # a pole puts the sign change one step from the pole, so it moves with the step.
-    # (Skipped when the half step drowns in rounding noise, which a pole never does.)
     radius = _noise_radius(evaluate, polish_step, x, reach, span, _ROUNDING_NOISE_FACTOR)
     half = _second_derivative(evaluate, 0.5 * polish_step)
     if half(x - reach) != 0.0 and half(x + reach) != 0.0:
-        x_half = _curvature_root(evaluate, 0.5 * polish_step, x - reach, x + reach, span)
+        x_half = _step_shift(evaluate, x, polish_step, 0.5 * polish_step, reach, span)
         if x_half is None:
-            return None
-        shift = abs(x_half - x)
-        tolerance = 2.0 * max(
-            _noise_radius(evaluate, polish_step, x, reach, span),
-            _noise_radius(evaluate, 0.5 * polish_step, x_half, reach, span),
-        )
-        if shift > _STEP_STABILITY * polish_step + tolerance:
             return None
         # The bias is O(step^2): the half step's is a third of the shift, which Richardson
         # extrapolation removes; a third of the shift still bounds what is left
+        shift = abs(x_half - x)
         x, radius = x_half + (x_half - x) / 3.0, max(radius, shift / 3.0)
+    else:
+        # The half step drowns in rounding noise (a large |x|): compare with twice the step
+        x_double = _step_shift(evaluate, x, polish_step, 2.0 * polish_step, reach, span)
+        if x_double is None:
+            return None
+        radius = max(radius, abs(x_double - x))
     if not _is_confirmed_inflection(evaluate, x, spacing):
         return None
     return x, radius
+
+
+def _is_straight_beside(evaluate: Callable[[float], float], x: float, offset: float, step: float) -> bool:
+    """The second difference with this step is exactly 0 at x - offset or at x + offset.
+
+    Not merely below rounding noise: f is exactly linear there, so its concavity cannot
+    change sign at x.
+    """
+    for side in (-1.0, 1.0):
+        stencil = _stencil(evaluate, x + side * offset, step)
+        if stencil is not None and _divided_second(*stencil) == 0.0:
+            return True
+    return False
+
+
+def _step_shift(
+    evaluate: Callable[[float], float], x: float, step: float, other_step: float, reach: float, span: float
+) -> Optional[float]:
+    """The sign change found with ``other_step`` near the one at x found with ``step``, if it holds still.
+
+    None if it is gone, or moved by more than _STEP_STABILITY of the larger step (beyond
+    rounding noise): next to a pole it moves with the step.
+    """
+    x_other = _curvature_root(evaluate, other_step, x - reach, x + reach, span)
+    if x_other is None:
+        return None
+    tolerance = 2.0 * max(
+        _noise_radius(evaluate, step, x, reach, span),
+        _noise_radius(evaluate, other_step, x_other, reach, span),
+    )
+    if abs(x_other - x) > _STEP_STABILITY * max(step, other_step) + tolerance:
+        return None
+    return x_other
 
 
 def _changes_sign_around(second: Callable[[float], float], x: float, offset: float) -> bool:
@@ -719,19 +1165,33 @@ def _noise_radius(
 
 
 def _curvature_root(
-    evaluate: Callable[[float], float], step: float, low: float, high: float, span: float
+    evaluate: Callable[[float], float], step: float, low: float, high: float, span: float, widen: bool = False
 ) -> Optional[float]:
     """Where the second derivative (with this step) changes sign in [low, high], else None.
 
     The ends must differ in sign above rounding noise; the root is then located on the raw
     second difference, which, unlike the noise-zeroed one, has no flat band to stop in.
+    With ``widen``, an end whose curvature is lost in noise (the inflection is right next
+    to that sample) moves outwards, by at most half the bracket.
     """
     second = _second_derivative(evaluate, step)
-    if not _changes_sign(second(low), second(high)):
+    before, after = second(low), second(high)
+    widening = (high - low) * _BRACKET_WIDENING
+    for _ in range(_BRACKET_WIDENINGS if widen else 0):
+        if before != 0.0 and after != 0.0:
+            break
+        if before == 0.0:
+            low -= widening
+            before = second(low)
+        if after == 0.0:
+            high += widening
+            after = second(high)
+    if not _changes_sign(before, after):
         return None
 
     def raw(x: float) -> float:
-        return (evaluate(x - step) - 2.0 * evaluate(x) + evaluate(x + step)) / (step * step)
+        stencil = _stencil(evaluate, x, step)
+        return math.nan if stencil is None else _divided_second(*stencil)
 
     x, value = _brent_root(raw, low, high, raw(low), raw(high), xtol=_EPS * span)
     return x if math.isfinite(value) else None
@@ -748,11 +1208,74 @@ def _is_confirmed_inflection(evaluate: Callable[[float], float], x: float, spaci
     """f is defined and continuous at x, and the second derivative has opposite signs either side."""
     if not math.isfinite(evaluate(x)):
         return False
-    # The sample spacing as step: it resolved the sign change in the samples
-    second = _second_derivative(evaluate, spacing)
-    if not _changes_sign_around(second, x, _INFLECTION_CHECK_STEPS * spacing):
+    if not _curvature_flips_at(evaluate, x, spacing):
         return False
     return _is_continuous_at(evaluate, x, spacing)
+
+
+def _curvature_flips_at(evaluate: Callable[[float], float], x: float, spacing: float) -> bool:
+    """The second derivative has opposite signs either side of x.
+
+    Judged with the sample spacing as step (it resolved the sign change in the samples) at
+    two spacings either side. Where f is flat to rounding there (tanh(1e4 x) is exactly
+    +/-1 two spacings from 0), the step and offset are halved until both sides are
+    resolved; never across a jump, whose sides stay flat at every step.
+
+    Both second differences must also stand clear of the noise measured beside x: f's own
+    rounding can be far above the modelled few eps ((x + 1e3) - 1e3 rounds at 1e3, a
+    noisy x + 1e-15 * random()), and noise alone changes sign anywhere.
+    """
+    noise = _side_noise(evaluate, x, spacing)
+    step = spacing
+    for _ in range(_CONFIRM_HALVINGS + 1):
+        second = _second_derivative(evaluate, step)
+        before, after = second(x - _INFLECTION_CHECK_STEPS * step), second(x + _INFLECTION_CHECK_STEPS * step)
+        if not (math.isfinite(before) and math.isfinite(after)):
+            return False
+        floor = _NOISE_MARGIN * noise / (step * step)
+        if abs(before) > floor and abs(after) > floor:
+            return _changes_sign(before, after)
+        step *= 0.5
+    return False
+
+
+def _side_noise(evaluate: Callable[[float], float], x: float, spacing: float) -> float:
+    """Rounding noise of f beside x, as the size of a second difference.
+
+    Seven points a non-dyadic fraction of the spacing apart, centred three spacings either
+    side of x: their fourth differences remove the smooth curve (up to its fourth
+    derivative) but not noise, which rounds to a staircase that looks straight at finer
+    dyadic offsets ((x + 1e3) - 1e3 near 0.3125). A noise of amplitude a gives fourth
+    differences up to 16 a and second differences up to 4 a, hence the quarter.
+    """
+    offset = spacing * _SIDE_PROBE_FRACTION
+    noise = 0.0
+    for side in (-1.0, 1.0):
+        centre = x + side * _SIDE_PROBE_DISTANCE * spacing
+        values = [evaluate(centre + k * offset) for k in range(-3, 4)]
+        for k in range(len(values) - 4):
+            y0, y1, y2, y3, y4 = values[k : k + 5]
+            fourth = y0 - 4.0 * y1 + 6.0 * y2 - 4.0 * y3 + y4
+            if math.isfinite(fourth):
+                noise = max(noise, 0.25 * abs(fourth))
+    return noise
+
+
+def _measured_noise(evaluate: Callable[[float], float], x: float, spacing: float) -> float:
+    """The largest second difference of f among points spaced 1/1024 of the spacing around x.
+
+    So close together a resolved curve contributes about a millionth of its second
+    differences at the spacing, so this measures the rounding noise of f there (random
+    noise, at least; a staircase of rounded values can look straight at these offsets).
+    """
+    offset = spacing * _NOISE_PROBE_FRACTION
+    values = [evaluate(x + k * offset) for k in range(-_NOISE_PROBE_POINTS, _NOISE_PROBE_POINTS + 1)]
+    noise = 0.0
+    for k in range(1, len(values) - 1):
+        difference = values[k - 1] - 2.0 * values[k] + values[k + 1]
+        if math.isfinite(difference):
+            noise = max(noise, abs(difference))
+    return noise
 
 
 def _is_continuous_at(evaluate: Callable[[float], float], x: float, spacing: float) -> bool:
@@ -761,13 +1284,15 @@ def _is_continuous_at(evaluate: Callable[[float], float], x: float, spacing: flo
     Scale-free, so steep but continuous points (cbrt at 0) pass: a jump keeps its size
     and a pole grows, while a continuous function's change tends to zero.
     """
-    tiny = _CONTINUITY_OFFSET * max(1.0, abs(x))
     near = _CURVATURE_STEP_FRACTION * spacing
+    # Far below the near offset (at |x| = 1e6 a relative 1e-9 is already half of it), yet a
+    # few units of x's last place, so that x -/+ tiny are distinct numbers
+    tiny = max(min(_CONTINUITY_OFFSET * max(1.0, abs(x)), _CONTINUITY_NEAR_FRACTION * near), 4.0 * _EPS * abs(x))
     values = (evaluate(x - tiny), evaluate(x + tiny), evaluate(x - near), evaluate(x + near))
     if not all(math.isfinite(value) for value in values):
         return False
     left_value, right_value, near_left, near_right = values
-    noise = _CURVATURE_NOISE_FACTOR * _EPS * max(abs(value) for value in values)
+    noise = _CURVATURE_NOISE_FACTOR * (_EPS * max(abs(value) for value in values) + _UNDERFLOW_NOISE)
     return abs(right_value - left_value) <= _CONTINUITY_RATIO * abs(near_right - near_left) + noise
 
 
@@ -890,9 +1415,9 @@ def _with_touching_roots(roots: List[_Root], extrema: List[_Extremum], span: flo
     """Add (or mark) the roots where an extremum sits on the x-axis, then merge near-equal roots."""
     result = list(roots)
     for extremum in extrema:
-        if abs(extremum.y) > _ZERO_EXTREMUM_RATIO * extremum.depth:
+        if not extremum.is_on_axis():
             continue
-        nearby = [root for root in result if _is_near(root.x, extremum.x, span)]
+        nearby = [root for root in result if _is_near(root.x, extremum.x, span, extremum.radius)]
         if nearby:
             for root in nearby:
                 root.touching = True
@@ -915,26 +1440,34 @@ def _merged_roots(roots: List[_Root], span: float) -> List[_Root]:
     return merged
 
 
-def _is_near(x1: float, x2: float, span: float) -> bool:
-    return abs(x1 - x2) <= _MERGE_DISTANCE * max(span, abs(x1), abs(x2))
+def _is_near(x1: float, x2: float, span: float, slack: float = 0.0) -> bool:
+    """Closer than the sampling can tell apart, a few units in the last place of x, or ``slack``.
+
+    Not a fraction of |x|: at x = 1e8 that would be wider than the features to tell apart.
+    """
+    ulps = _MERGE_ULPS * _EPS * max(abs(x1), abs(x2))
+    return abs(x1 - x2) <= max(_MERGE_DISTANCE * span, ulps, slack)
 
 
 def _root_feature(root: _Root, kind: str, y: float, span: float) -> FunctionFeature:
     feature: FunctionFeature = {
-        "x": _round_x(root.x, _ROOT_DIGITS, span),
+        "x": _round_x(root.x, _ROOT_DIGITS, span, _ROOT_MAX_DIGITS),
         "y": _round_value(y, _VALUE_DIGITS, _VALUE_ZERO_FLOOR),
         "kind": kind,
     }
     if root.touching:
         feature["touching"] = True
     if root.end is not None:
-        feature["zero_interval"] = [_round_x(root.x, _ROOT_DIGITS, span), _round_x(root.end, _ROOT_DIGITS, span)]
+        feature["zero_interval"] = [
+            _round_x(root.x, _ROOT_DIGITS, span, _ROOT_MAX_DIGITS),
+            _round_x(root.end, _ROOT_DIGITS, span, _ROOT_MAX_DIGITS),
+        ]
     return feature
 
 
 def _extremum_feature(extremum: _Extremum, span: float) -> FunctionFeature:
     y = extremum.y
-    if abs(y) <= _ZERO_EXTREMUM_RATIO * extremum.depth:
+    if extremum.is_on_axis():
         y = 0.0
     # Keep the digits of x that the function values can tell apart
     decimals = -(math.floor(math.log10(extremum.radius)) + 1)
@@ -959,9 +1492,18 @@ def _inflection_feature(evaluate: Callable[[float], float], x: float, radius: fl
     }
 
 
-def _round_x(x: float, digits: int, span: float) -> float:
-    """Round an x position; positions within 10^-(digits+2) of the interval width of 0 are 0."""
-    return _round_value(x, digits, 10.0 ** -(digits + 2) * span)
+def _round_x(x: float, digits: int, span: float, max_digits: int = _MAX_X_DIGITS) -> float:
+    """Round an x position; positions within 10^-(digits+2) of the interval width of 0 are 0.
+
+    Far from 0 (|x| more than 1000 interval widths) x keeps a digit more for every power
+    of ten beyond that, up to ``max_digits`` significant digits: at x = 1e6 + 0.3576 in an
+    interval of width 10, eight significant digits would keep only two decimals.
+    """
+    zero_floor = 10.0 ** -(digits + 2) * span
+    if math.isfinite(x) and abs(x) > span > 0:
+        extra = math.floor(math.log10(abs(x))) - math.floor(math.log10(span)) - _FAR_X_MAGNITUDES
+        digits = max(digits, min(max_digits, digits + extra))
+    return _round_value(x, digits, zero_floor)
 
 
 def _round_value(value: float, digits: int, zero_floor: float) -> float:
