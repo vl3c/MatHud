@@ -729,9 +729,16 @@ class DrawableManager:
 
     # ------------------- Ellipse Methods -------------------
 
-    def get_ellipse(self, center_x: float, center_y: float, radius_x: float, radius_y: float) -> Optional["Ellipse"]:
-        """Get an ellipse by its center coordinates and radii"""
-        return self.ellipse_manager.get_ellipse(center_x, center_y, radius_x, radius_y)
+    def get_ellipse(
+        self,
+        center_x: float,
+        center_y: float,
+        radius_x: float,
+        radius_y: float,
+        rotation_angle: Optional[float] = None,
+    ) -> Optional["Ellipse"]:
+        """Get an ellipse by its center coordinates, radii and optional rotation angle"""
+        return self.ellipse_manager.get_ellipse(center_x, center_y, radius_x, radius_y, rotation_angle)
 
     def get_ellipse_by_name(self, name: str) -> Optional["Ellipse"]:
         """Get an ellipse by its name"""
