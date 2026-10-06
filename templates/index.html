@@ -533,6 +533,8 @@ Dependencies:
         // keeps the current choice when it is still listed.
         function loadAvailableModels(keepSelection) {
             var previous = keepSelection ? aiModelSelector.value : null;
+            // The CLI's desktop automation waits for this before it picks a model.
+            window.matHudModelsLoaded = false;
             return fetch('/api/available_models')
             .then(function(response) { return response.json(); })
             .then(function(models) {
@@ -593,6 +595,7 @@ Dependencies:
                 // Update window reference for Brython slash commands
                 window.VISION_MODELS = VISION_MODELS;
                 updateVisionToggle();
+                window.matHudModelsLoaded = true;
                 return true;
             })
             .catch(function(error) {
@@ -600,6 +603,7 @@ Dependencies:
                 if (!keepSelection) {
                     aiModelSelector.innerHTML = '<option value="">Failed to load models</option>';
                 }
+                window.matHudModelsLoaded = true;
                 return false;
             });
         }

@@ -28,7 +28,8 @@ from __future__ import annotations
 
 import json
 import math
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+import time
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 from browser import ajax, document, window
 
@@ -65,9 +66,61 @@ FIT_VALUE_LIMIT = 1e9
 # (the CLI driving someone's desktop window) refuses them, since that directory is the user's.
 WORKSPACE_TOOLS = ("save_workspace", "load_workspace", "list_workspaces", "delete_workspace")
 WORKSPACE_TOOLS_BLOCKED_MESSAGE = (
-    "Error: workspace tools are disabled while an automated run drives this window "
-    "(they would use the user's own workspace directory)."
+    "Error: workspace tools are blocked by an automated run driving this window from the MatHud CLI "
+    "(they would use your own workspace directory). The block lifts by itself about {lease:.0f} s after "
+    "the run stops renewing it; reload the window to lift it now."
 )
+# The block is a lease: it lapses unless the CLI renews it, so a CLI that crashed or was
+# killed cannot leave the window refusing workspace tools.
+DEFAULT_GUARD_LEASE_S = 90.0
+MAX_GUARD_LEASE_S = 600.0
+
+
+class WorkspaceToolsBlock:
+    """Swaps the workspace tools in ``functions`` for a refusal until a lease runs out.
+
+    The refusal checks the lease when called: once it has lapsed, the real tools
+    are put back and the call goes through to them, so no timer is needed.
+    """
+
+    def __init__(self, functions: Dict[str, Any], clock: Callable[[], float] = time.time) -> None:
+        self.functions = functions
+        self.clock = clock
+        self.set_aside: Dict[str, Any] = {}
+        self.expires_at = 0.0
+        self.lease_s = DEFAULT_GUARD_LEASE_S
+
+    @property
+    def active(self) -> bool:
+        """True while blocked; a lapsed lease is lifted here."""
+        if self.set_aside and self.clock() >= self.expires_at:
+            self.lift()
+        return bool(self.set_aside)
+
+    def block(self, lease_s: float = DEFAULT_GUARD_LEASE_S) -> None:
+        """Block (or renew the block) for ``lease_s`` seconds from now."""
+        self.lease_s = min(max(float(lease_s), 1.0), MAX_GUARD_LEASE_S)
+        self.expires_at = self.clock() + self.lease_s
+        for name in WORKSPACE_TOOLS:
+            if name in self.functions and name not in self.set_aside:
+                self.set_aside[name] = self.functions[name]
+                self.functions[name] = self._refusal(name)
+
+    def lift(self) -> None:
+        for name, function in list(self.set_aside.items()):
+            self.functions[name] = function
+            del self.set_aside[name]
+
+    def remaining_s(self) -> float:
+        return max(self.expires_at - self.clock(), 0.0) if self.active else 0.0
+
+    def _refusal(self, name: str) -> Callable[..., Any]:
+        def refuse(*args: Any, **kwargs: Any) -> Any:
+            if not self.active:  # the lease lapsed: the real tool is back, so run it
+                return self.functions[name](*args, **kwargs)
+            return WORKSPACE_TOOLS_BLOCKED_MESSAGE.format(lease=self.lease_s)
+
+        return refuse
 
 
 class ScenarioHooks:
@@ -75,8 +128,8 @@ class ScenarioHooks:
 
     def __init__(self, ai_interface: "AIInterface") -> None:
         self.ai = ai_interface
-        # Workspace tool functions set aside while setMatHudAutomationGuards blocks them.
-        self._blocked_tools: Dict[str, Any] = {}
+        # Created on first use: the AI interface's function table is set up after the hooks.
+        self._workspace_block: Optional[WorkspaceToolsBlock] = None
 
     @property
     def canvas(self) -> "Canvas":
@@ -249,16 +302,27 @@ class ScenarioHooks:
         """Option ``block_workspace_tools`` (bool): refuse the workspace tools, or allow them again.
 
         A blocked tool answers with an error result instead of reading or writing
-        the server's workspace directory. The CLI blocks them while it drives
-        someone's desktop window and unblocks them when its run ends; a page
-        reload also lifts the block.
+        the server's workspace directory. The block is a lease of ``lease_s``
+        seconds (default 90): the CLI renews it while it drives someone's desktop
+        window and lifts it when its run ends; if the CLI dies, it lapses by
+        itself. A page reload also lifts it.
         """
         try:
             options = parse_options(options_json)
-            if "block_workspace_tools" in options:
-                set_workspace_tools_blocked(self.ai.available_functions, self._blocked_tools,
-                                            bool(options["block_workspace_tools"]))  # fmt: skip
-            return to_json({"status": "ok", "workspace_tools_blocked": bool(self._blocked_tools)})
+            block = self._workspace_block
+            if block is None or block.functions is not self.ai.available_functions:
+                block = self._workspace_block = WorkspaceToolsBlock(self.ai.available_functions)
+            if options.get("block_workspace_tools") is True:
+                block.block(float(options.get("lease_s") or DEFAULT_GUARD_LEASE_S))
+            elif options.get("block_workspace_tools") is False:
+                block.lift()
+            return to_json(
+                {
+                    "status": "ok",
+                    "workspace_tools_blocked": block.active,
+                    "expires_in_s": round(block.remaining_s(), 1),
+                }
+            )
         except Exception as exc:
             return to_json({"status": "error", "error": str(exc)})
 
@@ -542,26 +606,6 @@ def pending_images(ai: Any) -> int:
         return len(attachment.images) if attachment is not None else 0
     except Exception:
         return 0
-
-
-def set_workspace_tools_blocked(functions: Dict[str, Any], set_aside: Dict[str, Any], blocked: bool) -> None:
-    """Swap the workspace tools in ``functions`` for refusals (``blocked``), or put them back.
-
-    ``set_aside`` keeps the real functions while they are blocked; blocking twice keeps them.
-    """
-    if blocked:
-        for name in WORKSPACE_TOOLS:
-            if name in functions and name not in set_aside:
-                set_aside[name] = functions[name]
-                functions[name] = _workspace_tool_refusal
-    else:
-        for name, function in list(set_aside.items()):
-            functions[name] = function
-            del set_aside[name]
-
-
-def _workspace_tool_refusal(*_args: Any, **_kwargs: Any) -> str:
-    return WORKSPACE_TOOLS_BLOCKED_MESSAGE
 
 
 def content_extent(canvas: "Canvas", samples: int = FIT_SAMPLES) -> Optional[List[float]]:

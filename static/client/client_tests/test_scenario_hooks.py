@@ -14,6 +14,7 @@ from managers.action_trace_collector import ActionTraceCollector
 from scenario_hooks import (
     WORKSPACE_TOOLS,
     ScenarioHooks,
+    WorkspaceToolsBlock,
     build_inspection,
     content_extent,
     fit_window,
@@ -329,18 +330,41 @@ class TestScenarioHookEndpoints(unittest.TestCase):
         originals = {name: self.ai.available_functions[name] for name in WORKSPACE_TOOLS}
 
         reply = json.loads(self.hooks.set_automation_guards('{"block_workspace_tools": true}'))
-        self.assertEqual(reply, {"status": "ok", "workspace_tools_blocked": True})
+        self.assertEqual(reply["status"], "ok")
+        self.assertTrue(reply["workspace_tools_blocked"])
+        self.assertGreater(reply["expires_in_s"], 80)  # the default 90 s lease
         self.hooks.set_automation_guards('{"block_workspace_tools": true}')  # twice keeps the originals
         batch = json.loads(self.hooks.run_tool_calls(json.dumps([_call("save_workspace", name="mine")])))
         call = batch["traced"][0]
         self.assertTrue(call["is_error"])
-        self.assertIn("workspace tools are disabled", str(call["result"]))
+        self.assertIn("blocked by an automated run", str(call["result"]))
+        self.assertIn("reload the window", str(call["result"]))
         self.assertEqual(batch["undo_depth_after"], batch["undo_depth_before"])
 
         reply = json.loads(self.hooks.set_automation_guards('{"block_workspace_tools": false}'))
         self.assertEqual(reply["workspace_tools_blocked"], False)
         for name, function in originals.items():
             self.assertIs(self.ai.available_functions[name], function)
+
+    def test_workspace_block_is_a_lease_that_lapses(self) -> None:
+        now = [1000.0]
+        calls: List[Any] = []
+        functions: Dict[str, Any] = {"save_workspace": lambda name=None: calls.append(name) or "saved"}
+        block = WorkspaceToolsBlock(functions, clock=lambda: now[0])
+
+        block.block(60)
+        self.assertTrue(block.active)
+        self.assertIn("blocked by an automated run", functions["save_workspace"](name="w"))
+        now[0] += 50
+        block.block(60)  # renewed by the CLI
+        now[0] += 50
+        self.assertTrue(block.active)
+        refusal = functions["save_workspace"]
+        now[0] += 11  # the CLI stopped renewing (crashed or killed)
+        self.assertEqual(refusal(name="w"), "saved")  # the lapsed refusal runs the real tool
+        self.assertEqual(calls, ["w"])
+        self.assertFalse(block.active)
+        self.assertEqual(functions["save_workspace"](name="x"), "saved")
 
 
 class _Recorder:
