@@ -59,7 +59,9 @@ DISPLAY_TEXT_ARGUMENTS: Dict[str, frozenset] = {
     "update_label": frozenset({"new_text"}),
     "create_segment": frozenset({"label_text"}),
     "update_segment": frozenset({"new_label_text"}),
-    "generate_graph": frozenset({"vertices[].name", "vertices[].label", "root"}),
+    "generate_graph": frozenset({"vertices[].name", "vertices[].label", "root", "edges[].name"}),
+    # Vertex names refer to the graph's own vertices, which may be called "undefined".
+    "analyze_graph": frozenset({"params.root", "params.new_root"}),
 }
 
 

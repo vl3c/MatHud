@@ -94,6 +94,30 @@ class TestNormalizeNullStrings(unittest.TestCase):
         self.assertEqual(graph["vertices"][0], {"name": "undefined", "label": "undefined", "color": None})
         self.assertEqual(graph["vertices"][1], {"name": None, "label": None, "color": None})
 
+    def test_graph_vertex_names_keep_undefined(self) -> None:
+        # A vertex called "undefined" can be named as an edge and used as an analysis root.
+        graph = normalize(
+            "generate_graph",
+            {
+                "name": "G",
+                "vertices": [{"name": "undefined"}],
+                "edges": [{"source": 0, "target": 0, "name": "undefined"}],
+            },
+        )
+        self.assertEqual(graph["edges"][0]["name"], "undefined")
+        analysis = normalize(
+            "analyze_graph",
+            {
+                "graph_name": "G",
+                "operation": "bfs",
+                "params": {"root": "undefined", "new_root": "undefined", "start": "undefined"},
+            },
+        )
+        self.assertEqual(analysis["params"]["root"], "undefined")
+        self.assertEqual(analysis["params"]["new_root"], "undefined")
+        self.assertIsNone(analysis["params"]["start"])  # not on the list: "undefined" still means null
+        self.assertIsNone(normalize("analyze_graph", {"graph_name": "G", "params": {"root": "null"}})["params"]["root"])
+
     def test_only_the_exact_strings(self) -> None:
         for value in ("NULL", "nil", " null", "none", "nullable", ""):
             self.assertEqual(normalize("draw_function", {"function_string": "x", "color": value})["color"], value)
