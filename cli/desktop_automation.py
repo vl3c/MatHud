@@ -192,6 +192,17 @@ def _wait_for_turn(
         sleep(POLL_INTERVAL_S)
 
 
+def fit_view(browser: CDPBrowser) -> dict[str, Any]:
+    """Zoom the window to its drawings (``fitMatHudView``); display only, no undo entry.
+
+    Only the automation paths fit the view; in regular use the app never pans or zooms on its own.
+    """
+    reply = browser.call_hook("fitMatHudView")
+    if reply.get("status") != "ok":
+        raise DesktopError(f"could not fit the view: {reply.get('status')}: {reply.get('error')}")
+    return reply
+
+
 def format_prompt_result(result: dict[str, Any]) -> str:
     """A readable report of ``run_prompt``'s result: reply, tool calls and turn metrics."""
     lines = [f"Model: {result['model']}  outcome: {result['outcome']}  ({result['wall_time_s']:.1f} s)", ""]

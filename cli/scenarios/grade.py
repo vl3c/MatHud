@@ -150,3 +150,27 @@ class ScenarioGrader:
             self.snapshots["setup"] = view
         self.previous = view
         return results
+
+    def rebase_view(self, data: StepRecordData) -> None:
+        """Replace the last graded canvas with ``data``: the same drawables after a display-only fit.
+
+        Attach mode zooms the view to the content after a step is graded. The
+        next step then starts from the fitted view, so the canvas it is compared
+        with (the invariants' previous view, and a snapshot taken at the step
+        just graded) must be the fitted one too. Only the view fields are taken
+        from ``data`` (the bounds, tick spacing, polar ring spacing); the
+        drawables and any function samples stay those of the graded canvas.
+        """
+        old = self.previous
+        if old is None:
+            return
+        state = dict(old.state)
+        state.update({key: value for key, value in data.state.items() if not isinstance(value, list)})
+        inspection = dict(old.inspection)
+        if "polar_radial_spacing" in (data.inspection or {}):
+            inspection["polar_radial_spacing"] = (data.inspection or {})["polar_radial_spacing"]
+        new = StepRecordData(state=state, inspection=inspection).view()
+        for name, view in list(self.snapshots.items()):
+            if view is old:
+                self.snapshots[name] = new
+        self.previous = new

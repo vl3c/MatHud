@@ -205,6 +205,11 @@ def _fail(message: str, code: int = 2) -> int:
     help="Seconds to pause after each step (default: 1.5 with --attach-desktop, else 0)",
 )
 @click.option("--yes", "-y", is_flag=True, help="With --attach-desktop: do not ask before resetting the window")
+@click.option(
+    "--fit-view/--no-fit-view",
+    default=None,
+    help="With --attach-desktop (default on): zoom the window to the drawings after each graded step",
+)
 def scenarios_cmd(
     results_path: Optional[str],
     mode: str,
@@ -238,6 +243,7 @@ def scenarios_cmd(
     attach_desktop: Optional[int],
     pace: Optional[float],
     yes: bool,
+    fit_view: Optional[bool],
 ) -> None:
     """Run the agentic scenario tests (see documentation/development/agentic_scenario_testing.md).
 
@@ -290,6 +296,9 @@ def scenarios_cmd(
     run_out = Path(out_dir) if out_dir else DEFAULT_OUT_ROOT / stamp
     filters = {"smoke": smoke, "tags": _split(tags), "ids": _split(ids)}
     options.pace_s = default_pace(pace, attach_desktop is not None)
+    if fit_view and attach_desktop is None:
+        raise SystemExit(_fail("--fit-view works only with --attach-desktop (headless runs are never fitted)."))
+    options.fit_view = attach_desktop is not None and fit_view is not False
     if attach_desktop is not None:
         raise SystemExit(
             _run_attached(
@@ -821,6 +830,7 @@ def _print_summary(summary: dict[str, Any], as_json: bool, out_dir: Path, regrad
         click.echo(
             f"Attached to the desktop app at {attached.get('url')}; not pinned (its .env applies): "
             + ", ".join(attached.get("unpinned_settings") or [])
+            + ("; view fitted after each step (display only)" if attached.get("fit_view") else "")
         )
     if summary.get("stopped"):
         click.echo(click.style(f"Stopped early: {summary['stopped']}", fg="red"))

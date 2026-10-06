@@ -29,6 +29,7 @@ from cli.scenarios.attach import (
 from cli.scenarios.report import ResultSink
 from cli.scenarios.runner import BrowserSession, ReplayOptions, ReplayRunner
 
+from server_tests.test_cli.scenario_states import VIEW
 from server_tests.test_cli.test_scenario_live import PROMPT, FakeChatBrowser
 from server_tests.test_cli.test_scenario_runner import FakeBrowser, write_catalogue
 
@@ -45,11 +46,35 @@ class AttachedWindow(FakeChatBrowser):
         super().__init__(**kwargs)
         self.busy = busy
         self.closes = 0
+        self.view = dict(VIEW)
+        self.fits = 0
+
+    def _state(self) -> dict[str, Any]:
+        state = super()._state()
+        state["Cartesian_System_Visibility"] = dict(self.view)
+        return state
 
     def call_hook(self, name: str, *args: Any, timeout: int = 30) -> dict[str, Any]:
         if name == "getMatHudTurnStatus" and self.busy:
             return {"processing": True, "completed_turns": 0, "requests": 0}
+        if name == "fitMatHudView":
+            return self._fit()
         return super().call_hook(name, *args, timeout=timeout)
+
+    def _fit(self) -> dict[str, Any]:
+        """Like the app: a display-only zoom to the points (no undo entry); nothing to fit leaves the view."""
+        self.fits += 1
+        if not self.points:
+            return {"status": "ok", "fitted": False}
+        xs = [p["args"]["position"]["x"] for p in self.points]
+        ys = [p["args"]["position"]["y"] for p in self.points]
+        self.view = {
+            "left_bound": min(xs) - 1,
+            "right_bound": max(xs) + 1,
+            "top_bound": max(ys) + 1,
+            "bottom_bound": min(ys) - 1,
+        }
+        return {"status": "ok", "fitted": True, "view": dict(self.view)}
 
     def close(self) -> None:
         self.closes += 1
@@ -285,3 +310,129 @@ class TestAttachedLive:
         assert dry.exit_code == 0, dry.output
         assert json.loads(dry.output)["attached_desktop"] == 9301
         assert window.sent == []
+
+
+def write_fit_catalogue(directory: Path) -> None:
+    """GEO-80: a point, then a batch that changes nothing (I5 compares it with the canvas before it); CV-80: a zoom."""
+    scenario = {
+        "id": "GEO-80",
+        "title": "A no-op after a point",
+        "tags": ["points"],
+        "steps": [
+            {
+                "user": "Point P at (1, 2).",
+                "reference": [{"tool": "create_point", "args": {"x": 1, "y": 2, "name": "P"}}],
+                "checks": [{"check": "count", "select": {"type": "Point"}, "eq": 1}],
+            },
+            {
+                "do": [{"tool": "evaluate_expression", "args": {"expression": "1+1"}}],
+                "checks": [{"check": "count", "select": {"type": "Point"}, "eq": 1}],
+            },
+        ],
+    }
+    zoom = {"tool": "zoom", "args": {"center_x": 0, "center_y": 0, "range_val": 2, "range_axis": "x"}}
+    view = {"id": "CV-80", "title": "Zoom", "tags": ["points"], "steps": [{"user": "Zoom in.", "reference": [zoom]}]}
+    (directory / "geometry.json").write_text(json.dumps({"schema": 1, "area": "GEO", "scenarios": [scenario]}))
+    (directory / "canvas.json").write_text(json.dumps({"schema": 1, "area": "CV", "scenarios": [view]}))
+    (directory / "known_bugs.json").write_text(json.dumps({"bugs": {}, "invariant_waivers": {}}))
+
+
+class TestFitView:
+    @pytest.fixture
+    def fit_dir(self, tmp_path: Path) -> Path:
+        directory = tmp_path / "fit_scenarios"
+        directory.mkdir()
+        write_fit_catalogue(directory)
+        return directory
+
+    def test_view_sensitive_scenarios_in_the_catalogue(self) -> None:
+        from cli.scenarios.model import load_catalogue
+        from cli.scenarios.runner import view_sensitive
+
+        by_id = {s.id: s for s in load_catalogue().scenarios}
+        for scenario_id in ("CV-01", "CV-03", "CV-05", "CV-06", "GEO-05"):
+            assert view_sensitive(by_id[scenario_id]), scenario_id
+        for scenario_id in ("GEO-01", "CV-02", "TR-01"):
+            assert not view_sensitive(by_id[scenario_id]), scenario_id
+
+    def test_rebase_view_replaces_the_last_graded_canvas_only(self) -> None:
+        from cli.scenarios.grade import ScenarioGrader, StepRecordData
+        from cli.scenarios.model import load_catalogue
+
+        scenario = next(s for s in load_catalogue().scenarios if s.id == "CV-02")
+        grader = ScenarioGrader(scenario, {})
+        grader.start(StepRecordData(state={"Cartesian_System_Visibility": dict(VIEW)}))
+        point = {"name": "A", "args": {"position": {"x": 0.5, "y": 0.5}}}
+        samples = {"drawables": [{"class": "Point", "name": "A", "samples": [[1, 2]]}], "polar_radial_spacing": 50}
+        graded = {"Points": [point], "Cartesian_System_Visibility": dict(VIEW), "current_tick_spacing": 100}
+        grader.grade("setup", None, StepRecordData(state=graded, inspection=samples))
+        start, setup = grader.snapshots["start"], grader.snapshots["setup"]
+        fitted = {"left_bound": -1, "right_bound": 1, "top_bound": 1, "bottom_bound": -1}
+        after_fit = {"Points": [point], "Cartesian_System_Visibility": fitted, "current_tick_spacing": 0.2}
+
+        grader.rebase_view(StepRecordData(state=after_fit, inspection={"drawables": [], "polar_radial_spacing": 0.2}))
+
+        rebased = grader.snapshots["setup"]
+        assert grader.snapshots["start"] is start
+        assert rebased is not setup and grader.previous is rebased
+        assert rebased.view_bounds["left_bound"] == -1
+        assert rebased.state["current_tick_spacing"] == 0.2
+        assert rebased.state["Points"] == [point]
+        # The graded canvas's inspection (function samples) is kept; only the view's fields change.
+        assert rebased.inspection["drawables"] == samples["drawables"]
+        assert rebased.inspection["polar_radial_spacing"] == 0.2
+
+    def test_attached_replay_fits_after_each_step_and_grades_against_the_fitted_view(
+        self, tmp_path: Path, fit_dir: Path, window: AttachedWindow, pauses: list[float]
+    ) -> None:
+        out = tmp_path / "out"
+        result = invoke(fit_dir, out, "--attach-desktop", "9301", "--yes", "--ids", "GEO-80")
+
+        assert result.exit_code == 0, result.output
+        assert window.fits == 3  # after setup, t1 and do1
+        data = json.loads((out / "results.json").read_text())
+        assert data["scenarios"][0]["status"] == "pass"
+        assert data["config"]["fit_view"] is True and data["summary"]["attached_desktop"]["fit_view"] is True
+        t1 = next(step for step in data["scenarios"][0]["steps"] if step["step"] == "t1")
+        # The step was graded and recorded before the fit.
+        assert t1["state"]["Cartesian_System_Visibility"] == VIEW
+        assert "View fitted to the drawings" in (out / "summary.md").read_text()
+
+    def test_without_the_rebase_the_fit_would_fail_the_next_step(
+        self,
+        tmp_path: Path,
+        fit_dir: Path,
+        window: AttachedWindow,
+        pauses: list[float],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from cli.scenarios.grade import ScenarioGrader
+
+        monkeypatch.setattr(ScenarioGrader, "rebase_view", lambda self, data: None)
+        out = tmp_path / "out"
+        result = invoke(fit_dir, out, "--attach-desktop", "9301", "--yes", "--ids", "GEO-80")
+        assert result.exit_code == 1
+        assert json.loads((out / "results.json").read_text())["scenarios"][0]["status"] == "fail"
+
+    def test_view_sensitive_scenarios_and_no_fit_view_are_not_fitted(
+        self, tmp_path: Path, fit_dir: Path, window: AttachedWindow, pauses: list[float]
+    ) -> None:
+        invoke(fit_dir, tmp_path / "a", "--attach-desktop", "9301", "--yes", "--ids", "CV-80")
+        assert window.fits == 0  # (the fake does not zoom, so its grading is beside the point here)
+        off = invoke(fit_dir, tmp_path / "b", "--attach-desktop", "9301", "--yes", "--ids", "GEO-80", "--no-fit-view")
+        assert off.exit_code == 0, off.output
+        assert window.fits == 0
+        assert json.loads((tmp_path / "b" / "results.json").read_text())["config"]["fit_view"] is False
+
+    def test_live_attached_run_fits_after_the_turn(
+        self, tmp_path: Path, scenarios_dir: Path, window: AttachedWindow, pauses: list[float]
+    ) -> None:
+        args = ["--mode", "live", "--attach-desktop", "9301", "--yes", "--ids", "GEO-90", "--no-retrace"]
+        result = invoke(scenarios_dir, tmp_path / "out", *args)
+        assert result.exit_code == 0, result.output
+        assert window.sent == [(PROMPT, "qwen-local")]
+        assert window.fits >= 2
+
+    def test_fit_view_needs_attach_mode(self, tmp_path: Path, fit_dir: Path) -> None:
+        result = invoke(fit_dir, tmp_path / "out", "--fit-view", "--dry-run")
+        assert result.exit_code == 2 and "only with --attach-desktop" in result.output

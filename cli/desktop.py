@@ -4,8 +4,9 @@
 this process: the Flask app is served on localhost and shown in a native
 pywebview window. Its subcommands drive a window that was opened with
 ``--automation-port N`` (see ``cli/desktop_automation.py``): ``prompt`` sends a
-prompt through the window's chat, ``state`` prints its canvas and
-``screenshot`` saves a picture of it.
+prompt through the window's chat, ``fit`` zooms it to its drawings, ``state``
+prints its canvas and ``screenshot`` saves a picture of it. Fitting is an
+automation convenience only: in regular use the app never pans or zooms on its own.
 """
 
 from __future__ import annotations
@@ -89,15 +90,30 @@ def _fail(message: str, code: int = 2) -> NoReturn:
     show_default=True,
     help="Model requests the turn may send",
 )
+@click.option(
+    "--fit-view/--no-fit-view",
+    default=True,
+    show_default=True,
+    help="Zoom the window to the drawings after the turn (display only)",
+)
 @click.option("--json", "as_json", is_flag=True, help="Print the result as JSON")
 def prompt_cmd(
-    text: str, port: int, model: Optional[str], provider: str, timeout_s: float, max_requests: int, as_json: bool
+    text: str,
+    port: int,
+    model: Optional[str],
+    provider: str,
+    timeout_s: float,
+    max_requests: int,
+    fit_view: bool,
+    as_json: bool,
 ) -> None:
     """Send TEXT through the desktop window's chat and print the reply, tool calls and turn metrics.
 
     The prompt and reply appear in the window as if typed there. It is always
     sent with an explicit model id registered under --provider: without
     --model, the only local model (never the window's current selection).
+    Afterwards the window is zoomed to its drawings (display only) unless
+    --no-fit-view.
     """
     from cli.desktop_automation import (
         DesktopError,
@@ -107,6 +123,7 @@ def prompt_cmd(
         format_prompt_result,
         run_prompt,
     )
+    from cli.desktop_automation import fit_view as fit_window_view
     from cli.scenarios.live_config import GuardError
 
     try:
@@ -127,6 +144,11 @@ def prompt_cmd(
             result = run_prompt(browser, text, chosen, timeout_s=timeout_s, max_requests=max_requests)
         except DesktopError as exc:
             _fail(str(exc))
+        if fit_view:
+            try:
+                result["fit_view"] = fit_window_view(browser)
+            except (DesktopError, RuntimeError) as exc:
+                result["fit_view"] = {"status": "error", "error": str(exc)}
     finally:
         browser.close()
     if as_json:
@@ -135,6 +157,35 @@ def prompt_cmd(
         click.echo(format_prompt_result(result))
     if result["outcome"] not in ("stop", "max_requests"):
         raise SystemExit(1)
+
+
+@desktop.command("fit")
+@click.option("--port", "-p", default=DEFAULT_AUTOMATION_PORT, type=int, show_default=True, help=_PORT_HELP)
+def fit_cmd(port: int) -> None:
+    """Zoom the desktop window to its drawings (display only: no undo entry).
+
+    The app itself never pans or zooms on its own; this is an automation convenience.
+    """
+    from cli.desktop_automation import DesktopError, connect_desktop, fit_view
+
+    try:
+        browser = connect_desktop(port)
+    except DesktopError as exc:
+        _fail(str(exc))
+    try:
+        reply = fit_view(browser)
+    except DesktopError as exc:
+        _fail(str(exc), 1)
+    finally:
+        browser.close()
+    if not reply.get("fitted"):
+        click.echo("Nothing to fit; the view is unchanged.")
+        return
+    view = reply.get("view") or {}
+    click.echo(
+        f"View: x {view.get('left_bound'):.4g} to {view.get('right_bound'):.4g}, "
+        f"y {view.get('bottom_bound'):.4g} to {view.get('top_bound'):.4g}"
+    )
 
 
 @desktop.command("state")

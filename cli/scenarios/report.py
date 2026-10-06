@@ -190,6 +190,7 @@ class ResultSink:
                 "url": self.config.get("desktop_app_url"),
                 "pins_applied": False,
                 "unpinned_settings": self.config.get("unpinned_settings") or [],
+                "fit_view": bool(self.config.get("fit_view")),
             }
         payload = {
             "config": self.config,
@@ -387,6 +388,11 @@ def render_summary(
             f"{config.get('automation_port')}); settings not pinned, its .env applies: "
             + ", ".join(config.get("unpinned_settings") or [])
         )
+        if config.get("fit_view"):
+            lines.append(
+                "- View fitted to the drawings after each graded step (display only; view-sensitive "
+                "scenarios are not fitted; a live model sees the fitted view)"
+            )
     if mode != "replay":
         classes = summary.get("classes") or {}
         lines.append("- Failure classes (runs): " + ", ".join(f"{k} {v}" for k, v in classes.items()))

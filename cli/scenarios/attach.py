@@ -16,7 +16,11 @@ tool exposure, canvas format, search mode) and their workspace directory. So:
   still needs ``--models``, its request cap and its dry run;
 - every scenario resets the window's canvas and chat (live mode also the
   server conversation), so the run asks first unless ``--yes`` is given;
-- scenarios that save or load workspaces are skipped unless ``--allow-workspace-writes``.
+- scenarios that save or load workspaces are skipped unless ``--allow-workspace-writes``;
+- with ``--fit-view`` (the default when attached) the view is zoomed to the drawings
+  after each graded step, for display only (``ReplayOptions.fit_view``): grading and
+  artifacts come first, the grader takes the fitted canvas as the next step's
+  baseline, and scenarios that set or check the view are never fitted.
 """
 
 from __future__ import annotations
@@ -94,7 +98,9 @@ def confirm(text: str, yes: bool, ask: Callable[[str], bool], interactive: bool)
     return ask(f"{text}\nContinue?")
 
 
-def attached_config(browser: CDPBrowser, debug_port: int, mode: str, pace_s: float) -> dict[str, Any]:
+def attached_config(
+    browser: CDPBrowser, debug_port: int, mode: str, pace_s: float, fit_view: bool = False
+) -> dict[str, Any]:
     """Run-config fields of an attached run."""
     return {
         "attached_desktop": True,
@@ -106,6 +112,9 @@ def attached_config(browser: CDPBrowser, debug_port: int, mode: str, pace_s: flo
         "pins_applied": False,
         "unpinned_settings": list(UNPINNED_SETTINGS) if mode == "live" else ["MATHUD_WORKSPACES_DIR"],
         "pace_s": pace_s,
+        # The view is zoomed to the drawings after each graded step (never in a view-sensitive
+        # scenario); a live model then sees the fitted view in its canvas summary.
+        "fit_view": fit_view,
     }
 
 
@@ -212,7 +221,7 @@ def run_attached(
                 run_models = check_models(_available_models(base_url), settings.provider, models)
             except Exception as exc:  # GuardError, or the server did not answer
                 return _fail(f"Aborting before the first message: {exc}")
-        config = attached_config(probe, debug_port, mode, options.pace_s)
+        config = attached_config(probe, debug_port, mode, options.pace_s, options.fit_view)
     finally:
         probe.close()
 
@@ -242,7 +251,8 @@ def run_attached(
     log = lambda line: click.echo(line, err=as_json)  # noqa: E731
     click.echo(
         f"Attached to the desktop window at {base_url} (automation port {debug_port}); {mode} run of "
-        f"{len(runnable)} scenario(s), pause {options.pace_s:g} s per step; output in {out_dir}",
+        f"{len(runnable)} scenario(s), pause {options.pace_s:g} s per step, view fitting {'on' if options.fit_view else 'off'}; "
+        f"output in {out_dir}",
         err=as_json,
     )
     if live:

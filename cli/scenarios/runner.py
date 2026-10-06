@@ -52,6 +52,40 @@ class ReplayOptions:
     retries: int = 1
     # Seconds to pause after each step, so someone watching an attached window sees every canvas.
     pace_s: float = 0.0
+    # Attach mode: zoom the view to the content after each graded step (fitMatHudView), for display.
+    fit_view: bool = False
+
+
+# Tools that set the view, and check fields that read it: a scenario using either is never fitted.
+VIEW_TOOLS = frozenset({"zoom", "set_coordinate_system", "set_grid_visible"})
+_VIEW_CHECK_PATHS = ("polar_radial_spacing", "grid_visible", "coordinate_mode", "left_bound", "right_bound",
+                     "top_bound", "bottom_bound")  # fmt: skip
+
+
+def view_sensitive(scenario: Scenario) -> bool:
+    """True when ``scenario`` sets or checks the view, so a display fit could change its outcome.
+
+    Such scenarios (the ``view`` tag, a view tool in any call, or a check that
+    reads the view) run unfitted in attach mode and grade exactly as headless.
+    """
+    if "view" in scenario.tags:
+        return True
+    calls = scenario.setup_calls + [call for step in scenario.steps for call in step.calls]
+    if any(call.tool in VIEW_TOOLS for call in calls):
+        return True
+    return any(_reads_view(check) for step in scenario.steps for check in step.checks)
+
+
+def _reads_view(check: Any) -> bool:
+    if isinstance(check, dict):
+        if check.get("target") == "view" or check.get("view") is True:
+            return True
+        if any(field in str(check.get("path", "")) for field in _VIEW_CHECK_PATHS):
+            return True
+        return any(_reads_view(value) for value in check.values())
+    if isinstance(check, list):
+        return any(_reads_view(item) for item in check)
+    return False
 
 
 class BrowserSession:
@@ -266,17 +300,26 @@ class ReplayRunner:
         setup = self._run_calls(scenario.setup_calls) if scenario.setup_calls else None
         data = self._with_samples(grader, None, setup)
         self._record(outcome, grader, "setup", "setup", None, data, time.time() - t0)
-        if setup is not None:
-            self._pace()
+        self._present(scenario, grader, paced=setup is not None or scenario.fixture_state is not None)
 
         for step in scenario.steps:
             t0 = time.time()
             data, extra = self._execute_step(scenario, step, grader)
             self._record(outcome, grader, step.id, step.kind, step, data, time.time() - t0, extra)
-            self._pace()
+            self._present(scenario, grader)
 
-    def _pace(self) -> None:
-        if self.options.pace_s > 0:
+    def _present(self, scenario: Scenario, grader: ScenarioGrader, paced: bool = True) -> None:
+        """After a step is graded and recorded: fit the view for display (attach mode), then pause."""
+        if self.options.fit_view and not view_sensitive(scenario):
+            try:
+                reply = self.session.hook("fitMatHudView")
+            except HookError as exc:
+                self.log(f"  could not fit the view: {exc}")
+            else:
+                if reply.get("fitted"):
+                    # Later steps start from the fitted view, so it is what they are compared with.
+                    grader.rebase_view(self._snapshot(None))
+        if paced and self.options.pace_s > 0:
             time.sleep(self.options.pace_s)
 
     def _reset(self, scenario: Scenario) -> None:

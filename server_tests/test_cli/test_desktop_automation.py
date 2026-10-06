@@ -46,6 +46,7 @@ class FakeWindow:
         self.sent: list[tuple[Any, ...]] = []
         self.stopped = False
         self.closed = False
+        self.fits = 0
         self.metrics: Optional[dict[str, Any]] = {"turn_id": 4, "outcome": "stop", "requests": 9}
 
     def call_hook(self, name: str, *args: Any, timeout: int = 30) -> dict[str, Any]:
@@ -60,6 +61,10 @@ class FakeWindow:
             self.processing = True
             self.polls_left = self.turn_polls
             return {"status": "started"}
+        if name == "fitMatHudView":
+            self.fits += 1
+            view = {"left_bound": -1, "right_bound": 3, "top_bound": 4, "bottom_bound": 0}
+            return {"status": "ok", "fitted": True, "view": view}
         if name == "stopMatHudTurn":
             self.stopped = True
             self.processing = False
@@ -179,7 +184,7 @@ class TestDesktopCommands:
     def test_help_lists_the_subcommands(self) -> None:
         result = CliRunner().invoke(cli, ["desktop", "--help"])
         assert result.exit_code == 0
-        for name in ("prompt", "state", "screenshot", "--automation-port"):
+        for name in ("prompt", "fit", "state", "screenshot", "--automation-port"):
             assert name in result.output
 
     def test_prompt_prints_json(self) -> None:
@@ -196,7 +201,29 @@ class TestDesktopCommands:
         payload = json.loads(result.output)
         assert payload["model"] == "qwen-local"
         assert payload["final_text"] == "Created point A."
+        assert payload["fit_view"]["fitted"] is True
+        assert window.fits == 1  # after the turn
         assert window.closed
+
+    def test_prompt_no_fit_view_leaves_the_view(self) -> None:
+        window = FakeWindow()
+        with (
+            patch("cli.desktop_automation.connect_desktop", return_value=window),
+            patch("cli.desktop_automation.available_models", return_value=AVAILABLE),
+            patch("cli.desktop_automation.time.sleep"),
+        ):
+            result = CliRunner().invoke(cli, ["desktop", "prompt", "Create A", "--no-fit-view", "--json"])
+        assert result.exit_code == 0, result.output
+        assert "fit_view" not in json.loads(result.output)
+        assert window.fits == 0
+
+    def test_fit_command(self) -> None:
+        window = FakeWindow()
+        with patch("cli.desktop_automation.connect_desktop", return_value=window):
+            result = CliRunner().invoke(cli, ["desktop", "fit", "--port", "9301"])
+        assert result.exit_code == 0, result.output
+        assert "View: x -1 to 3, y 0 to 4" in result.output
+        assert window.fits == 1 and window.closed
 
     def test_prompt_refuses_an_unregistered_model_before_sending(self) -> None:
         window = FakeWindow()
