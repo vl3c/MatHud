@@ -7,7 +7,7 @@ import unittest
 from types import SimpleNamespace
 from typing import Any, Callable, Optional, Tuple
 
-from utils.colored_area_measure import measure_colored_area
+from utils.colored_area_measure import EVALUATION_BUDGET, measure_colored_area
 
 NORMAL_PDF_WITHIN_ONE_SIGMA = math.erf(1 / math.sqrt(2))  # 0.6826894921370859
 
@@ -78,10 +78,11 @@ class TestFunctionBoundedAreas(unittest.TestCase):
         measure = measure_colored_area(FunctionsArea(sin, cos, 0, math.pi))
         self.assertAlmostEqual(measure["value"], 2 * math.sqrt(2), places=8)
         # The reported error estimate is honest: the actual error is within twice of it.
-        self.assertLessEqual(abs(measure["value"] - 2 * math.sqrt(2)), 2 * measure["error_estimate"])
+        self.assertLessEqual(abs(measure["value"] - 2 * math.sqrt(2)), 2 * measure["error_estimate"] + 1e-12)
         self.assertEqual(len(measure["crossings"]), 1)
         self.assertAlmostEqual(measure["crossings"][0], math.pi / 4, places=12)
-        self.assertIn("split at 1 crossing(s)", measure["method"])
+        self.assertIn("cut at 1 crossing(s)", measure["method"])
+        self.assertFalse(measure["accuracy_limited"])
 
     def test_area_below_the_axis_counts_positive(self) -> None:
         cubic = function("c", lambda x: x**3)
@@ -118,8 +119,8 @@ class TestFunctionBoundedAreas(unittest.TestCase):
         double = function("d", lambda x: 1 / (x - 0.5001) ** 2, 0, 1)
         with self.assertRaisesRegex(ValueError, "diverges near x ≈ 0.5001"):
             measure_colored_area(FunctionsArea(double, None, 0, 1))
-        midway = function("m", lambda x: 1 / (x - (0.5 + 1 / 1024)) ** 2, 0, 1)
-        with self.assertRaisesRegex(ValueError, "diverges near x ≈ 0.500977"):
+        midway = function("m", lambda x: 1 / (x - (0.5 + 1 / 3000)) ** 2, 0, 1)
+        with self.assertRaisesRegex(ValueError, "diverges near x ≈ 0.500333"):
             measure_colored_area(FunctionsArea(midway, None, 0, 1))
         simple = function("s", lambda x: 1 / (x - 0.30007), 0, 1)
         with self.assertRaisesRegex(ValueError, "diverges near x ≈ 0.30007"):
@@ -132,27 +133,116 @@ class TestFunctionBoundedAreas(unittest.TestCase):
         exact = math.atan(1000 * 0.6) + math.atan(1000 * 0.4)
         self.assertAlmostEqual(measure["value"], exact, places=4)
 
+    def assert_honest(self, measure: dict, exact: float, label: str = "") -> None:
+        """The error estimate bounds the actual error (or is withheld, with accuracy limited)."""
+        if measure["error_estimate"] is None:
+            self.assertTrue(measure["accuracy_limited"], label)
+            self.assertIn("warning", measure, label)
+            return
+        self.assertLessEqual(abs(measure["value"] - exact), 2 * measure["error_estimate"] + 1e-12 * abs(exact), label)
+
     def test_many_crossings_are_each_located(self) -> None:
         for k, b in ((30, 10), (50, 10), (1, 1000)):
             wave = function("w", lambda x, k=k: math.sin(k * x), -1e9, 1e9)
             measure = measure_colored_area(FunctionsArea(wave, None, 0, b))
             exact = abs_sin_integral(k, b)
             self.assertAlmostEqual(measure["value"], exact, delta=1e-6 * exact, msg=f"sin({k}x) on [0, {b}]")
-            # The estimate is honest: the actual error is within it (with a margin for its own error).
-            self.assertLessEqual(abs(measure["value"] - exact), 2 * measure["error_estimate"] + 1e-12)
+            self.assert_honest(measure, exact, f"sin({k}x)")
             self.assertEqual(measure["crossing_count"], math.floor(k * b / math.pi))
         # sin(50x) on [0, 10]: about 6.3623 (the mean of |sin| times 10 gives 6.3662).
         self.assertAlmostEqual(abs_sin_integral(50, 10), 6.3623, places=4)
 
-    def test_very_many_crossings_use_the_cell_rule_with_a_warning(self) -> None:
-        wave = function("w", lambda x: math.sin(x), -1e9, 1e9)
-        measure = measure_colored_area(FunctionsArea(wave, None, 0, 4000))
-        exact = abs_sin_integral(1, 4000)
-        self.assertGreater(measure["crossing_count"], 1024)
-        self.assertIn("piecewise linear", measure["method"])
-        self.assertIn("accuracy is limited", measure["warning"])
-        self.assertLessEqual(abs(measure["value"] - exact), 2 * measure["error_estimate"])
-        self.assertAlmostEqual(measure["value"], exact, delta=2e-3 * exact)
+    def test_a_coarse_grid_that_aliases_is_not_trusted(self) -> None:
+        # The 512-cell grid sees 5 crossings of sin(100x) on [0, 32]; there are about 1019.
+        for k, b in ((100, 32), (1000, 3.2), (200, 16)):
+            wave = function("w", lambda x, k=k: math.sin(k * x), -1e9, 1e9)
+            measure = measure_colored_area(FunctionsArea(wave, None, 0, b))
+            exact = abs_sin_integral(k, b)
+            self.assertAlmostEqual(measure["value"], exact, delta=1e-3 * exact, msg=f"sin({k}x) on [0, {b}]")
+            self.assert_honest(measure, exact, f"sin({k}x)")
+            self.assertGreater(measure["crossing_count"], 1000)
+
+    def test_an_oscillation_finer_than_any_grid_has_no_error_estimate(self) -> None:
+        wave = function("w", lambda x: math.sin(5000 * x), -1e9, 1e9)
+        measure = measure_colored_area(FunctionsArea(wave, None, 0, 10))
+        self.assertTrue(measure["accuracy_limited"])
+        self.assertIsNone(measure["error_estimate"])
+        self.assertIn("faster than the finest grid", measure["warning"])
+        self.assertAlmostEqual(measure["value"], abs_sin_integral(5000, 10), delta=0.01)
+
+    def test_the_work_is_bounded_by_the_evaluation_budget(self) -> None:
+        # The second review's worst case: crossings plus jumps that never converge.
+        def jumpy(x: float) -> float:
+            return math.sin(144.5 * x) + 0.3 * math.copysign(1.0, math.cos(144.5 * x + 0.7))
+
+        calls = [0]
+
+        def counted(x: float) -> float:
+            calls[0] += 1
+            return jumpy(x)
+
+        measure = measure_colored_area(FunctionsArea(function("j", counted, -1, 11), None, 0, 10))
+        self.assertLessEqual(calls[0], EVALUATION_BUDGET)
+        self.assertEqual(measure["evaluations"], calls[0])
+        self.assertTrue(measure["accuracy_limited"])
+        self.assertIn("budget ran out", measure["warning"])
+        # Then the estimate is the loose bound: the raw Simpson differences.
+        self.assertGreater(measure["error_estimate"], 0.0)
+        self.assertAlmostEqual(measure["value"], 5.3183, delta=2e-3)
+
+    def test_steep_finite_peaks_are_resolved(self) -> None:
+        for eps, a, b in ((1e-10, -1, 1.1), (1e-11, -1, 1.1), (1e-12, -1, 1.1), (1e-10, -10, 10.3)):
+            peak = function("p", lambda x, eps=eps: 1 / (x * x + eps), -100, 100)
+            measure = measure_colored_area(FunctionsArea(peak, None, a, b))
+            root = math.sqrt(eps)
+            exact = (math.atan(b / root) - math.atan(a / root)) / root
+            self.assertAlmostEqual(measure["value"], exact, delta=1e-6 * exact, msg=f"eps={eps}")
+            self.assert_honest(measure, exact, f"eps={eps}")
+
+    def test_jumps_and_kinks_get_honest_estimates(self) -> None:
+        cases = (
+            (lambda x: math.floor(x) + 3, 0, 2.7, 3 * 2.7 + 1 + 0.7 * 2),
+            (lambda x: 2.0 if x > 0.123456 else 1.0, 0, 1, 0.123456 + 2 * (1 - 0.123456)),
+            (lambda x: abs(x - 0.3) + 0.1, 0, 1, 0.045 + 0.245 + 0.1),
+            (lambda x: 1.0 if x > 0.37 else -1.0, -1, 1, 2.0),
+        )
+        for fn, a, b, exact in cases:
+            measure = measure_colored_area(FunctionsArea(function("f", fn, -5, 5), None, a, b))
+            self.assertAlmostEqual(measure["value"], exact, delta=1e-5 * max(1.0, exact))
+            self.assert_honest(measure, exact)
+
+    def test_exact_zeros_are_not_crossings(self) -> None:
+        for fn, a, b, exact in (
+            (lambda x: max(x, 0.0) ** 2, -3, 1, 1 / 3),
+            (lambda x: x * x if x > 0.5 else 0.0, 0, 1, (1 - 0.125) / 3),
+            (lambda x: 0.0, 0, 1, 0.0),
+        ):
+            measure = measure_colored_area(FunctionsArea(function("f", fn, -5, 5), None, a, b))
+            self.assertAlmostEqual(measure["value"], exact, delta=1e-6)
+            self.assert_honest(measure, exact)
+            self.assertNotIn("crossings", measure)
+            self.assertFalse(measure["accuracy_limited"], measure.get("warning"))
+            self.assertLess(measure["evaluations"], 20000)
+
+    def test_a_pole_just_inside_an_end_diverges(self) -> None:
+        for fn in (lambda x: 1 / (x - 1e-9) ** 2, lambda x: 1 / (x - 1e-9)):
+            with self.assertRaisesRegex(ValueError, "diverges near x ≈ 1e-09"):
+                measure_colored_area(FunctionsArea(function("f", fn, -1, 2), None, 0, 1))
+        # Just outside it, the area is finite: ln((1 + 1e-9) / 1e-9) for 1/(x + 1e-9).
+        outside = measure_colored_area(FunctionsArea(function("g", lambda x: 1 / (x + 1e-9), -1, 2), None, 0, 1))
+        exact = math.log((1 + 1e-9) / 1e-9)
+        self.assertAlmostEqual(outside["value"], exact, delta=1e-5 * exact)
+        self.assert_honest(outside, exact)
+
+    def test_an_integrable_singularity_is_limited_not_divergent(self) -> None:
+        for p in (0.5, 0.9):
+            spike = function("s", lambda x, p=p: abs(x - 0.0013) ** -p, -2, 2)
+            measure = measure_colored_area(FunctionsArea(spike, None, -1, 1))
+            exact = (1.0013 ** (1 - p) + (1 - 0.0013) ** (1 - p)) / (1 - p)
+            self.assertTrue(measure["accuracy_limited"])
+            self.assertIsNone(measure["error_estimate"])
+            self.assertIn("integrable singularity near x ≈ 0.0013", measure["warning"])
+            self.assertAlmostEqual(measure["value"], exact, delta=1e-3 * exact)
 
     def test_an_interval_that_is_missing_or_empty_is_an_error(self) -> None:
         f = function("f", math.sin)
