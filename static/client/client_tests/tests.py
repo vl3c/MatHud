@@ -91,6 +91,7 @@ from .test_ellipse_manager import TestEllipseManager, TestEllipseReuseMatching
 from .test_colored_area_manager import TestColoredAreaManager
 from .test_function_manager import TestFunctionManager
 from .test_function_features import TestFunctionFeaturesAlgorithm, TestFunctionFeaturesCanvas
+from .test_object_intersections import TestObjectIntersectionsCanvas
 from .test_function_analysis import (
     TestFunctionAreaTranslation,
     TestFunctionRedefinition,
@@ -586,6 +587,7 @@ class Tests:
             TestFunctionManager,
             TestFunctionFeaturesAlgorithm,
             TestFunctionFeaturesCanvas,
+            TestObjectIntersectionsCanvas,
             TestFunctionTranslationAnalysis,
             TestFunctionRedefinition,
             TestFunctionTangentGuard,

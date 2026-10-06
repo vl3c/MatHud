@@ -263,11 +263,11 @@ TOOL_CATEGORIES: Dict[str, CategoryEntry] = {
         ],
     },
     "inspection": {
-        "tools": ["inspect_relation"],
+        "tools": ["inspect_relation", "find_intersections"],
         "keywords": [
             "inspect", "relation", "check", "verify", "collinear",
             "concurrent", "tangent", "congruent", "similar",
-            "relationship", "distance", "measure",
+            "relationship", "distance", "measure", "intersection",
         ],
     },
     "coordinates": {
@@ -749,6 +749,12 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         _on_canvas_words = {"plotted", "curve", "graph", "place", "mark"}
         if token_set & {"roots", "root", "zeros", "zero"} and token_set & _on_canvas_words:
             scores["find_function_features"] += 8.0
+
+        # -- Intersections of segments, circles, ellipses and curves --
+        _meet_words = {"intersect", "intersection", "intersections", "intersects", "meet", "meets", "cross", "crosses"}
+        _object_words = _shape_words | {"vectors", "ellipses", "arc", "arcs", "parametric"}
+        if token_set & _meet_words:
+            scores["find_intersections"] += 12.0 if token_set & _object_words else 3.0
 
         # -- Constructions --
         if "inscribed" in token_set and token_set & {"circle"}:

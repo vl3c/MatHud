@@ -43,11 +43,12 @@ State Management:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, MutableMapping, Optional, Sequence, Tuple, cast
 
 from drawables.function import Function
 from managers.dependency_removal import remove_drawable_with_dependencies
 from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
+from managers.point_placement import place_points_at
 from utils.function_features import (
     DEFAULT_FEATURES,
     FeatureReport,
@@ -486,42 +487,15 @@ class FunctionManager:
     def _place_feature_points(self, found: List[FunctionFeature]) -> Dict[str, Any]:
         """Create (or reuse) a point at each feature location, all as one undo step.
 
-        Sets ``point_name`` on every feature. Features at the same spot (a touching root and
-        its extremum) share one point. A point that already existed at a feature is reused and
-        left unchanged; it is reported apart from the created ones, so the caller never
-        deletes a point of the user's drawing thinking this call made it.
-
-        Returns:
-            point_names (distinct, in x order), created_point_names, reused_point_names, and a
-            note when points were reused (merged into the result's note).
+        Features at the same spot (a touching root and its extremum) share one point; see
+        ``place_points_at`` for how reused points are reported.
         """
-        point_manager = self.drawable_manager.point_manager
-        undo_manager = self.canvas.undo_redo_manager
-        names: List[str] = []
-        created: List[str] = []
-        reused: List[str] = []
-        undo_manager.begin_batch()
-        try:
-            for feature in found:
-                existed_before = point_manager.get_point(feature["x"], feature["y"]) is not None
-                point = point_manager.create_point(feature["x"], feature["y"], name="", extra_graphics=False)
-                name = str(point.name)
-                feature["point_name"] = name
-                if name in names:
-                    continue
-                names.append(name)
-                (reused if existed_before else created).append(name)
-        finally:
-            undo_manager.end_batch()
-        placed: Dict[str, Any] = {
-            "point_names": names,
-            "created_point_names": created,
-            "reused_point_names": reused,
-        }
-        if reused:
-            reused_text = ", ".join(reused)
-            placed["note"] = (
-                f"Points {reused_text} already existed at feature locations and were reused, not created; "
-                "to remove the feature points, delete only created_point_names."
-            )
-        return placed
+        return cast(
+            Dict[str, Any],
+            place_points_at(
+                self.drawable_manager.point_manager,
+                self.canvas.undo_redo_manager,
+                cast(List[MutableMapping[str, Any]], found),
+                "feature",
+            ),
+        )

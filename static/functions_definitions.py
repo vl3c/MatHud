@@ -2295,6 +2295,34 @@ FUNCTIONS: List[Dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "find_intersections",
+            "description": "Finds the intersection points of two objects on the canvas: any mix of segments, vectors, circles, circle arcs, ellipses (rotated too), functions, piecewise functions and parametric curves (but not two parametric curves). Exact formulas for lines, circles and line/ellipse; a numeric search otherwise. Returns each point's x and y (about 10 significant digits, sorted by x then y), params telling where it lies on each object (t on a segment or vector: 0 at its first point, 1 at its second; t on a parametric curve; angle in radians on a circle, arc or ellipse, the parameter draw_tangent_line takes), tangent=true where the objects touch, and count. Objects that coincide over a stretch (collinear overlapping segments, identical circles, arcs of one circle, a function along a segment) are reported in overlaps, not as points. A function counts only where it is plotted (its bounds, else the visible x range, reported as x_range). At most 50 points; truncated=true means there were more. Optionally places a labelled point at each intersection (one undo step); the result then lists point_names, created_point_names (points this call added) and reused_point_names (points that already existed there and belong to the user's drawing: never delete those to undo this call). For two plotted functions only, find_function_features works too.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "object_names": {
+                        "type": "array",
+                        "description": "Names of exactly two objects to intersect (segments, vectors, circles, circle arcs, ellipses, functions, piecewise functions or parametric curves).",
+                        "items": {"type": "string"},
+                    },
+                    "extend_lines": {
+                        "type": ["boolean", "null"],
+                        "description": "If true, segments and vectors count as the whole infinite lines through them. Null or false counts only points on the segments themselves.",
+                    },
+                    "place_points": {
+                        "type": ["boolean", "null"],
+                        "description": "If true, place a point at each intersection (reusing a point already there) and report its name. Null or false only reports the values.",
+                    },
+                },
+                "required": ["object_names", "extend_lines", "place_points"],
+                "additionalProperties": False,
+            },
+        },
+    },
     # END RELATION INSPECTION
     # START PLOT FUNCTIONS
     {
