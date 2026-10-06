@@ -415,7 +415,7 @@ server_tests/
 - Handles function call results and maintains state between interactions.
 - Key methods:
   - `interact_with_ai`: Entry point for user interactions from UI.
-  - `_send_prompt_to_ai`: Prepares JSON prompt (with canvas state, user message, tool results, vision settings from `document["vision-toggle"]`, AI model from `document["ai-model-selector"]`) and sends AJAX POST request to `/send_message` Flask endpoint.
+  - `_send_prompt_to_ai`: Prepares JSON prompt (with canvas state, user message, tool results, vision settings from `document["vision-toggle"]`, AI model from `turn_model_id()`: the model selected when the message was sent, kept for the whole turn) and sends AJAX POST request to `/send_message` Flask endpoint.
   - `_process_ai_response`: Processes AI responses from backend. If tool calls are present, uses `ProcessFunctionCalls.get_results` and then sends results back to AI via `_send_prompt_to_ai`.
   - (Workspace operations like `save_workspace` are invoked via function calls processed by `ProcessFunctionCalls` which then use the client-side `WorkspaceManager` instance).
 
@@ -527,7 +527,7 @@ server_tests/
 ## Function Call Flow
 1. User sends message via UI → `CanvasEventHandler` captures event, calls `AIInterface.interact_with_ai`.
 2. `AIInterface._print_user_message_in_chat` updates UI.
-3. `AIInterface._send_prompt_to_ai` bundles `user_message`, `canvas_state` (from `Canvas.get_canvas_state()`), `use_vision` flag, current `ai_model` and, with vision on, the browser-captured `canvas_snapshot` into a JSON prompt.
+3. `AIInterface._send_prompt_to_ai` bundles `user_message`, `canvas_state` (from `Canvas.get_canvas_state()`), `use_vision` flag, the turn's `ai_model` (`turn_model_id()`) and, with vision on, the browser-captured `canvas_snapshot` into a JSON prompt.
 4. `AIInterface` sends the JSON prompt to the Flask backend (`/send_message_stream`, or `/send_message` as a fallback).
 5. Flask backend (`static/routes.py` - `/send_message`):
    a. Receives the JSON prompt and validates attached images and the canvas snapshot.
