@@ -386,7 +386,7 @@ class FunctionRegistry:
 
             # In Brython environment, use browser.ajax
             try:
-                from browser import ajax, document
+                from browser import ajax
                 import json as json_module
 
                 ai_model = FunctionRegistry._search_model_id(get_model_id)

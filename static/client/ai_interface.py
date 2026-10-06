@@ -1059,7 +1059,9 @@ class AIInterface:
         Turn tokens belong to a provider instance, so a turn's follow-ups must reach the
         model that started it; a model picked mid-turn answers from the next message.
         """
-        if self.is_processing and self._turn_model:
+        # An empty id (sent before the model list loaded) is kept too, so the whole turn
+        # stays on the server's default provider.
+        if self.is_processing and self._turn_model is not None:
             return self._turn_model
         return self._selected_model_id()
 
