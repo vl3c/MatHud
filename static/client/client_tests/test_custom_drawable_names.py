@@ -175,9 +175,11 @@ class TestCustomDrawableNames(unittest.TestCase):
         # Test creating an ellipse with a custom name
         ellipse = self.canvas.create_ellipse(10, 10, 5, 3, name="Ellipse")
         self.assertEqual(ellipse.center.name, "E")
+        self.assertEqual(ellipse.name, "Ellipse")
         # Test creating another ellipse with same name - should use next available letter
         ellipse2 = self.canvas.create_ellipse(20, 20, 5, 3, name="Ellipse")
         self.assertEqual(ellipse2.center.name, "L")
+        self.assertEqual(ellipse2.name, "Ellipse_1")
 
     def test_ellipse_apostrophe_naming(self) -> None:
         # Test ellipse with apostrophes in name

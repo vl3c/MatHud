@@ -221,6 +221,51 @@
           ]
         }
       ]
+    },
+    {
+      "id": "NM-08",
+      "title": "Ellipses keep a requested name and never share one",
+      "tags": ["ellipses", "naming", "transforms", "delete"],
+      "smoke": false,
+      "targets": "create_ellipse honouring a requested name, '_<n>' suffixes for a name in use, name-based tools reaching the right ellipse",
+      "steps": [
+        {
+          "user": "Draw an ellipse named orbit centred at (0, 0) with radii 4 and 2.",
+          "reference": [
+            {"tool": "create_ellipse", "args": {"center_x": 0, "center_y": 0, "radius_x": 4, "radius_y": 2, "name": "orbit"}}
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "exists", "select": {"type": "Ellipse", "name": "orbit"}}
+          ]
+        },
+        {
+          "user": "Rotate orbit by 45 degrees.",
+          "reference": [{"tool": "rotate_object", "args": {"name": "orbit", "angle": 45}}],
+          "checks": [
+            {"check": "attribute", "path": "args.rotation_angle", "select": {"type": "Ellipse", "name": "orbit"}, "eq": 45, "mod": 180}
+          ]
+        },
+        {
+          "user": "Draw another ellipse named orbit centred at (8, 0) with radii 2 and 1.",
+          "reference": [
+            {"tool": "create_ellipse", "args": {"center_x": 8, "center_y": 0, "radius_x": 2, "radius_y": 1, "name": "orbit"}}
+          ],
+          "checks": [
+            {"check": "count", "select": {"type": "Ellipse"}, "eq": 2},
+            {"check": "exists", "select": {"type": "Ellipse", "name": "orbit_1", "center": [8, 0]}},
+            {"check": "tool_result", "tool": "create_ellipse", "contains": "orbit_1"}
+          ]
+        },
+        {
+          "user": "Delete orbit_1.",
+          "reference": [{"tool": "delete_ellipse", "args": {"name": "orbit_1"}}],
+          "checks": [
+            {"check": "count", "select": {"type": "Ellipse"}, "eq": 1},
+            {"check": "exists", "select": {"type": "Ellipse", "name": "orbit", "center": [0, 0]}}
+          ]
+        }
+      ]
     }
   ]
 }

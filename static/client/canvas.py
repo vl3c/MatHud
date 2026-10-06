@@ -1351,10 +1351,12 @@ class Canvas:
         name: str = "",
         color: Optional[str] = None,
         extra_graphics: bool = True,
+        reuse_existing: bool = True,
     ) -> "Drawable":
         """Create an ellipse with the specified center, radii, and rotation.
 
         A null rotation_angle (strict-schema models send null for "not given") means 0.
+        reuse_existing=False always creates a new ellipse (workspace restore).
         """
         return self.drawable_manager.create_ellipse(
             center_x,
@@ -1365,6 +1367,7 @@ class Canvas:
             name,
             color=color,
             extra_graphics=extra_graphics,
+            reuse_existing=reuse_existing,
         )
 
     def delete_ellipse(self, name: str) -> bool:
