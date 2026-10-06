@@ -51,7 +51,7 @@ from command_autocomplete import CommandAutocomplete
 from tts_ui_manager import TTSUIManager
 from chat_ui_manager import ChatUIManager
 from chat_persistence_manager import ChatPersistenceManager
-from turn_metrics import TurnMetricsCollector, turn_outcome
+from turn_metrics import TurnMetricsCollector, short_model_name, turn_outcome
 from managers.action_trace_collector import ActionTraceCollector
 
 if TYPE_CHECKING:
@@ -60,6 +60,10 @@ if TYPE_CHECKING:
 # Shown in a tab whose turn the server dropped because of a stop, a new message or a
 # new conversation in another tab: its partial reply stays here, but not on the server.
 ABANDONED_ELSEWHERE_NOTE = "This reply was stopped because the conversation changed elsewhere."
+# Shown when the model is changed while a reply runs: the turn keeps its model.
+MODEL_CHANGE_DEFERRED_NOTE = "{new} will answer from your next message; this reply finishes with {current}."
+# Shown when the model is changed back to the turn's own model before the reply ends.
+MODEL_CHANGE_UNDONE_NOTE = "{current} will keep answering after this reply."
 
 
 class AIInterface:
@@ -89,6 +93,12 @@ class AIInterface:
     # True while the running turn's undo group is open: every canvas change of one assistant
     # reply, over all its tool batches, is one undo step (see _open_turn_undo_group).
     _turn_undo_group_open: bool = False
+    # Model the running turn started with; every request of the turn goes to it, so a
+    # model picked mid-turn answers from the next message.
+    _turn_model: Optional[str] = None
+    # Model the last mid-turn note named (None: no note yet), so a note is only added
+    # when the model that will answer next changes.
+    _announced_model: Optional[str] = None
 
     def __init__(self, canvas: "Canvas") -> None:
         """Initialize the AI interface with canvas integration and function registry.
@@ -1060,7 +1070,7 @@ class AIInterface:
             "user_message": user_message,
             "tool_call_results": tool_call_results,
             "use_vision": use_vision,
-            "ai_model": document["ai-model-selector"].value,
+            "ai_model": self.turn_model_id(),
         }
 
         # Include attached images if provided (works independently of vision toggle)
@@ -1084,6 +1094,60 @@ class AIInterface:
         # Tool results continue the server's turn; the server drops them once it ended.
         turn = self._server_turn if tool_call_results is not None else None
         self._send_prompt_json(prompt_json, None, action_trace, turn)
+
+    def turn_model_id(self) -> str:
+        """The model this turn's requests go to: the one it started with, else the selected one.
+
+        Turn tokens belong to a provider instance, so a turn's follow-ups must reach the
+        model that started it; a model picked mid-turn answers from the next message.
+        """
+        # An empty id (sent before the model list loaded) is kept too, so the whole turn
+        # stays on the server's default provider.
+        if self.is_processing and self._turn_model is not None:
+            return self._turn_model
+        return self._selected_model_id()
+
+    @staticmethod
+    def _selected_model_id() -> str:
+        """The model chosen in the selector."""
+        try:
+            return str(document["ai-model-selector"].value)
+        except Exception:
+            return ""
+
+    def on_model_selected(self, event: Any = None) -> None:
+        """Tell the user which model answers their next message when it changes mid-turn.
+
+        Switching back to the turn's own model says so, so an earlier note is not left
+        promising a model that will not answer.
+        """
+        try:
+            selected = self._selected_model_id()
+            turn_model = self._turn_model
+            if not self.is_processing or not turn_model:
+                return
+            if selected == (self._announced_model or turn_model):
+                return
+            self._announced_model = selected
+            current = self._model_label(turn_model)
+            if selected == turn_model:
+                note = MODEL_CHANGE_UNDONE_NOTE.format(current=current)
+            else:
+                note = MODEL_CHANGE_DEFERRED_NOTE.format(new=self._model_label(selected), current=current)
+            self._print_system_message_in_chat(note)
+        except Exception as e:
+            print(f"Error handling the model change: {e}")
+
+    @staticmethod
+    def _model_label(model_id: str) -> str:
+        """The selector's label for a model, without the "(text only)" suffix."""
+        try:
+            for option in document["ai-model-selector"].options:
+                if str(option.value) == model_id:
+                    return str(option.text).replace(" (text only)", "")
+        except Exception:
+            pass
+        return str(short_model_name(model_id))
 
     def _request_limit_reached(self) -> bool:
         """True when the turn has sent as many requests as its cap allows."""
@@ -1184,6 +1248,8 @@ class AIInterface:
         self._turn_timeout_ms = response_timeout_ms
         self._server_turn = None
         self._send_token += 1
+        self._turn_model = self._selected_model_id()
+        self._announced_model = None
         self._disable_send_controls()
         self._send_prompt_to_ai(ai_message, attached_images=images_to_send)
 
