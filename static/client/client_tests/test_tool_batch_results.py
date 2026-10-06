@@ -627,6 +627,28 @@ class TestColoredAreaMeasurement(_ToolBatchTestCase):
         self.assertAlmostEqual(result["value"], 2 * math.sqrt(2), places=7)
         self.assertEqual(len(result["crossings"]), 1)
 
+    def test_an_area_across_an_asymptote_diverges(self) -> None:
+        self.run_single("draw_function", function_string="tan(x)", name="t", left_bound=0, right_bound=3)
+        self.run_single("create_colored_area", drawable1_name="t", drawable2_name="x_axis", left_bound=0,
+                        right_bound=3)  # fmt: skip
+
+        result = self.run_single("calculate_area", expression="area_between_t_and_x_axis")
+
+        self.assertEqual(result["type"], "error")
+        self.assertIn("diverges near x ≈ 1.5708", result["value"])
+
+    def test_a_region_area_is_measured_from_its_expression(self) -> None:
+        self.run_single("create_circle", center_x=0, center_y=0, radius=2)
+        self.run_single("create_region_colored_area", expression="A(2)")
+        area_name = self.canvas.drawable_manager.drawables.get_colored_areas()[-1].name
+
+        result = self.run_single("calculate_area", expression=area_name)
+
+        self.assertEqual(result["type"], "area", result)
+        self.assertAlmostEqual(result["value"], 4 * math.pi, places=2)
+        self.assertIn("region expression 'A(2)'", result["method"])
+        self.assertFalse(result["method"].startswith("exact"))
+
     def test_a_coloured_area_inside_an_expression_is_explained(self) -> None:
         self.run_single("create_circle", center_x=0, center_y=0, radius=1)
 

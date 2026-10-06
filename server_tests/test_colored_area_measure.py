@@ -12,8 +12,21 @@ from utils.colored_area_measure import measure_colored_area
 NORMAL_PDF_WITHIN_ONE_SIGMA = math.erf(1 / math.sqrt(2))  # 0.6826894921370859
 
 
-def function(name: str, fn: Callable[[float], float], left: float = -10.0, right: float = 10.0) -> Any:
-    return SimpleNamespace(name=name, function=fn, left_bound=left, right_bound=right)
+def function(
+    name: str,
+    fn: Callable[[float], float],
+    left: float = -10.0,
+    right: float = 10.0,
+    asymptotes: Optional[list[float]] = None,
+) -> Any:
+    return SimpleNamespace(name=name, function=fn, left_bound=left, right_bound=right, vertical_asymptotes=asymptotes)
+
+
+def abs_sin_integral(k: float, b: float) -> float:
+    """Integral of |sin(k x)| over [0, b]."""
+    u = k * b
+    n = math.floor(u / math.pi)
+    return (2 * n + (1 - math.cos(u - n * math.pi))) / k
 
 
 def point(x: float, y: float) -> Any:
@@ -82,10 +95,64 @@ class TestFunctionBoundedAreas(unittest.TestCase):
 
     def test_an_asymptote_inside_the_interval_is_an_error(self) -> None:
         reciprocal = function("f", lambda x: 1 / (x - 1))
-        with self.assertRaisesRegex(ValueError, "f is undefined or not finite at x = 1"):
+        with self.assertRaisesRegex(ValueError, "diverges .*near x ≈ 1.*f is undefined or not finite at x = 1"):
             measure_colored_area(FunctionsArea(reciprocal, None, 0, 2))
         # Away from it the area is the log: ln(3) on [2, 4] for 1/(x - 1).
         self.assertAlmostEqual(measure_colored_area(FunctionsArea(reciprocal, None, 2, 4))["value"], math.log(3), 8)
+
+    def test_a_listed_asymptote_is_refused_before_sampling(self) -> None:
+        tangent = function("t", math.tan, 0, 3, asymptotes=[math.pi / 2])
+        with self.assertRaisesRegex(ValueError, "diverges near x ≈ 1.5708: t has a vertical asymptote"):
+            measure_colored_area(FunctionsArea(tangent, None, 0, 3))
+        # An asymptote outside the interval does not matter.
+        self.assertAlmostEqual(
+            measure_colored_area(FunctionsArea(tangent, None, 0, 1))["value"], -math.log(math.cos(1)), 8
+        )
+
+    def test_poles_off_the_grid_are_found_numerically(self) -> None:
+        # No listed asymptotes: tan changes sign through its pole at pi/2, which no grid point hits.
+        tangent = function("t", math.tan, 0, 3)
+        with self.assertRaisesRegex(ValueError, "diverges near x ≈ 1.5708"):
+            measure_colored_area(FunctionsArea(tangent, None, 0, 3))
+        # A double pole keeps its sign: a sharp peak whose refined maximum grows without bound.
+        double = function("d", lambda x: 1 / (x - 0.5001) ** 2, 0, 1)
+        with self.assertRaisesRegex(ValueError, "diverges near x ≈ 0.5001"):
+            measure_colored_area(FunctionsArea(double, None, 0, 1))
+        midway = function("m", lambda x: 1 / (x - (0.5 + 1 / 1024)) ** 2, 0, 1)
+        with self.assertRaisesRegex(ValueError, "diverges near x ≈ 0.500977"):
+            measure_colored_area(FunctionsArea(midway, None, 0, 1))
+        simple = function("s", lambda x: 1 / (x - 0.30007), 0, 1)
+        with self.assertRaisesRegex(ValueError, "diverges near x ≈ 0.30007"):
+            measure_colored_area(FunctionsArea(simple, None, 0, 1))
+
+    def test_a_sharp_but_finite_peak_is_measured(self) -> None:
+        # A narrow bump (Lorentzian of half-width 1e-3): finite, area pi * 1e-3 * 1e3 = pi.
+        bump = function("b", lambda x: 1.0 / ((x - 0.4) ** 2 + 1e-6) * 1e-3, 0, 1)
+        measure = measure_colored_area(FunctionsArea(bump, None, 0, 1))
+        exact = math.atan(1000 * 0.6) + math.atan(1000 * 0.4)
+        self.assertAlmostEqual(measure["value"], exact, places=4)
+
+    def test_many_crossings_are_each_located(self) -> None:
+        for k, b in ((30, 10), (50, 10), (1, 1000)):
+            wave = function("w", lambda x, k=k: math.sin(k * x), -1e9, 1e9)
+            measure = measure_colored_area(FunctionsArea(wave, None, 0, b))
+            exact = abs_sin_integral(k, b)
+            self.assertAlmostEqual(measure["value"], exact, delta=1e-6 * exact, msg=f"sin({k}x) on [0, {b}]")
+            # The estimate is honest: the actual error is within it (with a margin for its own error).
+            self.assertLessEqual(abs(measure["value"] - exact), 2 * measure["error_estimate"] + 1e-12)
+            self.assertEqual(measure["crossing_count"], math.floor(k * b / math.pi))
+        # sin(50x) on [0, 10]: about 6.3623 (the mean of |sin| times 10 gives 6.3662).
+        self.assertAlmostEqual(abs_sin_integral(50, 10), 6.3623, places=4)
+
+    def test_very_many_crossings_use_the_cell_rule_with_a_warning(self) -> None:
+        wave = function("w", lambda x: math.sin(x), -1e9, 1e9)
+        measure = measure_colored_area(FunctionsArea(wave, None, 0, 4000))
+        exact = abs_sin_integral(1, 4000)
+        self.assertGreater(measure["crossing_count"], 1024)
+        self.assertIn("piecewise linear", measure["method"])
+        self.assertIn("accuracy is limited", measure["warning"])
+        self.assertLessEqual(abs(measure["value"] - exact), 2 * measure["error_estimate"])
+        self.assertAlmostEqual(measure["value"], exact, delta=2e-3 * exact)
 
     def test_an_interval_that_is_missing_or_empty_is_an_error(self) -> None:
         f = function("f", math.sin)
@@ -151,9 +218,22 @@ class TestClosedShapes(unittest.TestCase):
         self.assertEqual(measure["error_estimate"], 0.0)
         self.assertTrue(measure["method"].startswith("exact"))
 
-    def test_region_points(self) -> None:
+    def test_region_from_its_expression(self) -> None:
+        square = [(math.cos(t * math.pi / 2), math.sin(t * math.pi / 2)) for t in range(4)]
+        region = self.shape(shape_type="region", expression="C(1)", points=square)
+        measure = measure_colored_area(region, lambda expression: math.pi)
+        self.assertEqual(measure["value"], math.pi)
+        self.assertIn("region expression 'C(1)'", measure["method"])
+        # The drawn outline (here a square inscribed in the circle) gives the estimate.
+        self.assertAlmostEqual(measure["error_estimate"], math.pi - 2.0)
+
+    def test_region_outline_alone_is_not_called_exact(self) -> None:
         region = self.shape(shape_type="region", points=[(0, 0), (4, 0), (4, 3), (0, 3)])
-        self.assertEqual(measure_colored_area(region)["value"], 12.0)
+        measure = measure_colored_area(region)
+        self.assertEqual(measure["value"], 12.0)
+        self.assertFalse(measure["method"].startswith("exact"))
+        self.assertIsNone(measure["error_estimate"])
+        self.assertIn("approximation", measure["warning"])
 
     def test_polygon_from_segments(self) -> None:
         a, b, c = point(0, 0), point(4, 0), point(0, 3)

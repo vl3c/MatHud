@@ -136,7 +136,7 @@ class AreaExpressionEvaluator:
             AreaExpressionEvaluator._validate_expression(expression)
             colored_area = AreaExpressionEvaluator._find_colored_area(expression.strip(), canvas)
             if colored_area is not None:
-                return AreaExpressionEvaluator._measure_colored_area(colored_area)
+                return AreaExpressionEvaluator._measure_colored_area(colored_area, canvas)
             tokens = AreaExpressionEvaluator._tokenize(expression)
             ast = AreaExpressionEvaluator._parse(tokens)
             result = AreaExpressionEvaluator._evaluate_ast(ast, canvas)
@@ -383,11 +383,20 @@ class AreaExpressionEvaluator:
         return None
 
     @staticmethod
-    def _measure_colored_area(area: "Drawable") -> AreaExpressionResult:
-        """Measure a coloured area (see ``utils.colored_area_measure`` for the method and its accuracy)."""
+    def _measure_colored_area(area: "Drawable", canvas: "Canvas") -> AreaExpressionResult:
+        """Measure a coloured area (see ``utils.colored_area_measure`` for the method and its accuracy).
+
+        A region area is measured from its own region expression, evaluated here.
+        """
         from utils.colored_area_measure import measure_colored_area
 
-        measure = measure_colored_area(area)
+        def expression_area(expression: str) -> float:
+            result = AreaExpressionEvaluator.evaluate(expression, canvas)
+            if result.error:
+                raise ValueError(result.error)
+            return float(result.area)
+
+        measure = measure_colored_area(area, expression_area)
         value = float(measure.pop("value"))
         return AreaExpressionResult(area=max(0.0, value), details=measure)
 
