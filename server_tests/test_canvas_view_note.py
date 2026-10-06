@@ -1,9 +1,7 @@
-"""Tests for static/canvas_view_note.py and how the render functions carry its note.
+"""Tests for static/canvas_view_note.py: telling the model when something it just drew can't be seen.
 
-The app never moves the view on its own. When the shapes are too small on screen,
-too flat or outside the view, the canvas the model sees carries one "View note:"
-line, so the model can offer the user a zoom. A missed note is far better than a
-false one, so most tests here check that ordinary edits stay silent.
+A note is only about the objects a tool batch created or moved, and a missed note is
+far better than a false one, so most tests check that ordinary drawing stays silent.
 """
 
 from __future__ import annotations
@@ -15,7 +13,7 @@ import re
 import unittest
 from typing import Any, Dict, List, Optional, Tuple
 
-from server_tests.test_canvas_state_formatter import load_scene, point
+from server_tests.test_canvas_state_formatter import point
 from static.canvas_state_formatter import (
     CANVAS_SIZE_KEY,
     CHANGES_HEADER,
@@ -23,11 +21,10 @@ from static.canvas_state_formatter import (
     CURVE_EXTENTS_KEY,
     OMITTED_NOTE,
     render_min_json,
-    render_state,
     render_text,
     render_update,
 )
-from static.canvas_view_note import VIEW_NOTE_PREFIX, Box, ViewNoteMemory, summarize_view, view_note
+from static.canvas_view_note import VIEW_NOTE_PREFIX, Box, summarize_view, view_note
 from static.token_estimation import estimate_tokens_from_text
 
 # The app's default view on an 800 x 600 px canvas: one math unit per pixel.
@@ -52,7 +49,7 @@ VIEW_10: Dict[str, Any] = dict(
 
 
 def scene(points: List[Dict[str, Any]], view: Optional[Dict[str, Any]] = None, **buckets: Any) -> Dict[str, Any]:
-    state: Dict[str, Any] = {"Points": points}
+    state: Dict[str, Any] = {"Points": list(points)}
     state.update(buckets)
     state.update(copy.deepcopy(view if view is not None else DEFAULT_VIEW))
     return state
@@ -60,6 +57,14 @@ def scene(points: List[Dict[str, Any]], view: Optional[Dict[str, Any]] = None, *
 
 def empty(view: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     return scene([], view)
+
+
+def add(state: Dict[str, Any], *points: Dict[str, Any], **buckets: Any) -> Dict[str, Any]:
+    grown = copy.deepcopy(state)
+    grown["Points"].extend(points)
+    for bucket, items in buckets.items():
+        grown.setdefault(bucket, []).extend(items)
+    return grown
 
 
 def with_bounds(state: Dict[str, Any], left: float, right: float, bottom: float, top: float) -> Dict[str, Any]:
@@ -73,8 +78,8 @@ def with_bounds(state: Dict[str, Any], left: float, right: float, bottom: float,
     return moved
 
 
-def triangle(name: str = "ABC", **args: Any) -> Dict[str, Any]:
-    return {"name": name, "args": dict({"p1": name[0], "p2": name[1], "p3": name[2]}, **args)}
+def polygon(name: str, bucket_args: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    return {"name": name, "args": bucket_args or {f"p{i + 1}": vertex for i, vertex in enumerate(name)}}
 
 
 def circle(name: str, center: str, radius: float, **args: Any) -> Dict[str, Any]:
@@ -85,353 +90,268 @@ def segment(p1: str, p2: str) -> Dict[str, Any]:
     return {"name": p1 + p2, "args": {"p1": p1, "p2": p2}}
 
 
-def label(name: str, x: float, y: float, text: str) -> Dict[str, Any]:
-    return {"name": name, "args": {"position": {"x": x, "y": y}, "text": text}}
+def edges(names: str) -> List[Dict[str, Any]]:
+    return [segment(a, b) for a, b in zip(names, names[1:] + names[0])]
 
 
-TINY_POINTS = [point("A", 0, 0), point("B", 6, 0), point("C", 2, 4)]
+def triangle_scene(
+    name: str, corners: List[Tuple[float, float]], view: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """A triangle as create_polygon leaves it: three points, three edges and the triangle."""
+    points = [point(n, x, y) for n, (x, y) in zip(name, corners)]
+    return scene(points, view, Segments=edges(name), Triangles=[polygon(name)])
 
 
-def tiny_triangle(view: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    return scene(list(TINY_POINTS), view, Triangles=[triangle()])
-
-
-def tiny_triangle_with_circumcircle() -> Dict[str, Any]:
-    """The reported case: triangle (0,0), (6,0), (2,4) and its circumcircle at the default view."""
-    return scene(TINY_POINTS + [point("O", 3, 1)], Triangles=[triangle()], Circles=[circle("c", "O", math.sqrt(10))])
-
-
-def big_triangle(view: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    return scene(
-        [point("A", -300, -200), point("B", 300, -200), point("C", 0, 250)],
-        view,
-        Segments=[segment("A", "B"), segment("B", "C"), segment("C", "A")],
-        Triangles=[triangle()],
-    )
-
-
-def graph(
+def with_graph(
+    state: Dict[str, Any],
     name: str,
     box: Tuple[float, float, float, float],
     clipped: bool,
-    view: Dict[str, Any],
-    turns: bool = True,
+    waves: bool = True,
     spiky: bool = False,
     **args: Any,
 ) -> Dict[str, Any]:
-    """A scene with one function graph whose client-sampled box is ``box``."""
-    state = scene([], view, Functions=[{"name": name, "args": dict({"function_string": "f(x)"}, **args)}])
-    entry = {"box": list(box), "clipped": clipped, "turns": turns, "spiky": spiky}
-    state[CURVE_EXTENTS_KEY] = {"Functions": {name: entry}}
-    return state
-
-
-def add(state: Dict[str, Any], *points: Dict[str, Any], **buckets: Any) -> Dict[str, Any]:
-    grown = copy.deepcopy(state)
-    grown["Points"].extend(points)
-    for bucket, items in buckets.items():
-        grown.setdefault(bucket, []).extend(items)
+    """``state`` plus a function graph whose client-sampled box is ``box``."""
+    grown = add(state, Functions=[{"name": name, "args": dict({"function_string": f"{name}(x)"}, **args)}])
+    grown.setdefault(CURVE_EXTENTS_KEY, {}).setdefault("Functions", {})[name] = {
+        "box": list(box),
+        "clipped": clipped,
+        "waves": waves,
+        "spiky": spiky,
+    }
     return grown
+
+
+TINY = [(0, 0), (6, 0), (2, 4)]
 
 
 class TestTooSmall(unittest.TestCase):
     maxDiff = None
 
-    def test_tiny_triangle_drawn_at_the_default_view_gets_the_hint(self) -> None:
+    def test_tiny_triangle_drawn_at_the_default_view(self) -> None:
         self.assertEqual(
-            view_note(empty(), tiny_triangle_with_circumcircle()),
-            "View note: the shapes span only ~6x6 px on screen (shapes x -0.2..6.2, y -2.2..4.2; "
-            "view x -400..400, y -300..300). Offer to zoom to about x -2.3..8.3, y -3..5 "
-            "(zoom center_x=3, center_y=1, range_val=5.3, range_axis=x); "
-            "don't change the view unless the user agrees.",
+            view_note(empty(), triangle_scene("ABC", TINY)),
+            "View note: the new ABC spans only ~6x4 px on screen (x 0..6, y 0..4; view x -400..400, "
+            "y -300..300). Offer to zoom to about x -0.8..6.8, y -0.8..4.8 (zoom center_x=3, center_y=2, "
+            "range_val=3.8, range_axis=x); don't change the view unless the user agrees.",
         )
 
-    def test_the_first_message_leaves_a_small_drawing_alone(self) -> None:
-        """The view at the start of a conversation is the user's choice (a loaded workspace, a zoom-out)."""
-        self.assertIsNone(view_note(None, tiny_triangle_with_circumcircle()))
+    def test_triangle_and_circumcircle_are_named_together(self) -> None:
+        after = add(triangle_scene("ABC", TINY), point("O", 3, 1), Circles=[circle("O(3.16)", "O", math.sqrt(10))])
+        note = view_note(empty(), after) or ""
+        self.assertIn("the new O(3.16), ABC span only ~6x6 px on screen", note)
 
     def test_view_bounds_are_rounded_like_the_view_line(self) -> None:
-        note = view_note(empty(WIDE_VIEW), tiny_triangle(WIDE_VIEW)) or ""
+        note = view_note(empty(WIDE_VIEW), triangle_scene("ABC", TINY, WIDE_VIEW)) or ""
         self.assertIn("view x -628..628, y -481.5..481.5", note)
 
-    def test_suggested_view_contains_the_shapes(self) -> None:
-        summary = summarize_view(tiny_triangle_with_circumcircle())
-        assert summary is not None and summary.content is not None
-        suggested = Box.around(3, 1, 5.3, 5.3 * 600 / 800)
-        self.assertTrue(suggested.left < summary.content.left and summary.content.right < suggested.right)
-        self.assertTrue(suggested.bottom < summary.content.bottom and summary.content.top < suggested.top)
+    def test_a_readable_drawing_is_fine(self) -> None:
+        self.assertIsNone(view_note(empty(), triangle_scene("ABC", [(0, 0), (300, 0), (100, 200)])))
+        self.assertIsNone(view_note(empty(), triangle_scene("ABC", [(0, 0), (17, 0), (5, 9)])))
 
-    def test_normal_size_drawing_gets_no_hint(self) -> None:
-        self.assertIsNone(view_note(empty(), big_triangle()))
-        self.assertIsNone(view_note(empty(), scene([point("A", 0, 0), point("B", 60, 0)])))
-
-    def test_threshold_is_forty_pixels_on_a_normal_canvas(self) -> None:
-        self.assertIsNotNone(view_note(empty(), scene([point("A", 0, 0), point("B", 39, 0)])))
-        self.assertIsNone(view_note(empty(), scene([point("A", 0, 0), point("B", 41, 0)])))
-
-    def test_threshold_grows_with_very_large_canvases(self) -> None:
-        big_canvas = with_bounds(empty(), -1500, 1500, -1000, 1000)
-        big_canvas[CANVAS_SIZE_KEY] = {"width": 3000, "height": 2000}
-        # 3% of a 2000 px smaller side is 60 px; the view still maps one unit to one pixel.
-        self.assertIsNotNone(view_note(big_canvas, add(big_canvas, point("A", 0, 0), point("B", 50, 0))))
+    def test_the_threshold_is_sixteen_pixels(self) -> None:
+        self.assertIsNotNone(view_note(empty(), triangle_scene("ABC", [(0, 0), (15, 0), (5, 9)])))
 
     def test_pixels_follow_the_zoom(self) -> None:
-        zoomed = with_bounds(tiny_triangle_with_circumcircle(), -20, 20, -15, 15)
-        self.assertIsNone(view_note(with_bounds(empty(), -20, 20, -15, 15), zoomed))
+        self.assertIsNone(view_note(empty(VIEW_10), triangle_scene("ABC", TINY, VIEW_10)))
 
-    def test_a_lone_point_is_never_too_small(self) -> None:
-        self.assertIsNone(view_note(empty(), scene([point("A", 3, 4)])))
-        self.assertIsNone(view_note(empty(), scene([point("A", 3, 4), point("B", 3, 4)])))
+    def test_points_and_labels_are_never_too_small(self) -> None:
+        self.assertIsNone(view_note(empty(), scene([point("A", 0, 0), point("B", 1, 0)])))
+        label = {"name": "L", "args": {"position": {"x": 0, "y": 0}, "text": "hi"}}
+        self.assertIsNone(view_note(empty(), scene([], Labels=[label])))
 
     def test_without_a_canvas_size_the_view_fraction_is_used(self) -> None:
-        state = tiny_triangle_with_circumcircle()
-        del state[CANVAS_SIZE_KEY]
-        self.assertIn("the shapes span only ~1.1% of the view", view_note(empty(), state) or "")
-        captured = load_scene("triangle_circle")  # an older client: view +-491 x +-249, a 7-unit drawing
-        self.assertIn("% of the view", view_note({"Points": []}, captured) or "")
+        after = triangle_scene("ABC", TINY)
+        del after[CANVAS_SIZE_KEY]
+        self.assertIn("the new ABC spans only a sliver of the view", view_note(empty(), after) or "")
 
-
-class TestDegenerateSizes(unittest.TestCase):
-    """Extents too small to zoom into count as a point; huge numbers stay short."""
-
-    def test_points_closer_than_the_finest_grid_count_as_one(self) -> None:
-        self.assertIsNone(view_note(empty(), scene([point("A", 0, 0), point("B", 1e-9, 0)])))
-        far = with_bounds(scene([point("A", 1e12, 0), point("B", 1e12 + 1e-4, 0)]), 1e12 - 400, 1e12 + 400, -300, 300)
-        self.assertIsNone(view_note(with_bounds(empty(), 1e12 - 400, 1e12 + 400, -300, 300), far))
-
-    def test_a_small_but_zoomable_drawing_gets_a_nonzero_range(self) -> None:
-        note = view_note(empty(), scene([point("A", 0, 0), point("B", 1e-4, 0)])) or ""
-        self.assertIn("range_val=6.3e-5", note)
+    def test_extents_below_the_finest_grid_count_as_a_point(self) -> None:
+        self.assertIsNone(view_note(empty(), triangle_scene("ABC", [(0, 0), (1e-9, 0), (0, 1e-9)])))
+        note = view_note(empty(), triangle_scene("ABC", [(0, 0), (1e-4, 0), (0, 1e-4)])) or ""
+        self.assertIn("range_val=8.4e-5", note)
 
     def test_huge_coordinates_are_written_in_scientific_notation(self) -> None:
-        note = view_note(empty(), scene([point("A", 1e300, 0), point("B", -1e300, 0)])) or ""
-        self.assertIn("shapes x -1e300..1e300", note)
+        after = triangle_scene("ABC", [(1e300, 0), (1e300, 1e290), (1.0000001e300, 0)])
+        note = view_note(empty(), after) or ""
         self.assertIsNone(re.search(r"\d{16}", note), note)
 
-    def test_a_flat_box_shows_one_y_value(self) -> None:
-        note = view_note(empty(), scene([point("A", 1000, 0), point("B", 1100, 0)])) or ""
-        self.assertIn("(shapes x 1000..1100, y 0;", note)
 
-
-class TestTinyNewShapesInALargeDrawing(unittest.TestCase):
-    """New shapes with a real extent are measured on their own, with the small shapes right next to them."""
+class TestMarkersOnReadableShapes(unittest.TestCase):
+    """Small shapes drawn on a readable shape are part of it: never a note."""
 
     def setUp(self) -> None:
-        self.circle_only = scene([point("O", 0, 0)], Circles=[circle("c", "O", 250)])
-        self.with_triangle = add(self.circle_only, *TINY_POINTS, Triangles=[triangle()])
+        self.figure = triangle_scene("ABC", [(0, 0), (240, 0), (0, 180)])
 
-    def test_tiny_triangle_next_to_a_big_circle(self) -> None:
-        note = view_note(self.circle_only, self.with_triangle) or ""
-        self.assertIn("the new or changed shapes (ABC) span only ~6x4 px on screen (shapes x 0..6, y 0..4;", note)
-        self.assertIn("zoom center_x=3, center_y=2", note)
-
-    def test_more_shapes_in_the_same_speck_are_not_noted_again(self) -> None:
-        circumcircle = add(self.with_triangle, point("D", 3, 1), Circles=[circle("d", "D", math.sqrt(10))])
-        self.assertIsNone(view_note(self.with_triangle, circumcircle))
-
-    def test_a_new_small_triangle_elsewhere_is_noted(self) -> None:
-        second = add(
-            self.with_triangle,
-            point("E", 200, 100),
-            point("F", 203, 100),
-            point("G", 201, 102),
-            Triangles=[triangle("EFG")],
+    def test_right_angle_square_at_a_vertex(self) -> None:
+        marker = add(
+            self.figure,
+            point("D", 14, 0),
+            point("E", 14, 14),
+            point("F", 0, 14),
+            Quadrilaterals=[{"name": "ADEF", "args": {"p1": "A", "p2": "D", "p3": "E", "p4": "F"}}],
+            Segments=edges("ADEF"),
         )
-        self.assertIn("(EFG) span only ~3x2 px", view_note(self.with_triangle, second) or "")
+        self.assertIsNone(view_note(self.figure, marker))
 
-    def test_readable_new_shapes_are_fine(self) -> None:
-        bigger = add(self.circle_only, point("A", 0, 0), point("B", 80, 0), point("C", 30, 50), Triangles=[triangle()])
-        self.assertIsNone(view_note(self.circle_only, bigger))
+    def test_highlight_circle_on_a_vertex(self) -> None:
+        self.assertIsNone(view_note(self.figure, add(self.figure, Circles=[circle("B(8)", "B", 8)])))
+        moved_center = add(self.figure, point("G", 240, 0), Circles=[circle("G(8)", "G", 8)])
+        self.assertIsNone(view_note(self.figure, moved_center))
 
-    def test_points_and_labels_alone_are_never_too_small(self) -> None:
-        """B1: a label or a point next to a vertex is an ordinary edit, not a speck."""
-        readable = big_triangle(VIEW_10)
-        readable["Points"] = [point("A", 0, 0), point("B", 4, 0), point("C", 1, 3)]
-        self.assertIsNone(view_note(readable, add(readable, Labels=[label("label_A", 0.35, 0.15, "alpha")])))
-        self.assertIsNone(view_note(readable, add(readable, point("D", 0.5, 0.2))))
-        self.assertIsNone(
-            view_note(self.circle_only, add(self.circle_only, point("D", 100, 100), point("E", 101, 100)))
+    def test_angle_arc_at_a_vertex(self) -> None:
+        arc = {"name": "arc", "args": {"center_x": 240, "center_y": 0, "radius": 12, "point1_name": "B"}}
+        self.assertIsNone(view_note(self.figure, add(self.figure, CircleArcs=[arc])))
+
+    def test_tick_marks_across_an_edge(self) -> None:
+        ticks = add(self.figure, point("T1", 60, -6), point("T2", 60, 6), Segments=[segment("T1", "T2")])
+        self.assertIsNone(view_note(self.figure, ticks))
+
+    def test_small_circle_on_a_readable_circle(self) -> None:
+        figure = scene([point("O", 0, 0)], Circles=[circle("O(200)", "O", 200)])
+        after = add(figure, point("P", 200, 0), Circles=[circle("P(5)", "P", 5)])
+        self.assertIsNone(view_note(figure, after))
+
+    def test_label_or_point_next_to_a_vertex(self) -> None:
+        label = {"name": "alpha", "args": {"position": {"x": 0.35, "y": 0.15}, "text": "alpha"}}
+        small = triangle_scene("ABC", [(0, 0), (4, 0), (1, 3)], VIEW_10)
+        self.assertIsNone(view_note(small, add(small, Labels=[label])))
+        self.assertIsNone(view_note(small, add(small, point("D", 0.5, 0.2))))
+
+    def test_a_speck_away_from_everything_is_noted(self) -> None:
+        speck = add(
+            self.figure,
+            point("P", 300, 200),
+            point("Q", 304, 200),
+            point("R", 302, 203),
+            Segments=edges("PQR"),
+            Triangles=[polygon("PQR")],
         )
+        self.assertIn("the new PQR spans only ~4x3 px", view_note(self.figure, speck) or "")
 
-    def test_a_style_change_is_no_change(self) -> None:
-        """B1: recolouring a point or a shape does not make it new."""
-        readable = scene([point("A", 0, 0), point("B", 4, 0), point("C", 1, 3)], VIEW_10, Triangles=[triangle()])
-        recoloured = copy.deepcopy(readable)
-        recoloured["Points"][0]["args"]["color"] = "red"
-        recoloured["Triangles"][0]["args"]["color"] = "blue"
-        self.assertIsNone(view_note(readable, recoloured))
-        speck = copy.deepcopy(self.with_triangle)
-        speck["Triangles"][0]["args"]["color"] = "red"
-        self.assertIsNone(view_note(self.with_triangle, speck))
 
-    def test_a_lone_point_nearby_does_not_set_the_size(self) -> None:
-        before = add(self.circle_only, point("P", 142, 100))
-        after = add(before, point("D", 100, 100), point("E", 102, 100), Segments=[segment("D", "E")])
-        self.assertIn("(DE) span only ~2x<1 px", view_note(before, after) or "")
+class TestWhatCountsAsNew(unittest.TestCase):
+    def test_recolouring_is_no_change(self) -> None:
+        before = triangle_scene("ABC", TINY)
+        after = copy.deepcopy(before)
+        after["Triangles"][0]["args"]["color"] = "red"
+        after["Points"][0]["args"]["color"] = "blue"
+        self.assertIsNone(view_note(before, after))
 
-    def test_first_message_stays_silent(self) -> None:
-        self.assertIsNone(view_note(None, self.with_triangle))
+    def test_an_unchanged_speck_is_not_noted_again(self) -> None:
+        before = triangle_scene("ABC", TINY)
+        self.assertIsNone(view_note(before, copy.deepcopy(before)))
+
+    def test_moving_a_point_changes_the_shapes_through_it(self) -> None:
+        before = triangle_scene("ABC", [(0, 0), (300, 0), (100, 200)])
+        after = triangle_scene("ABC", [(0, 0), (3, 0), (1, 2)])
+        self.assertIn("the new or changed ABC spans only", view_note(before, after) or "")
+
+    def test_a_view_change_alone_is_never_noted(self) -> None:
+        before = triangle_scene("ABC", [(0, 0), (300, 0), (100, 200)])
+        for view in ((-40000, 40000, -30000, 30000), (5000, 5800, -300, 300)):
+            self.assertIsNone(view_note(before, with_bounds(before, *view)))
+        graph = with_graph(empty(), "f", (-400, 400, -100, 100), True)
+        panned = with_graph(empty(), "f", (1000, 1800, -100, 100), True)
+        self.assertIsNone(view_note(graph, with_bounds(panned, 1000, 1800, 1000, 1600)))
+
+    def test_without_a_previous_canvas_nothing_is_said(self) -> None:
+        self.assertIsNone(view_note(None, triangle_scene("ABC", TINY)))
 
 
 class TestFunctionsAndCurves(unittest.TestCase):
-    """Graphs and curves are measured from the boxes the client samples."""
-
     maxDiff = None
 
     def test_flat_sine_at_the_default_view(self) -> None:
-        state = graph("f", (-628, 628, -1, 1), True, WIDE_VIEW)
         self.assertEqual(
-            view_note(empty(WIDE_VIEW), state),
-            "View note: f varies only ~2 px vertically on screen (y -1..1 over x -628..628; "
+            view_note(empty(WIDE_VIEW), with_graph(empty(WIDE_VIEW), "f", (-628, 628, -1, 1), True)),
+            "View note: the new f varies only ~2 px vertically on screen (y -1..1 over x -628..628; "
             "view x -628..628, y -481.5..481.5). Offer to zoom to about x -5.3..5.3, y -4.1..4.1 "
             "(zoom center_x=0, center_y=0, range_val=5.3, range_axis=x); "
             "don't change the view unless the user agrees.",
         )
 
     def test_bounded_parabola_is_tiny(self) -> None:
-        state = graph("f", (-2, 2, -2, 2), False, WIDE_VIEW, left_bound=-2, right_bound=2)
-        self.assertIn("the shapes span only ~4x4 px on screen", view_note(empty(WIDE_VIEW), state) or "")
+        after = with_graph(empty(WIDE_VIEW), "f", (-2, 2, -2, 2), False, left_bound=-2, right_bound=2)
+        self.assertIn("the new f spans only ~4x4 px on screen", view_note(empty(WIDE_VIEW), after) or "")
 
-    def test_readable_graphs_get_no_hint(self) -> None:
+    def test_readable_graphs_are_fine(self) -> None:
         for box in ((-400, 400, 0, 160000), (-400, 400, -100, 100)):
-            self.assertIsNone(view_note(empty(), graph("f", box, True, DEFAULT_VIEW)))
+            self.assertIsNone(view_note(empty(), with_graph(empty(), "f", box, True)))
 
     def test_lines_and_constants_are_never_flat(self) -> None:
-        """Zooming cannot make a straight line (y = 0.01x + 5, 0.001x on [0, 500]) more readable."""
-        self.assertIsNone(view_note(empty(), graph("f", (-400, 400, 3, 3), True, DEFAULT_VIEW, turns=False)))
-        self.assertIsNone(view_note(empty(), graph("h", (-628, 628, -1.3, 11.3), True, WIDE_VIEW, turns=False)))
-        self.assertIsNone(view_note(empty(), graph("g", (0, 500, 0, 0.5), False, DEFAULT_VIEW, turns=False)))
+        """Zooming cannot make y = 0.01x + 5 or a constant more readable."""
+        self.assertIsNone(view_note(empty(), with_graph(empty(), "f", (-400, 400, 3, 3), True, waves=False)))
+        self.assertIsNone(
+            view_note(empty(WIDE_VIEW), with_graph(empty(WIDE_VIEW), "h", (-628, 628, -1.3, 11.3), True, waves=False))
+        )
 
     def test_graphs_with_a_spike_or_asymptote_are_never_flat(self) -> None:
-        """B2: 1/x sampled across the view looks flat once the pole's samples are trimmed."""
-        spiky = graph("r", (-628, 628, -0.033, 0.033), True, WIDE_VIEW, spiky=True)
-        self.assertIsNone(view_note(empty(WIDE_VIEW), spiky))
-        listed = graph("r", (-628, 628, -0.033, 0.033), True, WIDE_VIEW, vertical_asymptotes=[0])
-        self.assertIsNone(view_note(empty(WIDE_VIEW), listed))
-        elsewhere = graph("r", (-628, 628, -0.033, 0.033), True, WIDE_VIEW, vertical_asymptotes=[5000])
-        self.assertIsNotNone(view_note(empty(WIDE_VIEW), elsewhere))
+        """1/x or tan sampled across the view look flat once the pole's samples are trimmed."""
+        base = empty(WIDE_VIEW)
+        self.assertIsNone(view_note(base, with_graph(base, "r", (-628, 628, -0.03, 0.03), True, spiky=True)))
+        listed = with_graph(base, "r", (-628, 628, -0.03, 0.03), True, vertical_asymptotes=[0])
+        self.assertIsNone(view_note(base, listed))
+        elsewhere = with_graph(base, "r", (-628, 628, -0.03, 0.03), True, vertical_asymptotes=[5000])
+        self.assertIsNotNone(view_note(base, elsewhere))
 
     def test_a_flat_graph_mostly_beside_the_view_is_not_flat(self) -> None:
-        # 5 px of it are on screen: too little to read, nothing to say about its shape.
-        state = graph("f", (395, 1000, -1, 1), False, DEFAULT_VIEW, left_bound=395, right_bound=1000)
-        self.assertIsNone(view_note(empty(), state))
+        after = with_graph(empty(), "f", (395, 1000, -1, 1), False, left_bound=395, right_bound=1000)
+        self.assertIsNone(view_note(empty(), after))
 
-    def test_new_graph_above_the_view(self) -> None:
-        after = graph("f", (-400, 400, 1000, 1160), True, DEFAULT_VIEW)
-        self.assertIn("new or changed f is outside the view", view_note(empty(), after) or "")
+    def test_a_long_bounded_wave_at_a_close_view_is_fine(self) -> None:
+        after = with_graph(empty(VIEW_10), "s", (-1000, 1000, -1, 1), False, left_bound=-1000, right_bound=1000)
+        self.assertIsNone(view_note(empty(VIEW_10), after))
 
-    def test_bounded_graph_partly_on_screen_is_not_outside(self) -> None:
-        state = graph("f", (-1000, 1000, -1, 1), False, VIEW_10, left_bound=-1000, right_bound=1000)
-        self.assertIsNone(view_note(empty(VIEW_10), state))
+    def test_a_graph_drawn_above_the_view(self) -> None:
+        after = with_graph(empty(), "f", (-400, 400, 1000, 1160), True)
+        self.assertIn("the new f is outside the view", view_note(empty(), after) or "")
 
-    def test_a_clipped_graph_changes_only_with_its_definition(self) -> None:
-        """Panning moves a clipped graph's sampled box; that is the user's view, not a new graph."""
-        before = graph("f", (-400, 400, -100, 100), True, DEFAULT_VIEW)
-        # The client samples the graph again over the new x range; it now lies below the view.
-        panned = with_bounds(graph("f", (1000, 1800, -100, 100), True, DEFAULT_VIEW), 1000, 1800, 1000, 1600)
-        self.assertIsNone(view_note(before, panned))
+    def test_a_graph_without_measurement_is_never_noted(self) -> None:
+        after = with_graph(empty(WIDE_VIEW), "f", (-628, 628, -1, 1), True)
+        del after[CURVE_EXTENTS_KEY]
+        self.assertIsNone(view_note(empty(WIDE_VIEW), after))
 
-    def test_flat_graph_unchanged_is_not_noted_again(self) -> None:
-        state = graph("f", (-628, 628, -1, 1), True, WIDE_VIEW)
-        self.assertIsNone(view_note(state, copy.deepcopy(state)))
-        self.assertIsNone(view_note(state, with_bounds(state, -6280, 6280, -4815, 4815)))
+    def test_a_tangent_on_a_graph_is_part_of_it(self) -> None:
+        before = with_graph(empty(VIEW_10), "f", (-10, 10, -18, 18), True)
+        after = add(before, point("T1", 0.9, -2.1), point("T2", 1.1, -1.9), Segments=[segment("T1", "T2")])
+        self.assertIsNone(view_note(before, after))
 
-    def test_one_flat_note_per_graph_in_a_conversation(self) -> None:
-        memory = ViewNoteMemory()
-        sine = graph("f", (-628, 628, -1, 1), True, WIDE_VIEW)
-        self.assertIsNotNone(view_note(empty(WIDE_VIEW), sine, memory))
-        redefined = graph("f", (-628, 628, -2, 2), True, WIDE_VIEW)
-        redefined["Functions"][0]["args"]["function_string"] = "2*sin(x)"
-        self.assertIsNone(view_note(sine, redefined, memory))
+    def test_a_small_shape_next_to_an_unmeasured_graph_is_left_alone(self) -> None:
+        """Only a batch's new curves are measured; a tangent on an older graph could lie on it."""
+        before = scene([], Functions=[{"name": "f", "args": {"function_string": "x^2"}}])
+        after = add(before, point("T1", 0.1, -0.8), point("T2", 1.9, 2.8), Segments=[segment("T1", "T2")])
+        self.assertIsNone(view_note(before, after))
 
     def test_parametric_curve(self) -> None:
-        state = scene([], ParametricFunctions=[{"name": "p", "args": {"x_expression": "cos(t)"}}])
-        state[CURVE_EXTENTS_KEY] = {"ParametricFunctions": {"p": {"box": [-1, 1, -1, 1], "clipped": False}}}
-        self.assertIn("the shapes span only ~2x2 px", view_note(empty(), state) or "")
-
-    def test_area_under_a_graph_between_bounds(self) -> None:
-        state = graph("f", (-400, 400, -1, 1), True, DEFAULT_VIEW)
-        state["FunctionsBoundedColoredAreas"] = [
-            {"name": "a", "args": {"func1": "f", "func2": "x_axis", "left_bound": 0, "right_bound": 3}}
-        ]
-        summary = summarize_view(state)
-        assert summary is not None and summary.content is not None
-        self.assertEqual(summary.content, Box(0, 3, -1, 1))
-        self.assertIn("the shapes span only ~3x2 px", view_note(empty(), state) or "")
-
-    def test_without_curve_extents_graphs_are_not_measured(self) -> None:
-        state = graph("f", (-628, 628, -1, 1), True, WIDE_VIEW)
-        del state[CURVE_EXTENTS_KEY]
-        self.assertIsNone(view_note(empty(WIDE_VIEW), state))
+        after = scene([], ParametricFunctions=[{"name": "p", "args": {"x_expression": "cos(t)"}}])
+        after[CURVE_EXTENTS_KEY] = {"ParametricFunctions": {"p": {"box": [-1, 1, -1, 1], "clipped": False}}}
+        self.assertIn("the new p spans only ~2x2 px", view_note(empty(), after) or "")
 
 
 class TestOutsideTheView(unittest.TestCase):
-    def test_drawing_entirely_off_screen(self) -> None:
-        state = scene([point("A", 1000, 0), point("B", 1100, 0), point("C", 1050, 80)])
-        note = view_note(empty(), state) or ""
-        self.assertIn("the shapes are entirely outside the view (shapes x 1000..1100, y 0..80;", note)
-        # Readable at the current zoom, so the suggestion only moves the view.
-        self.assertIn("Offer to move the view to about x 650..1450", note)
-        self.assertIn("range_val=400", note)
-
-    def test_first_message_with_nothing_on_screen(self) -> None:
-        self.assertIn("(shapes at (1000, 0);", view_note(None, scene([point("A", 1000, 0)])) or "")
-
-    def test_first_message_zoomed_into_a_big_drawing(self) -> None:
-        self.assertIsNone(view_note(None, with_bounds(big_triangle(), -310, -190, -245, -155)))
-
-    def test_partly_visible_drawing_is_fine(self) -> None:
-        """Part of a big circle or a long diagonal on screen: never a note."""
-        state = scene([point("A", -1000, -1000), point("B", 1000, 1000)], Segments=[segment("A", "B")])
-        self.assertIsNone(view_note(empty(), state))
-        self.assertIsNone(view_note(empty(), scene([point("O", 0, 0)], Circles=[circle("c", "O", 2000)])))
-
-    def test_changed_object_off_screen_in_a_visible_scene(self) -> None:
-        before = big_triangle()
-        after = add(before, point("P", 450, 0))
+    def test_a_circle_drawn_far_away(self) -> None:
+        before = scene([point("A", 0, 0)], Circles=[circle("A(100)", "A", 100)])
+        after = add(before, point("B", 5000, 5000), Circles=[circle("B(100)", "B", 100)])
         note = view_note(before, after) or ""
-        self.assertIn("new or changed P is outside the view (view x -400..400, y -300..300)", note)
-        self.assertIn("Offer to move the view to about x 50..850, y -300..300", note)
-        self.assertIsNone(view_note(after, after))
+        self.assertIn("the new B(100) is outside the view (view x -400..400, y -300..300)", note)
+        self.assertIn("Offer to move the view to about x 4600..5400, y 4700..5300", note)
 
-    def test_ends_of_a_new_segment_across_the_view_are_not_outside(self) -> None:
-        before = big_triangle()
-        after = add(before, point("P", -500, 0), point("Q", 500, 10), Segments=[segment("P", "Q")])
-        self.assertIsNone(view_note(before, after))
+    def test_several_points_and_the_verb(self) -> None:
+        after = scene([point(name, 420 + i, 0) for i, name in enumerate("PQRST")])
+        self.assertIn("the new P, Q, R (+2 more) are outside the view", view_note(empty(), after) or "")
 
-    def test_object_already_off_screen_moving_is_not_news(self) -> None:
-        zoomed = with_bounds(big_triangle(), -10, 10, -7.5, 7.5)
-        moved = copy.deepcopy(zoomed)
-        moved["Points"][2]["args"]["position"] = {"x": 0, "y": 260}
-        self.assertIsNone(view_note(zoomed, moved))
+    def test_the_ends_of_a_segment_across_the_view_are_on_screen(self) -> None:
+        after = scene([point("P", -500, 0), point("Q", 500, 10)], Segments=[segment("P", "Q")])
+        self.assertIsNone(view_note(empty(), after))
 
-    def test_drawing_already_out_of_sight_is_not_news(self) -> None:
-        away = with_bounds(big_triangle(), 2000, 2800, -300, 300)
-        moved = copy.deepcopy(away)
-        moved["Points"][2]["args"]["position"] = {"x": 0, "y": 260}
-        self.assertIsNone(view_note(away, moved))
-
-    def test_many_changed_objects_are_counted(self) -> None:
-        before = big_triangle()
-        after = add(before, *(point(name, 420 + i, 0) for i, name in enumerate("PQRST")))
-        self.assertIn("new or changed P, Q, R (+2 more) are outside the view", view_note(before, after) or "")
-
-    def test_the_same_object_is_named_once_per_conversation(self) -> None:
-        memory = ViewNoteMemory()
-        before = big_triangle()
-        after = add(before, point("P", 450, 0))
-        self.assertIsNotNone(view_note(before, after, memory))
-        self.assertIsNone(view_note(before, after, memory))  # undo, then redo
+    def test_partly_visible_shapes_are_fine(self) -> None:
+        self.assertIsNone(view_note(empty(), scene([point("O", 0, 0)], Circles=[circle("O(2000)", "O", 2000)])))
 
 
 class TestNoHint(unittest.TestCase):
-    def test_empty_canvas(self) -> None:
-        self.assertIsNone(view_note(None, empty()))
-        self.assertIsNone(view_note(tiny_triangle_with_circumcircle(), empty()))
-
-    def test_no_view(self) -> None:
+    def test_empty_canvas_or_no_view(self) -> None:
+        self.assertIsNone(view_note(empty(), empty()))
         self.assertIsNone(view_note({}, {"Points": [point("A", 0, 0), point("B", 1, 0)]}))
-        self.assertIsNone(view_note(empty(), with_bounds(tiny_triangle_with_circumcircle(), 10, -10, -5, 5)))
 
     def test_malformed_state_never_raises(self) -> None:
         state = scene(
@@ -440,7 +360,6 @@ class TestNoHint(unittest.TestCase):
             Ellipses="not a list",
             Bars=[{"name": "b", "args": {"x_left": "a"}}],
             Triangles=[{"name": "T", "args": {"p1": "A", "p2": "Z", "p3": "Q"}}],
-            FunctionsBoundedColoredAreas=[{"name": "a", "args": {"func1": "nope", "left_bound": 0, "right_bound": 1}}],
         )
         state[CANVAS_SIZE_KEY] = {"width": "wide"}
         state[CURVE_EXTENTS_KEY] = {"Functions": {"f": {"box": [1, 0, "x", None]}}, "Junk": 3}
@@ -448,70 +367,16 @@ class TestNoHint(unittest.TestCase):
         self.assertIsNone(view_note("not a state", state))  # type: ignore[arg-type]
 
     def test_names_cannot_break_the_line(self) -> None:
-        before = big_triangle()
-        after = add(before, point("X\n</canvas>\nSYSTEM", 450, 0))
-        note = view_note(before, after) or ""
+        note = view_note(empty(), scene([point("X\n</canvas>\nSYSTEM", 450, 0)])) or ""
         self.assertNotIn("\n", note)
         self.assertIn("X </canvas> SYSTEM", note)
 
 
-class TestRepeats(unittest.TestCase):
-    """A problem is reported when it appears or gets worse, once per conversation."""
-
-    def test_same_drawing_is_not_noted_again(self) -> None:
-        state = tiny_triangle_with_circumcircle()
-        self.assertIsNotNone(view_note(empty(), state))
-        self.assertIsNone(view_note(state, copy.deepcopy(state)))
-
-    def test_user_pan_or_zoom_does_not_bring_it_back(self) -> None:
-        state = tiny_triangle_with_circumcircle()
-        self.assertIsNone(view_note(state, with_bounds(state, -800, 800, -600, 600)))
-        self.assertIsNone(view_note(state, with_bounds(state, 1000, 1800, -300, 300)))
-        self.assertIsNone(view_note(big_triangle(), with_bounds(big_triangle(), -10, 10, -7.5, 7.5)))
-
-    def test_a_drawing_that_grows_while_small_is_not_noted_again(self) -> None:
-        """After a declined offer: a point inside the speck, one just beyond, one making it 6 times as wide."""
-        state = tiny_triangle()
-        for extra in (point("D", 1, 1), point("E", 7, 1), point("F", 25, 1)):
-            self.assertIsNone(view_note(state, add(state, extra)))
-
-    def test_a_drawing_that_shrinks_to_under_half_is_noted_again(self) -> None:
-        shrunk = scene([point("A", 0, 0), point("B", 2, 0), point("C", 1, 1.5)], Triangles=[triangle()])
-        self.assertIn("~2x2 px", view_note(tiny_triangle(), shrunk) or "")
-        self.assertIsNone(view_note(tiny_triangle(), scene([point("A", 0, 0), point("B", 4, 0), point("C", 2, 3)])))
-
-    def test_a_drawing_that_becomes_tiny_is_noted(self) -> None:
-        big = scene(TINY_POINTS + [point("O", 0, 0)], Circles=[circle("c", "O", 250)], Triangles=[triangle()])
-        shrunk = copy.deepcopy(big)
-        del shrunk["Circles"]
-        self.assertIn("the shapes span only ~6x4 px", view_note(big, shrunk) or "")
-
-    def test_undo_then_redo_is_not_noted_twice(self) -> None:
-        memory = ViewNoteMemory()
-        self.assertIsNotNone(view_note(empty(), tiny_triangle(), memory))
-        self.assertIsNone(view_note(tiny_triangle(), empty(), memory))
-        self.assertIsNone(view_note(empty(), tiny_triangle(), memory))
-        # Without the memory the redo would read as a new speck.
-        self.assertIsNotNone(view_note(empty(), tiny_triangle()))
-
-    def test_a_speck_somewhere_else_is_news(self) -> None:
-        memory = ViewNoteMemory()
-        self.assertIsNotNone(view_note(empty(), tiny_triangle(), memory))
-        moved = scene([point("A", 200, 0), point("B", 206, 0), point("C", 202, 4)], Triangles=[triangle()])
-        self.assertIsNotNone(view_note(empty(), moved, memory))
-
-    def test_float_noise_does_not_count_as_a_change(self) -> None:
-        state = tiny_triangle_with_circumcircle()
-        after = copy.deepcopy(state)
-        after["Points"][1]["args"]["position"]["x"] = 6.000000000000001
-        self.assertIsNone(view_note(state, after))
-
-
 class TestExtents(unittest.TestCase):
-    def _content(self, points: Optional[List[Dict[str, Any]]] = None, **buckets: Any) -> Box:
+    def _box(self, key: Tuple[str, str], points: Optional[List[Dict[str, Any]]] = None, **buckets: Any) -> Box:
         summary = summarize_view(scene(points or [], **buckets))
-        assert summary is not None and summary.content is not None
-        return summary.content
+        assert summary is not None
+        return summary.shapes[key].box
 
     def assertBox(self, box: Box, expected: tuple) -> None:  # noqa: N802
         for actual, wanted in zip((box.left, box.right, box.bottom, box.top), expected):
@@ -519,60 +384,34 @@ class TestExtents(unittest.TestCase):
 
     def test_rotated_ellipse(self) -> None:
         ellipse = {"name": "e", "args": {"center": "E", "radius_x": 4, "radius_y": 2, "rotation_angle": 90}}
-        self.assertBox(self._content([point("E", 1, 1)], Ellipses=[ellipse]), (-1, 3, -3, 5))
+        self.assertBox(self._box(("Ellipses", "e"), [point("E", 1, 1)], Ellipses=[ellipse]), (-1, 3, -3, 5))
 
-    def test_arc_bar_and_label(self) -> None:
-        box = self._content(
-            CircleArcs=[{"name": "a", "args": {"center_x": 0, "center_y": 0, "radius": 2}}],
-            Bars=[{"name": "b", "args": {"x_left": 5, "x_right": 6, "y_bottom": 0, "y_top": -3}}],
-            Labels=[label("l", -4, 1, "hi")],
-        )
-        self.assertBox(box, (-4, 6, -3, 2))
-
-    def test_bar_chart(self) -> None:
-        plot = {"values": [12, -3, 7], "bar_width": 1, "bar_spacing": 0.2, "x_start": -2, "y_base": 1}
-        self.assertBox(self._content(BarsPlots=[{"name": "sales", "args": plot}]), (-2, 1.4, -2, 13))
+    def test_arc_and_bar(self) -> None:
+        arc = {"name": "a", "args": {"center_x": 0, "center_y": 0, "radius": 2}}
+        self.assertBox(self._box(("CircleArcs", "a"), CircleArcs=[arc]), (-2, 2, -2, 2))
+        bar = {"name": "b", "args": {"x_left": 5, "x_right": 6, "y_bottom": 0, "y_top": -3}}
+        self.assertBox(self._box(("Bars", "b"), Bars=[bar]), (5, 6, -3, 0))
 
     def test_polygon_from_vertex_list(self) -> None:
-        polygon = {"name": "P", "args": {"points": ["A", "B", "C"]}}
-        box = self._content([point("A", 0, 0), point("B", 5, 0), point("C", 5, 7)], GenericPolygons=[polygon])
-        self.assertBox(box, (0, 5, 0, 7))
+        shape = {"name": "P", "args": {"points": ["A", "B", "C"]}}
+        points = [point("A", 0, 0), point("B", 5, 0), point("C", 5, 7)]
+        self.assertBox(self._box(("GenericPolygons", "P"), points, GenericPolygons=[shape]), (0, 5, 0, 7))
 
-    def test_view_keys_are_not_rendered_as_objects(self) -> None:
-        state = graph("f", (-628, 628, -1, 1), True, WIDE_VIEW)
+    def test_measuring_keys_are_not_rendered_as_objects(self) -> None:
+        state = with_graph(empty(WIDE_VIEW), "f", (-628, 628, -1, 1), True)
         for rendered in (render_text(state), render_min_json(state)):
             self.assertNotIn(CANVAS_SIZE_KEY, rendered)
             self.assertNotIn(CURVE_EXTENTS_KEY, rendered)
 
 
-class TestNoteInEveryFormat(unittest.TestCase):
+class TestPlacement(unittest.TestCase):
+    """The note ends [canvas changes]; when the full canvas is sent instead it heads it."""
+
     def setUp(self) -> None:
-        self.state = tiny_triangle_with_circumcircle()
+        self.state = triangle_scene("ABC", TINY)
         note = view_note(empty(), self.state)
         assert note is not None
         self.note = note
-
-    def test_text_puts_the_note_under_the_view_line(self) -> None:
-        lines = render_state(self.state, "text", view_note=self.note).split("\n")
-        self.assertEqual(lines[0], "view x [-400, 400] y [-300, 300]; grid 100")
-        self.assertEqual(lines[1], self.note)
-
-    def test_min_json_and_json_carry_a_view_note_key(self) -> None:
-        self.assertEqual(json.loads(render_state(self.state, "min_json", view_note=self.note))["view_note"], self.note)
-        self.assertEqual(json.loads(render_state(self.state, "json", view_note=self.note))["view_note"], self.note)
-        self.assertNotIn("view_note", render_state(self.state, "json"))
-
-    def test_budget_trimming_keeps_the_note(self) -> None:
-        crowded = scene([point(f"P{i}", (i % 20) * 0.3, (i // 20) * 0.3) for i in range(200)])
-        note = view_note(empty(), crowded)
-        assert note is not None and note.startswith(VIEW_NOTE_PREFIX)
-        text = render_text(crowded, budget_tokens=400, view_note=note)
-        self.assertIn(OMITTED_NOTE, text)
-        self.assertEqual(text.split("\n")[1], note)
-        self.assertLessEqual(estimate_tokens_from_text(text), 400)
-        trimmed = json.loads(render_min_json(crowded, budget_tokens=400, view_note=note))
-        self.assertIn("omitted", trimmed)
-        self.assertEqual(trimmed["view_note"], note)
 
     def test_canvas_changes_end_with_the_note(self) -> None:
         update = render_update(empty(), self.state, "text", view_note=self.note)
@@ -585,6 +424,16 @@ class TestNoteInEveryFormat(unittest.TestCase):
         self.assertTrue(
             update.startswith(CURRENT_HEADER + "\nview x [-400, 400] y [-300, 300]; grid 100\n" + self.note)
         )
+        self.assertEqual(json.loads(render_min_json(self.state, view_note=self.note))["view_note"], self.note)
+
+    def test_budget_trimming_keeps_the_note(self) -> None:
+        crowded = scene([point(f"P{i}", (i % 20) * 0.3, (i // 20) * 0.3) for i in range(200)])
+        note = f"{VIEW_NOTE_PREFIX} test"
+        text = render_text(crowded, budget_tokens=400, view_note=note)
+        self.assertIn(OMITTED_NOTE, text)
+        self.assertEqual(text.split("\n")[1], note)
+        self.assertLessEqual(estimate_tokens_from_text(text), 400)
+        self.assertEqual(json.loads(render_min_json(crowded, budget_tokens=400, view_note=note))["view_note"], note)
 
     def test_unchanged_canvas_still_reports_a_note(self) -> None:
         self.assertEqual(

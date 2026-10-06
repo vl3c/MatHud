@@ -18,9 +18,10 @@ This module turns the state into prompt text. It is pure (no Flask, no I/O):
 ``render_update``    what to tell the model after a tool batch changed the canvas
                      (the changes are text lines in every format; see render_delta)
 
-A ``view_note`` line (static/canvas_view_note.py) can be passed to the render
-functions: a header line in text, which the budget never trims, a ``"view_note"``
-key in JSON, and the last line of ``[canvas changes]``.
+After a tool batch, a ``view_note`` line (static/canvas_view_note.py) can be passed
+to ``render_update``: the last line of ``[canvas changes]``, or, when the full canvas
+is sent instead, a header line in text (which the budget never trims) or a
+``"view_note"`` key in min_json.
 
 Budget: ``render_text`` and ``render_min_json`` accept ``budget_tokens``. In
 text, large scenes first pack points several per line, then drop the least
@@ -1303,7 +1304,7 @@ def render_state(
     """Render a state in the requested format (``json`` is the raw state, unchanged).
 
     ``view_note`` (static/canvas_view_note.py) becomes a line under the view in text and a
-    ``"view_note"`` key in min_json and json. Never raises: a state the renderers
+    ``"view_note"`` key in min_json (json is the raw state). Never raises: a state the renderers
     cannot handle is sent as compact JSON instead, so one malformed object cannot
     fail the whole request.
     """
@@ -1312,7 +1313,7 @@ def render_state(
             return render_text(state, budget_tokens=budget_tokens, view_note=view_note)
         if fmt == "min_json":
             return render_min_json(state, budget_tokens=budget_tokens, view_note=view_note)
-        return json.dumps(dict(state, view_note=view_note) if view_note else state)
+        return json.dumps(state)
     except Exception:
         _logger.warning("Could not render the canvas state as %s; sending compact JSON", fmt, exc_info=True)
         return _fallback_json(state)

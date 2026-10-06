@@ -1,35 +1,25 @@
 """
-View notes: tell the model when the drawings are too small on screen or outside the view.
+View notes: tell the model when something it just drew can't be seen.
 
-The app never moves or zooms the view on its own. When the shapes are hard to see,
-the canvas the model is shown (a user message's <canvas> block, or the
-[canvas changes] after a tool batch) carries one "View note:" line, so the model
-can offer the user a zoom; the system prompt tells it to change the view only when
-the user asks or agrees.
+The app never moves or zooms the view on its own, and the user's view is the
+user's business. After each of the model's tool batches, the [canvas changes]
+end with one "View note:" line when an object that batch created or moved
+cannot be seen, so the model can offer the user a zoom; the system prompt tells
+it to change the view only when the user asks or agrees. A missed note is far
+better than a false or useless one, so every rule stays silent when unsure:
 
-A missed note is far better than a false or useless one, so every rule stays silent
-when it is unsure:
+1. outside: a new object lies entirely outside the view;
+2. tiny: the batch's new shapes with a real extent span fewer than 16 px on screen,
+   leaving out small shapes attached to a readable shape (angle arcs, right-angle
+   squares, highlight circles, tick marks, markers);
+3. flat: a new function graph that waves (turns at least three times, like sin) varies by
+   fewer than 16 px vertically, with no spike or vertical asymptote in its sampled range.
 
-1. outside: nothing of the drawing is in the view;
-2. new or changed objects lie entirely outside the view;
-3. too small: the whole drawing spans fewer than max(40 px, 3% of the canvas's smaller side);
-4. too small: new or changed shapes with a real extent (not just points or labels), with
-   the small shapes right next to them, span fewer than that inside a larger drawing;
-5. flat: a function graph that turns (like sin) varies by fewer than 16 px vertically,
-   and has no vertical asymptote or spike that would make it look flat by sampling.
-
-Each problem is reported when it appears: a change of view alone (the user's own pan
-or zoom) never brings a note, a problem the previous canvas already had comes back
-only when it got worse (the shapes shrank to less than half their size), and a
-``ViewNoteMemory`` keeps one conversation from hearing the same note twice (a redo).
-At the first message of a conversation the view is the user's choice, so only a
-drawing with nothing at all on screen is reported.
-
-Measurement. The view is a uniform linear map (``CoordinateMapper.math_to_screen``),
-so screen sizes follow exactly from the view bounds and the canvas size in CSS
-pixels, which the client adds to the prompt's state (``canvas_size_px``). Bounded
-objects are measured from the state; function graphs and curves come from the boxes
-the client samples (``curve_extents``, see static/client/prompt_canvas_state.py).
+"New" means created or geometrically changed by the batch, decided from the
+previous canvas's objects by bucket, name and geometry (style changes such as a
+recolour are no change). Screen sizes follow from the view bounds and the canvas
+size in CSS pixels (the view is a uniform linear map); function graphs and curves
+are measured by the client (``curve_extents``, static/client/prompt_canvas_state.py).
 
 Pure module (no Flask, no I/O); ``view_note`` never raises.
 """
@@ -40,43 +30,33 @@ import json
 import logging
 import math
 import re
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from static.canvas_state_formatter import CANVAS_SIZE_KEY, CURVE_EXTENTS_KEY, VIEW_SIGNIFICANT_DIGITS, format_number
 
 _logger = logging.getLogger("mathud")
 
 VIEW_NOTE_PREFIX = "View note:"
-# Too small: the larger side on screen is under max(TINY_PX, TINY_CANVAS_FRACTION x the canvas's
-# smaller side). Point labels are 14 px text, so below about 40 px the labels of neighbouring
-# points cover each other and the shape; the fraction keeps the rule proportional on very large
-# canvases (smaller side above about 1330 px).
-TINY_PX = 40.0
-TINY_CANVAS_FRACTION = 0.03
-# Without a canvas size (older clients): under this fraction of the view's smaller side,
-# which is 40 px of an 800 px canvas.
-TINY_VIEW_FRACTION = 0.05
-# Flat: a turning graph whose whole vertical variation on screen is under about one label
-# height reads as a straight line.
+# Tiny: under this many pixels on screen, a new drawing is a speck (the reported triangle was 6 px).
+TINY_PX = 16.0
+# Without a canvas size: under this fraction of the view's smaller side.
+TINY_VIEW_FRACTION = 0.02
+# Flat: a waving graph whose whole vertical variation is under about one label height (14 px
+# text) reads as a straight line.
 FLAT_PX = 16.0
 # The suggested view for a flat graph makes its variation fill this share of the view's height.
 FLAT_FILL = 0.25
-# A problem the previous canvas already had is reported again only when the shapes shrank
-# (in math units) to less than this share of their size: it got worse, not just different.
-WORSE_SIZE_RATIO = 0.5
 # The suggested view shows the target box enlarged this much around its centre.
 SUGGESTED_VIEW_MARGIN = 1.25
 # Extents below the grid's finest spacing (Cartesian2Axis.min_tick_spacing) or this fraction of
 # the coordinates' magnitude count as a point: nothing to zoom into.
 DEFAULT_MIN_EXTENT = 1e-6
 _RELATIVE_MIN_EXTENT = 1e-9
-# Coordinates this large are printed in scientific notation.
 _SCIENTIFIC_ABOVE = 1e15
 _MAX_NOTE_NAMES = 3
-# Two boxes are the same when no edge moved by more than this fraction of their size.
 _SAME_BOX_RELATIVE_TOLERANCE = 1e-6
-# Args that change how an object looks, not where it is or how big: a recolour is no change here.
+# Args that change how an object looks, not where it is or how big: a recolour is no change.
 _STYLE_ARGS = frozenset(
     {
         "color",
@@ -99,15 +79,14 @@ _STYLE_ARGS = frozenset(
         "label_below_text",
     }
 )
-# Buckets whose objects are drawn at one spot (their size on screen is text, not geometry).
+# Buckets drawn at one spot: never tiny (their size on screen is text, not geometry).
 _POINT_BUCKETS = frozenset({"Points", "Labels"})
+# Named first: whole shapes before their edges, edges before points.
+_NAME_ORDER = {"Points": 2, "Labels": 2, "Segments": 1, "Vectors": 1}
 
 Point2D = Tuple[float, float]
 Key = Tuple[str, str]
 JsonDict = Dict[str, Any]
-
-
-# --------------------------------------------------------------------------- geometry
 
 
 @dataclass(frozen=True)
@@ -164,12 +143,6 @@ class Box:
             and other.bottom <= self.top
         )
 
-    def gap_to(self, other: "Box") -> float:
-        """The distance between the two boxes (0 when they touch or overlap)."""
-        dx = max(0.0, other.left - self.right, self.left - other.right)
-        dy = max(0.0, other.bottom - self.top, self.bottom - other.top)
-        return math.hypot(dx, dy)
-
     def same_as(self, other: "Box") -> bool:
         tolerance = _SAME_BOX_RELATIVE_TOLERANCE * max(self.size, other.size)
         return all(
@@ -188,70 +161,54 @@ class Shape:
     """One measured object."""
 
     box: Box
-    # The object's geometry (style args left out), to tell a moved or resized object from an unchanged one.
+    # The object's geometry (style args left out): a moved or resized object gets a new one.
     signature: str
-    # A function graph without both bounds, sampled over the view's x range only.
-    clipped: bool = False
-    # A function graph whose samples change direction (a turning point), and one with a spike or
-    # a vertical asymptote in the sampled range: the flat rule needs the first and not the second.
-    graph: bool = False
-    turns: bool = False
-    spiky: bool = False
-    # The points it is drawn through (segment ends, polygon vertices, circle centre).
+    # The named points it is drawn through, and the corners of its outline (segment ends,
+    # polygon vertices); circles keep their centre and radius.
     points: Tuple[str, ...] = ()
-
-
-# --------------------------------------------------------------------------- measuring a state
+    corners: Tuple[Point2D, ...] = ()
+    radius: Optional[float] = None
+    # A function graph, its sampling flags (see prompt_canvas_state), and whether it was
+    # sampled over the view's x range only (no bounds).
+    graph: bool = False
+    clipped: bool = False
+    waves: bool = False
+    spiky: bool = False
 
 
 @dataclass(frozen=True)
 class ViewSummary:
-    """Where the measurable shapes are relative to the view."""
+    """The view and every measured object of a state."""
 
     view: Box
     canvas_px: Optional[Tuple[float, float]]
     shapes: Dict[Key, Shape]
     min_tick_spacing: float
-
-    @property
-    def content(self) -> Optional[Box]:
-        """The bounding box of every shape except graphs clipped to the view."""
-        return _union_box(shape.box for shape in self.shapes.values() if not shape.clipped)
-
-    @property
-    def pixels_per_unit(self) -> Optional[float]:
-        return self.canvas_px[0] / self.view.width if self.canvas_px else None
+    # A graph or curve the client did not measure (only a batch's new curves are): a small new
+    # shape could lie on it, so the tiny rule stays silent.
+    unmeasured_curves: bool = False
 
     def scale(self) -> float:
         """Pixels per math unit (a nominal 1000 px for the view's smaller side without a canvas size)."""
-        return self.pixels_per_unit or 1000.0 / min(self.view.width, self.view.height)
-
-    def size_px(self, box: Box) -> Optional[Tuple[float, float]]:
-        scale = self.pixels_per_unit
-        return None if scale is None else (box.width * scale, box.height * scale)
+        if self.canvas_px:
+            return self.canvas_px[0] / self.view.width
+        return 1000.0 / min(self.view.width, self.view.height)
 
     def is_point_like(self, box: Box) -> bool:
         """Too small to zoom into: below the grid's finest spacing or float resolution."""
         return box.size <= max(self.min_tick_spacing, _RELATIVE_MIN_EXTENT * box.magnitude)
 
-    def tiny_threshold(self) -> Optional[float]:
-        if self.canvas_px is None:
-            return None
-        return max(TINY_PX, TINY_CANVAS_FRACTION * min(self.canvas_px))
-
-    def is_tiny(self, box: Optional[Box]) -> bool:
-        """True when ``box`` has a size but it is too small to read on screen."""
-        if box is None or self.is_point_like(box):
+    def is_tiny(self, box: Box) -> bool:
+        if self.is_point_like(box):
             return False
-        threshold = self.tiny_threshold()
-        if threshold is not None and self.pixels_per_unit is not None:
-            return box.size * self.pixels_per_unit < threshold
+        if self.canvas_px:
+            return box.size * self.scale() < TINY_PX
         return box.size < TINY_VIEW_FRACTION * min(self.view.width, self.view.height)
 
     def is_flat(self, shape: Shape) -> bool:
-        """A turning function graph, wide enough to see, with a few pixels of vertical variation."""
+        """A waving function graph, wide enough to see, with a few pixels of vertical variation."""
         box = shape.box
-        if not shape.graph or not shape.turns or shape.spiky or self.is_point_like(Box(0.0, 0.0, box.bottom, box.top)):
+        if not shape.graph or not shape.waves or shape.spiky or self.is_point_like(Box(0.0, 0.0, box.bottom, box.top)):
             return False
         visible_width = min(box.right, self.view.right) - max(box.left, self.view.left)
         return box.height * self.scale() < FLAT_PX and visible_width * self.scale() >= FLAT_PX
@@ -261,7 +218,7 @@ class ViewSummary:
 
 
 def summarize_view(state: Any) -> Optional[ViewSummary]:
-    """Measure the state's shapes against its view; None without a usable view."""
+    """Measure the state's objects against its view; None without a usable view."""
     if not isinstance(state, Mapping):
         return None
     view = _view_box(state)
@@ -269,7 +226,12 @@ def summarize_view(state: Any) -> Optional[ViewSummary]:
         return None
     spacing = _as_float(state.get("min_tick_spacing"))
     min_extent = spacing if spacing is not None and spacing > 0 else DEFAULT_MIN_EXTENT
-    return ViewSummary(view, _canvas_px(state), measure_shapes(state), min_extent)
+    shapes = measure_shapes(state)
+    unmeasured = any(key not in shapes for bucket in _CURVE_BUCKETS for key, _ in _keyed_items(state, bucket))
+    return ViewSummary(view, _canvas_px(state), shapes, min_extent, unmeasured)
+
+
+# --------------------------------------------------------------------------- measuring
 
 
 def measure_shapes(state: Mapping[str, Any]) -> Dict[Key, Shape]:
@@ -280,40 +242,82 @@ def measure_shapes(state: Mapping[str, Any]) -> Dict[Key, Shape]:
         for key, item in _keyed_items(state, bucket):
             xy = _xy(_args(item).get("position"))
             if xy is not None:
-                shapes[key] = Shape(Box.around(*xy), _signature(item))
+                shapes[key] = Shape(Box.around(*xy), _signature(item), corners=(xy,))
                 if bucket == "Points":
                     positions.setdefault(key[1], xy)
     for bucket, measure in _MEASURES:
         for key, item in _keyed_items(state, bucket):
-            _add(shapes, key, measure(_args(item), positions, _signature(item)))
-    for bucket in _POLYGON_BUCKETS:
-        for key, item in _keyed_items(state, bucket):
-            _add(shapes, key, _polygon_shape(_args(item), positions, _signature(item)))
-    curves = _curve_shapes(state)
-    shapes.update(curves)
-    for key, item in _keyed_items(state, "FunctionsBoundedColoredAreas"):
-        _add(shapes, key, _function_area_shape(_args(item), curves, _signature(item)))
+            shape = measure(_args(item), positions, _signature(item))
+            if shape is not None and shape.box.is_finite():
+                shapes[key] = shape
+    shapes.update(_curve_shapes(state))
     return shapes
-
-
-def _add(shapes: Dict[Key, Shape], key: Key, shape: Optional[Shape]) -> None:
-    if shape is not None and shape.box.is_finite():
-        shapes[key] = shape
 
 
 _Measure = Callable[[JsonDict, Mapping[str, Point2D], str], Optional[Shape]]
 
 
-def _segment_shape(first: str, second: str) -> _Measure:
-    def measure(args: JsonDict, positions: Mapping[str, Point2D], signature: str) -> Optional[Shape]:
-        start, end = positions.get(str(args.get(first))), positions.get(str(args.get(second)))
-        if start is None or end is None:
-            return None
-        # The signature includes the endpoints, so a segment whose point moved counts as changed.
-        members = (str(args.get(first)), str(args.get(second)))
-        return Shape(Box.of_points([start, end]), f"{signature}{start}{end}", points=members)
+def _through_points(names: Sequence[Any], positions: Mapping[str, Point2D], signature: str) -> Optional[Shape]:
+    """A segment, vector or polygon: the box of its points, which are part of its geometry."""
+    corners = [positions.get(str(name)) for name in names]
+    found = [c for c in corners if c is not None]
+    if len(found) < 2 or len(found) != len(corners):
+        return None
+    return Shape(Box.of_points(found), f"{signature}{found}", tuple(map(str, names)), tuple(found))
 
-    return measure
+
+def _segment(first: str, second: str) -> _Measure:
+    return lambda args, positions, signature: _through_points([args.get(first), args.get(second)], positions, signature)
+
+
+def _polygon(args: JsonDict, positions: Mapping[str, Point2D], signature: str) -> Optional[Shape]:
+    for list_key in ("points", "vertices"):
+        if isinstance(args.get(list_key), list):
+            return _through_points(args[list_key], positions, signature)
+    numbered = [(int(str(key)[1:]), value) for key, value in args.items() if re.fullmatch(r"p\d+", str(key))]
+    return _through_points([value for _, value in sorted(numbered, key=lambda pair: pair[0])], positions, signature)
+
+
+def _round(
+    cx: Optional[float], cy: Optional[float], rx: Optional[float], ry: Optional[float], signature: str, center: str = ""
+) -> Optional[Shape]:
+    if cx is None or cy is None or rx is None or ry is None or rx < 0 or ry < 0:
+        return None
+    radius = max(rx, ry)
+    return Shape(Box.around(cx, cy, rx, ry), f"{signature}{cx},{cy}", (center,) if center else (), ((cx, cy),), radius)
+
+
+def _circle(args: JsonDict, positions: Mapping[str, Point2D], signature: str) -> Optional[Shape]:
+    center = positions.get(str(args.get("center")))
+    radius = _as_float(args.get("radius"))
+    if center is None:
+        return None
+    return _round(center[0], center[1], radius, radius, signature, str(args.get("center")))
+
+
+def _ellipse(args: JsonDict, positions: Mapping[str, Point2D], signature: str) -> Optional[Shape]:
+    center = positions.get(str(args.get("center")))
+    rx, ry = _as_float(args.get("radius_x")), _as_float(args.get("radius_y"))
+    if center is None or rx is None or ry is None:
+        return None
+    angle = math.radians(_as_float(args.get("rotation_angle")) or 0.0)
+    half_w, half_h = (
+        math.hypot(rx * math.cos(angle), ry * math.sin(angle)),
+        math.hypot(rx * math.sin(angle), ry * math.cos(angle)),
+    )
+    return _round(center[0], center[1], half_w, half_h, signature, str(args.get("center")))
+
+
+def _arc(args: JsonDict, positions: Mapping[str, Point2D], signature: str) -> Optional[Shape]:
+    radius = _as_float(args.get("radius"))
+    return _round(_as_float(args.get("center_x")), _as_float(args.get("center_y")), radius, radius, signature)
+
+
+def _bar(args: JsonDict, positions: Mapping[str, Point2D], signature: str) -> Optional[Shape]:
+    left, right, bottom, top = (_as_float(args.get(key)) for key in ("x_left", "x_right", "y_bottom", "y_top"))
+    if left is None or right is None or bottom is None or top is None:
+        return None
+    return Shape(Box(min(left, right), max(left, right), min(bottom, top), max(bottom, top)), signature)
 
 
 _POLYGON_BUCKETS = (
@@ -328,81 +332,14 @@ _POLYGON_BUCKETS = (
     "Decagons",
     "GenericPolygons",
 )
-
-
-def _polygon_shape(args: JsonDict, positions: Mapping[str, Point2D], signature: str) -> Optional[Shape]:
-    names: List[Any] = []
-    for list_key in ("points", "vertices"):
-        if isinstance(args.get(list_key), list):
-            names = list(args[list_key])
-            break
-    else:
-        numbered = [(int(str(key)[1:]), value) for key, value in args.items() if re.fullmatch(r"p\d+", str(key))]
-        names = [value for _, value in sorted(numbered, key=lambda pair: pair[0])]
-    vertices = [positions.get(str(name)) for name in names]
-    corners = [v for v in vertices if v is not None]
-    if len(corners) < 2 or len(corners) != len(vertices):
-        return None
-    return Shape(Box.of_points(corners), f"{signature}{corners}", points=tuple(map(str, names)))
-
-
-def _circle_shape(args: JsonDict, positions: Mapping[str, Point2D], signature: str) -> Optional[Shape]:
-    center = positions.get(str(args.get("center")))
-    radius = _as_float(args.get("radius"))
-    if center is None or radius is None or radius < 0:
-        return None
-    box = Box.around(center[0], center[1], radius, radius)
-    return Shape(box, f"{signature}{center}", points=(str(args.get("center")),))
-
-
-def _ellipse_shape(args: JsonDict, positions: Mapping[str, Point2D], signature: str) -> Optional[Shape]:
-    center = positions.get(str(args.get("center")))
-    rx, ry = _as_float(args.get("radius_x")), _as_float(args.get("radius_y"))
-    if center is None or rx is None or ry is None:
-        return None
-    angle = math.radians(_as_float(args.get("rotation_angle")) or 0.0)
-    cos, sin = math.cos(angle), math.sin(angle)
-    box = Box.around(center[0], center[1], math.hypot(rx * cos, ry * sin), math.hypot(rx * sin, ry * cos))
-    return Shape(box, f"{signature}{center}", points=(str(args.get("center")),))
-
-
-def _arc_shape(args: JsonDict, positions: Mapping[str, Point2D], signature: str) -> Optional[Shape]:
-    cx, cy, radius = _as_float(args.get("center_x")), _as_float(args.get("center_y")), _as_float(args.get("radius"))
-    if cx is None or cy is None or radius is None or radius < 0:
-        return None
-    return Shape(Box.around(cx, cy, radius, radius), signature)
-
-
-def _bar_shape(args: JsonDict, positions: Mapping[str, Point2D], signature: str) -> Optional[Shape]:
-    left, right, bottom, top = (_as_float(args.get(key)) for key in ("x_left", "x_right", "y_bottom", "y_top"))
-    if left is None or right is None or bottom is None or top is None:
-        return None
-    return Shape(Box(min(left, right), max(left, right), min(bottom, top), max(bottom, top)), signature)
-
-
-def _bars_plot_shape(args: JsonDict, positions: Mapping[str, Point2D], signature: str) -> Optional[Shape]:
-    """Bars of width w every w + spacing from x_start, each from y_base to y_base + value."""
-    values = [v for v in (_as_float(value) for value in _as_list(args.get("values"))) if v is not None]
-    if not values:
-        return None
-    width = _as_float(args.get("bar_width")) or 1.0
-    spacing = _as_float(args.get("bar_spacing"))
-    spacing = 0.2 if spacing is None else spacing
-    x_start = _as_float(args.get("x_start")) or 0.0
-    y_base = _as_float(args.get("y_base")) or 0.0
-    right = x_start + (len(values) - 1) * (width + spacing) + width
-    return Shape(Box(x_start, right, y_base + min(0.0, *values), y_base + max(0.0, *values)), signature)
-
-
 _MEASURES: Tuple[Tuple[str, _Measure], ...] = (
-    ("Segments", _segment_shape("p1", "p2")),
-    ("Vectors", _segment_shape("origin", "tip")),
-    ("Circles", _circle_shape),
-    ("Ellipses", _ellipse_shape),
-    ("CircleArcs", _arc_shape),
-    ("Bars", _bar_shape),
-    ("BarsPlots", _bars_plot_shape),
-)
+    ("Segments", _segment("p1", "p2")),
+    ("Vectors", _segment("origin", "tip")),
+    ("Circles", _circle),
+    ("Ellipses", _ellipse),
+    ("CircleArcs", _arc),
+    ("Bars", _bar),
+) + tuple((bucket, _polygon) for bucket in _POLYGON_BUCKETS)
 _GRAPH_BUCKETS = ("Functions", "PiecewiseFunctions")
 _CURVE_BUCKETS = _GRAPH_BUCKETS + ("ParametricFunctions",)
 
@@ -419,24 +356,19 @@ def _curve_shapes(state: Mapping[str, Any]) -> Dict[Key, Shape]:
             continue
         for key, item in _keyed_items(state, bucket):
             entry = measured.get(key[1])
-            if not isinstance(entry, Mapping):
-                continue
-            box = _extent_box(entry.get("box"))
-            if box is None:
+            box = _extent_box(entry.get("box")) if isinstance(entry, Mapping) else None
+            if box is None or not isinstance(entry, Mapping):
                 continue
             graph = bucket in _GRAPH_BUCKETS
-            asymptote = graph and any(
-                box.left <= x <= box.right
-                for x in (_as_float(v) for v in _as_list(_args(item).get("vertical_asymptotes")))
-                if x is not None
-            )
+            asymptotes = [_as_float(x) for x in _as_list(_args(item).get("vertical_asymptotes"))]
+            asymptote = any(x is not None and box.left <= x <= box.right for x in asymptotes)
             shapes[key] = Shape(
                 box,
                 _signature(item),
-                clipped=bool(entry.get("clipped")),
                 graph=graph,
-                turns=bool(entry.get("turns")),
-                spiky=bool(entry.get("spiky")) or asymptote,
+                clipped=bool(entry.get("clipped")),
+                waves=bool(entry.get("waves")),
+                spiky=bool(entry.get("spiky")) or (graph and asymptote),
             )
     return shapes
 
@@ -450,90 +382,17 @@ def _extent_box(raw: Any) -> Optional[Box]:
     return Box(left, right, bottom, top)
 
 
-def _function_area_shape(args: JsonDict, curves: Mapping[Key, Shape], signature: str) -> Optional[Shape]:
-    """An area between functions over explicit bounds: those bounds, by the functions' y ranges."""
-    left, right = _as_float(args.get("left_bound")), _as_float(args.get("right_bound"))
-    if left is None or right is None or right < left:
-        return None
-    ys: List[float] = []
-    for ref in (args.get("func1"), args.get("func2")):
-        name = str(ref) if ref is not None else "x_axis"
-        if name == "x_axis":
-            ys.append(0.0)
-            continue
-        constant = _as_float(ref) if not isinstance(ref, str) else _as_float(_constant_of(name))
-        if constant is not None:
-            ys.append(constant)
-            continue
-        curve = next((curves[(bucket, name)] for bucket in _GRAPH_BUCKETS if (bucket, name) in curves), None)
-        if curve is None:
-            return None
-        ys.extend((curve.box.bottom, curve.box.top))
-    return Shape(Box(left, right, min(ys), max(ys)), signature)
-
-
-def _constant_of(name: str) -> Optional[float]:
-    """The value of a ``y_<number>`` boundary name (FunctionsBoundedColoredArea._get_function_name)."""
-    if not name.startswith("y_"):
-        return None
-    try:
-        return float(name[2:])
-    except ValueError:
-        return None
-
-
 # --------------------------------------------------------------------------- the note
 
 
-@dataclass
-class ViewNoteMemory:
-    """What one conversation was already told, so the same note never comes twice (e.g. after a redo)."""
+def view_note(previous: Optional[Mapping[str, Any]], current: Mapping[str, Any]) -> Optional[str]:
+    """One "View note:" line about the objects new or changed since ``previous``, else None.
 
-    # (kind, box in math units) of every whole-drawing or new-shapes note.
-    boxes: List[Tuple[str, Box]] = field(default_factory=list)
-    # (key, signature) of every object named in an outside note, and the keys of flat graphs.
-    objects: Set[Tuple[Key, str]] = field(default_factory=set)
-    flat: Set[Key] = field(default_factory=set)
-
-    def told(self, kind: str, box: Box) -> bool:
-        """True when a note of ``kind`` was given for an overlapping box that was not over twice as big."""
-        return any(
-            seen_kind == kind and seen.intersects(box) and box.size >= WORSE_SIZE_RATIO * seen.size
-            for seen_kind, seen in self.boxes
-        )
-
-
-@dataclass(frozen=True)
-class _Problem:
-    text: str
-    target: Box
-    remember: Callable[[ViewNoteMemory], None]
-    flat: bool = False
-
-
-@dataclass(frozen=True)
-class _Context:
-    now: ViewSummary
-    before: Optional[ViewSummary]
-    before_shapes: Mapping[Key, Shape]
-    changed: List[Key]
-    first: bool
-    memory: ViewNoteMemory
-
-
-def view_note(
-    previous: Optional[Mapping[str, Any]],
-    current: Mapping[str, Any],
-    memory: Optional[ViewNoteMemory] = None,
-) -> Optional[str]:
-    """One "View note:" line when the shapes in ``current`` are hard to see, else None.
-
-    ``previous`` is the last canvas the model was shown (None at the start of a
-    conversation); ``memory`` holds what this conversation was already told and is
-    updated with the note given. Never raises.
+    ``previous`` is the canvas the model saw before its tool batch, ``current`` the
+    canvas after it. Never raises.
     """
     try:
-        note = _view_note(previous, current, memory if memory is not None else ViewNoteMemory())
+        note = _view_note(previous, current)
     except Exception:
         _logger.warning("Could not measure the canvas view; sending no view note", exc_info=True)
         return None
@@ -541,222 +400,170 @@ def view_note(
     return None if note is None else note.replace("\r", " ").replace("\n", " ")
 
 
-def _view_note(
-    previous: Optional[Mapping[str, Any]], current: Mapping[str, Any], memory: ViewNoteMemory
-) -> Optional[str]:
+def _view_note(previous: Optional[Mapping[str, Any]], current: Mapping[str, Any]) -> Optional[str]:
     now = summarize_view(current)
-    if now is None or not now.shapes:
+    if now is None or not isinstance(previous, Mapping):
         return None
-    before_shapes = measure_shapes(previous) if isinstance(previous, Mapping) else {}
-    changed = [
-        key
-        for key, shape in now.shapes.items()
-        if key not in before_shapes
-        or before_shapes[key].signature != shape.signature
-        # A graph clipped to the view changes its box with the view; only its definition counts.
-        or (not shape.clipped and not before_shapes[key].box.same_as(shape.box))
-    ]
-    context = _Context(now, summarize_view(previous), before_shapes, changed, not isinstance(previous, Mapping), memory)
-    for find in (_outside_problem, _changed_outside_problem, _tiny_problem, _tiny_new_shapes_problem, _flat_problem):
-        problem = find(context)
-        if problem is not None:
-            problem.remember(memory)
+    before = {key: _signature(item) for key, item in _all_items(previous)}
+    signatures = {key: _signature(item) for key, item in _all_items(current)}
+    new = [key for key in now.shapes if before.get(key) != signatures.get(key)]
+    created = all(key not in before for key in new)
+    for find in (_outside, _tiny, _flat):
+        found = find(now, new)
+        if found is not None:
+            keys, template, target, flat = found
+            names, count = _names(keys)
+            # The verb agrees with the names as printed: "the new ABC spans", "the new P, Q are".
+            verbs = _SINGULAR if count == 1 else _PLURAL
+            subject = f"the {'new' if created else 'new or changed'} {names}"
             return (
-                f"{VIEW_NOTE_PREFIX} {problem.text}. Offer to {_suggestion(now, problem)}; "
-                "don't change the view unless the user agrees."
+                f"{VIEW_NOTE_PREFIX} {subject} {template.format(**verbs)}. "
+                f"Offer to {_suggestion(now, target, flat)}; don't change the view unless the user agrees."
             )
     return None
 
 
-def _drawing_changed(context: _Context) -> bool:
-    content = context.now.content
-    before = _union_box(shape.box for shape in context.before_shapes.values() if not shape.clipped)
-    return content is not None and (before is None or not before.same_as(content))
+_SINGULAR = {"is": "is", "spans": "spans", "varies": "varies"}
+_PLURAL = {"is": "are", "spans": "span", "varies": "vary"}
 
 
-def _not_worse(box: Box, before_box: Optional[Box]) -> bool:
-    """The previous canvas had the same problem and the shapes did not shrink to under half their size."""
-    return before_box is not None and box.size >= WORSE_SIZE_RATIO * before_box.size
+_Found = Tuple[List[Key], str, Box, bool]
 
 
-def _remember_box(kind: str, box: Box) -> Callable[[ViewNoteMemory], None]:
-    return lambda memory: memory.boxes.append((kind, box))
-
-
-def _outside_problem(context: _Context) -> Optional[_Problem]:
-    """Nothing of the drawing is in the view."""
-    now, before = context.now, context.before
-    content = now.content
-    bounded = [shape for shape in now.shapes.values() if not shape.clipped]
-    if content is None or any(not now.is_outside(shape) for shape in bounded):
-        return None
-    if not (context.first or _drawing_changed(context)) or context.memory.told("outside", content):
-        return None
-    shown_before = [shape for shape in context.before_shapes.values() if not shape.clipped]
-    if before is not None and shown_before and all(before.is_outside(shape) for shape in shown_before):
-        return None  # it was already out of sight
-    text = f"the shapes are entirely outside the view ({_shapes_and_view(now, content)})"
-    return _Problem(text, content, _remember_box("outside", content))
-
-
-def _changed_outside_problem(context: _Context) -> Optional[_Problem]:
-    """New or changed objects that lie entirely outside the view."""
-    if context.first:
-        return None
-    now, before = context.now, context.before
-    # A point drawn through by a shape on screen (a segment crossing the view) is part of the visible drawing.
+def _outside(now: ViewSummary, new: List[Key]) -> Optional[_Found]:
+    """New objects entirely outside the view (a point that a segment on screen is drawn through is on screen)."""
     attached = {name for shape in now.shapes.values() if not now.is_outside(shape) for name in shape.points}
-    outside = []
-    for key in context.changed:
-        shape = now.shapes[key]
-        if not now.is_outside(shape) or (key[0] == "Points" and key[1] in attached):
-            continue
-        # An object that was already outside the view (e.g. one the user scrolled away from) is not news.
-        if key in context.before_shapes and before is not None and before.is_outside(context.before_shapes[key]):
-            continue
-        if (key, shape.signature) in context.memory.objects:
-            continue
-        outside.append(key)
-    if not outside:
+    outside = [
+        key for key in new if now.is_outside(now.shapes[key]) and not (key[0] == "Points" and key[1] in attached)
+    ]
+    target = _union(now.shapes[key].box for key in outside)
+    if target is None:
         return None
-    target = _union_box(now.shapes[key].box for key in outside)
-    assert target is not None
-    verb = "is" if len(outside) == 1 else "are"
-    text = f"new or changed {_names(outside)} {verb} outside the view (view {_view_ranges(now.view)})"
-    remembered = {(key, now.shapes[key].signature) for key in outside}
-    return _Problem(text, target, lambda memory: memory.objects.update(remembered))
+    return outside, f"{{is}} outside the view (view {_view_ranges(now.view)})", target, False
 
 
-def _tiny_problem(context: _Context) -> Optional[_Problem]:
-    """The whole drawing is too small to read."""
-    now, before = context.now, context.before
-    content = now.content
-    if context.first or not now.is_tiny(content) or not _drawing_changed(context):
-        return None
-    assert content is not None
-    if before is not None and before.is_tiny(before.content) and _not_worse(content, before.content):
-        return None
-    if context.memory.told("tiny", content):
-        return None
-    text = f"the shapes span only {_extent_text(now, content)} ({_shapes_and_view(now, content)})"
-    return _Problem(text, content, _remember_box("tiny", content))
-
-
-def _tiny_new_shapes_problem(context: _Context) -> Optional[_Problem]:
-    """New or changed shapes with a real extent, too small to read, inside a drawing that is large overall."""
-    now, before = context.now, context.before
-    if context.first or now.is_tiny(now.content):
-        return None
+def _tiny(now: ViewSummary, new: List[Key]) -> Optional[_Found]:
+    """The new shapes with a real extent span only a few pixels, markers on readable shapes aside."""
+    if now.unmeasured_curves:
+        return None  # a tangent or marker on a graph the client did not measure
     sized = [
         key
-        for key in context.changed
-        if key[0] not in _POINT_BUCKETS and not now.shapes[key].clipped and not now.is_point_like(now.shapes[key].box)
+        for key in new
+        if key[0] not in _POINT_BUCKETS
+        and not now.shapes[key].clipped
+        and not now.is_point_like(now.shapes[key].box)
+        and not _part_of_readable_shape(now, key)
     ]
-    new_box = _union_box(now.shapes[key].box for key in sized)
-    if new_box is None:
-        return None  # only points, labels or style changes: nothing with a size of its own
-    reach = _tiny_reach(now)
-    # Only small shapes with a size of their own extend the cluster; a lone point never sets its size.
-    neighbours = [
-        key
-        for key, shape in now.shapes.items()
-        if key not in context.changed
-        and key[0] not in _POINT_BUCKETS
-        and not shape.clipped
-        and now.is_tiny(shape.box)
-        and shape.box.gap_to(new_box) <= reach
-    ]
-    cluster = new_box
-    for key in neighbours:
-        cluster = cluster.union(now.shapes[key].box)
-    if not now.is_tiny(cluster):
+    # Edges of a new polygon are named by the polygon.
+    sized = [key for key in sized if not _is_edge_of(now, key, sized)]
+    target = _union(now.shapes[key].box for key in sized)
+    if target is None or not now.is_tiny(target):
         return None
-    old = _union_box(context.before_shapes[key].box for key in neighbours if key in context.before_shapes)
-    if before is not None and before.is_tiny(old) and _not_worse(cluster, old):
-        return None
-    if context.memory.told("tiny", cluster):
-        return None
-    text = (
-        f"the new or changed shapes ({_names(sized)}) span only {_extent_text(now, cluster)} "
-        f"({_shapes_and_view(now, cluster)})"
-    )
-    return _Problem(text, cluster, _remember_box("tiny", cluster))
+    size = (target.width * now.scale(), target.height * now.scale())
+    extent = f"~{_pixels(size[0])}x{_pixels(size[1])} px on screen" if now.canvas_px else "a sliver of the view"
+    return sized, f"{{spans}} only {extent} ({_where(now, target)})", target, False
 
 
-def _flat_problem(context: _Context) -> Optional[_Problem]:
-    """A turning function graph with only a few pixels of vertical variation."""
-    now = context.now
-    for key in context.changed:
+def _flat(now: ViewSummary, new: List[Key]) -> Optional[_Found]:
+    """A new waving function graph with only a few pixels of vertical variation."""
+    for key in new:
         shape = now.shapes[key]
-        if key in context.memory.flat or not now.is_flat(shape):
+        if not now.is_flat(shape):
             continue
-        size = now.size_px(shape.box)
-        variation = f"~{_pixels(size[1])} px" if size is not None else "a sliver"
         box = shape.box
         visible = Box(max(box.left, now.view.left), min(box.right, now.view.right), box.bottom, box.top)
-        step = _step_for(Box(0, 0, box.bottom, box.top), now.view)
+        variation = f"~{_pixels(box.height * now.scale())} px" if now.canvas_px else "a sliver"
+        step = _coordinate_step(box.height / 2.0) or _coordinate_step(now.view.width / 2.0)
         text = (
-            f"{key[1]} varies only {variation} vertically on screen (y {_span(box.bottom, box.top, step)} "
-            f"over x {_number(visible.left, VIEW_SIGNIFICANT_DIGITS)}..{_number(visible.right, VIEW_SIGNIFICANT_DIGITS)}; "
+            f"{{varies}} only {variation} vertically on screen (y {_span(box.bottom, box.top, step)} over x "
+            f"{_number(visible.left, VIEW_SIGNIFICANT_DIGITS)}..{_number(visible.right, VIEW_SIGNIFICANT_DIGITS)}; "
             f"view {_view_ranges(now.view)})"
         )
-        return _Problem(text, visible, _remember_flat(key), flat=True)
+        return [key], text, visible, True
     return None
 
 
-def _remember_flat(key: Key) -> Callable[[ViewNoteMemory], None]:
-    return lambda memory: memory.flat.add(key)
+def _part_of_readable_shape(now: ViewSummary, key: Key) -> bool:
+    """A small shape drawn on a readable one: sharing a point with it, centred near one of its
+    corners, or lying on its outline (angle arcs, right-angle squares, highlight circles, ticks)."""
+    shape = now.shapes[key]
+    reach = shape.box.size
+    center = shape.box.center
+    for other_key, other in now.shapes.items():
+        if other_key == key or other_key[0] in _POINT_BUCKETS or now.is_tiny(other.box) or now.is_point_like(other.box):
+            continue
+        if other.box.size <= shape.box.size:
+            continue
+        if set(shape.points) & set(other.points):
+            return True
+        if any(math.dist(center, corner) <= reach for corner in other.corners):
+            return True
+        if other.radius is not None and other.corners:
+            if abs(math.dist(center, other.corners[0]) - other.radius) <= reach:
+                return True
+        elif other.graph and shape.box.intersects(other.box):
+            return True
+        elif _box_meets_outline(shape.box, other.corners):
+            return True
+    return False
 
 
-def _tiny_reach(summary: ViewSummary) -> float:
-    """How close (math units) another small shape must be to count as part of the same cluster."""
-    threshold = summary.tiny_threshold()
-    if threshold is not None and summary.pixels_per_unit:
-        return threshold / summary.pixels_per_unit
-    return TINY_VIEW_FRACTION * min(summary.view.width, summary.view.height)
+def _box_meets_outline(box: Box, corners: Sequence[Point2D]) -> bool:
+    """True when ``box`` touches any edge of the closed or open path through ``corners``."""
+    edges = list(zip(corners, corners[1:]))
+    if len(corners) > 2:
+        edges.append((corners[-1], corners[0]))
+    return any(_segment_meets_box(a, b, box) for a, b in edges)
+
+
+def _segment_meets_box(a: Point2D, b: Point2D, box: Box) -> bool:
+    """Liang-Barsky clipping: does the segment a-b pass through the box?"""
+    t0, t1 = 0.0, 1.0
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    for p, q in ((-dx, a[0] - box.left), (dx, box.right - a[0]), (-dy, a[1] - box.bottom), (dy, box.top - a[1])):
+        if p == 0:
+            if q < 0:
+                return False
+            continue
+        t = q / p
+        if p < 0:
+            t0 = max(t0, t)
+        else:
+            t1 = min(t1, t)
+        if t0 > t1:
+            return False
+    return True
+
+
+def _is_edge_of(now: ViewSummary, key: Key, keys: List[Key]) -> bool:
+    if key[0] not in ("Segments", "Vectors"):
+        return False
+    ends = set(now.shapes[key].points)
+    return any(other[0] in _POLYGON_BUCKETS and ends <= set(now.shapes[other].points) for other in keys)
 
 
 # --------------------------------------------------------------------------- text
 
-# Named first in a note: whole shapes before their edges, edges before points.
-_NAME_ORDER = {"Points": 2, "Labels": 2, "Segments": 1, "Vectors": 1}
 
-
-def _names(keys: Sequence[Key]) -> str:
-    """The most whole objects only: a triangle is named without its edges and vertices."""
+def _names(keys: Sequence[Key]) -> Tuple[str, int]:
+    """The most whole objects only (a triangle without its edges and vertices), and how many."""
     top = min(_NAME_ORDER.get(key[0], 0) for key in keys)
     keys = [key for key in keys if _NAME_ORDER.get(key[0], 0) == top]
     names = ", ".join(key[1] for key in keys[:_MAX_NOTE_NAMES])
     if len(keys) > _MAX_NOTE_NAMES:
         names += f" (+{len(keys) - _MAX_NOTE_NAMES} more)"
-    return names
-
-
-def _extent_text(summary: ViewSummary, box: Box) -> str:
-    size = summary.size_px(box)
-    if size is not None:
-        return f"~{_pixels(size[0])}x{_pixels(size[1])} px on screen"
-    share = max(box.width / summary.view.width, box.height / summary.view.height) * 100
-    return f"~{format_number(share, 2)}% of the view"
+    return names, len(keys)
 
 
 def _pixels(value: float) -> str:
     return "<1" if value < 1 else str(round(value))
 
 
-def _shapes_and_view(summary: ViewSummary, box: Box) -> str:
-    step = _step_for(box, summary.view)
-    if summary.is_point_like(box):
-        x, y = box.center
-        return f"shapes at ({_number(_snap(x, step))}, {_number(_snap(y, step))}); view {_view_ranges(summary.view)}"
+def _where(summary: ViewSummary, box: Box) -> str:
+    step = _coordinate_step(box.size / 2.0) or _coordinate_step(summary.view.width / 2.0)
     return (
-        f"shapes x {_span(box.left, box.right, step)}, y {_span(box.bottom, box.top, step)}; "
-        f"view {_view_ranges(summary.view)}"
+        f"x {_span(box.left, box.right, step)}, y {_span(box.bottom, box.top, step)}; view {_view_ranges(summary.view)}"
     )
-
-
-def _step_for(box: Box, view: Box) -> float:
-    return _coordinate_step(box.size / 2.0) or _coordinate_step(view.width / 2.0)
 
 
 def _view_ranges(view: Box) -> str:
@@ -767,12 +574,12 @@ def _view_ranges(view: Box) -> str:
     )
 
 
-def _suggestion(summary: ViewSummary, problem: _Problem) -> str:
-    """A view showing ``problem.target``: zoom when it is tiny, flat or too big, else just move the view."""
-    view, target = summary.view, problem.target
+def _suggestion(summary: ViewSummary, target: Box, flat: bool) -> str:
+    """A view showing ``target``: zoom when it is tiny, flat or too big, else just move the view."""
+    view = summary.view
     aspect = view.height / view.width
     current = view.width / 2.0
-    if problem.flat:
+    if flat:
         # The graph's vertical variation fills FLAT_FILL of the view's height.
         half = _nice_ceil(target.height / (2.0 * FLAT_FILL) / aspect)
         pan_only = False
@@ -792,13 +599,12 @@ def _suggestion(summary: ViewSummary, problem: _Problem) -> str:
 
 def _nice_ceil(value: float) -> float:
     """Round up to two significant digits (4.13 -> 4.2, 0.0123 -> 0.013)."""
-    exponent = math.floor(math.log10(value))
-    unit = 10.0 ** (exponent - 1)
+    unit = 10.0 ** (math.floor(math.log10(value)) - 1)
     return math.ceil(value / unit - 1e-9) * unit
 
 
 def _coordinate_step(half_size: float) -> float:
-    """A rounding step for coordinates a tenth of the magnitude of ``half_size`` (0 for 0)."""
+    """A rounding step a tenth of the magnitude of ``half_size`` (0 for 0)."""
     if not half_size > 0 or not math.isfinite(half_size):
         return 0.0
     return 10.0 ** (math.floor(math.log10(half_size)) - 1)
@@ -869,6 +675,24 @@ def _keyed_items(state: Mapping[str, Any], bucket: str) -> List[Tuple[Key, JsonD
     return keyed
 
 
+def _all_items(state: Mapping[str, Any]) -> List[Tuple[Key, JsonDict]]:
+    """Every object of every bucket, with the coordinates of the points it is drawn through.
+
+    A segment's signature includes its endpoints' positions, so moving a point changes the
+    segments and polygons through it too.
+    """
+    positions = {key[1]: _signature(item) for key, item in _keyed_items(state, "Points")}
+    keyed: List[Tuple[Key, JsonDict]] = []
+    for bucket, items in state.items():
+        if not isinstance(items, list):
+            continue
+        for key, item in _keyed_items(state, bucket):
+            args = _args(item)
+            through = sorted(positions[str(v)] for v in args.values() if isinstance(v, str) and str(v) in positions)
+            keyed.append((key, {"args": dict(args, _through=through)}))
+    return keyed
+
+
 def _signature(item: Mapping[str, Any]) -> str:
     """The object's geometry args as text; style args (colour, label text, ...) are left out."""
     geometry = {key: value for key, value in _args(item).items() if key not in _STYLE_ARGS}
@@ -878,7 +702,7 @@ def _signature(item: Mapping[str, Any]) -> str:
         return repr(geometry)
 
 
-def _union_box(boxes: Iterable[Box]) -> Optional[Box]:
+def _union(boxes: Iterable[Box]) -> Optional[Box]:
     result: Optional[Box] = None
     for box in boxes:
         result = box if result is None else result.union(box)
