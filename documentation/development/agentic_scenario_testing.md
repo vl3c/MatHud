@@ -1,6 +1,6 @@
 # Agentic Scenario Testing
 
-Status: phases 1 to 7 of section 7 are built: the client hooks, the loader and check engine, the catalogue (`scenarios/*.json`), the replay runner, the reports, live mode with retrace and failure classification (phase 6), and the CI replay job (phase 7). Bug fixing (phase 8) goes on. Written 2026-09-26 against `main` at `e6996fa`; updated the same day to match the implementation (field names, hook options, the check language as built, K20 and K22 fixed, K25 and CV-05 added). Updated 2026-09-27 after merging `main` with vl3c/MatHud#72 and #73: K1, K2, K6, K7, K18 and K21 are fixed and their marks and waivers removed; K26, K27 and CV-06 added. Updated again on `claude/fix-view-undo-noops`: K4, K25 and K26 are fixed and their marks and waivers removed. Updated again on `claude/fix-names-persistence` (vl3c/MatHud#77): K3, K5, K10, K15 and K27 are fixed and their marks and waivers removed. Updated again on `claude/fix-batch-7`: K23 is fixed; K28 to K32 are added and fixed, with scenarios FN-10, FN-11, GEO-17, GEO-18, NM-07, ST-05 and WS-04. Updated again on `claude/scenario-live-mode` (phase 6): live mode, `--mode retrace` and failure classification; deviations from the design are listed under phase 6 in section 7.
+Status: phases 1 to 7 of section 7 are built: the client hooks, the loader and check engine, the catalogue (`scenarios/*.json`), the replay runner, the reports, live mode with retrace and failure classification (phase 6), and the CI replay job (phase 7). Bug fixing (phase 8) goes on. Written 2026-09-26 against `main` at `e6996fa`; updated the same day to match the implementation (field names, hook options, the check language as built, K20 and K22 fixed, K25 and CV-05 added). Updated 2026-09-27 after merging `main` with vl3c/MatHud#72 and #73: K1, K2, K6, K7, K18 and K21 are fixed and their marks and waivers removed; K26, K27 and CV-06 added. Updated again on `claude/fix-view-undo-noops`: K4, K25 and K26 are fixed and their marks and waivers removed. Updated again on `claude/fix-names-persistence` (vl3c/MatHud#77): K3, K5, K10, K15 and K27 are fixed and their marks and waivers removed. Updated again on `claude/fix-batch-7`: K23 is fixed; K28 to K32 are added and fixed, with scenarios FN-10, FN-11, GEO-17, GEO-18, NM-07, ST-05 and WS-04. Updated again on `claude/scenario-live-mode` (phase 6): live mode, `--mode retrace` and failure classification; deviations from the design are listed under phase 6 in section 7. Updated again on `claude/live-run-1-fixes` after the first live run on the local model (Qwen, the smoke subset): one undo step per assistant reply, null spelled as a string in tool arguments, refusal guidance, `calculate_area` on coloured areas, and checks that selected names only the reference chose; scenarios CV-07, GEO-19, NM-08 and ST-06 added and CV-02 adjusted (phase 6, item 10).
 
 This document proposes a testing framework that closes the agentic loop. A real model gets a natural-language request that needs several chained tool calls. The real app runs those calls in the browser, and the framework checks the resulting canvas. The same scenarios also run with no model at all: each one carries a reference tool-call sequence that the harness replays directly. The main goal is catching app bugs in how objects are created, related, named, updated, transformed, deleted, undone and persisted, which unit tests miss. The second goal is measuring how well models chain tool calls.
 
@@ -26,11 +26,11 @@ python -m cli.main test scenarios --mode retrace logs/scenario_runs/<time>/resul
 4. Check statuses: `pass`, `fail`, `error` (a check that could not be evaluated; also when it is marked `known`, since a crash is not the bug's failure), `xfail` (a failing check marked `known`, or an invariant failure excused by a waiver), `xpass` (a `known` check that passed: "fixed? K<n>"), `warn` (I1's cross-bucket name clash), `skip` (answer checks in replay) and `unrecorded` (the check needs a function sample the run did not store, which can happen in `--regrade` after a check was edited; rerun the replay). Scenario statuses: `fail` (any `fail` or `error`), else `xpass`, else `xfail` (a check marked `known` failed), else `waived` (only waived invariants failed), else `pass`. A waiver that excused nothing in the run is listed as "waiver I5:K1 (global) unused" (or with the scenario id for a scenario waiver), an xpass-style hint that the bug may be fixed.
 5. Exit codes: 0 with no unexpected failures, 1 with any `fail` or `error` (including a scenario the browser could not finish), 2 for invalid scenario files or a missing server, 130 when interrupted. Expected failures, waived failures, xpasses, unused waivers and unrecorded checks never fail the run.
 6. Adding a scenario: add it to its area file, run it with `--ids`, and give every check that fails because of an app bug `"known": "K<n>"`, with the bug in section 6 and in `scenarios/known_bugs.json`. `server_tests/test_cli/test_scenario_catalogue.py` loads and validates every file in the server suite.
-7. Latest replay (2026-09-27, `claude/fix-batch-7` on `main` at `cc57b41`; Windows 11, headless Chrome, `--start-server`): 81 scenarios, 81 pass, 0 xfail, 0 waived, 0 xpass, 0 unexpected failures, no unused waivers; checks 1,643 pass, 0 xfail, 5 warn, 10 skip; about 30 s including Chrome start-up. No scenario check is marked known: every bug with a scenario is fixed and its checks are regression guards. Each scenario added on this branch was also replayed against the code before its fix and failed there.
+7. Latest replay (2026-10-06, `claude/live-run-1-fixes` on `main` at `06d5381`; Windows 11, headless Chrome, `--start-server`): 85 scenarios, 85 pass, 0 xfail, 0 waived, 0 xpass, 0 unexpected failures, no unused waivers; checks 1,746 pass, 0 xfail, 5 warn, 11 skip; about 33 s including Chrome start-up. No scenario check is marked known: every bug with a scenario is fixed and its checks are regression guards. Each scenario added on this branch was also replayed against the code before its fix and failed there.
 8. Live mode (`--mode live`) always starts its own server, with the settings of 4.6 pinned and recorded in the run config (`server_env`): `--tool-exposure` (default `search`), `--canvas-format` (`text`), `--canvas-budget` (the provider default), `--tool-search-mode` (`hybrid` for local, `local` for OpenRouter), `--local-reasoning-effort` (`medium`), `MATHUD_WORKSPACES_DIR` (a temporary directory), `REQUIRE_AUTH=false`, `MATHUD_OPENROUTER_MAX_RETRIES=0`, and every provider key the run does not use set to an empty string, which python-dotenv never overrides. Before the first message the harness reads `/api/available_models` and aborts (exit 2) unless every model is registered under the provider (`local_agent`; `openrouter_paid` or `openrouter_free`). Without `--models` a local run uses every model llama-server serves; OpenRouter needs `--models`.
    - Each scenario starts with a reset session and a `POST /new_conversation`; setup and `do` steps run as replay. A turn sends the prompt with `sendMatHudMessage`, polls `getMatHudTurnStatus` every 0.2 s and stops the turn with `stopMatHudTurn` after `timeout_s` (default `--turn-timeout` 300). The turn's request cap `max_requests` (default `--turn-max-requests` 8) goes to the client with the message (`sendMatHudMessage` option `max_requests`), which ends the turn with outcome `max_requests` instead of sending a request beyond it, so a turn sends at most `max_requests` requests; the harness stops a turn still running past the cap only as a backstop. The message also raises the client's own response timeouts (60 s for a first reply, 300 s after tool results) to `timeout_s` + 30 s (option `response_timeout_ms`), so a local model may think longer than 60 s. A scenario's `limits` override both, and `limits.max_tool_calls` becomes a `max_tool_calls` check graded only live. The turn record holds the prompt, every executed batch from the action traces (calls with arguments and results, plus the trace's `state_delta`), the assistant texts (`final_text` is the last non-empty one), the turn metrics, the turn outcome (`stop`, `error` with its `error_source`, `truncated`, `filtered`, `max_requests`, `abandoned`, or the harness's `timeout`, `request_cap`, `not_started`) and the signals of 4.7 (calls against the reference, tool errors and the ones recovered from, dropped calls). Live runs are serial and never retry a scenario. After a stopped, timed-out or failed turn (whose last request is counted as sent), and before every scenario, the harness waits (up to 120 s, `drain_s` in the turn record) until `GET /api/requests_in_flight` reports no model request running: the server drops a stopped turn's late reply (see the conversation generation in `static/openai_api_base.py`), and the wait keeps that request from sharing the model server with the next turn.
    - `--provider openrouter` adds the spend guards: the plan (turns times each turn's request cap, times models and `--repeats`) must fit `--max-requests` (default 250) before anything is sent; each turn's client limit is also capped at the requests the run has left, so the run's total is hard too, and the turn that uses up the cap ends the run (exit 1); a request in flight counts as sent, also when a turn breaks off on a browser or hook error. `--dry-run` prints the plan and, for OpenRouter, a cost ceiling from `static/model_prices.py`.
-   - A failing scenario, and every scenario with a turn of more than one batch of counted calls, is retraced at once (unless `--no-retrace`): its executed calls run again batch by batch on a fresh session and the canvases are compared after every step, which classifies its failures (4.7). When the retrace reproduces the live canvas, its per-batch I4 and I5 verdicts replace the live turn-level ones (`judged_by: retrace`). A scenario with a turn that ended in `timeout`, `request_cap` or `not_started`, in an `error` from the provider or the transport, or whose action traces could not be read, is `infra` from that turn on, is not retraced and is left out of the pass rates. An `error` raised by the app itself (`error_source` `client`: an exception in the browser while handling the reply; `server`: an exception in the route) is `app`, and so is a turn the server `abandoned`: the harness's tab is the only client of its server and stops turns only through the client, so an abandoned turn points at the app's turn bookkeeping. The live command exits 1 on `app` or `nondeterministic` failures, on a stop at the request cap, and when more than `--max-infra-rate` (default 0.5) of the runs, or all of them, are `infra`; model mistakes are measurements. `summary.md` adds a per-model table (pass rates, failure classes, mean turn time, first token, requests and tokens, calls against the reference, tool errors, dropped calls) and, with `--repeats` or several models, passes per scenario.
+   - A failing scenario, and every scenario with a turn of more than one batch of counted calls, is retraced at once (unless `--no-retrace`): its executed calls run again batch by batch on a fresh session, each turn's batches in one undo group as the chat turn ran them (`runMatHudToolCalls` option `turn`), and the canvases and undo depths are compared after every step, which classifies its failures (4.7). When the retrace reproduces the live canvas, its I4 (batch by batch) and I5 (per turn, following any undo or redo calls) verdicts replace the live turn-level ones (`judged_by: retrace`). A scenario with a turn that ended in `timeout`, `request_cap` or `not_started`, in an `error` from the provider or the transport, or whose action traces could not be read, is `infra` from that turn on, is not retraced and is left out of the pass rates. An `error` raised by the app itself (`error_source` `client`: an exception in the browser while handling the reply; `server`: an exception in the route) is `app`, and so is a turn the server `abandoned`: the harness's tab is the only client of its server and stops turns only through the client, so an abandoned turn points at the app's turn bookkeeping. The live command exits 1 on `app` or `nondeterministic` failures, on a stop at the request cap, and when more than `--max-infra-rate` (default 0.5) of the runs, or all of them, are `infra`; model mistakes are measurements. `summary.md` adds a per-model table (pass rates, failure classes, mean turn time, first token, requests and tokens, calls against the reference, tool errors, dropped calls) and, with `--repeats` or several models, passes per scenario.
 9. `--mode retrace RESULTS` retraces every run stored in a live `results.json` on a server of its own and writes its results to `retrace-<time>/` next to it, with a table of the live runs, their classes and whether each was reproduced; runs with an infrastructure failure are left out, and `--dry-run` lists what would be retraced. `--regrade` also works on live results (answer checks use the stored final text), and regrades the stored retrace steps too.
 
 ## 1. Summary
@@ -132,7 +132,7 @@ These follow the existing pattern: functions on `window` that take and return JS
 | Hook | Returns | Notes |
 |---|---|---|
 | `getMatHudCanvasState(optionsJson)` | `{"state": <get_canvas_state()>, "inspection": {...}?}` | `{"inspect": true}` adds, per drawable: class, name, `color`, the attached label (text, visible), derived values (angle `angle_degrees` and its vertex and arms, polygon vertices in order) and, for functions with listed vertical asymptotes, `asymptote_probes` (`[a, f(a - h), f(a + h)]`). It also adds `undo_depth`, `redo_depth`, `coordinate_mode`, `grid_visible` (cartesian, polar, active), `polar_radial_spacing` and the name-generator hints. These are the things `get_canvas_state` does not show (K5, K17, K25). `samples` (`{name or "*": [x, ...]}`) and `t_samples` add function values computed by the app's own evaluator. |
-| `runMatHudToolCalls(callsJson)` | `{"traced": [...], "undoable": [...], "state": ..., "trace_id", "undo_depth_before", "undo_depth_after", "redo_depth_before", "redo_depth_after"}` | Runs one batch through `AIInterface.execute_tool_batch`, the method both model response paths now use: `ProcessFunctionCalls.get_results_traced(calls, ai.available_functions, ai.undoable_functions, canvas)`, result storage, the current turn's metrics and an action trace, so replay and live leave identical traces. Calls are `{"function_name", "arguments"}` or the scenario form `{"tool", "args"}`. The prototype used `__BRYTHON__.runPythonSource` to do this; the hook replaces that trick. |
+| `runMatHudToolCalls(callsJson, optionsJson?)` | `{"traced": [...], "undoable": [...], "state": ..., "trace_id", "undo_depth_before", "undo_depth_after", "redo_depth_before", "redo_depth_after"}` | Runs one batch through `AIInterface.execute_tool_batch`, the method both model response paths now use: `ProcessFunctionCalls.get_results_traced(calls, ai.available_functions, ai.undoable_functions, canvas)`, result storage, the current turn's metrics and an action trace, so replay and live leave identical traces. Calls are `{"function_name", "arguments"}` or the scenario form `{"tool", "args"}`. The batch is one undo step, as a reply of one batch is; option `turn` (`"continue"`, then `"end"` for the last batch) runs a reply of several batches in one undo group, as a chat turn does. A call without it first closes a group left open. The prototype used `__BRYTHON__.runPythonSource` to do this; the hook replaces that trick. |
 | `sendMatHudMessage(text, modelId)` | `{"status": "started"}`, `"busy"` or `{"status": "error", ...}` | Sets `#ai-model-selector` to `modelId` and fails if that option is missing. Turns vision off unless asked. Then calls `ai_interface.send_user_message(text)`. |
 | `getMatHudTurnStatus()` | `{"processing": bool, "completed_turns": n, "last_outcome": ..., "tool_batches": k, "requests": r, "tool_calls": c}` | "Done" means `processing` is false and `completed_turns` went up. `requests` and `tool_batches` let the harness enforce per-turn caps while a turn runs. The client itself has no tool-loop cap. |
 | `stopMatHudTurn()` | `{"status": ...}` | `ai_interface.stop_ai_processing()`. Used for caps and timeouts. The client's own timeout is 60 s for the first response and 300 s after tool results (`constants.py:66-67`). |
@@ -200,6 +200,8 @@ Rules:
 5. `known` on a check (`"K<n>"`) makes it an expected failure. When it passes, the report shows XPASS ("fixed? K<n>"), so a fixed bug gets its marker removed. `known` on the scenario (a string or a list) lists every bug the scenario touches; the loader requires it to include every check-level mark and waiver. `invariants` (`{"I4": "K3"}`) waives an invariant for that scenario only; global waivers live in `scenarios/known_bugs.json`.
 6. Every scenario gets two snapshots for free: `start` (after the reset and any fixture) and `setup` (after the setup calls). Steps are named `t1`, `t2` (turns), `do1` (scripted), `chk1` (checks only) and `snap1`, unless they set `id`.
 7. Files also carry `"schema": 1` and `"area"`; a scenario may set `tol` (a number or `{"abs", "rel"}`), `targets` (what it aims at) and `allow_large` (switches off I7's magnitude limit).
+8. A `reference` may be a list of call lists instead of a list of calls: a reply of several tool batches, which replay runs as a chat turn runs it, in one undo group (`runMatHudToolCalls` option `turn`), recording each batch's calls, undo depths and canvas. Mixing calls and lists is refused.
+9. A check selects an object by name only when the prompt gives that name. Names a reference gives to objects it creates (a function `p`, lines `l1` and `l2`) are its own choice, and a model may choose others: select those objects by `only`, by `samples` (functions), by geometry, or bind them once and use the binding. `test_scenario_catalogue.py` refuses a check that selects such a name.
 
 ### 4.5 The check language
 
@@ -255,7 +257,7 @@ Checks are pure functions of stored data: the state and inspection view after ea
 | I2 | No dangling references: segment, polygon, circle, arc and angle endpoints exist, and areas, plots and graphs name existing objects | orphans after deletes |
 | I3 | Derived fields agree with geometry: `circle_formula` and `ellipse_formula`, `_p1_coords`, triangle and quadrilateral `types`, the angle's degrees (inspection), function asymptotes (a listed vertical asymptote must blow up when sampled, and a translated function's asymptotes must move) | K8, K11, K12, K16, K17, K24 |
 | I4 | Tool results tell the truth: a create or delete reported as a success changed the state; a call that did nothing, or failed, did not report success; an error changed nothing; a created object's real name appears in the result | K2, K3 |
-| I5 | Undo accounting, judged by what happened rather than by what the calls reported: a batch that changed the canvas adds exactly one undo entry, a batch that changed nothing (failed, refused or truthful no-op calls) adds zero, and an undo or redo moves the stack by one. "Changed" is judged as in I4: drawables, the view, the coordinate mode and inspection-only fields such as colour, labels and grid visibility all count. An explicit `load_workspace` that restores the canvas it replaced may add one entry. | K1 |
+| I5 | Undo accounting, judged by what happened rather than by what the calls reported: one assistant reply is one undo step, so a reply that changed the canvas adds exactly one undo entry however many tool batches it ran, a reply that changed nothing (failed, refused or truthful no-op calls, or changes that cancel out) adds zero, and an undo or redo moves the stack by one. An undo or redo call inside a reply first closes the reply's group (one entry if it changed anything) and later changes open a new one; this is followed batch by batch when each batch's canvas is known (replay of a batched reference, retrace) and the batch that undoes does nothing else, and is not judged otherwise. "Changed" is judged as in I4: drawables, the view, the coordinate mode and inspection-only fields such as colour, labels and grid visibility all count. An explicit `load_workspace` that restores the canvas it replaced may add one entry. | K1 |
 | I6 | Errors are flagged: a result shaped `{"error": ...}` counts as an error even though `ResultProcessor` does not flag it | K21 |
 | I7 | Numbers are sane: no NaN or infinity, and no coordinate above 1e12 in magnitude unless the scenario allows it | K13 |
 
@@ -302,7 +304,7 @@ As built, I3 also checks that a circle arc's endpoints lie on its circle and tha
   - They are recorded in the run config, so tool exposure and canvas format can be compared across runs.
 - Live runs are serial: the server keeps one global conversation (`app.ai_api`), and llama-server serves one model at a time.
 
-**Trace re-execution (`--mode retrace RESULTS`).** Takes the executed calls of a live run, batch by batch from its action traces, and replays them on a fresh session. No model is involved. This is the tool for classifying failures.
+**Trace re-execution (`--mode retrace RESULTS`).** Takes the executed calls of a live run, batch by batch from its action traces, and replays them on a fresh session, each turn's batches in one undo group as the chat turn ran them. No model is involved. This is the tool for classifying failures.
 
 ### 4.7 Classifying failures
 
@@ -355,8 +357,8 @@ Output goes to `logs/scenario_runs/<time>/`, following `logs/canvas_format_bench
    - The pytest gates (the scenario loader, argument validation and the pure check engine) join the blocking `server-tests` job straight away.
 3. Live runs never run in CI: there are no keys by policy (`tests.yml:15`) and no GPU. They run by hand on the workstation.
    - They need llama-server with the model loaded on the GPU; the harness itself needs no GPU.
-   - A local turn takes roughly 20 to 90 s: one to three requests (`search_tools`, the calls, the final answer) at medium reasoning effort. This is an estimate to replace with the first measured run.
-   - That puts the smoke subset (18 turns) at about 6 to 27 minutes and the full catalogue (103 turns) at about 35 to 155 minutes per repeat.
+   - The design estimated 20 to 90 s per local turn. The first measured run (the smoke subset on a local Qwen at medium reasoning effort, phase 6) took 11.2 s and 3.6 requests per turn on average, 2.1 s to the first token, and 232 s for the subset's 18 turns.
+   - At that rate the full catalogue (131 turns) takes about 25 minutes per repeat.
    - `--repeats 3` gives a pass rate per scenario instead of a single sample.
 
 ### 4.10 Prototype evidence
@@ -379,19 +381,19 @@ Conventions:
 
 | Area | Scenarios | Smoke |
 |---|---|---|
-| Points, segments, vectors, polygons, circles, ellipses, arcs, angles and labels (GEO) | 18 | GEO-01 |
+| Points, segments, vectors, polygons, circles, ellipses, arcs, angles and labels (GEO) | 19 | GEO-01 |
 | Constructions (CON) | 6 | CON-01 |
 | Functions, piecewise and parametric curves, tangents and normals (FN) | 11 | FN-01 |
 | Coloured areas and regions (AR) | 4 | - |
 | Transforms (TR) | 6 | TR-01 |
 | Graph theory (GR) | 6 | GR-01 |
-| Statistics, plots and regression (ST) | 5 | ST-01 |
+| Statistics, plots and regression (ST) | 6 | ST-01 |
 | Math tools feeding the canvas (MC) | 4 | MC-01 |
-| Canvas operations: view, coordinate systems, undo and redo (CV) | 6 | CV-02 |
+| Canvas operations: view, coordinate systems, undo and redo (CV) | 7 | CV-02 |
 | Workspaces (WS) | 4 | WS-01 |
-| Naming, editing and deleting (NM) | 7 | NM-03 |
+| Naming, editing and deleting (NM) | 8 | NM-03 |
 | Multi-turn follow-ups (MT) | 4 | MT-01 |
-| **Total** | **81** | **11** |
+| **Total** | **85** | **11** |
 
 The smoke subset has 11 scenarios (18 turns), one for each area except coloured areas, which FN-01 already exercises: GEO-01, CON-01, FN-01, TR-01, GR-01, ST-01, MC-01, CV-02, WS-01, NM-03 and MT-01. It runs in about 40 s in replay and about 6 to 27 minutes live on the local model.
 
@@ -608,6 +610,17 @@ The smoke subset has 11 scenarios (18 turns), one for each area except coloured 
 - Checks: no tool errors; one ellipse with rotation_angle 0; one parametric curve with t_min 0
 - Targets: create tools that crash on null optional numbers, the K10 pattern (before the fix the ellipse batch broke the hook with "must be real number, not NoneType").
 - Known bugs: K30, fixed on `claude/fix-batch-7`; the checks are regression guards.
+
+#### GEO-19: Optional arguments sent as the string null mean null
+
+Added after the first live run (phase 6, item 10).
+
+- Turn 1: "Draw a triangle with vertices (0,0), (6,0) and (2,4), and plot y = x^2/4."
+  - Reference: `create_polygon(vertices=[...], polygon_type="triangle", color="null", name="None", subtype="null")`; `draw_function(function_string="x^2/4", name="null", left_bound="undefined", color="null")`
+- Turn 2: "Construct the circumcircle of that triangle."
+  - Reference: `construct_circumcircle(triangle_name="ABC", p1_name="null", color="undefined")`
+- Checks: no tool errors; one triangle; neither the triangle's nor the function's colour, nor the function's name, is "null"; the function passes through (2, 1); the circumcircle has centre (3, 1) and radius sqrt(10)
+- Targets: null strings from local models. The loader applies the server's rule (`ToolArgumentValidator`) to the references, so replay sends what the server would pass on; live, the server applies it to the model's calls.
 
 ### 5.2 Constructions (CON)
 
@@ -1030,6 +1043,15 @@ The smoke subset has 11 scenarios (18 turns), one for each area except coloured 
 - Targets: transforms of composite plot records.
 - Known bugs: K31, fixed on `claude/fix-batch-7`; the checks are regression guards.
 
+#### ST-06: Measure the shaded area under the normal curve
+
+Added after the first live run (phase 6, item 10).
+
+- Turn 1: "Plot the standard normal density phi from -4 to 4, shade it between -1 and 1 and tell me the shaded area."
+  - Reference, a reply of two batches: [`draw_function(function_string="(1/sqrt(2*pi))*exp(-x^2/2)", name="phi", left_bound=-4, right_bound=4)`; `create_colored_area(drawable1_name="phi", drawable2_name="x_axis", left_bound=-1, right_bound=1)`], then [`calculate_area(expression="area_between_phi_and_x_axis")`]
+- Checks: one function-bounded coloured area; `calculate_area` value 0.682689 within 1e-6, its method names Simpson's rule; the answer mentions 0.6827 (live only)
+- Targets: `calculate_area` on a coloured area (ST-01's live model got "not found or cannot be converted to a region").
+
 ### 5.8 Math tools feeding the canvas (MC)
 
 #### MC-01: Solve, mark the roots, plot the parabola (smoke)
@@ -1037,7 +1059,7 @@ The smoke subset has 11 scenarios (18 turns), one for each area except coloured 
 - Turn 1: "Solve x^2 - 5x + 6 = 0, mark the roots on the x-axis and plot the parabola."
   - Reference: `solve(equation="x^2 - 5*x + 6", variable="x")`; `create_point(x=2, y=0)`; `create_point(x=3, y=0)`; `draw_function(function_string="x^2 - 5*x + 6", name="p")`
 - Checks:
-  - points at (2,0) and (3,0); function p passes through both (relation point_on_function)
+  - points at (2,0) and (3,0); the only function passes through both (relation point_on_function; the prompt names no function, so the check does not select `p`, the reference's choice, which failed a correct live run)
   - solve result contains 2 and 3; tool_calls <= 6
 - Targets: chaining a CAS result into drawing.
 
@@ -1046,7 +1068,7 @@ The smoke subset has 11 scenarios (18 turns), one for each area except coloured 
 - Turn 1: "Solve x + y = 3 and x - y = 1, draw both lines and mark the intersection."
   - Reference: `solve_system_of_equations(equations=["x + y = 3", "x - y = 1"])`; `draw_function(function_string="3 - x", name="l1")`; `draw_function(function_string="x - 1", name="l2")`; `create_point(x=2, y=1, name="I")`
 - Checks:
-  - a point at (2,1) lying on both functions
+  - a point at (2,1) lying on both functions, selected by their values (`samples`), not by the reference's names `l1`, `l2` and `I`
 - Targets: chaining; function naming.
 
 #### MC-03: Derivative and tangent agree
@@ -1084,12 +1106,12 @@ The smoke subset has 11 scenarios (18 turns), one for each area except coloured 
 #### CV-02: Undo a multi-object construction in one step (smoke)
 
 - Turn 1: "Draw triangle ABC with vertices (0,0), (6,0), (2,4) and its circumcircle."
-  - Reference: `create_polygon(vertices=[{"x": 0, "y": 0}, {"x": 6, "y": 0}, {"x": 2, "y": 4}], polygon_type="triangle", name="ABC")`; `construct_circumcircle(triangle_name="ABC")`
+  - Reference, a reply of two batches: [`create_polygon(vertices=[{"x": 0, "y": 0}, {"x": 6, "y": 0}, {"x": 2, "y": 4}], polygon_type="triangle", name="ABC")`], then [`construct_circumcircle(triangle_name="ABC")`]
 - Turn 2: "Undo that."
   - Reference: `undo()`
 - Scripted step: `redo()`
 - Checks:
-  - after turn 2: state equals the empty canvas (one batch = one undo step)
+  - after turn 2: state equals the empty canvas (one reply = one undo step, over both batches; the first live run ran three batches and the undo removed only the circle before the fix)
   - after the scripted redo: state equals the state after turn 1
 - Targets: undo stack out of sync with tool batches.
 - Known bugs: K1 (expected to fail until fixed; see section 6).
@@ -1145,6 +1167,19 @@ Added after the K1 and K2 fixes merged (not part of the original 72).
   - invariants I4 and I5 (waived for K26 until its fix)
 - Targets: success claims and undo entries for no-op changes.
 - Known bugs: K26 (expected to fail until fixed; see section 6).
+
+#### CV-07: An undo inside a reply reverts that reply's changes
+
+Added after the first live run (phase 6, item 10).
+
+- Setup (scripted): `create_point(x=0, y=0, name="A")`
+- Turn 1: "Put a point P at (5, 5). Actually, undo that and put P at (5, 6) instead."
+  - Reference, a reply of three batches: [`create_point(x=5, y=5, name="P")`], [`undo()`], [`create_point(x=5, y=6, name="P")`]
+- Scripted steps: `undo()`, then `redo()`
+- Checks:
+  - after turn 1: P at (5, 6), nothing at (5, 5), A still at (0, 0), an empty redo stack
+  - after the scripted undo: state equals the setup snapshot (the reply after its undo is one step); after the redo: P at (5, 6)
+- Targets: undo and redo calls inside a turn close the turn's undo group first (so the undo reverts the turn's own change, not A), and later changes form one new step.
 
 ### 5.10 Workspaces (WS)
 
@@ -1286,6 +1321,21 @@ Added after the K1 and K2 fixes merged (not part of the original 72).
   - turn 5: no tool errors and the label is visible
 - Targets: the K26 no-op checks for label fields and zero translations.
 - Known bugs: K31, fixed on `claude/fix-batch-7`; the checks are regression guards.
+
+#### NM-08: Moving a triangle vertex: the refusal names the call that works
+
+Added after the first live run (phase 6, item 10).
+
+- Setup (scripted): triangle ABC with vertices (0,0), (4,0), (0,3)
+- Scripted step: `update_point(point_name="A", new_x=1, new_y=1)`
+- Turn 1: "Move A to (1, 1)."
+  - Reference, a reply of two batches: [`update_point(point_name="A", new_x=1, new_y=1)`] (refused), then [`translate_object(name="A", x_offset=1, y_offset=1)`]
+- Scripted step: `undo()`
+- Checks:
+  - after the scripted update: a tool error whose text contains "translate_object with name 'A', x_offset 1 and y_offset 1", and the canvas equals the setup snapshot
+  - after turn 1: A at (1, 1), B and C where they were
+  - after the undo: the setup snapshot (the reply, refused batch included, is one step)
+- Targets: refusals that say how to do the job (MT-01's live model moved the whole triangle after the bare refusal).
 
 ### 5.12 Multi-turn follow-ups (MT)
 
@@ -1433,7 +1483,7 @@ Phase 6 is done on `claude/scenario-live-mode` (`cli/scenarios/live.py`, `live_c
 1. Local models are discovered through the server's `/api/available_models`, which calls `LocalAgentAPI.fetch_models` against the server's own `LOCAL_AGENT_BASE_URL`, rather than by the harness calling `fetch_models` itself: the harness and the app then always agree on the llama-server, and discovery is also the `local_agent` registration check.
 2. More spend guards than planned: provider keys the run does not use are set to empty strings in the server's environment; OpenRouter needs `--models` and searches tools locally (`api` and `hybrid` search send model requests that turn metrics do not count, so they are refused); "no retries" needed an app setting, `MATHUD_OPENROUTER_MAX_RETRIES` (`static/providers/openrouter_api.py`), which the harness pins to 0.
 3. The price table moved to `static/model_prices.py` and the reasoning-effort choices to `static/providers/local` (`REASONING_EFFORT_CHOICES`); the benchmark imports both. `ResultSink` is still not shared.
-4. Action traces keep each batch's calls and `state_delta`, but not its canvas or undo depths, so every live turn with more than one batch of counted calls is retraced, and the retrace's per-batch I4 and I5 (each batch on its own canvas and undo depths) replace the turn's when the retrace reproduces the live canvas. Without a retrace (`--no-retrace`, or one that did not reproduce) the turn is judged as a whole: I5 accepts between one entry per batch whose delta names a changed drawable and one entry per batch, and skips turns with undo or redo; I4 keeps only "every call failed but the canvas changed" and the naming rule, since batches can cancel out (zoom, then undo). The trace export cuts results to 500 characters; I4's naming rule skips such results.
+4. Action traces keep each batch's calls and `state_delta`, but not its canvas or undo depths, so every live turn with more than one batch of counted calls is retraced (in one undo group per turn), and the retrace's I4 (each batch on its own canvas) and I5 (the turn as one undo step, following any undo or redo calls batch by batch) replace the turn's when the retrace reproduces the live canvas. Without a retrace (`--no-retrace`, or one that did not reproduce) the turn is judged as a whole: I5 expects one entry if the canvas changed between the turn's start and end and none otherwise, and skips turns with undo or redo (item 10 made a reply one undo step; before, I5 accepted between one entry per batch whose delta named a changed drawable and one entry per batch); I4 keeps only "every call failed but the canvas changed" and the naming rule, since batches can cancel out (zoom, then undo). The trace export cuts results to 500 characters; I4's naming rule skips such results.
 5. Request caps are enforced by the client: `sendMatHudMessage` passes the turn's cap (or what the run's cap leaves, if less), and the client ends the turn instead of sending a request beyond it. Polling alone could not do it: the client sends the next request in the same task that records the previous one, and with a model answering in 20 ms a turn capped at 4 sent 7. The harness still stops a turn that runs past its cap, as a backstop. The client checks the cap before it runs a batch whose results would need a request beyond it, so the batch does not run, and it abandons the server's turn (as a stop does), so the batch's tool calls are not left awaiting results in the history. This is a deliberate change in grading: the model's last batch within the cap used to run (its results were never sent back), and now it does not run at all, so a turn that hits the cap is graded on the canvas as the model last saw it. A turn sends at most N requests for a cap of N; the plan and the cost ceiling count N per turn. The request in flight when a turn is stopped, times out, fails or breaks off on an error is counted as sent.
 6. Dropped calls come from the turn metrics (`tool_calls` minus `tool_executions`), not from the server logs. Turn outcomes `request_cap` and `not_started`, provider and transport errors, and a turn whose action traces could not be read, count as `infra` (with every later turn of the run); client and server errors, and turns the server `abandoned` (nothing but the harness's own tab talks to its server, so a dropped reply is a bookkeeping bug), count as `app` (a stream request answered with an HTTP 4xx or 5xx status is a `server` error; only a request that got no answer is `transport`); `max_requests`, `truncated` and `filtered` count as `model`. `--max-infra-rate` keeps an app regression that breaks every turn from passing as infrastructure. A retrace stands in for its live run only when it reproduces both the canvas and how far each step moved the undo stack.
 7. One client change: `getActionTraces()` writes values JSON cannot express as strings, as the scenario hooks do. Brython's `json` rejects tuples, so one result with a tuple (`analyze_graph`'s MST edges) made the whole trace list unreadable.
@@ -1447,7 +1497,15 @@ Phase 6 is done on `claude/scenario-live-mode` (`cli/scenarios/live.py`, `live_c
    - A tab whose turn was abandoned from elsewhere keeps its partial text but adds a short note, "This reply was stopped because the conversation changed elsewhere." A tab's own stops (and the harness's, which go through `stopMatHudTurn`) abort the stream first and show no note.
    - `--regrade` uses a `--max-infra-rate` given on its command line instead of the stored one, and a summary that fails without unexpected failures (too many infra runs) no longer prints "No unexpected failures." in green.
 
-The live runner was checked end to end with a scripted stand-in for llama-server (it answers each prompt with the scenario's reference calls, after a `search_tools` batch, then "Done."): the smoke subset graded all 18 turns, and its only failures were two answer checks, classified `model`, with retraces that reproduced the live canvas; timeouts, the per-turn request cap and `--mode retrace` were exercised the same way. Over the whole catalogue it found one app problem the replay cannot see: in a live turn the `analyze_graph` MST result could not be serialized ("Circular reference detected"), so sending the tool results back to the model failed and GR-06's turn ended in `error`; vl3c/MatHud#89 fixes that at the source. A stand-in that answers in 20 ms showed the per-turn cap holds (4 requests for a cap of 4), one that answers after 70 s showed its late reply stays out of the next turn's history, and a stop sent after the next message no longer drops it. The first run on the local model is still to come; its timings replace the estimates in 4.9.
+The live runner was checked end to end with a scripted stand-in for llama-server (it answers each prompt with the scenario's reference calls, after a `search_tools` batch, then "Done."): the smoke subset graded all 18 turns, and its only failures were two answer checks, classified `model`, with retraces that reproduced the live canvas; timeouts, the per-turn request cap and `--mode retrace` were exercised the same way. Over the whole catalogue it found one app problem the replay cannot see: in a live turn the `analyze_graph` MST result could not be serialized ("Circular reference detected"), so sending the tool results back to the model failed and GR-06's turn ended in `error`; vl3c/MatHud#89 fixes that at the source. A stand-in that answers in 20 ms showed the per-turn cap holds (4 requests for a cap of 4), one that answers after 70 s showed its late reply stays out of the next turn's history, and a stop sent after the next message no longer drops it. The first run on the local model (the smoke subset, `logs/scenario_runs/live-smoke-qwen/`, a local Qwen at medium reasoning effort) took 232 s for 18 turns (11.2 s and 3.6 requests per turn on average) and graded 6 of 11 scenarios as passing, with every failure classed `model`. Reading its calls found the app and checker problems of item 10.
+
+10. Follow-ups from the first live run (`claude/live-run-1-fixes`):
+   - **One undo step per assistant reply.** A reply used to leave one undo entry per tool batch, so CV-02's "Draw triangle ABC ... and its circumcircle", which the model ran in three batches, was undone by "Undo that" only as far as the circle. Every canvas change of one turn, from the user's message to the end of the turn, is now one undo step: the turn's first batch opens an undo group (`AIInterface._open_turn_undo_group`) and the turn's end closes it, however it ends (final answer, error, stop, timeout, abandoned, request cap), since every ending re-enables the send controls; a group that changed nothing adds no entry. An `undo` or `redo` call inside a turn acts on the history as it stands at that moment: the turn's changes so far become one step first, so an undo after changes in the same turn reverts them and an undo at the start of a turn reverts the previous one (MT-01's "Undo the move", CV-02's "Undo that"); later changes form one new step. Replay keeps one step per `runMatHudToolCalls` call unless the call passes option `turn`, which replay uses for references given as batches and retrace for every live turn, so all three modes group undo the same way. I5 follows (4.5, item 4).
+   - **Null spelled as a string.** The local model fills unused optional arguments with the string `"null"` (`"color": "null"`, `"subtype": "null"`, `"new_name": "null"`), which the app took literally: a function was stored with colour "null" and a triangle was refused for subtype "null". The server now turns the exact strings `"null"`, `"None"` and `"undefined"` into null wherever the tool's schema allows null, before the client sees the calls (`ToolArgumentValidator.normalize_null_strings`, applied to every reply's tool calls by `routes._prepare_tool_calls`, streaming or not); required arguments and the free-text ones (expressions, labels, text) keep the string. The scenario loader applies the same rule to references, so GEO-19's references written with null strings replay as the server would pass them on.
+   - **Refusal guidance.** MT-01's "move A to (1,1)" with A a triangle vertex was refused by `update_point` ("referenced by other drawables"), and the model moved the whole triangle. The refusal now names the call that does it, with the offset: "...; to move it, use translate_object with name 'A', x_offset 1 and y_offset 1; the objects built on it move with it." Moving a circle or ellipse centre gets the same kind of hint; a rename or recolour of a shared point, and an ellipse radius or rotation change, have no in-place alternative and get none (NM-08).
+   - **`calculate_area` on a coloured area.** ST-01's model asked for the area of `area_between_normal_and_x_axis` and got "not found or cannot be converted to a region". A coloured area's name alone is now measured: numeric integration of |f1 - f2| over the area's x-interval, split where the bounds cross, with Simpson's rule, and the result gives the method and an error estimate; closed-shape areas use exact formulas (`utils/colored_area_measure.py`; ST-06).
+   - **Checks on names the prompt never gives.** MC-01 selected the parabola by the name `p`, which only its reference chose, so a correct live run failed. MC-01 to MC-03, FN-07 to FN-11, MT-02 and ST-03 now select such objects by `only`, by `samples` or by a binding, and the catalogue gate refuses new ones (4.4, rule 9).
+   - Checked with a scripted stand-in for llama-server that answers each prompt with its reference batches and sends every unset optional argument as `"null"`: the whole catalogue live (85 scenarios, every multi-batch turn retraced and reproduced, invariants 100%, the only failures the stand-in's canned answer texts), and the replay suite.
 
 ## 8. Open questions
 
