@@ -7,6 +7,7 @@ same path a model tool batch takes, against a real canvas.
 from __future__ import annotations
 
 import json
+import math
 import unittest
 from typing import Any, Dict, List, Tuple
 
@@ -593,6 +594,80 @@ class TestToolErrorResults(_ToolBatchTestCase):
         turn = aggregate_turn([], tool_results, None, "stop")
 
         self.assertEqual(turn["tool_errors"], 1)
+
+
+class TestColoredAreaMeasurement(_ToolBatchTestCase):
+    """calculate_area measures a coloured area by its name (ST-01 in the first live run)."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.run_single(
+            "draw_function", function_string="(1/sqrt(2*pi))*exp(-x^2/2)", name="normal", left_bound=-4, right_bound=4
+        )
+        self.run_single("create_colored_area", drawable1_name="normal", drawable2_name="x_axis",
+                        left_bound=-1, right_bound=1)  # fmt: skip
+
+    def test_normal_pdf_within_one_sigma(self) -> None:
+        result = self.run_single("calculate_area", expression="area_between_normal_and_x_axis")
+
+        self.assertEqual(result["type"], "area")
+        self.assertAlmostEqual(result["value"], 0.682689492137, places=8)
+        self.assertIn("Simpson", result["method"])
+        self.assertLess(result["error_estimate"], 1e-8)
+        self.assertEqual(result["bounds"], [-1, 1])
+
+    def test_between_two_functions(self) -> None:
+        self.run_single("draw_function", function_string="sin(x)", name="f", left_bound=-10, right_bound=10)
+        self.run_single("draw_function", function_string="cos(x)", name="g", left_bound=-10, right_bound=10)
+        self.run_single("create_colored_area", drawable1_name="f", drawable2_name="g", left_bound=0,
+                        right_bound=math.pi)  # fmt: skip
+
+        result = self.run_single("calculate_area", expression="area_between_f_and_g")
+
+        self.assertAlmostEqual(result["value"], 2 * math.sqrt(2), places=7)
+        self.assertEqual(len(result["crossings"]), 1)
+
+    def test_a_coloured_area_inside_an_expression_is_explained(self) -> None:
+        self.run_single("create_circle", center_x=0, center_y=0, radius=1)
+
+        result = self.run_single("calculate_area", expression="area_between_normal_and_x_axis & A(1)")
+
+        self.assertEqual(result["type"], "error")
+        self.assertIn("can only be measured on its own", result["value"])
+
+
+class TestEditRefusalGuidance(_ToolBatchTestCase):
+    """A refused in-place edit says which call does the job instead (MT-01 in the first live run)."""
+
+    def point_at(self, name: str) -> Tuple[float, float]:
+        point = self.canvas.get_point_by_name(name)
+        return (point.x, point.y)
+
+    def test_moving_a_triangle_vertex_names_translate_object_with_the_offset(self) -> None:
+        self.run_single("create_polygon", vertices=TRIANGLE_VERTICES, polygon_type="triangle", name="ABC")
+        depth = self.undo_depth()
+
+        result = self.run_single("update_point", point_name="A", new_x=1, new_y=1)
+
+        self.assertTrue(str(result).startswith("Error: Point 'A' is referenced by other drawables"), result)
+        self.assertIn("translate_object with name 'A', x_offset 1 and y_offset 1", str(result))
+        self.assertEqual(self.undo_depth(), depth)
+        # The suggested call moves only the vertex.
+        self.run_single("translate_object", name="A", x_offset=1, y_offset=1)
+        self.assertEqual(self.point_at("A"), (1, 1))
+        self.assertEqual(self.point_at("B"), (4, 0))
+        self.assertEqual(self.point_at("C"), (0, 3))
+
+    def test_moving_a_circle_center_names_translate_object(self) -> None:
+        self.run_single("create_point", x=2, y=1, name="O")
+        self.run_single("create_circle", center_x=2, center_y=1, radius=3)
+
+        result = str(self.run_single("update_point", point_name="O", new_x=5, new_y=-1))
+
+        self.assertIn("translate_object with name 'O', x_offset 3 and y_offset -2", result)
+        self.run_single("translate_object", name="O", x_offset=3, y_offset=-2)
+        circle = self.canvas.drawable_manager.drawables.Circles[0]
+        self.assertEqual((circle.center.x, circle.center.y), (5, -1))
 
 
 if __name__ == "__main__":

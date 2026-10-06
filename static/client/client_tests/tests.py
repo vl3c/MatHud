@@ -339,9 +339,16 @@ from .test_scenario_hooks import (
     TestScenarioHookCanvas,
     TestScenarioHookEndpoints,
     TestToolBatchTraceFailure,
+    TestTurnUndoGroup,
 )
 from .test_result_processor_traced import TestGetResultsTraced
-from .test_tool_batch_results import TestToolBatchUndo, TestToolErrorResults, TestToolNoOpResults
+from .test_tool_batch_results import (
+    TestColoredAreaMeasurement,
+    TestEditRefusalGuidance,
+    TestToolBatchUndo,
+    TestToolErrorResults,
+    TestToolNoOpResults,
+)
 from .test_tool_result_serialization import (
     TestGraphAnalysisResultsAreJson,
     TestIsJsonPlain,
@@ -759,6 +766,7 @@ class Tests:
             TestScenarioHookCanvas,
             TestScenarioHookEndpoints,
             TestToolBatchTraceFailure,
+            TestTurnUndoGroup,
             TestBuildTrace,
             TestStoreAndRetrieve,
             TestExportTracesJson,
@@ -767,6 +775,8 @@ class Tests:
             TestToolBatchUndo,
             TestToolNoOpResults,
             TestToolErrorResults,
+            TestEditRefusalGuidance,
+            TestColoredAreaMeasurement,
             TestJsonSafe,
             TestGraphAnalysisResultsAreJson,
             TestSendPathFallback,
