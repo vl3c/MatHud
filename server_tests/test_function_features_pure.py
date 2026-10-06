@@ -7,6 +7,7 @@ module in the browser and the find_function_features tool on the canvas.
 from __future__ import annotations
 
 import math
+import random
 import unittest
 
 from utils.function_features import find_function_features, find_intersections
@@ -371,6 +372,72 @@ class TestNoFalseFeatures(unittest.TestCase):
         self.assertEqual(len(report["features"]), 1)
         self.assertEqual(report["features"][0]["zero_interval"][0], 0.0)
         self.assertEqual(find_function_features(math.floor, -5, 5, features=["inflections"])["features"], [])
+
+    def test_noisy_nearly_straight_functions_have_no_inflections(self) -> None:
+        # Rounding at 1e3 or 1e9 inside f, or random noise of a few eps, is far above the
+        # modelled noise of the values; refined samples used to turn it into inflections
+        for offset in (1e3, 1e6, 1e9):
+            with self.subTest(offset=offset):
+                report = find_function_features(lambda x, c=offset: (x + c) - c, 0, 10, features=ALL_FEATURES)
+                self.assertEqual(_summary(report), [(0.0, 0.0, "root")])
+        rng = random.Random(5)
+        for size in (2, 8, 64):
+            for _ in range(10):
+
+                def noisy(x: float, size: float = size) -> float:
+                    return x + rng.uniform(-1.0, 1.0) * size * 2.220446049250313e-16
+
+                with self.subTest(size=size):
+                    report = find_function_features(noisy, -1, 1, features=["inflections"])
+                    self.assertEqual(report["features"], [])
+
+
+class TestReviewRegressions(unittest.TestCase):
+    """Behaviour of the original sampling kept where the refinements first broke it."""
+
+    def test_noisy_smooth_extremum_is_kept(self) -> None:
+        # sin's argument is about 700 here, so f's relative rounding noise is about 1e-13,
+        # which once looked like a better neighbour of the true maximum
+        def damped(x: float) -> float:
+            return math.exp(-0.4696841252312553 * x) * math.sin(4.8928699595591265 * x)
+
+        report = find_function_features(
+            damped, 30.967068608091864, 143.42021819054372, features=["extrema"], max_results=1000
+        )
+        self.assertIn(141.55812, _xs_of(report, "local_max"))
+        self.assertEqual(report["total_found"], 175)  # every extremum in the interval
+
+    def test_root_and_extremum_at_a_continuous_breakpoint(self) -> None:
+        # A corner where two pieces meet is declared as a breakpoint but is no discontinuity
+        report = find_function_features(abs, -1.3, 1.7, breakpoints=[0.0])
+        self.assertEqual(_summary(report), [(0.0, 0.0, "root"), (0.0, 0.0, "local_min")])
+        self.assertTrue(report["features"][0]["touching"])
+        report = find_function_features(lambda x: x - 0.3, -1.3, 1.7, breakpoints=[0.3])
+        self.assertEqual(_summary(report), [(0.3, 0.0, "root")])
+        intersections = find_intersections(abs, lambda x: 0.0, -1.3, 1.7, breakpoints=[0.0])
+        self.assertEqual(_summary(intersections), [(0.0, 0.0, "intersection")])
+
+    def test_discontinuous_breakpoints_still_split_the_interval(self) -> None:
+        cases = {
+            "pole": lambda x: 1 / x,
+            "jump through 0": lambda x: x if x < 0 else x + 1,
+            "sign": lambda x: float((x > 0) - (x < 0)),
+            "hole": lambda x: x * x if x != 0 else math.nan,
+        }
+        for name, f in cases.items():
+            with self.subTest(name):
+                self.assertEqual(find_function_features(f, -1.3, 1.7, breakpoints=[0.0])["features"], [])
+        tangent = find_function_features(
+            math.tan, -5, 5, breakpoints=[-1.5 * math.pi, -0.5 * math.pi, 0.5 * math.pi, 1.5 * math.pi]
+        )
+        self.assertEqual(_xs_of(tangent, "root"), [-3.141592654, 0.0, 3.141592654])
+        self.assertEqual(_xs_of(tangent, "local_min") + _xs_of(tangent, "local_max"), [])
+
+    def test_roots_where_floats_are_coarse(self) -> None:
+        # At 1e12 floats are 1.2e-4 apart: f is 5e-5 at the best x, more than 1e-3 of its samples
+        c = 1e12
+        report = find_function_features(lambda x: x - c - 0.3, c - 5, c + 5, features=["roots"])
+        self.assertEqual(_xs_of(report, "root"), [c + 0.3])
 
 
 if __name__ == "__main__":
