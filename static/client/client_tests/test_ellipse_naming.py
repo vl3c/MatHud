@@ -126,12 +126,26 @@ class TestEllipseNamingOnCanvas(unittest.TestCase):
         self.assertFalse(mismatched.has_custom_name)
 
     def test_requested_name_in_use_gets_suffix(self) -> None:
-        self.canvas.create_segment(10, 10, 12, 12, name="PQ", extra_graphics=False)
+        self.canvas.draw_function("x^2", name="f1")
         self.canvas.create_ellipse(1, 1, 3, 2, name="orbit", extra_graphics=False)
         second = self.canvas.create_ellipse(5, 5, 3, 2, name="orbit", extra_graphics=False)
-        third = self.canvas.create_ellipse(-5, -5, 3, 2, name="PQ", extra_graphics=False)
+        third = self.canvas.create_ellipse(-5, -5, 3, 2, name="f1", extra_graphics=False)
         self.assertEqual(second.name, "orbit_1")
-        self.assertEqual(third.name, "PQ_1")
+        self.assertEqual(third.name, "f1_1")
+
+    def test_capital_letter_names_stay_centre_hints(self) -> None:
+        ellipse = self.canvas.create_ellipse(1, 1, 3, 2, name="PQR", extra_graphics=False)
+        self.assertEqual(ellipse.center.name, "P")
+        self.assertEqual(ellipse.name, "P(3, 2)")
+        self.assertFalse(ellipse.has_custom_name)
+
+    def test_unreadable_custom_name_is_refused(self) -> None:
+        undo_depth = len(self.canvas.undo_redo_manager.undo_stack)
+        for bad_name in ("my ellipse", "E-1", "2nd"):
+            with self.assertRaises(ValueError):
+                self.canvas.create_ellipse(1, 1, 3, 2, name=bad_name, extra_graphics=False)
+        self.assertEqual(self._ellipse_names(), [])
+        self.assertEqual(len(self.canvas.undo_redo_manager.undo_stack), undo_depth)
 
     def test_colliding_default_name_gets_suffix(self) -> None:
         second = self._two_ellipses_with_one_default_name()
@@ -195,19 +209,31 @@ class TestEllipseNamingOnCanvas(unittest.TestCase):
 
     def test_workspace_reload_keeps_custom_and_suffixed_names(self) -> None:
         self._two_ellipses_with_one_default_name()
-        self.canvas.delete_ellipse("A(3, 2)")
         self.canvas.create_ellipse(5, 5, 3, 2, name="orbit", extra_graphics=False)
         self._reload_workspace()
-        self.assertEqual(self._ellipse_names(), ["A(3, 2)_1", "orbit"])
+        self.assertEqual(self._ellipse_names(), ["A(3, 2)", "A(3, 2)_1", "orbit"])
         self.assertTrue(self._ellipse("orbit").has_custom_name)
         suffixed = self._ellipse("A(3, 2)_1")
         self.assertFalse(suffixed.has_custom_name)
         self.canvas.scale_object("A(3, 2)_1", 2, 2, 0, 0)
         self.assertEqual(suffixed.name, "A(6, 4)")
 
+    def test_workspace_reload_keeps_identical_ellipses(self) -> None:
+        second = self._two_ellipses_with_one_default_name()
+        self.canvas.update_ellipse(second.name, new_rotation_angle=0)
+        self._reload_workspace()
+        self.assertEqual(self._ellipse_names(), ["A(3, 2)", "A(3, 2)_1"])
+
+    def test_rotated_twin_gets_suffix_and_survives_reload(self) -> None:
+        self.canvas.create_ellipse(0, 0, 3, 2, name="A", extra_graphics=False)
+        twin = self.canvas.create_ellipse(0, 0, 3, 2, rotation_angle=40, extra_graphics=False)
+        self.assertEqual(twin.name, "A(3, 2)_1")
+        self._reload_workspace()
+        self.assertEqual(self._ellipse_names(), ["A(3, 2)", "A(3, 2)_1"])
+        self.assertAlmostEqual(self._ellipse("A(3, 2)_1").rotation_angle, 40)
+
     def test_workspace_reload_keeps_area_on_suffixed_ellipse(self) -> None:
         self._two_ellipses_with_one_default_name()
-        self.canvas.delete_ellipse("A(3, 2)")
         self.canvas.create_region_colored_area(ellipse_name="A(3, 2)_1")
         self._reload_workspace()
         areas = self.canvas.drawable_manager.drawables.ClosedShapeColoredAreas

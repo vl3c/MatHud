@@ -53,8 +53,12 @@ if TYPE_CHECKING:
 
 ROTATION_MATCH_TOLERANCE_DEGREES: float = 1e-6
 
-# A requested name that only names the centre point: one letter with optional primes.
-_CENTER_HINT_PATTERN = re.compile(r"^[A-Za-z]'*$")
+# A requested name that only names the centre point: one letter with optional primes, or
+# capital letters with primes, the names segments and polygons take (so "ABC" is not an
+# ellipse name a triangle could take later).
+_CENTER_HINT_PATTERN = re.compile(r"^(?:[A-Za-z]'*|(?:[A-Z]'*)+)$")
+# A custom ellipse name: one that area expressions can read.
+_CUSTOM_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_']*$")
 # A requested name in the default '<center>(<radius_x>, <radius_y>)' form, as saved workspaces
 # store it, with an optional '_<n>' suffix.
 _DEFAULT_NAME_PATTERN = re.compile(r"^[^()]+\([^(),]+, [^(),]+\)(?:_\d+)?$")
@@ -167,6 +171,7 @@ class EllipseManager(BaseDrawableManager):
         name: str = "",
         color: Optional[str] = None,
         extra_graphics: bool = True,
+        reuse_existing: bool = True,
     ) -> Ellipse:
         """
         Create an ellipse with the specified center, radii, and rotation angle.
@@ -181,27 +186,35 @@ class EllipseManager(BaseDrawableManager):
             radius_y (float): Vertical radius of the ellipse
             rotation_angle (float): Rotation angle in degrees (default: 0)
             name (str): Optional name (default: ""). Its letters name the centre point. A
-                point name such as "A" or "B'", or a name already in the default
-                '<center>(<radius_x>, <radius_y>)' form, gives the ellipse the default name;
-                any other name, such as "E1", becomes the ellipse's own name and is kept
-                through transforms. A name in use gets the first free '_<n>' suffix.
+                point name such as "A" or "B'", capital letters such as "AB", or a name
+                already in the default '<center>(<radius_x>, <radius_y>)' form gives the
+                ellipse the default name; any other name, such as "E1", becomes the
+                ellipse's own name and is kept through transforms. A custom name uses
+                letters, digits, underscores and primes and starts with a letter or an
+                underscore. A name in use gets the first free '_<n>' suffix.
             color (str): Optional color for the ellipse
             extra_graphics (bool): Whether to create additional graphics (default: True)
+            reuse_existing (bool): Return an existing ellipse with the same centre, radii
+                and orientation instead of creating one (default: True); a workspace
+                restore passes False so every saved ellipse comes back
+
+        Raises:
+            ValueError: If a custom name has characters other than those above
 
         Returns:
             Ellipse: The newly created ellipse object, or the existing ellipse with the
                 same centre, radii and orientation if one is already present
         """
+        requested_name = str(name or "").strip()
+        custom_name = self._custom_name_from_request(requested_name)
+
         # Archive before creation
         self.canvas.undo_redo_manager.archive()
 
         # Check if the ellipse already exists
         existing_ellipse = self.get_ellipse(center_x, center_y, radius_x, radius_y, rotation_angle)
-        if existing_ellipse:
+        if existing_ellipse and reuse_existing:
             return existing_ellipse
-
-        requested_name = str(name or "").strip()
-        custom_name = self._custom_name_from_request(requested_name)
 
         # Extract point name from ellipse name
         point_names: List[str] = self.name_generator.split_point_names(requested_name, 1)
@@ -241,9 +254,20 @@ class EllipseManager(BaseDrawableManager):
         return new_ellipse
 
     def _custom_name_from_request(self, requested_name: str) -> str:
-        """The requested name when it names the ellipse itself; "" when it only hints at the centre."""
+        """The requested name when it names the ellipse itself; "" when it only hints at the centre.
+
+        Raises:
+            ValueError: If a custom name has characters area expressions cannot read
+        """
+        if not requested_name:
+            return ""
         if _CENTER_HINT_PATTERN.match(requested_name) or _DEFAULT_NAME_PATTERN.match(requested_name):
             return ""
+        if not _CUSTOM_NAME_PATTERN.match(requested_name):
+            raise ValueError(
+                f"Ellipse name '{requested_name}' is not valid: use letters, digits, underscores and "
+                "primes, starting with a letter or an underscore (for example 'E1' or 'orbit')."
+            )
         return requested_name
 
     def _name_new_ellipse(self, ellipse: Ellipse, requested_name: str) -> None:
