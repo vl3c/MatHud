@@ -339,15 +339,32 @@ class FunctionRegistry:
             functions["run_tests"] = ai_interface.run_tests
 
         # Add tool search function (makes request to backend)
-        functions["search_tools"] = FunctionRegistry._create_search_tools_handler()
+        get_model_id = ai_interface.turn_model_id if ai_interface is not None else None
+        functions["search_tools"] = FunctionRegistry._create_search_tools_handler(get_model_id)
 
         return functions
 
     @staticmethod
-    def _create_search_tools_handler() -> Callable[..., Dict[str, Any]]:
+    def _search_model_id(get_model_id: Optional[Callable[[], str]]) -> Optional[str]:
+        """The model whose provider runs a tool search: the turn's, else the selected one."""
+        try:
+            if get_model_id is not None:
+                return get_model_id() or None
+            from browser import document
+
+            return str(document["ai-model-selector"].value) or None
+        except Exception:
+            return None  # Model selector not available
+
+    @staticmethod
+    def _create_search_tools_handler(
+        get_model_id: Optional[Callable[[], str]] = None,
+    ) -> Callable[..., Dict[str, Any]]:
         """Create a handler for the search_tools function.
 
         Returns a function that makes a request to the backend /search_tools endpoint.
+        ``get_model_id`` gives the running turn's model, so the search uses the provider
+        that serves the turn even if another model was picked mid-turn.
         """
 
         def search_tools(query: str, max_results: int | None = None) -> dict:
@@ -372,12 +389,7 @@ class FunctionRegistry:
                 from browser import ajax, document
                 import json as json_module
 
-                # Get current AI model to use same provider for search
-                ai_model = None
-                try:
-                    ai_model = document["ai-model-selector"].value
-                except Exception:
-                    pass  # Model selector not available
+                ai_model = FunctionRegistry._search_model_id(get_model_id)
 
                 # Use XMLHttpRequest directly for synchronous request (more reliable)
                 req = ajax.Ajax()

@@ -147,6 +147,9 @@ class CanvasEventHandler:
             document["math-svg"].bind("mouseup", self.handle_mouseup)
             document["math-svg"].bind("mousemove", self.handle_mousemove)
             document["new-conversation-button"].bind("click", self.ai_interface.start_new_conversation)
+            model_selected_handler = getattr(self.ai_interface, "on_model_selected", None)
+            if callable(model_selected_handler) and "ai-model-selector" in document:
+                document["ai-model-selector"].bind("change", model_selected_handler)
 
             # Mobile touch events
             document["math-svg"].bind("touchstart", self.handle_touchstart)
