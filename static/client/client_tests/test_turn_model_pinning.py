@@ -6,9 +6,9 @@ must not receive the turn's tool-result follow-ups (its instance would drop them
 as abandoned). The selector stays usable: the new model answers from the next
 message, and the chat says so.
 
-AIInterface is built without __init__ and its UI, network and timer collaborators
-are replaced by stubs; the page's model selector and vision toggle are used and
-restored after each test.
+AIInterface is built without __init__ and its UI, network, timer and send-control
+collaborators are replaced by stubs; the page's model selector and vision toggle
+are used and restored after each test.
 """
 
 from __future__ import annotations
@@ -41,6 +41,7 @@ class TestTurnModelPinning(unittest.TestCase):
         if len(values) < 2:
             self.skipTest("the selector needs two models")
         self.first_model, self.second_model = values[0], values[1]
+        self.third_model: Optional[str] = values[2] if len(values) > 2 else None
         self._saved_model = str(self.selector.value)
         self._saved_vision = document["vision-toggle"].checked
         document["vision-toggle"].checked = False
@@ -80,6 +81,14 @@ class TestTurnModelPinning(unittest.TestCase):
         def send_prompt_json(prompt_json: Dict[str, Any], *args: Any) -> None:
             self.sent.append(dict(prompt_json))
 
+        def disable_send_controls() -> None:
+            ai.is_processing = True
+            ai._stop_requested = False
+
+        def enable_send_controls() -> None:
+            ai.is_processing = False
+            ai._stop_requested = False
+
         for name in (
             "_start_response_timeout",
             "_cancel_response_timeout",
@@ -94,6 +103,8 @@ class TestTurnModelPinning(unittest.TestCase):
         setattr(ai, "_trace_summary", lambda trace: None)
         setattr(ai, "execute_tool_batch", execute_tool_batch)
         setattr(ai, "_send_prompt_json", send_prompt_json)
+        setattr(ai, "_disable_send_controls", disable_send_controls)
+        setattr(ai, "_enable_send_controls", enable_send_controls)
         return ai
 
     def _select(self, model_id: str) -> None:
@@ -146,11 +157,50 @@ class TestTurnModelPinning(unittest.TestCase):
         self._select(self.second_model)
         self.assertEqual(self.notes, [])
 
-    def test_switching_back_to_the_turns_model_adds_no_note(self) -> None:
+    def test_switching_back_says_the_turns_model_keeps_answering(self) -> None:
+        from ai_interface import AIInterface
+
         self.ai.send_user_message("draw a point")
         self._select(self.second_model)
         self._select(self.first_model)
+        self.assertEqual(len(self.notes), 2, "the earlier note must not be left promising the other model")
+        self.assertIn(AIInterface._model_label(self.first_model), self.notes[1])
+        self.assertIn("keep answering", self.notes[1])
+        self.assertEqual(self.ai.turn_model_id(), self.first_model)
+
+    def test_reselecting_the_turns_model_without_a_switch_adds_no_note(self) -> None:
+        self.ai.send_user_message("draw a point")
+        self._select(self.first_model)
+        self.assertEqual(self.notes, [])
+
+    def test_reselecting_the_announced_model_adds_no_note(self) -> None:
+        self.ai.send_user_message("draw a point")
+        self._select(self.second_model)
+        self._select(self.second_model)
         self.assertEqual(len(self.notes), 1)
+
+    def test_latest_note_names_the_model_that_answers_next(self) -> None:
+        from ai_interface import AIInterface
+
+        if self.third_model is None:
+            self.skipTest("the selector needs three models")
+        self.ai.send_user_message("draw a point")
+        self._select(self.second_model)
+        self._select(self.third_model)
+        self.assertEqual(len(self.notes), 2)
+        self.assertIn(AIInterface._model_label(self.third_model), self.notes[-1])
+        self._finish_turn()
+        self.ai.send_user_message("draw another")
+        self.assertEqual(self.sent[-1]["ai_model"], self.third_model)
+
+    def test_each_turn_starts_without_an_announced_model(self) -> None:
+        self.ai.send_user_message("draw a point")
+        self._select(self.second_model)
+        self._finish_turn()
+        self.ai.send_user_message("draw another")  # this turn runs on the second model
+        self._select(self.first_model)
+        self.assertEqual(len(self.notes), 2)
+        self.assertIn("next message", self.notes[1])
 
     def test_turn_model_id_follows_the_selector_between_turns(self) -> None:
         self.ai.send_user_message("draw a point")
@@ -195,3 +245,25 @@ class TestSearchToolsModel(unittest.TestCase):
             self.skipTest("model selector not in DOM")
         expected = str(document["ai-model-selector"].value) or None
         self.assertEqual(FunctionRegistry._search_model_id(None), expected)
+
+    def test_registry_gives_search_tools_the_turns_model(self) -> None:
+        from canvas import Canvas
+        from function_registry import FunctionRegistry
+        from workspace_manager import WorkspaceManager
+
+        captured: List[Any] = []
+        original = FunctionRegistry._create_search_tools_handler
+
+        def capture(get_model_id: Any = None) -> Any:
+            captured.append(get_model_id)
+            return original(get_model_id)
+
+        canvas = Canvas(500, 500, draw_enabled=False)
+        ai = _Stub(turn_model_id=lambda: "turn-model", run_tests=lambda: {})
+        FunctionRegistry._create_search_tools_handler = staticmethod(capture)  # type: ignore[method-assign]
+        try:
+            FunctionRegistry.get_available_functions(canvas, WorkspaceManager(canvas), ai)  # type: ignore[arg-type]
+        finally:
+            FunctionRegistry._create_search_tools_handler = staticmethod(original)  # type: ignore[method-assign]
+        self.assertEqual(len(captured), 1)
+        self.assertEqual(FunctionRegistry._search_model_id(captured[0]), "turn-model")
