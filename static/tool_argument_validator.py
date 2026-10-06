@@ -17,7 +17,8 @@ Canonicalization rules (applied when schema type is matched):
     - String-to-integer coercion: "200" -> 200 for integer fields
     - Empty-string-to-null: "" -> None for nullable string fields
     - Null-string-to-null: "null", "None", "undefined" -> None for any field whose
-      schema type allows null (a field that cannot be null keeps the string);
+      schema type allows null (a field that cannot be null keeps the string; in
+      text shown on the canvas, DISPLAY_TEXT_ARGUMENTS, "undefined" stays text);
       applied before validation, so also when validation fails. The routes apply
       it to every model reply's tool calls (``normalize_tool_calls``), streaming
       or not, before the client runs them.
@@ -39,6 +40,7 @@ from __future__ import annotations
 import copy
 import logging
 import math
+import re
 from typing import Any, Dict, List, Optional, TypedDict
 
 logger = logging.getLogger(__name__)
@@ -50,6 +52,15 @@ _ERROR_VALUE_MAX_LEN = 100
 # leave unset. They mean null wherever the schema allows null, free text included: a label
 # that should read "null" is far rarer than a model filling an unused field with it.
 NULL_STRINGS = frozenset({"null", "None", "undefined"})
+# Text shown on the canvas as written: there only "null" and "None" (what local models emit)
+# mean null, so a label can still read "undefined". Paths per tool, "[]" for any array item.
+DISPLAY_TEXT_NULL_STRINGS = frozenset({"null", "None"})
+DISPLAY_TEXT_ARGUMENTS: Dict[str, frozenset] = {
+    "update_label": frozenset({"new_text"}),
+    "create_segment": frozenset({"label_text"}),
+    "update_segment": frozenset({"new_label_text"}),
+    "generate_graph": frozenset({"vertices[].name", "vertices[].label", "root"}),
+}
 
 
 class ValidationResult(TypedDict):
@@ -176,10 +187,14 @@ def _normalize_null_strings(value: Any, schema: Dict[str, Any], path: str, tool_
     """Return *value* with null spelled as a string replaced by None where *schema* allows null.
 
     Recurses into object properties and array items, so nested optional fields are
-    covered too. The schema's nullability alone decides.
+    covered too. The schema's nullability decides which fields; in display text
+    (``DISPLAY_TEXT_ARGUMENTS``) "undefined" stays text.
     """
     if isinstance(value, str):
-        if value in NULL_STRINGS and _schema_allows_null(schema):
+        spellings = NULL_STRINGS
+        if re.sub(r"\[\d+\]", "[]", path) in DISPLAY_TEXT_ARGUMENTS.get(tool_name, ()):
+            spellings = DISPLAY_TEXT_NULL_STRINGS
+        if value in spellings and _schema_allows_null(schema):
             logger.info("Tool '%s': argument '%s' canonicalized from string %r to null.", tool_name, path, value)
             return None
         return value

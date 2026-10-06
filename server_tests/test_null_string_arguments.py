@@ -69,6 +69,31 @@ class TestNormalizeNullStrings(unittest.TestCase):
         # Free text that cannot be null keeps the string.
         self.assertEqual(normalize("search_tools", {"query": "null"})["query"], "null")
 
+    def test_display_text_keeps_undefined(self) -> None:
+        # Text shown on the canvas: "null" and "None" (what local models send) mean null, "undefined" is text.
+        self.assertEqual(
+            normalize("update_label", {"label_name": "L", "new_text": "undefined"})["new_text"], "undefined"
+        )
+        self.assertIsNone(normalize("update_label", {"label_name": "L", "new_text": "null"})["new_text"])
+        segment = normalize("create_segment", {"x1": 0, "y1": 0, "x2": 1, "y2": 1, "label_text": "undefined"})
+        self.assertEqual(segment["label_text"], "undefined")
+        self.assertIsNone(
+            normalize("create_segment", {"x1": 0, "y1": 0, "x2": 1, "y2": 1, "label_text": "None"})["label_text"]
+        )
+        update = normalize("update_segment", {"name": "AB", "new_label_text": "undefined", "new_color": "undefined"})
+        self.assertEqual(update["new_label_text"], "undefined")
+        self.assertIsNone(update["new_color"])  # not display text: "undefined" still means null
+        graph = normalize(
+            "generate_graph",
+            {"name": "G", "root": "undefined",
+             "vertices": [{"name": "undefined", "label": "undefined", "color": "undefined"},
+                          {"name": "null", "label": "None", "color": None}],
+             "edges": []},
+        )  # fmt: skip
+        self.assertEqual(graph["root"], "undefined")
+        self.assertEqual(graph["vertices"][0], {"name": "undefined", "label": "undefined", "color": None})
+        self.assertEqual(graph["vertices"][1], {"name": None, "label": None, "color": None})
+
     def test_only_the_exact_strings(self) -> None:
         for value in ("NULL", "nil", " null", "none", "nullable", ""):
             self.assertEqual(normalize("draw_function", {"function_string": "x", "color": value})["color"], value)
