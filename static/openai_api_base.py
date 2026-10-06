@@ -7,7 +7,6 @@ for both Chat Completions and Responses APIs.
 
 from __future__ import annotations
 
-import copy
 import json
 import logging
 import os
@@ -34,7 +33,7 @@ from static.canvas_state_formatter import (
     render_state,
     render_update,
 )
-from static.canvas_view_note import VIEW_NOTE_PREFIX, ViewNoteMemory, view_note
+from static.canvas_view_note import VIEW_NOTE_PREFIX, view_note
 from static.canvas_state_summarizer import compare_canvas_states
 from static.functions_definitions import FUNCTIONS, FunctionDefinition
 from static.response_metrics import ResponseMetrics, ResponseMetricsTracker
@@ -129,31 +128,18 @@ _CANVAS_PROMPT_SENTENCES: Dict[CanvasFormat, str] = {
     "text": "Each user message starts with the current canvas in a <canvas> block (one object per line as name = definition, followed after tool calls by [canvas changes] at the end of the last tool result); the lengths, areas and angles it lists come from the math engine and can be quoted directly.",
 }
 
-# The canvas may carry a view note (static/canvas_view_note.py) when the shapes are too small
-# on screen or outside the view. The app never changes the view on its own, and neither should
-# the model: it mentions the problem and offers the suggested view. Notes older than the
-# previous turn are removed from the history when the user sends a new message.
-VIEW_NOTE_GUIDANCE = "If the latest canvas or [canvas changes] has a view note (the shapes are too small or too flat on screen, or outside the visible area), end your reply with one short sentence that mentions it and offers the suggested zoom. Never call zoom or other view tools because of a view note: change the view only when the user asks for it or agrees."
+# After a tool batch, the [canvas changes] may end with a view note (static/canvas_view_note.py)
+# when something the model just drew can't be seen. The app never changes the view on its own,
+# and neither should the model: it mentions the problem and offers the suggested view. Notes
+# older than the previous turn are removed from the history when the user sends a new message.
+VIEW_NOTE_GUIDANCE = "If the [canvas changes] after your latest tool calls end with a view note (something you just drew is too small or too flat on screen, or outside the visible area), end your reply with one short sentence that mentions it and offers the suggested zoom. Never call zoom or other view tools because of a view note: change the view only when the user asks for it or agrees."
 
 
-# LocalAgent's json format puts the note under this line of the user message.
-_OBJECT_COUNT_LINE_PREFIX = "[Canvas:"
-
-
-def _without_view_note_lines(text: str, after: Optional[str] = None) -> str:
-    """``text`` without "View note:" lines (and a [canvas changes] header left with nothing under it).
-
-    With ``after``, only a note line right under a line starting with ``after`` goes, so
-    a user's own text is never touched.
-    """
+def _without_view_note_lines(text: str) -> str:
+    """``text`` without "View note:" lines (and a [canvas changes] header left with nothing under it)."""
     if VIEW_NOTE_PREFIX not in text:
         return text
-    lines: List[str] = []
-    for line in text.split("\n"):
-        previous = lines[-1] if lines else ""
-        if line.startswith(VIEW_NOTE_PREFIX) and (after is None or previous.startswith(after)):
-            continue
-        lines.append(line)
+    lines = [line for line in text.split("\n") if not line.startswith(VIEW_NOTE_PREFIX)]
     if lines and lines[-1] == CHANGES_HEADER:
         lines.pop()
     return "\n".join(lines)
@@ -233,13 +219,9 @@ class OpenAIAPIBase:
 
     # Last canvas state shown to the model, so tool results can report what changed.
     _last_canvas_state: Optional[Dict[str, Any]] = None
-    # The one shown before the latest user message: restored when that message is dropped
-    # from the history (e.g. after a refusal), so a view note it carried is not lost.
+    # The one shown before the latest user message: restored when that message's round is
+    # dropped from the history (e.g. after a refusal), so the objects it drew count as new again.
     _canvas_state_before_user_message: Optional[Dict[str, Any]] = None
-    # What this conversation was already told in view notes (reset with the shown state),
-    # and a copy from before the latest user message, restored with it.
-    _view_note_memory: Optional[ViewNoteMemory] = None
-    _view_note_memory_before_user_message: Optional[ViewNoteMemory] = None
 
     # Metrics of the most recent model request (see static/response_metrics.py).
     last_response_metrics: Optional[ResponseMetrics] = None
@@ -659,7 +641,6 @@ class OpenAIAPIBase:
                                 if isinstance(text_json, dict):
                                     text_json.pop("canvas_state", None)
                                     text_json.pop("canvas_state_summary", None)
-                                    text_json.pop("view_note", None)
                                     part["text"] = json.dumps(text_json)
                             except json.JSONDecodeError:
                                 pass
@@ -671,7 +652,6 @@ class OpenAIAPIBase:
                         if isinstance(message_content_json, dict):
                             message_content_json.pop("canvas_state", None)
                             message_content_json.pop("canvas_state_summary", None)
-                            message_content_json.pop("view_note", None)
                             message["content"] = json.dumps(message_content_json)
                     except json.JSONDecodeError:
                         pass
@@ -812,48 +792,39 @@ class OpenAIAPIBase:
         if not isinstance(canvas_state, dict):
             return text
         self._strip_canvas_blocks(keep_latest=False)
-        note = self._next_user_view_note(canvas_state)
-        block = self._render_canvas_block(canvas_state, canvas_format, note)
+        self._record_user_canvas(canvas_state)
+        block = self._render_canvas_block(canvas_state, canvas_format)
         return f"{block}\n\n{text}" if text else block
 
-    def _render_canvas_block(
-        self, canvas_state: Dict[str, Any], canvas_format: CanvasFormat, note: Optional[str] = None
-    ) -> str:
-        rendered = render_state(canvas_state, canvas_format, self._get_canvas_budget_tokens(), note)
+    def _render_canvas_block(self, canvas_state: Dict[str, Any], canvas_format: CanvasFormat) -> str:
+        rendered = render_state(canvas_state, canvas_format, self._get_canvas_budget_tokens())
         return f"{CANVAS_BLOCK_START}\n{rendered}\n{CANVAS_BLOCK_END}"
 
-    def _next_view_note(self, canvas_state: Dict[str, Any]) -> Optional[str]:
-        """Measure ``canvas_state`` against the last canvas shown to the model, then remember it.
+    def _record_user_canvas(self, canvas_state: Dict[str, Any]) -> None:
+        """Remember the canvas sent with a user message; the next tool batch is measured against it.
 
-        Returns a "View note:" line when the shapes became too small on screen or went
-        outside the view since the last canvas shown, so an offer the user declined is
-        not repeated (see canvas_view_note.view_note).
+        User messages never carry a view note: the user's view, and anything the user loaded
+        or drew, is the user's business. Notes older than the previous turn leave the history.
         """
-        if self._last_canvas_state is None or self._view_note_memory is None:
-            self._view_note_memory = ViewNoteMemory()  # a new conversation
-        note: Optional[str] = view_note(self._last_canvas_state, canvas_state, self._view_note_memory)
+        self._strip_view_notes()
+        self._canvas_state_before_user_message = self._last_canvas_state
+        self._last_canvas_state = canvas_state
+
+    def _next_view_note(self, canvas_state: Dict[str, Any]) -> Optional[str]:
+        """The view note for a tool batch's canvas (see canvas_view_note.view_note), then remember it."""
+        note: Optional[str] = view_note(self._last_canvas_state, canvas_state)
         self._last_canvas_state = canvas_state
         return note
 
-    def _next_user_view_note(self, canvas_state: Dict[str, Any]) -> Optional[str]:
-        """``_next_view_note`` for a new user message, which first drops the notes of earlier turns."""
-        self._strip_view_notes()
-        self._canvas_state_before_user_message = self._last_canvas_state
-        self._view_note_memory_before_user_message = copy.deepcopy(self._view_note_memory)
-        return self._next_view_note(canvas_state)
-
     def _forget_dropped_user_message(self) -> None:
-        """The latest user message left the history unanswered: measure the next canvas against the one before it."""
+        """The latest user message's round left the history: measure the next batch against the canvas before it."""
         self._last_canvas_state = self._canvas_state_before_user_message
-        self._view_note_memory = self._view_note_memory_before_user_message
 
     def _strip_view_notes(self) -> None:
-        """Remove "View note:" lines older than the previous turn from the history.
+        """Remove "View note:" lines older than the previous turn from the tool messages.
 
         The previous turn keeps its notes: the user's new message may answer one ("yes,
-        zoom"), and its suggested view must still be there. Canvas blocks of earlier user
-        messages are already gone (``_strip_canvas_blocks``); this covers [canvas changes]
-        in tool messages and the line under LocalAgent's json object counts.
+        zoom"), and its suggested view must still be there.
         """
         users = [index for index, message in enumerate(self.messages) if message.get("role") == "user"]
         previous_turn_start = users[-1] if users else 0
@@ -861,8 +832,6 @@ class OpenAIAPIBase:
             content = message.get("content")
             if message.get("role") == "tool" and isinstance(content, str):
                 message["content"] = _without_view_note_lines(content)
-            elif message.get("role") == "user" and isinstance(content, str):
-                message["content"] = _without_view_note_lines(content, after=_OBJECT_COUNT_LINE_PREFIX)
 
     @staticmethod
     def _extract_attached_images(prompt_json: Dict[str, Any]) -> Optional[List[str]]:
@@ -898,11 +867,10 @@ class OpenAIAPIBase:
         """Legacy path: send the prompt JSON (with canvas_state or its summary) as the user message."""
         telemetry_enabled = self._is_canvas_summary_telemetry_enabled()
         start_time = time.perf_counter() if telemetry_enabled else 0.0
-        note = self._json_prompt_view_note(full_prompt)
+        self._record_json_user_canvas(full_prompt)
         normalized_prompt, summary_metrics = self._normalize_prompt_canvas_state_with_metrics(
             without_measurement_keys(full_prompt)
         )
-        normalized_prompt = self._add_json_view_note(note, normalized_prompt)
         prompt_kind = "text"
         message_content: MessageContent = normalized_prompt
         prompt_json: Optional[Dict[str, Any]] = None
@@ -941,19 +909,12 @@ class OpenAIAPIBase:
             )
         return message_content
 
-    def _json_prompt_view_note(self, full_prompt: str) -> Optional[str]:
-        """json format: the view note for the prompt's canvas_state (see ``_next_view_note``)."""
+    def _record_json_user_canvas(self, full_prompt: str) -> None:
+        """json format: remember the user message's canvas_state (see ``_record_user_canvas``)."""
         prompt_json = self._parse_prompt_json(full_prompt)
         canvas_state = prompt_json.get("canvas_state") if prompt_json is not None else None
-        return self._next_user_view_note(canvas_state) if isinstance(canvas_state, dict) else None
-
-    def _add_json_view_note(self, note: Optional[str], normalized_prompt: str) -> str:
-        """json format: add the view note to the prompt JSON as a top-level "view_note" field."""
-        normalized_json = self._parse_prompt_json(normalized_prompt) if note else None
-        if normalized_json is None:
-            return normalized_prompt
-        normalized_json["view_note"] = note
-        return json.dumps(normalized_json)
+        if isinstance(canvas_state, dict):
+            self._record_user_canvas(canvas_state)
 
     def _normalize_prompt_canvas_state(self, full_prompt: str) -> str:
         """Normalize prompt canvas payload according to summary mode."""
@@ -1120,12 +1081,27 @@ class OpenAIAPIBase:
             return
         previous = self._last_canvas_state
         note = self._next_view_note(canvas_state)
+        if self._batch_only_steps_through_history(len(pending)):
+            note = None  # an undo or redo brings back what was there; nothing new was drawn
         if canvas_format == "json":
             update = note or ""
         else:
             update = render_update(previous, canvas_state, canvas_format, self._get_canvas_budget_tokens(), note)
         if update:
             pending[-1]["content"] = f"{pending[-1]['content']}\n{update}"
+
+    def _batch_only_steps_through_history(self, pending_count: int) -> bool:
+        """True when every call of the batch answered by the pending tool messages is an undo or redo."""
+        index = len(self.messages) - pending_count - 1
+        calls = self.messages[index].get("tool_calls") if index >= 0 else None
+        if not isinstance(calls, list) or not calls:
+            return False
+        names = []
+        for call in calls:
+            function = call.get("function") if isinstance(call, dict) else getattr(call, "function", None)
+            name = function.get("name") if isinstance(function, dict) else getattr(function, "name", None)
+            names.append(name)
+        return all(name in ("undo", "redo") for name in names)
 
     def _update_tool_messages_with_results(self, tool_call_results: str) -> None:
         """Update placeholder tool messages with actual results from the client.
