@@ -1,10 +1,20 @@
 """
 The canvas state as sent with a prompt.
 
-A prompt carries ``Canvas.get_canvas_state()`` plus the canvas size in CSS pixels,
-so the server can tell how big the drawings are on screen and add a view note when
-they are too small or outside the view (``static/canvas_state_formatter.py``).
-The size is added to the prompt's copy only, never to saved workspaces or traces.
+A prompt carries ``Canvas.get_canvas_state()`` plus what the server needs to tell
+how big the drawings are on screen, and to add a view note when they are too small
+or outside the view (``static/canvas_view_note.py``):
+
+``canvas_size_px``  the canvas size in CSS pixels, ``{"width", "height"}``
+``curve_extents``   for each function graph and parametric curve, the box its
+                    sampled points span in math units, ``{bucket: {name: {"box":
+                    [left, right, bottom, top], "clipped": bool}}}``; a function
+                    without both bounds is sampled over the visible x range only
+                    (``clipped``), since its graph runs across the whole view
+
+These are added to the prompt's copy only, never to saved workspaces or traces.
+The cost is bounded: at most ``MAX_MEASURED_CURVES`` curves of ``CURVE_SAMPLES``
+evaluations each.
 
 Pure Python (no ``browser`` import), tested by ``client_tests/test_prompt_canvas_state.py``.
 """
@@ -12,10 +22,21 @@ Pure Python (no ``browser`` import), tested by ``client_tests/test_prompt_canvas
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-# Mirrors static/canvas_state_formatter.CANVAS_SIZE_KEY.
+# Mirror static/canvas_state_formatter.CANVAS_SIZE_KEY and CURVE_EXTENTS_KEY.
 CANVAS_SIZE_KEY = "canvas_size_px"
+CURVE_EXTENTS_KEY = "curve_extents"
+
+CURVE_SAMPLES = 64
+MAX_MEASURED_CURVES = 20
+# Share of the samples dropped at each end of a graph's y values, so the steep ends near
+# a vertical asymptote (tan, 1/x) do not stretch its box.
+_Y_TRIM = 0.02
+
+# Drawable class -> state bucket.
+_GRAPH_CLASSES = (("Function", "Functions"), ("PiecewiseFunction", "PiecewiseFunctions"))
+_CURVE_CLASS = ("ParametricFunction", "ParametricFunctions")
 
 
 def canvas_size_px(canvas: Any) -> Optional[Dict[str, float]]:
@@ -30,14 +51,114 @@ def canvas_size_px(canvas: Any) -> Optional[Dict[str, float]]:
     return {"width": round(width, 2), "height": round(height, 2)}
 
 
-def with_canvas_size(state: Any, canvas: Any) -> Any:
-    """Return a shallow copy of ``state`` with the canvas size added; ``state`` itself is unchanged.
+def with_view_info(state: Any, canvas: Any) -> Any:
+    """Return a shallow copy of ``state`` with the canvas size and curve extents added.
 
-    Returns ``state`` as given when it is not a dict or the size is unknown.
+    ``state`` itself is unchanged. Returns ``state`` as given when it is not a dict
+    or the canvas size is unknown.
     """
     size = canvas_size_px(canvas)
     if size is None or not isinstance(state, dict):
         return state
     result = dict(state)
     result[CANVAS_SIZE_KEY] = size
+    extents = curve_extents(canvas)
+    if extents:
+        result[CURVE_EXTENTS_KEY] = extents
     return result
+
+
+def curve_extents(canvas: Any) -> Dict[str, Dict[str, Dict[str, Any]]]:
+    """The sampled box of every function graph and parametric curve, by bucket and name."""
+    view = _visible_x_range(canvas)
+    result: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    measured = 0
+    for class_name, bucket in _GRAPH_CLASSES + (_CURVE_CLASS,):
+        for drawable in _drawables(canvas, class_name):
+            if measured >= MAX_MEASURED_CURVES:
+                return result
+            measured += 1
+            if class_name == _CURVE_CLASS[0]:
+                entry = _curve_extent(drawable)
+            else:
+                entry = _graph_extent(drawable, view)
+            name = getattr(drawable, "name", None)
+            if entry is not None and isinstance(name, str):
+                result.setdefault(bucket, {})[name] = entry
+    return result
+
+
+def _graph_extent(function: Any, view: Optional[Tuple[float, float]]) -> Optional[Dict[str, Any]]:
+    """Sample y = f(x) over its bounds, or over the visible x range where it has no bound."""
+    left, right = _bound(function, "left_bound"), _bound(function, "right_bound")
+    clipped = left is None or right is None
+    if clipped:
+        if view is None:
+            return None
+        left = view[0] if left is None else max(left, view[0])
+        right = view[1] if right is None else min(right, view[1])
+    if left is None or right is None or right < left:
+        return None
+    evaluate = getattr(function, "function", None)
+    if not callable(evaluate):
+        return None
+    points = _sample(lambda x: (x, evaluate(x)), left, right)
+    if len(points) < 2:
+        return None
+    xs = [p[0] for p in points]
+    ys = sorted(p[1] for p in points)
+    trim = int(len(ys) * _Y_TRIM)
+    ys = ys[trim : len(ys) - trim] if len(ys) > 2 * trim + 1 else ys
+    return {"box": [min(xs), max(xs), ys[0], ys[-1]], "clipped": clipped}
+
+
+def _curve_extent(curve: Any) -> Optional[Dict[str, Any]]:
+    """Sample (x(t), y(t)) over [t_min, t_max]."""
+    t_min, t_max = _bound(curve, "t_min"), _bound(curve, "t_max")
+    evaluate = getattr(curve, "evaluate", None)
+    if t_min is None or t_max is None or t_max < t_min or not callable(evaluate):
+        return None
+    points = _sample(evaluate, t_min, t_max)
+    if len(points) < 2:
+        return None
+    xs, ys = [p[0] for p in points], [p[1] for p in points]
+    return {"box": [min(xs), max(xs), min(ys), max(ys)], "clipped": False}
+
+
+def _sample(point_at: Callable[[float], Any], low: float, high: float) -> List[Tuple[float, float]]:
+    points: List[Tuple[float, float]] = []
+    for index in range(CURVE_SAMPLES):
+        t = low + (high - low) * index / (CURVE_SAMPLES - 1)
+        try:
+            x, y = point_at(t)
+            x, y = float(x), float(y)
+        except Exception:
+            continue
+        if math.isfinite(x) and math.isfinite(y):
+            points.append((x, y))
+    return points
+
+
+def _bound(drawable: Any, attribute: str) -> Optional[float]:
+    value = getattr(drawable, attribute, None)
+    try:
+        number = float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+    return number if number is not None and math.isfinite(number) else None
+
+
+def _visible_x_range(canvas: Any) -> Optional[Tuple[float, float]]:
+    try:
+        mapper = canvas.coordinate_mapper
+        left, right = float(mapper.get_visible_left_bound()), float(mapper.get_visible_right_bound())
+    except Exception:
+        return None
+    return (left, right) if math.isfinite(left) and math.isfinite(right) and right > left else None
+
+
+def _drawables(canvas: Any, class_name: str) -> List[Any]:
+    try:
+        return list(canvas.get_drawables_by_class_name(class_name))
+    except Exception:
+        return []

@@ -46,7 +46,7 @@ from tool_call_log_manager import ToolCallLogManager
 from message_menu_manager import MessageMenuManager
 from image_attachment_manager import ImageAttachmentManager
 from canvas_snapshot import CanvasSnapshotter
-from prompt_canvas_state import with_canvas_size
+from prompt_canvas_state import with_view_info
 from slash_command_handler import SlashCommandHandler
 from command_autocomplete import CommandAutocomplete
 from tts_ui_manager import TTSUIManager
@@ -1020,8 +1020,8 @@ class AIInterface:
         self._turn_requests_sent += 1
         if canvas_state is None:
             canvas_state = self.canvas.get_canvas_state()
-        # The server measures the drawings on screen with it (view notes); a copy, so traces keep the plain state.
-        canvas_state = with_canvas_size(canvas_state, getattr(self, "canvas", None))
+        # Canvas size and curve extents for the view note; a copy, so traces keep the plain state.
+        canvas_state = with_view_info(canvas_state, getattr(self, "canvas", None))
 
         # Only use vision when we have a user message and no tool call results
         use_vision = document["vision-toggle"].checked and user_message is not None and tool_call_results is None

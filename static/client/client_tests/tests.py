@@ -305,7 +305,7 @@ from .test_turn_metrics import (
     TestTurnBookkeeping,
     TestTurnLifecycle,
 )
-from .test_prompt_canvas_state import TestPromptCanvasSize, TestPromptCarriesCanvasSize
+from .test_prompt_canvas_state import TestCurveExtents, TestPromptCanvasSize, TestPromptCarriesViewInfo
 from .test_numeric_solver import (
     TestNumericSolverHelpers,
     TestNumericSolverIntegration,
@@ -743,7 +743,8 @@ class Tests:
             TestTurnBookkeeping,
             TestTurnLifecycle,
             TestPromptCanvasSize,
-            TestPromptCarriesCanvasSize,
+            TestCurveExtents,
+            TestPromptCarriesViewInfo,
             TestNumericSolverHelpers,
             TestNumericSolverIntegration,
             TestNumericSolverFallback,
