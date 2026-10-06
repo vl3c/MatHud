@@ -50,10 +50,17 @@ class ReplayOptions:
     step_timeout_s: float = DEFAULT_STEP_TIMEOUT_S
     known_artifacts: bool = False
     retries: int = 1
+    # Seconds to pause after each step, so someone watching an attached window sees every canvas.
+    pace_s: float = 0.0
 
 
 class BrowserSession:
-    """One headless Chrome on the app, restartable after a hang."""
+    """One browser on the app (``cli.browser_backend.AppBrowser``), restartable after a hang.
+
+    The default backend is a headless Chrome of the run's own; in attach mode it
+    is the desktop window over CDP, which is never navigated on open and only
+    disconnected on close.
+    """
 
     def __init__(self, factory: Callable[[], Any], timeout_s: float) -> None:
         self._factory = factory
@@ -65,14 +72,16 @@ class BrowserSession:
         browser = self._factory()
         self.browser = browser
         self.call(browser.setup, timeout=120)
-        if not self.call(browser.navigate_to_app, timeout=90):
-            raise HookError("could not open the app")
+        # An attached window already shows the app; it is reloaded only to recover from a hang.
+        if not getattr(browser, "attached", False) or self.restarts:
+            if not self.call(browser.reload, timeout=90):
+                raise HookError("could not open the app")
         if not self.call(browser.wait_for_app_ready, timeout=120):
             raise HookError("the app did not become ready")
 
     def reload(self) -> None:
         browser = self.browser
-        if not self.call(browser.navigate_to_app, timeout=90) or not self.call(browser.wait_for_app_ready, timeout=120):
+        if not self.call(browser.reload, timeout=90) or not self.call(browser.wait_for_app_ready, timeout=120):
             raise HookError("the app did not become ready after a reload")
 
     def restart(self) -> None:
@@ -81,7 +90,7 @@ class BrowserSession:
         self.open()
 
     def kill(self) -> None:
-        """Stop the browser, killing chromedriver and Chrome if they hang."""
+        """Stop the browser, killing chromedriver and Chrome if they hang (an attached window only disconnects)."""
         browser = self.browser
         self.browser = None
         if browser is None:
@@ -94,7 +103,7 @@ class BrowserSession:
 
         def cleanup() -> None:
             try:
-                browser.cleanup()
+                browser.close()
             finally:
                 finished.set()
 
@@ -132,7 +141,7 @@ class BrowserSession:
 
     def screenshot(self, path: Path) -> bool:
         try:
-            return bool(self.call(self.browser.capture_screenshot, str(path), timeout=30))
+            return bool(self.call(self.browser.screenshot, str(path), timeout=30))
         except Exception:
             return False
 
@@ -257,11 +266,18 @@ class ReplayRunner:
         setup = self._run_calls(scenario.setup_calls) if scenario.setup_calls else None
         data = self._with_samples(grader, None, setup)
         self._record(outcome, grader, "setup", "setup", None, data, time.time() - t0)
+        if setup is not None:
+            self._pace()
 
         for step in scenario.steps:
             t0 = time.time()
             data, extra = self._execute_step(scenario, step, grader)
             self._record(outcome, grader, step.id, step.kind, step, data, time.time() - t0, extra)
+            self._pace()
+
+    def _pace(self) -> None:
+        if self.options.pace_s > 0:
+            time.sleep(self.options.pace_s)
 
     def _reset(self, scenario: Scenario) -> None:
         """Reset the session for ``scenario``, restoring its fixture."""
