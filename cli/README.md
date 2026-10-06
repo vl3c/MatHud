@@ -67,15 +67,23 @@ python -m cli.main server stop [--port PORT]
 
 ```bash
 # Open MatHud in a native window with the server built in (closing the window stops it)
-python -m cli.main desktop [--port PORT] [--browser] [--devtools]
+python -m cli.main desktop [--port PORT] [--browser] [--devtools] [--automation-port N]
+
+# Drive a window opened with --automation-port N (default N: 9333)
+python -m cli.main desktop prompt "TEXT" [--port N] [--model ID] [--provider local|openrouter] [--timeout S] [--max-requests N] [--json]
+python -m cli.main desktop state [--port N] [--inspect]
+python -m cli.main desktop screenshot [--port N] [-o FILE]
 ```
 
 **Options:**
 - `--port, -p`: Port to serve on (default: 5100, or a free port if 5100 is taken)
 - `--browser`: Open MatHud in the default browser instead of a window
 - `--devtools`: Enable the WebView developer tools
+- `--automation-port N`: Off by default. Opens a Chrome DevTools Protocol endpoint on 127.0.0.1:N so the CLI can drive the window; while it is on, any program on the computer can control the window. Windows (Edge WebView2) only; Linux with pywebview's Qt backend is untested and macOS has no CDP endpoint. The window then uses its own WebView profile (`%LOCALAPPDATA%\MatHud\webview-automation`), so its local settings start fresh.
 
 Needs pywebview: `pip install -r requirements-desktop.txt`. Equivalent to `python mathud_desktop.py`.
+
+**Driving the window:** `desktop prompt` sends TEXT through the window's chat as if typed there, waits for the turn and prints the reply, the tool calls and the turn metrics; the prompt, reply and canvas changes appear in the window. The prompt always names its model: `--model` must be listed under `--provider` in the app's `/api/available_models`; without `--model` the only local model is used (refused when there are none or several), never the window's current selection, which may be a paid model. Inside `desktop`'s subcommands `--port` is the automation port, not the app's. The client uses `websocket-client`, which comes with selenium.
 
 ### Test Execution
 
@@ -98,6 +106,10 @@ python -m cli.main test scenarios --regrade RESULTS    # re-check a results.json
 python -m cli.main test scenarios --mode live [--smoke] [--models ID,...] [--repeats N] [--local-reasoning-effort LEVEL]
 python -m cli.main test scenarios --mode live --provider openrouter --models ID [--max-requests N] [--dry-run]
 python -m cli.main test scenarios --mode retrace RESULTS  # a live run's calls again, no model, to classify failures
+
+# Attach: play replay or live runs in the open desktop window (mathud_desktop.py --automation-port N)
+python -m cli.main test scenarios --mode live --attach-desktop N --ids GEO-01 [--pace S] [--yes]
+python -m cli.main test scenarios --mode replay --attach-desktop N --smoke [--pace S] [--yes]
 ```
 
 **Options:**
@@ -110,6 +122,8 @@ python -m cli.main test scenarios --mode retrace RESULTS  # a live run's calls a
 - `--no-screenshot`: Disable automatic screenshot capture
 
 **Scenario tests:** known app bugs (`scenarios/known_bugs.json`) are expected failures (xfail) and a known check that passes is reported as "fixed? K<n>" (xpass); the command exits non-zero only on unexpected failures. `--start-server` gives the server a temporary workspace directory (`MATHUD_WORKSPACES_DIR`); against a running server, scenarios that use workspaces are skipped unless `--allow-workspace-writes` is given. Reports go to `logs/scenario_runs/<time>/`. Live mode starts its own server with the model-facing settings pinned (`--tool-exposure`, `--canvas-format`, `--canvas-budget`, `--tool-search-mode`, `--local-reasoning-effort`) and unused provider keys blanked, aborts unless every model is registered under its provider in `/api/available_models`, enforces `--turn-timeout` and `--turn-max-requests` per turn, retraces failing scenarios and classifies failures as app, model, nondeterministic, known or infra; it exits non-zero only on app or nondeterministic failures. See `documentation/development/agentic_scenario_testing.md`.
+
+**Attach mode (`--attach-desktop N`):** the run drives the desktop window over CDP instead of starting a server and headless Chrome, so each scenario's reset, setup, prompts, canvas and replies play out in the window, with a pause of `--pace` seconds after each step (default 1.5 when attached, 0 otherwise). It works with `--mode replay` and `--mode live`. Each scenario resets the window's canvas, undo history and chat (live: also the server conversation), so the run asks first unless `--yes` is given. The desktop app runs with your `.env`, so nothing can be pinned: `--tool-exposure`, `--canvas-format`, `--canvas-budget`, `--tool-search-mode` and `--local-reasoning-effort` are refused, and the run config and summary record `attached_desktop` and the settings left unpinned. The model guard still applies (every model listed under its provider in `/api/available_models`, an explicit model id on every message, the local provider by default; OpenRouter still needs `--models`, its request cap and `--dry-run` works). Workspace scenarios are skipped unless `--allow-workspace-writes` is given, which writes to the desktop app's own workspace directory.
 
 **Note:** Client tests automatically capture a screenshot showing test results before the browser closes. Screenshots are saved to `cli/output/` by default.
 
