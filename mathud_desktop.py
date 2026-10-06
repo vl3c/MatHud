@@ -32,7 +32,7 @@ import urllib.error
 import urllib.request
 import webbrowser
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from werkzeug.serving import BaseWSGIServer, make_server
 
@@ -57,8 +57,16 @@ WEBVIEW_STORAGE_DIRNAME = "webview"
 AUTOMATION_STORAGE_DIRNAME = "webview-automation"
 # The DevTools port `--automation-port` uses when given without a value (cli.config.DEFAULT_AUTOMATION_PORT).
 DEFAULT_AUTOMATION_PORT = 9333
-# WebView2 also reads extra browser arguments from this variable.
+# WebView2 also reads extra browser arguments from this variable (replacing pywebview's),
+# and its profile folder from the next one.
 WEBVIEW2_ARGS_ENV = "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"
+WEBVIEW2_USER_DATA_ENV = "WEBVIEW2_USER_DATA_FOLDER"
+# Switches removed from WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS when automation is on: another
+# DevTools port, address or pipe, and remote-allow-origins (which lets web pages connect).
+_CONFLICTING_SWITCHES = ("remote-debugging-", "remote-allow-origins")
+# The automation window keeps its geometry apart, so it never overwrites the normal window's.
+AUTOMATION_WINDOW_STATE_FILENAME = "desktop_window_automation.json"
+AUTOMATION_LOCK_FILENAME = "webview-automation.lock"
 # pywebview backends whose engine is Chromium and serves CDP on --remote-debugging-port.
 AUTOMATION_GUIS = {"win32": "edgechromium", "linux": "qt"}
 AUTOMATION_WARNING = (
@@ -313,25 +321,121 @@ def port_is_free(port: int, host: str = LOCAL_HOST) -> bool:
     return True
 
 
-def enable_automation(webview: Any, port: int, environ: Optional[Dict[str, str]] = None) -> None:
+def _switch_name(token: str) -> str:
+    """A Chromium switch's name: Chromium on Windows accepts ``--``, ``-`` and ``/`` prefixes."""
+    return token.lstrip("-/").split("=", 1)[0].lower()
+
+
+def sanitize_browser_args(value: str) -> Tuple[str, List[str]]:
+    """``value`` without switches that would move or open the DevTools endpoint; returns (kept, removed).
+
+    Removes every ``remote-debugging-*`` switch (another port or address, a pipe)
+    and ``remote-allow-origins`` (which would let web pages connect), with a
+    value given as the next token.
+    """
+    tokens = value.split()
+    kept: List[str] = []
+    removed: List[str] = []
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        name = _switch_name(token) if token[:1] in ("-", "/") else ""
+        if name.startswith(_CONFLICTING_SWITCHES):
+            removed.append(token)
+            has_value = "=" not in token and index + 1 < len(tokens) and tokens[index + 1][:1] not in ("-", "/")
+            if has_value and name != "remote-debugging-pipe":
+                removed.append(tokens[index + 1])
+                index += 1
+        else:
+            kept.append(token)
+        index += 1
+    return " ".join(kept), removed
+
+
+def enable_automation(webview: Any, port: int, environ: Optional[Dict[str, str]] = None) -> List[str]:
     """Make the window's browser serve CDP on 127.0.0.1:``port`` (``--remote-debugging-port``).
 
     pywebview passes the port to WebView2 and Qt WebEngine through
     ``settings["REMOTE_DEBUGGING_PORT"]``; Chromium binds the endpoint to the
-    loopback interface only. When ``WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`` is
-    already set it can take precedence over pywebview's arguments, so the port
-    is added to it too.
+    loopback interface only. ``WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS``, when
+    set, replaces pywebview's arguments, so it gets the port too, after any
+    switch that would open another endpoint or allow other origins is removed.
+    ``WEBVIEW2_USER_DATA_FOLDER`` would replace the automation profile, so it is
+    dropped. Returns what was removed, for the user to see.
     """
     env: Any = os.environ if environ is None else environ
     webview.settings["REMOTE_DEBUGGING_PORT"] = int(port)
+    removed: List[str] = []
     existing = env.get(WEBVIEW2_ARGS_ENV)
-    if existing is not None and "--remote-debugging-port" not in existing:
-        env[WEBVIEW2_ARGS_ENV] = f"{existing} --remote-debugging-port={int(port)}".strip()
+    if existing is not None:
+        kept, removed = sanitize_browser_args(existing)
+        env[WEBVIEW2_ARGS_ENV] = f"{kept} --remote-debugging-port={int(port)}".strip()
+    if env.get(WEBVIEW2_USER_DATA_ENV) is not None:
+        removed.append(f"{WEBVIEW2_USER_DATA_ENV}={env.pop(WEBVIEW2_USER_DATA_ENV)}")
+    return removed
 
 
-def automation_endpoint_ready(port: int, timeout: float = 10.0) -> bool:
-    """True once the DevTools endpoint answers ``/json/version`` on 127.0.0.1:``port``."""
-    return wait_for_server(f"http://{LOCAL_HOST}:{port}/json/version", timeout=timeout, interval=0.25)
+def automation_endpoint_ready(port: int, timeout: float = 10.0, interval: float = 0.25) -> bool:
+    """True once a DevTools endpoint (not just any server) answers ``/json/version`` on 127.0.0.1:``port``."""
+    url = f"http://{LOCAL_HOST}:{port}/json/version"
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            with _LOCAL_OPENER.open(url, timeout=max(interval, 1.0)) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            if isinstance(payload, dict) and "webSocketDebuggerUrl" in payload and "Browser" in payload:
+                return True
+        except (urllib.error.URLError, OSError, ValueError):
+            pass
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(interval)
+
+
+class ProfileLock:
+    """An exclusive lock on the automation WebView profile, held while its window is open.
+
+    A second automation window would share the profile, and WebView2 cannot start
+    a second browser process with different arguments on one profile (it fails
+    with 0x8007139F and leaves a blank window), so it is refused up front.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self._file: Optional[Any] = None
+
+    def acquire(self) -> bool:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        handle = open(self.path, "a+")
+        try:
+            if sys.platform == "win32":
+                import msvcrt
+
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            handle.close()
+            return False
+        self._file = handle
+        return True
+
+    def release(self) -> None:
+        handle, self._file = self._file, None
+        if handle is None:
+            return
+        try:
+            if sys.platform == "win32":
+                import msvcrt
+
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        except OSError:
+            pass
+        handle.close()
 
 
 def _automation_problem(automation_port: int, server_port: Optional[int]) -> Optional[str]:
@@ -441,23 +545,61 @@ def run_in_window(port: Optional[int], devtools: bool = False, automation_port: 
 
     start_options: Dict[str, Any] = {}
     storage_dirname = WEBVIEW_STORAGE_DIRNAME
+    state_filename = WINDOW_STATE_FILENAME
+    data_dir = user_data_dir()
+    profile_lock: Optional[ProfileLock] = None
+    server_port = port
     if automation_port is not None:
         problem = _automation_problem(automation_port, port)
         if problem:
             print(problem)
             return 1
-        enable_automation(webview, automation_port)
+        profile_lock = ProfileLock(data_dir / AUTOMATION_LOCK_FILENAME)
+        if not profile_lock.acquire():
+            print(
+                "Another MatHud automation window is open (its WebView profile is in use); "
+                "close it first, or drive that one."
+            )
+            return 1
+        removed = enable_automation(webview, automation_port)
+        if removed:
+            print(f"Ignored for the automation window: {' '.join(removed)}")
         start_options["gui"] = automation_gui()
         storage_dirname = AUTOMATION_STORAGE_DIRNAME
+        state_filename = AUTOMATION_WINDOW_STATE_FILENAME
+        if server_port is None and automation_port == PREFERRED_PORT:
+            server_port = 0  # keep the preferred app port free for the DevTools endpoint
 
+    try:
+        return _run_window(webview, started, server_port, devtools, automation_port, start_options,
+                           data_dir, storage_dirname, state_filename)  # fmt: skip
+    finally:
+        if profile_lock is not None:
+            profile_lock.release()
+
+
+def _run_window(
+    webview: Any,
+    started: float,
+    port: Optional[int],
+    devtools: bool,
+    automation_port: Optional[int],
+    start_options: Dict[str, Any],
+    data_dir: Path,
+    storage_dirname: str,
+    state_filename: str,
+) -> int:
     server = _start_server_or_report(create_flask_app(), port)
     if server is None:
         return 1
     if automation_port is not None:
+        if server.port == automation_port:
+            print(f"--automation-port {automation_port} is the app server's port; choose another")
+            server.shutdown()
+            return 1
         print(AUTOMATION_WARNING.format(port=automation_port))
 
-    data_dir = user_data_dir()
-    state_path = data_dir / WINDOW_STATE_FILENAME
+    state_path = data_dir / state_filename
     geometry = _initial_window_geometry(load_window_state(state_path), webview)
     tracker = WindowStateTracker(geometry)
     try:

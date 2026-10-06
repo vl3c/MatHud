@@ -16,7 +16,7 @@ import time
 import types
 import urllib.request
 from pathlib import Path
-from typing import Any, Callable, Iterable, List
+from typing import Any, Callable, Iterable, List, Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -477,18 +477,125 @@ class TestAutomation:
         mathud_desktop.enable_automation(fake, 9301, env)  # no second copy
         assert env[mathud_desktop.WEBVIEW2_ARGS_ENV].count("--remote-debugging-port") == 1
 
-    def _run(self, tmp_path: Path, automation_port: int, port: int = 0) -> tuple[int, MagicMock, MagicMock]:
+    @pytest.mark.parametrize(
+        "value, kept, removed",
+        [
+            # Would let any web page's origin connect to the endpoint.
+            ("--remote-allow-origins=*", "", ["--remote-allow-origins=*"]),
+            # Would open another port than the one asked for (and warned about).
+            ("--lang=en --remote-debugging-port=9318", "--lang=en", ["--remote-debugging-port=9318"]),
+            ("--remote-debugging-port 9318 --lang=en", "--lang=en", ["--remote-debugging-port", "9318"]),
+            ("/remote-allow-origins=* -remote-debugging-address=0.0.0.0", "", ["/remote-allow-origins=*",
+                                                                              "-remote-debugging-address=0.0.0.0"]),
+            ("--remote-debugging-pipe --lang=en", "--lang=en", ["--remote-debugging-pipe"]),
+            ("--Remote-Allow-Origins=http://evil.example", "", ["--Remote-Allow-Origins=http://evil.example"]),
+        ],
+    )  # fmt: skip
+    def test_conflicting_switches_are_removed_from_the_webview2_variable(
+        self, value: str, kept: str, removed: list[str]
+    ) -> None:
+        fake = types.SimpleNamespace(settings={"REMOTE_DEBUGGING_PORT": None})
+        env = {mathud_desktop.WEBVIEW2_ARGS_ENV: value}
+        assert mathud_desktop.enable_automation(fake, 9317, env) == removed
+        assert env[mathud_desktop.WEBVIEW2_ARGS_ENV] == f"{kept} --remote-debugging-port=9317".strip()
+
+    def test_a_webview2_profile_override_is_dropped(self) -> None:
+        fake = types.SimpleNamespace(settings={"REMOTE_DEBUGGING_PORT": None})
+        env = {mathud_desktop.WEBVIEW2_USER_DATA_ENV: r"C:\shared"}
+        assert mathud_desktop.enable_automation(fake, 9317, env) == [
+            rf"{mathud_desktop.WEBVIEW2_USER_DATA_ENV}=C:\shared"
+        ]
+        assert mathud_desktop.WEBVIEW2_USER_DATA_ENV not in env
+
+    def test_removed_switches_are_reported_and_the_warning_names_the_real_port(self, tmp_path: Path) -> None:
+        debug_port = _unused_port()
+        env = {mathud_desktop.WEBVIEW2_ARGS_ENV: "--remote-debugging-port=9318 --remote-allow-origins=*"}
+        code, fake, mock_print = self._run(tmp_path, debug_port, env=env)
+        assert code == 0
+        printed = [str(call.args[0]) for call in mock_print.call_args_list]
+        assert any("Ignored for the automation window: --remote-debugging-port=9318 --remote-allow-origins=*" in line
+                   for line in printed)  # fmt: skip
+        assert any(f"127.0.0.1:{debug_port}" in line and "WARNING" in line for line in printed)
+        assert fake.webview2_args == f"--remote-debugging-port={debug_port}"
+
+    def test_a_second_automation_window_is_refused(self, tmp_path: Path) -> None:
+        held = mathud_desktop.ProfileLock(tmp_path / mathud_desktop.AUTOMATION_LOCK_FILENAME)
+        assert held.acquire()
+        try:
+            code, fake, mock_print = self._run(tmp_path, _unused_port())
+        finally:
+            held.release()
+        assert code == 1
+        fake.create_window.assert_not_called()
+        assert "Another MatHud automation window is open" in mock_print.call_args_list[0].args[0]
+        # Released when the window closes: the next one may start.
+        code, _, _ = self._run(tmp_path, _unused_port())
+        assert code == 0
+
+    def test_profile_lock_is_exclusive(self, tmp_path: Path) -> None:
+        first = mathud_desktop.ProfileLock(tmp_path / "x.lock")
+        second = mathud_desktop.ProfileLock(tmp_path / "x.lock")
+        assert first.acquire() and not second.acquire()
+        first.release()
+        assert second.acquire()
+        second.release()
+
+    def test_automation_window_keeps_its_own_geometry(self, tmp_path: Path) -> None:
+        code, _, _ = self._run(tmp_path, _unused_port())
+        assert code == 0
+        assert (tmp_path / mathud_desktop.AUTOMATION_WINDOW_STATE_FILENAME).exists()
+        assert not (tmp_path / mathud_desktop.WINDOW_STATE_FILENAME).exists()
+
+    def test_automation_port_on_the_preferred_app_port_moves_the_app(self, tmp_path: Path) -> None:
+        preferred = _unused_port()
+        with patch.object(mathud_desktop, "PREFERRED_PORT", preferred):
+            code, fake, _ = self._run(tmp_path, preferred, port=None)
+        assert code == 0
+        url = fake.create_window.call_args.args[1]
+        assert not url.endswith(f":{preferred}/")
+
+    def test_endpoint_readiness_wants_a_devtools_reply(self) -> None:
+        bodies = {"/json/version": b'{"Browser": "Edg/140", "webSocketDebuggerUrl": "ws://127.0.0.1:1/x"}'}
+
+        def devtools_app(environ: dict[str, Any], start_response: StartResponse) -> Iterable[bytes]:
+            start_response("200 OK", [("Content-Type", "application/json")])
+            return [bodies.get(environ["PATH_INFO"], b"{}")]
+
+        def other_json_app(environ: dict[str, Any], start_response: StartResponse) -> Iterable[bytes]:
+            start_response("200 OK", [("Content-Type", "application/json")])
+            return [b'{"status": "ok"}']  # some other server on the port
+
+        for app, expected in ((devtools_app, True), (other_json_app, False), (_hello_app, False)):
+            server = start_background_server(app, port=0)
+            try:
+                assert mathud_desktop.automation_endpoint_ready(server.port, timeout=0.3, interval=0.05) is expected
+            finally:
+                server.shutdown()
+
+    def _run(
+        self, tmp_path: Path, automation_port: int, port: Optional[int] = 0, env: Optional[dict[str, str]] = None
+    ) -> tuple[int, MagicMock, MagicMock]:
         fake = _fake_webview(lambda url: None)
         fake.settings = {"REMOTE_DEBUGGING_PORT": None}
+        original_start = fake.start.side_effect
+
+        def start(**kwargs: Any) -> None:
+            fake.webview2_args = os.environ.get(mathud_desktop.WEBVIEW2_ARGS_ENV)
+            original_start(**kwargs)
+
+        fake.start.side_effect = start
         with (
             patch.dict(sys.modules, {"webview": fake}),
             patch.object(mathud_desktop, "create_flask_app", return_value=_hello_app),
             patch.object(mathud_desktop, "user_data_dir", return_value=tmp_path),
             patch.object(mathud_desktop, "automation_gui", return_value="edgechromium"),
+            patch.object(mathud_desktop, "automation_endpoint_ready", return_value=True),
             patch.dict(os.environ, {}, clear=False),
             patch("builtins.print") as mock_print,
         ):
             os.environ.pop(mathud_desktop.WEBVIEW2_ARGS_ENV, None)
+            os.environ.pop(mathud_desktop.WEBVIEW2_USER_DATA_ENV, None)
+            os.environ.update(env or {})
             code = mathud_desktop.run_in_window(port, automation_port=automation_port)
         return code, fake, mock_print
 
