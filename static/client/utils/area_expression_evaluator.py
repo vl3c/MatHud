@@ -8,10 +8,6 @@ Supported drawables:
     - Circles, Ellipses: Full closed shapes (e.g., C(25), E(50, 30))
     - Polygons (Triangle, Quadrilateral, etc.): Closed polygonal regions
     - Segments: Treated as half-planes (area to the LEFT of segment direction)
-    - Coloured areas, by name on their own (e.g. "area_between_f_and_x_axis"):
-      measured by ``utils.colored_area_measure`` (numeric integration of
-      |f1 - f2| for areas bounded by functions or segments, exact formulas for
-      closed shapes); the result says how, with an error estimate
 
 Name conventions (supports prime symbols for point names):
     - Points: A, A', A'', B'
@@ -64,21 +60,16 @@ class AreaExpressionResult:
         regions: Optional[List[Region]] = None,
         region: Optional[Region] = None,
         error: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
     ) -> None:
         self.area = area
         self.regions = regions or []
         self.region = region
         self.error = error
-        # How a measured coloured area was computed (method, error_estimate, bounds, ...).
-        self.details = details or {}
 
     def to_dict(self) -> Dict[str, Any]:
         if self.error:
             return {"type": "error", "value": self.error}
-        result: Dict[str, Any] = {"type": "area", "value": self.area}
-        result.update(self.details)
-        return result
+        return {"type": "area", "value": self.area}
 
 
 class _ASTNode:
@@ -134,9 +125,6 @@ class AreaExpressionEvaluator:
         """
         try:
             AreaExpressionEvaluator._validate_expression(expression)
-            colored_area = AreaExpressionEvaluator._find_colored_area(expression.strip(), canvas)
-            if colored_area is not None:
-                return AreaExpressionEvaluator._measure_colored_area(colored_area, canvas)
             tokens = AreaExpressionEvaluator._tokenize(expression)
             ast = AreaExpressionEvaluator._parse(tokens)
             result = AreaExpressionEvaluator._evaluate_ast(ast, canvas)
@@ -362,43 +350,8 @@ class AreaExpressionEvaluator:
         """Look up a drawable by name from the canvas."""
         drawable = canvas.drawable_manager.get_region_capable_drawable_by_name(name)
         if drawable is None:
-            if AreaExpressionEvaluator._find_colored_area(name, canvas) is not None:
-                raise ValueError(
-                    f"Coloured area '{name}' can only be measured on its own: "
-                    f"use calculate_area with the expression '{name}'"
-                )
             raise ValueError(f"Drawable '{name}' not found or cannot be converted to a region")
         return drawable
-
-    @staticmethod
-    def _find_colored_area(name: str, canvas: "Canvas") -> Optional["Drawable"]:
-        """The coloured area named ``name``, or None (also for an expression with operators)."""
-        drawables = getattr(getattr(canvas, "drawable_manager", None), "drawables", None)
-        get_colored_areas = getattr(drawables, "get_colored_areas", None)
-        if not name or not callable(get_colored_areas):
-            return None
-        for area in get_colored_areas():
-            if getattr(area, "name", None) == name:
-                return area
-        return None
-
-    @staticmethod
-    def _measure_colored_area(area: "Drawable", canvas: "Canvas") -> AreaExpressionResult:
-        """Measure a coloured area (see ``utils.colored_area_measure`` for the method and its accuracy).
-
-        A region area is measured from its own region expression, evaluated here.
-        """
-        from utils.colored_area_measure import measure_colored_area
-
-        def expression_area(expression: str) -> float:
-            result = AreaExpressionEvaluator.evaluate(expression, canvas)
-            if result.error:
-                raise ValueError(result.error)
-            return float(result.area)
-
-        measure = measure_colored_area(area, expression_area)
-        value = float(measure.pop("value"))
-        return AreaExpressionResult(area=max(0.0, value), details=measure)
 
     @staticmethod
     def _drawable_to_region_with_source(drawable: "Drawable") -> _RegionWithSource:
