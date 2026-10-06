@@ -1021,7 +1021,11 @@ class AIInterface:
         if canvas_state is None:
             canvas_state = self.canvas.get_canvas_state()
         # Canvas size and curve extents for the view note; a copy, so traces keep the plain state.
-        canvas_state = with_view_info(canvas_state, getattr(self, "canvas", None))
+        # Measuring is optional: the prompt goes out without it if anything fails.
+        try:
+            canvas_state = with_view_info(canvas_state, getattr(self, "canvas", None))
+        except Exception as exc:
+            print(f"View info for the prompt failed: {exc}")
 
         # Only use vision when we have a user message and no tool call results
         use_vision = document["vision-toggle"].checked and user_message is not None and tool_call_results is None

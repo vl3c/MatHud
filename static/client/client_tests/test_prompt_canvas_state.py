@@ -161,6 +161,40 @@ class TestCurveExtents(unittest.TestCase):
         self.assertEqual(len(extents["Functions"]), MAX_MEASURED_CURVES)
         self.assertEqual(len(calls), MAX_MEASURED_CURVES * CURVE_SAMPLES)
 
+    def test_cap_is_shared_between_graphs_and_curves(self) -> None:
+        graphs = [_Graph(f"f{i}", math.sin, -1.0, 1.0) for i in range(MAX_MEASURED_CURVES + 5)]
+        curves = [_Curve(f"c{i}", math.cos, math.sin) for i in range(5)]
+        extents = curve_extents(_Canvas({"Function": graphs, "ParametricFunction": curves}))
+        self.assertEqual(len(extents["ParametricFunctions"]), 5)
+        self.assertEqual(len(extents["Functions"]), MAX_MEASURED_CURVES - 5)
+
+    def test_measuring_stops_at_the_time_budget(self) -> None:
+        ticks = iter(i * 0.02 for i in range(1000))
+        graphs = [_Graph(f"f{i}", math.sin, -1.0, 1.0) for i in range(10)]
+        extents = curve_extents(_Canvas({"Function": graphs}), clock=lambda: next(ticks))
+        self.assertLess(len(extents.get("Functions", {})), 10)
+
+    def test_bounded_graph_off_screen_is_skipped(self) -> None:
+        graph = _Graph("far", math.sin, 1000.0, 1010.0)
+        self.assertEqual(curve_extents(_Canvas({"Function": [graph]}, view=(-10.0, 10.0))), {})
+
+    def test_turns_tells_a_wave_from_a_line(self) -> None:
+        extents = curve_extents(
+            _Canvas({"Function": [_Graph("s", math.sin, -10.0, 10.0), _Graph("l", lambda x: 0.01 * x + 5, 0.0, 500.0)]})
+        )
+        self.assertTrue(extents["Functions"]["s"]["turns"])
+        self.assertFalse(extents["Functions"]["l"]["turns"])
+
+    def test_spiky_marks_a_pole_between_samples(self) -> None:
+        pole = _Graph("r", lambda x: 1.0 / x, -1.0, 1.0)
+        even_pole = _Graph("q", lambda x: 1.0 / (x * x), -1.0, 1.0)
+        shifted = _Graph("p", lambda x: 1.0 / (x - 0.3))
+        wave = _Graph("s", math.sin)
+        extents = curve_extents(_Canvas({"Function": [pole, even_pole, shifted, wave]}, view=(-628.0, 628.0)))
+        for name in ("r", "q", "p"):
+            self.assertTrue(extents["Functions"][name]["spiky"], name)
+        self.assertFalse(extents["Functions"]["s"]["spiky"])
+
     def test_real_function_drawable(self) -> None:
         from drawables.function import Function
 
@@ -193,6 +227,22 @@ class TestPromptCarriesViewInfo(unittest.TestCase):
         ai = self._ai()
         ai._send_prompt_to_ai(None, "[]", canvas_state={})
         self.assertEqual(self.sent[-1][0]["canvas_state"], {})
+
+    def test_prompt_is_sent_when_measuring_fails(self) -> None:
+        import ai_interface
+
+        def broken(state: Any, canvas: Any) -> Any:
+            raise RuntimeError("measuring failed")
+
+        original = ai_interface.with_view_info
+        ai_interface.with_view_info = broken
+        try:
+            ai = self._ai()
+            ai.canvas = _Canvas()
+            ai._send_prompt_to_ai(None, "[]", canvas_state={"Points": []})
+        finally:
+            ai_interface.with_view_info = original
+        self.assertEqual(self.sent[-1][0]["canvas_state"], {"Points": []})
 
 
 __all__ = ["TestPromptCanvasSize", "TestCurveExtents", "TestPromptCarriesViewInfo"]
