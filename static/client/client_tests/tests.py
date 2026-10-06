@@ -338,6 +338,7 @@ from .test_scenario_hooks import (
     TestScenarioHookHelpers,
     TestScenarioHookCanvas,
     TestScenarioHookEndpoints,
+    TestScenarioHookFitView,
     TestToolBatchTraceFailure,
 )
 from .test_result_processor_traced import TestGetResultsTraced
@@ -758,6 +759,7 @@ class Tests:
             TestScenarioHookHelpers,
             TestScenarioHookCanvas,
             TestScenarioHookEndpoints,
+            TestScenarioHookFitView,
             TestToolBatchTraceFailure,
             TestBuildTrace,
             TestStoreAndRetrieve,

@@ -11,6 +11,11 @@ take and return JSON strings:
     getMatHudTurnStatus()                whether a chat turn is running, and its progress
     sendMatHudMessage(text, modelId?, optionsJson?)  send a chat message as the user (live mode)
     stopMatHudTurn()                     stop the running chat turn
+    fitMatHudView(optionsJson?)          zoom the view to fit every drawable (automation display only)
+
+``fitMatHudView`` is for the automation paths only (the CLI's attach mode,
+``desktop prompt`` and ``desktop fit``): in regular use the app never pans or
+zooms on its own, so no UI or AI-turn code path calls it.
 
 See documentation/development/agentic_scenario_testing.md (section 4.3).
 
@@ -21,7 +26,8 @@ Brython test runner can exercise them without a browser session.
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+import math
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from browser import ajax, document, window
 
@@ -44,6 +50,16 @@ _POLYGON_CLASSES = (
     "Decagon",
     "GenericPolygon",
 )
+# fitMatHudView: padding on each side as a share of the content's span, the smallest
+# half-span shown (a single point gets a window of about +-1 around it), the function
+# samples per curve, the x range for an unbounded function when nothing else gives one,
+# and Tukey's fence factor that drops asymptote spikes from function samples.
+FIT_PADDING = 0.12
+FIT_MIN_HALF_SPAN = 1.0
+FIT_SAMPLES = 64
+FIT_DEFAULT_X_RANGE = (-10.0, 10.0)
+FIT_FENCE = 3.0
+FIT_VALUE_LIMIT = 1e9
 
 
 class ScenarioHooks:
@@ -64,6 +80,7 @@ class ScenarioHooks:
         window.getMatHudTurnStatus = self.get_turn_status
         window.sendMatHudMessage = self.send_message
         window.stopMatHudTurn = self.stop_turn
+        window.fitMatHudView = self.fit_view
 
     # ------------------------------------------------------------------
     # Hooks
@@ -212,6 +229,39 @@ class ScenarioHooks:
                 return to_json({"status": "idle"})
             self.ai.stop_ai_processing()
             return to_json({"status": "stopped"})
+        except Exception as exc:
+            return to_json({"status": "error", "error": str(exc)})
+
+    def fit_view(self, options_json: Any = None) -> str:
+        """Zoom the view so every drawable fills it, for someone watching an automated run.
+
+        Presentation only, like a mouse zoom: no undo entry, the redo stack and the
+        drawables stay as they are, and the coordinate mode is kept. With nothing
+        to fit the view is left alone. Refused (``busy``) while a chat turn runs.
+        Options: ``padding`` (share of the span on each side, default 0.12) and
+        ``min_half_span`` (default 1). Only the automation paths call this hook.
+        """
+        try:
+            if self.ai.is_processing:
+                return to_json({"status": "busy", "error": "a chat turn is running"})
+            options = parse_options(options_json)
+            padding = float(options.get("padding", FIT_PADDING))
+            min_half_span = float(options.get("min_half_span", FIT_MIN_HALF_SPAN))
+            extent = content_extent(self.canvas)
+            if extent is None:
+                return to_json({"status": "ok", "fitted": False, "reason": "nothing to fit"})
+            center_x, center_y, range_val, axis = fit_window(
+                extent, float(self.canvas.width), float(self.canvas.height), padding, min_half_span
+            )
+            self.canvas.zoom(center_x, center_y, range_val, axis)
+            return to_json(
+                {
+                    "status": "ok",
+                    "fitted": True,
+                    "extent": extent,
+                    "view": self.canvas.get_canvas_state().get("Cartesian_System_Visibility"),
+                }
+            )
         except Exception as exc:
             return to_json({"status": "error", "error": str(exc)})
 
@@ -443,6 +493,140 @@ def _safe_eval_pair(evaluate: Any, t: float) -> List[Optional[float]]:
         return [float(x), float(y)]
     except Exception:
         return [None, None]
+
+
+def content_extent(canvas: "Canvas", samples: int = FIT_SAMPLES) -> Optional[List[float]]:
+    """``[x_min, y_min, x_max, y_max]`` of every drawable, or None when there is nothing to fit.
+
+    Points, segment, vector and polygon vertices, circles, arcs and ellipses by
+    their extent, labels and bars; functions over their bounds (or the other
+    content's x range, else -10..10) with Tukey-fenced samples, so an asymptote
+    does not stretch the view; parametric curves by samples over their t range.
+    """
+    xs: List[float] = []
+    ys: List[float] = []
+    functions: List[Any] = []
+    for drawable in canvas.get_drawables():
+        name = str(drawable.get_class_name())
+        if name in _FUNCTION_CLASSES:
+            functions.append(drawable)
+            continue
+        for x, y in _drawable_extent_points(drawable, name, samples):
+            if _finite(x) and _finite(y):
+                xs.append(x)
+                ys.append(y)
+    for function in functions:
+        x_range = _function_x_range(function, xs)
+        if x_range is None:
+            continue
+        left, right = x_range
+        values: List[float] = []
+        for i in range(samples + 1):
+            value = _safe_eval(function.function, left + (right - left) * i / samples)
+            if value is not None and _finite(value):
+                values.append(value)
+        fenced = _fenced(values)
+        xs.extend([left, right])
+        if fenced:
+            ys.extend(fenced)
+    if not xs or not ys:
+        return None
+    return [min(xs), min(ys), max(xs), max(ys)]
+
+
+def fit_window(
+    extent: List[float],
+    width: float,
+    height: float,
+    padding: float = FIT_PADDING,
+    min_half_span: float = FIT_MIN_HALF_SPAN,
+) -> Tuple[float, float, float, str]:
+    """``(center_x, center_y, range_val, range_axis)`` for ``Canvas.zoom`` showing ``extent`` padded.
+
+    The binding axis is the one whose padded half-span needs more room at the
+    canvas's aspect ratio, so the whole extent stays visible.
+    """
+    x_min, y_min, x_max, y_max = extent
+    half_x = max((x_max - x_min) / 2.0 * (1.0 + 2.0 * padding), min_half_span)
+    half_y = max((y_max - y_min) / 2.0 * (1.0 + 2.0 * padding), min_half_span)
+    center_x, center_y = (x_min + x_max) / 2.0, (y_min + y_max) / 2.0
+    aspect = width / height if height > 0 else 1.0
+    if half_x >= half_y * aspect:
+        return center_x, center_y, half_x, "x"
+    return center_x, center_y, half_y, "y"
+
+
+def _drawable_extent_points(drawable: Any, name: str, samples: int) -> List[Tuple[float, float]]:
+    """Points that bound one drawable (empty for types without an extent of their own)."""
+    if name == "Point":
+        return [(float(drawable.x), float(drawable.y))]
+    if name in ("Segment", "Vector"):
+        segment = drawable.segment if name == "Vector" else drawable
+        return [(float(p.x), float(p.y)) for p in (segment.point1, segment.point2)]
+    if name in _POLYGON_CLASSES:
+        return [(x, y) for x, y in (_polygon_vertices(drawable) or [])]
+    if name in ("Circle", "CircleArc"):
+        if name == "Circle":
+            cx, cy = float(drawable.center.x), float(drawable.center.y)
+        else:
+            cx, cy = float(drawable.center_x), float(drawable.center_y)
+        r = abs(float(drawable.radius))
+        return [(cx - r, cy - r), (cx + r, cy + r)]
+    if name == "Ellipse":
+        cx, cy = float(drawable.center.x), float(drawable.center.y)
+        angle = math.radians(float(getattr(drawable, "rotation_angle", 0.0) or 0.0))
+        rx, ry = abs(float(drawable.radius_x)), abs(float(drawable.radius_y))
+        half_x = math.hypot(rx * math.cos(angle), ry * math.sin(angle))
+        half_y = math.hypot(rx * math.sin(angle), ry * math.cos(angle))
+        return [(cx - half_x, cy - half_y), (cx + half_x, cy + half_y)]
+    if name == "Label":
+        position = drawable.position
+        return [(float(position.x), float(position.y))]
+    if name == "Bar":
+        return [
+            (float(drawable.x_left), float(drawable.y_bottom)),
+            (float(drawable.x_right), float(drawable.y_top)),
+        ]
+    if name == "ParametricFunction":
+        t_min, t_max = float(drawable.t_min), float(drawable.t_max)
+        pairs = [_safe_eval_pair(drawable.evaluate, t_min + (t_max - t_min) * i / samples) for i in range(samples + 1)]
+        return [
+            (float(x), float(y))
+            for x, y in pairs
+            if x is not None and y is not None and abs(x) < FIT_VALUE_LIMIT and abs(y) < FIT_VALUE_LIMIT
+        ]
+    return []
+
+
+def _function_x_range(function: Any, other_xs: List[float]) -> Optional[Tuple[float, float]]:
+    """The x range to sample a function over: its bounds, filled from the other content or -10..10."""
+    left = getattr(function, "left_bound", None)
+    right = getattr(function, "right_bound", None)
+    default_left, default_right = (min(other_xs), max(other_xs)) if other_xs else FIT_DEFAULT_X_RANGE
+    if default_left == default_right:
+        default_left, default_right = default_left - FIT_DEFAULT_X_RANGE[1], default_right + FIT_DEFAULT_X_RANGE[1]
+    lo = float(left) if left is not None and _finite(float(left)) else default_left
+    hi = float(right) if right is not None and _finite(float(right)) else default_right
+    if lo > hi:
+        lo, hi = hi, lo
+    if lo == hi:
+        return None
+    return lo, hi
+
+
+def _fenced(values: List[float]) -> List[float]:
+    """``values`` within Tukey's fences (quartiles -/+ FIT_FENCE x IQR) and FIT_VALUE_LIMIT."""
+    kept = sorted(v for v in values if abs(v) < FIT_VALUE_LIMIT)
+    if len(kept) < 4:
+        return kept
+    q1 = kept[len(kept) // 4]
+    q3 = kept[(3 * len(kept)) // 4]
+    fence = FIT_FENCE * (q3 - q1)
+    return [v for v in kept if q1 - fence <= v <= q3 + fence]
+
+
+def _finite(value: float) -> bool:
+    return not (math.isnan(value) or math.isinf(value))
 
 
 def _name_hints(canvas: "Canvas") -> Dict[str, Any]:
