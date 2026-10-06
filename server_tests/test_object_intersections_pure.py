@@ -559,5 +559,82 @@ class TestToleranceAndOverlapEdgeCases(_Assertions):
         self.assertTrue(all(p.get("tangent") for p in report["points"]))
 
 
+class TestTangenciesFarFromTheOrigin(_Assertions):
+    """Tangent objects built from rounded coordinates (as draw_tangent_line builds them) stay tangent."""
+
+    def _assert_one_tangent_point(self, report: Dict[str, Any], label: str) -> None:
+        self.assertEqual(len(report["points"]), 1, f"{label}: {report['points']}")
+        self.assertTrue(report["points"][0].get("tangent"), label)
+
+    def test_tangent_lines_to_circles(self) -> None:
+        rng = random.Random(21)
+        for offset in (500.0, 1000.0):
+            for _ in range(150):
+                cx, cy = offset * rng.choice((-1, 1)), offset * rng.uniform(-1, 1)
+                r, theta = rng.uniform(0.3, 5.0), rng.uniform(0, 2 * math.pi)
+                px, py = cx + r * math.cos(theta), cy + r * math.sin(theta)
+                tx, ty = -math.sin(theta), math.cos(theta)
+                line = line_shape("s", (px - 2 * tx, py - 2 * ty), (px + 2 * tx, py + 2 * ty))
+                self._assert_one_tangent_point(find_object_intersections(line, circle_shape("c", (cx, cy), r)), "line")
+
+    def test_tangent_lines_to_rotated_ellipses(self) -> None:
+        rng = random.Random(22)
+        for offset in (500.0, 1000.0):
+            for _ in range(150):
+                center = (offset * rng.choice((-1, 1)), offset * rng.uniform(-1, 1))
+                ellipse = ellipse_shape("e", center, rng.uniform(1.0, 5.0), rng.uniform(0.3, 3.0), rng.uniform(0, 3))
+                assert isinstance(ellipse, EllipseShape)
+                theta = rng.uniform(0, 2 * math.pi)
+                (px, py), (dx, dy) = ellipse.point_at_angle(theta), ellipse.derivative_at_angle(theta)
+                norm = math.hypot(dx, dy)
+                tx, ty = dx / norm, dy / norm
+                line = line_shape("s", (px - 2 * tx, py - 2 * ty), (px + 2 * tx, py + 2 * ty))
+                self._assert_one_tangent_point(find_object_intersections(line, ellipse), "ellipse")
+
+    def test_touching_circles(self) -> None:
+        rng = random.Random(23)
+        for offset in (500.0, 1000.0):
+            for _ in range(150):
+                cx, cy = offset * rng.choice((-1, 1)), offset * rng.uniform(-1, 1)
+                r1, r2, theta = rng.uniform(0.3, 5.0), rng.uniform(0.3, 5.0), rng.uniform(0, 2 * math.pi)
+                outside = (cx + (r1 + r2) * math.cos(theta), cy + (r1 + r2) * math.sin(theta))
+                big, small = max(r1, r2), min(r1, r2)
+                inside = (cx + (big - small) * math.cos(theta), cy + (big - small) * math.sin(theta))
+                first = circle_shape("a", (cx, cy), r1)
+                self._assert_one_tangent_point(
+                    find_object_intersections(first, circle_shape("b", outside, r2)), "outer"
+                )
+                self._assert_one_tangent_point(
+                    find_object_intersections(circle_shape("a", (cx, cy), big), circle_shape("b", inside, small)),
+                    "inner",
+                )
+
+    def test_circle_touching_an_ellipse(self) -> None:
+        rng = random.Random(24)
+        for offset in (500.0, 1000.0):
+            for _ in range(60):
+                center = (offset * rng.choice((-1, 1)), offset * rng.uniform(-1, 1))
+                ellipse = ellipse_shape("e", center, rng.uniform(2.0, 5.0), rng.uniform(1.0, 2.0), rng.uniform(0, 3))
+                assert isinstance(ellipse, EllipseShape)
+                theta = rng.uniform(0, 2 * math.pi)
+                (px, py), (dx, dy) = ellipse.point_at_angle(theta), ellipse.derivative_at_angle(theta)
+                norm = math.hypot(dx, dy)
+                r = rng.uniform(0.1, 0.5)
+                # Outward normal of a counter-clockwise ellipse
+                circle = circle_shape("c", (px + r * dy / norm, py - r * dx / norm), r)
+                self._assert_one_tangent_point(find_object_intersections(circle, ellipse), "circle/ellipse")
+
+    def test_far_points_print_only_the_digits_the_inputs_resolve(self) -> None:
+        report = find_object_intersections(circle_shape("a", (1e6, 0), 1), circle_shape("b", (1e6 + 1e-5, 0), 1))
+        self.assertEqual(_xy(report), [(1000000.000005, -1.0), (1000000.000005, 1.0)])
+        tiny = find_object_intersections(
+            circle_shape("a", (1e6, 1e6), 1e-6), circle_shape("b", (1e6 + 1e-6, 1e6), 1e-6)
+        )
+        self.assertEqual(_xy(tiny), [(1000000.0000005, 999999.999999134), (1000000.0000005, 1000000.000000866)])
+        # Near the origin the 10 significant digits are unchanged
+        near = find_object_intersections(line_shape("s", (-3, 1), (3, 1)), circle_shape("c", (0, 0), 2))
+        self.assertEqual(_xy(near), [(-1.732050808, 1.0), (1.732050808, 1.0)])
+
+
 if __name__ == "__main__":
     unittest.main()

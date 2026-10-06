@@ -671,7 +671,9 @@ def _line_circle(line: LineShape, circle: CircleShape) -> _Found:
     length2 = line.dx * line.dx + line.dy * line.dy
     t0 = -(rx * line.dx + ry * line.dy) / length2
     distance = math.hypot(rx + t0 * line.dx, ry + t0 * line.dy)
-    terms = abs(rx) + abs(ry) + abs(t0) * math.sqrt(length2) + circle.r
+    # ...plus the rounding already in the inputs (a tangent built from rounded coordinates)
+    inputs = _largest(*line.coordinates()) + _largest(circle.cx, circle.cy)
+    terms = abs(rx) + abs(ry) + abs(t0) * math.sqrt(length2) + circle.r + inputs
     for t, tangent in _chord_parameters(t0, distance, circle.r, length2, _ROUNDING_UNITS * _EPS * terms):
         accepted = line.accepted_t(t)
         if accepted is None:
@@ -693,7 +695,9 @@ def _line_ellipse(line: LineShape, ellipse: EllipseShape) -> _Found:
     t0 = -(u1 * du + v1 * dv) / length2
     distance = math.hypot(u1 + t0 * du, v1 + t0 * dv)
     # to_unit subtracts the centre first, so rounding scales with the unit-frame coordinates
-    terms = 1.0 + abs(u1) + abs(v1) + abs(t0) * math.sqrt(length2)
+    # ...plus the rounding already in the inputs, measured in the unit frame
+    inputs = (_largest(*line.coordinates()) + _largest(ellipse.cx, ellipse.cy)) / min(ellipse.rx, ellipse.ry)
+    terms = 1.0 + abs(u1) + abs(v1) + abs(t0) * math.sqrt(length2) + inputs
     for t, tangent in _chord_parameters(t0, distance, 1.0, length2, _ROUNDING_UNITS * _EPS * terms):
         accepted = line.accepted_t(t)
         if accepted is None:
@@ -729,8 +733,9 @@ def _circle_circle(a: CircleShape, b: CircleShape) -> _Found:
     found = _Found()
     outer_gap = a.r + b.r - d
     inner_gap = d - abs(a.r - b.r)
-    # d comes from the centres' difference, rounded relative to d itself
-    error = _ROUNDING_UNITS * _EPS * (a.r + b.r + d)
+    # d comes from the centres' difference, rounded relative to d itself, plus the rounding
+    # already in the centres' coordinates
+    error = _ROUNDING_UNITS * _EPS * (a.r + b.r + d + _largest(a.cx, a.cy) + _largest(b.cx, b.cy))
     if outer_gap < -error or inner_gap < -error:
         return found
     ux, uy = dx / d, dy / d
@@ -822,6 +827,10 @@ def _same_conic(a: Union[CircleShape, EllipseShape], b: EllipseShape) -> bool:
 
 def _conic_size(conic: Union[CircleShape, EllipseShape]) -> float:
     return conic.r if isinstance(conic, CircleShape) else max(conic.rx, conic.ry)
+
+
+def _largest(*values: float) -> float:
+    return max(abs(value) for value in values)
 
 
 def _coincidence_tolerance(size: float, *coordinates: float) -> float:
@@ -1225,23 +1234,30 @@ def _rounded_overlap(overlap: Overlap, size: float) -> Overlap:
 def _round_pair(pair: Sequence[float], size: float) -> List[float]:
     """Round a point's coordinates to 10 significant digits of the object's size.
 
-    Near the origin that is 10 significant digits; a small object far from it keeps more
-    (up to all 17), so points a radius apart stay apart. Values within rounding of zero, or
-    within 1e-12 of the size, are 0.
+    Near the origin that is 10 significant digits; a small object far from it keeps more,
+    so points a radius apart stay apart, but never digits below the rounding of the
+    coordinates themselves (1000000.000005, not 1000000.0000049999). Values within rounding
+    of zero, or within 1e-12 of the size, are 0.
     """
     magnitude = max(1.0, abs(pair[0]), abs(pair[1]))
     digits = _REPORT_DIGITS
     if 0.0 < size < magnitude:
         digits = min(_MAX_DIGITS, _REPORT_DIGITS + int(math.ceil(math.log10(magnitude / size))))
-    floor = max(_ZERO_FLOOR * min(magnitude, size), _ROUNDING_UNITS * _EPS * magnitude)
-    return [_round_digits(value, digits, floor) for value in pair[:2]]
+    resolution = _ROUNDING_UNITS * _EPS * magnitude
+    floor = max(_ZERO_FLOOR * min(magnitude, size), resolution)
+    return [_round_digits(value, digits, floor, resolution) for value in pair[:2]]
 
 
-def _round_digits(value: float, digits: int, floor: float) -> float:
+def _round_digits(value: float, digits: int, floor: float, resolution: float) -> float:
+    """``digits`` significant digits, but no decimal finer than ``resolution``."""
     if not math.isfinite(value):
         return value
     if abs(value) <= floor:
         return 0.0
+    significant_decimals = digits - 1 - int(math.floor(math.log10(abs(value))))
+    resolved_decimals = -int(math.floor(math.log10(resolution)))
+    if 0 <= resolved_decimals < significant_decimals:
+        return float(f"{value:.{resolved_decimals}f}") + 0.0
     return float(f"{value:.{digits}g}") + 0.0
 
 
