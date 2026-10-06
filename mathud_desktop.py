@@ -32,7 +32,7 @@ import urllib.error
 import urllib.request
 import webbrowser
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence
 
 from werkzeug.serving import BaseWSGIServer, make_server
 
@@ -61,9 +61,10 @@ DEFAULT_AUTOMATION_PORT = 9333
 # and its profile folder from the next one.
 WEBVIEW2_ARGS_ENV = "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"
 WEBVIEW2_USER_DATA_ENV = "WEBVIEW2_USER_DATA_FOLDER"
-# Switches removed from WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS when automation is on: another
-# DevTools port, address or pipe, and remote-allow-origins (which lets web pages connect).
-_CONFLICTING_SWITCHES = ("remote-debugging-", "remote-allow-origins")
+# An automation window refuses to start when a browser-argument variable mentions these:
+# another DevTools port, address or pipe, or remote-allow-origins (which lets web pages connect).
+_CONFLICTING_SWITCHES = ("remote-debugging", "remote-allow-origins")
+BROWSER_ARGS_ENVS = (WEBVIEW2_ARGS_ENV, "QTWEBENGINE_CHROMIUM_FLAGS")
 # The automation window keeps its geometry apart, so it never overwrites the normal window's.
 AUTOMATION_WINDOW_STATE_FILENAME = "desktop_window_automation.json"
 AUTOMATION_LOCK_FILENAME = "webview-automation.lock"
@@ -321,35 +322,21 @@ def port_is_free(port: int, host: str = LOCAL_HOST) -> bool:
     return True
 
 
-def _switch_name(token: str) -> str:
-    """A Chromium switch's name: Chromium on Windows accepts ``--``, ``-`` and ``/`` prefixes."""
-    return token.lstrip("-/").split("=", 1)[0].lower()
+def conflicting_browser_args(environ: Optional[Dict[str, str]] = None) -> Optional[str]:
+    """The browser-argument variable that mentions a DevTools switch, or None.
 
-
-def sanitize_browser_args(value: str) -> Tuple[str, List[str]]:
-    """``value`` without switches that would move or open the DevTools endpoint; returns (kept, removed).
-
-    Removes every ``remote-debugging-*`` switch (another port or address, a pipe)
-    and ``remote-allow-origins`` (which would let web pages connect), with a
-    value given as the next token.
+    ``remote-allow-origins`` would let web pages drive the window, and any
+    ``remote-debugging-*`` switch would open another endpoint than the one
+    warned about. Chromium's command-line parsing (quotes, ``-``/``/`` prefixes,
+    case) is not reproduced: any mention, case-insensitive with quotes ignored,
+    refuses the automation window.
     """
-    tokens = value.split()
-    kept: List[str] = []
-    removed: List[str] = []
-    index = 0
-    while index < len(tokens):
-        token = tokens[index]
-        name = _switch_name(token) if token[:1] in ("-", "/") else ""
-        if name.startswith(_CONFLICTING_SWITCHES):
-            removed.append(token)
-            has_value = "=" not in token and index + 1 < len(tokens) and tokens[index + 1][:1] not in ("-", "/")
-            if has_value and name != "remote-debugging-pipe":
-                removed.append(tokens[index + 1])
-                index += 1
-        else:
-            kept.append(token)
-        index += 1
-    return " ".join(kept), removed
+    env: Any = os.environ if environ is None else environ
+    for name in BROWSER_ARGS_ENVS:
+        value = str(env.get(name) or "").replace('"', "").replace("'", "").lower()
+        if any(switch in value for switch in _CONFLICTING_SWITCHES):
+            return name
+    return None
 
 
 def enable_automation(webview: Any, port: int, environ: Optional[Dict[str, str]] = None) -> List[str]:
@@ -358,21 +345,20 @@ def enable_automation(webview: Any, port: int, environ: Optional[Dict[str, str]]
     pywebview passes the port to WebView2 and Qt WebEngine through
     ``settings["REMOTE_DEBUGGING_PORT"]``; Chromium binds the endpoint to the
     loopback interface only. ``WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS``, when
-    set, replaces pywebview's arguments, so it gets the port too, after any
-    switch that would open another endpoint or allow other origins is removed.
+    set, replaces pywebview's arguments, so it gets the port too (a variable
+    with a DevTools switch of its own is refused first, ``conflicting_browser_args``).
     ``WEBVIEW2_USER_DATA_FOLDER`` would replace the automation profile, so it is
-    dropped. Returns what was removed, for the user to see.
+    dropped. Returns what was dropped, for the user to see.
     """
     env: Any = os.environ if environ is None else environ
     webview.settings["REMOTE_DEBUGGING_PORT"] = int(port)
-    removed: List[str] = []
+    dropped: List[str] = []
     existing = env.get(WEBVIEW2_ARGS_ENV)
-    if existing is not None:
-        kept, removed = sanitize_browser_args(existing)
-        env[WEBVIEW2_ARGS_ENV] = f"{kept} --remote-debugging-port={int(port)}".strip()
+    if existing is not None and f"--remote-debugging-port={int(port)}" not in existing:
+        env[WEBVIEW2_ARGS_ENV] = f"{existing} --remote-debugging-port={int(port)}".strip()
     if env.get(WEBVIEW2_USER_DATA_ENV) is not None:
-        removed.append(f"{WEBVIEW2_USER_DATA_ENV}={env.pop(WEBVIEW2_USER_DATA_ENV)}")
-    return removed
+        dropped.append(f"{WEBVIEW2_USER_DATA_ENV}={env.pop(WEBVIEW2_USER_DATA_ENV)}")
+    return dropped
 
 
 def automation_endpoint_ready(port: int, timeout: float = 10.0, interval: float = 0.25) -> bool:
@@ -451,6 +437,13 @@ def _automation_problem(automation_port: int, server_port: Optional[int]) -> Opt
         return "--automation-port must differ from --port"
     if not port_is_free(automation_port):
         return f"--automation-port {automation_port} is already in use"
+    variable = conflicting_browser_args()
+    if variable is not None:
+        return (
+            f"{variable} mentions remote-debugging or remote-allow-origins; an automation window will not "
+            f"start with it, since it could open another DevTools endpoint or let web pages control the "
+            f"window. Unset it (or remove those switches) and try again."
+        )
     return None
 
 

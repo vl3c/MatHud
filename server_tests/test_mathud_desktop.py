@@ -478,26 +478,34 @@ class TestAutomation:
         assert env[mathud_desktop.WEBVIEW2_ARGS_ENV].count("--remote-debugging-port") == 1
 
     @pytest.mark.parametrize(
-        "value, kept, removed",
+        "value",
         [
-            # Would let any web page's origin connect to the endpoint.
-            ("--remote-allow-origins=*", "", ["--remote-allow-origins=*"]),
-            # Would open another port than the one asked for (and warned about).
-            ("--lang=en --remote-debugging-port=9318", "--lang=en", ["--remote-debugging-port=9318"]),
-            ("--remote-debugging-port 9318 --lang=en", "--lang=en", ["--remote-debugging-port", "9318"]),
-            ("/remote-allow-origins=* -remote-debugging-address=0.0.0.0", "", ["/remote-allow-origins=*",
-                                                                              "-remote-debugging-address=0.0.0.0"]),
-            ("--remote-debugging-pipe --lang=en", "--lang=en", ["--remote-debugging-pipe"]),
-            ("--Remote-Allow-Origins=http://evil.example", "", ["--Remote-Allow-Origins=http://evil.example"]),
+            "--remote-allow-origins=*",  # would let any web page's origin connect to the endpoint
+            '"--remote-allow-origins=*"',  # quoted: Chromium unquotes it, so it must not slip through
+            "'--remote-allow-origins=*'",
+            '"--remote-allow-origins=*',  # unbalanced quote
+            '--lang=en "--Remote-Allow-Origins"=http://evil.example',  # quoted name, mixed case
+            "--REMOTE-ALLOW-ORIGINS=*",
+            "/remote-allow-origins=*",
+            "--lang=en --remote-debugging-port=9318",  # would open another port than the one warned about
+            '--remote-debugging-port "9318"',
+            "-Remote-Debugging-Address=0.0.0.0",
+            "--remote-debugging-pipe",
         ],
-    )  # fmt: skip
-    def test_conflicting_switches_are_removed_from_the_webview2_variable(
-        self, value: str, kept: str, removed: list[str]
-    ) -> None:
-        fake = types.SimpleNamespace(settings={"REMOTE_DEBUGGING_PORT": None})
+    )
+    def test_devtools_switches_in_the_browser_arguments_refuse_the_window(self, value: str, tmp_path: Path) -> None:
         env = {mathud_desktop.WEBVIEW2_ARGS_ENV: value}
-        assert mathud_desktop.enable_automation(fake, 9317, env) == removed
-        assert env[mathud_desktop.WEBVIEW2_ARGS_ENV] == f"{kept} --remote-debugging-port=9317".strip()
+        assert mathud_desktop.conflicting_browser_args(env) == mathud_desktop.WEBVIEW2_ARGS_ENV
+        code, fake, mock_print = self._run(tmp_path, _unused_port(), env=env)
+        assert code == 1
+        fake.create_window.assert_not_called()
+        fake.start.assert_not_called()
+        assert "mentions remote-debugging or remote-allow-origins" in mock_print.call_args_list[0].args[0]
+
+    def test_qt_flags_are_checked_too(self) -> None:
+        env = {"QTWEBENGINE_CHROMIUM_FLAGS": "--remote-allow-origins=*"}
+        assert mathud_desktop.conflicting_browser_args(env) == "QTWEBENGINE_CHROMIUM_FLAGS"
+        assert mathud_desktop.conflicting_browser_args({mathud_desktop.WEBVIEW2_ARGS_ENV: "--lang=en"}) is None
 
     def test_a_webview2_profile_override_is_dropped(self) -> None:
         fake = types.SimpleNamespace(settings={"REMOTE_DEBUGGING_PORT": None})
@@ -507,16 +515,16 @@ class TestAutomation:
         ]
         assert mathud_desktop.WEBVIEW2_USER_DATA_ENV not in env
 
-    def test_removed_switches_are_reported_and_the_warning_names_the_real_port(self, tmp_path: Path) -> None:
+    def test_other_browser_arguments_get_the_port_and_the_warning_names_it(self, tmp_path: Path) -> None:
         debug_port = _unused_port()
-        env = {mathud_desktop.WEBVIEW2_ARGS_ENV: "--remote-debugging-port=9318 --remote-allow-origins=*"}
+        env = {mathud_desktop.WEBVIEW2_ARGS_ENV: "--lang=en", mathud_desktop.WEBVIEW2_USER_DATA_ENV: r"C:\shared"}
         code, fake, mock_print = self._run(tmp_path, debug_port, env=env)
         assert code == 0
         printed = [str(call.args[0]) for call in mock_print.call_args_list]
-        assert any("Ignored for the automation window: --remote-debugging-port=9318 --remote-allow-origins=*" in line
+        assert any(rf"Ignored for the automation window: {mathud_desktop.WEBVIEW2_USER_DATA_ENV}=C:\shared" in line
                    for line in printed)  # fmt: skip
         assert any(f"127.0.0.1:{debug_port}" in line and "WARNING" in line for line in printed)
-        assert fake.webview2_args == f"--remote-debugging-port={debug_port}"
+        assert fake.webview2_args == f"--lang=en --remote-debugging-port={debug_port}"
 
     def test_a_second_automation_window_is_refused(self, tmp_path: Path) -> None:
         held = mathud_desktop.ProfileLock(tmp_path / mathud_desktop.AUTOMATION_LOCK_FILENAME)
