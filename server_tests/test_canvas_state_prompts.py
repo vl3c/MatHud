@@ -544,44 +544,59 @@ EMPTY_STATE: Dict[str, Any] = {key: value for key, value in TINY_STATE.items() i
 ONE_CALL: List[Dict[str, Any]] = [
     {"id": "call_t", "function": {"name": "create_polygon", "arguments": "{}"}},
 ]
+TINY_NOTE = "View note: the shapes span only ~6x4 px on screen"
 
 
-def one_call_results_prompt(state: Dict[str, Any]) -> str:
-    entries = [{"tool_call_id": "call_t", "result": {"create_polygon()": "Call successful!"}}]
+def one_call_results_prompt(state: Dict[str, Any], call_id: str = "call_t") -> str:
+    entries = [{"tool_call_id": call_id, "result": {"create_polygon()": "Call successful!"}}]
     prompt = json.loads(results_prompt(state))
     prompt["tool_call_results"] = json.dumps(entries)
     return json.dumps(prompt)
 
 
-class TestViewNoteInPrompts(CanvasFormatEnv):
-    """The view note reaches the model in the canvas block and after tool batches, once per drawing."""
+def with_point(state: Dict[str, Any], name: str, x: float, y: float) -> Dict[str, Any]:
+    grown = json.loads(json.dumps(state))
+    grown["Points"].append({"name": name, "args": {"position": {"x": x, "y": y}}})
+    return grown
 
-    def _draw_tiny_triangle(self, api: OpenAIChatCompletionsAPI) -> str:
-        """User asks on an empty canvas; the model's tool batch draws the tiny triangle."""
-        api._prepare_messages_for_request(user_prompt("Draw a triangle", state=EMPTY_STATE))
-        api._finalize_stream("", ONE_CALL)
-        api._prepare_messages_for_request(one_call_results_prompt(TINY_STATE))
-        return tool_contents(api)["call_t"]
+
+def draw_tiny_triangle(api: OpenAIChatCompletionsAPI, text: str = "Draw a triangle") -> None:
+    """A turn: the user asks on an empty canvas, the model's tool batch draws the tiny triangle and answers."""
+    api._prepare_messages_for_request(user_prompt(text, state=EMPTY_STATE))
+    api._finalize_stream("", ONE_CALL)
+    api._prepare_messages_for_request(one_call_results_prompt(TINY_STATE))
+    api._finalize_stream("Drawn; it is tiny at this zoom, want me to zoom in?", [])
+
+
+class TestViewNoteInPrompts(CanvasFormatEnv):
+    """The view note reaches the model after the tool batch that drew a speck, once."""
 
     def test_tool_batch_that_draws_a_speck_gets_the_note(self) -> None:
-        content = self._draw_tiny_triangle(self.chat_api())
-        lines = content.split("\n")
+        api = self.chat_api()
+        draw_tiny_triangle(api)
+        lines = tool_contents(api)["call_t"].split("\n")
         self.assertEqual(lines[1], "[canvas changes]")
-        self.assertTrue(lines[-1].startswith("View note: the shapes span only ~6x4 px on screen"), lines[-1])
+        self.assertTrue(lines[-1].startswith(TINY_NOTE), lines[-1])
         self.assertIn("zoom center_x=3, center_y=2", lines[-1])
 
-    def test_user_message_canvas_block_gets_the_note(self) -> None:
+    def test_user_message_after_the_user_drew_a_speck(self) -> None:
         api = self.chat_api()
+        api._prepare_messages_for_request(user_prompt("Hi", state=EMPTY_STATE))
+        api._finalize_stream("Hello.", [])
         api._prepare_messages_for_request(user_prompt("What is the area?", state=TINY_STATE))
         lines = api.messages[-1]["content"].split("\n")
         self.assertEqual(lines[:2], ["<canvas>", "view x [-400, 400] y [-300, 300]; grid 100"])
-        self.assertTrue(lines[2].startswith("View note: the shapes span only ~6x4 px"))
+        self.assertTrue(lines[2].startswith(TINY_NOTE))
         self.assertEqual(lines[-1], "What is the area?")
+
+    def test_first_message_of_a_conversation_gets_no_note(self) -> None:
+        api = self.chat_api()
+        api._prepare_messages_for_request(user_prompt(state=TINY_STATE))
+        self.assertNotIn("View note:", api.messages[-1]["content"])
 
     def test_note_is_not_repeated_after_the_user_declines(self) -> None:
         api = self.chat_api()
-        self.assertIn("View note:", self._draw_tiny_triangle(api))
-        api._finalize_stream("Done. The triangle is tiny at this zoom; want me to zoom in?", [])
+        draw_tiny_triangle(api)
         api._prepare_messages_for_request(user_prompt("No thanks, what is its area?", state=TINY_STATE))
         self.assertNotIn("View note:", api.messages[-1]["content"])
         # The user's own pan does not bring it back either.
@@ -591,126 +606,163 @@ class TestViewNoteInPrompts(CanvasFormatEnv):
         api._prepare_messages_for_request(user_prompt("And its perimeter?", state=panned))
         self.assertNotIn("View note:", api.messages[-1]["content"])
 
+    def test_declined_offer_with_points_in_and_beyond_the_speck(self) -> None:
+        """As reproduced live: decline, add D inside, then E beyond the triangle."""
+        api = self.chat_api()
+        draw_tiny_triangle(api)
+        with_d = with_point(TINY_STATE, "D", 1, 1)
+        with_e = with_point(with_d, "E", 25, 1)
+        for text, state in (("No thanks. Add D at (1, 1).", with_d), ("Add E at (25, 1).", with_e)):
+            api._prepare_messages_for_request(user_prompt(text, state=state))
+            self.assertNotIn("View note:", api.messages[-1]["content"])
+            api._finalize_stream("Done.", [])
+
+    def test_undo_and_redo_do_not_bring_it_back(self) -> None:
+        api = self.chat_api()
+        draw_tiny_triangle(api)
+        for text, before, after in (("Undo.", TINY_STATE, EMPTY_STATE), ("Redo.", EMPTY_STATE, TINY_STATE)):
+            api._prepare_messages_for_request(user_prompt(text, state=before))
+            api._finalize_stream("", [{"id": "call_u", "function": {"name": text.lower()[:-1], "arguments": "{}"}}])
+            api._prepare_messages_for_request(one_call_results_prompt(after, "call_u"))
+            self.assertNotIn("View note:", tool_contents(api)["call_u"])
+            api._finalize_stream("Done.", [])
+
     def test_readable_drawing_gets_no_note(self) -> None:
         api = self.chat_api()
         api._prepare_messages_for_request(user_prompt())
         self.assertNotIn("View note:", api.messages[-1]["content"])
 
-    def test_reset_conversation_shows_the_note_again(self) -> None:
+    def test_reset_conversation_starts_the_memory_over(self) -> None:
         api = self.chat_api()
-        api._prepare_messages_for_request(user_prompt(state=TINY_STATE))
+        draw_tiny_triangle(api)
         api.reset_conversation()
-        api._prepare_messages_for_request(user_prompt(state=TINY_STATE))
-        self.assertIn("View note:", api.messages[-1]["content"])
+        draw_tiny_triangle(api, "Draw it again")
+        self.assertIn("View note:", tool_contents(api)["call_t"])
 
     def test_every_provider_shows_the_note(self) -> None:
-        local = self.local_api()._parse_and_prepare_message(user_prompt(state=TINY_STATE)) or {}
-        anthropic = self.anthropic_api()._parse_and_prepare_message(user_prompt(state=TINY_STATE)) or {}
-        responses = self.responses_api()
+        local, anthropic, responses = self.local_api(), self.anthropic_api(), self.responses_api()
+        contents = []
+        for api in (local, anthropic):
+            api._parse_and_prepare_message(user_prompt("Hi", state=EMPTY_STATE))
+            contents.append((api._parse_and_prepare_message(user_prompt(state=TINY_STATE)) or {}).get("content"))
+        responses._prepare_messages_for_stream(user_prompt("Hi", state=EMPTY_STATE))
         responses._prepare_messages_for_stream(user_prompt(state=TINY_STATE))
-        responses_content = responses._get_latest_user_message_for_input()[0]["content"]
-        for content in (local.get("content"), anthropic.get("content"), responses_content):
-            self.assertIn("\nView note: the shapes span only ~6x4 px", str(content))
+        contents.append(responses._get_latest_user_message_for_input()[0]["content"])
+        for content in contents:
+            self.assertIn("\n" + TINY_NOTE, str(content))
 
     def test_min_json_format(self) -> None:
         with patch.dict(os.environ, {"MATHUD_CANVAS_FORMAT": "min_json"}):
-            content = self.chat_api()._prepare_message_content(user_prompt(state=TINY_STATE))
+            api = self.chat_api()
+            api._prepare_message_content(user_prompt("Hi", state=EMPTY_STATE))
+            content = api._prepare_message_content(user_prompt(state=TINY_STATE))
         assert isinstance(content, str)
         payload = json.loads(content.split("\n\n", 1)[0].removeprefix("<canvas>\n").removesuffix("\n</canvas>"))
-        self.assertTrue(payload["view_note"].startswith("View note: the shapes span only ~6x4 px"))
+        self.assertTrue(payload["view_note"].startswith(TINY_NOTE))
+        self.assertNotIn("canvas_size_px", content)
 
-    def test_json_format(self) -> None:
-        with patch.dict(os.environ, {"MATHUD_CANVAS_FORMAT": "json"}):
+
+class TestViewNoteJsonFormat(CanvasFormatEnv):
+    canvas_format = "json"
+
+    def test_note_comes_with_the_tool_batch(self) -> None:
+        api = self.chat_api()
+        draw_tiny_triangle(api)
+        content = tool_contents(api)["call_t"]
+        self.assertNotIn("[canvas changes]", content)
+        self.assertTrue(content.split("\n")[-1].startswith(TINY_NOTE), content)
+
+    def test_user_message_note_and_no_measuring_keys(self) -> None:
+        api = self.chat_api()
+        api._prepare_messages_for_request(user_prompt("Hi", state=EMPTY_STATE))
+        self.assertNotIn("canvas_size_px", api.messages[-1]["content"])
+        api._finalize_stream("Hello.", [])
+        extents = {"Functions": {"f": {"box": [-1, 1, -1, 1], "clipped": False}}}
+        state = dict(TINY_STATE, curve_extents=extents)
+        api._prepare_messages_for_request(user_prompt("Area?", state=state))
+        sent = json.loads(api.messages[-1]["content"])
+        self.assertTrue(sent["view_note"].startswith(TINY_NOTE))
+        self.assertNotIn("canvas_size_px", sent["canvas_state"])
+        self.assertNotIn("curve_extents", sent["canvas_state"])
+        api._finalize_stream("12", [])
+        # History cleanup drops the note together with the state.
+        self.assertNotIn("view_note", json.loads(api.messages[-2]["content"]))
+
+    def test_hybrid_summary_has_no_measuring_keys(self) -> None:
+        big = json.loads(json.dumps(TINY_STATE))
+        big["Points"] += [{"name": f"P{i}", "args": {"position": {"x": i, "y": i}}} for i in range(300)]
+        with patch.dict(os.environ, {"AI_CANVAS_SUMMARY_MODE": "summary_only"}):
             api = self.chat_api()
-            api._prepare_messages_for_request(user_prompt(state=TINY_STATE))
-            sent = json.loads(api.messages[-1]["content"])
-            self.assertTrue(sent["view_note"].startswith("View note: the shapes span only ~6x4 px"))
-            api._finalize_stream("done", [])
-            # History cleanup drops the note together with the state.
-            self.assertNotIn("view_note", json.loads(api.messages[1]["content"]))
-            api._prepare_messages_for_request(user_prompt("again", state=TINY_STATE))
-            self.assertNotIn("view_note", json.loads(api.messages[-1]["content"]))
-            local = self.local_api()._parse_and_prepare_message(user_prompt(state=TINY_STATE)) or {}
-        self.assertTrue(str(local.get("content")).startswith("How long is AB?\n[Canvas: 3 Points, 1 Triangles"))
-        self.assertIn("]\nView note: the shapes span only", str(local.get("content")))
+            api._prepare_messages_for_request(user_prompt(state=big))
+        sent = api.messages[-1]["content"]
+        self.assertIn("canvas_state_summary", sent)
+        self.assertNotIn("canvas_size_px", sent)
 
-
-def with_point(state: Dict[str, Any], name: str, x: float, y: float) -> Dict[str, Any]:
-    grown = json.loads(json.dumps(state))
-    grown["Points"].append({"name": name, "args": {"position": {"x": x, "y": y}}})
-    return grown
+    def test_local_agent_counts_and_note(self) -> None:
+        api = self.local_api()
+        api._parse_and_prepare_message(user_prompt("Hi", state=EMPTY_STATE))
+        message = api._parse_and_prepare_message(user_prompt(state=TINY_STATE)) or {}
+        self.assertTrue(str(message.get("content")).startswith("How long is AB?\n[Canvas: 3 Points, 1 Triangles]"))
+        self.assertIn("]\n" + TINY_NOTE, str(message.get("content")))
 
 
 class TestViewNoteHistory(CanvasFormatEnv):
-    """Notes of finished turns leave the history; a note is never used up by a message the model did not get."""
+    """Notes older than the previous turn leave the history; a note is never used up by a message the model did not get."""
 
-    def _turn_with_note(self, api: OpenAIChatCompletionsAPI) -> None:
-        api._prepare_messages_for_request(user_prompt("Draw a triangle", state=EMPTY_STATE))
-        api._finalize_stream("", ONE_CALL)
-        api._prepare_messages_for_request(one_call_results_prompt(TINY_STATE))
-        api._finalize_stream("Drawn; it is tiny at this zoom, want me to zoom in?", [])
-
-    def test_declined_offer_with_a_point_just_beyond_the_speck(self) -> None:
-        """M3 as reproduced live: decline, add D inside, then E one unit beyond the triangle."""
+    def test_the_previous_turn_keeps_its_note(self) -> None:
+        """The user's reply may accept the offer: the suggested zoom must still be in the history."""
         api = self.chat_api()
-        self._turn_with_note(api)
-        with_d = with_point(TINY_STATE, "D", 1, 1)
-        with_e = with_point(with_d, "E", 7, 1)
-        for text, state in (("No thanks. Add D at (1, 1).", with_d), ("Add E at (7, 1).", with_e)):
-            api._prepare_messages_for_request(user_prompt(text, state=state))
-            self.assertNotIn("View note:", api.messages[-1]["content"])
-            api._finalize_stream("Done.", [])
+        draw_tiny_triangle(api)
+        api._prepare_messages_for_request(user_prompt("Yes please.", state=TINY_STATE))
+        self.assertIn(TINY_NOTE, tool_contents(api)["call_t"])
 
-    def test_a_new_message_strips_notes_of_earlier_turns(self) -> None:
+    def test_notes_older_than_the_previous_turn_are_stripped(self) -> None:
         api = self.chat_api()
-        self._turn_with_note(api)
-        self.assertIn("View note:", tool_contents(api)["call_t"])
+        draw_tiny_triangle(api)
         api._prepare_messages_for_request(user_prompt("What is its area?", state=TINY_STATE))
+        api._finalize_stream("12", [])
+        api._prepare_messages_for_request(user_prompt("And its perimeter?", state=TINY_STATE))
         content = tool_contents(api)["call_t"]
         self.assertNotIn("View note:", content)
         self.assertIn("[canvas changes]\n+ A = (0, 0)", content)
 
-    def test_notes_of_the_running_turn_are_kept(self) -> None:
-        api = self.chat_api()
-        api._prepare_messages_for_request(user_prompt("Draw a triangle and label it", state=EMPTY_STATE))
-        api._finalize_stream("", ONE_CALL)
-        api._prepare_messages_for_request(one_call_results_prompt(TINY_STATE))
-        api._finalize_stream("", [{"id": "call_l", "function": {"name": "create_label", "arguments": "{}"}}])
-        entries = [{"tool_call_id": "call_l", "result": {"create_label()": "Call successful!"}}]
-        prompt = json.loads(one_call_results_prompt(with_point(TINY_STATE, "D", 1, 1)))
-        prompt["tool_call_results"] = json.dumps(entries)
-        api._prepare_messages_for_request(json.dumps(prompt))
-        self.assertIn("View note:", tool_contents(api)["call_t"])
-
     def test_a_note_alone_in_canvas_changes_leaves_no_empty_header(self) -> None:
         api = self.chat_api()
         api.messages.append({"role": "tool", "tool_call_id": "x", "content": "ok\n[canvas changes]\nView note: tiny"})
+        api.messages.append({"role": "user", "content": "previous turn"})
         api._prepare_messages_for_request(user_prompt())
         self.assertEqual(tool_contents(api)["x"], "ok")
 
     def test_local_json_note_line_is_stripped_but_user_text_is_kept(self) -> None:
         with patch.dict(os.environ, {"MATHUD_CANVAS_FORMAT": "json"}):
             api = self.local_api()
+            api.messages.append(api._parse_and_prepare_message(user_prompt("Hi", state=EMPTY_STATE)) or {})
             first = api._parse_and_prepare_message(user_prompt("View note: my own words", state=TINY_STATE)) or {}
             api.messages.append(first)
             self.assertIn("]\nView note: the shapes", first["content"])
-            api.messages.append({"role": "assistant", "content": "ok"})
-            api.messages.append(api._parse_and_prepare_message(user_prompt("again", state=TINY_STATE)) or {})
+            for text in ("again", "and again"):
+                api.messages.append({"role": "assistant", "content": "ok"})
+                api.messages.append(api._parse_and_prepare_message(user_prompt(text, state=TINY_STATE)) or {})
         self.assertTrue(first["content"].startswith("View note: my own words\n[Canvas: 3 Points"))
         self.assertNotIn("View note: the shapes", first["content"])
 
     def test_refused_message_does_not_use_up_the_note(self) -> None:
-        """L2: Anthropic drops a refused round from the history; the next message gets the note."""
+        """Anthropic drops a refused round from the history; the next message gets the note."""
         api = self.anthropic_api()
-        api.messages.append(api._parse_and_prepare_message(user_prompt(state=TINY_STATE)) or {})
+        api.messages.append(api._parse_and_prepare_message(user_prompt("Hi", state=EMPTY_STATE)) or {})
+        api.messages.append({"role": "assistant", "content": "Hello."})
+        refused = api._parse_and_prepare_message(user_prompt(state=TINY_STATE)) or {}
+        self.assertIn(TINY_NOTE, str(refused.get("content")))
+        api.messages.append(refused)
         api._drop_refused_user_message()
         message = api._parse_and_prepare_message(user_prompt("Draw it again", state=TINY_STATE)) or {}
-        self.assertIn("View note: the shapes span only", str(message.get("content")))
+        self.assertIn(TINY_NOTE, str(message.get("content")))
 
     def test_local_json_prompt_without_text_measures_nothing(self) -> None:
-        """L2: a prompt LocalAgent sends as is (no user text) cannot carry the note, so it is not spent."""
+        """A prompt LocalAgent sends as is (no user text) cannot carry the note, so it is not spent."""
         with patch.dict(os.environ, {"MATHUD_CANVAS_FORMAT": "json"}):
             api = self.local_api()
+            api._prepare_message_content(user_prompt("Hi", state=EMPTY_STATE))
             self.assertNotIn("View note", api._prepare_message_content(user_prompt(text="", state=TINY_STATE)))
             self.assertIn("View note:", api._prepare_message_content(user_prompt("hi", state=TINY_STATE)))
 
