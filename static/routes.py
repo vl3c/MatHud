@@ -35,6 +35,7 @@ from static.config import (
 from static.openai_api_base import OpenAIAPIBase, get_configured_tool_mode
 from static.providers import ProviderRegistry, create_provider_instance, is_local_provider
 from static.route_helpers import conversation_apis, get_active_provider, reset_tools_for_all_providers
+from static.tool_argument_validator import ToolArgumentValidator
 from static.tool_call_processor import ProcessedToolCall, ToolCallProcessor
 from static.tts_manager import get_tts_manager
 from static.workspace_chat import build_restored_history, sanitize_chat_record
@@ -184,6 +185,23 @@ def get_provider_for_model(app: MatHudFlask, model_id: str) -> OpenAIAPIBase:
     provider = app.providers[provider_name]
     provider.set_model(model_id)
     return provider
+
+
+def _prepare_tool_calls(
+    app: MatHudFlask,
+    tool_calls: List[Dict[str, Any]],
+    provider: Optional[OpenAIAPIBase] = None,
+) -> List[Dict[str, Any]]:
+    """A model reply's tool calls as the client gets them.
+
+    Every route that hands a reply's tool calls to the client (streaming or not)
+    comes here: null spelled as a string (``"null"``, ``"None"``, ``"undefined"``)
+    becomes null wherever the tool's schema allows null
+    (``ToolArgumentValidator.normalize_tool_calls``), then ``search_tools`` is
+    intercepted. The conversation history keeps the calls as the model sent them.
+    """
+    normalized = ToolArgumentValidator.normalize_tool_calls(tool_calls)
+    return _intercept_search_tools(app, normalized, provider)
 
 
 def _intercept_search_tools(
@@ -926,9 +944,9 @@ def register_routes(app: MatHudFlask) -> None:
                                     dict_tool_calls: List[Dict[str, Any]] = [
                                         cast(Dict[str, Any], call) for call in tool_calls if isinstance(call, dict)
                                     ]
-                                    # Intercept search_tools and filter other tool calls
+                                    # Null strings as null, then intercept search_tools and filter other tool calls
                                     if dict_tool_calls:
-                                        filtered_calls = _intercept_search_tools(app, dict_tool_calls, provider)
+                                        filtered_calls = _prepare_tool_calls(app, dict_tool_calls, provider)
                                         event_dict["ai_tool_calls"] = cast(JsonValue, filtered_calls)
                                         app.log_manager.log_ai_tool_calls(filtered_calls)
                             except Exception:
@@ -1257,9 +1275,9 @@ def register_routes(app: MatHudFlask) -> None:
                     if isinstance(ai_tool_calls_raw, list)
                     else []
                 )
-                # Intercept search_tools and filter other tool calls
+                # Null strings as null, then intercept search_tools and filter other tool calls
                 if ai_tool_calls:
-                    ai_tool_calls = _intercept_search_tools(app, ai_tool_calls, provider)
+                    ai_tool_calls = _prepare_tool_calls(app, ai_tool_calls, provider)
                 finish_reason = final_event.get("finish_reason")
 
                 app.log_manager.log_ai_response(ai_message)
@@ -1289,9 +1307,9 @@ def register_routes(app: MatHudFlask) -> None:
                 return _abandoned_reply_response()
             ai_message, ai_tool_calls_processed = _process_ai_response(app, choice)
             ai_tool_calls = cast(List[Dict[str, Any]], ai_tool_calls_processed)
-            # Intercept search_tools and filter other tool calls
+            # Null strings as null, then intercept search_tools and filter other tool calls
             if ai_tool_calls:
-                ai_tool_calls = _intercept_search_tools(app, ai_tool_calls, provider)
+                ai_tool_calls = _prepare_tool_calls(app, ai_tool_calls, provider)
             finish_reason = getattr(choice, "finish_reason", None)
             completion_metrics = _record_response_metrics(
                 app, getattr(provider, "last_response_metrics", None), tool_call_results_raw
@@ -1332,6 +1350,28 @@ def register_routes(app: MatHudFlask) -> None:
         stopped request neither shares the model server with it nor skews its timing.
         """
         return AppManager.make_response(data={"requests_in_flight": in_flight.count})
+
+    @app.route("/api/automation_settings", methods=["GET"])
+    @require_auth
+    def automation_settings_route() -> ResponseReturnValue:
+        """The server's effective settings that bear on what an automated run may send.
+
+        The CLI's desktop automation (``desktop prompt``, ``test scenarios
+        --attach-desktop``) drives a server it did not start and cannot pin, so
+        it reads these and refuses a paid provider unless tool searches stay
+        local and OpenRouter does not retry (both would send requests its
+        request cap cannot count).
+        """
+        from static.providers.openrouter_api import OpenRouterAPI, configured_max_retries
+        from static.tool_search_service import configured_search_mode
+
+        return AppManager.make_response(
+            data={
+                "tool_search_mode": configured_search_mode(),
+                "openrouter_max_retries": configured_max_retries(OpenRouterAPI.MAX_RETRIES),
+                "tool_exposure": get_configured_tool_mode(),
+            }
+        )
 
     @app.route("/search_tools", methods=["POST"])
     @require_auth

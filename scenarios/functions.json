@@ -249,12 +249,13 @@
             {"tool": "draw_normal_line", "args": {"curve_name": "sq", "parameter": 1}}
           ],
           "checks": [
+            {"bind": "Sq", "select": {"type": "Function", "only": true}},
             {"bind": "Tan", "select": {"type": "Segment", "through": [1, 1], "slope": 2, "tol": 1e-06}},
             {"bind": "Nor", "select": {"type": "Segment", "through": [1, 1], "slope": -0.5, "tol": 1e-06}},
             {
               "check": "relation",
               "relation": "tangent_to",
-              "select": ["$Tan", {"type": "Function", "name": "sq"}],
+              "select": ["$Tan", "$Sq"],
               "x": 1,
               "tol": 1e-06
             }
@@ -268,11 +269,11 @@
             {
               "check": "relation",
               "relation": "function_value",
-              "select": [{"type": "Function", "name": "sq"}],
+              "select": ["$Sq"],
               "x": 3,
               "y": 1
             },
-            {"check": "unchanged_except", "since": "after_t1", "except": [{"type": "Function", "name": "sq"}]}
+            {"check": "unchanged_except", "since": "after_t1", "except": ["$Sq"]}
           ]
         }
       ]
@@ -296,13 +297,13 @@
             {
               "check": "attribute",
               "path": "args.left_bound",
-              "select": {"type": "Function", "name": "g"},
+              "select": {"type": "Function", "only": true},
               "eq": -5
             },
             {
               "check": "attribute",
               "path": "args.right_bound",
-              "select": {"type": "Function", "name": "g"},
+              "select": {"type": "Function", "only": true},
               "eq": 5
             }
           ]
@@ -328,19 +329,19 @@
             {
               "check": "attribute",
               "path": "args.point_discontinuities",
-              "select": {"type": "Function", "name": "h"},
+              "select": {"type": "Function", "only": true},
               "contains": 1
             },
             {
               "check": "relation",
               "relation": "function_value",
-              "select": [{"type": "Function", "name": "h"}],
+              "select": [{"type": "Function", "only": true}],
               "values": [[2, 3], [0, 1]]
             },
             {
               "check": "attribute",
               "path": "args.vertical_asymptotes",
-              "select": {"type": "Function", "name": "h"},
+              "select": {"type": "Function", "only": true},
               "is_null": true
             }
           ]
@@ -367,25 +368,25 @@
             {
               "check": "relation",
               "relation": "function_value",
-              "select": [{"type": "Function", "name": "s"}],
+              "select": [{"type": "Function", "only": true}],
               "values": [[2, 1], [-3, -1], [4.5, 1]]
             },
             {
               "check": "attribute",
               "path": "args.horizontal_asymptotes",
-              "select": {"type": "Function", "name": "s"},
+              "select": {"type": "Function", "only": true},
               "eq": [-1, 1]
             },
             {
               "check": "attribute",
               "path": "args.vertical_asymptotes",
-              "select": {"type": "Function", "name": "s"},
+              "select": {"type": "Function", "only": true},
               "is_null": true
             },
             {
               "check": "attribute",
               "path": "args.point_discontinuities",
-              "select": {"type": "Function", "name": "s"},
+              "select": {"type": "Function", "only": true},
               "contains": 0
             }
           ]
@@ -425,13 +426,13 @@
             {
               "check": "attribute",
               "path": "args.vertical_asymptotes",
-              "select": {"type": "Function", "name": "c"},
+              "select": {"type": "Function", "only": true},
               "is_null": true
             },
             {
               "check": "attribute",
               "path": "args.point_discontinuities",
-              "select": {"type": "Function", "name": "c"},
+              "select": {"type": "Function", "only": true},
               "len": 3
             }
           ]
@@ -448,7 +449,7 @@
             {
               "check": "attribute",
               "path": "args.vertical_asymptotes",
-              "select": {"type": "Function", "name": "r"},
+              "select": {"type": "Function", "samples": [[0.5, 8.168770850313663]], "tol": 1e-06},
               "eq": [0]
             }
           ]
@@ -465,13 +466,13 @@
             {
               "check": "attribute",
               "path": "args.vertical_asymptotes",
-              "select": {"type": "Function", "name": "q"},
+              "select": {"type": "Function", "samples": [[2, 0.5], [4, 0.25]]},
               "is_null": true
             },
             {
               "check": "relation",
               "relation": "function_value",
-              "select": [{"type": "Function", "name": "q"}],
+              "select": [{"type": "Function", "samples": [[2, 0.5], [4, 0.25]]}],
               "values": [[2, 0.5], [4, 0.25]]
             }
           ]

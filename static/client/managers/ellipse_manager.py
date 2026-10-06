@@ -40,7 +40,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
 from drawables.ellipse import Ellipse
 from managers.base_drawable_manager import BaseDrawableManager
-from managers.edit_policy import EditRule
+from managers.edit_policy import EditRule, center_move_hint
 from managers.dependency_removal import remove_drawable_with_dependencies
 
 if TYPE_CHECKING:
@@ -339,7 +339,7 @@ class EllipseManager(BaseDrawableManager):
             new_color, new_radius_x, new_radius_y, new_rotation_angle, new_center_x, new_center_y
         )
         rules = self._validate_ellipse_policy(list(pending_fields.keys()))
-        self._enforce_ellipse_rules(ellipse, rules, pending_fields)
+        self._enforce_ellipse_rules(ellipse, rules, pending_fields, new_center_x, new_center_y)
         self._validate_color_request(pending_fields, new_color)
         self._validate_radius_request("radius_x", pending_fields, new_radius_x)
         self._validate_radius_request("radius_y", pending_fields, new_radius_y)
@@ -418,17 +418,23 @@ class EllipseManager(BaseDrawableManager):
         ellipse: Ellipse,
         rules: Dict[str, EditRule],
         pending_fields: Dict[str, str],
+        new_center_x: Optional[float] = None,
+        new_center_y: Optional[float] = None,
     ) -> None:
+        # Moving the center point moves the ellipse with everything built on it: a working
+        # alternative for a center move (not for radii or rotation).
+        hint = f"; {center_move_hint(ellipse.center, new_center_x, new_center_y)}" if "center" in pending_fields else ""
         if any(rule.requires_solitary for rule in rules.values()):
             if not self._is_ellipse_solitary(ellipse):
                 raise ValueError(
-                    f"Ellipse '{ellipse.name}' is referenced by other drawables and cannot be edited in place."
+                    f"Ellipse '{ellipse.name}' is referenced by other drawables and cannot be edited in place{hint}."
                 )
 
         if "center" in pending_fields:
             if not self._is_center_point_exclusive(ellipse):
                 raise ValueError(
-                    f"Ellipse '{ellipse.name}' cannot move its center because that point is referenced by other drawables."
+                    f"Ellipse '{ellipse.name}' cannot move its center because that point is referenced by other "
+                    f"drawables{hint}."
                 )
 
     def _is_ellipse_solitary(self, ellipse: Ellipse) -> bool:

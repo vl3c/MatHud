@@ -694,6 +694,52 @@
           ]
         }
       ]
+    },
+    {
+      "id": "GEO-19",
+      "title": "Optional arguments sent as the string null mean null",
+      "tags": ["polygons", "functions", "null-arguments"],
+      "smoke": false,
+      "targets": "local models (Qwen) fill unused optional fields with the strings null, None or undefined; the tool-call path makes them null where the schema allows null (ToolArgumentValidator, which the loader also applies to these references)",
+      "steps": [
+        {
+          "user": "Draw a triangle with vertices (0,0), (6,0) and (2,4), and plot y = x^2/4.",
+          "reference": [
+            {
+              "tool": "create_polygon",
+              "args": {
+                "vertices": [{"x": 0, "y": 0}, {"x": 6, "y": 0}, {"x": 2, "y": 4}],
+                "polygon_type": "triangle",
+                "color": "null",
+                "name": "None",
+                "subtype": "null"
+              }
+            },
+            {
+              "tool": "draw_function",
+              "args": {"function_string": "x^2/4", "name": "null", "left_bound": "undefined", "color": "null"}
+            }
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "count", "select": {"type": "Triangle"}, "eq": 1},
+            {"check": "attribute", "path": "inspect.color", "select": {"type": "Triangle", "only": true}, "ne": "null"},
+            {"check": "attribute", "path": "inspect.color", "select": {"type": "Function", "only": true}, "ne": "null"},
+            {"check": "attribute", "path": "name", "select": {"type": "Function", "only": true}, "ne": "null"},
+            {"check": "relation", "relation": "function_value", "select": [{"type": "Function", "only": true}], "x": 2, "y": 1}
+          ]
+        },
+        {
+          "user": "Construct the circumcircle of that triangle.",
+          "reference": [
+            {"tool": "construct_circumcircle", "args": {"triangle_name": "ABC", "p1_name": "null", "color": "undefined"}}
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "exists", "select": {"type": "Circle", "center": [3, 1], "radius": 3.1622776601683795}}
+          ]
+        }
+      ]
     }
   ]
 }

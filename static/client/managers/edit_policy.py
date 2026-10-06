@@ -9,7 +9,7 @@ to be isolated from dependency graphs).
 
 from __future__ import annotations
 
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 
 class EditRule:
@@ -382,3 +382,41 @@ def get_drawable_edit_policy(drawable_type: str) -> Optional[DrawableEditPolicy]
     """Lookup the policy for a drawable type."""
 
     return DRAWABLE_EDIT_POLICIES.get(drawable_type)
+
+
+def format_offset(value: float) -> str:
+    """A coordinate offset as a model would write it: ``1``, ``-2.5``, ``0.333333333333``."""
+    text = f"{float(value):.12g}"
+    return "0" if text in ("-0", "0") else text
+
+
+def _translate_call(point_name: str, dx: Optional[float], dy: Optional[float]) -> str:
+    if dx is None or dy is None:
+        offset = "x_offset and y_offset set to the move"
+    else:
+        offset = f"x_offset {format_offset(dx)} and y_offset {format_offset(dy)}"
+    return f"translate_object with name '{point_name}', {offset}"
+
+
+def translate_point_hint(point_name: str, dx: Optional[float] = None, dy: Optional[float] = None) -> str:
+    """How to move a point that cannot be edited in place: ``translate_object`` on the point.
+
+    The point moves and every object built on it follows. With the requested
+    offset (new coordinates minus current ones) the hint gives the exact call.
+    """
+    return f"to move it, use {_translate_call(point_name, dx, dy)}; the objects built on it move with it"
+
+
+def center_move_hint(center: Any, new_x: Optional[float] = None, new_y: Optional[float] = None) -> str:
+    """How to move a circle or ellipse whose center point other drawables use: translate that point.
+
+    Everything built on the center point moves with it, the shape included.
+    """
+    name = str(getattr(center, "name", ""))
+    if new_x is None or new_y is None:
+        dx: Optional[float] = None
+        dy: Optional[float] = None
+    else:
+        dx, dy = float(new_x) - float(center.x), float(new_y) - float(center.y)
+    call = _translate_call(name, dx, dy)
+    return f"to move the center point '{name}' together with every object built on it, use {call}"

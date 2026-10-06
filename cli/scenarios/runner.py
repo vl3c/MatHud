@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar
 
 from cli.scenarios.geometry import SampleRequests
-from cli.scenarios.grade import ScenarioGrader, StepRecordData
+from cli.scenarios.grade import ScenarioGrader, StepRecordData, fitted_view_fields
 from cli.scenarios.model import Catalogue, Scenario, Step, ToolCall
 from cli.scenarios.report import ResultSink, ScenarioOutcome
 
@@ -50,10 +50,66 @@ class ReplayOptions:
     step_timeout_s: float = DEFAULT_STEP_TIMEOUT_S
     known_artifacts: bool = False
     retries: int = 1
+    # Seconds to pause after each step, so someone watching an attached window sees every canvas.
+    pace_s: float = 0.0
+    # Attach mode: zoom the view to the content after each graded step (fitMatHudView), for display.
+    fit_view: bool = False
+
+
+# Tools that set the view, and check fields that read it: a scenario using either is never fitted.
+VIEW_TOOLS = frozenset({"zoom", "set_coordinate_system", "set_grid_visible"})
+_VIEW_CHECK_PATHS = ("polar_radial_spacing", "grid_visible", "coordinate_mode", "left_bound", "right_bound",
+                     "top_bound", "bottom_bound", "reference_scale_factor")  # fmt: skip
+
+
+def view_sensitive(scenario: Scenario) -> bool:
+    """True when ``scenario`` sets or checks the view, so a display fit could change its outcome.
+
+    Such scenarios (the ``view`` tag, a view tool in any call, or a check that
+    reads the view) run unfitted in attach mode and grade exactly as headless.
+    """
+    if "view" in scenario.tags:
+        return True
+    step_calls = [call for step in scenario.steps for call in step.calls]
+    if any(call.tool in VIEW_TOOLS for call in scenario.setup_calls + step_calls):
+        return True
+    # Tools whose result depends on the view when they run after a fit (setup runs before any).
+    if any(_uses_the_view(call) for call in step_calls):
+        return True
+    return any(_reads_view(check) for step in scenario.steps for check in step.checks)
+
+
+def _uses_the_view(call: ToolCall) -> bool:
+    """``find_function_features`` without bounds searches the visible x range; ``generate_graph``
+    without a ``placement_box`` places vertices with no coordinates inside the visible view."""
+    args = call.args or {}
+    if call.tool == "find_function_features":
+        return args.get("left_bound") is None or args.get("right_bound") is None
+    if call.tool == "generate_graph" and not args.get("placement_box"):
+        vertices = args.get("vertices") or []
+        return any(not isinstance(v, dict) or v.get("x") is None or v.get("y") is None for v in vertices)
+    return False
+
+
+def _reads_view(check: Any) -> bool:
+    if isinstance(check, dict):
+        if check.get("target") == "view" or check.get("view") is True:
+            return True
+        if any(field in str(check.get("path", "")) for field in _VIEW_CHECK_PATHS):
+            return True
+        return any(_reads_view(value) for value in check.values())
+    if isinstance(check, list):
+        return any(_reads_view(item) for item in check)
+    return False
 
 
 class BrowserSession:
-    """One headless Chrome on the app, restartable after a hang."""
+    """One browser on the app (``cli.browser_backend.AppBrowser``), restartable after a hang.
+
+    The default backend is a headless Chrome of the run's own; in attach mode it
+    is the desktop window over CDP, which is never navigated on open and only
+    disconnected on close.
+    """
 
     def __init__(self, factory: Callable[[], Any], timeout_s: float) -> None:
         self._factory = factory
@@ -65,14 +121,16 @@ class BrowserSession:
         browser = self._factory()
         self.browser = browser
         self.call(browser.setup, timeout=120)
-        if not self.call(browser.navigate_to_app, timeout=90):
-            raise HookError("could not open the app")
+        # An attached window already shows the app; it is reloaded only to recover from a hang.
+        if not getattr(browser, "attached", False) or self.restarts:
+            if not self.call(browser.reload, timeout=90):
+                raise HookError("could not open the app")
         if not self.call(browser.wait_for_app_ready, timeout=120):
             raise HookError("the app did not become ready")
 
     def reload(self) -> None:
         browser = self.browser
-        if not self.call(browser.navigate_to_app, timeout=90) or not self.call(browser.wait_for_app_ready, timeout=120):
+        if not self.call(browser.reload, timeout=90) or not self.call(browser.wait_for_app_ready, timeout=120):
             raise HookError("the app did not become ready after a reload")
 
     def restart(self) -> None:
@@ -81,7 +139,7 @@ class BrowserSession:
         self.open()
 
     def kill(self) -> None:
-        """Stop the browser, killing chromedriver and Chrome if they hang."""
+        """Stop the browser, killing chromedriver and Chrome if they hang (an attached window only disconnects)."""
         browser = self.browser
         self.browser = None
         if browser is None:
@@ -94,7 +152,7 @@ class BrowserSession:
 
         def cleanup() -> None:
             try:
-                browser.cleanup()
+                browser.close()
             finally:
                 finished.set()
 
@@ -132,7 +190,7 @@ class BrowserSession:
 
     def screenshot(self, path: Path) -> bool:
         try:
-            return bool(self.call(self.browser.capture_screenshot, str(path), timeout=30))
+            return bool(self.call(self.browser.screenshot, str(path), timeout=30))
         except Exception:
             return False
 
@@ -257,11 +315,33 @@ class ReplayRunner:
         setup = self._run_calls(scenario.setup_calls) if scenario.setup_calls else None
         data = self._with_samples(grader, None, setup)
         self._record(outcome, grader, "setup", "setup", None, data, time.time() - t0)
+        self._present(scenario, grader, outcome, paced=setup is not None or scenario.fixture_state is not None)
 
         for step in scenario.steps:
             t0 = time.time()
             data, extra = self._execute_step(scenario, step, grader)
             self._record(outcome, grader, step.id, step.kind, step, data, time.time() - t0, extra)
+            self._present(scenario, grader, outcome)
+
+    def _present(
+        self, scenario: Scenario, grader: ScenarioGrader, outcome: ScenarioOutcome, paced: bool = True
+    ) -> None:
+        """After a step is graded and recorded: fit the view for display (attach mode), then pause."""
+        if self.options.fit_view and not view_sensitive(scenario):
+            try:
+                reply = self.session.hook("fitMatHudView")
+            except HookError as exc:
+                self.log(f"  could not fit the view: {exc}")
+            else:
+                if reply.get("fitted"):
+                    # Later steps start from the fitted view, so it is what they are compared with;
+                    # the step's record keeps it so --regrade rebases the same way.
+                    fitted = self._snapshot(None)
+                    grader.rebase_view(fitted)
+                    if outcome.steps:
+                        outcome.steps[-1]["fitted_view"] = fitted_view_fields(fitted)
+        if paced and self.options.pace_s > 0:
+            time.sleep(self.options.pace_s)
 
     def _reset(self, scenario: Scenario) -> None:
         """Reset the session for ``scenario``, restoring its fixture."""
@@ -274,11 +354,53 @@ class ReplayRunner:
         self, scenario: Scenario, step: Step, grader: ScenarioGrader
     ) -> tuple[StepRecordData, dict[str, Any]]:
         """Run one step; returns its data and any extra fields for its record."""
+        if step.runs_calls and len(step.call_batches) > 1:
+            batches = self._run_turn_batches([[call.payload() for call in calls] for calls in step.call_batches])
+            return self._turn_data(grader, step, batches), {}
         batch = self._run_calls(step.calls) if step.runs_calls else None
         return self._with_samples(grader, step, batch), {}
 
     def _run_calls(self, calls: list[ToolCall]) -> dict[str, Any]:
         return self.session.hook("runMatHudToolCalls", json.dumps([call.payload() for call in calls]))
+
+    def _run_turn_batches(self, batches: list[list[dict[str, Any]]]) -> list[dict[str, Any]]:
+        """Run the batches of one reply as a chat turn runs them, in one undo group.
+
+        Each batch record holds its traced calls, the undo and redo depths around it
+        and the canvas after it, so the invariants can follow the turn batch by batch.
+        A single batch runs on its own, as a one-batch reply does.
+        """
+        records: list[dict[str, Any]] = []
+        for number, calls in enumerate(batches, start=1):
+            if len(batches) == 1:
+                reply = self.session.hook("runMatHudToolCalls", json.dumps(calls))
+            else:
+                turn = {"turn": "end" if number == len(batches) else "continue"}
+                reply = self.session.hook("runMatHudToolCalls", json.dumps(calls), json.dumps(turn))
+            snapshot = self.session.hook("getMatHudCanvasState", json.dumps({"inspect": True}))
+            records.append(
+                {
+                    "calls": list(reply.get("traced") or []),
+                    "undo_before": reply.get("undo_depth_before"),
+                    "undo_after": reply.get("undo_depth_after"),
+                    "redo_before": reply.get("redo_depth_before"),
+                    "redo_after": reply.get("redo_depth_after"),
+                    "state": snapshot.get("state") or {},
+                    "inspection": snapshot.get("inspection"),
+                }
+            )
+        return records
+
+    def _turn_data(self, grader: ScenarioGrader, step: Step, batches: list[dict[str, Any]]) -> StepRecordData:
+        """The step data of a turn run batch by batch (``_run_turn_batches``)."""
+        data = self._with_samples(grader, step, None)
+        inspection = data.inspection or {}
+        data.calls = [call for batch in batches for call in batch["calls"]]
+        data.undo_before = batches[0]["undo_before"] if batches else inspection.get("undo_depth")
+        data.redo_before = batches[0]["redo_before"] if batches else inspection.get("redo_depth")
+        data.undo_after, data.redo_after = inspection.get("undo_depth"), inspection.get("redo_depth")
+        data.batches = batches if len(batches) > 1 else None
+        return data
 
     def _snapshot(self, batch: Optional[dict[str, Any]], options: Optional[dict[str, Any]] = None) -> StepRecordData:
         request = {"inspect": True}
