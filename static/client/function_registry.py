@@ -316,6 +316,7 @@ class FunctionRegistry:
             "analyze_graph": canvas.analyze_graph,
             # ===== RELATION INSPECTION =====
             "inspect_relation": canvas.inspect_relation,
+            "find_intersections": canvas.find_intersections,
             # ===== PLOT OPERATIONS =====
             "plot_distribution": canvas.plot_distribution,
             "plot_bars": canvas.plot_bars,
@@ -507,8 +508,8 @@ class FunctionRegistry:
             "plot_bars",
             "delete_plot",
             # Note: fit_regression is NOT undoable - it returns stats to the AI.
-            # Neither is find_function_features: its values must reach the AI, and the
-            # points it may place form one undo step of their own.
+            # Neither are find_function_features and find_intersections: their values must
+            # reach the AI, and the points they may place form one undo step of their own.
             # Angle operations
             "create_angle",
             "delete_angle",

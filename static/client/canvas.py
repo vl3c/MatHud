@@ -1454,6 +1454,26 @@ class Canvas:
             ),
         )
 
+    def find_intersections(
+        self,
+        object_names: List[str],
+        extend_lines: Optional[bool] = None,
+        place_points: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        """Find where two segments, vectors, circles, arcs, ellipses or curves meet.
+
+        Optionally places a point at each intersection (one undo step); see
+        IntersectionManager.find_intersections.
+        """
+        return cast(
+            Dict[str, Any],
+            self.drawable_manager.find_intersections(
+                object_names,
+                extend_lines=extend_lines,
+                place_points=place_points,
+            ),
+        )
+
     def draw_piecewise_function(
         self,
         pieces: List[Dict[str, Any]],
