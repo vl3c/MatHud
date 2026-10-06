@@ -109,8 +109,12 @@ class TestEllipseManager(unittest.TestCase):
         self.dependency_manager.get_parents = lambda obj: {ellipse, other_parent} if obj is ellipse.center else set()
         self.dependency_manager.get_children = lambda obj: set()
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ValueError) as context:
             self.ellipse_manager.update_ellipse("EllipseA", new_center_x=2.0, new_center_y=3.0)
+        message = str(context.exception)
+        self.assertIn("cannot move its center", message)
+        offset = (2.0 - ellipse.center.x, 3.0 - ellipse.center.y)
+        self.assertIn(f"use translate_object with name '{ellipse.center.name}', x_offset {offset[0]:.12g}", message)
 
     def test_update_ellipse_rejects_when_not_solitary(self) -> None:
         ellipse = self._add_ellipse()
@@ -119,8 +123,10 @@ class TestEllipseManager(unittest.TestCase):
         self.dependency_manager.get_parents = lambda obj: {other_parent} if obj is ellipse else set()
         self.dependency_manager.get_children = lambda obj: set()
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ValueError) as context:
             self.ellipse_manager.update_ellipse("EllipseA", new_radius_x=5.0)
+        # No working alternative for a radius: no move hint.
+        self.assertNotIn("translate_object", str(context.exception))
 
     def test_delete_ellipse_removes_dependency_entry(self) -> None:
         ellipse = self._add_ellipse(name="EllipseA")

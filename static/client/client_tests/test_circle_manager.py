@@ -89,8 +89,14 @@ class TestCircleManager(unittest.TestCase):
         self.dependency_manager.get_parents = lambda obj: {circle, other_parent} if obj is circle.center else set()
         self.dependency_manager.get_children = lambda obj: set()
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ValueError) as context:
             self.circle_manager.update_circle("CircleA", new_center_x=1.0, new_center_y=2.0)
+        self.assertEqual(
+            str(context.exception),
+            "Circle 'CircleA' cannot move its center because that point is referenced by other drawables; "
+            "to move the center point 'A' together with every object built on it, use translate_object "
+            "with name 'A', x_offset 1 and y_offset 2.",
+        )
 
     def test_update_circle_rejects_center_with_other_child(self) -> None:
         other_child = object()

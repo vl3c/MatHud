@@ -39,7 +39,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
 from drawables.circle import Circle
 from managers.base_drawable_manager import BaseDrawableManager
-from managers.edit_policy import EditRule
+from managers.edit_policy import EditRule, center_move_hint
 from managers.dependency_removal import remove_drawable_with_dependencies
 
 if TYPE_CHECKING:
@@ -235,7 +235,7 @@ class CircleManager(BaseDrawableManager):
         circle = self._get_circle_or_raise(circle_name)
         pending_fields = self._collect_circle_requested_fields(new_color, new_center_x, new_center_y)
         rules = self._validate_circle_policy(list(pending_fields.keys()))
-        self._enforce_circle_rules(circle, rules)
+        self._enforce_circle_rules(circle, rules, new_center_x, new_center_y)
         self._validate_color_request(pending_fields, new_color)
 
         self.canvas.undo_redo_manager.archive()
@@ -286,11 +286,18 @@ class CircleManager(BaseDrawableManager):
 
         return validated_rules
 
-    def _enforce_circle_rules(self, circle: Circle, rules: Dict[str, EditRule]) -> None:
+    def _enforce_circle_rules(
+        self,
+        circle: Circle,
+        rules: Dict[str, EditRule],
+        new_center_x: Optional[float] = None,
+        new_center_y: Optional[float] = None,
+    ) -> None:
         if "center" in rules and rules["center"].requires_solitary:
             if not self._is_center_point_exclusive(circle):
                 raise ValueError(
-                    f"Circle '{circle.name}' cannot move its center because that point is referenced by other drawables."
+                    f"Circle '{circle.name}' cannot move its center because that point is referenced by other "
+                    f"drawables; {center_move_hint(circle.center, new_center_x, new_center_y)}."
                 )
 
     def _is_center_point_exclusive(self, circle: Circle) -> bool:

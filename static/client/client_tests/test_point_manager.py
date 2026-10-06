@@ -100,8 +100,10 @@ class TestPointManagerUpdates(unittest.TestCase):
         dependent_segment = SimpleMock(name="segment", get_class_name=lambda: "Segment")
         self.dependency_manager.register_dependency(dependent_segment, point)
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ValueError) as context:
             self.point_manager.update_point("A", new_color="blue")
+        # No working alternative for a recolour: no move hint.
+        self.assertNotIn("translate_object", str(context.exception))
 
     def test_update_point_rejects_rename_when_dependent(self) -> None:
         point = self.point_manager.create_point(0, 0, "A", extra_graphics=False)
@@ -116,8 +118,14 @@ class TestPointManagerUpdates(unittest.TestCase):
         dependent_segment = SimpleMock(name="segment", get_class_name=lambda: "Segment")
         self.dependency_manager.register_dependency(dependent_segment, point)
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ValueError) as context:
             self.point_manager.update_point("A", new_x=1.0, new_y=2.0)
+        self.assertEqual(
+            str(context.exception),
+            "Point 'A' is referenced by other drawables and cannot be edited in place; to move it, use "
+            "translate_object with name 'A', x_offset 1 and y_offset 2; the objects built on it move with it.",
+        )
+        self.assertEqual((point.x, point.y), (0, 0))
 
     def test_update_point_rejects_when_point_is_circle_center(self) -> None:
         point = self.point_manager.create_point(0, 0, "C", extra_graphics=False)
@@ -125,8 +133,12 @@ class TestPointManagerUpdates(unittest.TestCase):
         circle.name = "circle_C"
         self.drawables.add(circle)
 
-        with self.assertRaises(ValueError):
+        point.x, point.y = 1.5, -2.0
+        with self.assertRaises(ValueError) as context:
             self.point_manager.update_point("C", new_x=10.0, new_y=20.0)
+        message = str(context.exception)
+        self.assertIn("update_circle or update_ellipse with new_center_x and new_center_y", message)
+        self.assertIn("translate_object with name 'C', x_offset 8.5 and y_offset 22", message)
 
     def test_update_point_rename_updates_circle_name(self) -> None:
         point = self.point_manager.create_point(0, 0, "C", extra_graphics=False)
