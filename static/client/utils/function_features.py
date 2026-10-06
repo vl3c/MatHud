@@ -395,7 +395,8 @@ def scan_roots(
     evaluate = _safe_evaluator(f)
     total_samples = samples if samples is not None else sample_count(right - left)
     span = right - left
-    roots, extrema = _scan(evaluate, left, right, breakpoints, total_samples)
+    pieces = _sampled_segments(evaluate, left, right, breakpoints, total_samples)
+    roots, extrema = _scan(evaluate, left, right, pieces)
     roots.extend(_close_crossing_pairs(evaluate, roots, extrema, span))
     return [RawRoot(root.x, root.end, root.touching) for root in _with_touching_roots(roots, extrema, span)]
 
