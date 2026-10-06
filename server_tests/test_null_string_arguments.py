@@ -3,14 +3,15 @@
 Local models fill unused optional arguments with the string "null" (the first live
 scenario run on Qwen: ``"color": "null"``, ``"subtype": "null"``, ``"new_name": "null"``).
 The routes turn those strings into None wherever the tool's schema allows null,
-before the client validates and runs the calls; required and free-text arguments
-keep the string.
+before the client runs the calls; arguments whose type does not allow null keep
+the string.
 """
 
 from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 import unittest
 from typing import Any, Dict, Iterator, List
 from unittest.mock import MagicMock, patch
@@ -49,20 +50,24 @@ class TestNormalizeNullStrings(unittest.TestCase):
         self.assertIsNone(args["left_bound"])
         self.assertIsNone(args["undefined_at"])
 
-    def test_required_arguments_keep_the_string(self) -> None:
+    def test_arguments_that_cannot_be_null_keep_the_string(self) -> None:
         # update_point's point_name is a plain string: a point named "null" is the model's problem.
         self.assertEqual(normalize("update_point", {"point_name": "null"})["point_name"], "null")
         self.assertEqual(normalize("draw_function", {"function_string": "null"})["function_string"], "null")
 
-    def test_free_text_arguments_keep_the_string(self) -> None:
+    def test_nullable_free_text_is_normalized_too(self) -> None:
+        # A Qwen-style region call: the unused expression must be null, or the region
+        # engine looks for a drawable named "null".
+        area = normalize("create_region_colored_area", {"expression": "null", "circle_name": "A(2)"})
+        self.assertIsNone(area["expression"])
+        self.assertEqual(area["circle_name"], "A(2)")
         segment = normalize("create_segment", {"x1": 0, "y1": 0, "x2": 1, "y2": 1, "label_text": "null",
                                                "color": "null"})  # fmt: skip
-        self.assertEqual(segment["label_text"], "null")
+        self.assertIsNone(segment["label_text"])
         self.assertIsNone(segment["color"])
-        self.assertEqual(normalize("update_label", {"label_name": "L", "new_text": "None"})["new_text"], "None")
-        area = normalize("create_region_colored_area", {"expression": "null", "circle_name": "null"})
-        self.assertEqual(area["expression"], "null")
-        self.assertIsNone(area["circle_name"])
+        self.assertIsNone(normalize("update_label", {"label_name": "L", "new_text": "None"})["new_text"])
+        # Free text that cannot be null keeps the string.
+        self.assertEqual(normalize("search_tools", {"query": "null"})["query"], "null")
 
     def test_only_the_exact_strings(self) -> None:
         for value in ("NULL", "nil", " null", "none", "nullable", ""):
@@ -81,7 +86,7 @@ class TestNormalizeNullStrings(unittest.TestCase):
             "generate_graph",
             {"name": "G", "vertices": [{"name": "A", "color": "null", "label": "null"}], "edges": []},
         )
-        self.assertEqual(graph["vertices"][0], {"name": "A", "color": None, "label": "null"})
+        self.assertEqual(graph["vertices"][0], {"name": "A", "color": None, "label": None})
 
     def test_input_is_not_modified_and_unknown_tools_pass_through(self) -> None:
         original = {"function_string": "x", "color": "null"}
@@ -164,6 +169,50 @@ class TestStreamingRouteNormalizesNullStrings(unittest.TestCase):
         self.assertIsNone(arguments["subtype"])
         self.assertIsNone(arguments["color"])
         self.assertEqual(arguments["name"], "ABC")
+
+    def test_send_message_final_event(self) -> None:
+        """The non-streaming route's final-event path (a reasoning model on the Responses API)."""
+        from static.openai_responses_api import OpenAIResponsesAPI
+
+        call = {"id": "c1", "function_name": "create_region_colored_area",
+                "arguments": {"expression": "null", "circle_name": "A(2)", "color": "undefined"}}  # fmt: skip
+
+        def events() -> Iterator[Dict[str, Any]]:
+            yield {"type": "final", "ai_message": "", "ai_tool_calls": [call], "finish_reason": "tool_calls"}
+
+        body = {"user_message": "shade the circle", "use_vision": False, "ai_model": "gpt-5.6-sol"}
+        with patch.object(OpenAIResponsesAPI, "create_response_stream", return_value=events()):
+            response = self.client.post("/send_message", json={"message": json.dumps(body)})
+        data = response.get_json()["data"]
+        arguments = data["ai_tool_calls"][0]["arguments"]
+        self.assertEqual(arguments, {"expression": None, "circle_name": "A(2)", "color": None})
+
+    def test_raw_null_strings_from_a_reference_reach_the_client_as_null(self) -> None:
+        """GEO-19's references sent raw through the route, as a model sends them (replay never does)."""
+        from cli.scenarios.model import load_catalogue
+        from static.openai_completions_api import OpenAIChatCompletionsAPI
+
+        raw = json.loads((Path(__file__).resolve().parents[1] / "scenarios" / "geometry.json").read_text("utf-8"))
+        [scenario] = [s for s in raw["scenarios"] if s["id"] == "GEO-19"]
+        calls = [
+            {"id": f"c{n}", "function_name": c["tool"], "arguments": c["args"]}
+            for n, c in enumerate(scenario["steps"][0]["reference"])
+        ]
+        self.assertEqual(calls[0]["arguments"]["subtype"], "null")  # the file holds the raw strings
+
+        def events() -> Iterator[Dict[str, Any]]:
+            yield {"type": "final", "ai_message": "", "ai_tool_calls": calls, "finish_reason": "tool_calls"}
+
+        body = {"user_message": "triangle and parabola", "use_vision": False, "ai_model": "gpt-4.1"}
+        with patch.object(OpenAIChatCompletionsAPI, "create_chat_completion_stream", return_value=events()):
+            response = self.client.post("/send_message_stream", json={"message": json.dumps(body)})
+            lines = [json.loads(line) for line in response.data.decode().splitlines() if line.strip()]
+        sent = next(line for line in lines if line.get("type") == "final")["ai_tool_calls"]
+        # The route passes on what the loader gives replay: the same calls with null for the strings.
+        loaded = [s for s in load_catalogue().scenarios if s.id == "GEO-19"][0].steps[0].calls
+        for routed, reference in zip(sent, loaded):
+            for key, value in routed["arguments"].items():
+                self.assertEqual(value, reference.args[key], f"{routed['function_name']}.{key}")
 
 
 if __name__ == "__main__":

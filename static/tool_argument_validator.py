@@ -17,7 +17,7 @@ Canonicalization rules (applied when schema type is matched):
     - String-to-integer coercion: "200" -> 200 for integer fields
     - Empty-string-to-null: "" -> None for nullable string fields
     - Null-string-to-null: "null", "None", "undefined" -> None for any field whose
-      schema allows null, free-text fields (expressions, labels, text) excepted;
+      schema type allows null (a field that cannot be null keeps the string);
       applied before validation, so also when validation fails. The routes apply
       it to every model reply's tool calls (``normalize_tool_calls``), streaming
       or not, before the client runs them.
@@ -47,13 +47,9 @@ logger = logging.getLogger(__name__)
 _ERROR_VALUE_MAX_LEN = 100
 
 # Strings some models (e.g. Qwen through llama-server) send for an optional argument they
-# leave unset. They mean null wherever the schema allows null.
+# leave unset. They mean null wherever the schema allows null, free text included: a label
+# that should read "null" is far rarer than a model filling an unused field with it.
 NULL_STRINGS = frozenset({"null", "None", "undefined"})
-# Free-text arguments whose value is shown or parsed as written: a label or text "null" is
-# kept as text even where the schema allows null.
-NULL_STRING_FREE_TEXT = frozenset(
-    {"expression", "label", "label_text", "new_label_text", "new_text", "text", "query", "function_string"}
-)
 
 
 class ValidationResult(TypedDict):
@@ -180,7 +176,7 @@ def _normalize_null_strings(value: Any, schema: Dict[str, Any], path: str, tool_
     """Return *value* with null spelled as a string replaced by None where *schema* allows null.
 
     Recurses into object properties and array items, so nested optional fields are
-    covered too. Free-text properties (``NULL_STRING_FREE_TEXT``) keep their text.
+    covered too. The schema's nullability alone decides.
     """
     if isinstance(value, str):
         if value in NULL_STRINGS and _schema_allows_null(schema):
@@ -194,7 +190,7 @@ def _normalize_null_strings(value: Any, schema: Dict[str, Any], path: str, tool_
         return {
             key: (
                 item
-                if key in NULL_STRING_FREE_TEXT or not isinstance(properties.get(key), dict)
+                if not isinstance(properties.get(key), dict)
                 else _normalize_null_strings(item, properties[key], f"{path}.{key}" if path else key, tool_name)
             )
             for key, item in value.items()
@@ -520,11 +516,12 @@ class ToolArgumentValidator:
     def normalize_null_strings(function_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Return the arguments with ``"null"``, ``"None"`` and ``"undefined"`` as None where null is allowed.
 
-        Only the exact strings, and only for properties whose schema allows null
-        (optional ones; required properties never do). Free-text properties
-        (``NULL_STRING_FREE_TEXT``: expressions, labels, text) keep the string.
-        Unknown tools and non-dict arguments come back unchanged; the input is
-        never modified.
+        Only the exact strings, and only for properties whose schema type allows
+        null. Strict schemas list every property as required, so "required" says
+        nothing here: an optional argument is one whose type includes null, and a
+        property whose type does not (``function_string``, a point's ``point_name``)
+        keeps the string, whatever it means. Unknown tools and non-dict arguments
+        come back unchanged; the input is never modified.
         """
         schema = _SCHEMA_INDEX.get(function_name)
         if schema is None or not isinstance(arguments, dict):
