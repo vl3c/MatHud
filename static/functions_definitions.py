@@ -2662,14 +2662,14 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "calculate_area",
-            "description": "Calculates geometric area (triangle, polygon, circle, arc segment, region unions/intersections) from canvas drawables or boolean region expressions. Use this for 'area of a triangle/circle/region'.",
+            "description": "Calculates geometric area (triangle, polygon, circle, arc segment, region unions/intersections) from canvas drawables or boolean region expressions, and the area of a coloured area given by its name alone (e.g. 'area_between_f_and_x_axis', measured by numeric integration of |f1 - f2| over its bounds; the result gives the method and an error estimate). Use this for 'area of a triangle/circle/region/shaded area'.",
             "strict": True,
             "parameters": {
                 "type": "object",
                 "properties": {
                     "expression": {
                         "type": "string",
-                        "description": "Boolean expression with drawable names. Examples: 'circle_A' (single shape), 'circle_A & triangle_ABC' (intersection), 'C(5) & AB' (circle cut by segment AB), 'ArcMaj_CD & triangle_ABC' (arc segment intersected with triangle), 'circle_A - triangle_ABC' (difference), '(circle_A & quad_ABCD) & EF' (shapes intersected then cut by segment).",
+                        "description": "Boolean expression with drawable names. Examples: 'circle_A' (single shape), 'area_between_f_and_x_axis' (a coloured area, on its own only), 'circle_A & triangle_ABC' (intersection), 'C(5) & AB' (circle cut by segment AB), 'ArcMaj_CD & triangle_ABC' (arc segment intersected with triangle), 'circle_A - triangle_ABC' (difference), '(circle_A & quad_ABCD) & EF' (shapes intersected then cut by segment).",
                     }
                 },
                 "required": ["expression"],

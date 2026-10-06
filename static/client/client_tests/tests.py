@@ -345,6 +345,7 @@ from .test_scenario_hooks import (
 )
 from .test_result_processor_traced import TestGetResultsTraced
 from .test_tool_batch_results import (
+    TestColoredAreaMeasurement,
     TestEditRefusalGuidance,
     TestToolBatchUndo,
     TestToolErrorResults,
@@ -782,6 +783,7 @@ class Tests:
             TestToolNoOpResults,
             TestToolErrorResults,
             TestEditRefusalGuidance,
+            TestColoredAreaMeasurement,
             TestJsonSafe,
             TestGraphAnalysisResultsAreJson,
             TestSendPathFallback,

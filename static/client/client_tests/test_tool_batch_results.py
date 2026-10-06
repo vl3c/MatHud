@@ -7,6 +7,7 @@ same path a model tool batch takes, against a real canvas.
 from __future__ import annotations
 
 import json
+import math
 import unittest
 from typing import Any, Dict, List, Tuple
 
@@ -593,6 +594,68 @@ class TestToolErrorResults(_ToolBatchTestCase):
         turn = aggregate_turn([], tool_results, None, "stop")
 
         self.assertEqual(turn["tool_errors"], 1)
+
+
+class TestColoredAreaMeasurement(_ToolBatchTestCase):
+    """calculate_area measures a coloured area by its name (ST-01 in the first live run)."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.run_single(
+            "draw_function", function_string="(1/sqrt(2*pi))*exp(-x^2/2)", name="normal", left_bound=-4, right_bound=4
+        )
+        self.run_single("create_colored_area", drawable1_name="normal", drawable2_name="x_axis",
+                        left_bound=-1, right_bound=1)  # fmt: skip
+
+    def test_normal_pdf_within_one_sigma(self) -> None:
+        result = self.run_single("calculate_area", expression="area_between_normal_and_x_axis")
+
+        self.assertEqual(result["type"], "area")
+        self.assertAlmostEqual(result["value"], 0.682689492137, places=8)
+        self.assertIn("Simpson", result["method"])
+        self.assertLess(result["error_estimate"], 1e-8)
+        self.assertEqual(result["bounds"], [-1, 1])
+
+    def test_between_two_functions(self) -> None:
+        self.run_single("draw_function", function_string="sin(x)", name="f", left_bound=-10, right_bound=10)
+        self.run_single("draw_function", function_string="cos(x)", name="g", left_bound=-10, right_bound=10)
+        self.run_single("create_colored_area", drawable1_name="f", drawable2_name="g", left_bound=0,
+                        right_bound=math.pi)  # fmt: skip
+
+        result = self.run_single("calculate_area", expression="area_between_f_and_g")
+
+        self.assertAlmostEqual(result["value"], 2 * math.sqrt(2), places=7)
+        self.assertEqual(len(result["crossings"]), 1)
+
+    def test_an_area_across_an_asymptote_diverges(self) -> None:
+        self.run_single("draw_function", function_string="tan(x)", name="t", left_bound=0, right_bound=3)
+        self.run_single("create_colored_area", drawable1_name="t", drawable2_name="x_axis", left_bound=0,
+                        right_bound=3)  # fmt: skip
+
+        result = self.run_single("calculate_area", expression="area_between_t_and_x_axis")
+
+        self.assertEqual(result["type"], "error")
+        self.assertIn("diverges near x ≈ 1.5708", result["value"])
+
+    def test_a_region_area_is_measured_from_its_expression(self) -> None:
+        self.run_single("create_circle", center_x=0, center_y=0, radius=2)
+        self.run_single("create_region_colored_area", expression="A(2)")
+        area_name = self.canvas.drawable_manager.drawables.get_colored_areas()[-1].name
+
+        result = self.run_single("calculate_area", expression=area_name)
+
+        self.assertEqual(result["type"], "area", result)
+        self.assertAlmostEqual(result["value"], 4 * math.pi, places=2)
+        self.assertIn("region expression 'A(2)'", result["method"])
+        self.assertFalse(result["method"].startswith("exact"))
+
+    def test_a_coloured_area_inside_an_expression_is_explained(self) -> None:
+        self.run_single("create_circle", center_x=0, center_y=0, radius=1)
+
+        result = self.run_single("calculate_area", expression="area_between_normal_and_x_axis & A(1)")
+
+        self.assertEqual(result["type"], "error")
+        self.assertIn("can only be measured on its own", result["value"])
 
 
 class TestEditRefusalGuidance(_ToolBatchTestCase):
