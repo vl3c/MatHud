@@ -666,7 +666,7 @@ class TestViewNoteJsonFormat(CanvasFormatEnv):
 
 
 class TestViewNoteHistory(CanvasFormatEnv):
-    """Notes older than the previous turn leave the history; a dropped round's objects count as new again."""
+    """Notes older than the previous turn leave the history."""
 
     def test_the_previous_turn_keeps_its_note(self) -> None:
         """The user's reply may accept the offer: the suggested zoom must still be in the history."""
@@ -692,19 +692,15 @@ class TestViewNoteHistory(CanvasFormatEnv):
         api._prepare_messages_for_request(user_prompt())
         self.assertEqual(tool_contents(api)["x"], "ok")
 
-    def test_a_refused_round_is_measured_again(self) -> None:
-        """Anthropic drops a refused round, its tool results and note included; the redrawn speck is new again."""
-        api = self.anthropic_api()
-        api.messages.append(api._parse_and_prepare_message(user_prompt("Draw", state=EMPTY_STATE)) or {})
-        api.messages.append({"role": "assistant", "content": "", "tool_calls": ONE_CALL})
-        api._append_tool_messages([SimpleNamespace(id="call_t")])
-        api._parse_and_prepare_message(one_call_results_prompt(TINY_STATE))
-        api._drop_refused_user_message()
-        api.messages.append(api._parse_and_prepare_message(user_prompt("Draw it again", state=EMPTY_STATE)) or {})
-        api.messages.append({"role": "assistant", "content": "", "tool_calls": ONE_CALL})
-        api._append_tool_messages([SimpleNamespace(id="call_t")])
-        api._parse_and_prepare_message(one_call_results_prompt(TINY_STATE))
-        self.assertIn(TINY_NOTE, tool_contents(api)["call_t"])
+    def test_a_min_json_note_key_leaves_the_history_too(self) -> None:
+        canvas = json.dumps({"view": [-400, 400, -300, 300], "view_note": "View note: the new ABC spans"})
+        api = self.chat_api()
+        api.messages.append({"role": "tool", "tool_call_id": "x", "content": f"ok\n[canvas now]\n{canvas}"})
+        api.messages.append({"role": "user", "content": "previous turn"})
+        api._prepare_messages_for_request(user_prompt())
+        stripped = tool_contents(api)["x"].split("\n")
+        self.assertEqual(stripped[:2], ["ok", "[canvas now]"])
+        self.assertEqual(json.loads(stripped[2]), {"view": [-400, 400, -300, 300]})
 
 
 if __name__ == "__main__":

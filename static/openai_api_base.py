@@ -132,17 +132,32 @@ _CANVAS_PROMPT_SENTENCES: Dict[CanvasFormat, str] = {
 # when something the model just drew can't be seen. The app never changes the view on its own,
 # and neither should the model: it mentions the problem and offers the suggested view. Notes
 # older than the previous turn are removed from the history when the user sends a new message.
-VIEW_NOTE_GUIDANCE = "If the [canvas changes] after your latest tool calls end with a view note (something you just drew is too small or too flat on screen, or outside the visible area), end your reply with one short sentence that mentions it and offers the suggested zoom. Never call zoom or other view tools because of a view note: change the view only when the user asks for it or agrees."
+VIEW_NOTE_GUIDANCE = "If the [canvas changes] after the tool calls you made since the user's latest message end with a view note (something you just drew is too small or too flat on screen, or outside the visible area), end your reply with one short sentence that mentions it and offers the suggested zoom. Never call zoom or other view tools because of a view note: change the view only when the user asks for it or agrees."
 
 
 def _without_view_note_lines(text: str) -> str:
-    """``text`` without "View note:" lines (and a [canvas changes] header left with nothing under it)."""
+    """``text`` without its view note: "View note:" lines (and a [canvas changes] header left with
+    nothing under it), and the "view_note" key of a min_json canvas line."""
     if VIEW_NOTE_PREFIX not in text:
         return text
-    lines = [line for line in text.split("\n") if not line.startswith(VIEW_NOTE_PREFIX)]
+    lines = [_without_view_note_key(line) for line in text.split("\n") if not line.startswith(VIEW_NOTE_PREFIX)]
     if lines and lines[-1] == CHANGES_HEADER:
         lines.pop()
     return "\n".join(lines)
+
+
+def _without_view_note_key(line: str) -> str:
+    """A min_json canvas line (sent as [canvas now]) without its "view_note" key."""
+    if not line.startswith("{") or '"view_note"' not in line:
+        return line
+    try:
+        canvas = json.loads(line)
+    except json.JSONDecodeError:
+        return line
+    if not isinstance(canvas, dict):
+        return line
+    canvas.pop("view_note", None)
+    return json.dumps(canvas, separators=(",", ":"), ensure_ascii=False)
 
 
 def without_measurement_keys(full_prompt: str) -> str:
@@ -219,9 +234,6 @@ class OpenAIAPIBase:
 
     # Last canvas state shown to the model, so tool results can report what changed.
     _last_canvas_state: Optional[Dict[str, Any]] = None
-    # The one shown before the latest user message: restored when that message's round is
-    # dropped from the history (e.g. after a refusal), so the objects it drew count as new again.
-    _canvas_state_before_user_message: Optional[Dict[str, Any]] = None
 
     # Metrics of the most recent model request (see static/response_metrics.py).
     last_response_metrics: Optional[ResponseMetrics] = None
@@ -807,7 +819,6 @@ class OpenAIAPIBase:
         or drew, is the user's business. Notes older than the previous turn leave the history.
         """
         self._strip_view_notes()
-        self._canvas_state_before_user_message = self._last_canvas_state
         self._last_canvas_state = canvas_state
 
     def _next_view_note(self, canvas_state: Dict[str, Any]) -> Optional[str]:
@@ -815,10 +826,6 @@ class OpenAIAPIBase:
         note: Optional[str] = view_note(self._last_canvas_state, canvas_state)
         self._last_canvas_state = canvas_state
         return note
-
-    def _forget_dropped_user_message(self) -> None:
-        """The latest user message's round left the history: measure the next batch against the canvas before it."""
-        self._last_canvas_state = self._canvas_state_before_user_message
 
     def _strip_view_notes(self) -> None:
         """Remove "View note:" lines older than the previous turn from the tool messages.

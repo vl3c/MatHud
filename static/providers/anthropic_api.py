@@ -704,7 +704,6 @@ class AnthropicAPI(OpenAIAPIBase):
         for index in range(len(self.messages) - 1, -1, -1):
             if self.messages[index].get("role") == "user":
                 del self.messages[index:]
-                self._forget_dropped_user_message()
                 return
 
     def _finalize_anthropic_stream(self, accumulated_text: str, tool_calls: List[Dict[str, Any]]) -> None:
