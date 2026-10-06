@@ -425,7 +425,7 @@
       "title": "Ellipse rotation accumulates",
       "tags": ["ellipses", "transforms"],
       "smoke": false,
-      "targets": "rotation bookkeeping; ellipse names ignore the requested name (Roadmap known issue)",
+      "targets": "rotation bookkeeping; an ellipse keeps its default name through a rotation",
       "steps": [
         {
           "user": "Draw an ellipse centred at (-8, 5) with radii 3 and 1.5, rotated 30 degrees.",

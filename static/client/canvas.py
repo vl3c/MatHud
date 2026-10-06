@@ -1326,9 +1326,16 @@ class Canvas:
             )
         )
 
-    def get_ellipse(self, center_x: float, center_y: float, radius_x: float, radius_y: float) -> Optional["Drawable"]:
-        """Get an ellipse by its center coordinates and radii"""
-        return self.drawable_manager.get_ellipse(center_x, center_y, radius_x, radius_y)
+    def get_ellipse(
+        self,
+        center_x: float,
+        center_y: float,
+        radius_x: float,
+        radius_y: float,
+        rotation_angle: Optional[float] = None,
+    ) -> Optional["Drawable"]:
+        """Get an ellipse by its center coordinates, radii and optional rotation angle"""
+        return self.drawable_manager.get_ellipse(center_x, center_y, radius_x, radius_y, rotation_angle)
 
     def get_ellipse_by_name(self, name: str) -> Optional["Drawable"]:
         """Get an ellipse by its name"""
@@ -1344,10 +1351,12 @@ class Canvas:
         name: str = "",
         color: Optional[str] = None,
         extra_graphics: bool = True,
+        reuse_existing: bool = True,
     ) -> "Drawable":
         """Create an ellipse with the specified center, radii, and rotation.
 
         A null rotation_angle (strict-schema models send null for "not given") means 0.
+        reuse_existing=False always creates a new ellipse (workspace restore).
         """
         return self.drawable_manager.create_ellipse(
             center_x,
@@ -1358,6 +1367,7 @@ class Canvas:
             name,
             color=color,
             extra_graphics=extra_graphics,
+            reuse_existing=reuse_existing,
         )
 
     def delete_ellipse(self, name: str) -> bool:

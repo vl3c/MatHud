@@ -219,14 +219,15 @@ class AreaExpressionEvaluator:
         """Read a drawable name starting at position start.
 
         Names can be alphanumeric with underscores and prime symbols ('),
-        and may include parenthesized suffixes like (25) or (25, 15) for circles/ellipses.
+        and may include parenthesized suffixes like (25) or (25, 15) for circles/ellipses,
+        followed by the '_<n>' suffix that keeps an ellipse name unique.
 
         Supported name patterns:
             - Points: A, A', A'', B'
             - Segments: AB, A'B, A''E'
             - Polygons: triangle_ABC, ABC, ABCD
             - Circles: C(25), C(50)
-            - Ellipses: E(50, 30), E(3, 2)
+            - Ellipses: E(50, 30), E(3, 2), E(3, 2)_1
             - Arcs: ArcMajor, ArcMinor
             - Functions: f, g, h
         """
@@ -244,8 +245,15 @@ class AreaExpressionEvaluator:
             suffix = AreaExpressionEvaluator._read_drawable_name_suffix(expr, i)
             if suffix:
                 i += len(suffix)
+                i += len(AreaExpressionEvaluator._read_unique_name_suffix(expr, i))
 
         return expr[start:i]
+
+    @staticmethod
+    def _read_unique_name_suffix(expr: str, start: int) -> str:
+        """Read a '_<n>' suffix like the _1 in E(3, 2)_1."""
+        match = re.match(r"_[0-9]+", expr[start:])
+        return match.group(0) if match else ""
 
     @staticmethod
     def _read_drawable_name_suffix(expr: str, start: int) -> str:
