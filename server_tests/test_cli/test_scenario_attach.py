@@ -111,6 +111,48 @@ def window(monkeypatch: pytest.MonkeyPatch) -> AttachedWindow:
     return fake
 
 
+def _guarded_browser() -> tuple[Any, Any]:
+    """An AttachedBrowser on a scripted CDP page that answers the guard, send and model-list scripts."""
+    from cli.scenarios.attach import AttachedBrowser
+    from server_tests.test_cli.test_cdp import PAGE, FakePage, FakeSocket, _value
+
+    class Page(FakePage):
+        def __init__(self) -> None:
+            super().__init__()
+            self.guards: list[str] = []
+            self.listed = True
+            self.sends = self.refreshes = self.model_list_polls = 0
+
+        def __call__(self, message: dict[str, Any]) -> dict[str, Any]:
+            expression = (message.get("params") or {}).get("expression", "")
+
+            def answer(value: Any) -> dict[str, Any]:
+                return {"id": message["id"], "result": _value(value)}
+
+            if "setMatHudAutomationGuards" in expression:
+                self.guards.append(expression)
+                return answer(json.dumps({"status": "ok", "workspace_tools_blocked": True}))
+            if "matHudModelsLoaded" in expression:
+                self.model_list_polls += 1
+            if "sendMatHudMessage.apply" in expression:
+                self.sends += 1
+                if not self.listed:
+                    return answer(json.dumps({"status": "error", "error": "Model option not found: qwen-local"}))
+                return answer(json.dumps({"status": "started"}))
+            if "refreshMatHudModels" in expression:
+                self.refreshes += 1
+                self.listed = True
+                return answer(True)
+            if "ai-model-selector" in expression:
+                return answer(self.listed)
+            return super().__call__(message)
+
+    page = Page()
+    browser = AttachedBrowser(9301, connect=lambda url, timeout: FakeSocket(page), targets=lambda p, h: [PAGE])
+    browser.setup()
+    return page, browser
+
+
 def _no_server(*_args: Any, **_kwargs: Any) -> Any:
     raise AssertionError("attach mode must not start or probe a server of its own")
 
@@ -343,6 +385,32 @@ class TestAttachedReplay:
         with pytest.raises(RunStopped, match="did not block its workspace tools"):
             browser.wait_for_app_ready(2)
 
+    def test_the_lease_is_renewed_by_status_polls_during_a_long_turn(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        page, browser = _guarded_browser()
+        browser.wait_for_app_ready(2)
+        assert len(page.guards) == 1
+        assert "lease_s" in page.guards[0]  # the block is a lease the window lifts if not renewed
+        browser.call_hook("getMatHudTurnStatus")  # renewed less than RENEW_EVERY_S ago: no renewal
+        assert len(page.guards) == 1
+        monkeypatch.setattr(attach_module, "RENEW_EVERY_S", -1.0)  # time has passed
+        browser.call_hook("getMatHudTurnStatus")
+        assert len(page.guards) == 2
+
+    def test_readiness_waits_for_the_model_list_with_a_bound(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        page, browser = _guarded_browser()
+        page.models_loaded = False
+        monkeypatch.setattr(attach_module, "MODELS_LOADED_TIMEOUT_S", 0.3)
+        assert browser.wait_for_app_ready(2) is True  # bounded: a window with no models still runs
+        assert page.model_list_polls >= 2
+
+    def test_a_send_refused_for_a_missing_model_refreshes_the_list_and_retries_once(self) -> None:
+        page, browser = _guarded_browser()
+        browser.wait_for_app_ready(2)
+        page.listed = False
+        reply = browser.call_hook("sendMatHudMessage", "hi", "qwen-local", "{}")
+        assert reply == {"status": "started"}
+        assert page.sends == 2 and page.refreshes == 1
+
     def test_a_closed_window_stops_the_run(self) -> None:
         from cli.cdp import CDPUnavailable
         from cli.scenarios.attach import AttachedBrowser
@@ -539,6 +607,46 @@ class TestFitView:
         # The step was graded and recorded before the fit.
         assert t1["state"]["Cartesian_System_Visibility"] == VIEW
         assert "View fitted to the drawings" in (out / "summary.md").read_text()
+
+    def test_regrading_an_attached_fitted_run_gives_no_false_failures(
+        self, tmp_path: Path, fit_dir: Path, window: AttachedWindow, pauses: list[float]
+    ) -> None:
+        from cli.scenarios.model import load_catalogue
+        from cli.scenarios.report import regrade
+
+        out = tmp_path / "out"
+        result = invoke(fit_dir, out, "--attach-desktop", "9301", "--yes", "--ids", "GEO-80")
+        assert result.exit_code == 0, result.output
+        results = out / "results.json"
+        steps = json.loads(results.read_text())["scenarios"][0]["steps"]
+        assert [s["step"] for s in steps if "fitted_view" in s] == ["t1", "do1"]  # an empty setup is not fitted
+
+        catalogue = load_catalogue(fit_dir)
+        summary, _ = regrade(results, catalogue)
+        assert summary["exit_code"] == 0 and not summary["unexpected"]
+
+        # Without the stored fitted views the regrade would compare against the unfitted canvas.
+        data = json.loads(results.read_text())
+        for step in data["scenarios"][0]["steps"]:
+            step.pop("fitted_view", None)
+        stripped = tmp_path / "stripped" / "results.json"
+        stripped.parent.mkdir()
+        stripped.write_text(json.dumps(data))
+        summary, _ = regrade(stripped, catalogue)
+        assert summary["unexpected"] == ["GEO-80"]
+
+    def test_finding_features_or_placing_graphs_in_the_view_is_view_sensitive(self) -> None:
+        from cli.scenarios.model import ToolCall
+        from cli.scenarios.runner import _uses_the_view
+
+        assert _uses_the_view(ToolCall("find_function_features", {"function_names": ["f"], "left_bound": None}))
+        assert not _uses_the_view(
+            ToolCall("find_function_features", {"function_names": ["f"], "left_bound": -1, "right_bound": 1})
+        )
+        assert _uses_the_view(ToolCall("generate_graph", {"vertices": [{"name": "A", "x": None, "y": None}]}))
+        assert not _uses_the_view(ToolCall("generate_graph", {"vertices": [{"name": "A", "x": 1, "y": 2}]}))
+        box = {"x": 0, "y": 0, "width": 4, "height": 4}
+        assert not _uses_the_view(ToolCall("generate_graph", {"vertices": [{"name": "A"}], "placement_box": box}))
 
     def test_without_the_rebase_the_fit_would_fail_the_next_step(
         self,

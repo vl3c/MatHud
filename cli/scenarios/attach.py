@@ -37,13 +37,13 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 from pathlib import Path
 from typing import Any, Callable, Optional
 
 import click
 
-from cli.browser_backend import HookClient
-from cli.cdp import CDPBrowser, CDPUnavailable
+from cli.cdp import CDPBrowser, CDPError, CDPUnavailable
 from cli.scenarios.live import LiveOptions, LiveRunner, RequestBudget, planned_requests
 from cli.scenarios.live_config import GuardError, LiveSettings, check_models, check_request_cap, live_plan
 from cli.scenarios.model import Catalogue, Scenario
@@ -67,20 +67,36 @@ UNPINNED_SETTINGS = (
 PIN_OPTIONS = ("tool_exposure", "canvas_format", "canvas_budget", "tool_search_mode", "local_reasoning_effort")
 
 
-BLOCK_WORKSPACE_TOOLS = json.dumps({"block_workspace_tools": True})
+# The workspace-tool block is a lease: the window lifts it by itself unless the run renews
+# it, so a CLI that crashes or is killed cannot leave it on. Renewed before every hook that
+# can run tools and, during a long turn, by the turn's status polls every RENEW_EVERY_S.
+GUARD_LEASE_S = 90.0
+RENEW_EVERY_S = 20.0
+BLOCK_WORKSPACE_TOOLS = json.dumps({"block_workspace_tools": True, "lease_s": GUARD_LEASE_S})
 UNBLOCK_WORKSPACE_TOOLS = json.dumps({"block_workspace_tools": False})
 # Hooks that can run tools: the block is re-applied before each (cheap, and idempotent).
 GUARDED_HOOKS = frozenset({"resetMatHudSession", "runMatHudToolCalls", "sendMatHudMessage"})
+# How long a ready page may take to finish loading its model list (window.matHudModelsLoaded).
+MODELS_LOADED_TIMEOUT_S = 10.0
+_MODELS_LOADED_JS = "return window.matHudModelsLoaded !== false;"
 
 
 class AttachedBrowser(CDPBrowser):
     """The run's session browser: the desktop window, with the run's guards applied whenever the app is ready.
 
     Workspace tools are blocked each time the page is ready and before every
-    hook that can run tools (a reload, also one from outside, lifts the block).
+    hook that can run tools (a reload, also one from outside, lifts the block),
+    and the block's lease is renewed while a turn is polled. A ready page is
+    also given time to load its model list. A send refused for a model missing
+    from the dropdown refreshes the list and is retried once (nothing was sent).
     A DevTools port that refuses connections means the window was closed: the
     run stops instead of erroring on every remaining scenario.
     """
+
+    def __init__(self, debug_port: int, **kwargs: Any) -> None:
+        super().__init__(debug_port, **kwargs)
+        self._renewed_at = float("-inf")
+        self._blocking = False
 
     def setup(self) -> None:
         try:
@@ -91,20 +107,47 @@ class AttachedBrowser(CDPBrowser):
     def wait_for_app_ready(self, timeout: float = 60.0) -> bool:
         if not super().wait_for_app_ready(timeout):
             return False
+        if self._blocking:  # called back from the guard hook's own wait-and-retry
+            return True
+        self._wait_for_model_list()
         self._block_workspace_tools()
         return True
 
     def call_hook(self, name: str, *args: Any, timeout: int = 30) -> dict[str, Any]:
         # The page may have been reloaded from outside since the block was applied (a reload
-        # lifts it), so it is applied again before anything that can run tools.
-        if name in GUARDED_HOOKS:
+        # lifts it), so it is applied again before anything that can run tools; any other
+        # hook (the turn's status polls) renews the lease once it is RENEW_EVERY_S old.
+        if name in GUARDED_HOOKS or time.monotonic() - self._renewed_at > RENEW_EVERY_S:
             self._block_workspace_tools()
-        return super().call_hook(name, *args, timeout=timeout)
+        reply = super().call_hook(name, *args, timeout=timeout)
+        if name == "sendMatHudMessage" and "Model option not found" in str(reply.get("error", "")):
+            from cli.desktop_automation import ensure_model_listed
+
+            ensure_model_listed(self, str(args[1]))  # the window refused before sending anything
+            reply = super().call_hook(name, *args, timeout=timeout)
+        return reply
+
+    def _wait_for_model_list(self) -> None:
+        deadline = time.monotonic() + MODELS_LOADED_TIMEOUT_S
+        while time.monotonic() < deadline:
+            try:
+                if self.execute_js(_MODELS_LOADED_JS, timeout=5) is True:
+                    return
+            except CDPError:
+                pass
+            time.sleep(0.05)
 
     def _block_workspace_tools(self) -> None:
-        reply = HookClient.call_hook(self, "setMatHudAutomationGuards", BLOCK_WORKSPACE_TOOLS)
+        self._blocking = True
+        try:
+            reply = CDPBrowser.call_hook(self, "setMatHudAutomationGuards", BLOCK_WORKSPACE_TOOLS)
+        except RuntimeError as exc:  # an app without the guard hook
+            raise RunStopped(f"the window cannot block its workspace tools: {exc}") from exc
+        finally:
+            self._blocking = False
         if reply.get("workspace_tools_blocked") is not True:
             raise RunStopped(f"the window did not block its workspace tools: {reply}")
+        self._renewed_at = time.monotonic()
 
 
 def attached_browser(port: int) -> CDPBrowser:

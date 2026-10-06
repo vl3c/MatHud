@@ -224,6 +224,7 @@ class FakePage:
         self.reloads = 0
         self.marker: Optional[str] = None
         self.ready = True
+        self.models_loaded = True  # window.matHudModelsLoaded
         self.png = b"\x89PNG fake"
         # Hook calls answered "missing" (as while a page reloaded from outside is loading).
         self.missing_hook_calls = 0
@@ -236,6 +237,8 @@ class FakePage:
             if expression.startswith("window.__mathudCdpReloadPending = "):
                 self.marker = json.loads(expression.split("= ", 1)[1])
                 result = _value(self.marker)
+            elif "matHudModelsLoaded" in expression:
+                result = _value(self.models_loaded)
             elif "typeof window.sendMatHudMessage" in expression:
                 waiting = re.search(r'!== "([0-9a-f]+)"', expression)
                 result = _value(self.ready and not (waiting and self.marker == waiting.group(1)))

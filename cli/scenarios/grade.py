@@ -67,6 +67,15 @@ class StepRecordData:
         )
 
 
+def fitted_view_fields(data: StepRecordData) -> dict[str, Any]:
+    """What a display fit changed (the view's fields), as a step record stores it for ``rebase_view``."""
+    inspection = data.inspection or {}
+    return {
+        "state": {key: value for key, value in data.state.items() if not isinstance(value, list)},
+        "inspection": {key: inspection[key] for key in ("polar_radial_spacing",) if key in inspection},
+    }
+
+
 def batch_data(record: dict[str, Any]) -> BatchData:
     """A stored batch record as the invariants see it."""
     state = record.get("state")

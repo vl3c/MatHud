@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar
 
 from cli.scenarios.geometry import SampleRequests
-from cli.scenarios.grade import ScenarioGrader, StepRecordData
+from cli.scenarios.grade import ScenarioGrader, StepRecordData, fitted_view_fields
 from cli.scenarios.model import Catalogue, Scenario, Step, ToolCall
 from cli.scenarios.report import ResultSink, ScenarioOutcome
 
@@ -59,7 +59,7 @@ class ReplayOptions:
 # Tools that set the view, and check fields that read it: a scenario using either is never fitted.
 VIEW_TOOLS = frozenset({"zoom", "set_coordinate_system", "set_grid_visible"})
 _VIEW_CHECK_PATHS = ("polar_radial_spacing", "grid_visible", "coordinate_mode", "left_bound", "right_bound",
-                     "top_bound", "bottom_bound")  # fmt: skip
+                     "top_bound", "bottom_bound", "reference_scale_factor")  # fmt: skip
 
 
 def view_sensitive(scenario: Scenario) -> bool:
@@ -70,10 +70,25 @@ def view_sensitive(scenario: Scenario) -> bool:
     """
     if "view" in scenario.tags:
         return True
-    calls = scenario.setup_calls + [call for step in scenario.steps for call in step.calls]
-    if any(call.tool in VIEW_TOOLS for call in calls):
+    step_calls = [call for step in scenario.steps for call in step.calls]
+    if any(call.tool in VIEW_TOOLS for call in scenario.setup_calls + step_calls):
+        return True
+    # Tools whose result depends on the view when they run after a fit (setup runs before any).
+    if any(_uses_the_view(call) for call in step_calls):
         return True
     return any(_reads_view(check) for step in scenario.steps for check in step.checks)
+
+
+def _uses_the_view(call: ToolCall) -> bool:
+    """``find_function_features`` without bounds searches the visible x range; ``generate_graph``
+    without a ``placement_box`` places vertices with no coordinates inside the visible view."""
+    args = call.args or {}
+    if call.tool == "find_function_features":
+        return args.get("left_bound") is None or args.get("right_bound") is None
+    if call.tool == "generate_graph" and not args.get("placement_box"):
+        vertices = args.get("vertices") or []
+        return any(not isinstance(v, dict) or v.get("x") is None or v.get("y") is None for v in vertices)
+    return False
 
 
 def _reads_view(check: Any) -> bool:
@@ -300,15 +315,17 @@ class ReplayRunner:
         setup = self._run_calls(scenario.setup_calls) if scenario.setup_calls else None
         data = self._with_samples(grader, None, setup)
         self._record(outcome, grader, "setup", "setup", None, data, time.time() - t0)
-        self._present(scenario, grader, paced=setup is not None or scenario.fixture_state is not None)
+        self._present(scenario, grader, outcome, paced=setup is not None or scenario.fixture_state is not None)
 
         for step in scenario.steps:
             t0 = time.time()
             data, extra = self._execute_step(scenario, step, grader)
             self._record(outcome, grader, step.id, step.kind, step, data, time.time() - t0, extra)
-            self._present(scenario, grader)
+            self._present(scenario, grader, outcome)
 
-    def _present(self, scenario: Scenario, grader: ScenarioGrader, paced: bool = True) -> None:
+    def _present(
+        self, scenario: Scenario, grader: ScenarioGrader, outcome: ScenarioOutcome, paced: bool = True
+    ) -> None:
         """After a step is graded and recorded: fit the view for display (attach mode), then pause."""
         if self.options.fit_view and not view_sensitive(scenario):
             try:
@@ -317,8 +334,12 @@ class ReplayRunner:
                 self.log(f"  could not fit the view: {exc}")
             else:
                 if reply.get("fitted"):
-                    # Later steps start from the fitted view, so it is what they are compared with.
-                    grader.rebase_view(self._snapshot(None))
+                    # Later steps start from the fitted view, so it is what they are compared with;
+                    # the step's record keeps it so --regrade rebases the same way.
+                    fitted = self._snapshot(None)
+                    grader.rebase_view(fitted)
+                    if outcome.steps:
+                        outcome.steps[-1]["fitted_view"] = fitted_view_fields(fitted)
         if paced and self.options.pace_s > 0:
             time.sleep(self.options.pace_s)
 

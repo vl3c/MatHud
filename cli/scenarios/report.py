@@ -754,6 +754,10 @@ def regrade_steps(
         elif step_id == "setup" or step_id in steps_by_id:
             results = grader.grade(step_id, steps_by_id.get(step_id), data)
             record["results"] = [result.to_dict() for result in results]
+            fitted = record.get("fitted_view")
+            if isinstance(fitted, dict):
+                # Attach mode fitted the view after this step: the next step started from it.
+                grader.rebase_view(StepRecordData(state=fitted.get("state") or {}, inspection=fitted.get("inspection")))
         else:
             record["results"] = [
                 CheckResult(f"{step_id}.regrade", "check", "regrade", False, error=True,
