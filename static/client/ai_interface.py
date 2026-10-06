@@ -543,6 +543,10 @@ class AIInterface:
         state_before = self.canvas.get_canvas_state()
         t0 = window.performance.now()
         traced_calls: list[Dict[str, Any]] = []
+        in_group = getattr(self, "_turn_undo_group_open", False)
+        if in_group:
+            # Only the view changes made by the batch itself belong to the turn's step.
+            self._undo_manager_call("mark_batch_view")
         try:
             call_results, traced_calls = ProcessFunctionCalls.get_results_traced(
                 tool_calls,
@@ -553,11 +557,15 @@ class AIInterface:
             self._store_results_in_canvas_state(call_results)
             self._turn_metrics.record_tool_results(traced_calls, turn_token)
         except Exception:
+            if in_group:
+                self._undo_manager_call("note_batch_view")
             try:
                 self._store_batch_trace(state_before, self.canvas.get_canvas_state(), traced_calls, t0)
             except Exception:
                 pass
             raise
+        if in_group:
+            self._undo_manager_call("note_batch_view")
         state_after = self.canvas.get_canvas_state()
         trace = self._store_batch_trace(state_before, state_after, traced_calls, t0)
         return {
@@ -612,11 +620,23 @@ class AIInterface:
         any change reverts the previous step; later changes in the turn form one
         new step (UndoRedoManager.undo and redo do this inside any open batch).
         Opening twice is a no-op.
+
+        The group tracks the view (``UndoRedoManager.track_batch_view``): only the view
+        parts the turn's tool batches change belong to its step, so a pan or zoom the
+        user makes while the model thinks is kept when the reply is undone.
         """
         if getattr(self, "_turn_undo_group_open", False):
             return
         self.canvas.begin_undo_batch()
         self._turn_undo_group_open = True
+        self._undo_manager_call("track_batch_view")
+
+    def _undo_manager_call(self, method: str) -> None:
+        """Call an UndoRedoManager method if the canvas has one (test doubles may not)."""
+        manager = getattr(self.canvas, "undo_redo_manager", None)
+        function = getattr(manager, method, None)
+        if callable(function):
+            function()
 
     def _close_turn_undo_group(self) -> None:
         """Close the turn's undo group, pushing one entry if the turn changed the canvas."""

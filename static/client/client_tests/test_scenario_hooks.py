@@ -462,6 +462,63 @@ class TestTurnUndoGroup(unittest.TestCase):
         self.assertFalse(self.ai.is_processing)
         self.assertEqual(self._depth(), 1)
 
+    def _user_zoom(self, factor: float = 2.0, pan: tuple = (40.0, -25.0)) -> Dict[str, Any]:
+        """Zoom and pan as the mouse does: the view changes and nothing is archived."""
+        view = self.canvas.get_view_state()
+        view["scale_factor"] = view["scale_factor"] * factor
+        view["offset"] = [view["offset"][0] + pan[0], view["offset"][1] + pan[1]]
+        self.canvas.restore_view_state(view)
+        return self.canvas.get_view_state()
+
+    def _zoom_of(self, view: Dict[str, Any]) -> tuple:
+        return (view["scale_factor"], tuple(view["offset"]))
+
+    def test_undoing_a_reply_keeps_the_users_zoom_between_its_batches(self) -> None:
+        self._chat_batch(_call("create_point", x=1, y=1, name="P"))
+        user_view = self._user_zoom()  # the user zooms while the model thinks
+        self._chat_batch(_call("create_point", x=2, y=2, name="Q"))
+        self._end_turn()
+        self.assertEqual(self._depth(), 1)
+        self.assertEqual(self.canvas.undo_redo_manager.undo_stack[-1]["view_changes"], [])
+
+        self.assertTrue(self.canvas.undo())
+        self.assertEqual(_point_names(self.canvas.get_canvas_state()), [])
+        self.assertEqual(self._zoom_of(self.canvas.get_view_state()), self._zoom_of(user_view))
+
+    def test_a_users_zoom_alone_does_not_make_the_reply_a_step(self) -> None:
+        self._chat_batch(_call("delete_point", x=9, y=9))
+        self._user_zoom()
+        self._chat_batch(_call("delete_point", x=8, y=8))
+        self._end_turn()
+        self.assertEqual(self._depth(), 0)
+
+    def test_a_zoom_the_reply_made_is_still_undone_with_it(self) -> None:
+        start = self.canvas.get_view_state()
+        self._chat_batch(_call("zoom", center_x=0, center_y=0, range_val=2, range_axis="x"))
+        self._user_zoom(factor=1.0, pan=(0.0, 0.0))  # nothing changes
+        self._chat_batch(_call("create_point", x=1, y=1, name="P"))
+        self._end_turn()
+        self.assertEqual(self.canvas.undo_redo_manager.undo_stack[-1]["view_changes"], ["zoom"])
+        self.canvas.undo()
+        self.assertEqual(self._zoom_of(self.canvas.get_view_state()), self._zoom_of(start))
+
+    def test_send_user_message_closes_a_group_left_open(self) -> None:
+        self._chat_batch(_call("create_point", x=1, y=1, name="P"))
+        self.ai.is_processing = False
+        self.assertTrue(self.ai._turn_undo_group_open)
+        sent: List[Any] = []
+        self.ai._image_attachment = type("NoImages", (), {"images": [], "clear": lambda _self: None})()
+        self.ai.slash_command_handler = type("NoSlash", (), {"is_slash_command": lambda _self, _m: False})()
+        self.ai._print_user_message_in_chat = lambda *args, **kwargs: None
+        self.ai._disable_send_controls = lambda: None
+        self.ai._selected_model_id = lambda: "m"
+        self.ai._send_token = 0
+        self.ai._send_prompt_to_ai = lambda *args, **kwargs: sent.append(args)
+        self.ai.send_user_message("next")
+        self.assertFalse(self.ai._turn_undo_group_open)
+        self.assertEqual(self._depth(), 1)
+        self.assertEqual(len(sent), 1)
+
     def test_hook_turn_option_runs_batches_in_one_group(self) -> None:
         first = json.loads(
             self.hooks.run_tool_calls(json.dumps([_call("create_point", x=1, y=1, name="P")]), '{"turn": "continue"}')

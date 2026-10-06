@@ -48,7 +48,7 @@ from __future__ import annotations
 
 import copy
 import json
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Set, Tuple, cast
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -96,6 +96,16 @@ class UndoRedoManager:
         self._batch_baseline: Optional[Dict[str, Any]] = None
         self._batch_signature: Optional[str] = None
         self._batch_changed: bool = False
+        # View tracking for a batch that spans user activity (a chat turn's undo group):
+        # only the view parts its own tool batches changed belong to its step, so a pan or
+        # zoom the user makes between the batches is neither undone with it nor counted as
+        # its change. Off (False) for ordinary batches, which compare the whole view.
+        self._view_tracking: bool = False
+        self._tracked_view_parts: Set[str] = set()
+        self._view_mark: Optional[Dict[str, Any]] = None
+        # The open batch's serialization without the view, and its comparable view.
+        self._batch_core_signature: Optional[str] = None
+        self._batch_view: Optional[Dict[str, Any]] = None
 
     def archive(self) -> None:
         """
@@ -180,6 +190,7 @@ class UndoRedoManager:
         Batches nest; only the outermost one captures the baseline and pushes the entry.
         """
         if self._batch_depth == 0:
+            self._view_tracking = False
             self._start_batch_from_current_state()
         self._batch_depth += 1
 
@@ -192,6 +203,34 @@ class UndoRedoManager:
             self._commit_batch()
             self._batch_baseline = None
             self._batch_signature = None
+            self._batch_core_signature = None
+            self._batch_view = None
+            self._view_tracking = False
+
+    def track_batch_view(self) -> None:
+        """Count only the view changes made between ``mark_batch_view`` and ``note_batch_view``.
+
+        For a batch that stays open while the user works (a chat turn's undo group):
+        a pan, zoom or grid toggle the user makes between the marked stretches is not
+        the batch's change, so it neither makes the batch count as changed nor is
+        undone with it. Drawables are compared as usual. Ignored outside a batch.
+        """
+        if self._batch_depth == 0:
+            return
+        self._view_tracking = True
+        self._tracked_view_parts = set()
+        self._view_mark = self._comparable_view(self._capture_view())
+
+    def mark_batch_view(self) -> None:
+        """Start a stretch whose view changes belong to the tracked batch (before a tool batch)."""
+        if self._view_tracking:
+            self._view_mark = self._comparable_view(self._capture_view())
+
+    def note_batch_view(self) -> None:
+        """End the stretch: the view parts it changed become the tracked batch's (after a tool batch)."""
+        if self._view_tracking:
+            self._tracked_view_parts.update(self._parts_changed_since_mark())
+            self._view_mark = None
 
     def is_batch_changed(self) -> bool:
         """Return True when the open batch has recorded a change."""
@@ -216,6 +255,8 @@ class UndoRedoManager:
         """
         if self._batch_depth == 0 or self._batch_signature is None:
             return True
+        if self._view_tracking:
+            return not self._matches_batch_start()
         current = self._live_signature()
         return current is None or current != self._batch_signature
 
@@ -223,14 +264,47 @@ class UndoRedoManager:
         """Take the batch baseline (what undo restores) and the live signature (what comparisons use)."""
         self._batch_baseline = self.capture_state()
         self._batch_signature = self._live_signature()
+        self._batch_core_signature = self._live_signature(with_view=False)
+        self._batch_view = self._comparable_view(self._capture_view())
         self._batch_changed = False
+        if self._view_tracking:
+            # After an undo or redo inside a tracked batch the new group starts here.
+            self._tracked_view_parts = set()
+            self._view_mark = self._batch_view
 
-    def _live_signature(self) -> Optional[str]:
-        """Serialized live state, or None when it cannot be serialized."""
+    def _live_signature(self, with_view: bool = True) -> Optional[str]:
+        """Serialized live state (optionally without the view), or None when it cannot be serialized."""
         try:
-            return self._serialize_state(self._live_state())
+            state = self._live_state()
+            if not with_view:
+                state["view"] = None
+            return self._serialize_state(state)
         except Exception:
             return None
+
+    def _parts_changed_since_mark(self) -> Set[str]:
+        """View parts changed since ``mark_batch_view`` (none when no stretch is open)."""
+        if self._view_mark is None:
+            return set()
+        return set(self._view_parts_between(self._view_mark, self._comparable_view(self._capture_view())))
+
+    def _owned_view_parts(self) -> List[str]:
+        """The view parts the tracked batch changed, in ``VIEW_PARTS`` order."""
+        owned = self._tracked_view_parts | self._parts_changed_since_mark()
+        return [part for part in VIEW_PARTS if part in owned]
+
+    def _matches_batch_start(self) -> bool:
+        """Tracked batch: drawables and computations as at the start, and so are the view parts it owns."""
+        if self._batch_core_signature is None:
+            return False
+        current = self._live_signature(with_view=False)
+        if current is None or current != self._batch_core_signature:
+            return False
+        before, after = self._batch_view, self._comparable_view(self._capture_view())
+        if before is None or after is None:
+            return before is None and after is None
+        keys = [key for part in self._owned_view_parts() for key in VIEW_PARTS[part] if key not in _DERIVED_VIEW_KEYS]
+        return all(before.get(key) == after.get(key) for key in keys)
 
     def _live_state(self) -> Dict[str, Any]:
         """The live drawables, computations and view, without copying (for comparison only)."""
@@ -296,8 +370,13 @@ class UndoRedoManager:
 
     def _changed_view_parts(self, state: Dict[str, Any]) -> List[str]:
         """The view parts in which the live view differs from the state's; all of them when either is unknown."""
-        before = self._comparable_view(state.get("view"))
-        after = self._comparable_view(self._capture_view())
+        return self._view_parts_between(
+            self._comparable_view(state.get("view")), self._comparable_view(self._capture_view())
+        )
+
+    @staticmethod
+    def _view_parts_between(before: Optional[Dict[str, Any]], after: Optional[Dict[str, Any]]) -> List[str]:
+        """The view parts in which two comparable views differ; all of them when either is unknown."""
         if before is None or after is None:
             return list(VIEW_PARTS)
         return [part for part, keys in VIEW_PARTS.items() if any(before.get(key) != after.get(key) for key in keys)]
@@ -308,19 +387,25 @@ class UndoRedoManager:
         A batch marked changed that left the canvas as it found it (a clear of an empty
         canvas, a zoom and back) pushes nothing and keeps the redo history. The entry
         records which view parts the batch changed, so undoing it keeps the other parts
-        as the user has them then.
+        as the user has them then. A tracked batch (``track_batch_view``) records only the
+        parts its own stretches changed, never a pan or zoom the user made in between.
         """
         if not self._batch_changed or self._batch_baseline is None:
             return
         self._batch_changed = False
         if self._batch_left_canvas_unchanged():
             return
-        self._batch_baseline[VIEW_CHANGES_KEY] = self._changed_view_parts(self._batch_baseline)
+        if self._view_tracking:
+            self._batch_baseline[VIEW_CHANGES_KEY] = self._owned_view_parts()
+        else:
+            self._batch_baseline[VIEW_CHANGES_KEY] = self._changed_view_parts(self._batch_baseline)
         self.undo_stack.append(self._batch_baseline)
         self.redo_stack = []
 
     def _batch_left_canvas_unchanged(self) -> bool:
         """True only when both signatures exist and match; a signature that failed counts as a change."""
+        if self._view_tracking:
+            return self._matches_batch_start()
         if self._batch_signature is None:
             return False
         current = self._live_signature()
