@@ -62,6 +62,8 @@ if TYPE_CHECKING:
 ABANDONED_ELSEWHERE_NOTE = "This reply was stopped because the conversation changed elsewhere."
 # Shown when the model is changed while a reply runs: the turn keeps its model.
 MODEL_CHANGE_DEFERRED_NOTE = "{new} will answer from your next message; this reply finishes with {current}."
+# Shown when the model is changed back to the turn's own model before the reply ends.
+MODEL_CHANGE_UNDONE_NOTE = "{current} will keep answering after this reply."
 
 
 class AIInterface:
@@ -91,6 +93,9 @@ class AIInterface:
     # Model the running turn started with; every request of the turn goes to it, so a
     # model picked mid-turn answers from the next message.
     _turn_model: Optional[str] = None
+    # Model the last mid-turn note named (None: no note yet), so a note is only added
+    # when the model that will answer next changes.
+    _announced_model: Optional[str] = None
 
     def __init__(self, canvas: "Canvas") -> None:
         """Initialize the AI interface with canvas integration and function registry.
@@ -1067,16 +1072,25 @@ class AIInterface:
             return ""
 
     def on_model_selected(self, event: Any = None) -> None:
-        """Tell the user a model picked mid-turn answers from their next message."""
+        """Tell the user which model answers their next message when it changes mid-turn.
+
+        Switching back to the turn's own model says so, so an earlier note is not left
+        promising a model that will not answer.
+        """
         try:
             selected = self._selected_model_id()
-            if not self.is_processing or not self._turn_model or selected == self._turn_model:
+            turn_model = self._turn_model
+            if not self.is_processing or not turn_model:
                 return
-            self._print_system_message_in_chat(
-                MODEL_CHANGE_DEFERRED_NOTE.format(
-                    new=self._model_label(selected), current=self._model_label(self._turn_model)
-                )
-            )
+            if selected == (self._announced_model or turn_model):
+                return
+            self._announced_model = selected
+            current = self._model_label(turn_model)
+            if selected == turn_model:
+                note = MODEL_CHANGE_UNDONE_NOTE.format(current=current)
+            else:
+                note = MODEL_CHANGE_DEFERRED_NOTE.format(new=self._model_label(selected), current=current)
+            self._print_system_message_in_chat(note)
         except Exception as e:
             print(f"Error handling the model change: {e}")
 
@@ -1190,6 +1204,7 @@ class AIInterface:
         self._server_turn = None
         self._send_token += 1
         self._turn_model = self._selected_model_id()
+        self._announced_model = None
         self._disable_send_controls()
         self._send_prompt_to_ai(ai_message, attached_images=images_to_send)
 
