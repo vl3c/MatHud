@@ -314,6 +314,7 @@ from .test_numeric_solver import (
 )
 from .test_error_recovery import TestErrorRecovery
 from .test_ai_response_endings import TestAIResponseEndings
+from .test_turn_model_pinning import TestSearchToolsModel, TestTurnModelPinning
 from .test_vision_send_cancellation import TestVisionSendCancellation
 from .test_tts_controller import (
     TestTTSControllerState,
@@ -747,6 +748,8 @@ class Tests:
             TestErrorRecovery,
             TestVisionSendCancellation,
             TestAIResponseEndings,
+            TestTurnModelPinning,
+            TestSearchToolsModel,
             TestTTSControllerState,
             TestTTSControllerSettings,
             TestTTSControllerSingleton,

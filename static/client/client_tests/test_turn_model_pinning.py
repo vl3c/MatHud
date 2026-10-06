@@ -1,0 +1,197 @@
+"""
+Tests that a turn's requests go to the model it started with.
+
+Turn tokens belong to a provider instance, so a model picked while a reply runs
+must not receive the turn's tool-result follow-ups (its instance would drop them
+as abandoned). The selector stays usable: the new model answers from the next
+message, and the chat says so.
+
+AIInterface is built without __init__ and its UI, network and timer collaborators
+are replaced by stubs; the page's model selector and vision toggle are used and
+restored after each test.
+"""
+
+from __future__ import annotations
+
+import unittest
+from typing import Any, Callable, Dict, List, Optional
+
+from browser import document
+
+TOOL_CALLS = [{"function_name": "create_point", "arguments": {"x": 1, "y": 2}}]
+
+
+class _Stub:
+    """Accepts any method call and does nothing."""
+
+    def __init__(self, **attrs: Any) -> None:
+        for name, value in attrs.items():
+            setattr(self, name, value)
+
+    def __getattr__(self, name: str) -> Callable[..., None]:
+        return lambda *args, **kwargs: None
+
+
+class TestTurnModelPinning(unittest.TestCase):
+    def setUp(self) -> None:
+        if "ai-model-selector" not in document or "vision-toggle" not in document:
+            self.skipTest("model selector or vision toggle not in DOM")
+        self.selector = document["ai-model-selector"]
+        values = [str(option.value) for option in self.selector.options if str(option.value)]
+        if len(values) < 2:
+            self.skipTest("the selector needs two models")
+        self.first_model, self.second_model = values[0], values[1]
+        self._saved_model = str(self.selector.value)
+        self._saved_vision = document["vision-toggle"].checked
+        document["vision-toggle"].checked = False
+        self.selector.value = self.first_model
+        self.sent: List[Dict[str, Any]] = []
+        self.notes: List[str] = []
+        self.ai = self._create_ai_interface()
+
+    def tearDown(self) -> None:
+        self.selector.value = self._saved_model
+        document["vision-toggle"].checked = self._saved_vision
+
+    def _create_ai_interface(self) -> Any:
+        from ai_interface import AIInterface
+
+        ai = AIInterface.__new__(AIInterface)
+        ai.is_processing = False
+        ai._stop_requested = False
+        ai._send_token = 0
+        ai._server_turn = None
+        ai._turn_model = None
+        ai._turn_request_limit = None
+        ai._turn_requests_sent = 0
+        ai._turn_timeout_ms = None
+        ai._response_timeout_id = None
+        ai._last_user_message = ""
+        ai.canvas = _Stub(get_canvas_state=lambda: {})
+        ai._chat_ui = _Stub(stream_buffer="", stream_container=object(), stream_content=None)
+        ai._image_attachment = _Stub(images=[])
+        ai._tool_call_log = _Stub()
+        ai._turn_metrics_collector = _Stub()  # backs the _turn_metrics property
+        ai.slash_command_handler = _Stub(is_slash_command=lambda message: False)
+
+        def execute_tool_batch(tool_calls: Any, turn_token: Optional[int] = None) -> Dict[str, Any]:
+            return {"call_results": {}, "traced_calls": [], "trace": None, "state_after": {}}
+
+        def send_prompt_json(prompt_json: Dict[str, Any], *args: Any) -> None:
+            self.sent.append(dict(prompt_json))
+
+        for name in (
+            "_start_response_timeout",
+            "_cancel_response_timeout",
+            "_abort_current_stream",
+            "_save_partial_response",
+            "_finalize_stream_message",
+            "_print_user_message_in_chat",
+            "_debug_log_ai_response",
+        ):
+            setattr(ai, name, lambda *args, **kwargs: None)
+        setattr(ai, "_print_system_message_in_chat", lambda message: self.notes.append(message))
+        setattr(ai, "_trace_summary", lambda trace: None)
+        setattr(ai, "execute_tool_batch", execute_tool_batch)
+        setattr(ai, "_send_prompt_json", send_prompt_json)
+        return ai
+
+    def _select(self, model_id: str) -> None:
+        """Pick a model the way the user does: set the value, then fire the change handler."""
+        self.selector.value = model_id
+        self.ai.on_model_selected(None)
+
+    def _run_tool_calls(self) -> None:
+        self.ai._on_stream_final({"finish_reason": "tool_calls", "ai_message": "", "ai_tool_calls": TOOL_CALLS})
+
+    def _finish_turn(self) -> None:
+        self.ai._on_stream_final({"finish_reason": "stop", "ai_message": "Done.", "ai_tool_calls": []})
+
+    def test_first_request_uses_the_selected_model(self) -> None:
+        self.ai.send_user_message("draw a point")
+        self.assertEqual(self.sent[0]["ai_model"], self.first_model)
+
+    def test_follow_up_keeps_the_turns_model_after_a_mid_turn_change(self) -> None:
+        self.ai.send_user_message("draw a point")
+        self._select(self.second_model)
+        self._run_tool_calls()
+        self.assertEqual(len(self.sent), 2)
+        self.assertIsNotNone(self.sent[1]["tool_call_results"])
+        self.assertEqual(self.sent[1]["ai_model"], self.first_model, "the turn's follow-up stays on its model")
+
+    def test_next_message_uses_the_model_picked_mid_turn(self) -> None:
+        self.ai.send_user_message("draw a point")
+        self._select(self.second_model)
+        self._finish_turn()
+        self.ai.send_user_message("draw another")
+        self.assertEqual(self.sent[-1]["ai_model"], self.second_model)
+        self.assertIsNone(self.sent[-1]["tool_call_results"])
+
+    def test_selector_stays_enabled_during_a_turn(self) -> None:
+        self.ai.send_user_message("draw a point")
+        self.assertTrue(self.ai.is_processing)
+        self.assertFalse(self.selector.disabled)
+
+    def test_mid_turn_change_explains_when_the_new_model_answers(self) -> None:
+        from ai_interface import AIInterface
+
+        self.ai.send_user_message("draw a point")
+        self._select(self.second_model)
+        self.assertEqual(len(self.notes), 1)
+        self.assertIn(AIInterface._model_label(self.second_model), self.notes[0])
+        self.assertIn(AIInterface._model_label(self.first_model), self.notes[0])
+        self.assertIn("next message", self.notes[0])
+
+    def test_change_while_idle_adds_no_note(self) -> None:
+        self._select(self.second_model)
+        self.assertEqual(self.notes, [])
+
+    def test_switching_back_to_the_turns_model_adds_no_note(self) -> None:
+        self.ai.send_user_message("draw a point")
+        self._select(self.second_model)
+        self._select(self.first_model)
+        self.assertEqual(len(self.notes), 1)
+
+    def test_turn_model_id_follows_the_selector_between_turns(self) -> None:
+        self.ai.send_user_message("draw a point")
+        self._select(self.second_model)
+        self.assertEqual(self.ai.turn_model_id(), self.first_model)
+        self._finish_turn()
+        self.assertEqual(self.ai.turn_model_id(), self.second_model)
+
+    def test_stop_releases_the_turns_model(self) -> None:
+        self.ai.send_user_message("draw a point")
+        self._select(self.second_model)
+        self.ai.stop_ai_processing()
+        self.assertEqual(self.ai.turn_model_id(), self.second_model)
+
+    def test_model_label_drops_the_text_only_suffix(self) -> None:
+        from ai_interface import AIInterface
+
+        for option in self.selector.options:
+            if str(option.text).endswith(" (text only)"):
+                label = AIInterface._model_label(str(option.value))
+                self.assertFalse(label.endswith("(text only)"))
+                self.assertEqual(label, str(option.text)[: -len(" (text only)")])
+                return
+        self.assertEqual(AIInterface._model_label("vendor/some-model"), "some-model")
+
+
+class TestSearchToolsModel(unittest.TestCase):
+    def test_search_uses_the_turns_model(self) -> None:
+        from function_registry import FunctionRegistry
+
+        self.assertEqual(FunctionRegistry._search_model_id(lambda: "turn-model"), "turn-model")
+
+    def test_empty_turn_model_sends_no_model(self) -> None:
+        from function_registry import FunctionRegistry
+
+        self.assertIsNone(FunctionRegistry._search_model_id(lambda: ""))
+
+    def test_without_a_getter_the_selector_is_used(self) -> None:
+        from function_registry import FunctionRegistry
+
+        if "ai-model-selector" not in document:
+            self.skipTest("model selector not in DOM")
+        expected = str(document["ai-model-selector"].value) or None
+        self.assertEqual(FunctionRegistry._search_model_id(None), expected)
