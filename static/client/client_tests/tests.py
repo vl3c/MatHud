@@ -87,7 +87,7 @@ from .test_segment_manager import TestSegmentManager
 from .test_polygon_manager import TestPolygonManager
 from .test_vector_manager import TestVectorManager
 from .test_circle_manager import TestCircleManager
-from .test_ellipse_manager import TestEllipseManager
+from .test_ellipse_manager import TestEllipseManager, TestEllipseReuseMatching
 from .test_colored_area_manager import TestColoredAreaManager
 from .test_function_manager import TestFunctionManager
 from .test_function_features import TestFunctionFeaturesAlgorithm, TestFunctionFeaturesCanvas
@@ -315,6 +315,7 @@ from .test_numeric_solver import (
 )
 from .test_error_recovery import TestErrorRecovery
 from .test_ai_response_endings import TestAIResponseEndings
+from .test_turn_model_pinning import TestSearchToolsModel, TestTurnModelPinning
 from .test_vision_send_cancellation import TestVisionSendCancellation
 from .test_tts_controller import (
     TestTTSControllerState,
@@ -579,6 +580,7 @@ class Tests:
             TestVectorManager,
             TestCircleManager,
             TestEllipseManager,
+            TestEllipseReuseMatching,
             TestColoredAreaManager,
             TestTransformationsManager,
             TestTransforms,
@@ -750,6 +752,8 @@ class Tests:
             TestErrorRecovery,
             TestVisionSendCancellation,
             TestAIResponseEndings,
+            TestTurnModelPinning,
+            TestSearchToolsModel,
             TestTTSControllerState,
             TestTTSControllerSettings,
             TestTTSControllerSingleton,

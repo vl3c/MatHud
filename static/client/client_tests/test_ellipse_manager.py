@@ -131,5 +131,72 @@ class TestEllipseManager(unittest.TestCase):
         self.dependency_manager.remove_drawable.assert_called_once_with(ellipse)
 
 
+class TestEllipseReuseMatching(unittest.TestCase):
+    """create_ellipse reuses an existing ellipse only when its orientation matches too."""
+
+    def setUp(self) -> None:
+        self.canvas = SimpleMock(
+            name="CanvasMock",
+            draw_enabled=False,
+            draw=SimpleMock(),
+            undo_redo_manager=SimpleMock(name="UndoRedoMock", archive=SimpleMock()),
+        )
+        self.drawables = DrawablesContainer()
+        self.center = Point(0.0, 0.0, name="A")
+        self.ellipse_manager = EllipseManager(
+            canvas=self.canvas,
+            drawables_container=self.drawables,
+            name_generator=SimpleMock(name="NameGeneratorMock", split_point_names=lambda name, n: ["A"]),
+            dependency_manager=SimpleMock(
+                name="DependencyManagerMock",
+                analyze_drawable_for_dependencies=SimpleMock(),
+            ),
+            point_manager=SimpleMock(name="PointManagerMock", create_point=lambda *args, **kwargs: self.center),
+            drawable_manager_proxy=SimpleMock(name="DrawableManagerProxyMock"),
+        )
+
+    def _create(self, radius_x: float, radius_y: float, rotation_angle: float) -> Ellipse:
+        return self.ellipse_manager.create_ellipse(0.0, 0.0, radius_x, radius_y, rotation_angle, extra_graphics=False)
+
+    def test_same_centre_radii_and_rotation_reuses(self) -> None:
+        first = self._create(4.0, 2.0, 30.0)
+        second = self._create(4.0, 2.0, 30.0)
+
+        self.assertIs(first, second)
+        self.assertEqual(len(self.drawables.Ellipses), 1)
+
+    def test_different_rotation_creates_new_ellipse(self) -> None:
+        first = self._create(4.0, 2.0, 0.0)
+        second = self._create(4.0, 2.0, 45.0)
+
+        self.assertIsNot(first, second)
+        self.assertEqual(second.rotation_angle, 45.0)
+        self.assertEqual(len(self.drawables.Ellipses), 2)
+
+    def test_rotation_differing_by_half_turn_reuses(self) -> None:
+        first = self._create(4.0, 2.0, 20.0)
+
+        self.assertIs(self._create(4.0, 2.0, 200.0), first)
+        self.assertIs(self._create(4.0, 2.0, -160.0), first)
+        self.assertEqual(len(self.drawables.Ellipses), 1)
+
+    def test_rotation_near_half_turn_boundary_reuses(self) -> None:
+        first = self._create(4.0, 2.0, 179.9999999)
+
+        self.assertIs(self._create(4.0, 2.0, 0.0), first)
+
+    def test_equal_radii_ignore_rotation(self) -> None:
+        first = self._create(3.0, 3.0, 0.0)
+
+        self.assertIs(self._create(3.0, 3.0, 73.0), first)
+        self.assertEqual(len(self.drawables.Ellipses), 1)
+
+    def test_get_ellipse_without_rotation_matches_any_orientation(self) -> None:
+        first = self._create(4.0, 2.0, 30.0)
+
+        self.assertIs(self.ellipse_manager.get_ellipse(0.0, 0.0, 4.0, 2.0), first)
+        self.assertIsNone(self.ellipse_manager.get_ellipse(0.0, 0.0, 4.0, 2.0, 60.0))
+
+
 if __name__ == "__main__":
     unittest.main()
