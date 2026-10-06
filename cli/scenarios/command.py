@@ -14,6 +14,7 @@ import click
 from click.core import ParameterSource
 
 from cli.config import DEFAULT_PORT, PROJECT_ROOT
+from cli.scenarios.attach import PIN_OPTIONS, default_pace, run_attached
 from cli.scenarios.classify import (
     DEFAULT_MAX_INFRA_RATE,
     annotate_steps,
@@ -189,6 +190,21 @@ def _fail(message: str, code: int = 2) -> int:
     show_default=True,
     help="Live: fail the run when more than this share of the runs (or all of them) had an infrastructure failure",
 )
+@click.option(
+    "--attach-desktop",
+    type=int,
+    default=None,
+    metavar="PORT",
+    help="Replay or live in the open desktop window (mathud_desktop.py --automation-port PORT) instead of a "
+    "server and headless Chrome; resets its canvas and chat",
+)
+@click.option(
+    "--pace",
+    type=click.FloatRange(min=0.0),
+    default=None,
+    help="Seconds to pause after each step (default: 1.5 with --attach-desktop, else 0)",
+)
+@click.option("--yes", "-y", is_flag=True, help="With --attach-desktop: do not ask before resetting the window")
 def scenarios_cmd(
     results_path: Optional[str],
     mode: str,
@@ -219,6 +235,9 @@ def scenarios_cmd(
     turn_max_requests: int,
     no_retrace: bool,
     max_infra_rate: float,
+    attach_desktop: Optional[int],
+    pace: Optional[float],
+    yes: bool,
 ) -> None:
     """Run the agentic scenario tests (see documentation/development/agentic_scenario_testing.md).
 
@@ -245,6 +264,8 @@ def scenarios_cmd(
     stamp = time.strftime("%Y%m%d-%H%M%S")
     options = ReplayOptions(step_timeout_s=step_timeout, known_artifacts=known_artifacts)
     if mode == "retrace":
+        if attach_desktop is not None:
+            raise SystemExit(_fail("--attach-desktop works with --mode replay or --mode live, not retrace."))
         if not results_path:
             raise SystemExit(_fail("--mode retrace needs a live run's results.json: --mode retrace RESULTS"))
         wanted = {s.id for s in catalogue.select(smoke=smoke, tags=_split(tags), ids=_split(ids))} if filtered else None
@@ -268,6 +289,25 @@ def scenarios_cmd(
         raise SystemExit(_fail("No scenarios match the filters."))
     run_out = Path(out_dir) if out_dir else DEFAULT_OUT_ROOT / stamp
     filters = {"smoke": smoke, "tags": _split(tags), "ids": _split(ids)}
+    options.pace_s = default_pace(pace, attach_desktop is not None)
+    if attach_desktop is not None:
+        raise SystemExit(
+            _run_attached(
+                catalogue, chosen, mode=mode, debug_port=attach_desktop, start_server=start_server, yes=yes,
+                allow_workspace_writes=allow_workspace_writes, out_dir=run_out, as_json=as_json, options=options,
+                dry_run=dry_run,
+                config_extra={**filters, "max_infra_rate": max_infra_rate} if mode == "live" else filters,
+                settings=LiveSettings(
+                    provider=provider, tool_exposure=tool_exposure, canvas_format=canvas_format,
+                    canvas_budget=canvas_budget, tool_search_mode=tool_search_mode,
+                    local_reasoning_effort=local_reasoning_effort,
+                ),
+                models=_split(models), repeats=repeats, max_requests=max_requests,
+                live_options=LiveOptions(
+                    turn_timeout_s=turn_timeout, turn_max_requests=turn_max_requests, retrace_failures=not no_retrace
+                ),
+            )
+        )  # fmt: skip
 
     if mode == "live":
         settings = LiveSettings(
@@ -330,6 +370,16 @@ def scenarios_cmd(
         config_extra=filters,
     )
     raise SystemExit(exit_code)
+
+
+def _run_attached(catalogue: Catalogue, chosen: list[Scenario], *, mode: str, start_server: bool, **kwargs: Any) -> int:
+    """``--attach-desktop``: run in the open desktop window (``cli/scenarios/attach.py``)."""
+    if start_server:
+        return _fail("--attach-desktop uses the desktop app's own server; drop --start-server.")
+    if mode == "live":
+        kwargs["options"].retries = 0  # a live run never retries: a retry would send its prompts again
+    given = [name for name in PIN_OPTIONS if _given_on_command_line(name)]
+    return run_attached(catalogue, chosen, mode=mode, given_options=given, **kwargs)
 
 
 def _workspace_skips(scenarios: list[Scenario]) -> dict[str, str]:
@@ -765,6 +815,12 @@ def _print_summary(summary: dict[str, Any], as_json: bool, out_dir: Path, regrad
             f"{_percent(data.get('outcome_pass_rate'))}, invariants {_percent(data.get('invariant_pass_rate'))}, "
             f"mean turn {data.get('mean_wall_time_s')} s, {data.get('requests_sent')} requests"
             + (f"; classes: {classes}" if classes else "")
+        )
+    attached = summary.get("attached_desktop")
+    if attached:
+        click.echo(
+            f"Attached to the desktop app at {attached.get('url')}; not pinned (its .env applies): "
+            + ", ".join(attached.get("unpinned_settings") or [])
         )
     if summary.get("stopped"):
         click.echo(click.style(f"Stopped early: {summary['stopped']}", fg="red"))

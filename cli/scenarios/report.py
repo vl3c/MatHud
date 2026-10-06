@@ -185,6 +185,12 @@ class ResultSink:
         if self.config.get("stopped"):
             summary["stopped"] = self.config["stopped"]
             summary["exit_code"] = 1
+        if self.config.get("attached_desktop"):
+            summary["attached_desktop"] = {
+                "url": self.config.get("desktop_app_url"),
+                "pins_applied": False,
+                "unpinned_settings": self.config.get("unpinned_settings") or [],
+            }
         payload = {
             "config": self.config,
             "started": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(self.started)),
@@ -375,6 +381,12 @@ def render_summary(
         f"- Run time: {summary.get('duration_s', 0)} s",
         f"- Result: {'unexpected failures' if summary['exit_code'] else 'no unexpected failures'}",
     ]
+    if config.get("attached_desktop"):
+        lines.append(
+            f"- Attached to the desktop app at {config.get('desktop_app_url')} (automation port "
+            f"{config.get('automation_port')}); settings not pinned, its .env applies: "
+            + ", ".join(config.get("unpinned_settings") or [])
+        )
     if mode != "replay":
         classes = summary.get("classes") or {}
         lines.append("- Failure classes (runs): " + ", ".join(f"{k} {v}" for k, v in classes.items()))
