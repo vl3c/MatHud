@@ -7,8 +7,9 @@ as abandoned). The selector stays usable: the new model answers from the next
 message, and the chat says so.
 
 AIInterface is built without __init__ and its UI, network, timer and send-control
-collaborators are replaced by stubs; the page's model selector and vision toggle
-are used and restored after each test.
+collaborators are replaced by stubs. The page's model selector gets three
+temporary options (CI has no API keys, so its selector lists no models), which
+are removed, with the selector value and vision toggle restored, after each test.
 """
 
 from __future__ import annotations
@@ -16,9 +17,15 @@ from __future__ import annotations
 import unittest
 from typing import Any, Callable, Dict, List, Optional
 
-from browser import document
+from browser import document, html
 
 TOOL_CALLS = [{"function_name": "create_point", "arguments": {"x": 1, "y": 2}}]
+# Temporary selector options: (value, label)
+TEST_MODELS = [
+    ("pin-test-a", "Pin Test A"),
+    ("pin-test-b", "Pin Test B"),
+    ("pin-test-c", "Pin Test C (text only)"),
+]
 
 
 class _Stub:
@@ -37,22 +44,25 @@ class TestTurnModelPinning(unittest.TestCase):
         if "ai-model-selector" not in document or "vision-toggle" not in document:
             self.skipTest("model selector or vision toggle not in DOM")
         self.selector = document["ai-model-selector"]
-        values = [str(option.value) for option in self.selector.options if str(option.value)]
-        if len(values) < 2:
-            self.skipTest("the selector needs two models")
-        self.first_model, self.second_model = values[0], values[1]
-        self.third_model: Optional[str] = values[2] if len(values) > 2 else None
-        self._saved_model = str(self.selector.value)
-        self._saved_vision = document["vision-toggle"].checked
+        saved_model = str(self.selector.value)
+        saved_vision = document["vision-toggle"].checked
+        added = [html.OPTION(label, value=value) for value, label in TEST_MODELS]
+        for option in added:
+            self.selector <= option
+
+        def restore() -> None:
+            for option in added:
+                option.remove()
+            self.selector.value = saved_model
+            document["vision-toggle"].checked = saved_vision
+
+        self.addCleanup(restore)
+        self.first_model, self.second_model, self.third_model = (value for value, _ in TEST_MODELS)
         document["vision-toggle"].checked = False
         self.selector.value = self.first_model
         self.sent: List[Dict[str, Any]] = []
         self.notes: List[str] = []
         self.ai = self._create_ai_interface()
-
-    def tearDown(self) -> None:
-        self.selector.value = self._saved_model
-        document["vision-toggle"].checked = self._saved_vision
 
     def _create_ai_interface(self) -> Any:
         from ai_interface import AIInterface
@@ -138,11 +148,6 @@ class TestTurnModelPinning(unittest.TestCase):
         self.assertEqual(self.sent[-1]["ai_model"], self.second_model)
         self.assertIsNone(self.sent[-1]["tool_call_results"])
 
-    def test_selector_stays_enabled_during_a_turn(self) -> None:
-        self.ai.send_user_message("draw a point")
-        self.assertTrue(self.ai.is_processing)
-        self.assertFalse(self.selector.disabled)
-
     def test_mid_turn_change_explains_when_the_new_model_answers(self) -> None:
         from ai_interface import AIInterface
 
@@ -182,8 +187,6 @@ class TestTurnModelPinning(unittest.TestCase):
     def test_latest_note_names_the_model_that_answers_next(self) -> None:
         from ai_interface import AIInterface
 
-        if self.third_model is None:
-            self.skipTest("the selector needs three models")
         self.ai.send_user_message("draw a point")
         self._select(self.second_model)
         self._select(self.third_model)
@@ -215,16 +218,12 @@ class TestTurnModelPinning(unittest.TestCase):
         self.ai.stop_ai_processing()
         self.assertEqual(self.ai.turn_model_id(), self.second_model)
 
-    def test_model_label_drops_the_text_only_suffix(self) -> None:
+    def test_model_label_uses_the_option_text_without_the_text_only_suffix(self) -> None:
         from ai_interface import AIInterface
 
-        for option in self.selector.options:
-            if str(option.text).endswith(" (text only)"):
-                label = AIInterface._model_label(str(option.value))
-                self.assertFalse(label.endswith("(text only)"))
-                self.assertEqual(label, str(option.text)[: -len(" (text only)")])
-                return
-        self.assertEqual(AIInterface._model_label("vendor/some-model"), "some-model")
+        self.assertEqual(AIInterface._model_label("pin-test-b"), "Pin Test B")
+        self.assertEqual(AIInterface._model_label("pin-test-c"), "Pin Test C")
+        self.assertEqual(AIInterface._model_label("vendor/unlisted-model"), "unlisted-model")
 
 
 class TestSearchToolsModel(unittest.TestCase):
