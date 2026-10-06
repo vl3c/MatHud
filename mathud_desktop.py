@@ -6,9 +6,15 @@ the window stops the server. With ``--browser`` the app opens in the default
 web browser instead, which needs no extra dependencies.
 
 Usage:
-    python mathud_desktop.py [--port PORT] [--browser] [--devtools]
+    python mathud_desktop.py [--port PORT] [--browser] [--devtools] [--automation-port N]
 
 pywebview is optional: ``pip install -r requirements-desktop.txt``.
+
+``--automation-port N`` (off by default) opens a Chrome DevTools Protocol
+endpoint on 127.0.0.1:N so the CLI can drive the window: ``python -m cli.main
+desktop prompt`` and ``test scenarios --attach-desktop N``. It needs a
+Chromium-based backend: Edge WebView2 on Windows, or pywebview's Qt backend on
+Linux (untested); macOS (WKWebView) and GTK (WebKitGTK) have no CDP endpoint.
 """
 
 from __future__ import annotations
@@ -45,6 +51,21 @@ DEFAULT_WINDOW_SIZE = (1400, 900)
 MIN_WINDOW_SIZE = (800, 600)
 WINDOW_STATE_FILENAME = "desktop_window.json"
 WEBVIEW_STORAGE_DIRNAME = "webview"
+# An automation window keeps its own WebView profile: WebView2 runs one browser
+# process per profile and the debugging port belongs to that process, so sharing
+# the profile would either fail (browser arguments differ) or expose a normal window.
+AUTOMATION_STORAGE_DIRNAME = "webview-automation"
+# The DevTools port `--automation-port` uses when given without a value (cli.config.DEFAULT_AUTOMATION_PORT).
+DEFAULT_AUTOMATION_PORT = 9333
+# WebView2 also reads extra browser arguments from this variable.
+WEBVIEW2_ARGS_ENV = "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"
+# pywebview backends whose engine is Chromium and serves CDP on --remote-debugging-port.
+AUTOMATION_GUIS = {"win32": "edgechromium", "linux": "qt"}
+AUTOMATION_WARNING = (
+    "WARNING: automation is on. Any program running on this computer can control the MatHud window "
+    "through 127.0.0.1:{port} (send prompts with your API keys, read the chat, run tools). "
+    "Close the window when you are done."
+)
 DESKTOP_INSTALL_HINT = "pip install -r requirements-desktop.txt"
 # Readiness checks talk to localhost directly; system or environment proxies
 # (possibly unreachable) must not be consulted.
@@ -278,6 +299,57 @@ def create_flask_app() -> "MatHudFlask":
     return app
 
 
+def automation_gui(platform: Optional[str] = None) -> Optional[str]:
+    """The pywebview backend an automation window uses on ``platform`` (default: this one), or None."""
+    return AUTOMATION_GUIS.get(sys.platform if platform is None else platform)
+
+
+def port_is_free(port: int, host: str = LOCAL_HOST) -> bool:
+    """True when nothing listens on ``host:port`` and it can be bound."""
+    try:
+        bind_local_socket(port, host).close()
+    except OSError:
+        return False
+    return True
+
+
+def enable_automation(webview: Any, port: int, environ: Optional[Dict[str, str]] = None) -> None:
+    """Make the window's browser serve CDP on 127.0.0.1:``port`` (``--remote-debugging-port``).
+
+    pywebview passes the port to WebView2 and Qt WebEngine through
+    ``settings["REMOTE_DEBUGGING_PORT"]``; Chromium binds the endpoint to the
+    loopback interface only. When ``WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`` is
+    already set it can take precedence over pywebview's arguments, so the port
+    is added to it too.
+    """
+    env: Any = os.environ if environ is None else environ
+    webview.settings["REMOTE_DEBUGGING_PORT"] = int(port)
+    existing = env.get(WEBVIEW2_ARGS_ENV)
+    if existing is not None and "--remote-debugging-port" not in existing:
+        env[WEBVIEW2_ARGS_ENV] = f"{existing} --remote-debugging-port={int(port)}".strip()
+
+
+def automation_endpoint_ready(port: int, timeout: float = 10.0) -> bool:
+    """True once the DevTools endpoint answers ``/json/version`` on 127.0.0.1:``port``."""
+    return wait_for_server(f"http://{LOCAL_HOST}:{port}/json/version", timeout=timeout, interval=0.25)
+
+
+def _automation_problem(automation_port: int, server_port: Optional[int]) -> Optional[str]:
+    """Why an automation window cannot start, or None."""
+    if automation_gui() is None:
+        return (
+            "--automation-port needs a Chromium-based pywebview backend (Edge WebView2 on Windows, Qt on Linux); "
+            f"{sys.platform} has none"
+        )
+    if not 0 < automation_port < 65536:
+        return f"--automation-port {automation_port} is not a valid port"
+    if server_port is not None and automation_port == server_port:
+        return "--automation-port must differ from --port"
+    if not port_is_free(automation_port):
+        return f"--automation-port {automation_port} is already in use"
+    return None
+
+
 def pywebview_available() -> bool:
     return importlib.util.find_spec("webview") is not None
 
@@ -347,14 +419,42 @@ def _initial_window_geometry(saved: Dict[str, Any], webview: Any) -> Dict[str, A
     return geometry
 
 
-def run_in_window(port: Optional[int], devtools: bool = False) -> int:
-    """Serve MatHud and show it in a native window; stop the server on close."""
+def _report_automation(automation_port: int) -> None:
+    """Tell the user whether the DevTools endpoint answers, and how to drive the window."""
+    if automation_endpoint_ready(automation_port):
+        print(
+            f"Automation endpoint: http://{LOCAL_HOST}:{automation_port}/json "
+            f'(python -m cli.main desktop prompt "..." --port {automation_port})'
+        )
+    else:
+        print(f"The automation endpoint did not answer on {LOCAL_HOST}:{automation_port}")
+
+
+def run_in_window(port: Optional[int], devtools: bool = False, automation_port: Optional[int] = None) -> int:
+    """Serve MatHud and show it in a native window; stop the server on close.
+
+    Args:
+        automation_port: Serve CDP on 127.0.0.1 at this port (see ``enable_automation``), or None.
+    """
     started = time.perf_counter()
     import webview
+
+    start_options: Dict[str, Any] = {}
+    storage_dirname = WEBVIEW_STORAGE_DIRNAME
+    if automation_port is not None:
+        problem = _automation_problem(automation_port, port)
+        if problem:
+            print(problem)
+            return 1
+        enable_automation(webview, automation_port)
+        start_options["gui"] = automation_gui()
+        storage_dirname = AUTOMATION_STORAGE_DIRNAME
 
     server = _start_server_or_report(create_flask_app(), port)
     if server is None:
         return 1
+    if automation_port is not None:
+        print(AUTOMATION_WARNING.format(port=automation_port))
 
     data_dir = user_data_dir()
     state_path = data_dir / WINDOW_STATE_FILENAME
@@ -379,13 +479,16 @@ def run_in_window(port: Optional[int], devtools: bool = False) -> int:
             if not first_load.is_set():
                 first_load.set()
                 print(f"MatHud window loaded in {time.perf_counter() - started:.1f}s ({server.url})")
+                if automation_port is not None:
+                    threading.Thread(target=_report_automation, args=(automation_port,), daemon=True).start()
 
         window.events.loaded += _report_first_load
         # Persistent (non-private) storage keeps localStorage settings between launches.
         webview.start(
             private_mode=False,
-            storage_path=str(data_dir / WEBVIEW_STORAGE_DIRNAME),
+            storage_path=str(data_dir / storage_dirname),
             debug=devtools,
+            **start_options,
         )
     finally:
         save_window_state(state_path, tracker.state)
@@ -412,16 +515,36 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Enable the WebView developer tools (right-click > Inspect)",
     )
+    parser.add_argument(
+        "--automation-port",
+        type=int,
+        nargs="?",
+        const=DEFAULT_AUTOMATION_PORT,
+        default=None,
+        metavar="N",
+        help=(
+            "Let the CLI drive the window over the Chrome DevTools Protocol on 127.0.0.1:N "
+            f"(N defaults to {DEFAULT_AUTOMATION_PORT}; off by default; any local program can then control "
+            "the window). Windows (Edge WebView2); "
+            "Linux with pywebview's Qt backend is untested; not available on macOS"
+        ),
+    )
     return parser
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.automation_port is not None and args.browser:
+        print("--automation-port drives the desktop window; it cannot be combined with --browser")
+        return 2
     if args.browser:
         return run_in_browser(args.port)
     if not pywebview_available():
+        if args.automation_port is not None:
+            print(f"--automation-port needs pywebview: {DESKTOP_INSTALL_HINT}")
+            return 1
         return run_in_browser(args.port) if _offer_browser_fallback() else 1
-    return run_in_window(args.port, devtools=args.devtools)
+    return run_in_window(args.port, devtools=args.devtools, automation_port=args.automation_port)
 
 
 if __name__ == "__main__":

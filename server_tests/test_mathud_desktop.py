@@ -377,7 +377,7 @@ class TestMain:
         ):
             assert mathud_desktop.main(["--devtools"]) == 0
 
-        run_in_window.assert_called_once_with(None, devtools=True)
+        run_in_window.assert_called_once_with(None, devtools=True, automation_port=None)
 
 
 class TestRunInBrowser:
@@ -452,3 +452,107 @@ class TestDesktopCliCommand:
 
         assert result.exit_code == 0
         main.assert_called_once_with(["--port", "5123", "--browser"])
+
+
+class TestAutomation:
+    """``--automation-port``: a CDP endpoint on 127.0.0.1 for the CLI (no window is opened here)."""
+
+    def test_automation_gui_per_platform(self) -> None:
+        assert mathud_desktop.automation_gui("win32") == "edgechromium"
+        assert mathud_desktop.automation_gui("linux") == "qt"
+        assert mathud_desktop.automation_gui("darwin") is None
+
+    def test_enable_automation_uses_the_pywebview_setting(self) -> None:
+        fake = types.SimpleNamespace(settings={"REMOTE_DEBUGGING_PORT": None})
+        env: dict[str, str] = {}
+        mathud_desktop.enable_automation(fake, 9301, env)
+        assert fake.settings["REMOTE_DEBUGGING_PORT"] == 9301
+        assert env == {}  # WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS is left alone when unset
+
+    def test_enable_automation_extends_an_existing_webview2_variable(self) -> None:
+        fake = types.SimpleNamespace(settings={"REMOTE_DEBUGGING_PORT": None})
+        env = {mathud_desktop.WEBVIEW2_ARGS_ENV: "--lang=en"}
+        mathud_desktop.enable_automation(fake, 9301, env)
+        assert env[mathud_desktop.WEBVIEW2_ARGS_ENV] == "--lang=en --remote-debugging-port=9301"
+        mathud_desktop.enable_automation(fake, 9301, env)  # no second copy
+        assert env[mathud_desktop.WEBVIEW2_ARGS_ENV].count("--remote-debugging-port") == 1
+
+    def _run(self, tmp_path: Path, automation_port: int, port: int = 0) -> tuple[int, MagicMock, MagicMock]:
+        fake = _fake_webview(lambda url: None)
+        fake.settings = {"REMOTE_DEBUGGING_PORT": None}
+        with (
+            patch.dict(sys.modules, {"webview": fake}),
+            patch.object(mathud_desktop, "create_flask_app", return_value=_hello_app),
+            patch.object(mathud_desktop, "user_data_dir", return_value=tmp_path),
+            patch.object(mathud_desktop, "automation_gui", return_value="edgechromium"),
+            patch.dict(os.environ, {}, clear=False),
+            patch("builtins.print") as mock_print,
+        ):
+            os.environ.pop(mathud_desktop.WEBVIEW2_ARGS_ENV, None)
+            code = mathud_desktop.run_in_window(port, automation_port=automation_port)
+        return code, fake, mock_print
+
+    def test_window_serves_cdp_from_its_own_profile_and_warns(self, tmp_path: Path) -> None:
+        debug_port = _unused_port()
+        code, fake, mock_print = self._run(tmp_path, debug_port)
+
+        assert code == 0
+        assert fake.settings["REMOTE_DEBUGGING_PORT"] == debug_port
+        start_kwargs = fake.start.call_args.kwargs
+        assert start_kwargs["gui"] == "edgechromium"
+        assert start_kwargs["storage_path"] == str(tmp_path / mathud_desktop.AUTOMATION_STORAGE_DIRNAME)
+        printed = " ".join(str(call.args[0]) for call in mock_print.call_args_list)
+        assert "Any program running on this computer can control the MatHud window" in printed
+        assert f"127.0.0.1:{debug_port}" in printed
+
+    def test_busy_automation_port_opens_no_window(self, tmp_path: Path, occupied_port: int) -> None:
+        code, fake, mock_print = self._run(tmp_path, occupied_port)
+
+        assert code == 1
+        fake.create_window.assert_not_called()
+        assert fake.settings["REMOTE_DEBUGGING_PORT"] is None
+        assert "already in use" in mock_print.call_args_list[0].args[0]
+
+    def test_automation_port_must_differ_from_the_server_port(self, tmp_path: Path) -> None:
+        port = _unused_port()
+        code, fake, mock_print = self._run(tmp_path, port, port=port)
+        assert code == 1
+        assert "must differ" in mock_print.call_args_list[0].args[0]
+
+    def test_unsupported_platform_is_refused(self) -> None:
+        fake = _fake_webview(lambda url: None)
+        with (
+            patch.dict(sys.modules, {"webview": fake}),
+            patch.object(mathud_desktop, "automation_gui", return_value=None),
+            patch("builtins.print") as mock_print,
+        ):
+            assert mathud_desktop.run_in_window(0, automation_port=_unused_port()) == 1
+        assert "Chromium-based pywebview backend" in mock_print.call_args_list[0].args[0]
+
+    def test_main_parses_the_flag(self) -> None:
+        with (
+            patch.object(mathud_desktop, "pywebview_available", return_value=True),
+            patch.object(mathud_desktop, "run_in_window", return_value=0) as run_in_window,
+        ):
+            assert mathud_desktop.main(["--automation-port", "9301"]) == 0
+            assert mathud_desktop.main(["--automation-port"]) == 0
+
+        assert run_in_window.call_args_list[0].kwargs["automation_port"] == 9301
+        assert run_in_window.call_args_list[1].kwargs["automation_port"] == mathud_desktop.DEFAULT_AUTOMATION_PORT
+
+    def test_main_refuses_automation_in_the_browser(self) -> None:
+        with patch.object(mathud_desktop, "run_in_browser") as run_in_browser, patch("builtins.print"):
+            assert mathud_desktop.main(["--browser", "--automation-port", "9301"]) == 2
+        run_in_browser.assert_not_called()
+
+    def test_default_port_matches_the_cli(self) -> None:
+        from cli.config import DEFAULT_AUTOMATION_PORT
+
+        assert mathud_desktop.DEFAULT_AUTOMATION_PORT == DEFAULT_AUTOMATION_PORT
+
+    def test_cli_forwards_the_automation_port(self) -> None:
+        with patch.object(mathud_desktop, "main", return_value=0) as main:
+            result = CliRunner().invoke(cli, ["desktop", "--automation-port", "9301"])
+
+        assert result.exit_code == 0
+        main.assert_called_once_with(["--automation-port", "9301"])

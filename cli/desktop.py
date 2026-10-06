@@ -1,29 +1,47 @@
-"""Desktop app command for the MatHud CLI.
+"""Desktop app commands for the MatHud CLI.
 
-Runs the desktop launcher in ``mathud_desktop.py`` in this process: the
-Flask app is served on localhost and shown in a native pywebview window.
+``desktop`` on its own runs the desktop launcher in ``mathud_desktop.py`` in
+this process: the Flask app is served on localhost and shown in a native
+pywebview window. Its subcommands drive a window that was opened with
+``--automation-port N`` (see ``cli/desktop_automation.py``): ``prompt`` sends a
+prompt through the window's chat, ``state`` prints its canvas and
+``screenshot`` saves a picture of it.
 """
 
 from __future__ import annotations
 
+import json
 import sys
-from typing import Optional
+from datetime import datetime
+from typing import NoReturn, Optional
 
 import click
 
-from cli.config import PROJECT_ROOT
+from cli.config import CLI_OUTPUT_DIR, DEFAULT_AUTOMATION_PORT, PROJECT_ROOT
 
 
-@click.command()
+@click.group(invoke_without_command=True)
 @click.option("--port", "-p", type=int, default=None, help="Port to serve on (default: 5100, or a free port if taken).")
 @click.option("--browser", is_flag=True, help="Open MatHud in the default browser instead of a window.")
 @click.option("--devtools", is_flag=True, help="Enable the WebView developer tools.")
-def desktop(port: Optional[int], browser: bool, devtools: bool) -> None:
-    """Open MatHud in a desktop window (server included).
+@click.option(
+    "--automation-port",
+    type=int,
+    default=None,
+    help="Let the CLI drive the window over CDP on 127.0.0.1:N (any local program can then control it).",
+)
+@click.pass_context
+def desktop(
+    ctx: click.Context, port: Optional[int], browser: bool, devtools: bool, automation_port: Optional[int]
+) -> None:
+    """Open MatHud in a desktop window (server included), or drive an open one.
 
     Needs pywebview (pip install -r requirements-desktop.txt); use --browser
-    without it. Closing the window stops the server.
+    without it. Closing the window stops the server. The prompt, state and
+    screenshot subcommands drive a window opened with --automation-port.
     """
+    if ctx.invoked_subcommand is not None:
+        return
     if str(PROJECT_ROOT) not in sys.path:
         sys.path.insert(0, str(PROJECT_ROOT))
     import mathud_desktop
@@ -35,4 +53,129 @@ def desktop(port: Optional[int], browser: bool, devtools: bool) -> None:
         argv.append("--browser")
     if devtools:
         argv.append("--devtools")
+    if automation_port is not None:
+        argv += ["--automation-port", str(automation_port)]
     sys.exit(mathud_desktop.main(argv))
+
+
+_PORT_HELP = f"The window's automation port (mathud_desktop.py --automation-port; default {DEFAULT_AUTOMATION_PORT})"
+
+
+def _fail(message: str, code: int = 2) -> NoReturn:
+    click.echo(click.style(message, fg="red"), err=True)
+    raise SystemExit(code)
+
+
+@desktop.command("prompt")
+@click.argument("text")
+@click.option("--port", "-p", default=DEFAULT_AUTOMATION_PORT, type=int, show_default=True, help=_PORT_HELP)
+@click.option(
+    "--model", default=None, help="Model id (default: the only local model; required for --provider openrouter)"
+)
+@click.option(
+    "--provider",
+    type=click.Choice(["local", "openrouter"]),
+    default="local",
+    show_default=True,
+    help="Provider the model must be registered under in /api/available_models",
+)
+@click.option(
+    "--timeout", "timeout_s", default=300.0, type=float, show_default=True, help="Seconds before the turn is stopped"
+)
+@click.option(
+    "--max-requests",
+    default=8,
+    type=click.IntRange(min=1),
+    show_default=True,
+    help="Model requests the turn may send",
+)
+@click.option("--json", "as_json", is_flag=True, help="Print the result as JSON")
+def prompt_cmd(
+    text: str, port: int, model: Optional[str], provider: str, timeout_s: float, max_requests: int, as_json: bool
+) -> None:
+    """Send TEXT through the desktop window's chat and print the reply, tool calls and turn metrics.
+
+    The prompt and reply appear in the window as if typed there. It is always
+    sent with an explicit model id registered under --provider: without
+    --model, the only local model (never the window's current selection).
+    """
+    from cli.desktop_automation import (
+        DesktopError,
+        available_models,
+        choose_prompt_model,
+        connect_desktop,
+        format_prompt_result,
+        run_prompt,
+    )
+    from cli.scenarios.live_config import GuardError
+
+    try:
+        browser = connect_desktop(port)
+    except DesktopError as exc:
+        _fail(str(exc))
+    try:
+        assert browser.base_url is not None
+        try:
+            chosen = choose_prompt_model(available_models(browser.base_url), provider, model)
+        except GuardError as exc:
+            _fail(f"Not sent: {exc}")
+        except Exception as exc:
+            _fail(f"Not sent: could not read {browser.base_url}/api/available_models: {exc}")
+        if not as_json:
+            click.echo(f"Sending to {browser.base_url} with {chosen} ...", err=True)
+        try:
+            result = run_prompt(browser, text, chosen, timeout_s=timeout_s, max_requests=max_requests)
+        except DesktopError as exc:
+            _fail(str(exc))
+    finally:
+        browser.close()
+    if as_json:
+        click.echo(json.dumps(result, indent=2, default=str))
+    else:
+        click.echo(format_prompt_result(result))
+    if result["outcome"] not in ("stop", "max_requests"):
+        raise SystemExit(1)
+
+
+@desktop.command("state")
+@click.option("--port", "-p", default=DEFAULT_AUTOMATION_PORT, type=int, show_default=True, help=_PORT_HELP)
+@click.option("--inspect", is_flag=True, help="Add the inspection view (labels, colours, undo depth, ...)")
+def state_cmd(port: int, inspect: bool) -> None:
+    """Print the desktop window's canvas state as JSON."""
+    from cli.desktop_automation import DesktopError, connect_desktop
+
+    try:
+        browser = connect_desktop(port)
+    except DesktopError as exc:
+        _fail(str(exc))
+    try:
+        snapshot = browser.get_canvas_snapshot({"inspect": True} if inspect else {})
+    finally:
+        browser.close()
+    click.echo(json.dumps(snapshot if inspect else snapshot.get("state"), indent=2, default=str))
+
+
+@desktop.command("screenshot")
+@click.option("--port", "-p", default=DEFAULT_AUTOMATION_PORT, type=int, show_default=True, help=_PORT_HELP)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(dir_okay=False),
+    help="Output file (default: cli/output/desktop_<time>.png)",
+)
+def screenshot_cmd(port: int, output: Optional[str]) -> None:
+    """Save a PNG of the desktop window's page."""
+    from cli.desktop_automation import DesktopError, connect_desktop
+
+    path = output or str(CLI_OUTPUT_DIR / f"desktop_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
+    try:
+        browser = connect_desktop(port)
+    except DesktopError as exc:
+        _fail(str(exc))
+    try:
+        saved = browser.screenshot(path)
+    finally:
+        browser.close()
+    if not saved:
+        _fail("Could not capture the window.", 1)
+    click.echo(f"Screenshot saved: {path}")
