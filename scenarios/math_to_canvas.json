@@ -27,7 +27,7 @@
               "select": [
                 {"type": "Point", "at": [2, 0]},
                 {"type": "Point", "at": [3, 0]},
-                {"type": "Function", "name": "p"}
+                {"type": "Function", "only": true}
               ]
             },
             {"check": "tool_result", "tool": "solve", "has_numbers": [2, 3]},
@@ -52,16 +52,16 @@
             {"tool": "create_point", "args": {"x": 2, "y": 1, "name": "I"}}
           ],
           "checks": [
-            {"check": "point_at", "select": {"type": "Point", "name": "I"}, "at": [2, 1]},
+            {"check": "exists", "select": {"type": "Point", "at": [2, 1]}},
             {
               "check": "relation",
               "relation": "point_on_function",
-              "select": [{"type": "Point", "at": [2, 1]}, {"type": "Function", "name": "l1"}]
+              "select": [{"type": "Point", "at": [2, 1]}, {"type": "Function", "samples": [[0, 3], [4, -1]]}]
             },
             {
               "check": "relation",
               "relation": "point_on_function",
-              "select": [{"type": "Point", "at": [2, 1]}, {"type": "Function", "name": "l2"}]
+              "select": [{"type": "Point", "at": [2, 1]}, {"type": "Function", "samples": [[0, -1], [4, 3]]}]
             },
             {"check": "tool_result", "tool": "solve_system_of_equations", "has_numbers": [2, 1]}
           ]
@@ -88,7 +88,7 @@
             {
               "check": "relation",
               "relation": "tangent_to",
-              "select": ["$Tan", {"type": "Function", "name": "cub"}],
+              "select": ["$Tan", {"type": "Function", "only": true}],
               "x": 1,
               "tol": 1e-06
             },

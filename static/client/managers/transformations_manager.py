@@ -98,6 +98,10 @@ class TransformationsManager:
                 return d
         raise ValueError(f"No drawable found with name '{name}'")
 
+    def _names_in_use_except(self, drawable: Any) -> Set[str]:
+        """Names the lookup above can find, apart from drawable's own."""
+        return {d.name for d in self.canvas.drawable_manager.get_drawables() if d is not drawable and d.name}
+
     def _get_class_name(self, drawable: Any) -> str:
         getter = getattr(drawable, "get_class_name", None)
         name: str = getter() if callable(getter) else drawable.__class__.__name__
@@ -478,7 +482,7 @@ class TransformationsManager:
     def _refresh_ellipse_dependencies(self, ellipse: Any) -> None:
         dependency_manager = getattr(self.canvas, "dependency_manager", None)
         drawables = self._gather_dependency_children({ellipse}, dependency_manager)
-        ellipse.regenerate_name()
+        ellipse.regenerate_name(self._names_in_use_except(ellipse))
         self._invalidate_drawables([ellipse] + list(drawables))
 
     def _collect_segments_from_polygon(self, polygon: Any, touched_point_ids: Set[int]) -> Set[Segment]:

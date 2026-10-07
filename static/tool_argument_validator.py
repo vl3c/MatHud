@@ -16,6 +16,12 @@ Canonicalization rules (applied when schema type is matched):
     - String-to-number coercion: "5" -> 5.0 for number fields
     - String-to-integer coercion: "200" -> 200 for integer fields
     - Empty-string-to-null: "" -> None for nullable string fields
+    - Null-string-to-null: "null", "None", "undefined" -> None for any field whose
+      schema type allows null (a field that cannot be null keeps the string; in
+      text shown on the canvas, DISPLAY_TEXT_ARGUMENTS, "undefined" stays text);
+      applied before validation, so also when validation fails. The routes apply
+      it to every model reply's tool calls (``normalize_tool_calls``), streaming
+      or not, before the client runs them.
     - NaN/Infinity rejection: float('nan'), float('inf') are invalid numbers
     - int pass-through for number fields: 5 stays as 5 (JSON doesn't distinguish)
     - bool is NOT a number: True/False rejected for number/integer fields
@@ -34,12 +40,29 @@ from __future__ import annotations
 import copy
 import logging
 import math
+import re
 from typing import Any, Dict, List, Optional, TypedDict
 
 logger = logging.getLogger(__name__)
 
 # Maximum length for string values included in error messages to prevent log flooding.
 _ERROR_VALUE_MAX_LEN = 100
+
+# Strings some models (e.g. Qwen through llama-server) send for an optional argument they
+# leave unset. They mean null wherever the schema allows null, free text included: a label
+# that should read "null" is far rarer than a model filling an unused field with it.
+NULL_STRINGS = frozenset({"null", "None", "undefined"})
+# Text shown on the canvas as written: there only "null" and "None" (what local models emit)
+# mean null, so a label can still read "undefined". Paths per tool, "[]" for any array item.
+DISPLAY_TEXT_NULL_STRINGS = frozenset({"null", "None"})
+DISPLAY_TEXT_ARGUMENTS: Dict[str, frozenset] = {
+    "update_label": frozenset({"new_text"}),
+    "create_segment": frozenset({"label_text"}),
+    "update_segment": frozenset({"new_label_text"}),
+    "generate_graph": frozenset({"vertices[].name", "vertices[].label", "root", "edges[].name"}),
+    # Vertex names refer to the graph's own vertices, which may be called "undefined".
+    "analyze_graph": frozenset({"params.root", "params.new_root"}),
+}
 
 
 class ValidationResult(TypedDict):
@@ -152,6 +175,49 @@ def _is_nullable(schema_type: Any) -> bool:
     if isinstance(schema_type, list):
         return bool("null" in schema_type)
     return bool(schema_type == "null")
+
+
+def _schema_allows_null(schema: Dict[str, Any]) -> bool:
+    """Return True if the property schema accepts null (its type, or one of its anyOf alternatives)."""
+    if _is_nullable(schema.get("type")):
+        return True
+    any_of = schema.get("anyOf")
+    return isinstance(any_of, list) and any(isinstance(alt, dict) and _schema_allows_null(alt) for alt in any_of)
+
+
+def _normalize_null_strings(value: Any, schema: Dict[str, Any], path: str, tool_name: str) -> Any:
+    """Return *value* with null spelled as a string replaced by None where *schema* allows null.
+
+    Recurses into object properties and array items, so nested optional fields are
+    covered too. The schema's nullability decides which fields; in display text
+    (``DISPLAY_TEXT_ARGUMENTS``) "undefined" stays text.
+    """
+    if isinstance(value, str):
+        spellings = NULL_STRINGS
+        if re.sub(r"\[\d+\]", "[]", path) in DISPLAY_TEXT_ARGUMENTS.get(tool_name, ()):
+            spellings = DISPLAY_TEXT_NULL_STRINGS
+        if value in spellings and _schema_allows_null(schema):
+            logger.info("Tool '%s': argument '%s' canonicalized from string %r to null.", tool_name, path, value)
+            return None
+        return value
+    if isinstance(value, dict):
+        properties = schema.get("properties")
+        if not isinstance(properties, dict):
+            return value
+        return {
+            key: (
+                item
+                if not isinstance(properties.get(key), dict)
+                else _normalize_null_strings(item, properties[key], f"{path}.{key}" if path else key, tool_name)
+            )
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        items = schema.get("items")
+        if not isinstance(items, dict):
+            return value
+        return [_normalize_null_strings(item, items, f"{path}[{i}]", tool_name) for i, item in enumerate(value)]
+    return value
 
 
 def _check_nan_inf(value: Any) -> bool:
@@ -408,6 +474,9 @@ class ToolArgumentValidator:
                 errors=[],
             )
 
+        # Null spelled as a string means null; this applies even when validation fails.
+        arguments = ToolArgumentValidator.normalize_null_strings(function_name, arguments)
+
         # Deep-copy arguments for canonicalization so the original is untouched.
         canonical_args = copy.deepcopy(arguments)
         errors: List[str] = []
@@ -450,7 +519,7 @@ class ToolArgumentValidator:
         if errors:
             return ValidationResult(
                 valid=False,
-                arguments=arguments,  # Return original on failure
+                arguments=arguments,  # The original on failure, with null strings as null
                 errors=errors,
             )
 
@@ -459,6 +528,40 @@ class ToolArgumentValidator:
             arguments=canonical_args,
             errors=[],
         )
+
+    @staticmethod
+    def normalize_null_strings(function_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+        """Return the arguments with ``"null"``, ``"None"`` and ``"undefined"`` as None where null is allowed.
+
+        Only the exact strings, and only for properties whose schema type allows
+        null. Strict schemas list every property as required, so "required" says
+        nothing here: an optional argument is one whose type includes null, and a
+        property whose type does not (``function_string``, a point's ``point_name``)
+        keeps the string, whatever it means. Unknown tools and non-dict arguments
+        come back unchanged; the input is never modified.
+        """
+        schema = _SCHEMA_INDEX.get(function_name)
+        if schema is None or not isinstance(arguments, dict):
+            return arguments
+        normalized = _normalize_null_strings(arguments, schema, "", function_name)
+        return normalized if isinstance(normalized, dict) else arguments
+
+    @staticmethod
+    def normalize_tool_calls(tool_calls: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """``normalize_null_strings`` applied to every ``{"function_name", "arguments"}`` call of a model reply.
+
+        The tool-call path of every provider runs this before the calls go to the
+        client, which runs them. Calls are copied, never modified.
+        """
+        normalized: List[Dict[str, Any]] = []
+        for call in tool_calls:
+            name = call.get("function_name") if isinstance(call, dict) else None
+            arguments = call.get("arguments") if isinstance(call, dict) else None
+            if isinstance(name, str) and isinstance(arguments, dict):
+                call = dict(call)
+                call["arguments"] = ToolArgumentValidator.normalize_null_strings(name, arguments)
+            normalized.append(call)
+        return normalized
 
     @staticmethod
     def get_schema(function_name: str) -> Optional[Dict[str, Any]]:

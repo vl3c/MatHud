@@ -22,6 +22,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 
+from cli.browser_backend import HookClient
 from cli.config import (
     APP_READY_TIMEOUT,
     BROWSER_WAIT_TIMEOUT,
@@ -32,8 +33,11 @@ from cli.config import (
 )
 
 
-class BrowserAutomation:
-    """Headless Chrome automation for interacting with MatHud."""
+class BrowserAutomation(HookClient):
+    """Headless Chrome automation for interacting with MatHud (the default ``AppBrowser`` backend)."""
+
+    # A browser of its own, navigated on open and quit on close (see cli.browser_backend).
+    attached = False
 
     def __init__(
         self,
@@ -198,6 +202,10 @@ class BrowserAutomation:
             shutil.rmtree(self._profile_dir, ignore_errors=True)
             self._profile_dir = None
 
+    def close(self) -> None:
+        """Quit the browser (``AppBrowser`` interface)."""
+        self.cleanup()
+
     def __enter__(self) -> "BrowserAutomation":
         """Context manager entry."""
         self.setup()
@@ -221,6 +229,10 @@ class BrowserAutomation:
             return True
         except Exception:
             return False
+
+    def reload(self) -> bool:
+        """Load the app page again (``AppBrowser`` interface)."""
+        return self.navigate_to_app()
 
     def wait_for_app_ready(self, timeout: int = APP_READY_TIMEOUT) -> bool:
         """Wait for the MatHud application to be fully loaded.
@@ -303,86 +315,6 @@ class BrowserAutomation:
         self.driver.set_script_timeout(timeout)
         return self.driver.execute_async_script(script)
 
-    def call_hook(self, name: str, *args: Any, timeout: int = 30) -> dict[str, Any]:
-        """Call one of the app's ``window.*MatHud*`` JSON hooks and parse its reply.
-
-        Args:
-            name: Hook name on ``window``, e.g. ``getMatHudCanvasState``.
-            *args: Arguments passed to the hook (strings, usually JSON).
-            timeout: Script timeout in seconds.
-
-        Returns:
-            The parsed JSON reply.
-
-        Raises:
-            RuntimeError: If the hook is missing or does not return a JSON object.
-        """
-        script = f"return typeof window.{name} === 'function' ? window.{name}.apply(null, arguments) : null"
-        result = self.execute_js(script, *args, timeout=timeout)
-        if not result:
-            raise RuntimeError(f"window.{name} is not available")
-        parsed = json.loads(result)
-        if not isinstance(parsed, dict):
-            raise RuntimeError(f"window.{name} returned {type(parsed).__name__}, expected an object")
-        return parsed
-
-    def get_canvas_snapshot(self, options: Optional[dict[str, Any]] = None, timeout: int = 30) -> dict[str, Any]:
-        """Return ``{"state": ..., "inspection": ...?}`` from ``getMatHudCanvasState``.
-
-        Args:
-            options: Hook options, e.g. ``{"inspect": True, "samples": {"f": [1, 2]}}``.
-            timeout: Script timeout in seconds.
-        """
-        return self.call_hook("getMatHudCanvasState", json.dumps(options or {}), timeout=timeout)
-
-    def get_canvas_state(self) -> dict[str, Any]:
-        """Get the current canvas state (``Canvas.get_canvas_state``) as a dictionary.
-
-        Returns:
-            Canvas state dictionary, or ``{}`` when the hook is unavailable.
-        """
-        try:
-            payload = self.get_canvas_snapshot()
-        except RuntimeError:
-            return {}
-        state = payload.get("state")
-        return state if isinstance(state, dict) else {}
-
-    def run_tool_calls(self, calls: list[dict[str, Any]], timeout: int = 60) -> dict[str, Any]:
-        """Run one tool batch through ``runMatHudToolCalls``, the path a model's batch takes.
-
-        Args:
-            calls: ``[{"function_name": ..., "arguments": {...}}]`` (or ``{"tool", "args"}``).
-            timeout: Script timeout in seconds.
-
-        Returns:
-            The hook reply: ``traced`` calls, ``state`` after the batch and undo depths.
-        """
-        return self.call_hook("runMatHudToolCalls", json.dumps(calls), timeout=timeout)
-
-    def reset_session(self, options: Optional[dict[str, Any]] = None, timeout: int = 30) -> dict[str, Any]:
-        """Reset canvas, undo history, traces, metrics and chat through ``resetMatHudSession``."""
-        return self.call_hook("resetMatHudSession", json.dumps(options or {}), timeout=timeout)
-
-    def call_function_registry(self, function_name: str, args: dict) -> Any:
-        """Execute one AI tool as a single-call batch and return its result.
-
-        Args:
-            function_name: Name of the tool to call.
-            args: Dictionary of arguments.
-
-        Returns:
-            The tool's result value (the value a model would see).
-
-        Raises:
-            RuntimeError: If the batch could not run.
-        """
-        reply = self.run_tool_calls([{"function_name": function_name, "arguments": args}])
-        if reply.get("status") != "ok":
-            raise RuntimeError(str(reply.get("error", "tool call failed")))
-        traced = reply.get("traced") or []
-        return traced[0].get("result") if traced else None
-
     def capture_screenshot(self, output_path: str, full_page: bool = True) -> bool:
         """Capture a screenshot of the browser.
 
@@ -406,6 +338,10 @@ class BrowserAutomation:
             return True
         except Exception:
             return False
+
+    def screenshot(self, output_path: str) -> bool:
+        """Save a screenshot of the page (``AppBrowser`` interface)."""
+        return self.capture_screenshot(output_path)
 
     def start_tests(self) -> dict[str, Any]:
         """Start the MatHud test suite.

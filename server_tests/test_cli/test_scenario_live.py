@@ -116,6 +116,7 @@ class FakeChatBrowser(FakeBrowser):
             # Like the client: no request beyond the turn's limit (None: the client ignores limits).
             self.limit = self.options[-1].get("max_requests") if self.honour_limit else None
             self.processing, self.requests, self.executions = True, 0, 0
+            self._open_group()  # the turn's batches share one undo group
             if self.end_with is not None:
                 self.requests = 1
                 self._run_batch(self.pending.pop(0)) if self.pending else None
@@ -172,6 +173,7 @@ class FakeChatBrowser(FakeBrowser):
         )
 
     def _finish(self, outcome: str, error_source: Optional[str] = None) -> None:
+        self._close_group()
         self.processing = False
         self.completed += 1
         self.metrics = {
@@ -384,19 +386,31 @@ class TestBatchedInvariants:
         calls = [c for batch in batches for c in batch.calls]
         return StepData(calls=calls, undo_before=0, undo_after=undo_after, mode="live", batches=list(batches))
 
-    def test_live_turn_undo_range(self) -> None:
+    def test_live_turn_is_one_undo_step(self) -> None:
         first = BatchData(calls=[call("create_point", x=0, y=0)], delta={"added": ["A"]})
         second = BatchData(calls=[call("create_point", x=1, y=0)], delta={"added": ["B"]})
         search = BatchData(calls=[call("search_tools", [])], delta={})
-        assert by_id(run_invariants(self.empty, self.two, self.turn(2, search, first, second), "t1"), "I5").passed
-        low = by_id(run_invariants(self.empty, self.two, self.turn(1, first, second), "t1"), "I5")
-        assert low.status == "fail" and "expected 2 to 2" in low.message
-        assert by_id(run_invariants(self.empty, self.two, self.turn(3, first, second), "t1"), "I5").status == "fail"
-        # A batch whose trace names no change may or may not have archived (colours are not in the delta).
+        assert by_id(run_invariants(self.empty, self.two, self.turn(1, search, first, second), "t1"), "I5").passed
+        per_batch = by_id(run_invariants(self.empty, self.two, self.turn(2, first, second), "t1"), "I5")
+        assert per_batch.status == "fail" and "turn of 2 batches" in per_batch.message
+        assert "expected 1" in per_batch.message
+        # A turn that changed nothing in the end (a point made, then deleted) adds no entry.
+        removed = BatchData(calls=[call("delete_point", x=0, y=0)], delta={"removed": ["A"]})
+        assert by_id(run_invariants(self.empty, self.empty, self.turn(0, first, removed), "t1"), "I5").passed
+        net_zero = by_id(run_invariants(self.empty, self.empty, self.turn(1, first, removed), "t1"), "I5")
+        assert net_zero.status == "fail" and "changed nothing" in net_zero.message
+        # A recolour counts as a change although the trace delta does not name it.
         recolour = BatchData(calls=[call("update_point", name="A", new_color="red")], delta={"modified": []})
-        for added in (1, 2):
-            step = self.turn(added, first, recolour)
-            assert by_id(run_invariants(self.empty, self.one, step, "t1"), "I5").passed
+        red = CanvasView(state(point("A", 0, 0)), {"drawables": [{"class": "Point", "name": "A", "color": "red"}]})
+        assert by_id(run_invariants(self.empty, red, self.turn(1, first, recolour), "t1"), "I5").passed
+
+    def test_live_turn_with_undo_needs_the_batch_canvases(self) -> None:
+        first = BatchData(calls=[call("create_point", x=0, y=0)], delta={"added": ["A"]})
+        undo = BatchData(calls=[call("undo")], delta={"removed": ["A"]})
+        step = StepData(calls=first.calls + undo.calls, undo_before=0, undo_after=5, redo_before=0,
+                        mode="live", batches=[first, undo])  # fmt: skip
+        # Without each batch's canvas the undo cannot be followed, so the turn is not judged.
+        assert by_id(run_invariants(self.empty, self.empty, step, "t1"), "I5").passed
 
     def test_live_turn_leaves_success_claims_to_the_retrace(self) -> None:
         made = BatchData(calls=[call("create_point", x=0, y=0, name="A")], delta={"added": ["A"]})
@@ -416,16 +430,27 @@ class TestBatchedInvariants:
         result = by_id(run_invariants(self.empty, self.one, self.turn(1, *failed), "t1"), "I4")
         assert result.status == "fail" and "every call failed" in result.message
 
-    def test_retraced_batches_are_judged_one_by_one(self) -> None:
-        first = BatchData(
-            calls=[call("create_point", x=0, y=0)], undo_before=0, undo_after=1, view=self.one, delta=None
-        )
-        double = BatchData(calls=[call("create_point", x=1, y=0)], undo_before=1, undo_after=3, view=self.two)
-        step = self.turn(3, first, double)
-        result = by_id(run_invariants(self.empty, self.two, step, "t1"), "I5")
-        assert result.status == "fail" and result.message.startswith("batch 2: ")
-        double.undo_after = 2
-        assert by_id(run_invariants(self.empty, self.two, self.turn(2, first, double), "t1"), "I5").passed
+    def test_retraced_turn_follows_undo_calls(self) -> None:
+        def turn(undo_after: int, redo_after: int, *batches: BatchData) -> StepData:
+            calls = [c for batch in batches for c in batch.calls]
+            return StepData(calls=calls, undo_before=1, undo_after=undo_after, redo_before=0,
+                            redo_after=redo_after, mode="retrace", batches=list(batches))  # fmt: skip
+
+        made = BatchData(calls=[call("create_point", x=1, y=0)], view=self.two)
+        undo = BatchData(calls=[call("undo")], view=self.one)
+        other = BatchData(calls=[call("create_point", x=2, y=0)], view=self.two)
+        # "Make B; undo": the turn's change becomes one step first, and the undo reverts it.
+        assert by_id(run_invariants(self.one, self.one, turn(1, 1, made, undo), "t1"), "I5").passed
+        # "Make B; undo; make B again": a new group after the undo, one entry in the end.
+        assert by_id(run_invariants(self.one, self.two, turn(2, 0, made, undo, other), "t1"), "I5").passed
+        wrong = by_id(run_invariants(self.one, self.two, turn(3, 0, made, undo, other), "t1"), "I5")
+        assert wrong.status == "fail" and "expected 2" in wrong.message
+        # An undo before any change reverts the previous step (from depth 1 to 0).
+        undo_first = BatchData(calls=[call("undo")], view=self.empty)
+        assert by_id(run_invariants(self.one, self.empty, turn(0, 1, undo_first), "t1"), "I5").passed
+        # An undo mixed with other calls in one batch cannot be followed: not judged.
+        mixed = BatchData(calls=[call("create_point", x=1, y=0), call("undo")], view=self.one)
+        assert by_id(run_invariants(self.one, self.one, turn(9, 0, made, mixed), "t1"), "I5").passed
 
 
 # ----------------------------------------------------------------------
@@ -830,6 +855,26 @@ class TestBudgetOnErrors:
         assert outcome.infra_error and "hook error" in outcome.infra_error
         assert budget.sent == 3 + 1  # the requests seen, plus the one in flight
 
+    @pytest.mark.parametrize(
+        "error, counted",
+        [("Model option not found: m", 0), ("images are attached in the chat input", 0), ("boom", 1)],
+    )
+    def test_a_send_refused_before_sending_counts_no_request(
+        self, catalogue: Catalogue, tmp_path: Path, error: str, counted: int
+    ) -> None:
+        class RefusingBrowser(FakeChatBrowser):
+            def call_hook(self, name: str, *args: Any, timeout: int = 30) -> dict[str, Any]:
+                if name == "sendMatHudMessage":
+                    return {"status": "error", "error": error}
+                return super().call_hook(name, *args, timeout=timeout)
+
+        budget = RequestBudget(100)
+        runner, sink = live_runner(catalogue, RefusingBrowser(), tmp_path / "out", budget=budget)
+        [outcome] = runner.run_live(geo90(catalogue), ["m"], 1)
+        sink.close(catalogue)
+        assert "hook error" in str(outcome.infra_error)
+        assert budget.sent == counted  # an unknown error may have sent one
+
     def test_no_turn_starts_when_its_first_request_would_reach_the_cap(
         self, catalogue: Catalogue, tmp_path: Path
     ) -> None:
@@ -900,15 +945,32 @@ class TestMultiBatchRetrace:
     def test_every_multi_batch_turn_is_retraced_and_judged_per_batch(
         self, catalogue: Catalogue, tmp_path: Path
     ) -> None:
-        script = {PROMPT: [[create(1, 2)], [create(3, 3, "Q")], [{"tool": "undo", "args": {}}]]}
+        # The undo reverts Q (the turn's changes so far); P then starts a new group.
+        script = {PROMPT: [[create(3, 3, "Q")], [{"tool": "undo", "args": {}}], [create(1, 2)]]}
         runner, sink = live_runner(catalogue, FakeChatBrowser(script=script), tmp_path / "out")
         [outcome] = runner.run_live(geo90(catalogue), ["m"], 1)
         sink.close(catalogue)
         assert outcome.retrace and outcome.retrace["reproduced"] is True
         turn = next(step for step in outcome.steps if step["step"] == "t1")
+        assert (turn["undo_before"], turn["undo_after"]) == (0, 1)
         judged = {r["name"]: r for r in turn["results"] if r.get("judged_by") == "retrace"}
         assert set(judged) == {"I4", "I5"} and all(r["status"] == "pass" for r in judged.values())
         assert outcome.status == "pass"
+
+    def test_a_multi_batch_turn_is_one_undo_step(self, catalogue: Catalogue, tmp_path: Path) -> None:
+        script = {PROMPT: [[SEARCH], [create(1, 2)], [create(3, 3, "Q")]]}
+        runner, sink = live_runner(catalogue, FakeChatBrowser(script=script), tmp_path / "out")
+        [outcome] = runner.run_live(geo90(catalogue), ["m"], 1)
+        sink.close(catalogue)
+        turn = next(step for step in outcome.steps if step["step"] == "t1")
+        assert (turn["undo_before"], turn["undo_after"]) == (0, 1)
+        assert outcome.retrace and outcome.retrace["reproduced"] is True
+        retraced = next(step for step in outcome.retrace["steps"] if step["step"] == "t1")
+        assert [(b["undo_before"], b["undo_after"]) for b in retraced["batches"]] == [(0, 0), (0, 1)]
+        assert next(r for r in turn["results"] if r["name"] == "I5")["status"] == "pass"
+        # The scripted undo after the turn removes both points: the reply was one step.
+        undo_step = next(step for step in outcome.steps if step["step"] == "do1")
+        assert undo_step["state"]["Points"] == []
 
     def test_single_batch_passing_turn_is_not_retraced(self, catalogue: Catalogue, tmp_path: Path) -> None:
         runner, sink = live_runner(catalogue, FakeChatBrowser(script={PROMPT: [[create(1, 2)]]}), tmp_path / "out")

@@ -777,6 +777,7 @@ class DrawableManager:
         name: str = "",
         color: Optional[str] = None,
         extra_graphics: bool = True,
+        reuse_existing: bool = True,
     ) -> "Ellipse":
         """Create a new ellipse with the specified center, radii, and rotation"""
         return self.ellipse_manager.create_ellipse(
@@ -788,6 +789,7 @@ class DrawableManager:
             name,
             color=color,
             extra_graphics=extra_graphics,
+            reuse_existing=reuse_existing,
         )
 
     def delete_ellipse(self, name: str) -> bool:

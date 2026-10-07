@@ -44,6 +44,8 @@ DEFAULT_TURN_MAX_REQUESTS = 8
 POLL_INTERVAL_S = 0.2
 # A turn that never starts processing within this many seconds is recorded as not started.
 TURN_START_GRACE_S = 10.0
+# sendMatHudMessage refusals that come before anything is sent (no request to count).
+UNSENT_REFUSALS = ("sendMatHudMessage: busy", "Model option not found", "images are attached")
 # How long to wait for the client to settle after stopMatHudTurn.
 STOP_SETTLE_S = 10.0
 
@@ -277,8 +279,14 @@ class LiveRunner(ReplayRunner):
         self._turn_requests_seen = 0
         accounted = False
         try:
-            # From here on the turn may have sent requests: whatever happens, they are counted.
-            self.session.hook("sendMatHudMessage", step.user or "", self.model or "", json.dumps(options))
+            # From here on the turn may have sent requests: whatever happens, they are counted,
+            # except when the window refused the message before sending anything (busy, a model
+            # missing from its list, images attached).
+            try:
+                self.session.hook("sendMatHudMessage", step.user or "", self.model or "", json.dumps(options))
+            except HookError as exc:
+                accounted = any(marker in str(exc) for marker in UNSENT_REFUSALS)
+                raise
             started = self._clock()
             stop_reason = self._wait_for_turn(completed_before, started, timeout_s, limit)
             wall = self._clock() - started
@@ -440,7 +448,11 @@ def mark_truncated(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 class RetraceRunner(ReplayRunner):
-    """Re-executes a live run's calls batch by batch, with no model."""
+    """Re-executes a live run's calls batch by batch, with no model.
+
+    A turn's batches run in one undo group, as the chat turn ran them, so the
+    retrace's undo stack moves as the live one did.
+    """
 
     mode = "retrace"
 
@@ -485,29 +497,9 @@ class RetraceRunner(ReplayRunner):
         live = self._source.get(step.id)
         if live is None:
             raise HookError(f"the live run has no record of step {step.id}")
-        batches: list[dict[str, Any]] = []
-        for calls in retrace_batches(live):
-            reply = self.session.hook("runMatHudToolCalls", json.dumps(calls))
-            snapshot = self.session.hook("getMatHudCanvasState", json.dumps({"inspect": True}))
-            batches.append(
-                {
-                    "calls": list(reply.get("traced") or []),
-                    "undo_before": reply.get("undo_depth_before"),
-                    "undo_after": reply.get("undo_depth_after"),
-                    "redo_before": reply.get("redo_depth_before"),
-                    "redo_after": reply.get("redo_depth_after"),
-                    "state": snapshot.get("state") or {},
-                    "inspection": snapshot.get("inspection"),
-                }
-            )
-        data = self._with_samples(grader, step, None)
-        inspection = data.inspection or {}
-        data.calls = [call for batch in batches for call in batch["calls"]]
-        data.undo_before = batches[0]["undo_before"] if batches else inspection.get("undo_depth")
-        data.redo_before = batches[0]["redo_before"] if batches else inspection.get("redo_depth")
-        data.undo_after, data.redo_after = inspection.get("undo_depth"), inspection.get("redo_depth")
+        batches = self._run_turn_batches(retrace_batches(live))
+        data = self._turn_data(grader, step, batches)
         data.final_text = live.get("final_text")
-        data.batches = batches if len(batches) > 1 else None
         extra = {
             "provider": live.get("provider"),
             "model": live.get("model"),

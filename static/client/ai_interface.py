@@ -90,6 +90,9 @@ class AIInterface:
     _turn_requests_sent: int = 0
     # Per-turn response timeout overriding AI_RESPONSE_TIMEOUT_MS and REASONING_TIMEOUT_MS.
     _turn_timeout_ms: Optional[int] = None
+    # True while the running turn's undo group is open: every canvas change of one assistant
+    # reply, over all its tool batches, is one undo step (see _open_turn_undo_group).
+    _turn_undo_group_open: bool = False
     # Model the running turn started with; every request of the turn goes to it, so a
     # model picked mid-turn answers from the next message.
     _turn_model: Optional[str] = None
@@ -528,12 +531,22 @@ class AIInterface:
         Tracing is diagnostic: a failure to build or store the trace is logged and
         leaves ``trace`` as None; it never fails the batch or the turn.
 
+        During a chat turn the batch joins the turn's undo group, so the whole reply
+        is one undo step; otherwise (the scenario hook, tests) the batch is its own
+        step, unless the caller opened a group.
+
         Returns:
             Dict with ``call_results``, ``traced_calls``, ``state_after`` and ``trace``.
         """
+        if getattr(self, "is_processing", False):
+            self._open_turn_undo_group()
         state_before = self.canvas.get_canvas_state()
         t0 = window.performance.now()
         traced_calls: list[Dict[str, Any]] = []
+        in_group = getattr(self, "_turn_undo_group_open", False)
+        if in_group:
+            # Only the view changes made by the batch itself belong to the turn's step.
+            self._undo_manager_call("mark_batch_view")
         try:
             call_results, traced_calls = ProcessFunctionCalls.get_results_traced(
                 tool_calls,
@@ -544,11 +557,15 @@ class AIInterface:
             self._store_results_in_canvas_state(call_results)
             self._turn_metrics.record_tool_results(traced_calls, turn_token)
         except Exception:
+            if in_group:
+                self._undo_manager_call("note_batch_view")
             try:
                 self._store_batch_trace(state_before, self.canvas.get_canvas_state(), traced_calls, t0)
             except Exception:
                 pass
             raise
+        if in_group:
+            self._undo_manager_call("note_batch_view")
         state_after = self.canvas.get_canvas_state()
         trace = self._store_batch_trace(state_before, state_after, traced_calls, t0)
         return {
@@ -590,6 +607,46 @@ class AIInterface:
             except Exception:
                 pass
             return None
+
+    def _open_turn_undo_group(self) -> None:
+        """Group every canvas change until ``_close_turn_undo_group`` into one undo step.
+
+        Opened by the turn's first tool batch and closed when the turn ends, however
+        it ends (final answer, error, stop, timeout, abandoned, request cap): every
+        ending re-enables the send controls, which closes the group. A group that
+        changed nothing adds no entry. An ``undo`` or ``redo`` call inside the turn
+        acts on the history as it stands then: the turn's changes so far become one
+        step first (if there are any), so the undo reverts them, and an undo before
+        any change reverts the previous step; later changes in the turn form one
+        new step (UndoRedoManager.undo and redo do this inside any open batch).
+        Opening twice is a no-op.
+
+        The group tracks the view (``UndoRedoManager.track_batch_view``): only the view
+        parts the turn's tool batches change belong to its step, so a pan or zoom the
+        user makes while the model thinks is kept when the reply is undone.
+        """
+        if getattr(self, "_turn_undo_group_open", False):
+            return
+        self.canvas.begin_undo_batch()
+        self._turn_undo_group_open = True
+        self._undo_manager_call("track_batch_view")
+
+    def _undo_manager_call(self, method: str) -> None:
+        """Call an UndoRedoManager method if the canvas has one (test doubles may not)."""
+        manager = getattr(self.canvas, "undo_redo_manager", None)
+        function = getattr(manager, method, None)
+        if callable(function):
+            function()
+
+    def _close_turn_undo_group(self) -> None:
+        """Close the turn's undo group, pushing one entry if the turn changed the canvas."""
+        if not getattr(self, "_turn_undo_group_open", False):
+            return
+        self._turn_undo_group_open = False
+        try:
+            self.canvas.end_undo_batch()
+        except Exception as e:
+            print(f"Error closing the turn's undo group: {e}")
 
     def _on_stream_error(self, err: Any, turn_token: Optional[int] = None) -> None:
         """Handle streaming errors and re-enable controls."""
@@ -755,7 +812,12 @@ class AIInterface:
             print(f"Error disabling send controls: {e}")
 
     def _enable_send_controls(self) -> None:
-        """Restore send button to normal mode after processing and cancel the timeout."""
+        """End the turn: close its undo group, restore the send button and cancel the timeout.
+
+        Every way a turn ends comes here, so the turn's canvas changes become one undo
+        step before ``is_processing`` turns false.
+        """
+        self._close_turn_undo_group()
         try:
             self._cancel_response_timeout()
             self.is_processing = False
@@ -1199,7 +1261,8 @@ class AIInterface:
         # Clear attached images after displaying (not after successful send)
         self._image_attachment.clear()
 
-        # Regular AI flow
+        # Regular AI flow. A group left open by an earlier turn never absorbs this one.
+        self._close_turn_undo_group()
         self._turn_request_limit = request_limit
         self._turn_requests_sent = 0
         self._turn_timeout_ms = response_timeout_ms

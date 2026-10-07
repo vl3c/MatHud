@@ -88,6 +88,7 @@ from .test_polygon_manager import TestPolygonManager
 from .test_vector_manager import TestVectorManager
 from .test_circle_manager import TestCircleManager
 from .test_ellipse_manager import TestEllipseManager, TestEllipseReuseMatching
+from .test_ellipse_naming import TestEllipseNameModel, TestEllipseNamingOnCanvas
 from .test_colored_area_manager import TestColoredAreaManager
 from .test_function_manager import TestFunctionManager
 from .test_function_features import TestFunctionFeaturesAlgorithm, TestFunctionFeaturesCanvas
@@ -340,10 +341,17 @@ from .test_scenario_hooks import (
     TestScenarioHookHelpers,
     TestScenarioHookCanvas,
     TestScenarioHookEndpoints,
+    TestScenarioHookFitView,
     TestToolBatchTraceFailure,
+    TestTurnUndoGroup,
 )
 from .test_result_processor_traced import TestGetResultsTraced
-from .test_tool_batch_results import TestToolBatchUndo, TestToolErrorResults, TestToolNoOpResults
+from .test_tool_batch_results import (
+    TestEditRefusalGuidance,
+    TestToolBatchUndo,
+    TestToolErrorResults,
+    TestToolNoOpResults,
+)
 from .test_tool_result_serialization import (
     TestGraphAnalysisResultsAreJson,
     TestIsJsonPlain,
@@ -581,6 +589,8 @@ class Tests:
             TestCircleManager,
             TestEllipseManager,
             TestEllipseReuseMatching,
+            TestEllipseNameModel,
+            TestEllipseNamingOnCanvas,
             TestColoredAreaManager,
             TestTransformationsManager,
             TestTransforms,
@@ -764,7 +774,9 @@ class Tests:
             TestScenarioHookHelpers,
             TestScenarioHookCanvas,
             TestScenarioHookEndpoints,
+            TestScenarioHookFitView,
             TestToolBatchTraceFailure,
+            TestTurnUndoGroup,
             TestBuildTrace,
             TestStoreAndRetrieve,
             TestExportTracesJson,
@@ -773,6 +785,7 @@ class Tests:
             TestToolBatchUndo,
             TestToolNoOpResults,
             TestToolErrorResults,
+            TestEditRefusalGuidance,
             TestJsonSafe,
             TestGraphAnalysisResultsAreJson,
             TestSendPathFallback,

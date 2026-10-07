@@ -40,7 +40,7 @@ from drawables.point import Point
 from drawables.segment import Segment
 from utils.math_utils import MathUtils
 from managers.base_drawable_manager import BaseDrawableManager
-from managers.edit_policy import EditRule
+from managers.edit_policy import EditRule, translate_point_hint
 from managers.dependency_removal import get_polygon_segments, remove_drawable_with_dependencies
 
 if TYPE_CHECKING:
@@ -389,7 +389,7 @@ class PointManager(BaseDrawableManager):
                 circle.regenerate_name()
         for ellipse in getattr(self.drawables, "Ellipses", []):
             if getattr(ellipse, "center", None) is point and hasattr(ellipse, "regenerate_name"):
-                ellipse.regenerate_name()
+                ellipse.regenerate_name(self.drawables.names_in_use(exclude=ellipse))
 
     def _validate_point_policy(self, requested_fields: List[str]) -> Dict[str, EditRule]:
         """Ensure every requested field is allowed by the policy definition."""
@@ -430,7 +430,9 @@ class PointManager(BaseDrawableManager):
 
         if "position" in pending_fields and self._point_is_locked_center(point):
             raise ValueError(
-                f"Point '{point_name}' is the center of a circle or ellipse and must be moved via the appropriate update command."
+                f"Point '{point_name}' is the center of a circle or ellipse and must be moved via the appropriate "
+                f"update command (update_circle or update_ellipse with new_center_x and new_center_y), or "
+                f"{self._move_hint(point, new_x, new_y)}."
             )
 
         if not pending_fields:
@@ -440,9 +442,10 @@ class PointManager(BaseDrawableManager):
         if any(rule.requires_solitary for rule in rules.values()):
             if not self._is_point_solitary(point):
                 if not self._can_bypass_solitary_rules(point, rules, pending_fields):
-                    raise ValueError(
-                        f"Point '{point_name}' is referenced by other drawables and cannot be edited in place."
-                    )
+                    message = f"Point '{point_name}' is referenced by other drawables and cannot be edited in place"
+                    if "position" in pending_fields:
+                        message += f"; {self._move_hint(point, new_x, new_y)}"
+                    raise ValueError(message + ".")
 
         filtered_name = self._compute_updated_name(point, pending_fields)
         new_coordinates = self._compute_updated_coordinates(point, pending_fields, new_x, new_y)
@@ -466,6 +469,13 @@ class PointManager(BaseDrawableManager):
             self.canvas.draw()
 
         return True
+
+    @staticmethod
+    def _move_hint(point: Point, new_x: Optional[float], new_y: Optional[float]) -> str:
+        """The translate_object call that moves ``point`` to (new_x, new_y), objects built on it included."""
+        if new_x is None or new_y is None:
+            return str(translate_point_hint(point.name))
+        return str(translate_point_hint(point.name, float(new_x) - float(point.x), float(new_y) - float(point.y)))
 
     def _point_is_locked_center(self, point: Point) -> bool:
         for circle in getattr(self.drawables, "Circles", []):

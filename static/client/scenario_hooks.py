@@ -6,11 +6,17 @@ to it only through these ``window`` functions. Like ``getMatHudTestResults`` the
 take and return JSON strings:
 
     getMatHudCanvasState(optionsJson?)   canvas state, optionally with an inspection view
-    runMatHudToolCalls(callsJson)        run one tool batch exactly as a model batch runs
+    runMatHudToolCalls(callsJson, optionsJson?)  run one tool batch exactly as a model batch runs
     resetMatHudSession(optionsJson?)     clear canvas, undo history, traces, metrics and chat
     getMatHudTurnStatus()                whether a chat turn is running, and its progress
     sendMatHudMessage(text, modelId?, optionsJson?)  send a chat message as the user (live mode)
     stopMatHudTurn()                     stop the running chat turn
+    fitMatHudView(optionsJson?)          zoom the view to fit every drawable (automation display only)
+    setMatHudAutomationGuards(optionsJson)  refuse workspace tools while an automated run drives the window
+
+``fitMatHudView`` is for the automation paths only (the CLI's attach mode,
+``desktop prompt`` and ``desktop fit``): in regular use the app never pans or
+zooms on its own, so no UI or AI-turn code path calls it.
 
 See documentation/development/agentic_scenario_testing.md (section 4.3).
 
@@ -21,7 +27,9 @@ Brython test runner can exercise them without a browser session.
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+import math
+import time
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 from browser import ajax, document, window
 
@@ -44,6 +52,75 @@ _POLYGON_CLASSES = (
     "Decagon",
     "GenericPolygon",
 )
+# fitMatHudView: padding on each side as a share of the content's span, the smallest
+# half-span shown (a single point gets a window of about +-1 around it), the function
+# samples per curve, the x range for an unbounded function when nothing else gives one,
+# and Tukey's fence factor that drops asymptote spikes from function samples.
+FIT_PADDING = 0.12
+FIT_MIN_HALF_SPAN = 1.0
+FIT_SAMPLES = 64
+FIT_DEFAULT_X_RANGE = (-10.0, 10.0)
+FIT_FENCE = 3.0
+FIT_VALUE_LIMIT = 1e9
+# Tools that read or write the server's workspace directory: an attached automated run
+# (the CLI driving someone's desktop window) refuses them, since that directory is the user's.
+WORKSPACE_TOOLS = ("save_workspace", "load_workspace", "list_workspaces", "delete_workspace")
+WORKSPACE_TOOLS_BLOCKED_MESSAGE = (
+    "Error: workspace tools are blocked by an automated run driving this window from the MatHud CLI "
+    "(they would use your own workspace directory). The block lifts by itself about {lease:.0f} s after "
+    "the run stops renewing it; reload the window to lift it now."
+)
+# The block is a lease: it lapses unless the CLI renews it, so a CLI that crashed or was
+# killed cannot leave the window refusing workspace tools.
+DEFAULT_GUARD_LEASE_S = 90.0
+MAX_GUARD_LEASE_S = 600.0
+
+
+class WorkspaceToolsBlock:
+    """Swaps the workspace tools in ``functions`` for a refusal until a lease runs out.
+
+    The refusal checks the lease when called: once it has lapsed, the real tools
+    are put back and the call goes through to them, so no timer is needed.
+    """
+
+    def __init__(self, functions: Dict[str, Any], clock: Callable[[], float] = time.time) -> None:
+        self.functions = functions
+        self.clock = clock
+        self.set_aside: Dict[str, Any] = {}
+        self.expires_at = 0.0
+        self.lease_s = DEFAULT_GUARD_LEASE_S
+
+    @property
+    def active(self) -> bool:
+        """True while blocked; a lapsed lease is lifted here."""
+        if self.set_aside and self.clock() >= self.expires_at:
+            self.lift()
+        return bool(self.set_aside)
+
+    def block(self, lease_s: float = DEFAULT_GUARD_LEASE_S) -> None:
+        """Block (or renew the block) for ``lease_s`` seconds from now."""
+        self.lease_s = min(max(float(lease_s), 1.0), MAX_GUARD_LEASE_S)
+        self.expires_at = self.clock() + self.lease_s
+        for name in WORKSPACE_TOOLS:
+            if name in self.functions and name not in self.set_aside:
+                self.set_aside[name] = self.functions[name]
+                self.functions[name] = self._refusal(name)
+
+    def lift(self) -> None:
+        for name, function in list(self.set_aside.items()):
+            self.functions[name] = function
+            del self.set_aside[name]
+
+    def remaining_s(self) -> float:
+        return max(self.expires_at - self.clock(), 0.0) if self.active else 0.0
+
+    def _refusal(self, name: str) -> Callable[..., Any]:
+        def refuse(*args: Any, **kwargs: Any) -> Any:
+            if not self.active:  # the lease lapsed: the real tool is back, so run it
+                return self.functions[name](*args, **kwargs)
+            return WORKSPACE_TOOLS_BLOCKED_MESSAGE.format(lease=self.lease_s)
+
+        return refuse
 
 
 class ScenarioHooks:
@@ -51,6 +128,8 @@ class ScenarioHooks:
 
     def __init__(self, ai_interface: "AIInterface") -> None:
         self.ai = ai_interface
+        # Created on first use: the AI interface's function table is set up after the hooks.
+        self._workspace_block: Optional[WorkspaceToolsBlock] = None
 
     @property
     def canvas(self) -> "Canvas":
@@ -64,6 +143,8 @@ class ScenarioHooks:
         window.getMatHudTurnStatus = self.get_turn_status
         window.sendMatHudMessage = self.send_message
         window.stopMatHudTurn = self.stop_turn
+        window.fitMatHudView = self.fit_view
+        window.setMatHudAutomationGuards = self.set_automation_guards
 
     # ------------------------------------------------------------------
     # Hooks
@@ -85,23 +166,41 @@ class ScenarioHooks:
         except Exception as exc:
             return to_json({"status": "error", "error": str(exc)})
 
-    def run_tool_calls(self, calls_json: Any) -> str:
+    def run_tool_calls(self, calls_json: Any, options_json: Any = None) -> str:
         """Run one batch through ``AIInterface.execute_tool_batch``, the model's batch path.
 
         Returns the traced calls, the state after the batch, the undo and redo
         depths before and after, and which calls are undoable. Refused with
         ``{"status": "busy"}`` while a chat turn runs, so scripted calls never
         mix into a user turn's canvas or metrics.
+
+        By default the batch is one undo step, as a one-batch reply is. Option
+        ``turn`` replays a reply of several batches as a chat turn runs it, in one
+        undo group: ``"continue"`` runs the batch in the turn's group (opening it)
+        and leaves the group open; ``"end"`` runs it in the group and then closes
+        it, adding one entry if the turn changed the canvas. A batch without the
+        option first closes a group a previous call left open.
         """
         try:
             calls = normalize_tool_calls(json.loads(str(calls_json)))
+            turn = parse_options(options_json).get("turn")
+            if turn not in (None, "continue", "end"):
+                raise ValueError(f"turn must be 'continue' or 'end', got {turn!r}")
         except Exception as exc:
             return to_json({"status": "error", "error": f"Invalid tool calls: {exc}"})
         if self.ai.is_processing or self.ai._turn_metrics.is_active:
             return to_json({"status": "busy", "error": "a chat turn is running"})
+        if turn is None:
+            self.ai._close_turn_undo_group()
         undo_before, redo_before = undo_depths(self.canvas)
+        if turn is not None:
+            self.ai._open_turn_undo_group()
         try:
-            batch = self.ai.execute_tool_batch(calls, None)
+            try:
+                batch = self.ai.execute_tool_batch(calls, None)
+            finally:
+                if turn == "end":
+                    self.ai._close_turn_undo_group()
         except Exception as exc:
             undo_after, redo_after = undo_depths(self.canvas)
             return to_json(
@@ -143,6 +242,8 @@ class ScenarioHooks:
             options = parse_options(options_json)
             if self.ai.is_processing:
                 self.ai.stop_ai_processing()
+            # A turn group a replayed reply left open must not survive into the next scenario.
+            self.ai._close_turn_undo_group()
             reset_canvas_session(self.canvas)
             fixture = options.get("fixture")
             if isinstance(fixture, dict):
@@ -178,30 +279,70 @@ class ScenarioHooks:
         Options: ``max_requests`` caps the turn's model requests (the turn ends
         instead of sending more); ``response_timeout_ms`` replaces the client's
         response timeouts for this turn (a local model may think longer than 60 s).
+        Refused while images are attached in the chat input, so they are not sent
+        with the automated prompt. The selector's previous choice is restored once
+        the request is built (the turn keeps the model it started with).
         """
         try:
             if self.ai.is_processing:
                 return to_json({"status": "busy"})
+            if pending_images(self.ai):
+                return to_json(
+                    {"status": "error", "error": "images are attached in the chat input; remove them first"}
+                )
             options = parse_options(options_json)
             request_limit = _positive_int(options.get("max_requests"))
             timeout_ms = _positive_int(options.get("response_timeout_ms"))
-            if model_id:
-                selector = document["ai-model-selector"]
+            selector = document["ai-model-selector"] if model_id else None
+            previous_model: Optional[str] = None
+            if selector is not None:
                 values = [str(option.value) for option in selector.options]
                 if str(model_id) not in values:
                     return to_json({"status": "error", "error": f"Model option not found: {model_id}"})
+                # Put back only a choice the list still offers (a placeholder would blank the dropdown).
+                previous_model = str(selector.value) if str(selector.value) in values and selector.value else None
                 selector.value = str(model_id)
             toggle = document["vision-toggle"] if "vision-toggle" in document else None
             vision_was_on = bool(toggle.checked) if toggle is not None else False
             if toggle is not None:
                 toggle.checked = False
             try:
-                # The prompt (including use_vision) is built synchronously inside this call.
+                # The prompt (including use_vision and the turn's model) is built synchronously inside this call.
                 self.ai.send_user_message(str(text), request_limit, timeout_ms)
             finally:
                 if toggle is not None:
                     toggle.checked = vision_was_on
+                if selector is not None and previous_model is not None:
+                    selector.value = previous_model
             return to_json({"status": "started"})
+        except Exception as exc:
+            return to_json({"status": "error", "error": str(exc)})
+
+    def set_automation_guards(self, options_json: Any = None) -> str:
+        """Option ``block_workspace_tools`` (bool): refuse the workspace tools, or allow them again.
+
+        A blocked tool answers with an error result instead of reading or writing
+        the server's workspace directory. The block is a lease of ``lease_s``
+        seconds (default 90): the CLI renews it while it drives someone's desktop
+        window and lifts it when its run ends; if the CLI dies, it lapses by
+        itself. A page reload also lifts it.
+        """
+        try:
+            options = parse_options(options_json)
+            block = self._workspace_block
+            if block is None or block.functions is not self.ai.available_functions:
+                block = self._workspace_block = WorkspaceToolsBlock(self.ai.available_functions)
+            if options.get("block_workspace_tools") is True:
+                block.block(float(options.get("lease_s") or DEFAULT_GUARD_LEASE_S))
+            elif options.get("block_workspace_tools") is False:
+                block.lift()
+            return to_json(
+                {
+                    "status": "ok",
+                    "workspace_tools_blocked": block.active,
+                    "expires_in_s": round(block.remaining_s(), 1),
+                }
+            )
         except Exception as exc:
             return to_json({"status": "error", "error": str(exc)})
 
@@ -212,6 +353,39 @@ class ScenarioHooks:
                 return to_json({"status": "idle"})
             self.ai.stop_ai_processing()
             return to_json({"status": "stopped"})
+        except Exception as exc:
+            return to_json({"status": "error", "error": str(exc)})
+
+    def fit_view(self, options_json: Any = None) -> str:
+        """Zoom the view so every drawable fills it, for someone watching an automated run.
+
+        Presentation only, like a mouse zoom: no undo entry, the redo stack and the
+        drawables stay as they are, and the coordinate mode is kept. With nothing
+        to fit the view is left alone. Refused (``busy``) while a chat turn runs.
+        Options: ``padding`` (share of the span on each side, default 0.12) and
+        ``min_half_span`` (default 1). Only the automation paths call this hook.
+        """
+        try:
+            if self.ai.is_processing:
+                return to_json({"status": "busy", "error": "a chat turn is running"})
+            options = parse_options(options_json)
+            padding = float(options.get("padding", FIT_PADDING))
+            min_half_span = float(options.get("min_half_span", FIT_MIN_HALF_SPAN))
+            extent = content_extent(self.canvas)
+            if extent is None:
+                return to_json({"status": "ok", "fitted": False, "reason": "nothing to fit"})
+            center_x, center_y, range_val, axis = fit_window(
+                extent, float(self.canvas.width), float(self.canvas.height), padding, min_half_span
+            )
+            self.canvas.zoom(center_x, center_y, range_val, axis)
+            return to_json(
+                {
+                    "status": "ok",
+                    "fitted": True,
+                    "extent": extent,
+                    "view": self.canvas.get_canvas_state().get("Cartesian_System_Visibility"),
+                }
+            )
         except Exception as exc:
             return to_json({"status": "error", "error": str(exc)})
 
@@ -443,6 +617,149 @@ def _safe_eval_pair(evaluate: Any, t: float) -> List[Optional[float]]:
         return [float(x), float(y)]
     except Exception:
         return [None, None]
+
+
+def pending_images(ai: Any) -> int:
+    """How many images are attached in the chat input (they would go out with the next message)."""
+    attachment = getattr(ai, "_image_attachment", None)
+    try:
+        return len(attachment.images) if attachment is not None else 0
+    except Exception:
+        return 0
+
+
+def content_extent(canvas: "Canvas", samples: int = FIT_SAMPLES) -> Optional[List[float]]:
+    """``[x_min, y_min, x_max, y_max]`` of every drawable, or None when there is nothing to fit.
+
+    Points, segment, vector and polygon vertices, circles, arcs and ellipses by
+    their extent, labels and bars; functions over their bounds (or the other
+    content's x range, else -10..10) with Tukey-fenced samples, so an asymptote
+    does not stretch the view; parametric curves by samples over their t range.
+    """
+    xs: List[float] = []
+    ys: List[float] = []
+    functions: List[Any] = []
+    for drawable in canvas.get_drawables():
+        name = str(drawable.get_class_name())
+        if name in _FUNCTION_CLASSES:
+            functions.append(drawable)
+            continue
+        for x, y in _drawable_extent_points(drawable, name, samples):
+            if _finite(x) and _finite(y):
+                xs.append(x)
+                ys.append(y)
+    for function in functions:
+        x_range = _function_x_range(function, xs)
+        if x_range is None:
+            continue
+        left, right = x_range
+        values: List[float] = []
+        for i in range(samples + 1):
+            value = _safe_eval(function.function, left + (right - left) * i / samples)
+            if value is not None and _finite(value):
+                values.append(value)
+        fenced = _fenced(values)
+        xs.extend([left, right])
+        if fenced:
+            ys.extend(fenced)
+    if not xs or not ys:
+        return None
+    return [min(xs), min(ys), max(xs), max(ys)]
+
+
+def fit_window(
+    extent: List[float],
+    width: float,
+    height: float,
+    padding: float = FIT_PADDING,
+    min_half_span: float = FIT_MIN_HALF_SPAN,
+) -> Tuple[float, float, float, str]:
+    """``(center_x, center_y, range_val, range_axis)`` for ``Canvas.zoom`` showing ``extent`` padded.
+
+    The binding axis is the one whose padded half-span needs more room at the
+    canvas's aspect ratio, so the whole extent stays visible.
+    """
+    x_min, y_min, x_max, y_max = extent
+    half_x = max((x_max - x_min) / 2.0 * (1.0 + 2.0 * padding), min_half_span)
+    half_y = max((y_max - y_min) / 2.0 * (1.0 + 2.0 * padding), min_half_span)
+    center_x, center_y = (x_min + x_max) / 2.0, (y_min + y_max) / 2.0
+    aspect = width / height if height > 0 else 1.0
+    if half_x >= half_y * aspect:
+        return center_x, center_y, half_x, "x"
+    return center_x, center_y, half_y, "y"
+
+
+def _drawable_extent_points(drawable: Any, name: str, samples: int) -> List[Tuple[float, float]]:
+    """Points that bound one drawable (empty for types without an extent of their own)."""
+    if name == "Point":
+        return [(float(drawable.x), float(drawable.y))]
+    if name in ("Segment", "Vector"):
+        segment = drawable.segment if name == "Vector" else drawable
+        return [(float(p.x), float(p.y)) for p in (segment.point1, segment.point2)]
+    if name in _POLYGON_CLASSES:
+        return [(x, y) for x, y in (_polygon_vertices(drawable) or [])]
+    if name in ("Circle", "CircleArc"):
+        if name == "Circle":
+            cx, cy = float(drawable.center.x), float(drawable.center.y)
+        else:
+            cx, cy = float(drawable.center_x), float(drawable.center_y)
+        r = abs(float(drawable.radius))
+        return [(cx - r, cy - r), (cx + r, cy + r)]
+    if name == "Ellipse":
+        cx, cy = float(drawable.center.x), float(drawable.center.y)
+        angle = math.radians(float(getattr(drawable, "rotation_angle", 0.0) or 0.0))
+        rx, ry = abs(float(drawable.radius_x)), abs(float(drawable.radius_y))
+        half_x = math.hypot(rx * math.cos(angle), ry * math.sin(angle))
+        half_y = math.hypot(rx * math.sin(angle), ry * math.cos(angle))
+        return [(cx - half_x, cy - half_y), (cx + half_x, cy + half_y)]
+    if name == "Label":
+        position = drawable.position
+        return [(float(position.x), float(position.y))]
+    if name == "Bar":
+        return [
+            (float(drawable.x_left), float(drawable.y_bottom)),
+            (float(drawable.x_right), float(drawable.y_top)),
+        ]
+    if name == "ParametricFunction":
+        t_min, t_max = float(drawable.t_min), float(drawable.t_max)
+        pairs = [_safe_eval_pair(drawable.evaluate, t_min + (t_max - t_min) * i / samples) for i in range(samples + 1)]
+        return [
+            (float(x), float(y))
+            for x, y in pairs
+            if x is not None and y is not None and abs(x) < FIT_VALUE_LIMIT and abs(y) < FIT_VALUE_LIMIT
+        ]
+    return []
+
+
+def _function_x_range(function: Any, other_xs: List[float]) -> Optional[Tuple[float, float]]:
+    """The x range to sample a function over: its bounds, filled from the other content or -10..10."""
+    left = getattr(function, "left_bound", None)
+    right = getattr(function, "right_bound", None)
+    default_left, default_right = (min(other_xs), max(other_xs)) if other_xs else FIT_DEFAULT_X_RANGE
+    if default_left == default_right:
+        default_left, default_right = default_left - FIT_DEFAULT_X_RANGE[1], default_right + FIT_DEFAULT_X_RANGE[1]
+    lo = float(left) if left is not None and _finite(float(left)) else default_left
+    hi = float(right) if right is not None and _finite(float(right)) else default_right
+    if lo > hi:
+        lo, hi = hi, lo
+    if lo == hi:
+        return None
+    return lo, hi
+
+
+def _fenced(values: List[float]) -> List[float]:
+    """``values`` within Tukey's fences (quartiles -/+ FIT_FENCE x IQR) and FIT_VALUE_LIMIT."""
+    kept = sorted(v for v in values if abs(v) < FIT_VALUE_LIMIT)
+    if len(kept) < 4:
+        return kept
+    q1 = kept[len(kept) // 4]
+    q3 = kept[(3 * len(kept)) // 4]
+    fence = FIT_FENCE * (q3 - q1)
+    return [v for v in kept if q1 - fence <= v <= q3 + fence]
+
+
+def _finite(value: float) -> bool:
+    return not (math.isnan(value) or math.isinf(value))
 
 
 def _name_hints(canvas: "Canvas") -> Dict[str, Any]:

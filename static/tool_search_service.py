@@ -93,6 +93,15 @@ def _cache_put(key: str, results: List[FunctionDefinition]) -> None:
     _search_cache[key] = (time.monotonic(), results)
 
 
+def configured_search_mode() -> str:
+    """The ``TOOL_SEARCH_MODE`` the service uses: ``local``, ``api`` or ``hybrid`` (the default).
+
+    Any other value searches locally, as ``search_tools`` treats it.
+    """
+    mode = os.getenv("TOOL_SEARCH_MODE", "hybrid").strip().lower()
+    return mode if mode in ("api", "hybrid") else "local"
+
+
 def clear_search_cache() -> None:
     """Clear the search result cache."""
     _search_cache.clear()
@@ -516,7 +525,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         # Clamp max_results to valid range
         max_results = max(1, min(20, max_results))
 
-        mode = os.getenv("TOOL_SEARCH_MODE", "hybrid").strip().lower()
+        mode = configured_search_mode()
 
         # Check cache
         cache_key = f"{mode}:{query.lower().strip()}:{max_results}"
