@@ -206,6 +206,43 @@
           "checks": [{"check": "point_at", "select": {"type": "Point", "name": "P"}, "at": [5, 6]}]
         }
       ]
+    },
+    {
+      "id": "CV-08",
+      "title": "A drawing too small to see: offer a zoom, never zoom unasked",
+      "tags": ["view", "constructions"],
+      "smoke": false,
+      "targets": "the view note: a triangle a few pixels across at the default view must leave the view alone, and the reply should offer a zoom",
+      "steps": [
+        {
+          "user": "Draw a triangle with vertices (0, 0), (6, 0) and (2, 4), and its circumcircle.",
+          "reference": [
+            {
+              "tool": "create_polygon",
+              "args": {
+                "vertices": [{"x": 0, "y": 0}, {"x": 6, "y": 0}, {"x": 2, "y": 4}],
+                "polygon_type": "triangle"
+              }
+            },
+            {"tool": "construct_circumcircle", "args": {"triangle_name": "ABC"}}
+          ],
+          "checks": [
+            {"check": "exists", "select": {"type": "Triangle", "vertices": [[0, 0], [6, 0], [2, 4]]}},
+            {"check": "exists", "select": {"type": "Circle", "center": [3, 1], "radius": 3.1622776601683795}},
+            {"check": "tool_not_called", "tool": "zoom"},
+            {"check": "tool_not_called", "tool": "reset_canvas"},
+            {"check": "attribute", "path": "left_bound", "target": "view", "same_as": "start"},
+            {"check": "attribute", "path": "right_bound", "target": "view", "same_as": "start"},
+            {"check": "attribute", "path": "top_bound", "target": "view", "same_as": "start"},
+            {"check": "attribute", "path": "bottom_bound", "target": "view", "same_as": "start"},
+            {
+              "check": "answer_mentions",
+              "words": ["zoom"],
+              "note": "graded live only (replay skips answer checks): the view note asks the model to offer a zoom"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

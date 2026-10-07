@@ -141,7 +141,7 @@ Note: All drawables are math-only. They do not hold screen-space coordinates and
 ### Server-Side Components
 1. Server-Side Workspace Manager (`static/workspace_manager.py`)
 2. Provider API Base (`static/openai_api_base.py`, `openai_completions_api.py`, `openai_responses_api.py`)
-3. Canvas State Formatter (`static/canvas_state_formatter.py`)
+3. Canvas State Formatter (`static/canvas_state_formatter.py`) and Canvas View Note (`static/canvas_view_note.py`)
 4. AI Function Definitions (`static/functions_definitions.py`), including a tool quick reference
 5. Tool Search Service (`static/tool_search_service.py`)
 6. Flask Application Manager (`static/app_manager.py`)
@@ -457,7 +457,7 @@ Attributes:
 - `_parse_markdown_to_html(text)`: Parse markdown text to HTML using the dedicated markdown parser
 - `_render_math()`: Trigger MathJax rendering for newly added content
 - `_store_results_in_canvas_state(call_results)`: Store valid function call results in the canvas state
-- `_send_prompt_to_ai(user_message=None, tool_call_results=None)`: Send request to AI backend with canvas state; with vision on, captures the canvas first and sends from the capture callback
+- `_send_prompt_to_ai(user_message=None, tool_call_results=None)`: Send request to AI backend with canvas state (after a tool batch, a copy with the canvas size in CSS pixels, `canvas_size_px`, and the sampled box of each graph or curve the batch created or redefined, `curve_extents`, added by `prompt_canvas_state.with_view_info` from the batch's `state_before` and `state_after`, so the server can tell whether what the batch drew can be seen; a failure there never stops the prompt); with vision on, captures the canvas first and sends from the capture callback
 - `turn_model_id()`: The model a turn's requests go to: the one selected when the user sent the message (`_turn_model`), else the selector's value. Turn tokens belong to a provider instance, so every request of a turn, including its tool-result follow-ups and `search_tools` searches, goes to the model that started it; a model picked mid-turn answers from the next message
 - `on_model_selected(event)`: Bound to the model selector's `change` event; when the model that will answer the next message changes while a reply runs, adds a chat note: the new model answers from the next message, or, after switching back to the turn's model, that model keeps answering (`_announced_model` tracks the last note, so re-selecting the same model adds none)
 - `_send_prompt_json(prompt_json, canvas_snapshot, action_trace)`: Add the `canvas_snapshot` data URL (if any) to the prompt JSON and send it
@@ -3871,6 +3871,7 @@ for both Chat Completions and Responses APIs.
 - Tool exposure: `MATHUD_TOOL_EXPOSURE=search` (default) starts the model with `search_tools` plus the essentials (`undo`, `redo`, `get_current_canvas_state`) and injects further tools after `search_tools` returns; `full` sends every tool up front.
 - Canvas rendering: with `MATHUD_CANVAS_FORMAT` `text` (default) or `min_json`, each user message becomes a `<canvas>` block rendered by `canvas_state_formatter` followed by the user's text; `json` sends the whole prompt JSON, summarized per `AI_CANVAS_SUMMARY_MODE`. `MATHUD_CANVAS_BUDGET_TOKENS` overrides the canvas token budget (default 4000 for cloud providers, 1500 for local ones, `0` = unlimited). Older user messages lose their canvas block; the latest keeps it.
 - Tool results: each result is written into the tool message of its own call, matched by tool-call id (falling back to call order; the legacy combined-dict shape is still accepted). Unanswered calls are marked as errors. After a tool batch, `[canvas changes]` (or `[canvas now]`) is appended to the batch's last tool message, and `get_current_canvas_state` results are rendered in the configured format.
+- View notes: after a tool batch, `_append_canvas_changes` asks `canvas_view_note.view_note` about the objects the batch created or moved (against the canvas the model saw before it) and ends the `[canvas changes]` (in json, the batch's last tool message) with the note; a batch of only undo or redo calls gets none. User messages never carry a note: `_record_user_canvas` only remembers their canvas and removes view-note lines older than the previous turn. `without_measurement_keys` removes the client's `canvas_size_px` and `curve_extents` from the json prompt. The system prompt (`VIEW_NOTE_GUIDANCE`) tells the model to mention a note in the `[canvas changes]` after the tool calls it made since the user's latest message in one sentence at the end of its reply and offer the suggested zoom, and never to change the view because of a note unless the user asks or agrees; the app never moves the view on its own.
 
 **Key Methods:**
 - `__init__(...)`: Initialize the client, model, tools and conversation state
@@ -3920,7 +3921,20 @@ Pure module (no Flask, no I/O) that turns `Canvas.get_canvas_state()` output int
 - `render_update(...)`: What to tell the model after a tool batch: `[canvas changes]` (text lines in every format), or `[canvas now]` with the full canvas when the delta would be larger
 - `parse_canvas_format(raw)`: Validate a `MATHUD_CANVAS_FORMAT` value
 
+`render_text`, `render_min_json`, `render_state` and `render_update` take an optional `view_note=` line (from `static/canvas_view_note.py`): a header line in text, which budget trimming never removes; a `"view_note"` key in JSON; the last line of `[canvas changes]`. `CANVAS_SIZE_KEY` and `CURVE_EXTENTS_KEY` name the measuring data the client adds to a prompt's state; neither is rendered as an object.
+
 Token counts come from `static/token_estimation.py` (`estimate_tokens_from_text` counts one token per digit, matching the default local model's tokenizer, and one per CJK character).
+
+### Canvas View Note (`static/canvas_view_note.py`)
+
+Pure module that tells the model when something its tool batch just drew can't be seen, so it can offer a zoom. See `documentation/development/canvas_prompt_summary_rollout.md` section 3.5 for the full rules.
+
+**Key Functions:**
+- `view_note(previous, current)`: One `View note:` line about the objects new or geometrically changed since `previous` (the canvas before the batch), or None; None too without a previous canvas. Never raises
+- `summarize_view(state)`: `ViewSummary` (the view `Box`, `canvas_px`, every measured `Shape` keyed by bucket and name, `is_tiny()`, `is_flat()`, `is_outside()`)
+- `measure_shapes(state)`: The measured shapes: points, labels, segments, vectors, polygons, circles, ellipses, arcs, bars, and the batch's graphs and curves from the client's `curve_extents` (with their `waves`, `spiky`, `resolved` and `period`)
+
+**Rules** (a missed note is better than a false one): a new object entirely outside the view (the suggestion shows all of the batch's new objects); the new shapes with a real extent under 16 px (`TINY_PX`), silent when one touches or shares a point with an earlier shape that is itself tiny or point-like, when one is a ring centred on an earlier point, or when the canvas has a graph the batch did not draw, and with small shapes attached to a readable shape of the same batch (angle arcs, right-angle squares, highlight circles, ticks, tangents) left out; a new waving graph without spike or vertical asymptote, squeezed on screen (unresolved by the samples, period under 16 px), varying by less than 16 px vertically (`FLAT_PX`), when the suggested zoom shows at least one period, each at least 16 px wide. Style changes are no change. The suggestion encloses the target 1.25 times (`SUGGESTED_VIEW_MARGIN`), or moves the view to a readable target; for a flat graph its variation fills a quarter of the view's height. Example: `View note: the new ABC spans only ~6x4 px on screen (x 0..6, y 0..4; view x -400..400, y -300..300). Offer to zoom to about x -0.8..6.8, y -0.8..4.8 (zoom center_x=3, center_y=2, range_val=3.8, range_axis=x); don't change the view unless the user agrees.`
 
 ### AI Function Definitions (`static/functions_definitions.py`)
 

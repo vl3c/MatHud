@@ -16,6 +16,7 @@ This document captures the implementation and operational model for how canvas s
 7. Telemetry logging (`canvas_prompt_telemetry`) with structured JSON payloads.
 8. Filtered `get_current_canvas_state` tool contract (drawable-type and object-name filters).
 9. Dev-only comparison endpoint and browser helper for side-by-side inspection.
+10. View notes (section 3.5): after a tool batch, one `View note:` line when something the model just drew is too small, too flat or outside the view, so it offers the user a zoom; the app never moves the view on its own.
 
 ## 2. Key Files
 
@@ -35,6 +36,8 @@ This document captures the implementation and operational model for how canvas s
 14. `server_tests/test_canvas_state_summarizer.py`
 15. `server_tests/test_openai_api_base.py`
 16. `server_tests/test_canvas_state_tool_schema.py`
+17. `static/canvas_view_note.py` (view notes) and `static/client/prompt_canvas_state.py` (the canvas size and curve extents in the prompt's state)
+18. `server_tests/test_canvas_view_note.py` and `static/client/client_tests/test_prompt_canvas_state.py`
 
 ## 3. Canvas Formats
 
@@ -96,9 +99,35 @@ Objects are compared by their rendered line, so moving a point also reports the 
 
 The `<canvas>` block stays on the latest user message (tool results describe changes against it) and is stripped by marker from older user messages. With the Responses API and `previous_response_id`, OpenAI keeps earlier turns (and their canvas blocks) server-side.
 
-### 3.5 Measurements
+### 3.5 View notes
 
-Qwen tokens (tokenizer extracted from the local GGUF) for the user message about each captured scene, and for a `get_current_canvas_state` result:
+The app never moves or zooms the view on its own, and the user's view, and anything the user drew or loaded, is the user's business. The feature does one thing: tell the model when something it just drew can't be seen. After each of the model's tool batches, the `[canvas changes]` end with one `View note:` line when an object that batch created or geometrically changed is too small, too flat or outside the view. The system prompt (`VIEW_NOTE_GUIDANCE` in `static/openai_api_base.py`) tells the model to mention it in one short sentence at the end of its reply and offer the suggested zoom, and never to change the view because of a note unless the user asks for a view change or agrees. The motivating case: at the default view (about +-400 units) a triangle at (0,0), (6,0), (2,4) is a speck of a few pixels at the origin, and the model said nothing.
+
+```
+[canvas changes]
++ A = (0, 0)
+...
++ ABC = Triangle(A, B, C)  scalene; sides AB=6 BC=5.65685 CA=4.47214; area 12
+View note: the new ABC spans only ~6x4 px on screen (x 0..6, y 0..4; view x -628..628, y -481.5..481.5). Offer to zoom to about x -0.8..6.8, y -0.9..4.9 (zoom center_x=3, center_y=2, range_val=3.8, range_axis=x); don't change the view unless the user agrees.
+```
+
+A missed note is far better than a false or useless one: every rule stays silent when it is unsure.
+
+1. What is new: the objects of the batch's canvas that the canvas before it (the one the model last saw) lacks or has with a different geometry, by bucket, name and args. Style args (colour, label text or visibility, font) are no change, and an object's geometry includes the positions of the points it is drawn through, so moving a point changes its segments and polygons. A batch of only `undo` or `redo` calls gets no note: it brings back what was there.
+2. Rules (`static/canvas_view_note.py`), one note per batch:
+   1. Outside: a new object lies entirely outside the view (`the new B(100) is outside the view`); a point that a segment on screen is drawn through is on screen. The suggestion shows the new objects: the outside ones and any the batch drew on screen with them (fitted data points partly above the view zoom out to all of them).
+   2. Tiny: the batch's new shapes with a real extent (not points or labels) span fewer than 16 px on screen (2% of the view's smaller side without a canvas size). The rule stays silent when a small new shape touches or shares a point with an earlier shape that is itself tiny or point-like at this view, or is a ring centred on an earlier point: the batch builds on a scene the user already sees at this scale, or declined to zoom on (a circumcircle after a declined tiny triangle, a diagonal after the user zoomed out, a ring around an existing point). A large earlier shape around the new one (a big circle, a long diagonal's box, a huge polygon around the view), an earlier label, or a shared vertex (the user's point O, then a speck triangle through O) does not make a speck visible, so those still get the note. Small shapes attached to a readable shape drawn in the same batch are left out too: centred within their own size of one of its corners, or lying on its outline (angle arcs, right-angle squares, highlight circles, tick marks, a tangent on a graph). The edges of a new polygon are named by the polygon. When the canvas has a graph the client did not measure (only new curves are), the rule stays silent.
+   3. Flat: a new function graph that waves (its samples change direction at least three times) varies by fewer than 16 px vertically, has no spike or listed vertical asymptote, and is squeezed on screen: the samples miss its shape (it is not resolved) and its period is under 16 px, like `sin(x)` at the default view. A wave already drawn as a wave (`0.1*sin(x)` at +-10, `sin(x)` at +-100) gets no note, because a zoom keeps the aspect ratio and would only show a straight piece of it; nor does a wave whose suggested zoom would show less than one period (`0.001*sin(x)`), or still squeeze each period under 16 px (`sin(100x)` at the default view). Lines, constants, a single bump, `1/x` and `tan` are never flat. The suggested view makes the variation fill a quarter of the view's height.
+3. Measurement. With the results of a tool batch the client adds `canvas_size_px` (the canvas size in CSS pixels) and `curve_extents` to the prompt's copy of the state (`static/client/prompt_canvas_state.py`; never to user messages, saved workspaces or traces). The view is a uniform linear map (`CoordinateMapper.math_to_screen`), so screen sizes follow exactly from the view bounds and the canvas size. `curve_extents` holds, for each graph or curve the batch created or redefined (found by comparing the batch's states, so the same curves are measured whatever else is on the canvas), the box of 64 samples, plus whether it is `clipped` (no bounds: sampled over the visible x range), `waves`, `spiky` (a few samples far beyond the rest, or a blow-up halfway between the samples next to the biggest values) and, for a wave, `resolved` (values between samples, at half and at 0.31 of a step, match the straight line between them) with, when it is not, an estimated `period` (the step is halved until two consecutive short runs of samples resolve it and agree; a resolved run with fewer than two turns ends the search, so a square or sawtooth wave, which jumps rather than turns, costs a few runs, not 24). Asymptote and discontinuity lists are left out when telling a redefined curve from an unchanged one. At most 20 curves are measured, in canvas order; if measuring runs past 100 ms, no extents are sent at all, so a slow canvas means no note rather than a different one. A failure never stops the prompt. The server removes both keys before the canvas reaches the model, in every format.
+4. Extents below the grid's finest spacing (`min_tick_spacing`, 1e-6) or 1e-9 of the coordinates' magnitude count as a point; coordinates from 1e15 on are written in short scientific notation; view bounds are rounded like the canvas view line.
+5. Wording: the note names the new objects (whole shapes before their edges and points, at most three), with the verb agreeing with the names as printed (`the new ABC spans`, `the new P, Q are`), and "new or changed" when a named object existed before the batch.
+6. Placement: the last line of `[canvas changes]` in text and min_json (a header line, or a `"view_note"` key in min_json, when the full canvas is sent instead), and the last line of the batch's last tool message in json. User messages never carry a note.
+7. History: when the user sends a new message, view notes older than the previous turn are removed from the tool messages (the `View note:` lines, and the `"view_note"` key of a min_json `[canvas now]`); the previous turn keeps its notes, since the new message may accept the offer ("yes, zoom"). The guidance speaks of the `[canvas changes]` after the tool calls made since the user's latest message, so a reply without tool calls does not offer again. With the Responses API and `previous_response_id`, OpenAI keeps earlier turns, and their notes, on its side. There is no memory across turns: if the user declines and the model later draws another separate speck, the new speck gets its own note.
+8. Scenario CV-08 (`scenarios/canvas.json`) draws the motivating triangle; replay checks that the view is unchanged and no view tool ran, and live mode also checks that the reply mentions zooming.
+
+### 3.6 Measurements
+
+Qwen tokens (tokenizer extracted from the local GGUF) for the user message about each captured scene, and for a `get_current_canvas_state` result (measured before view notes; a scene that gets one, such as the triangle + circle captured at the default view, adds about 110 estimated tokens):
 
 | Scene | Cloud `json` (hybrid) | Cloud `text` | LocalAgent `json` | LocalAgent `text` | Tool result `json` | Tool result `text` |
 |---|---|---|---|---|---|---|
@@ -192,4 +221,5 @@ Interpretation:
 1. Keep `text` as the default; use `MATHUD_CANVAS_FORMAT=json` to compare against the original canvas payload (see section 3 for how it differs from the old requests).
 2. Run a comprehension benchmark (questions about lengths, names, graph edges and changes after tool calls) per format and provider once models are reachable, and tune `MATHUD_CANVAS_BUDGET_TOKENS` for the local model's context size.
 3. Client-side state gaps limit the text format: `Function.get_state` omits the curve color, `Point`/`Segment` states omit colors, and graph states omit isolated points.
-4. Keep `get_current_canvas_state` filter semantics backward-compatible (empty filters == full state behavior).
+4. View notes stay silent on purpose in unsure cases: shaded areas and bar charts are not measured, a tiny shape drawn in the same batch as a readable one counts as part of it, a small shape touching an earlier small shape builds on a scene the user already sees, a small shape on a canvas with a graph the batch did not draw is left alone, and a low wave the screen already draws as a wave gets no note.
+5. Keep `get_current_canvas_state` filter semantics backward-compatible (empty filters == full state behavior).

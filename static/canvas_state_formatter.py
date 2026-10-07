@@ -18,6 +18,11 @@ This module turns the state into prompt text. It is pure (no Flask, no I/O):
 ``render_update``    what to tell the model after a tool batch changed the canvas
                      (the changes are text lines in every format; see render_delta)
 
+After a tool batch, a ``view_note`` line (static/canvas_view_note.py) can be passed
+to ``render_update``: the last line of ``[canvas changes]``, or, when the full canvas
+is sent instead, a header line in text (which the budget never trims) or a
+``"view_note"`` key in min_json.
+
 Budget: ``render_text`` and ``render_min_json`` accept ``budget_tokens``. In
 text, large scenes first pack points several per line, then drop the least
 important objects; min_json keeps the same fraction of every bucket. Either
@@ -60,6 +65,13 @@ _MAX_COMPUTATION_RESULT_CHARS = 200
 _PACK_POINTS_THRESHOLD = 8
 _POINTS_PER_PACKED_ROW = 6
 
+# Keys the client adds to the prompt's canvas_state only (never to saved workspaces) so the
+# view note (static/canvas_view_note.py) can measure the drawing on screen: the canvas size in
+# CSS pixels, {"width": w, "height": h}, and the sampled box of every function graph and curve,
+# {bucket: {name: {"box": [left, right, bottom, top], "clipped": bool}}}.
+CANVAS_SIZE_KEY = "canvas_size_px"
+CURVE_EXTENTS_KEY = "curve_extents"
+
 # Top-level keys describing the viewport rather than drawables.
 _VIEW_KEYS = frozenset(
     {
@@ -70,6 +82,8 @@ _VIEW_KEYS = frozenset(
         "min_tick_spacing",
         "visible",
         "coordinate_system",
+        CANVAS_SIZE_KEY,
+        CURVE_EXTENTS_KEY,
     }
 )
 _COMPUTATIONS_KEY = "computations"
@@ -1031,6 +1045,7 @@ def render_text(
     state: Mapping[str, Any],
     budget_tokens: Optional[int] = None,
     count_tokens: Callable[[str], int] = estimate_tokens_from_text,
+    view_note: Optional[str] = None,
 ) -> str:
     """Render the state one object per line with engine-computed facts.
 
@@ -1038,9 +1053,11 @@ def render_text(
         state: A ``get_canvas_state()`` dict (possibly filtered).
         budget_tokens: Optional token budget; larger scenes are packed and truncated.
         count_tokens: Token counter used for the budget (heuristic by default).
+        view_note: Optional ``view_note`` line, placed under the view line; header
+            lines are never trimmed, so it survives the budget.
     """
     state = _single_line_strings(state)
-    return _render_text_groups(state, _collect_groups(state), budget_tokens, count_tokens)
+    return _render_text_groups(state, _collect_groups(state), budget_tokens, count_tokens, view_note)
 
 
 def _render_text_groups(
@@ -1048,9 +1065,10 @@ def _render_text_groups(
     groups: List[_Group],
     budget_tokens: Optional[int],
     count_tokens: Callable[[str], int] = estimate_tokens_from_text,
+    view_note: Optional[str] = None,
 ) -> str:
     """Assemble already-rendered groups of a single-line state, fitting the budget."""
-    header = [line for line in (_view_line(state), _duplicate_warning(state)) if line]
+    header = [line for line in (_view_line(state), view_note, _duplicate_warning(state)) if line]
     text = _assemble(header, groups)
     if budget_tokens is None or budget_tokens <= 0 or count_tokens(text) <= budget_tokens:
         return text
@@ -1124,13 +1142,17 @@ def render_min_json(
     state: Mapping[str, Any],
     budget_tokens: Optional[int] = None,
     count_tokens: Callable[[str], int] = estimate_tokens_from_text,
+    view_note: Optional[str] = None,
 ) -> str:
     """Return the state as minified JSON without render-only fields, defaults or float noise.
 
     Over ``budget_tokens``, every object list is cut to the same kept fraction and
     ``"omitted"`` (counts per bucket) plus ``"note"`` say how to get the rest.
+    A ``view_note`` goes into a ``"view_note"`` key, which trimming never removes.
     """
     output = _min_json_output(state)
+    if view_note:
+        output["view_note"] = view_note
     text = _dump_min_json(output)
     if budget_tokens is None or budget_tokens <= 0 or count_tokens(text) <= budget_tokens:
         return text
@@ -1273,17 +1295,24 @@ def _delta_text(
 # --------------------------------------------------------------------------- dispatch
 
 
-def render_state(state: Mapping[str, Any], fmt: CanvasFormat, budget_tokens: Optional[int] = None) -> str:
+def render_state(
+    state: Mapping[str, Any],
+    fmt: CanvasFormat,
+    budget_tokens: Optional[int] = None,
+    view_note: Optional[str] = None,
+) -> str:
     """Render a state in the requested format (``json`` is the raw state, unchanged).
 
-    Never raises: a state the renderers cannot handle is sent as compact JSON instead,
-    so one malformed object cannot fail the whole request.
+    ``view_note`` (static/canvas_view_note.py) becomes a line under the view in text and a
+    ``"view_note"`` key in min_json (json is the raw state). Never raises: a state the renderers
+    cannot handle is sent as compact JSON instead, so one malformed object cannot
+    fail the whole request.
     """
     try:
         if fmt == "text":
-            return render_text(state, budget_tokens=budget_tokens)
+            return render_text(state, budget_tokens=budget_tokens, view_note=view_note)
         if fmt == "min_json":
-            return render_min_json(state, budget_tokens=budget_tokens)
+            return render_min_json(state, budget_tokens=budget_tokens, view_note=view_note)
         return json.dumps(state)
     except Exception:
         _logger.warning("Could not render the canvas state as %s; sending compact JSON", fmt, exc_info=True)
@@ -1306,17 +1335,19 @@ def render_update(
     current: Mapping[str, Any],
     fmt: CanvasFormat,
     budget_tokens: Optional[int] = None,
+    view_note: Optional[str] = None,
 ) -> str:
     """Describe the canvas after a tool batch; empty string when nothing changed.
 
     Sends the delta when it is smaller than the full rendering, else the full
     state (e.g. after clear_canvas or when no previous state was shown). The
     delta is the text of ``render_delta`` in every format (for min_json too:
-    one changed object per line reads better than a JSON diff). Never
-    raises: if the states cannot be compared, the current state is sent as JSON.
+    one changed object per line reads better than a JSON diff); a ``view_note``
+    is its last line. Never raises: if the states cannot be compared, the
+    current state is sent as JSON.
     """
     try:
-        return _render_update(previous, current, fmt, budget_tokens)
+        return _render_update(previous, current, fmt, budget_tokens, view_note)
     except Exception:
         _logger.warning("Could not describe the canvas changes; sending the state as JSON", exc_info=True)
         return f"{CURRENT_HEADER}\n{_fallback_json(current)}"
@@ -1327,19 +1358,22 @@ def _render_update(
     current: Mapping[str, Any],
     fmt: CanvasFormat,
     budget_tokens: Optional[int],
+    view_note: Optional[str] = None,
 ) -> str:
     if previous is None:
-        return f"{CURRENT_HEADER}\n{render_state(current, fmt, budget_tokens)}"
+        return f"{CURRENT_HEADER}\n{render_state(current, fmt, budget_tokens, view_note)}"
     # Each state is rendered once; the current groups serve both the delta and the full text.
     previous, current = _single_line_strings(previous), _single_line_strings(current)
     current_groups = _collect_groups(current)
     delta = _delta_text(previous, current, _collect_groups(previous), current_groups)
     if not delta:
-        return ""
+        return f"{CHANGES_HEADER}\n{view_note}" if view_note else ""
     if fmt == "text":
-        full = _render_text_groups(current, current_groups, budget_tokens)
+        full = _render_text_groups(current, current_groups, budget_tokens, view_note=view_note)
     else:
-        full = render_state(current, fmt, budget_tokens)
+        full = render_state(current, fmt, budget_tokens, view_note)
+    if view_note:
+        delta = f"{delta}\n{view_note}"
     if estimate_tokens_from_text(delta) >= estimate_tokens_from_text(full):
         return f"{CURRENT_HEADER}\n{full}"
     return f"{CHANGES_HEADER}\n{delta}"
