@@ -11,7 +11,9 @@ from prompt_canvas_state import (
     CURVE_EXTENTS_KEY,
     CURVE_SAMPLES,
     MAX_MEASURED_CURVES,
+    _MIDPOINTS_CHECKED,
     _PEAKS_CHECKED,
+    _PERIOD_STEPS,
     canvas_size_px,
     curve_extents,
     new_curve_names,
@@ -192,6 +194,29 @@ class TestCurveExtents(unittest.TestCase):
             entry = extents["Functions"][name]
             self.assertFalse(entry["resolved"], name)
             self.assertAlmostEqual(entry["period"] / period, 1.0, delta=0.2)
+
+    def test_a_jumping_wave_gives_up_on_its_period_early(self) -> None:
+        """A square or sawtooth wave jumps rather than turns: once a fine run sees no turn, the
+        period search stops instead of halving the step 24 times."""
+
+        def square(x: float) -> float:
+            return 1.0 if math.sin(x) >= 0 else -1.0
+
+        def sawtooth(x: float) -> float:
+            return x - 2 * math.pi * math.floor(x / (2 * math.pi))
+
+        run_cost = 3 * _PERIOD_STEPS + 1  # a run's samples plus two checks between each pair
+        budget = CURVE_SAMPLES + 2 * _PEAKS_CHECKED + 2 * (_MIDPOINTS_CHECKED + 1) + 6 * run_cost
+        for name, wave in (("square", square), ("sawtooth", sawtooth)):
+            calls: List[float] = []
+
+            def counted(x: float, wave: Any = wave) -> float:
+                calls.append(x)
+                return wave(x)
+
+            entry = self._measure(_Canvas({"Function": [_Graph(name, counted)]}, view=(-628.0, 628.0)))
+            self.assertIsNone(entry["Functions"][name].get("period"), name)
+            self.assertLessEqual(len(calls), budget, name)
 
     def test_a_low_wave_the_samples_follow_is_resolved(self) -> None:
         entry = self._measure(_Canvas({"Function": [_Graph("a", lambda x: 0.1 * math.sin(x))]}, view=(-10.0, 10.0)))

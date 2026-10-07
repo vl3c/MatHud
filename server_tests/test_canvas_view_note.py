@@ -283,6 +283,32 @@ class TestBuildingOnEarlierShapes(unittest.TestCase):
         lone = scene([point("P", 100, 50)])
         self.assertIsNone(view_note(lone, add(lone, Circles=[circle("P(5)", "P", 5)])))
 
+    def _speck(self, before: Dict[str, Any], corners: List[Tuple[float, float]], names: str = "GHI") -> Dict[str, Any]:
+        points = [point(n, x, y) for n, (x, y) in zip(names, corners)]
+        return add(before, *points, Segments=edges(names), Triangles=[polygon(names)])
+
+    def test_a_large_shape_around_a_speck_does_not_hide_it(self) -> None:
+        """Only small earlier shapes count: a big circle, a diagonal's box or a huge polygon around
+        the view leave an untouched speck as invisible as ever."""
+        circle_around = scene([point("O", 0, 0)], VIEW_10, Circles=[circle("big", "O", 8)])
+        diagonal = scene([point("M", -9, -7), point("N", 9, 7)], VIEW_10, Segments=[segment("M", "N")])
+        huge = triangle_scene("RST", [(-1000, -1000), (1000, -1000), (0, 1000)], VIEW_10)
+        for before in (circle_around, diagonal, huge):
+            after = self._speck(before, [(3, -5), (3.2, -5), (3, -4.8)])
+            self.assertIn("the new GHI spans only ~8x8 px", view_note(before, after) or "")
+
+    def test_sharing_an_earlier_point_does_not_hide_a_speck(self) -> None:
+        """Only a ring centred on an earlier point is a marker; a speck through it is still a speck."""
+        before = scene([point("O", 0, 0)])
+        after = add(before, point("P", 3, 0), point("Q", 0, 3), Segments=edges("OPQ"), Triangles=[polygon("OPQ")])
+        self.assertIn("the new OPQ spans only ~3x3 px", view_note(before, after) or "")
+
+    def test_an_earlier_label_is_not_a_shape(self) -> None:
+        label = {"name": "L", "args": {"position": {"x": 3.05, "y": 3.05}, "text": "hi"}}
+        before = scene([], VIEW_10, Labels=[label])
+        after = self._speck(before, [(3, 3), (3.2, 3), (3, 3.2)])
+        self.assertIn("the new GHI spans only", view_note(before, after) or "")
+
     def test_a_separate_speck_is_still_noted(self) -> None:
         speck = triangle_scene("ABC", TINY)
         far = add(speck, point("P", 300, 300), point("Q", 304, 300), point("R", 302, 303), Triangles=[polygon("PQR")])
@@ -374,6 +400,13 @@ class TestFunctionsAndCurves(unittest.TestCase):
         """sin(x) at +-100: a 40 px period, a low wave the screen draws as one."""
         view = with_bounds(empty(), -100, 100, -75, 75)
         self.assertIsNone(view_note(view, with_graph(view, "s", (-100, 100, -1, 1), True, period=6.3)))
+
+    def test_no_note_when_even_the_zoom_leaves_the_wave_a_blur(self) -> None:
+        """sin(100x) at the default view: the suggested +-5.3 still gives a 7 px period."""
+        fast = with_graph(empty(WIDE_VIEW), "w", (-628, 628, -1, 1), True, period=2 * math.pi / 100)
+        self.assertIsNone(view_note(empty(WIDE_VIEW), fast))
+        medium = with_graph(empty(WIDE_VIEW), "w", (-628, 628, -1, 1), True, period=2 * math.pi / 5)
+        self.assertIsNotNone(view_note(empty(WIDE_VIEW), medium))
 
     def test_no_note_when_the_zoom_would_show_less_than_a_period(self) -> None:
         """0.001*sin(x) at the default view: a zoom high enough to show it shows a straight piece."""

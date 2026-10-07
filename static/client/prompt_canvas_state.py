@@ -217,9 +217,9 @@ def _period(evaluate: Callable[[float], Any], center: float, step: float) -> Opt
             continue
         turns = _turn_count([y for _, y in points])
         if turns < 2:
-            if previous is not None:
-                return previous  # the finer run is too short to see two turns of it
-            continue
+            # The finer run is too short to see two turns of the previous estimate, or the graph
+            # jumps (a square or sawtooth wave) rather than turns: halving further cannot help.
+            return previous
         estimate = 2.0 * _PERIOD_STEPS * step / turns
         if previous is not None and 2.0 / 3.0 <= estimate / previous <= 1.5:
             return (estimate + previous) / 2.0

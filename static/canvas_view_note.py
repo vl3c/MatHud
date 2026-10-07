@@ -12,12 +12,12 @@ better than a false or useless one, so every rule stays silent when unsure:
 2. tiny: the batch's new shapes with a real extent span fewer than 16 px on screen,
    leaving out small shapes attached to a readable shape (angle arcs, right-angle
    squares, highlight circles, tick marks, markers), and silent when they touch or
-   share a point with anything drawn before the batch (the user already sees that
-   scene at this scale, or declined to zoom on it);
+   share a point with an earlier shape that is itself tiny, or ring an earlier point
+   (the user already sees that scene at this scale, or declined to zoom on it);
 3. flat: a new function graph that waves (turns at least three times, like sin) varies by
    fewer than 16 px vertically, with no spike or vertical asymptote, and is squeezed on
    screen (the samples miss it and its period is under 16 px), when the suggested zoom
-   shows at least one period of it.
+   shows at least one period of it, at least 16 px wide.
 
 "New" means created or geometrically changed by the batch, decided from the
 previous canvas's objects by bucket, name and geometry (style changes such as a
@@ -461,7 +461,8 @@ def _outside(now: ViewSummary, new: List[Key]) -> Optional[_Found]:
     # When some of the batch's objects are on screen, the suggested view keeps them in it too.
     target = _union(now.shapes[key].box for key in new if not now.shapes[key].clipped)
     target = target or _union(now.shapes[key].box for key in outside)
-    assert target is not None
+    if target is None:
+        return None
     return outside, f"{{is}} outside the view (view {_view_ranges(now.view)})", target, False
 
 
@@ -490,21 +491,24 @@ def _tiny(now: ViewSummary, new: List[Key]) -> Optional[_Found]:
 
 
 def _builds_on_earlier_shapes(now: ViewSummary, sized: List[Key], new: List[Key]) -> bool:
-    """True when a new small shape touches or shares a point with anything drawn before the batch.
+    """True when a new small shape builds on a small scene the user already sees at this scale.
 
-    Then the batch builds on a scene the user already sees at this scale (a circumcircle after
-    a declined tiny triangle, a diagonal after the user zoomed out, a ring around a point).
+    That is: it touches or shares a point with an earlier shape that is itself tiny at this view
+    (a circumcircle after a declined tiny triangle, a diagonal after the user zoomed out), or it
+    is a ring centred on an earlier point. A large earlier shape around it (a big circle, a long
+    diagonal, a huge polygon) does not make a speck visible, and neither does sharing a vertex.
     """
     fresh = set(new)
-    earlier = [(key, shape) for key, shape in now.shapes.items() if key not in fresh]
+    earlier = [(key, shape) for key, shape in now.shapes.items() if key not in fresh and key[0] != "Labels"]
     for key in sized:
         shape = now.shapes[key]
         for old_key, old in earlier:
             if old_key[0] == "Points":
-                if old_key[1] in shape.points:
+                if shape.radius is not None and old_key[1] in shape.points:
                     return True
-            elif shape.box.intersects(old.box) or set(shape.points) & set(old.points):
-                return True
+            elif now.is_tiny(old.box) or now.is_point_like(old.box):
+                if shape.box.intersects(old.box) or set(shape.points) & set(old.points):
+                    return True
     return False
 
 
@@ -537,11 +541,17 @@ def _zoom_shows_a_period(summary: ViewSummary, shape: Shape) -> bool:
     """A wave squeezed on screen (a period of under 16 px) that the suggested zoom shows at least once.
 
     A wave whose period already spans more pixels is drawn as a wave, just a low one: zooming
-    keeps the aspect ratio, so it would not help.
+    keeps the aspect ratio, so it would not help. A wave so fast that even the suggested zoom
+    leaves it a blur gets no note either.
     """
     if shape.period is None or shape.period * summary.scale() >= FLAT_PX:
         return False
-    return 2.0 * _flat_zoom_half_width(summary, shape.box) >= shape.period
+    half = _flat_zoom_half_width(summary, shape.box)
+    # Pixels per unit at the suggested zoom: the view's width shrinks to 2 * half.
+    zoomed_scale = summary.scale() * summary.view.width / (2.0 * half)
+    # At that zoom the wave must show a whole period, and each period must be wide enough to see
+    # (sin(100x) would still be a blur of 7 px periods).
+    return 2.0 * half >= shape.period and shape.period * zoomed_scale >= FLAT_PX
 
 
 def _part_of_readable_shape(now: ViewSummary, key: Key) -> bool:
