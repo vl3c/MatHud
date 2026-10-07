@@ -1733,6 +1733,42 @@
       "difficulty": "normal"
     },
     {
+      "id": "u_find_intersections_1",
+      "query": "Where does segment AB intersect circle c1?",
+      "expected_any": [
+        "find_intersections"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_find_intersections_2",
+      "query": "Mark the points where the two ellipses meet.",
+      "expected_any": [
+        "find_intersections"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_find_intersections_3",
+      "query": "Find the intersection of the line through s1 with the parabola f.",
+      "expected_any": [
+        "find_intersections"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
       "id": "u_fit_regression_1",
       "query": "Fit a linear regression to points (1,2), (2,3), (3,5).",
       "expected_any": [
