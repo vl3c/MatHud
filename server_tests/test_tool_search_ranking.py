@@ -309,3 +309,53 @@ def test_triangle_from_vertex_coordinates_keeps_generate_graph_low(service: Tool
     names = _names(service, "Draw a triangle with vertices at (0,0), (4,0), (2,3).")
     assert names[0] == "create_polygon"
     assert "generate_graph" not in names[:3], names
+
+
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("connect P and Q with a vector", "create_vector"),
+        ("join A and B with an arc", "create_circle_arc"),
+        ("connect the centre to point A with a circle", "create_circle"),
+    ],
+)
+def test_connect_with_a_named_drawable_keeps_that_tool(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected
+
+
+@pytest.mark.parametrize("query", ["I want to connect to the server", "connect A and B with a ray"])
+def test_connect_without_two_points_to_join_falls_back_like_main(service: ToolSearchService, query: str) -> None:
+    assert "create_segment" not in _names(service, query)
+    assert service._last_local_top_score < CONFIDENCE_THRESHOLD
+
+
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("graph the function x -> 2x", "draw_function"),
+        # x^2 is function notation, so draw_function leads (main had analyze_graph first)
+        ("graph the map x -> x^2", "draw_function"),
+        ("graph f: R -> R", "analyze_graph"),
+    ],
+)
+def test_arrow_in_function_notation_is_not_a_graph_edge(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected
+
+
+@pytest.mark.parametrize("query", ["build a graph: A->B, B->C", "create graph with A->B"])
+def test_arrow_between_vertex_names_is_a_graph_edge(service: ToolSearchService, query: str) -> None:
+    assert _names(service, query)[0] == "generate_graph"
+
+
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("graph y = sin(x) and mark the points where it crosses zero", "draw_function"),
+        ("graph f(x) = x^2 and plot the point where x = 1", "draw_function"),
+        ("graph the point A = (2, 3)", "create_point"),
+    ],
+)
+def test_function_definition_with_points_mentioned_still_plots_the_function(
+    service: ToolSearchService, query: str, expected: str
+) -> None:
+    assert _names(service, query)[0] == expected
