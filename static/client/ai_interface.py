@@ -46,6 +46,7 @@ from tool_call_log_manager import ToolCallLogManager
 from message_menu_manager import MessageMenuManager
 from image_attachment_manager import ImageAttachmentManager
 from canvas_snapshot import CanvasSnapshotter
+from prompt_canvas_state import with_view_info
 from slash_command_handler import SlashCommandHandler
 from command_autocomplete import CommandAutocomplete
 from tts_ui_manager import TTSUIManager
@@ -484,6 +485,7 @@ class AIInterface:
                     None,
                     ProcessFunctionCalls.serialize_tool_call_results(ai_tool_calls, batch["traced_calls"]),
                     canvas_state=batch["state_after"],
+                    previous_state=batch.get("state_before"),
                     action_trace=trace_summary,
                 )
             except Exception as e:
@@ -536,7 +538,7 @@ class AIInterface:
         step, unless the caller opened a group.
 
         Returns:
-            Dict with ``call_results``, ``traced_calls``, ``state_after`` and ``trace``.
+            Dict with ``call_results``, ``traced_calls``, ``state_before``, ``state_after`` and ``trace``.
         """
         if getattr(self, "is_processing", False):
             self._open_turn_undo_group()
@@ -571,6 +573,7 @@ class AIInterface:
         return {
             "call_results": call_results,
             "traced_calls": traced_calls,
+            "state_before": state_before,
             "state_after": state_after,
             "trace": trace,
         }
@@ -940,6 +943,7 @@ class AIInterface:
                     None,
                     ProcessFunctionCalls.serialize_tool_call_results(tool_calls, batch["traced_calls"]),
                     canvas_state=batch["state_after"],
+                    previous_state=batch.get("state_before"),
                     action_trace=trace_summary,
                 )
             except Exception as e:
@@ -1073,6 +1077,7 @@ class AIInterface:
         attached_images: Optional[list[str]] = None,
         canvas_state: Optional[Dict[str, Any]] = None,
         action_trace: Optional[Dict[str, Any]] = None,
+        previous_state: Optional[Dict[str, Any]] = None,
     ) -> None:
         if tool_call_results is not None and self._request_limit_reached():
             # Backstop: the tool-call handlers end the turn before running a batch at the cap.
@@ -1081,6 +1086,14 @@ class AIInterface:
         self._turn_requests_sent += 1
         if canvas_state is None:
             canvas_state = self.canvas.get_canvas_state()
+        # After a tool batch: the canvas size and the boxes of the curves the batch drew, for the
+        # view note; a copy, so traces keep the plain state. Measuring is optional: the prompt
+        # goes out without it if anything fails.
+        if tool_call_results is not None:
+            try:
+                canvas_state = with_view_info(canvas_state, getattr(self, "canvas", None), previous_state)
+            except Exception as exc:
+                print(f"View info for the prompt failed: {exc}")
 
         # Only use vision when we have a user message and no tool call results
         use_vision = document["vision-toggle"].checked and user_message is not None and tool_call_results is None

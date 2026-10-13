@@ -392,11 +392,11 @@ Conventions:
 | Graph theory (GR) | 6 | GR-01 |
 | Statistics, plots and regression (ST) | 5 | ST-01 |
 | Math tools feeding the canvas (MC) | 4 | MC-01 |
-| Canvas operations: view, coordinate systems, undo and redo (CV) | 7 | CV-02 |
+| Canvas operations: view, coordinate systems, undo and redo (CV) | 8 | CV-02 |
 | Workspaces (WS) | 4 | WS-01 |
 | Naming, editing and deleting (NM) | 9 | NM-03 |
 | Multi-turn follow-ups (MT) | 4 | MT-01 |
-| **Total** | **85** | **11** |
+| **Total** | **86** | **11** |
 
 The smoke subset has 11 scenarios (18 turns), one for each area except coloured areas, which FN-01 already exercises: GEO-01, CON-01, FN-01, TR-01, GR-01, ST-01, MC-01, CV-02, WS-01, NM-03 and MT-01. It runs in about 40 s in replay and about 6 to 27 minutes live on the local model.
 
@@ -1174,6 +1174,18 @@ Added after the first live run (phase 6, item 10).
   - after turn 1: P at (5, 6), nothing at (5, 5), A still at (0, 0), an empty redo stack
   - after the scripted undo: state equals the setup snapshot (the reply after its undo is one step); after the redo: P at (5, 6)
 - Targets: undo and redo calls inside a turn close the turn's undo group first (so the undo reverts the turn's own change, not A), and later changes form one new step.
+
+#### CV-08: A drawing too small to see: offer a zoom, never zoom unasked
+
+Added with the view note (`documentation/development/canvas_prompt_summary_rollout.md`, section 3.5).
+
+- Turn 1: "Draw a triangle with vertices (0, 0), (6, 0) and (2, 4), and its circumcircle."
+  - Reference: `create_polygon(vertices=[{"x": 0, "y": 0}, {"x": 6, "y": 0}, {"x": 2, "y": 4}], polygon_type="triangle")`; `construct_circumcircle(triangle_name="ABC")`
+- Checks:
+  - the triangle and the circumcircle (centre (3, 1), radius sqrt(10)) exist
+  - no `zoom` or `reset_canvas` call, and the view bounds equal the start-up view
+  - live only (`answer_mentions`, skipped in replay): the reply mentions "zoom", since the drawing is a few pixels across at the default view and the `[canvas changes]` of the batch end with a view note asking the model to offer one
+- Targets: the app or the model changing the view without the user's consent; a reply that leaves the user with an invisible drawing.
 
 ### 5.10 Workspaces (WS)
 

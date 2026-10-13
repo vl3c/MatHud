@@ -26,6 +26,7 @@ from unittest.mock import patch
 
 from static.ai_model import AIModel
 from static.canvas_state_formatter import render_state, render_update
+from static.canvas_view_note import view_note
 from static.providers.local.local_agent_api import LocalAgentAPI
 from static.providers.openrouter_api import OpenRouterAPI
 
@@ -305,7 +306,8 @@ class TestPrompts(PromptEnv):
         json_content = json_request.messages[-1]["content"]
         self.assertNotEqual(text_content, json_content)
         self.assertEqual(text_content, self.own_openrouter_content("text", prompt))
-        self.assertIn(render_state(state, "text", 4000), text_content)
+        # The captured scene is a few pixels across at its view, so the app adds a view note.
+        self.assertIn(render_state(state, "text", 4000, view_note(None, state)), text_content)
         self.assertEqual(json_content, self.own_openrouter_content("json", prompt))
         self.assertEqual(json.loads(json_content)["canvas_state"], state)
         self.assertNotIn("_p1_coords", text_content)
