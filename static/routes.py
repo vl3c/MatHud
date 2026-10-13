@@ -19,7 +19,7 @@ import logging
 import math
 import threading
 import time
-from collections.abc import Callable, Iterable, Iterator, Sequence, Set as AbstractSet
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from typing import Any, Dict, List, Optional, Tuple, TypeVar, Union, cast
 
 from flask import Response, flash, jsonify, redirect, render_template, request, session, stream_with_context, url_for
@@ -253,7 +253,9 @@ def _intercept_search_tools(
             service.search_tools(query=query, max_results=max_results) for query, max_results in searches
         )
 
-        allowed_names = _collect_allowed_tool_names(result, ESSENTIAL_TOOLS)
+        # Tools loaded before this reply stay callable in it, even when this search
+        # replaces them (see OpenAIAPIBase.inject_tools); this search's tools count once loaded.
+        allowed_names = set(ESSENTIAL_TOOLS)
         allowed_names.update(active_provider.loaded_tool_names())
 
         # Inject tools into shared APIs and the active provider (if distinct).
@@ -262,6 +264,7 @@ def _intercept_search_tools(
             app.responses_api.inject_tools(result, include_essentials=True)
             if provider is not None and provider not in (app.ai_api, app.responses_api):
                 provider.inject_tools(result, include_essentials=True)
+        allowed_names.update(active_provider.loaded_tool_names())
 
         filtered_calls = _filter_tool_calls_by_allowed_names(tool_calls, allowed_names)
         _report_dropped_tool_calls(app, provider, tool_calls, filtered_calls)
@@ -332,16 +335,6 @@ def _extract_search_query_and_limit(call: Dict[str, Any]) -> tuple[str, int]:
     return query, max_results
 
 
-def _collect_allowed_tool_names(
-    search_result: List[Dict[str, Any]],
-    essential_tools: AbstractSet[str],
-) -> set[str]:
-    """Collect allowed tool names from search result plus essentials."""
-    allowed_names = {t.get("function", {}).get("name") for t in search_result if isinstance(t, dict)}
-    allowed_names.update(essential_tools)
-    return allowed_names
-
-
 def _filter_tool_calls_by_allowed_names(
     tool_calls: List[Dict[str, Any]],
     allowed_names: set[str],
@@ -405,7 +398,8 @@ def _extract_injectable_tools(tool_call_results: str) -> Optional[List[Dict[str,
     """The tools every search_tools result in a tool_call_results JSON string found.
 
     A result lists tool names (see ``ToolSearchService.search_tools_formatted``);
-    full tool definitions are accepted too.
+    names of unknown tools and any other entries are ignored, so only the app's own
+    tool definitions are loaded.
     """
     try:
         results = json.loads(tool_call_results)
@@ -427,24 +421,36 @@ def _extract_injectable_tools(tool_call_results: str) -> Optional[List[Dict[str,
             continue
         tools = result.get("tools")
         if isinstance(tools, list):
-            found.append(_resolve_tool_entries(tools))
+            found.append(_resolve_tool_names(tools))
     found_tools = _merge_tool_lists(found)
     return found_tools or None
 
 
-def _resolve_tool_entries(entries: List[Any]) -> List[Dict[str, Any]]:
-    """Tool definitions for a search result's entries: tool names or full definitions."""
+def _resolve_tool_names(entries: List[Any]) -> List[Dict[str, Any]]:
+    """The app's tool definitions for the tool names among a search result's entries."""
     from static.tool_search_service import ToolSearchService
 
     tools: List[Dict[str, Any]] = []
     for entry in entries:
-        if isinstance(entry, str):
-            tool = ToolSearchService.get_tool_by_name(entry)
-            if tool is not None:
-                tools.append(cast(Dict[str, Any], tool))
-        elif isinstance(entry, dict):
-            tools.append(cast(Dict[str, Any], entry))
+        tool = ToolSearchService.get_tool_by_name(entry) if isinstance(entry, str) else None
+        if tool is not None:
+            tools.append(cast(Dict[str, Any], tool))
     return tools
+
+
+def _unload_tools_after_error(app: MatHudFlask, provider: Optional[OpenAIAPIBase]) -> None:
+    """Unload the tools ``search_tools`` loaded once a request failed.
+
+    Loaded tools otherwise stay for the whole conversation, so a tool the provider
+    rejects (a schema it does not accept, for instance) would fail every later
+    request; the next request starts from the default tools instead.
+    """
+    apis = [app.ai_api, app.responses_api]
+    if provider is not None and provider not in apis:
+        apis.append(provider)
+    for api in apis:
+        if api.has_injected_tools():
+            api.reset_tools()
 
 
 def _record_response_metrics(app: MatHudFlask, metrics: Any, tool_call_results: Any) -> Optional[Dict[str, Any]]:
@@ -968,6 +974,7 @@ def register_routes(app: MatHudFlask) -> None:
                             if event_dict.get("finish_reason") == "error":
                                 # The provider reported it (a provider or network failure).
                                 event_dict.setdefault("error_source", "provider")
+                                _unload_tools_after_error(app, provider)
                             _record_response_metrics(app, event_dict.get("metrics"), tool_call_results_raw)
                             try:
                                 app.log_manager.log_ai_response(str(event_dict.get("ai_message", "")))
@@ -996,6 +1003,7 @@ def register_routes(app: MatHudFlask) -> None:
                 error_msg = f"Streaming exception: {exc}"
                 _logger.error("%s", error_msg)
                 app.log_manager.log_error(error_msg, source="routes")
+                _unload_tools_after_error(app, provider)
                 # Yield pending logs so client sees them before error
                 yield from _yield_pending_logs()
                 # Include error details in the payload for transparency
@@ -1287,6 +1295,7 @@ def register_routes(app: MatHudFlask) -> None:
                 if request_api.is_abandoned(generation):
                     return _abandoned_reply_response()
                 if final_event is None:
+                    _unload_tools_after_error(app, provider)
                     return AppManager.make_response(
                         message="No final response event produced",
                         status="error",
@@ -1304,6 +1313,8 @@ def register_routes(app: MatHudFlask) -> None:
                 if ai_tool_calls:
                     ai_tool_calls = _prepare_tool_calls(app, ai_tool_calls, provider)
                 finish_reason = final_event.get("finish_reason")
+                if finish_reason == "error":
+                    _unload_tools_after_error(app, provider)
 
                 app.log_manager.log_ai_response(ai_message)
                 app.log_manager.log_ai_tool_calls(ai_tool_calls)
@@ -1335,6 +1346,8 @@ def register_routes(app: MatHudFlask) -> None:
             if ai_tool_calls:
                 ai_tool_calls = _prepare_tool_calls(app, ai_tool_calls, provider)
             finish_reason = getattr(choice, "finish_reason", None)
+            if finish_reason == "error":
+                _unload_tools_after_error(app, provider)
             completion_metrics = _record_response_metrics(
                 app, getattr(provider, "last_response_metrics", None), tool_call_results_raw
             )
@@ -1352,6 +1365,7 @@ def register_routes(app: MatHudFlask) -> None:
                 )
             )
         except Exception as exc:
+            _unload_tools_after_error(app, provider)
             return AppManager.make_response(
                 message=str(exc),
                 status="error",
@@ -1405,10 +1419,10 @@ def register_routes(app: MatHudFlask) -> None:
 
         Request body:
             query (str): Description of what the user wants to accomplish
-            max_results (int, optional): Maximum number of tools to return (default: 10)
+            max_results (int, optional): Maximum number of tools to return (default: 5, max: 6)
 
         Returns:
-            JSON response with matching tool definitions
+            JSON response with the names of the matching tools
         """
         from static.tool_search_service import ToolSearchService
 

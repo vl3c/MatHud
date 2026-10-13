@@ -580,6 +580,28 @@ class TestInterceptSearchTools(unittest.TestCase):
 
         self.assertIn("create_point", [c.get("function_name") for c in result])
 
+    @patch("static.tool_search_service.ToolSearchService")
+    def test_found_tools_that_do_not_fit_are_not_allowed(self, mock_service_class: Mock) -> None:
+        """A reply's searches finding more tools than can be loaded keep only the loaded ones callable."""
+        from static.openai_api_base import MAX_LOADED_TOOLS
+        from static.routes import _intercept_search_tools
+
+        found = [{"function": {"name": f"tool_{i}"}} for i in range(MAX_LOADED_TOOLS + 2)]
+        mock_service = Mock()
+        mock_service.search_tools.return_value = found
+        mock_service_class.return_value = mock_service
+
+        tool_calls = [
+            {"function_name": "search_tools", "arguments": {"query": "everything"}},
+            {"function_name": "tool_0", "arguments": {}},
+            {"function_name": f"tool_{MAX_LOADED_TOOLS + 1}", "arguments": {}},
+        ]
+
+        names = [c.get("function_name") for c in _intercept_search_tools(self.app, tool_calls)]
+
+        self.assertIn("tool_0", names)
+        self.assertNotIn(f"tool_{MAX_LOADED_TOOLS + 1}", names)
+
     def test_empty_query_returns_unchanged(self) -> None:
         """search_tools with empty query should return tool_calls unchanged."""
         from static.routes import _intercept_search_tools
@@ -738,7 +760,8 @@ class TestSearchToolHelpers(unittest.TestCase):
         self.assertEqual(query, "")
         self.assertEqual(limit, DEFAULT_SEARCH_RESULTS)
 
-    def test_extract_injectable_tools_returns_tools_payload(self) -> None:
+    def test_extract_injectable_tools_ignores_tool_definitions(self) -> None:
+        """Only the app's own definitions load: a result carrying definitions loads nothing."""
         from static.routes import _extract_injectable_tools
 
         payload = json.dumps(
@@ -749,10 +772,7 @@ class TestSearchToolHelpers(unittest.TestCase):
                 }
             }
         )
-        tools = _extract_injectable_tools(payload)
-        self.assertIsNotNone(tools)
-        assert tools is not None
-        self.assertEqual(tools[0]["function"]["name"], "create_circle")
+        self.assertIsNone(_extract_injectable_tools(payload))
 
     def test_extract_injectable_tools_resolves_tool_names(self) -> None:
         from static.functions_definitions import FUNCTIONS

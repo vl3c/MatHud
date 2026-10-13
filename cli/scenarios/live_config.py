@@ -45,8 +45,8 @@ _DEFAULTED_ENV = ("AI_CANVAS_SUMMARY_MODE", "AI_CANVAS_HYBRID_FULL_MAX_BYTES", "
 # Rough prompt size per request beyond the system prompt, tools and canvas: the
 # user message, earlier turns, tool results and [canvas changes].
 HISTORY_ALLOWANCE_TOKENS = 2000
-# Tools a search_tools call typically loads into the request (search exposure).
-SEARCH_LOADED_TOOLS = 10
+# Most tools search_tools can have loaded in a request (search exposure; MAX_LOADED_TOOLS).
+SEARCH_LOADED_TOOLS = 16
 # The cloud providers' canvas budget when none is pinned (and the size counted for "unlimited").
 DEFAULT_CLOUD_CANVAS_BUDGET = 4000
 

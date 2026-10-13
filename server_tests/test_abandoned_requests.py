@@ -365,6 +365,17 @@ class TestRoutes(unittest.TestCase):
         self.client.post("/new_conversation")
         self.assertFalse(api.has_injected_tools())
 
+    def test_a_failed_request_unloads_searched_tools(self) -> None:
+        api = self.app.ai_api
+        api.set_tool_mode("search")
+        api.inject_tools([FUNCTIONS[0]])
+
+        def events() -> Iterator[Dict[str, Any]]:
+            yield {"type": "final", "ai_message": "", "ai_tool_calls": [], "finish_reason": "error"}
+
+        self.stream(events())
+        self.assertFalse(api.has_injected_tools())
+
     def test_tool_results_continue_the_same_turn(self) -> None:
         api = self.app.ai_api
         turn = api.turn_token
