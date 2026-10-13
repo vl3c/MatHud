@@ -140,6 +140,20 @@ class TestParseScenario:
         _, problems = parse(scenario(steps=steps, known="K7"))
         assert problems == []
 
+    def test_live_optional_tool_result_needs_an_answer_check_in_a_user_turn(self) -> None:
+        optional = {"check": "tool_result", "tool": "calculate_area", "path": "value", "eq": 4, "live_optional": True}
+        answer = {"check": "answer_mentions", "numbers": [4]}
+        turn = {"user": "What is the area?", "reference": [{"tool": "calculate_area", "args": {"expression": "ABCD"}}]}
+        _, problems = parse(scenario(steps=[{**turn, "checks": [optional, answer]}]))
+        assert problems == []
+        _, problems = parse(scenario(steps=[{**turn, "checks": [optional]}]))
+        assert any("needs an answer_mentions check in the same step" in p for p in problems)
+        do_step = {"do": [{"tool": "calculate_area", "args": {"expression": "ABCD"}}], "checks": [optional, answer]}
+        _, problems = parse(scenario(steps=[do_step]))
+        assert any("live_optional tool_result checks belong to user turns" in p for p in problems)
+        _, problems = parse(scenario(steps=[{**turn, "checks": [{**optional, "live_optional": "yes"}, answer]}]))
+        assert any("live_optional must be true or false" in p for p in problems)
+
     def test_invariant_waivers(self) -> None:
         parsed, problems = parse(scenario(known=["K3"], invariants={"I4": "K3"}))
         assert problems == [] and parsed.invariant_waivers == {"I4": "K3"}

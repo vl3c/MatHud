@@ -275,7 +275,19 @@ def _parse_step(raw: Any, index: int, counters: dict[str, int], where: str, prob
     for number, check in enumerate(checks, start=1):
         problems.extend(f"{where} check {number}: {problem}" for problem in validate_check(check))
     step.checks = [check for check in checks if isinstance(check, dict)]
+    problems.extend(_live_optional_problems(step, where))
     return step
+
+
+def _live_optional_problems(step: Step, where: str) -> list[str]:
+    """A ``live_optional`` tool_result belongs to a user turn whose answer is checked instead."""
+    if not any(check.get("check") == "tool_result" and check.get("live_optional") for check in step.checks):
+        return []
+    if step.kind != "user":
+        return [f"{where}: live_optional tool_result checks belong to user turns"]
+    if not any(check.get("check") == "answer_mentions" for check in step.checks):
+        return [f"{where}: a live_optional tool_result needs an answer_mentions check in the same step"]
+    return []
 
 
 def _reference_batches(raw: Any, where: str, problems: list[str]) -> list[list[ToolCall]]:

@@ -400,6 +400,30 @@ class TestOutcomeChecks:
         assert run(check, view, step=live).status == "pass"
         assert run({**check, "numbers": [3]}, view, step=live).status == "fail"
 
+    def test_live_optional_tool_result_lets_a_live_answer_stand_in_for_the_tool(self) -> None:
+        view = CanvasView(state())
+        check = {"check": "tool_result", "tool": "calculate_area", "path": "value", "eq": 2.5, "live_optional": True}
+        answer = {"check": "answer_mentions", "numbers": [2.5]}
+        # Live, no call: the tool check is skipped and the answer decides.
+        right = StepData(final_text="The area of triangle ABC is now **2.5** square units.", mode="live")
+        skipped = run(check, view, step=right)
+        assert skipped.status == "skip" and "calculate_area was not called" in skipped.message
+        assert run(answer, view, step=right).status == "pass"
+        wrong = StepData(final_text="The area is 6 square units.", mode="live")
+        assert run(check, view, step=wrong).status == "skip"
+        assert run(answer, view, step=wrong).status == "fail"
+        # Live with a call: the result must still match.
+        called = StepData(calls=[call("calculate_area", {"value": 6})], final_text="2.5", mode="live")
+        assert run(check, view, step=called).status == "fail"
+        called_ok = StepData(calls=[call("calculate_area", {"value": 2.5})], final_text="2.5", mode="live")
+        assert run(check, view, step=called_ok).status == "pass"
+        # Replay (and retrace) never skip: the reference calls the tool.
+        replay = StepData(calls=[], final_text=None)
+        failed = run(check, view, step=replay)
+        assert failed.status == "fail" and "was not called" in failed.message
+        without_flag = {key: value for key, value in check.items() if key != "live_optional"}
+        assert run(without_flag, view, step=right).status == "fail"
+
     def test_known_check_that_crashes_is_an_error_not_xfail(self) -> None:
         broken = {
             "check": "relation",

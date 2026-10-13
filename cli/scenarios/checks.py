@@ -182,6 +182,10 @@ class CheckFailure(Exception):
         self.actual = actual
 
 
+class CheckSkipped(Exception):
+    """A check does not apply to this run (e.g. a ``live_optional`` tool_result whose tool a live turn skipped)."""
+
+
 # ----------------------------------------------------------------------
 # Results
 # ----------------------------------------------------------------------
@@ -371,7 +375,7 @@ _CHECK_KEYS: dict[str, frozenset[str]] = {
     "max_tool_calls": frozenset({"max"}),
     "no_tool_errors": frozenset(),
     "tool_error": frozenset({"tool", "index"}),
-    "tool_result": frozenset({"tool", "path", "index", "any", "mod"}) | COMPARISON_OPS,
+    "tool_result": frozenset({"tool", "path", "index", "any", "mod", "live_optional"}) | COMPARISON_OPS,
     "answer_mentions": frozenset({"numbers", "words", "names"}),
 }
 _BIND_KEYS = frozenset({"bind", "select", "known", "tol", "id", "note"})
@@ -500,6 +504,8 @@ def validate_check(check: Any) -> list[str]:
         problems.append(f"{kind} needs a comparison ({', '.join(sorted(COMPARISON_OPS))})")
     if kind == "tool_result" and "any" in check and ("index" in check or not isinstance(check["any"], bool)):
         problems.append("tool_result takes either index or any (true or false), not both")
+    if kind == "tool_result" and "live_optional" in check and not isinstance(check["live_optional"], bool):
+        problems.append("tool_result live_optional must be true or false")
     if kind == "attribute" and "select" not in check and check.get("target") not in ("view", "state", "inspection"):
         problems.append("attribute needs a select or target (view, state or inspection)")
     return problems
@@ -888,6 +894,9 @@ def evaluate_check(check: dict[str, Any], ctx: CheckContext, check_id: str) -> C
         result.passed = None
         result.unrecorded = True
         result.message = f"needs a function sample that was not recorded: {exc}"
+    except CheckSkipped as exc:
+        result.passed = None
+        result.message = str(exc)
     except CheckFailure as exc:
         result.passed = False
         result.message = str(exc)
@@ -1080,8 +1089,12 @@ def _check_tool_result(check: dict[str, Any], ctx: CheckContext) -> Any:
     """The result of the tool's last call (or call ``index``) satisfies the comparison.
 
     With ``any: true`` it is enough that one call's result does, whatever the order of the
-    calls (a live model may make them in any order).
+    calls (a live model may make them in any order). With ``live_optional: true`` a live
+    turn that did not call the tool skips the check: the model may answer from the canvas,
+    and the step's ``answer_mentions`` check judges that answer. Replay always checks.
     """
+    if check.get("live_optional") and ctx.step.mode == "live" and not _executed(ctx, check["tool"]):
+        raise CheckSkipped(f"{check['tool']} was not called; the answer checks judge the reply")
     if not check.get("any"):
         return _tool_result_value(check, ctx, _tool_call(check, ctx))
     calls = _executed(ctx, check["tool"])
