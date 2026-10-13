@@ -36,7 +36,7 @@
           "user": "What is the area of the triangle now?",
           "reference": [{"tool": "calculate_area", "args": {"expression": "ABC"}}],
           "checks": [
-            {"check": "tool_result", "tool": "calculate_area", "path": "value", "eq": 2.5},
+            {"check": "tool_result", "tool": "calculate_area", "path": "value", "eq": 2.5, "live_optional": true},
             {"check": "answer_mentions", "numbers": [2.5]}
           ]
         },

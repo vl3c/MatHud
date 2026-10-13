@@ -109,7 +109,7 @@
           ],
           "checks": [
             {"check": "count", "select": {"type": "ClosedShapeColoredArea"}, "eq": 1},
-            {"check": "tool_result", "tool": "calculate_area", "path": "value", "eq": 4},
+            {"check": "tool_result", "tool": "calculate_area", "path": "value", "eq": 4, "live_optional": true},
             {"check": "answer_mentions", "numbers": [4]}
           ]
         },
