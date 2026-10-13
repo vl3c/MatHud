@@ -330,6 +330,8 @@ The CLI is tested on Windows with:
 - Python 3.11+
 - Chrome browser installed
 
+Output piped or redirected on Windows uses the locale code page (e.g. cp1252). Characters it cannot encode, such as "≈" in a model reply, print as "?" instead of stopping the command; set `PYTHONIOENCODING=utf-8` to keep them.
+
 ## Examples
 
 ### Quick Test Workflow
