@@ -1769,6 +1769,30 @@
       "difficulty": "normal"
     },
     {
+      "id": "u_find_intersections_4",
+      "query": "Where does triangle ABC intersect circle c1? Mark the points.",
+      "expected_any": [
+        "find_intersections"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_find_intersections_5",
+      "query": "Find where the parametric curves p1 and p2 cross each other.",
+      "expected_any": [
+        "find_intersections"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
       "id": "u_fit_regression_1",
       "query": "Fit a linear regression to points (1,2), (2,3), (3,5).",
       "expected_any": [

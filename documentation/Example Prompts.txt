@@ -56,6 +56,11 @@ Find where segment AB and circle c meet, treating AB as a whole line, and mark t
 Find the intersection points of the two ellipses e1 and e2 and place points there.
 Where does the parabola f cross the circle c? Say whether any of the points are tangencies.
 Where does the parametric curve p meet segment s? Give the parameter t of each point.
+Find where triangle ABC and circle c meet, and say which edge or vertex each point is on.
+Does the line through D and E cross triangle ABC at a vertex or only touch it there?
+Find the intersections of rectangle ABCD and triangle EFG and place points at them.
+Draw the parametric curves x = sin(3t), y = sin(2t) and x = 0.8 cos(t), y = 0.8 sin(t), and find where they cross.
+Find where the parametric curves p1 and p2 meet; are any of the points tangencies?
 
 # Geometric Constructions
 Create points A(0,0) and B(6,0), draw segment AB, then find the midpoint of AB.

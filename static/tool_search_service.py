@@ -864,7 +864,9 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             token_set & {"spanning", "tree", "path", "weight", "weighted", "flow"}
         ):
             scores["find_function_features"] += 12.0 if "local" in token_set else 8.0
-        _shape_words = {"segment", "segments", "line", "lines", "circle", "circles", "ellipse", "polygon", "vector"}
+        _shape_words = {"segment", "segments", "line", "lines", "circle", "circles", "ellipse", "polygon", "vector",
+                        "polygons", "triangle", "triangles", "rectangle", "rectangles", "square",
+                        "quadrilateral", "pentagon", "hexagon"}
         if token_set & {"intersect", "intersection", "intersections", "intersects", "meet", "cross"} and (
             token_set & _curve_words or not token_set & _shape_words
         ):

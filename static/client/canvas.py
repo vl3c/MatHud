@@ -1470,7 +1470,7 @@ class Canvas:
         extend_lines: Optional[bool] = None,
         place_points: Optional[bool] = None,
     ) -> Dict[str, Any]:
-        """Find where two segments, vectors, circles, arcs, ellipses or curves meet.
+        """Find where two segments, vectors, circles, arcs, ellipses, curves or polygons meet.
 
         Optionally places a point at each intersection (one undo step); see
         IntersectionManager.find_intersections.
