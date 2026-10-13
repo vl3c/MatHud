@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import json
+import signal
+from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any, Iterator, Optional, Sequence
 from unittest.mock import MagicMock, patch
 
+import psutil
 
-from cli.server import ServerManager
+from cli.server import PORT_RELEASE_SECONDS, RELOADER_ENV_VARS, ServerManager
 from cli.config import DEFAULT_HOST, DEFAULT_PORT
 
 
@@ -352,10 +357,252 @@ class TestServerManagerStop:
 
         with patch.object(manager, "get_pid", return_value=12345):
             with patch("cli.server.psutil.Process", side_effect=psutil.NoSuchProcess(12345)):
-                with patch("cli.server.PID_FILE") as mock_pid_file:
+                with (
+                    patch("cli.server.PID_FILE") as mock_pid_file,
+                    patch.object(manager, "_is_port_available", return_value=True),
+                ):
                     mock_pid_file.exists.return_value = True
 
                     success, message = manager.stop()
 
                     assert success is True
                     assert "not running" in message.lower() or "stale" in message.lower()
+
+
+# ----------------------------------------------------------------------
+# Process tree shutdown (fake processes; no real servers are started)
+# ----------------------------------------------------------------------
+
+LAUNCHER_PID = 40084
+INTERPRETER_PID = 43556
+RELOADER_PID = 43600
+
+
+class FakeProcess:
+    """Stands in for psutil.Process: records signals and exits unless told to ignore them."""
+
+    def __init__(
+        self,
+        pid: int,
+        children: Sequence[FakeProcess] = (),
+        *,
+        ignores_stop: bool = False,
+        survives_kill: bool = False,
+        cmdline: Sequence[str] = (),
+    ) -> None:
+        self.pid = pid
+        self._children = list(children)
+        self.ignores_stop = ignores_stop
+        self.survives_kill = survives_kill
+        self._cmdline = list(cmdline)
+        self.running = True
+        self.signals: list[str] = []
+
+    def children(self, recursive: bool = False) -> list[FakeProcess]:
+        if not recursive:
+            return list(self._children)
+        return [d for c in self._children for d in [c, *c.children(recursive=True)]]
+
+    def cmdline(self) -> list[str]:
+        return list(self._cmdline)
+
+    def terminate(self) -> None:
+        self._stop("terminate")
+
+    def send_signal(self, sig: int) -> None:
+        self._stop(f"signal:{sig}")
+
+    def kill(self) -> None:
+        self.signals.append("kill")
+        if not self.survives_kill:
+            self.running = False
+
+    def _stop(self, name: str) -> None:
+        self.signals.append(name)
+        if not self.ignores_stop:
+            self.running = False
+
+
+def _fake_wait_procs(
+    procs: Sequence[FakeProcess], timeout: Optional[float] = None
+) -> tuple[list[FakeProcess], list[FakeProcess]]:
+    return [p for p in procs if not p.running], [p for p in procs if p.running]
+
+
+@contextmanager
+def _fake_processes(*roots: FakeProcess, platform: str = "win32") -> Iterator[None]:
+    """Route psutil.Process lookups to the fake trees and pretend to run on ``platform``."""
+    by_pid = {p.pid: p for root in roots for p in [root, *root.children(recursive=True)]}
+
+    def lookup(pid: int) -> FakeProcess:
+        process = by_pid.get(pid)
+        if process is None or not process.running:
+            raise psutil.NoSuchProcess(pid)
+        return process
+
+    with (
+        patch("cli.server.psutil.Process", side_effect=lookup),
+        patch("cli.server.psutil.wait_procs", side_effect=_fake_wait_procs),
+        patch("cli.server.sys", SimpleNamespace(platform=platform)),
+        patch("cli.server.PID_FILE") as pid_file,
+    ):
+        pid_file.exists.return_value = True
+        yield
+
+
+def _venv_launcher_tree(**interpreter_kwargs: Any) -> FakeProcess:
+    """The Windows venv layout: Scripts launcher -> base interpreter -> its child process."""
+    reloader = FakeProcess(RELOADER_PID)
+    interpreter = FakeProcess(INTERPRETER_PID, [reloader], **interpreter_kwargs)
+    return FakeProcess(LAUNCHER_PID, [interpreter])
+
+
+class TestServerManagerStopProcessTree:
+    """ServerManager.stop must stop the whole tree and leave the port free."""
+
+    def test_stop_terminates_launcher_and_its_children(self) -> None:
+        """The base interpreter under the venv launcher (the real listener) and its child are stopped."""
+        manager = ServerManager(port=5131)
+        launcher = _venv_launcher_tree()
+        interpreter, reloader = launcher.children(recursive=True)
+
+        with _fake_processes(launcher), patch.object(manager, "get_pid", return_value=LAUNCHER_PID):
+            with patch.object(manager, "_is_port_available", return_value=True):
+                success, message = manager.stop()
+
+        assert success is True
+        assert str(LAUNCHER_PID) in message
+        for process in (launcher, interpreter, reloader):
+            assert process.running is False
+            assert process.signals == ["terminate"]
+
+    def test_stop_kills_children_that_ignore_terminate(self) -> None:
+        """Processes still alive after the grace period are force-killed."""
+        manager = ServerManager(port=5131)
+        launcher = _venv_launcher_tree(ignores_stop=True)
+        interpreter = launcher.children()[0]
+
+        with _fake_processes(launcher), patch.object(manager, "get_pid", return_value=LAUNCHER_PID):
+            with patch.object(manager, "_is_port_available", return_value=True):
+                success, _ = manager.stop()
+
+        assert success is True
+        assert interpreter.signals == ["terminate", "kill"]
+        assert launcher.signals == ["terminate"]
+
+    def test_stop_reports_processes_that_survive_kill(self) -> None:
+        """stop fails, naming the PID, when a process cannot be killed; the PID file is kept."""
+        manager = ServerManager(port=5131)
+        launcher = _venv_launcher_tree(ignores_stop=True, survives_kill=True)
+
+        with _fake_processes(launcher), patch.object(manager, "get_pid", return_value=LAUNCHER_PID):
+            with patch.object(manager, "_remove_pid_file") as remove_pid_file:
+                success, message = manager.stop()
+
+        assert success is False
+        assert str(INTERPRETER_PID) in message
+        remove_pid_file.assert_not_called()
+
+    def test_stop_on_posix_signals_the_process_group(self) -> None:
+        """On POSIX the process group gets SIGINT; only processes outside it are signalled singly."""
+        manager = ServerManager(port=5131)
+        outsider = FakeProcess(RELOADER_PID)
+        leader = FakeProcess(LAUNCHER_PID, [FakeProcess(INTERPRETER_PID), outsider])
+        in_group = leader.children()[0]
+        groups = {LAUNCHER_PID: LAUNCHER_PID, INTERPRETER_PID: LAUNCHER_PID, RELOADER_PID: RELOADER_PID}
+
+        def killpg(pgid: int, sig: int) -> None:
+            for process in (leader, in_group):
+                process.send_signal(sig)
+
+        with _fake_processes(leader, platform="linux"), patch.object(manager, "get_pid", return_value=LAUNCHER_PID):
+            with (
+                patch.object(ServerManager, "_process_group_of", side_effect=groups.get),
+                patch("cli.server.os.killpg", side_effect=killpg, create=True) as mock_killpg,
+                patch.object(manager, "_is_port_available", return_value=True),
+            ):
+                success, _ = manager.stop()
+
+        assert success is True
+        mock_killpg.assert_called_once_with(LAUNCHER_PID, signal.SIGINT)
+        assert leader.signals == in_group.signals == [f"signal:{signal.SIGINT}"]
+        assert outsider.signals == [f"signal:{signal.SIGINT}"]
+
+    def test_stop_reports_listener_left_on_port_without_killing_it(self) -> None:
+        """A listener outside the stopped tree (possibly another checkout's server) is reported, not killed."""
+        manager = ServerManager(port=5131)
+        launcher = FakeProcess(LAUNCHER_PID)
+        other = FakeProcess(INTERPRETER_PID, cmdline=["python.exe", "app.py", "--port", "5131"])
+
+        with _fake_processes(launcher, other), patch.object(manager, "get_pid", return_value=LAUNCHER_PID):
+            with (
+                patch.object(manager, "_wait_for_port_release", return_value=False),
+                patch.object(manager, "_find_listener_pid_on_port", return_value=INTERPRETER_PID),
+            ):
+                success, message = manager.stop()
+
+        assert success is False
+        assert "5131" in message and str(INTERPRETER_PID) in message
+        assert other.signals == []
+
+
+class TestServerManagerPortRelease:
+    """Port checks used after shutdown."""
+
+    def test_wait_for_port_release_polls_until_free(self) -> None:
+        manager = ServerManager(port=5131)
+        with (
+            patch.object(manager, "_is_port_available", side_effect=[False, False, True]),
+            patch("cli.server.time.sleep") as mock_sleep,
+        ):
+            assert manager._wait_for_port_release() is True
+        assert mock_sleep.call_count == 2
+
+    def test_wait_for_port_release_times_out(self) -> None:
+        manager = ServerManager(port=5131)
+        clock = iter([0.0, 1.0, PORT_RELEASE_SECONDS + 1.0])
+        with (
+            patch.object(manager, "_is_port_available", return_value=False),
+            patch("cli.server.time.monotonic", side_effect=lambda: next(clock)),
+            patch("cli.server.time.sleep"),
+        ):
+            assert manager._wait_for_port_release() is False
+
+    def test_port_probe_skips_reuseaddr_on_windows(self) -> None:
+        """SO_REUSEADDR on Windows binds over a live listener, so the probe must not set it."""
+        manager = ServerManager(port=5131)
+        for platform, expect_reuse in (("win32", False), ("linux", True)):
+            with (
+                patch("cli.server.socket.socket") as mock_socket,
+                patch("cli.server.sys", SimpleNamespace(platform=platform)),
+            ):
+                sock = mock_socket.return_value.__enter__.return_value
+                assert manager._is_port_available() is True
+            assert sock.setsockopt.called is expect_reuse
+            sock.bind.assert_called_once_with((manager.host, 5131))
+
+
+class TestServerManagerStartEnvironment:
+    """The CLI-started server runs without debug mode or inherited reloader state."""
+
+    def test_start_disables_debug_and_strips_reloader_variables(self) -> None:
+        manager = ServerManager(port=5131)
+        mock_path = MagicMock()
+        mock_path.exists.return_value = True
+        inherited = {"WERKZEUG_RUN_MAIN": "true", "WERKZEUG_SERVER_FD": "7"}
+
+        with (
+            patch.dict("cli.server.os.environ", inherited),
+            patch.object(manager, "is_server_running", return_value=False),
+            patch.object(manager, "get_pid", return_value=None),
+            patch("cli.server.get_python_path", return_value=mock_path),
+            patch.object(manager, "_is_port_available", return_value=True),
+            patch("cli.server.subprocess.Popen", return_value=MagicMock(pid=LAUNCHER_PID)) as mock_popen,
+            patch.object(manager, "_save_pid"),
+        ):
+            success, _ = manager.start(wait=False)
+
+        assert success is True
+        env = mock_popen.call_args.kwargs["env"]
+        assert env["MATHUD_NON_DEBUG"] == "1"
+        assert not set(RELOADER_ENV_VARS) & set(env)
