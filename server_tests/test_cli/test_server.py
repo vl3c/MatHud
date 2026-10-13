@@ -528,29 +528,11 @@ class TestServerManagerStopProcessTree:
         assert leader.signals == in_group.signals == [f"signal:{signal.SIGINT}"]
         assert outsider.signals == [f"signal:{signal.SIGINT}"]
 
-    def test_stop_stops_leftover_server_still_listening(self) -> None:
-        """An orphaned ``app.py --port N`` interpreter left on the port is found and stopped."""
+    def test_stop_reports_listener_left_on_port_without_killing_it(self) -> None:
+        """A listener outside the stopped tree (possibly another checkout's server) is reported, not killed."""
         manager = ServerManager(port=5131)
         launcher = FakeProcess(LAUNCHER_PID)
-        orphan = FakeProcess(
-            INTERPRETER_PID, cmdline=["C:\\Python311\\python.exe", "C:\\MatHud\\app.py", "--port", "5131"]
-        )
-
-        with _fake_processes(launcher, orphan), patch.object(manager, "get_pid", return_value=LAUNCHER_PID):
-            with (
-                patch.object(manager, "_wait_for_port_release", side_effect=[False, True]),
-                patch.object(manager, "_find_listener_pid_on_port", return_value=INTERPRETER_PID),
-            ):
-                success, _ = manager.stop()
-
-        assert success is True
-        assert orphan.signals == ["terminate"]
-
-    def test_stop_leaves_unrelated_listener_alone(self) -> None:
-        """A listener that is not a MatHud server on this port is reported, not killed."""
-        manager = ServerManager(port=5131)
-        launcher = FakeProcess(LAUNCHER_PID)
-        other = FakeProcess(INTERPRETER_PID, cmdline=["nginx.exe"])
+        other = FakeProcess(INTERPRETER_PID, cmdline=["python.exe", "app.py", "--port", "5131"])
 
         with _fake_processes(launcher, other), patch.object(manager, "get_pid", return_value=LAUNCHER_PID):
             with (
@@ -562,22 +544,6 @@ class TestServerManagerStopProcessTree:
         assert success is False
         assert "5131" in message and str(INTERPRETER_PID) in message
         assert other.signals == []
-
-    def test_stop_with_stale_pid_still_checks_the_port(self) -> None:
-        """A dead launcher whose interpreter still listens is cleaned up through the port check."""
-        manager = ServerManager(port=5131)
-        orphan = FakeProcess(INTERPRETER_PID, cmdline=["python.exe", "app.py", "-p", "5131"])
-
-        with _fake_processes(orphan), patch.object(manager, "get_pid", return_value=LAUNCHER_PID):
-            with (
-                patch.object(manager, "_wait_for_port_release", side_effect=[False, True]),
-                patch.object(manager, "_find_listener_pid_on_port", return_value=INTERPRETER_PID),
-            ):
-                success, message = manager.stop()
-
-        assert success is True
-        assert "stale" in message.lower()
-        assert orphan.running is False
 
 
 class TestServerManagerPortRelease:
@@ -614,19 +580,6 @@ class TestServerManagerPortRelease:
                 assert manager._is_port_available() is True
             assert sock.setsockopt.called is expect_reuse
             sock.bind.assert_called_once_with((manager.host, 5131))
-
-    def test_is_server_process_for_port_matches_app_and_port(self) -> None:
-        manager = ServerManager(port=5131)
-        cases = {
-            ("python.exe", "C:\\MatHud\\app.py", "--port", "5131"): True,
-            ("python", "/srv/MatHud/app.py", "-p", "5131"): True,
-            ("python.exe", "app.py", "--port", "5132"): False,
-            ("python.exe", "other.py", "--port", "5131"): False,
-            ("python.exe", "app.py"): False,
-        }
-        for cmdline, expected in cases.items():
-            with _fake_processes(FakeProcess(INTERPRETER_PID, cmdline=cmdline)):
-                assert manager._is_server_process_for_port(INTERPRETER_PID) is expected, cmdline
 
 
 class TestServerManagerStartEnvironment:

@@ -12,7 +12,6 @@ import socket
 import subprocess
 import sys
 import time
-from pathlib import Path
 from typing import Any, Optional, Sequence
 
 import click
@@ -432,7 +431,7 @@ class ServerManager:
             return None
 
     def _release_port(self) -> Optional[str]:
-        """Wait for the port to be free, stopping a leftover MatHud server still listening on it.
+        """Wait for the port to be free; a listener left on it is reported, never killed.
 
         Returns:
             None once the port is free, otherwise an error message.
@@ -441,14 +440,6 @@ class ServerManager:
             return None
 
         owner_pid = self._find_listener_pid_on_port()
-        if owner_pid is not None and self._is_server_process_for_port(owner_pid):
-            try:
-                self._stop_process_tree(owner_pid)
-            except Exception as e:
-                return f"Server stopped, but leftover server PID {owner_pid} on port {self.port} survived: {e}"
-            if self._wait_for_port_release():
-                return None
-
         owner = f" by PID {owner_pid}" if owner_pid is not None else ""
         return f"Server stopped, but port {self.port} is still in use{owner}"
 
@@ -460,16 +451,6 @@ class ServerManager:
                 return False
             time.sleep(PORT_RELEASE_POLL_SECONDS)
         return True
-
-    def _is_server_process_for_port(self, pid: int) -> bool:
-        """Whether ``pid`` runs ``app.py --port <self.port>``, as the CLI starts servers."""
-        try:
-            args = psutil.Process(pid).cmdline()
-        except (psutil.Error, OSError):
-            return False
-        runs_app = any(Path(arg).name == APP_MODULE.name for arg in args)
-        on_port = any(flag in ("--port", "-p") and value == str(self.port) for flag, value in zip(args, args[1:]))
-        return runs_app and on_port
 
     def status(self) -> dict:
         """Get the current server status.

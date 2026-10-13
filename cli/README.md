@@ -250,7 +250,7 @@ cli/
 - Background process spawning with PID tracking (`.mathud_server.pid`)
 - Health checks via HTTP requests to `/auth_status`
 - Shutdown stops the whole process tree: SIGINT to the server's process group (Unix) or terminate to every descendant (Windows, where a venv `python.exe` is a launcher whose child is the real server), then a kill after 10 seconds
-- After shutdown, waits for the port to be free; a leftover `app.py --port N` listener on it is stopped too, and any other listener is reported
+- After shutdown, waits for the port to be free and reports a listener still on it (without killing it)
 - Servers run with `MATHUD_NON_DEBUG=1` and without inherited Werkzeug reloader variables, so no reloader child is spawned
 
 ### Browser Automation (`browser.py`)
