@@ -48,7 +48,7 @@ from __future__ import annotations
 import math
 from typing import Callable, Dict, List, Optional, Sequence, Tuple, TypedDict, Union
 
-from utils.curve_pair_intersections import intersect_curves, repeat_period
+from utils.curve_pair_intersections import intersect_curves
 from utils.function_features import MAX_SAMPLES, scan_roots, sample_count
 
 DEFAULT_MAX_RESULTS = 50
@@ -1242,8 +1242,19 @@ def _parametric_pair(a: ParametricShape, b: ParametricShape) -> _Found:
     first, second = (a, b) if a.name <= b.name else (b, a)
     size = _pair_size(first, second)
     found = _Found()
-    first, second = _one_period(first, found), _one_period(second, found)
-    result = intersect_curves(first, second, size)
+    result = intersect_curves(first, second, size, (first.extent(), second.extent()))
+    windowed = []
+    for curve, period in zip((first, second), result.periods):
+        if period is not None:
+            end = curve.t_min + period
+            found.notes.append(
+                f"{curve.name} retraces itself every {_round(period)} in t (checked at every sample of its "
+                f"range), so one period, t in [{_round(curve.t_min)}, {_round(end)}], was searched; its "
+                "parameters are given in that period."
+            )
+            curve = ParametricShape(curve.name, curve.x_of_t, curve.y_of_t, curve.t_min, end, curve.pixels_per_unit)
+        windowed.append(curve)
+    first, second = windowed[0], windowed[1]
     for hit in result.hits:
         params = {first.name: first.params(hit.s), second.name: second.params(hit.t)}
         found.hits.append(_Hit(hit.x, hit.y, params, hit.tangent))
@@ -1257,27 +1268,38 @@ def _parametric_pair(a: ParametricShape, b: ParametricShape) -> _Found:
             elif span >= spacing:
                 # Once round a closed curve: the whole curve is shared
                 found.overlaps.append({"kind": "curve"})
+    found.overlaps = _chained_overlaps(found.overlaps, size)
     if not result.complete:
         found.notes.append(
-            f"The search for where {first.name} and {second.name} meet stopped at its work limit (long parameter "
-            "ranges that pass over the same places many times, or very many crossings), so these results may be "
-            "incomplete: intersections and overlaps may be missing. Shorter parameter ranges give a complete search."
+            f"The search for where {first.name} and {second.name} meet stopped at its work limit, so these results "
+            "may be incomplete: intersections and overlaps may be missing. (Very long parameter ranges, very many "
+            "crossings and curves running very close together over long stretches take the most work.)"
         )
     return found
 
 
-def _one_period(curve: ParametricShape, found: _Found) -> ParametricShape:
-    """The curve over one period when its range retraces it (a circle over t in [0, 1000]): the
-    same points, found once, with a note."""
-    period = repeat_period(curve, curve.extent())
-    if period is None:
-        return curve
-    end = curve.t_min + period
-    found.notes.append(
-        f"{curve.name} retraces itself every {_round(period)} in t, so one period, t in "
-        f"[{_round(curve.t_min)}, {_round(end)}], was searched; its parameters are given in that period."
-    )
-    return ParametricShape(curve.name, curve.x_of_t, curve.y_of_t, curve.t_min, end, curve.pixels_per_unit)
+def _chained_overlaps(overlaps: List[Overlap], size: float) -> List[Overlap]:
+    """Overlaps with ends that meet (stretches found from either curve) joined into one."""
+    chained: List[Overlap] = []
+    for overlap in overlaps:
+        if "start" not in overlap or "end" not in overlap:
+            chained.append(overlap)
+            continue
+        start, end = (overlap["start"][0], overlap["start"][1]), (overlap["end"][0], overlap["end"][1])
+        for index, other in enumerate(chained):
+            if "start" not in other or "end" not in other:
+                continue
+            first = (other["start"][0], other["start"][1])
+            last = (other["end"][0], other["end"][1])
+            if _same_point(last, start, size, _ABSORB_TOLERANCE):
+                chained[index] = {"kind": "curve", "start": list(first), "end": list(end)}
+                break
+            if _same_point(end, first, size, _ABSORB_TOLERANCE):
+                chained[index] = {"kind": "curve", "start": list(start), "end": list(last)}
+                break
+        else:
+            chained.append(overlap)
+    return chained
 
 
 def _snapped_to(ends: List[Point2], point: Point2, size: float) -> Point2:

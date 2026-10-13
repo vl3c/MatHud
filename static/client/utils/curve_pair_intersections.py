@@ -28,11 +28,10 @@ Method:
        are exactly parallel (bisection along the first curve, the second curve's point being
        the foot of the perpendicular) and flagged as a tangency. At a cusp (a curve that all
        but stops) the tangency is whether the curves stay on one side of each other there.
-    Pairs near a point already found on another pass of either curve (a parameter range that
-    retraces it) are not searched again, and the whole search, sampling first, has a work
-    budget (about 2.5 seconds in the browser); a search stopped there is marked incomplete.
-    ``repeat_period`` finds the period of a curve that retraces itself, so the caller can
-    search one period of it.
+    A curve whose samples all repeat after a period 2*pi*p/q is searched over its first period
+    only (``periods`` in the result). The whole search, sampling first, has a work budget
+    (about 2.5 seconds in the browser); wherever it cuts work short (sampling, candidate pairs,
+    shared stretches, crossings, near touches) the result is marked incomplete.
 
 A point counts when the curves are within 1e-10 of the pair's size there, plus the rounding
 of the coordinates and of the parameters.
@@ -72,8 +71,9 @@ _SHRINK_LEVELS = 64
 _SHRINK_BOXES = 4
 # Newton steps are limited to this many sample spacings
 _STEP_SPACINGS = 4.0
-# Most near-touch minimisations per pair of curves
-_MAX_TOUCH_STARTS = 64
+# A near pair may hide a meeting point when its gap is within this many times the two
+# segments' strays from their curves (such stretches are scanned sample by sample)
+_MEET_FACTOR = 2.0
 # Sine of the angle between the curves below which a meeting point is polished as a
 # tangency, and below which it is one without polishing
 _POLISH_ANGLE = 1e-3
@@ -81,17 +81,19 @@ _TANGENT_ANGLE = 1e-7
 _BISECTION_STEPS = 120
 # Distinct foot guesses tried per sample when walking one curve along the other
 _WALK_GUESSES = 3
+# Shared stretches at most this many sample steps apart, with the gap on both curves, are one
+_JOIN_SPACINGS = 4.0
 # A projection for an on-curve test stops once its distance is this many tolerances away and
-# no longer halving each step
+# has stalled (a full step, not one cut to the step limit, shrank it by less than half)
 _GIVE_UP_FACTOR = 100.0
+_GIVE_UP_RATIO = 0.5
 # Periods 2*pi*p/q tried for a curve that retraces itself (q up to this), checked at this many
 # points within this fraction of its extent (times 1 + |t| + period, for rounding)
 _PERIOD_DENOMINATOR = 12
 _PERIOD_CHECKS = 12
 _PERIOD_TOLERANCE = 1e-9
-# Hits found within this many sample steps (of both curves) of a candidate pair do not stop
-# it being searched: a second crossing close by is a near tangency, not a retrace
-_LOCAL_SPACINGS = 2.0
+# Periods that pass the spot checks but are then checked at every sample, at most
+_PERIOD_FULL_CHECKS = 2
 # A meeting point where a curve moves slower than this fraction of its typical speed is a cusp
 _CUSP_RATIO = 1e-3
 # Rounding units of the coordinates within which two curves coincide (not just meet)
@@ -122,11 +124,10 @@ _CHECK_WORK = 3
 # Sampling comes first: a well-sampled curve keeps the later stages cheap
 _SAMPLE_SHARE = 0.25
 _PAIR_SHARE = 0.8
-_WALK_SHARE = 0.9
-# Found points are filed in grid cells this many typical segment lengths wide; a lookup
-# spanning more cells than this scans every point
+_WALK_SHARE = 0.95
+# Found points are filed in grid cells this many typical segment lengths wide (to merge one
+# found twice)
 _GRID_SEGMENTS = 4.0
-_GRID_LOOKUP_CELLS = 64
 
 
 class Curve(Protocol):
@@ -168,28 +169,37 @@ class CurvePairResult:
         self.second_pieces: List[Tuple[float, float]] = []
         self.spacing: Tuple[float, float] = (0.0, 0.0)
         self.complete = True
+        # Period (in its parameter) of a curve searched over its first period only
+        self.periods: Tuple[Optional[float], Optional[float]] = (None, None)
 
 
-def repeat_period(curve: Curve, extent: float) -> Optional[float]:
+def _repeat_period(line: _Polyline, extent: float) -> Optional[float]:
     """The smallest period 2*pi*p/q (p, q up to 12) after which the curve retraces itself all
     along its range, when the range covers at least two of them; None otherwise.
 
-    Checked at points spread over the whole range (within 1e-9 of the curve's ``extent``, more
-    at large parameters), so a curve that only returns to its start point is not one.
+    A period that holds at 12 points spread over the range is then checked at every sample the
+    search took of the whole range (refined by its turning): each must match its counterpart
+    shifted back into the first period, within 1e-9 of the curve's ``extent`` (more at large
+    parameters). A change anywhere the samples see (a radius that grows late in the range, a
+    bump) rules it out, and so does sampling cut short (the search is then incomplete anyway).
     """
-    low, high = curve.t_min, curve.t_max
+    curve, low, high = line.curve, line.low, line.high
     span = high - low
-    if not span > 0.0 or not extent > 0.0:
+    if line.cut_short or not span > 0.0 or not extent > 0.0:
         return None
     candidates = sorted({2.0 * math.pi * p / q for q in range(1, _PERIOD_DENOMINATOR + 1) for p in range(1, 13)})
+    full_checks = 0
     for period in candidates:
         if 2.0 * period > span:
             break
-        if all(
-            _repeats(curve, low + (span - period) * (k + 0.5) / _PERIOD_CHECKS, period, extent)
-            for k in range(_PERIOD_CHECKS)
-        ):
+        spot_checks = (low + (span - period) * (k + 0.5) / _PERIOD_CHECKS for k in range(_PERIOD_CHECKS))
+        if not all(_repeats(curve, t, period, extent) for t in spot_checks):
+            continue
+        if _repeats_at_every_sample(line, period, extent):
             return period
+        full_checks += 1
+        if full_checks >= _PERIOD_FULL_CHECKS:
+            break
     return None
 
 
@@ -200,9 +210,43 @@ def _repeats(curve: Curve, t: float, period: float, extent: float) -> bool:
     return _distance(here, later) <= _PERIOD_TOLERANCE * extent * (1.0 + abs(t) + period)
 
 
-def intersect_curves(first: Curve, second: Curve, size: float) -> CurvePairResult:
-    """Find where two parametric curves meet; ``size`` (the smaller curve's extent) scales tolerances."""
-    return _PairSearch(first, second, size).run()
+def _repeats_at_every_sample(line: _Polyline, period: float, extent: float) -> bool:
+    curve, low = line.curve, line.low
+    for t, point in zip(line.ts, line.points):
+        turns = math.floor((t - low) / period)
+        if turns <= 0:
+            continue
+        base = curve.point(t - turns * period)
+        if _finite(point) != _finite(base):
+            return False
+        if _finite(point) and _distance(point, base) > _PERIOD_TOLERANCE * extent * (1.0 + abs(t) + period):
+            return False
+    return True
+
+
+def _first_period(line: _Polyline, period: float, work: List[int]) -> _Polyline:
+    """The polyline cut down to the curve's first period (its range narrowed to match)."""
+    curve = line.curve
+    end = line.low + period
+    keep = 0
+    while keep < len(line.ts) and line.ts[keep] < end:
+        keep += 1
+    ts, points, measured = line.ts[:keep], line.points[:keep], line.measured[: max(keep - 1, 0)]
+    if keep:
+        ts.append(end)
+        points.append(curve.point(end))
+        measured.append(-1.0)
+    curve.t_max = end
+    return _Polyline(curve, work, (ts, points, measured, False))
+
+
+def intersect_curves(
+    first: Curve, second: Curve, size: float, extents: Tuple[float, float] = (0.0, 0.0)
+) -> CurvePairResult:
+    """Find where two parametric curves meet; ``size`` (the smaller curve's extent) scales
+    tolerances. With the curves' ``extents``, a curve that retraces itself is searched over
+    one period (``periods`` in the result)."""
+    return _PairSearch(first, second, size, extents).run()
 
 
 # ---------------------------------------------------------------------------
@@ -217,13 +261,21 @@ def _finite(point: Point2) -> bool:
 class _Polyline:
     """Samples of a curve, the segments between consecutive finite samples, and a box tree."""
 
-    def __init__(self, curve: Curve, work: List[int]) -> None:
+    def __init__(
+        self,
+        curve: Curve,
+        work: List[int],
+        samples: Optional[Tuple[List[float], List[Point2], List[float], bool]] = None,
+    ) -> None:
         self.curve = curve
         self.low, self.high = float(curve.t_min), float(curve.t_max)
-        # A first grid of the curve's own sample count (at most _PROBE_SAMPLES), then refined
-        # by its turning: the samples follow the curve's complexity, not its length on screen
-        count = max(2, min(int(curve.samples(self.high - self.low)), _PROBE_SAMPLES))
-        self.ts, self.points, self.cut_short = _adaptive_samples(curve, self.low, self.high, count, work)
+        if samples is None:
+            # A first grid of the curve's own sample count (at most _PROBE_SAMPLES), then refined
+            # by its turning: the samples follow the curve's complexity, not its length on screen
+            count = max(2, min(int(curve.samples(self.high - self.low)), _PROBE_SAMPLES))
+            samples = _adaptive_samples(curve, self.low, self.high, count, work)
+        self.ts, self.points, measured, self.cut_short = samples
+        self.measured = measured
         # The mean sample step
         self.spacing = (self.high - self.low) / (len(self.ts) - 1)
         # Segment k joins sample k and sample k + 1
@@ -231,9 +283,13 @@ class _Polyline:
         self.lengths: Dict[int, float] = {}
         # Each segment's bounding box (low x, low y, high x, high y)
         self.boxes: Dict[int, Tuple[float, float, float, float]] = {}
+        # How far each segment's curve strays from it (its midpoint's distance; the segment's
+        # length where that was not measured)
+        self.devs: Dict[int, float] = {}
         for k in self.segments:
             (x0, y0), (x1, y1) = self.points[k], self.points[k + 1]
             self.lengths[k] = math.hypot(x1 - x0, y1 - y0)
+            self.devs[k] = measured[k] if measured[k] >= 0.0 else self.lengths[k]
             self.boxes[k] = (x0 if x0 < x1 else x1, y0 if y0 < y1 else y1, x1 if x0 < x1 else x0, y1 if y0 < y1 else y0)
         self.tree = _BoxTree(self)
 
@@ -249,15 +305,17 @@ class _Polyline:
 
 
 def _adaptive_samples(
-    curve: Curve, low: float, high: float, count: int, work: List[int]
-) -> Tuple[List[float], List[Point2], bool]:
+    curve: Curve, low: float, high: float, count: int, work: List[int], limit: float = _SAMPLE_SHARE * _WORK_BUDGET
+) -> Tuple[List[float], List[Point2], List[float], bool]:
     """``count`` uniform steps, each halved (depth first, so the samples stay in order) while its
     midpoint leaves the chord, up to _REFINE_PASSES times, _MAX_SAMPLES samples in all and the
-    sampling share of the work. Also returns whether refinement ran into those limits of work."""
+    ``limit`` of the work (the sampling share). Also returns each interval's measured deviation of its midpoint
+    from the chord (-1 where it was not measured) and whether refinement ran into those limits
+    of work."""
     ts = [low]
     points = [curve.point(low)]
+    devs: List[float] = []
     extra_left = _MAX_SAMPLES - count
-    limit = _SAMPLE_SHARE * _WORK_BUDGET
     cut_short = False
     for i in range(1, count + 1):
         right_t = high if i == count else low + (high - low) * i / count
@@ -267,6 +325,7 @@ def _adaptive_samples(
         while stack:
             end_t, end_p, depth = stack[-1]
             middle = 0.5 * (left_t + end_t)
+            dev = -1.0
             # (the checks are inlined: this loop runs once per sample)
             isfinite = math.isfinite
             if (
@@ -293,11 +352,14 @@ def _adaptive_samples(
                         stack[-1] = (end_t, end_p, depth + 1)
                         stack.append((middle, mid_p, depth + 1))
                         continue
+                    if off_x * off_x + off_y * off_y <= allowed * allowed:
+                        dev = math.sqrt(off_x * off_x + off_y * off_y)
             stack.pop()
             ts.append(end_t)
             points.append(end_p)
+            devs.append(dev)
             left_t, left_p = end_t, end_p
-    return ts, points, cut_short
+    return ts, points, devs, cut_short
 
 
 class _BoxTree:
@@ -502,7 +564,8 @@ class _Counted:
 
 
 class _PairSearch:
-    def __init__(self, first: Curve, second: Curve, size: float) -> None:
+    def __init__(self, first: Curve, second: Curve, size: float, extents: Tuple[float, float] = (0.0, 0.0)) -> None:
+        self.extents = extents
         self.evaluations = [0]
         self.a = _Counted(first, self.evaluations)
         self.b = _Counted(second, self.evaluations)
@@ -541,6 +604,7 @@ class _PairSearch:
 
     def run(self) -> CurvePairResult:
         line_a, line_b = _Polyline(self.a, self.evaluations), _Polyline(self.b, self.evaluations)
+        line_a, line_b = self._one_period(line_a, 0), self._one_period(line_b, 1)
         self.lines = (line_a, line_b)
         self.result.spacing = (line_a.spacing, line_b.spacing)
         self.max_step = (_STEP_SPACINGS * line_a.spacing, _STEP_SPACINGS * line_b.spacing)
@@ -561,9 +625,21 @@ class _PairSearch:
         self._find_overlaps(line_a, line_b, pairs)
         self._short_pieces_to_points(line_a)
         self._find_crossings(line_a, line_b, [p for p in pairs if p.crossing])
-        self._find_touches(line_a, line_b, [p for p in pairs if not p.crossing])
+        self._find_touches(line_a, line_b, [p for p in pairs if not p.crossing], [p for p in pairs if p.crossing])
         self.result.hits = self._one_per_contact(self.result.hits, line_a.spacing)
         return self.result
+
+    def _one_period(self, line: _Polyline, which: int) -> _Polyline:
+        """The curve over its first period when its range retraces it (a circle over t in
+        [0, 1000]): the same points, found once."""
+        extent = self.extents[which]
+        period = _repeat_period(line, extent)
+        if period is None:
+            return line
+        periods = list(self.result.periods)
+        periods[which] = period
+        self.result.periods = (periods[0], periods[1])
+        return _first_period(line, period, self.evaluations)
 
     def _out_of_budget(self, share: float = 1.0) -> bool:
         """Whether the work since sampling has used up ``share`` of the budget (then the result is
@@ -732,7 +808,31 @@ class _PairSearch:
             end = self._run_end(line, last, last + 1, flags, on_other, valid)
             pieces.append((start, end))
             self.piece_feet[(start, end)] = flags[first][1]
-        return pieces
+        return self._joined_pieces(pieces, line.spacing, on_other)
+
+    def _joined_pieces(
+        self,
+        pieces: List[Tuple[float, float]],
+        spacing: float,
+        on_other: Callable[[float, float], Tuple[bool, float]],
+    ) -> List[Tuple[float, float]]:
+        """Pieces that touch, overlap, or are a short gap apart with the gap's middle on the
+        other curve too are one maximal stretch (samples that miss each other split runs)."""
+        joined: List[Tuple[float, float]] = []
+        for low, high in sorted(pieces):
+            if joined:
+                last_low, last_high = joined[-1]
+                gap = low - last_high
+                if gap <= 0.0 or (
+                    gap <= _JOIN_SPACINGS * spacing
+                    and on_other(0.5 * (low + last_high), self.piece_feet.get((low, high), 0.0))[0]
+                ):
+                    merged = (last_low, max(last_high, high))
+                    self.piece_feet[merged] = self.piece_feet.get((last_low, last_high), 0.0)
+                    joined[-1] = merged
+                    continue
+            joined.append((low, high))
+        return joined
 
     def _run_end(
         self,
@@ -794,8 +894,8 @@ class _PairSearch:
     ) -> Tuple[float, float]:
         """Gauss-Newton on the distance from ``point`` to the curve near ``guess``: (parameter, distance).
 
-        With ``give_up``, stops once the distance is far above it and no longer shrinking fast:
-        a point on the curve converges quadratically, so it cannot be one (the on-curve tests).
+        With ``give_up``, stops once the distance is far above it and has stalled (a minimum
+        off the curve: a point on it converges quadratically), for the on-curve tests.
         """
         t = clamp(guess)
         here = curve.point(t)
@@ -808,6 +908,8 @@ class _PairSearch:
             if not math.isfinite(speed2) or speed2 == 0.0:
                 break
             step = -((here[0] - point[0]) * dx + (here[1] - point[1]) * dy) / speed2
+            # A step cut to the limit is still travelling towards the foot
+            travelling = abs(step) > max_step
             step = max(-max_step, min(max_step, step))
             if abs(step) <= 4.0 * _EPS * max(1.0, abs(t)):
                 # Already at the foot to rounding: no backtracking needed
@@ -828,7 +930,8 @@ class _PairSearch:
             t, here, distance = candidate, there, candidate_distance
             if distance == 0.0 or moved <= 4.0 * _EPS * max(1.0, abs(t)):
                 break
-            if give_up > 0.0 and distance > _GIVE_UP_FACTOR * give_up and distance > 0.5 * previous:
+            stalled = not travelling and distance > _GIVE_UP_RATIO * previous
+            if give_up > 0.0 and distance > _GIVE_UP_FACTOR * give_up and stalled:
                 break
         return (t, distance)
 
@@ -851,10 +954,15 @@ class _PairSearch:
                     solved = self._newton(*box) or self._minimise(*box)
             if solved is not None:
                 self._add_hit(*solved, line_a)
+            else:
+                # Last resort: where the first curve changes sides of the second around the pair
+                first, last = max(pair.i - 1, 0), min(pair.i + 2, len(line_a.ts) - 1)
+                self._scan_stretch(first, last, t, line_a)
 
     def _covered(self, line_a: _Polyline, line_b: _Polyline, pair: _Pair) -> bool:
-        """The pair lies in a shared stretch, or near a point already found on another pass of
-        either curve (a parameter range that retraces it)."""
+        """The pair lies in a shared stretch or a contact already reported as one point. (A
+        point found from another pass of a curve does not cover it: on a curve that nearly
+        retraces itself the next pass crosses at a distinct point close by.)"""
         s0, s1 = line_a.ts[pair.i], line_a.ts[pair.i + 1]
         if self._in_first_pieces(s0) and self._in_first_pieces(s1):
             return True
@@ -863,51 +971,7 @@ class _PairSearch:
             return True
         if any(s1 >= low and s0 <= high for low, high in self.contact_zones):
             return True
-        p0, p1 = line_a.points[pair.i], line_a.points[pair.i + 1]
-        q0, q1 = line_b.points[pair.j], line_b.points[pair.j + 1]
-        reach_a = _NEAR_FACTOR * line_a.lengths[pair.i]
-        reach_b = _NEAR_FACTOR * line_b.lengths[pair.j]
-        near_s = (s0 - _LOCAL_SPACINGS * line_a.spacing, s1 + _LOCAL_SPACINGS * line_a.spacing)
-        near_t = (t0 - _LOCAL_SPACINGS * line_b.spacing, t1 + _LOCAL_SPACINGS * line_b.spacing)
-        for hit in self._hits_near(p0, p1, reach_a):
-            if self._within(hit.s, near_s, 0) and self._within(hit.t, near_t, 1):
-                # Found from this stretch of both curves: a second crossing close by (a near
-                # tangency) is still searched for; one at the same place is merged when added
-                continue
-            here = (hit.x, hit.y)
-            on_a = _foot(here, p0, p1[0] - p0[0], p1[1] - p0[1])[1] <= reach_a
-            if on_a and _foot(here, q0, q1[0] - q0[0], q1[1] - q0[1])[1] <= reach_b:
-                return True
         return False
-
-    def _within(self, value: float, interval: Tuple[float, float], which: int) -> bool:
-        """``value`` in ``interval``, also a period away on a closed curve (across its seam)."""
-        if interval[0] <= value <= interval[1]:
-            return True
-        if not self.closed[which]:
-            return False
-        curve = self.a if which == 0 else self.b
-        span = curve.t_max - curve.t_min
-        return any(interval[0] <= value + shift <= interval[1] for shift in (-span, span))
-
-    def _hits_near(self, p0: Point2, p1: Point2, reach: float) -> List[CurveHit]:
-        """The hits in the grid cells around a segment (all hits when it spans too many cells)."""
-        cell = self.cell
-        low_x, high_x = (
-            int(math.floor((min(p0[0], p1[0]) - reach) / cell)),
-            int(math.floor((max(p0[0], p1[0]) + reach) / cell)),
-        )
-        low_y, high_y = (
-            int(math.floor((min(p0[1], p1[1]) - reach) / cell)),
-            int(math.floor((max(p0[1], p1[1]) + reach) / cell)),
-        )
-        if (high_x - low_x + 1) * (high_y - low_y + 1) > _GRID_LOOKUP_CELLS:
-            return self.result.hits
-        near: List[CurveHit] = []
-        for gx in range(low_x, high_x + 1):
-            for gy in range(low_y, high_y + 1):
-                near.extend(self.grid.get((gx, gy), []))
-        return near
 
     def _grid_cell(self, x: float, y: float) -> Tuple[int, int]:
         return (int(math.floor(x / self.cell)), int(math.floor(y / self.cell)))
@@ -1028,28 +1092,141 @@ class _PairSearch:
 
     # ------------------- Near touches -------------------
 
-    def _find_touches(self, line_a: _Polyline, line_b: _Polyline, pairs: List[_Pair]) -> None:
-        """Minimise the distance from the closest non-crossing segment pairs (local minima along A)."""
+    def _find_touches(
+        self, line_a: _Polyline, line_b: _Polyline, pairs: List[_Pair], crossing_pairs: List[_Pair]
+    ) -> None:
+        """Where the polylines come close without crossing (local minima of the gap along the
+        first curve) but the curves may still meet (the gap is within twice their strays from
+        the segments): minimise the distance (a touch), and scan the side the first curve lies
+        on of the second for crossings the polylines hide (two close crossings between samples)."""
         best: Dict[int, _Pair] = {}
         for pair in pairs:
             if pair.i not in best or pair.gap < best[pair.i].gap:
                 best[pair.i] = pair
+        for pair in crossing_pairs:
+            # A crossing is the closest the polylines get: its neighbours are not minima
+            best[pair.i] = pair
         starts: List[_Pair] = []
         for i, pair in best.items():
             before, after = best.get(i - 1), best.get(i + 1)
+            if pair.crossing:
+                continue
             if (before is None or before.gap >= pair.gap) and (after is None or after.gap >= pair.gap):
-                starts.append(pair)
-        starts.sort(key=lambda p: (p.gap, p.i, p.j))
-        for pair in starts[:_MAX_TOUCH_STARTS]:
-            if self._out_of_budget():
-                return
+                stray = line_a.devs[pair.i] + line_b.devs[pair.j]
+                if pair.gap <= _MEET_FACTOR * stray + _ON_OBJECT_TOLERANCE * self.size:
+                    starts.append(pair)
+        # The stretches of the first curve around the starts (a segment either side), merged
+        # (first sample, last sample, the closest pair in it)
+        stretches: List[Tuple[int, int, _Pair]] = []
+        for pair in sorted(starts, key=lambda p: p.i):
             if self._covered(line_a, line_b, pair):
                 continue
-            s0, s1 = line_a.ts[pair.i], line_a.ts[pair.i + 1]
-            t0, t1 = line_b.ts[pair.j], line_b.ts[pair.j + 1]
-            solved = self._minimise(s0 + pair.u * (s1 - s0), t0 + pair.v * (t1 - t0))
+            first, last = max(pair.i - 1, 0), min(pair.i + 2, len(line_a.ts) - 1)
+            if stretches and first <= stretches[-1][1]:
+                head, tail, closest = stretches[-1]
+                stretches[-1] = (head, max(tail, last), pair if pair.gap < closest.gap else closest)
+            else:
+                stretches.append((first, last, pair))
+        for first, last, closest in stretches:
+            if self._out_of_budget():
+                return
+            s0, s1 = line_a.ts[closest.i], line_a.ts[closest.i + 1]
+            t0, t1 = line_b.ts[closest.j], line_b.ts[closest.j + 1]
+            guess = t0 + closest.v * (t1 - t0)
+            # The closest place may be a touch the side cannot show (at a cusp the distance is
+            # not a parabola)
+            solved = self._minimise(s0 + closest.u * (s1 - s0), guess)
             if solved is not None:
                 self._add_hit(*solved, line_a)
+            self._scan_stretch(first, last, guess, line_a)
+
+    def _scan_stretch(self, first: int, last: int, guess: float, line_a: _Polyline) -> None:
+        """The side the first curve lies on of the second, at the samples first..last and the
+        segments' midpoints: each sign change is bisected to a crossing, and where the side
+        dips towards zero between samples without changing sign (a parabola through three
+        values reaching the tolerance, or well below them) the distance is minimised (a touch)."""
+        run: List[Tuple[float, float, float]] = []
+        for k in range(first, last + 1):
+            positions = [line_a.ts[k]]
+            if k < last:
+                positions.append(0.5 * (line_a.ts[k] + line_a.ts[k + 1]))
+            for s in positions:
+                if self._out_of_budget():
+                    return
+                side, guess = self._side(s, guess)
+                if side is None:
+                    self._check_run(run, line_a)
+                    run = []
+                    continue
+                run.append((s, side, guess))
+        self._check_run(run, line_a)
+
+    def _check_run(self, run: List[Tuple[float, float, float]], line_a: _Polyline) -> None:
+        for index, (s, side, foot) in enumerate(run):
+            if side == 0.0:
+                solved = self._newton(s, foot) or self._minimise(s, foot)
+                if solved is not None:
+                    self._add_hit(*solved, line_a)
+                continue
+            if index == 0:
+                continue
+            previous = run[index - 1]
+            if previous[1] != 0.0 and (side > 0.0) != (previous[1] > 0.0):
+                root = self._bisect_side(previous[0], s, previous[1], previous[2])
+                if root is not None:
+                    solved = self._newton(*root) or (root if self._meets(*root) else None)
+                    if solved is not None:
+                        self._add_hit(*solved, line_a)
+            if index + 1 < len(run):
+                following = run[index + 1]
+                dip = _dip(previous, (s, side, foot), following)
+                if dip is not None:
+                    solved = self._minimise(dip, foot)
+                    if solved is not None:
+                        self._add_hit(*solved, line_a)
+
+    def _meets(self, s: float, t: float) -> bool:
+        return _distance(self.a.point(s), self.b.point(t)) <= self.tolerance(s, t)
+
+    def _side(self, s: float, guess: float) -> Tuple[Optional[float], float]:
+        """Signed distance of the first curve's point at s from the second curve (at the foot
+        of the perpendicular, along the second curve's normal; 0 within rounding), and the
+        foot; None where it has no meaning (past the second curve's ends, undefined)."""
+        point = self.a.point(s)
+        if not _finite(point):
+            return (None, guess)
+        t, distance = self._project(self.b, point, guess, self.clamp_t, self.max_step[1])
+        base, (dx, dy) = self.b.point(t), self.b.derivative(t)
+        speed = _norm((dx, dy))
+        if not (_finite(base) and math.isfinite(speed)) or speed == 0.0:
+            return (None, t)
+        side = (dx * (point[1] - base[1]) - dy * (point[0] - base[0])) / speed
+        along = abs(dx * (point[0] - base[0]) + dy * (point[1] - base[1])) / speed
+        noise = _NOISE_UNITS * _EPS * (abs(point[0]) + abs(point[1]) + 1.0)
+        if along > abs(side) + noise:
+            # The foot is at an end of the second curve: the point lies past it
+            return (None, t)
+        return (0.0 if abs(side) <= noise else side, t)
+
+    def _bisect_side(self, low: float, high: float, side_low: float, guess: float) -> Optional[Tuple[float, float]]:
+        """Bisect a sign change of the side to where the first curve crosses the second."""
+        for _ in range(_BISECTION_STEPS):
+            middle = 0.5 * (low + high)
+            if middle in (low, high):
+                break
+            side, guess = self._side(middle, guess)
+            if side is None:
+                return None
+            if side == 0.0:
+                low = high = middle
+                break
+            if (side > 0.0) == (side_low > 0.0):
+                low = middle
+            else:
+                high = middle
+        s = 0.5 * (low + high)
+        t, _ = self._project(self.b, self.a.point(s), guess, self.clamp_t, self.max_step[1])
+        return (s, t)
 
     # ------------------- Points -------------------
 
@@ -1201,13 +1378,16 @@ def _add_guesses(
         return
     dx, dy = (end[0] - start[0]) / length, (end[1] - start[1]) / length
     feet: List[Tuple[float, float]] = []
+    # The two curves' samples need not line up: the segment may be several of the other's long
+    own = line.lengths[segment]
+    beyond = max(1.0, own / length)
     for k in (segment, segment + 1):
         # Off the chord's line (not its nearest end: the other curve's samples fall anywhere
-        # along a shared stretch), with the foot at most a chord beyond either end
+        # along a shared stretch), with the foot at most a segment beyond either end
         rx, ry = line.points[k][0] - start[0], line.points[k][1] - start[1]
         fraction = (rx * dx + ry * dy) / length
         distance = abs(rx * dy - ry * dx)
-        if distance > _ALONG_FACTOR * length or not -1.0 <= fraction <= 2.0:
+        if distance > _ALONG_FACTOR * length or not -beyond <= fraction <= 1.0 + beyond:
             return
         feet.append((min(max(fraction, 0.0), 1.0), distance))
     for k, (fraction, distance) in zip((segment, segment + 1), feet):
@@ -1221,6 +1401,27 @@ def _add_guesses(
 
 def _along(line: _Polyline, k: int, fraction: float) -> float:
     return line.ts[k] + fraction * (line.ts[k + 1] - line.ts[k])
+
+
+def _dip(
+    before: Tuple[float, float, float], here: Tuple[float, float, float], after: Tuple[float, float, float]
+) -> Optional[float]:
+    """Where |side| dips between samples without changing sign: the parameter of the vertex of
+    the parabola through three (s, |side|) values when ``here`` is the smallest and the vertex
+    reaches a quarter of it (a touch, or a near miss to check), else None."""
+    if not ((before[1] > 0.0) == (here[1] > 0.0) == (after[1] > 0.0)) or 0.0 in (before[1], after[1]):
+        return None
+    (x0, y0), (x1, y1), (x2, y2) = (before[0], abs(before[1])), (here[0], abs(here[1])), (after[0], abs(after[1]))
+    if not (y1 <= y0 and y1 <= y2):
+        return None
+    d01, d12 = (y1 - y0) / (x1 - x0), (y2 - y1) / (x2 - x1)
+    curvature = (d12 - d01) / (x2 - x0)
+    if curvature <= 0.0:
+        return None
+    vertex = 0.5 * (x0 + x1) - d01 / (2.0 * curvature)
+    vertex = min(max(vertex, x0), x2)
+    lowest = y1 + d01 * (vertex - x1) + curvature * (vertex - x0) * (vertex - x1)
+    return vertex if lowest <= 0.25 * y1 else None
 
 
 def _median(values: List[float]) -> float:

@@ -1064,21 +1064,95 @@ class TestParametricPairs(_Assertions):
         self.assertEqual(len(retraced["notes"]), 2)
         self.assertTrue(all("retraces itself every 6.283185307" in note for note in retraced["notes"]))
         self.assertLessEqual(retraced["points"][0]["params"]["a"]["t"], 2 * math.pi)
-        long_range = find_object_intersections(
-            ParametricShape("a", lambda u: math.sin(3 * u), lambda u: math.sin(2 * u), 0, 2000),
-            ParametricShape("b", lambda u: math.sin(5 * u), lambda u: math.sin(4 * u), 0, 2000),
-            max_results=100,
-        )
-        one_period = find_object_intersections(
-            ParametricShape("a", lambda u: math.sin(3 * u), lambda u: math.sin(2 * u), 0, 2 * math.pi),
-            ParametricShape("b", lambda u: math.sin(5 * u), lambda u: math.sin(4 * u), 0, 2 * math.pi),
-            max_results=100,
-        )
-        self.assertEqual(_xy(long_range), _xy(one_period))
-        self.assertFalse(any("incomplete" in note for note in long_range["notes"]))
         # A spiral is not periodic: its whole range is searched
         spiral = ParametricShape("s", lambda u: u * math.cos(u), lambda u: u * math.sin(u), 0, 30)
         self.assertEqual(find_object_intersections(spiral, self.unit)["notes"], [])
+
+    def test_a_period_must_hold_at_every_sample(self) -> None:
+        # Periodic at a dozen spot checks, but not everywhere: the whole range is searched
+        def grown(u: float) -> float:
+            return 1.5 if u > 98 else 1.0
+
+        grow = ParametricShape("g", lambda u: grown(u) * math.cos(u), lambda u: grown(u) * math.sin(u), 0, 100)
+        late = find_object_intersections(grow, ParametricShape("l", lambda u: u, lambda u: -1.4, -3, 3))
+        self.assertEqual(len(late["points"]), 2)
+        self.assertEqual(late["notes"], [])
+
+        def bumped(u: float) -> float:
+            return 1.5 if 60 < u < 60.5 else 1.0
+
+        bump = ParametricShape("g", lambda u: bumped(u) * math.cos(u), lambda u: bumped(u) * math.sin(u), 0, 100)
+        once = find_object_intersections(bump, ParametricShape("l", lambda u: u, lambda u: -1.05, -3, 3))
+        self.assertEqual(len(once["points"]), 1)
+        self.assertEqual(once["notes"], [])
+        # Retracing curves sampled too coarsely to check are searched in full, flagged when cut
+        long_range = find_object_intersections(
+            ParametricShape("a", lambda u: math.sin(3 * u), lambda u: math.sin(2 * u), 0, 2000),
+            ParametricShape("b", lambda u: math.sin(5 * u), lambda u: math.sin(4 * u), 0, 2000),
+        )
+        self.assertTrue(any("may be incomplete" in note for note in long_range["notes"]))
+        self.assertFalse(any("retraces itself" in note for note in long_range["notes"]))
+
+    def test_curves_that_nearly_retrace_themselves(self) -> None:
+        # Crossings on successive passes lie close together but are distinct: none is skipped
+        k = 3.0001
+        epicycloid = ParametricShape(
+            "e",
+            lambda u: (k + 1) * math.cos(u) - math.cos((k + 1) * u),
+            lambda u: (k + 1) * math.sin(u) - math.sin((k + 1) * u),
+            0,
+            20 * math.pi,
+        )
+        for radius in (3.5, 4.0, 4.5, 4.9):
+            circle = ParametricShape(
+                "c", lambda u, r=radius: r * math.cos(u), lambda u, r=radius: r * math.sin(u), 0, 2 * math.pi
+            )
+            report = find_object_intersections(epicycloid, circle, max_results=1000)
+            self.assertEqual((report["total_found"], report["notes"]), (60, []), radius)
+            for point in report["points"]:
+                self.assertAlmostEqual(math.hypot(point["x"], point["y"]), radius, places=8)
+        target = ParametricShape(
+            "c", lambda u: 0.1 + 0.7 * math.cos(u), lambda u: 0.3 + 0.7 * math.sin(u), 0, 2 * math.pi
+        )
+        for drift in (1e-3, 1e-4, 1e-5):
+            drifting = ParametricShape("d", lambda u, d=drift: math.cos(u) + d * u, math.sin, 0, 200)
+            report = find_object_intersections(drifting, target, max_results=1000)
+            self.assertEqual((report["total_found"], report["notes"]), (64, []), drift)
+
+    def test_crossings_hidden_between_samples(self) -> None:
+        # A curve wiggling around a line by far less than its samples resolve
+        axis = ParametricShape("x", lambda u: u, lambda u: 0.0, -0.5, 1.5)
+        for amplitude, frequency in ((1e-6, 3000), (1e-8, 50)):
+            wiggle = ParametricShape("w", lambda u: u, lambda u, a=amplitude, f=frequency: a * math.sin(f * u), 0, 1)
+            report = find_object_intersections(wiggle, axis, max_results=5000)
+            self.assertEqual(report["total_found"], int(frequency / math.pi) + 1)
+            self.assertEqual(report["notes"], [])
+        # Circles a hair apart do not meet, and that takes no more than the budget to show
+        for gap in (1e-6, 1e-8):
+            outer = ParametricShape(
+                "b", lambda u, g=gap: (1 + g) * math.cos(u), lambda u, g=gap: (1 + g) * math.sin(u), 0, 2 * math.pi
+            )
+            apart = find_object_intersections(self.unit, outer)
+            self.assertEqual((apart["points"], apart["overlaps"], apart["notes"]), ([], [], []))
+
+    def test_collinear_stretches_are_one_overlap(self) -> None:
+        line = ParametricShape("a", lambda u: u, lambda u: u, 1, 4)
+        cases = {
+            "t^2": (lambda u: u * u, 4.0),
+            "t^3": (lambda u: u**3, 4.0),
+            "2t": (lambda u: 2 * u, 4.0),
+            "sqrt": (math.sqrt, math.sqrt(2)),
+        }
+        for label, (f, end) in cases.items():
+            piece = ParametricShape("b", f, f, 1, 2)
+            for first, second in ((line, piece), (piece, line)):
+                report = find_object_intersections(first, second)
+                self.assertEqual(len(report["overlaps"]), 1, label)
+                self.assertEqual(report["points"], [], label)
+                ends = sorted([report["overlaps"][0]["start"][0], report["overlaps"][0]["end"][0]])
+                start = 2.0 if label == "2t" else 1.0
+                self.assertAlmostEqual(ends[0], start, places=9)
+                self.assertAlmostEqual(ends[1], end, places=9)
 
     def test_rapidly_oscillating_curves_are_complete(self) -> None:
         wave = ParametricShape("a", lambda u: u, lambda u: math.sin(100 * u), 0, 10)
