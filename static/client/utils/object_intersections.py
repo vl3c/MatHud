@@ -513,9 +513,30 @@ class PolygonShape:
         return math.hypot(max(xs) - min(xs), max(ys) - min(ys))
 
     def neighbours(self, k: int) -> Tuple[Point2, Point2]:
-        """The vertices before and after vertex k."""
+        """The nearest vertices before and after vertex k that are not at its place (a repeated
+        vertex has a zero-length edge to it)."""
         count = len(self.vertices)
-        return self.vertices[(k - 1) % count], self.vertices[(k + 1) % count]
+        return self.vertices[self.incoming_edge(k) % count], self.vertices[(self.outgoing_edge(k) + 1) % count]
+
+    def incoming_edge(self, k: int) -> int:
+        """The last edge of nonzero length ending at vertex k (or at a repeat of it)."""
+        count = len(self.vertices)
+        index = (k - 1) % count
+        for _ in range(count):
+            if self.edges[index] is not None:
+                break
+            index = (index - 1) % count
+        return index
+
+    def outgoing_edge(self, k: int) -> int:
+        """The first edge of nonzero length starting at vertex k (or at a repeat of it)."""
+        count = len(self.vertices)
+        index = k % count
+        for _ in range(count):
+            if self.edges[index] is not None:
+                break
+            index = (index + 1) % count
+        return index
 
 
 class _EllipseAxis(LineShape):
@@ -1226,9 +1247,10 @@ def _parametric_pair(a: ParametricShape, b: ParametricShape) -> _Found:
         params = {first.name: first.params(hit.s), second.name: second.params(hit.t)}
         found.hits.append(_Hit(hit.x, hit.y, params, hit.tangent))
     walks = ((first, result.first_pieces, result.spacing[0]), (second, result.second_pieces, result.spacing[1]))
+    ends = [curve.point(value) for curve in (first, second) for value in (curve.t_min, curve.t_max)]
     for curve, pieces, spacing in walks:
         for low, high, span in _joined_at_seam(curve, pieces, (curve.t_min, curve.t_max), size):
-            start, end = curve.point(low), curve.point(high)
+            start, end = _snapped_to(ends, curve.point(low), size), _snapped_to(ends, curve.point(high), size)
             if not _same_point(start, end, size):
                 found.overlaps.append({"kind": "curve", "start": list(start), "end": list(end)})
             elif span >= spacing:
@@ -1236,10 +1258,19 @@ def _parametric_pair(a: ParametricShape, b: ParametricShape) -> _Found:
                 found.overlaps.append({"kind": "curve"})
     if not result.complete:
         found.notes.append(
-            f"{first.name} and {second.name} pass over the same places many times (long parameter ranges); "
-            f"the search stopped at its work limit, so points late in {first.name}'s range may be missing."
+            f"The search for where {first.name} and {second.name} meet stopped at its work limit (long parameter "
+            "ranges that pass over the same places many times, or very many crossings), so these results may be "
+            "incomplete: intersections and overlaps may be missing. Shorter parameter ranges give a complete search."
         )
     return found
+
+
+def _snapped_to(ends: List[Point2], point: Point2, size: float) -> Point2:
+    """An overlap end bisected to within tolerance of a curve's end point, moved onto it."""
+    for end in ends:
+        if all(math.isfinite(value) for value in end) and _same_point(end, point, size, _ABSORB_TOLERANCE):
+            return end
+    return point
 
 
 # ---------------------------------------------------------------------------
@@ -1247,7 +1278,9 @@ def _parametric_pair(a: ParametricShape, b: ParametricShape) -> _Found:
 # ---------------------------------------------------------------------------
 
 # Fractions of an edge (from a vertex) where the side of the other object is probed
-_PROBE_FRACTIONS = (1e-6, 1e-4, 1e-2)
+# (the larger ones only when the nearer probes are lost in rounding: a tiny polygon far from
+# the origin)
+_PROBE_FRACTIONS = (1e-6, 1e-4, 1e-2, 0.1, 0.5)
 # Angle (radians) within which a probe direction lies along a polygon's edge
 _SECTOR_SLACK = 1e-9
 
@@ -1345,12 +1378,12 @@ def _polygon_hit(record: _PolygonHit, polygons: List[PolygonShape]) -> _Hit:
     params = {name: values for name, values in record.params.items() if name not in polygon_names}
     hit = _Hit(record.x, record.y, params, record.tangent)
     for polygon in polygons:
-        count = len(polygon.vertices)
         vertex = record.at_vertex.get(polygon.name)
         if vertex is not None:
-            hit.params[polygon.name] = {"edge": vertex, "t": 0.0}
-            incoming = (vertex - 1) % count
-            hit.edges[polygon.name] = [polygon.edge_names[incoming], polygon.edge_names[vertex]]
+            outgoing = polygon.outgoing_edge(vertex)
+            hit.params[polygon.name] = {"edge": outgoing, "t": 0.0}
+            incoming = polygon.incoming_edge(vertex)
+            hit.edges[polygon.name] = [polygon.edge_names[incoming], polygon.edge_names[outgoing]]
             hit.vertex[polygon.name] = polygon.vertex_names[vertex]
             continue
         edges = record.on_edges.get(polygon.name, {})
@@ -1395,21 +1428,42 @@ def _local_directions(polygon: PolygonShape, record: _PolygonHit, corner: Point2
 def _curve_probes(
     curve: ParametricShape, record: _PolygonHit, corner: Point2, neighbours: Tuple[Point2, Point2]
 ) -> Optional[Tuple[Point2, Point2]]:
-    """Directions from the corner to the curve a little before and after it."""
+    """Directions from the corner to the curve a little before and after it.
+
+    On a closed curve the probes wrap across its seam. Where an open curve ends at the
+    corner, the curve is taken to run on straight (as a segment's line is), so the one probe
+    there is and its opposite direction are used.
+    """
     s = record.params.get(curve.name, {}).get("t")
     if s is None:
         return None
     speed = math.hypot(*curve.derivative(s))
     if not math.isfinite(speed) or speed == 0.0:
         return None
+    closed = _is_closed(curve, (curve.t_min, curve.t_max), max(curve.extent(), _EPS))
+    span = curve.t_max - curve.t_min
     shortest = min(_distance(neighbours[0], corner), _distance(neighbours[1], corner))
     for fraction in _PROBE_FRACTIONS:
         step = fraction * shortest / speed
-        if s - step < curve.t_min or s + step > curve.t_max:
-            return None
-        p, q = curve.point(s - step), curve.point(s + step)
-        if all(math.isfinite(v) for v in p + q) and min(_distance(p, corner), _distance(q, corner)) > 0.0:
-            return (_minus(p, corner), _minus(q, corner))
+        directions: List[Optional[Point2]] = []
+        for value in (s - step, s + step):
+            if not curve.t_min <= value <= curve.t_max:
+                if not closed or span <= 0.0:
+                    directions.append(None)
+                    continue
+                value = curve.t_min + (value - curve.t_min) % span
+            p = curve.point(value)
+            far = all(math.isfinite(v) for v in p) and _distance(p, corner) > 0.0
+            directions.append(_minus(p, corner) if far else None)
+        before, after = directions
+        if before is not None and after is not None:
+            return (before, after)
+        if before is not None or after is not None:
+            known = before if before is not None else after
+            assert known is not None
+            if (s - step < curve.t_min) != (s + step > curve.t_max):
+                # The curve ends at the corner: continue it straight
+                return (known, (-known[0], -known[1]))
     return None
 
 

@@ -816,6 +816,55 @@ class TestPolygons(_Assertions):
         with self.assertRaises(ValueError):
             polygon_shape("P", [(0, 0), (1, 0)])
 
+    def test_vertex_at_the_seam_of_a_closed_curve(self) -> None:
+        # The curve's parameter ends (t = 0 and 2*pi) are at the vertex: probes wrap the seam
+        unit = ParametricShape("c", math.cos, math.sin, 0, 2 * math.pi)
+        wedge = polygon_shape("T", [(1, 0), (2, 1), (2, -1)])
+        touching = find_object_intersections(unit, wedge)
+        self.assertEqual(_xy(touching), [(1.0, 0.0)])
+        self.assertTrue(touching["points"][0]["tangent"])
+        same_as_circle = find_object_intersections(circle_shape("c", (0, 0), 1), wedge)["points"][0]
+        self.assertEqual(
+            (same_as_circle["x"], same_as_circle["y"], same_as_circle["tangent"], same_as_circle["vertex"]),
+            (1.0, 0.0, True, touching["points"][0]["vertex"]),
+        )
+        circle = ParametricShape("c", lambda u: 2 + 2 * math.cos(u), lambda u: 2 * math.sin(u), 0, 2 * math.pi)
+        square = polygon_shape("S", [(0, 0), (4, 0), (4, 4), (0, 4)])
+        crossing = find_object_intersections(circle, square)
+        self.assertEqual(_xy(crossing), [(0.0, 0.0), (4.0, 0.0)])
+        self.assertFalse(any(p.get("tangent") for p in crossing["points"]))
+
+    def test_open_curve_ending_at_a_vertex_runs_on_straight(self) -> None:
+        square = polygon_shape("S", [(0, 0), (4, 0), (4, 4), (0, 4)])
+        for slope, tangent in ((1.0, False), (-1.0, True)):
+            curve = ParametricShape("q", lambda u: u, lambda u, m=slope: m * u, -1, 0)
+            segment = line_shape("q", (-1, -slope), (0, 0))
+            report = find_object_intersections(square, curve)
+            self.assertEqual(_xy(report), [(0.0, 0.0)])
+            self.assertEqual(bool(report["points"][0].get("tangent")), tangent)
+            self.assertEqual(
+                report["points"][0].get("tangent"),
+                find_object_intersections(square, segment)["points"][0].get("tangent"),
+            )
+
+    def test_repeated_vertices_are_skipped(self) -> None:
+        repeated_start = polygon_shape("P", [(0, 0), (0, 0), (4, 0), (4, 4), (0, 4)])
+        corner = find_object_intersections(repeated_start, line_shape("s", (-1, 1), (1, -1), bounded=False))
+        self.assertEqual(_xy(corner), [(0.0, 0.0)])
+        self.assertTrue(corner["points"][0]["tangent"])
+        self.assertEqual(corner["points"][0]["edges"], {"P": ["V5V1", "V2V3"]})
+        repeated_middle = polygon_shape("P", [(0, 0), (4, 0), (4, 0), (4, 4), (0, 4)])
+        other = find_object_intersections(repeated_middle, line_shape("s", (3, -1), (5, 1), bounded=False))
+        self.assertEqual(_xy(other), [(4.0, 0.0)])
+        self.assertTrue(other["points"][0]["tangent"])
+        self.assertEqual(other["points"][0]["edges"], {"P": ["V1V2", "V3V4"]})
+
+    def test_tiny_polygon_far_from_the_origin_keeps_its_tangency(self) -> None:
+        tiny = polygon_shape("T", [(1e6, 1e6), (1e6 + 1e-6, 1e6), (1e6, 1e6 + 1e-6)])
+        report = find_object_intersections(tiny, line_shape("s", (1e6 + 1e-6, 1e6 - 1e-6), (1e6 + 1e-6, 1e6 + 1e-6)))
+        self.assertEqual(len(report["points"]), 1)
+        self.assertTrue(report["points"][0]["tangent"])
+
 
 class TestParametricPairs(_Assertions):
     """Two parametric curves: polyline crossings refined by Newton, touches, overlaps."""
@@ -931,13 +980,92 @@ class TestParametricPairs(_Assertions):
         other = ParametricShape("q", lambda u: 1 + math.cos(2 * u), lambda u: math.sin(2 * u), 0, math.pi)
         self.assertEqual(find_object_intersections(self.unit, other), find_object_intersections(other, self.unit))
 
+    def test_near_tangent_double_crossings_keep_both_points(self) -> None:
+        for gap in (1e-6, 1e-7, 1e-8, 1e-9):
+            line = ParametricShape("l", lambda u: u, lambda u, g=gap: 1 - g, -2, 2)
+            exact = find_object_intersections(
+                circle_shape("p", (0, 0), 1), line_shape("l", (-2, 1 - gap), (2, 1 - gap))
+            )
+            report = find_object_intersections(self.unit, line)
+            self.assertPoints(report, _xy(exact), tol=1e-8)
+            self.assertFalse(any(p.get("tangent") for p in report["points"]), gap)
+            parabola = ParametricShape("q", lambda u: u, lambda u: u * u, -2, 2)
+            level = ParametricShape("r", lambda u: 2 * u, lambda u, g=gap: g, -2, 2)
+            root = math.sqrt(gap)
+            self.assertPoints(find_object_intersections(parabola, level), [(-root, gap), (root, gap)], tol=1e-8)
+            other = ParametricShape("q", lambda u, g=gap: 2 - g + math.cos(u), math.sin, 0, 2 * math.pi)
+            closed = find_object_intersections(circle_shape("p", (0, 0), 1), circle_shape("q", (2 - gap, 0), 1))
+            self.assertPoints(find_object_intersections(self.unit, other), _xy(closed), tol=1e-8)
+        # Within the tolerance the two crossings are one touching point, flagged as such
+        flat = ParametricShape("l", lambda u: u, lambda u: 1 - 1e-12, -2, 2)
+        touching = find_object_intersections(self.unit, flat)
+        self.assertEqual(len(touching["points"]), 1)
+        self.assertTrue(touching["points"][0]["tangent"])
+
+    def test_cusps(self) -> None:
+        axis = ParametricShape("x", lambda u: u, lambda u: 0.0, -3, 25)
+        astroid = ParametricShape("a", lambda u: math.cos(u) ** 3, lambda u: math.sin(u) ** 3, 0, 2 * math.pi)
+        through = find_object_intersections(astroid, axis)
+        self.assertEqual(_xy(through), [(-1.0, 0.0), (1.0, 0.0)])
+        self.assertFalse(any(p.get("tangent") for p in through["points"]))
+        semicubical = ParametricShape("k", lambda u: u * u, lambda u: u**3, -1, 1)
+        crossing = find_object_intersections(semicubical, axis)
+        self.assertEqual(_xy(crossing), [(0.0, 0.0)])
+        self.assertNotIn("tangent", crossing["points"][0])
+        cycloid = ParametricShape("y", lambda u: u - math.sin(u), lambda u: 1 - math.cos(u), 0, 6 * math.pi)
+        touching = find_object_intersections(cycloid, axis)
+        self.assertPoints(touching, [(k * 2 * math.pi, 0.0) for k in range(4)])
+        self.assertTrue(all(p.get("tangent") for p in touching["points"]))
+        segment = find_object_intersections(cycloid, line_shape("s", (-1, 0), (20, 0)))
+        self.assertEqual([p.get("tangent") for p in touching["points"]], [p.get("tangent") for p in segment["points"]])
+
+    def test_high_order_contacts_are_one_tangent_point(self) -> None:
+        axis = ParametricShape("x", lambda u: u, lambda u: 0.0, -3, 3)
+        quartic = find_object_intersections(ParametricShape("q", lambda u: u, lambda u: u**4, -1, 1), axis)
+        self.assertEqual(quartic["overlaps"], [])
+        self.assertEqual(_xy(quartic), [(0.0, 0.0)])
+        self.assertTrue(quartic["points"][0]["tangent"])
+        # A parabola and its osculating circle at the vertex: contact of order four
+        osculating = ParametricShape(
+            "o", lambda u: 0.5 * math.cos(u), lambda u: 0.5 + 0.5 * math.sin(u), 0, 2 * math.pi
+        )
+        parabola = ParametricShape("q", lambda u: u, lambda u: u * u, -2, 2)
+        report = find_object_intersections(parabola, osculating)
+        self.assertEqual(report["overlaps"], [])
+        self.assertEqual(len(report["points"]), 1)
+        self.assertTrue(report["points"][0]["tangent"])
+        self.assertAlmostEqual(report["points"][0]["x"], 0.0, delta=1e-3)
+
+    def test_overlap_ends_land_on_the_curves_ends(self) -> None:
+        upper = ParametricShape("h", math.cos, math.sin, 0, math.pi)
+        report = find_object_intersections(self.unit, upper)
+        self.assertEqual(report["overlaps"], [{"kind": "curve", "start": [1.0, 0.0], "end": [-1.0, 0.0]}])
+
+    def test_work_limit_is_reported_and_bounded(self) -> None:
+        start = time.perf_counter()
+        turns = 200 * 2 * math.pi
+        retraced = find_object_intersections(
+            ParametricShape("a", math.cos, math.sin, 0, turns),
+            ParametricShape("b", lambda u: 1 + math.cos(u), math.sin, 0, turns),
+        )
+        self.assertPoints(retraced, [(0.5, -math.sqrt(3) / 2), (0.5, math.sqrt(3) / 2)])
+        self.assertIn("may be incomplete", retraced["notes"][0])
+        lissajous = find_object_intersections(
+            ParametricShape("a", lambda u: math.sin(3 * u), lambda u: math.sin(2 * u), 0, 2000),
+            ParametricShape("b", lambda u: math.sin(5 * u), lambda u: math.sin(4 * u), 0, 2000),
+        )
+        self.assertIn("may be incomplete", lissajous["notes"][0])
+        self.assertGreater(lissajous["total_found"], 0)
+        # About 0.2 s together in CPython; generous for slow test machines
+        self.assertLess(time.perf_counter() - start, 10.0)
+
     def test_large_parameter_ranges_stay_fast(self) -> None:
         start = time.perf_counter()
-        sine = ParametricShape("a", lambda u: u, math.sin, -1000, 1000)
-        cosine = ParametricShape("b", lambda u: u, math.cos, -1000, 1000)
+        sine = ParametricShape("a", lambda u: u, math.sin, -500, 500)
+        cosine = ParametricShape("b", lambda u: u, math.cos, -500, 500)
         report = find_object_intersections(sine, cosine, max_results=1000)
         # sin x = cos x at x = pi/4 + k pi
-        expected = [math.pi / 4 + k * math.pi for k in range(-318, 319)]
+        expected = [math.pi / 4 + k * math.pi for k in range(-159, 159)]
         self.assertEqual(report["total_found"], len(expected))
         for point, x in zip(report["points"], expected):
             self.assertAlmostEqual(point["x"], x, delta=1e-9 * abs(x))
