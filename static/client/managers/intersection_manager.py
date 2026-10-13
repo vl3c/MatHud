@@ -2,10 +2,11 @@
 Intersection Manager for MatHud
 
 Finds where two canvas objects meet (the find_intersections tool): segments, vectors,
-circles, circle arcs, ellipses, functions, piecewise functions and parametric curves, in any
-mix. The geometry lives in ``utils.object_intersections``; this manager looks the objects
-up by name, describes them as shapes, words the result for the AI and optionally places a
-point at each intersection (one undo step).
+circles, circle arcs, ellipses, functions, piecewise functions, parametric curves and
+polygons (triangles, rectangles, any polygon), in any mix. The geometry lives in
+``utils.object_intersections``; this manager looks the objects up by name, describes them
+as shapes, words the result for the AI and optionally places a point at each intersection
+(one undo step).
 """
 
 from __future__ import annotations
@@ -13,8 +14,10 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Any, Dict, List, MutableMapping, Optional, Sequence, Tuple, cast
 
+from managers.dependency_removal import get_polygon_segments
 from managers.point_placement import place_points_at
 from utils.function_features import round_report_value
+from utils.geometry_utils import GeometryUtils
 from utils.object_intersections import (
     FunctionShape,
     IntersectionReport,
@@ -24,6 +27,7 @@ from utils.object_intersections import (
     ellipse_shape,
     find_object_intersections,
     line_shape,
+    polygon_shape,
 )
 
 if TYPE_CHECKING:
@@ -45,6 +49,19 @@ _OBJECT_KINDS: Tuple[Tuple[str, str], ...] = (
 )
 _LINE_KINDS = ("segment", "vector")
 _FUNCTION_KINDS = ("function", "piecewise_function")
+# Reported type of each polygon class (the polygons are looked up after the kinds above)
+_POLYGON_KINDS: Dict[str, str] = {
+    "Triangle": "triangle",
+    "Rectangle": "rectangle",
+    "Quadrilateral": "quadrilateral",
+    "Pentagon": "pentagon",
+    "Hexagon": "hexagon",
+    "Heptagon": "heptagon",
+    "Octagon": "octagon",
+    "Nonagon": "nonagon",
+    "Decagon": "decagon",
+    "GenericPolygon": "polygon",
+}
 
 
 class IntersectionManager:
@@ -70,13 +87,13 @@ class IntersectionManager:
         """Find where two objects meet.
 
         Segments and vectors count only between their end points unless ``extend_lines``
-        makes them whole lines. A function is searched where it is plotted: its own bounds,
+        makes them whole lines; a polygon is its edges (never extended). A function is searched where it is plotted: its own bounds,
         else the visible x range. With ``place_points`` a point is created at every
         intersection (an existing point there is reused); together they are one undo step.
 
         Returns:
             Dict with the object names and types, the intersections (x, y, params per
-            object, tangent), their count, a truncated flag, overlaps (shared stretches),
+            object, tangent, and on a polygon its edges and vertex), their count, a truncated flag, overlaps (shared stretches),
             x_range when a function took part, a note when useful, and the placed point
             names when points are placed.
         """
@@ -116,8 +133,8 @@ class IntersectionManager:
             match = self._find_object(name)
             if match is None:
                 raise ValueError(
-                    f"No segment, vector, circle, arc, ellipse, function or parametric curve named '{name}'. "
-                    "Points and polygons cannot be intersected; use a polygon's edge segments instead."
+                    f"No segment, vector, circle, arc, ellipse, function, parametric curve or polygon named "
+                    f"'{name}'. Points cannot be intersected."
                 )
             found.append(match)
         return found
@@ -127,6 +144,9 @@ class IntersectionManager:
             for drawable in getattr(self.drawables, attribute, None) or []:
                 if getattr(drawable, "name", None) == name:
                     return drawable, kind
+        polygon = self.drawables.get_polygon_by_name(name)
+        if polygon is not None:
+            return polygon, _POLYGON_KINDS.get(polygon.get_class_name(), "polygon")
         return None
 
     # ------------------- Shapes -------------------
@@ -147,6 +167,8 @@ class IntersectionManager:
             return ellipse_shape(name, _xy(drawable.center), radii[0], radii[1], rotation)
         if kind in _FUNCTION_KINDS:
             return self._function_shape(drawable)
+        if kind in _POLYGON_KINDS.values():
+            return self._polygon_shape(drawable)
         return ParametricShape(
             name,
             drawable.evaluate_x,
@@ -171,6 +193,27 @@ class IntersectionManager:
         else:
             start, sweep = second, 2.0 * math.pi - counter_clockwise
         return circle_shape(str(arc.name), center, float(arc.radius), arc_start=start, arc_sweep=sweep)
+
+    @staticmethod
+    def _polygon_shape(polygon: Any) -> Shape:
+        """The polygon's vertices in order round it, named after its points, edges after its segments."""
+        name = str(polygon.name)
+        segments = [segment for segment in get_polygon_segments(polygon) if segment is not None]
+        points = GeometryUtils.order_segments_into_loop(segments)
+        if not points:
+            raise ValueError(f"The edges of polygon '{name}' do not form a closed loop.")
+        edge_names: List[str] = []
+        for index, point in enumerate(points):
+            following = points[(index + 1) % len(points)]
+            ends = {id(point), id(following)}
+            edge = next((s for s in segments if {id(s.point1), id(s.point2)} == ends), None)
+            edge_names.append(str(edge.name) if edge is not None else f"{point.name}{following.name}")
+        return polygon_shape(
+            name,
+            [(float(point.x), float(point.y)) for point in points],
+            [str(point.name) for point in points],
+            edge_names,
+        )
 
     def _function_shape(self, curve: Any) -> FunctionShape:
         """The function where it is plotted: its own bounds, else the visible x range."""

@@ -610,7 +610,7 @@ class DrawableManager:
         extend_lines: Optional[bool] = None,
         place_points: Optional[bool] = None,
     ) -> Dict[str, Any]:
-        """Find where two segments, vectors, circles, arcs, ellipses or curves meet."""
+        """Find where two segments, vectors, circles, arcs, ellipses, curves or polygons meet."""
         return cast(
             Dict[str, Any],
             self.intersection_manager.find_intersections(
