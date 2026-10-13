@@ -201,6 +201,7 @@ class AnthropicAPI(OpenAIAPIBase):
         self._tool_mode: ToolMode = tool_mode
         self._custom_tools: Optional[Sequence[FunctionDefinition]] = tools
         self._injected_tools: bool = False
+        self._loaded_tools: List[FunctionDefinition] = []
         self.tools: Sequence[FunctionDefinition] = self._resolve_tools()
 
         # Anthropic takes the system prompt as a request parameter (see _build_system_prompt)
@@ -213,6 +214,7 @@ class AnthropicAPI(OpenAIAPIBase):
         """Reset the conversation history."""
         with self._history_lock:
             self.abandon_requests_in_flight()
+            self._unload_searched_tools()
             self.messages = []
         self._last_canvas_state = None
 

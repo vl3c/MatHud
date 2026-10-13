@@ -216,6 +216,14 @@ def _build_search_mode_tools() -> List[FunctionDefinition]:
 # Precomputed search mode tools
 SEARCH_MODE_TOOLS: List[FunctionDefinition] = _build_search_mode_tools()
 
+# Most tools search_tools keeps loaded at once; past it only the latest search's tools stay.
+MAX_LOADED_TOOLS = 16
+
+
+def _tool_name(tool: FunctionDefinition) -> str:
+    """The function name of a tool definition ("" when it has none)."""
+    return str(tool.get("function", {}).get("name", ""))
+
 
 class OpenAIAPIBase:
     """Base class for OpenAI API implementations."""
@@ -250,7 +258,7 @@ class OpenAIAPIBase:
     # stop or reset landing in between. One lock for every provider: requests are rare and short.
     _history_lock = threading.RLock()
 
-    SEARCH_MODE_MSG = """Tool loading: at the start only search_tools and a few essential tools (undo, redo, get_current_canvas_state) are available. Before using any other tool, call search_tools with a short description of what you want to do (e.g. "plot a function", "evaluate an expression at a point"); the matching tools are then loaded for your following calls until you give your final answer. Calls to tools that were not loaded fail."""
+    SEARCH_MODE_MSG = """Tool loading: at the start only search_tools and a few essential tools (undo, redo, get_current_canvas_state) are available. Before using any other tool, call search_tools with a short description of what you want to do (e.g. "plot a function", "evaluate an expression at a point"); the matching tools are then loaded and stay available for the rest of the conversation, so call a loaded tool directly instead of searching for it again. Calls to tools that were not loaded fail."""
 
     CANVAS_SUMMARY_MODE_ENV = "AI_CANVAS_SUMMARY_MODE"
     CANVAS_HYBRID_MAX_BYTES_ENV = "AI_CANVAS_HYBRID_FULL_MAX_BYTES"
@@ -300,6 +308,7 @@ class OpenAIAPIBase:
         self._tool_mode: ToolMode = tool_mode
         self._custom_tools: Optional[Sequence[FunctionDefinition]] = tools
         self._injected_tools: bool = False  # Track if tools were dynamically injected
+        self._loaded_tools: List[FunctionDefinition] = []  # Tools search_tools loaded, in load order
         self.tools: Sequence[FunctionDefinition] = self._resolve_tools()
         self.messages: List[MessageDict] = [{"role": "developer", "content": self._build_system_prompt()}]
 
@@ -348,6 +357,8 @@ class OpenAIAPIBase:
             self._tool_mode = mode
             # Only update tools if not using custom tools
             if self._custom_tools is None:
+                self._injected_tools = False
+                self._loaded_tools = []
                 self.tools = self._resolve_tools()
                 self._refresh_system_prompt()
                 msg = f"Tool mode changed to: {mode} ({len(self.tools)} tools available)"
@@ -355,34 +366,53 @@ class OpenAIAPIBase:
                 _logger.info(msg)
 
     def inject_tools(self, tools: Sequence[FunctionDefinition], include_essentials: bool = True) -> None:
-        """Dynamically inject specific tools for the next API call.
+        """Load tools found by ``search_tools`` for the rest of the conversation.
 
-        This allows search results to directly influence which tools are available.
-        The injected tools replace the current tool set until reset.
+        Loaded tools accumulate: those already loaded keep their place and new ones
+        are appended, so the tool list, which every request sends ahead of the
+        history, changes only when a search finds a new tool and the provider's
+        prompt cache stays valid across turns. When the new tools would pass
+        ``MAX_LOADED_TOOLS``, only they stay loaded: unloading any tool changes the
+        list from that tool on, which costs the cache as much as starting over, and
+        starting over leaves room for the next searches. ``reset_tools`` (a new
+        conversation) unloads all.
 
         Args:
             tools: List of tool definitions to make available.
-            include_essentials: If True, also include essential tools (search_tools, undo, redo, get_current_canvas_state).
+            include_essentials: If True, the essential tools (search_tools, undo, redo,
+                get_current_canvas_state) lead the list.
         """
         if not tools:
             _logger.debug("inject_tools called with empty tools list, ignoring")
             return
 
-        injected: List[FunctionDefinition] = list(tools)
+        loaded = self._merge_loaded_tools(self._loaded_tools, tools, include_essentials)
+        if len(loaded) > MAX_LOADED_TOOLS:
+            loaded = self._merge_loaded_tools([], tools, include_essentials)[:MAX_LOADED_TOOLS]
 
-        if include_essentials:
-            # Add essential tools if not already present
-            injected_names = {t.get("function", {}).get("name") for t in injected}
-            for tool in FUNCTIONS:
-                func = tool.get("function", {})
-                name = func.get("name", "")
-                if name in ESSENTIAL_TOOLS and name not in injected_names:
-                    injected.append(tool)
-
+        changed = not self._injected_tools or [_tool_name(t) for t in loaded] != self.loaded_tool_names()
+        self._loaded_tools = loaded
         self._injected_tools = True
-        self.tools = injected
-        msg = f"Injected {len(injected)} tools (essentials={'included' if include_essentials else 'excluded'})"
-        _logger.info(msg)
+        essentials = list(SEARCH_MODE_TOOLS) if include_essentials else []
+        self.tools = essentials + loaded
+        if changed:
+            msg = f"Loaded tools: {len(self.tools)} available (essentials={'included' if include_essentials else 'excluded'})"
+            _logger.info(msg)
+
+    @staticmethod
+    def _merge_loaded_tools(
+        loaded: Sequence[FunctionDefinition], tools: Sequence[FunctionDefinition], include_essentials: bool
+    ) -> List[FunctionDefinition]:
+        """``loaded`` followed by the tools of ``tools`` not loaded yet (essentials left out when they lead)."""
+        merged: List[FunctionDefinition] = list(loaded)
+        names = {_tool_name(tool) for tool in merged}
+        for tool in tools:
+            name = _tool_name(tool)
+            if name in names or (include_essentials and name in ESSENTIAL_TOOLS):
+                continue
+            merged.append(tool)
+            names.add(name)
+        return merged
 
     def reset_tools(self) -> None:
         """Reset tools to the default set based on current tool mode.
@@ -391,9 +421,19 @@ class OpenAIAPIBase:
         """
         if self._injected_tools:
             self._injected_tools = False
+            self._loaded_tools = []
             self.tools = self._resolve_tools()
             msg = f"Tools reset to {self._tool_mode} mode ({len(self.tools)} tools)"
             _logger.info(msg)
+
+    def loaded_tool_names(self) -> List[str]:
+        """Names of the tools ``search_tools`` has loaded, in load order."""
+        return [_tool_name(tool) for tool in self._loaded_tools]
+
+    def _unload_searched_tools(self) -> None:
+        """Unload the tools ``search_tools`` loaded: a new or restored conversation starts from the default tools."""
+        if getattr(self, "_injected_tools", False):
+            self.reset_tools()
 
     def has_injected_tools(self) -> bool:
         """Check if tools were dynamically injected.
@@ -468,14 +508,12 @@ class OpenAIAPIBase:
         The browser's stop only aborts its fetch: the request goes on here, and a
         reply that ends in tool calls would otherwise append those calls and their
         "Awaiting result..." placeholders to whatever conversation is current then.
-        Tools a ``search_tools`` call loaded for the abandoned turn are unloaded too.
+        Tools ``search_tools`` loaded stay loaded until the conversation is reset.
         """
         with self._history_lock:
             self._conversation_generation += 1
             self._turn_ended = True
             self._close_unanswered_tool_calls()
-            if getattr(self, "_injected_tools", False):
-                self.reset_tools()
 
     def _close_unanswered_tool_calls(self) -> None:
         """Answer the tool calls still awaiting a result: the turn that made them has ended.
@@ -597,6 +635,7 @@ class OpenAIAPIBase:
         """Reset the conversation history to start a new session."""
         with self._history_lock:
             self.abandon_requests_in_flight()
+            self._unload_searched_tools()
             self.messages = [{"role": "developer", "content": self._build_system_prompt()}]
             self._last_canvas_state = None
 

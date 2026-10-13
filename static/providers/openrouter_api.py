@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Sequence
-from typing import Optional
+from typing import List, Optional
 
 import httpx2
 from openai import OpenAI
@@ -111,6 +111,7 @@ class OpenRouterAPI(OpenAIChatCompletionsAPI):
         self._tool_mode: ToolMode = tool_mode
         self._custom_tools: Optional[Sequence[FunctionDefinition]] = tools
         self._injected_tools: bool = False
+        self._loaded_tools: List[FunctionDefinition] = []
         self.tools: Sequence[FunctionDefinition] = self._resolve_tools()
 
         # Initialize message history with the system prompt
