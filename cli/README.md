@@ -264,7 +264,9 @@ cli/
 - `ServerManager` class handles Flask server lifecycle
 - Background process spawning with PID tracking (`.mathud_server.pid`)
 - Health checks via HTTP requests to `/auth_status`
-- Graceful shutdown with SIGINT (Unix) or terminate (Windows)
+- Shutdown stops the whole process tree: SIGINT to the server's process group (Unix) or terminate to every descendant (Windows, where a venv `python.exe` is a launcher whose child is the real server), then a kill after 10 seconds
+- After shutdown, waits for the port to be free and reports a listener still on it (without killing it)
+- Servers run with `MATHUD_NON_DEBUG=1` and without inherited Werkzeug reloader variables, so no reloader child is spawned
 
 ### Browser Automation (`browser.py`)
 
@@ -329,6 +331,8 @@ The CLI is tested on Windows with:
 - PowerShell and Git Bash
 - Python 3.11+
 - Chrome browser installed
+
+Output piped or redirected on Windows uses the locale code page (e.g. cp1252). Characters it cannot encode, such as "≈" in a model reply, print as "?" instead of stopping the command; set `PYTHONIOENCODING=utf-8` to keep them.
 
 ## Examples
 

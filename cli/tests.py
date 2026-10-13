@@ -231,7 +231,9 @@ def run_client_tests(
         # Stop server if we started it
         if server_was_started:
             click.echo("Stopping server...")
-            manager.stop()
+            stopped, message = manager.stop()
+            if not stopped:
+                click.echo(click.style(f"Warning: {message}", fg="yellow"), err=True)
 
 
 @click.group()
