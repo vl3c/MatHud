@@ -12,7 +12,7 @@ from typing import Dict, List
 
 import pytest
 
-from static.tool_search_service import ToolSearchService, clear_search_cache
+from static.tool_search_service import CONFIDENCE_THRESHOLD, ToolSearchService, clear_search_cache
 
 DESTRUCTIVE_PREFIXES = ("delete_", "clear_", "reset_")
 
@@ -223,3 +223,89 @@ def test_graph_of_something_else_does_not_rank_generate_graph_first(
     assert names[0] != "generate_graph", names
     if expected is not None:
         assert names[0] == expected, names
+
+
+# A shape, point or chart given by an equation or coordinates keeps its own tool; the
+# function-notation boost for draw_function is only for functions.
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("graph the circle x^2 + y^2 = 4", "create_circle"),
+        ("graph the ellipse x^2/4 + y^2/9 = 1", "create_ellipse"),
+        ("graph the point A = (2, 3)", "create_point"),
+        ("graph the vector v = (3, 4)", "create_vector"),
+        ("graph the triangle with A=(0,0), B=(4,0), C=(0,3)", "create_polygon"),
+        ("graph the bars with values = [1, 2, 3]", "plot_bars"),
+    ],
+)
+def test_graphing_a_shape_with_an_equation_keeps_its_tool(
+    service: ToolSearchService, query: str, expected: str
+) -> None:
+    assert _names(service, query)[0] == expected
+
+
+@pytest.mark.parametrize(
+    "query",
+    ["graph y = 2x + 1", "graph f(x) = x/2", "graph the line y = 2x + 1"],
+)
+def test_graphing_a_function_with_notation_ranks_draw_function_first(service: ToolSearchService, query: str) -> None:
+    assert _names(service, query)[0] == "draw_function"
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "connect A and B",
+        "connect points A and B",
+        "connect the points with segments",
+        "connect the midpoints of AB and CD",
+        "draw a line connecting A and B",
+    ],
+)
+def test_connecting_points_ranks_create_segment_first(service: ToolSearchService, query: str) -> None:
+    assert _names(service, query)[0] == "create_segment"
+
+
+# Without points to join, "connect"/"join" boosts nothing: as on main, the first four stay
+# below the hybrid confidence threshold, so hybrid mode still asks the model.
+@pytest.mark.parametrize(
+    "query, expected, low_confidence",
+    [
+        ("join the two graphs", None, True),
+        ("join the graphs G1 and G2", None, True),
+        ("connect the two functions", None, True),
+        ("connect the dots", None, True),
+        ("join the endpoints to form a triangle", "create_polygon", False),
+        ("draw a graph where A connects to B, C and D", None, False),
+    ],
+)
+def test_connect_without_points_to_join_does_not_boost_create_segment(
+    service: ToolSearchService, query: str, expected: str | None, low_confidence: bool
+) -> None:
+    names = _names(service, query)
+    assert not names or names[0] != "create_segment", names
+    if expected is not None:
+        assert names[0] == expected, names
+    if low_confidence:
+        assert service._last_local_top_score < CONFIDENCE_THRESHOLD
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "create a graph with edges A->B, B->C",
+        "create a graph with A-B, B-C, C-A",
+        "create a bipartite graph",
+        "create a complete graph on 5 nodes",
+        "draw a star graph",
+        "make a cycle graph with 6 vertices",
+    ],
+)
+def test_written_edges_and_graph_families_rank_generate_graph_first(service: ToolSearchService, query: str) -> None:
+    assert _names(service, query)[0] == "generate_graph"
+
+
+def test_triangle_from_vertex_coordinates_keeps_generate_graph_low(service: ToolSearchService) -> None:
+    names = _names(service, "Draw a triangle with vertices at (0,0), (4,0), (2,3).")
+    assert names[0] == "create_polygon"
+    assert "generate_graph" not in names[:3], names
