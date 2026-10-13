@@ -344,6 +344,13 @@ def _start_server(manager: ServerManager, extra_env: dict[str, str]) -> Optional
     return None if ok else message
 
 
+def _stop_server(manager: ServerManager) -> None:
+    """Stop ``manager``'s server, warning on stderr when it or its port is left behind."""
+    ok, message = manager.stop()
+    if not ok:
+        click.echo(click.style(f"Warning: {message}", fg="yellow"), err=True)
+
+
 def _run_replay(
     catalogue: Catalogue,
     chosen: list[Scenario],
@@ -416,7 +423,7 @@ def _drive(
         session.kill()
         summary = sink.close(catalogue, interrupted=interrupted)
         if manager is not None:
-            manager.stop()
+            _stop_server(manager)
         if workspaces_tmp:
             shutil.rmtree(workspaces_tmp, ignore_errors=True)
     _print_summary(summary, as_json, out_dir)
@@ -565,7 +572,7 @@ def _run_live(
     try:
         run_models = check_models(_available_models(manager.base_url), settings.provider, models)
     except Exception as exc:  # GuardError, or the server did not answer
-        manager.stop()
+        _stop_server(manager)
         shutil.rmtree(workspaces_tmp, ignore_errors=True)
         return _fail(f"Aborting before the first message: {exc}")
 
