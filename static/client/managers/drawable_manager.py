@@ -71,6 +71,7 @@ from managers.statistics_manager import StatisticsManager
 from managers.bar_manager import BarManager
 from managers.tangent_manager import TangentManager
 from managers.construction_manager import ConstructionManager
+from managers.intersection_manager import IntersectionManager
 from drawables.closed_shape_colored_area import ClosedShapeColoredArea
 
 if TYPE_CHECKING:
@@ -235,6 +236,12 @@ class DrawableManager:
             self.name_generator,
             self.dependency_manager,
             self.proxy,
+        )
+
+        self.intersection_manager: IntersectionManager = IntersectionManager(
+            canvas,
+            self.drawables,
+            self.point_manager,
         )
 
         # No need for the loop that sets drawable_manager anymore
@@ -592,6 +599,22 @@ class DrawableManager:
                 left_bound=left_bound,
                 right_bound=right_bound,
                 place_points=place_points,
+            ),
+        )
+
+    # ------------------- Intersection Methods -------------------
+
+    def find_intersections(
+        self,
+        object_names: List[str],
+        extend_lines: Optional[bool] = None,
+        place_points: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        """Find where two segments, vectors, circles, arcs, ellipses or curves meet."""
+        return cast(
+            Dict[str, Any],
+            self.intersection_manager.find_intersections(
+                object_names, extend_lines=extend_lines, place_points=place_points
             ),
         )
 

@@ -51,6 +51,11 @@ Find the local maximum and minimum of f between x = -2 and x = 2.
 Plot y = tan(x) and find its roots between -5 and 5 (the asymptotes are not roots).
 Plot f(x) = x^2 and g(x) = x + 2 and find where they intersect.
 Find where sin(x) and cos(x) intersect on [-4, 4] and place points at the intersections.
+Draw a circle with center (0,0) and radius 5 and a segment from (-6,3) to (6,3); find where they intersect.
+Find where segment AB and circle c meet, treating AB as a whole line, and mark the points.
+Find the intersection points of the two ellipses e1 and e2 and place points there.
+Where does the parabola f cross the circle c? Say whether any of the points are tangencies.
+Where does the parametric curve p meet segment s? Give the parameter t of each point.
 
 # Geometric Constructions
 Create points A(0,0) and B(6,0), draw segment AB, then find the midpoint of AB.
