@@ -2070,7 +2070,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "generate_graph",
-            "description": "Generates a graph or tree on the canvas using provided vertices/edges or an adjacency matrix. Returns the created graph state and drawable names for follow-up highlighting.",
+            "description": "Generates a graph, tree or DAG (vertices joined by edges, optionally weighted or directed) on the canvas from vertices/edges or an adjacency matrix. Use it for every graph or network instead of building one from separate points, segments or functions. Returns the created graph state and drawable names for follow-up highlighting.",
             "strict": True,
             "parameters": {
                 "type": "object",

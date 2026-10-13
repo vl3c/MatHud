@@ -4026,6 +4026,7 @@ Provides tool discovery via fast local keyword/category matching (default) or AI
 - LRU result cache with 5-minute TTL (100 entries max)
 - Lazy OpenAI client initialization — local mode never touches the network
 - Destructive tools (`delete_*`, `clear_*`, `reset_*`) rank after every other match unless the query contains a destructive verb, and `run_tests` is only offered when the query mentions tests
+- "graph" is read as a graph of vertices and edges (`generate_graph` first, `analyze_graph` next) when the query names graph structure (vertices, edges, nodes, weighted, directed, network), describes it in geometric words (points with segments or "connect"), or asks to create/build a graph with no function to plot; otherwise it means a function plot: `draw_function` gets a boost and the graph tools a penalty. "nodes" with "edges" counts as a graph without the word "graph"
 
 **Class: ToolSearchService**
 
