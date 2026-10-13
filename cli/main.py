@@ -5,8 +5,11 @@ Provides the main command group and wires together all subcommands.
 
 from __future__ import annotations
 
+from typing import Any
+
 import click
 
+from cli.console import make_stdio_safe
 from cli.server import server
 from cli.tests import test
 from cli.canvas import canvas
@@ -16,7 +19,15 @@ from cli.desktop import desktop
 from cli.screenshot import screenshot
 
 
-@click.group()
+class _SafeOutputGroup(click.Group):
+    """The root group: makes stdout and stderr encoding-safe before any command prints."""
+
+    def main(self, *args: Any, **kwargs: Any) -> Any:
+        make_stdio_safe()
+        return super().main(*args, **kwargs)
+
+
+@click.group(cls=_SafeOutputGroup)
 @click.version_option(package_name="mathud-cli")
 def cli() -> None:
     """MatHud - Command-line interface for canvas automation.
