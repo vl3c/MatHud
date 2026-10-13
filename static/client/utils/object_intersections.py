@@ -1,4 +1,4 @@
-"""Intersection points of two canvas objects: lines, circles, arcs, ellipses and curves.
+"""Intersection points of two canvas objects: lines, circles, arcs, ellipses, curves and polygons.
 
 This module has no browser/Brython dependencies so it can be validated by the
 server-side pytest suites as well as the Brython test runner. (The intersection code in
@@ -11,6 +11,7 @@ Shapes:
     EllipseShape     an ellipse, possibly rotated
     FunctionShape    y = f(x) on [left, right] (plain or piecewise functions)
     ParametricShape  (x(t), y(t)) on [t_min, t_max]
+    PolygonShape     a closed polygon (triangle, rectangle, any polygon) given by its vertices
     PointShape       a zero-length segment or zero-radius circle
 
 Method:
@@ -21,6 +22,13 @@ Method:
       along the ellipse's parametrisation, over one full turn.
     - Functions and parametric curves: the roots of the other object's implicit equation
       along the curve (over the other object's x extent for a function).
+    - Two parametric curves: ``utils.curve_pair_intersections`` (polyline crossings refined
+      by 2D Newton, near touches by minimising the distance, shared stretches by projection).
+    - Polygons: each edge is intersected as a segment and the results merged: a point at a
+      vertex (found on both of its edges) is one point, reported with the edges it lies on
+      and the vertex. There it is a tangency when the polygon's boundary stays on one side
+      of the other object (a line touching a corner from outside), judged a short way along
+      both edges.
     The numeric roots come from ``function_features.scan_roots`` (sampling, Brent's method,
     touching roots as tangencies). Values within rounding noise of zero count as zero, so
     curves that coincide over a stretch give an overlap rather than many false roots.
@@ -28,10 +36,11 @@ Method:
     point of a cubic) is also a tangency.
 
 Coinciding objects (collinear overlapping segments, identical circles, arcs of one circle,
-a function running along a segment) are reported as overlaps, not as points. Whether two
-objects coincide is judged against their size (radius, segment length), never their
-distance from the origin. Points are rounded to 10 significant digits, sorted by (x, y)
-and capped at ``max_results``.
+a function running along a segment, a segment along a polygon's edge, one curve described
+by two parametrisations) are reported as overlaps, not as points. Whether two objects
+coincide is judged against their size (radius, segment length), never their distance from
+the origin. Points are rounded to 10 significant digits, sorted by (x, y) and capped at
+``max_results``.
 """
 
 from __future__ import annotations
@@ -39,6 +48,7 @@ from __future__ import annotations
 import math
 from typing import Callable, Dict, List, Optional, Sequence, Tuple, TypedDict, Union
 
+from utils.curve_pair_intersections import intersect_curves
 from utils.function_features import MAX_SAMPLES, scan_roots, sample_count
 
 DEFAULT_MAX_RESULTS = 50
@@ -95,11 +105,17 @@ class IntersectionPoint(_IntersectionPointBase, total=False):
     vector (0 at its first point, 1 at its second) or a parametric curve, ``angle`` in
     radians in [0, 2*pi) on a circle or arc (polar angle about the centre) or an ellipse
     (parametric angle in the ellipse's own frame), the parameter draw_tangent_line takes.
+    On a polygon the params are the ``edge`` (index of the edge from vertex ``edge`` to the
+    next one) and ``t`` along it; at a vertex, the edge starting there with t = 0.
+    ``edges`` maps a polygon's name to the names of the edges the point lies on (both at a
+    vertex) and ``vertex`` to the vertex's name when the point is one.
     ``tangent`` marks a point where the objects touch.
     ``point_name`` is added by callers that place a point there.
     """
 
     params: Dict[str, Params]
+    edges: Dict[str, List[str]]
+    vertex: Dict[str, str]
     tangent: bool
     point_name: str
 
@@ -459,6 +475,49 @@ class ParametricShape:
         return int(min(max(_MIN_CURVE_SAMPLES, wanted), MAX_SAMPLES))
 
 
+class PolygonShape:
+    """A closed polygon through ``vertices`` in order; edge i runs from vertex i to vertex i + 1.
+
+    ``vertex_names`` and ``edge_names`` label the corners and sides in the report (by
+    default V1, V2, ... and the joined vertex names).
+    """
+
+    rank = 6
+    note: Optional[str] = None
+
+    def __init__(
+        self,
+        name: str,
+        vertices: Sequence[Point2],
+        vertex_names: Optional[Sequence[str]] = None,
+        edge_names: Optional[Sequence[str]] = None,
+    ) -> None:
+        self.name = name
+        self.vertices = [(float(x), float(y)) for x, y in vertices]
+        count = len(self.vertices)
+        self.vertex_names = [str(n) for n in vertex_names] if vertex_names else [f"V{i + 1}" for i in range(count)]
+        if edge_names:
+            self.edge_names = [str(n) for n in edge_names]
+        else:
+            names = self.vertex_names
+            self.edge_names = [names[i] + names[(i + 1) % count] for i in range(count)]
+        # Each edge is a segment named after the polygon, so its parameters land under that name
+        self.edges: List[Optional[LineShape]] = []
+        for i in range(count):
+            edge = LineShape(name, self.vertices[i], self.vertices[(i + 1) % count])
+            self.edges.append(edge if edge.length > _EPS * edge.scale() else None)
+
+    def size(self) -> float:
+        xs = [x for x, _ in self.vertices]
+        ys = [y for _, y in self.vertices]
+        return math.hypot(max(xs) - min(xs), max(ys) - min(ys))
+
+    def neighbours(self, k: int) -> Tuple[Point2, Point2]:
+        """The vertices before and after vertex k."""
+        count = len(self.vertices)
+        return self.vertices[(k - 1) % count], self.vertices[(k + 1) % count]
+
+
 class _EllipseAxis(LineShape):
     """An ellipse with one zero radius: the segment along its other axis, still reporting the angle.
 
@@ -475,7 +534,8 @@ class _EllipseAxis(LineShape):
         return {"angle": math.asin(along) if self.upright else math.acos(along)}
 
 
-Shape = Union[PointShape, LineShape, CircleShape, EllipseShape, FunctionShape, ParametricShape]
+Shape = Union[PointShape, LineShape, CircleShape, EllipseShape, FunctionShape, ParametricShape, PolygonShape]
+_OpenShape = Union[PointShape, LineShape, CircleShape, EllipseShape, FunctionShape, ParametricShape]
 _ImplicitShape = Union[PointShape, LineShape, CircleShape, EllipseShape, FunctionShape]
 
 
@@ -504,13 +564,16 @@ _Curve = Union[FunctionShape, ParametricShape, _EllipseCurve]
 
 
 class _Hit:
-    """An unrounded intersection point with the objects' parameters there."""
+    """An unrounded intersection point with the objects' parameters there (and, on a polygon,
+    its edges and vertex)."""
 
     def __init__(self, x: float, y: float, params: Dict[str, Params], tangent: bool = False) -> None:
         self.x = x
         self.y = y
         self.params = params
         self.tangent = tangent
+        self.edges: Dict[str, List[str]] = {}
+        self.vertex: Dict[str, str] = {}
 
 
 class _Found:
@@ -533,12 +596,14 @@ def find_object_intersections(
     """Find where two shapes meet: points (with parameters and tangency), overlaps and notes.
 
     Raises:
-        ValueError: For two parametric curves (not supported) or shapes with one name.
+        ValueError: For two shapes with one name.
     """
     if first.name == second.name:
         raise ValueError(f"Give two different objects; got '{first.name}' twice.")
-    low, high = (first, second) if first.rank <= second.rank else (second, first)
-    found = _dispatch(low, high)
+    if isinstance(first, PolygonShape) or isinstance(second, PolygonShape):
+        found = _polygon_hits(first, second)
+    else:
+        found = _ordered_dispatch(first, second)
     found.notes[:0] = [shape.note for shape in (first, second) if shape.note]
     return _report(found, max_results, _pair_size(first, second))
 
@@ -581,6 +646,22 @@ def ellipse_shape(name: str, center: Point2, radius_x: float, radius_y: float, r
     return axis
 
 
+def polygon_shape(
+    name: str,
+    vertices: Sequence[Point2],
+    vertex_names: Optional[Sequence[str]] = None,
+    edge_names: Optional[Sequence[str]] = None,
+) -> PolygonShape:
+    """A closed polygon through ``vertices`` in order (at least three)."""
+    if len(vertices) < 3:
+        raise ValueError(f"{name} needs at least three vertices; got {len(vertices)}.")
+    if vertex_names is not None and len(vertex_names) != len(vertices):
+        raise ValueError(f"{name} has {len(vertices)} vertices but {len(vertex_names)} vertex names.")
+    if edge_names is not None and len(edge_names) != len(vertices):
+        raise ValueError(f"{name} has {len(vertices)} edges but {len(edge_names)} edge names.")
+    return PolygonShape(name, vertices, vertex_names, edge_names)
+
+
 def _degenerate_point(name: str, what: str, point: Point2) -> PointShape:
     shape = PointShape(name, point[0], point[1])
     shape.note = f"{name} has {what}; it was treated as the point ({_round(point[0])}, {_round(point[1])})."
@@ -592,13 +673,18 @@ def _degenerate_point(name: str, what: str, point: Point2) -> PointShape:
 # ---------------------------------------------------------------------------
 
 
-def _dispatch(low: Shape, high: Shape) -> _Found:
+def _ordered_dispatch(first: _OpenShape, second: _OpenShape) -> _Found:
+    low, high = (first, second) if first.rank <= second.rank else (second, first)
+    return _dispatch(low, high)
+
+
+def _dispatch(low: _OpenShape, high: _OpenShape) -> _Found:
     """Route a pair (ordered by rank) to its closed form or numeric search."""
     if isinstance(low, PointShape):
         return _point_hits(low, high)
     if isinstance(high, ParametricShape):
         if isinstance(low, ParametricShape):
-            raise ValueError("Intersections of two parametric curves are not supported.")
+            return _parametric_pair(low, high)
         return _curve_hits(high, low, high.t_min, high.t_max)
     if isinstance(high, FunctionShape) and not isinstance(low, ParametricShape):
         return _function_hits(high, low)
@@ -1095,7 +1181,7 @@ def _boundary(inside: Callable[[float], bool], s_in: float, s_out: float) -> flo
     return s_in
 
 
-def _point_hits(point: PointShape, other: Shape) -> _Found:
+def _point_hits(point: PointShape, other: _OpenShape) -> _Found:
     """A degenerate object: the point itself, when it lies on the other object."""
     if isinstance(other, ParametricShape):
         found = _curve_hits(other, point, other.t_min, other.t_max)
@@ -1130,6 +1216,248 @@ def _on_object_tolerance(shape: _ImplicitShape, x: float, y: float) -> float:
     return shape.noise(x, y)
 
 
+def _parametric_pair(a: ParametricShape, b: ParametricShape) -> _Found:
+    """Two parametric curves (walked in name order, so the result does not depend on argument order)."""
+    first, second = (a, b) if a.name <= b.name else (b, a)
+    size = _pair_size(first, second)
+    result = intersect_curves(first, second, size)
+    found = _Found()
+    for hit in result.hits:
+        params = {first.name: first.params(hit.s), second.name: second.params(hit.t)}
+        found.hits.append(_Hit(hit.x, hit.y, params, hit.tangent))
+    walks = ((first, result.first_pieces, result.spacing[0]), (second, result.second_pieces, result.spacing[1]))
+    for curve, pieces, spacing in walks:
+        for low, high, span in _joined_at_seam(curve, pieces, (curve.t_min, curve.t_max), size):
+            start, end = curve.point(low), curve.point(high)
+            if not _same_point(start, end, size):
+                found.overlaps.append({"kind": "curve", "start": list(start), "end": list(end)})
+            elif span >= spacing:
+                # Once round a closed curve: the whole curve is shared
+                found.overlaps.append({"kind": "curve"})
+    if not result.complete:
+        found.notes.append(
+            f"{first.name} and {second.name} pass over the same places many times (long parameter ranges); "
+            f"the search stopped at its work limit, so points late in {first.name}'s range may be missing."
+        )
+    return found
+
+
+# ---------------------------------------------------------------------------
+# Polygons
+# ---------------------------------------------------------------------------
+
+# Fractions of an edge (from a vertex) where the side of the other object is probed
+_PROBE_FRACTIONS = (1e-6, 1e-4, 1e-2)
+# Angle (radians) within which a probe direction lies along a polygon's edge
+_SECTOR_SLACK = 1e-9
+
+
+class _PolygonHit:
+    """A hit on polygon edges: the edges (index -> t) and vertex of each polygon, merged by location."""
+
+    def __init__(self, hit: _Hit) -> None:
+        self.x = hit.x
+        self.y = hit.y
+        self.tangent = hit.tangent
+        self.params = hit.params
+        self.on_edges: Dict[str, Dict[int, float]] = {}
+        self.at_vertex: Dict[str, int] = {}
+
+
+def _polygon_hits(first: Shape, second: Shape) -> _Found:
+    """Intersect each polygon edge with the other object (or its edges) and merge the results."""
+    polygon, other = (first, second) if isinstance(first, PolygonShape) else (second, first)
+    assert isinstance(polygon, PolygonShape)
+    if isinstance(other, PolygonShape) and other.name < polygon.name:
+        polygon, other = other, polygon
+    size = _pair_size(polygon, other)
+    polygons = [polygon] + ([other] if isinstance(other, PolygonShape) else [])
+    found = _Found()
+    merged: List[_PolygonHit] = []
+    for i, edge in enumerate(polygon.edges):
+        if edge is None:
+            continue
+        if isinstance(other, PolygonShape):
+            for j, other_edge in enumerate(other.edges):
+                if other_edge is not None:
+                    edge_found = _line_line(edge, other_edge)
+                    _collect_edge_hits(edge_found, {polygon.name: i, other.name: j}, polygons, size, found, merged)
+        else:
+            _collect_edge_hits(_ordered_dispatch(edge, other), {polygon.name: i}, polygons, size, found, merged)
+    for record in merged:
+        if record.at_vertex:
+            touching = _corner_touch(record, polygon, other)
+            if touching is not None:
+                record.tangent = touching
+        found.hits.append(_polygon_hit(record, polygons))
+    return found
+
+
+def _collect_edge_hits(
+    edge_found: _Found,
+    edge_of: Dict[str, int],
+    polygons: List[PolygonShape],
+    size: float,
+    found: _Found,
+    merged: List[_PolygonHit],
+) -> None:
+    """Add one edge pair's hits (snapped to a vertex within tolerance, merged by location) and
+    overlaps; its notes (parallel edges and the like) are about single edges and are dropped."""
+    found.overlaps.extend(edge_found.overlaps)
+    for hit in edge_found.hits:
+        record = _PolygonHit(hit)
+        for shape in polygons:
+            index = edge_of[shape.name]
+            record.on_edges[shape.name] = {index: hit.params.get(shape.name, {}).get("t", 0.0)}
+            vertex = _vertex_at(shape, index, (record.x, record.y), size)
+            if vertex is not None:
+                record.at_vertex[shape.name] = vertex
+                if len(record.at_vertex) == 1:
+                    record.x, record.y = shape.vertices[vertex]
+        same = [m for m in merged if _same_point((m.x, m.y), (record.x, record.y), size)]
+        if not same:
+            merged.append(record)
+            continue
+        target = same[0]
+        target.tangent = target.tangent or record.tangent
+        for name, edges in record.on_edges.items():
+            kept = target.on_edges.setdefault(name, {})
+            for index, t in edges.items():
+                # Not setdefault: Brython's dict.setdefault turns int keys into strings
+                if index not in kept:
+                    kept[index] = t
+        for name, vertex in record.at_vertex.items():
+            target.at_vertex.setdefault(name, vertex)
+
+
+def _vertex_at(polygon: PolygonShape, edge: int, point: Point2, size: float) -> Optional[int]:
+    """The vertex at either end of ``edge`` that ``point`` is (within tolerance), if any."""
+    count = len(polygon.vertices)
+    for k in (edge, (edge + 1) % count):
+        if _same_point(polygon.vertices[k], point, size):
+            return k
+    return None
+
+
+def _polygon_hit(record: _PolygonHit, polygons: List[PolygonShape]) -> _Hit:
+    """The merged hit with each polygon's edge, t, edge names and vertex."""
+    polygon_names = {polygon.name for polygon in polygons}
+    params = {name: values for name, values in record.params.items() if name not in polygon_names}
+    hit = _Hit(record.x, record.y, params, record.tangent)
+    for polygon in polygons:
+        count = len(polygon.vertices)
+        vertex = record.at_vertex.get(polygon.name)
+        if vertex is not None:
+            hit.params[polygon.name] = {"edge": vertex, "t": 0.0}
+            incoming = (vertex - 1) % count
+            hit.edges[polygon.name] = [polygon.edge_names[incoming], polygon.edge_names[vertex]]
+            hit.vertex[polygon.name] = polygon.vertex_names[vertex]
+            continue
+        edges = record.on_edges.get(polygon.name, {})
+        if not edges:
+            continue
+        first = min(edges)
+        hit.params[polygon.name] = {"edge": first, "t": edges[first]}
+        hit.edges[polygon.name] = [polygon.edge_names[i] for i in sorted(edges)]
+    return hit
+
+
+def _corner_touch(record: _PolygonHit, polygon: PolygonShape, other: Shape) -> Optional[bool]:
+    """At a vertex: True when the polygon's boundary stays on one side of the other object
+    (touches it), False when it crosses, None when that cannot be told (an edge along it)."""
+    corner = (record.x, record.y)
+    vertex = record.at_vertex.get(polygon.name)
+    if isinstance(other, PolygonShape):
+        if vertex is None:
+            # Only the other polygon has a corner here: probe this polygon's edge both ways
+            return _same_sector(_local_directions(other, record, corner), _local_directions(polygon, record, corner))
+        return _same_sector(_local_directions(polygon, record, corner), _local_directions(other, record, corner))
+    if vertex is None:
+        return None
+    before, after = polygon.neighbours(vertex)
+    if isinstance(other, ParametricShape):
+        probes = _curve_probes(other, record, corner, (before, after))
+        return None if probes is None else _same_sector((_minus(before, corner), _minus(after, corner)), probes)
+    return _same_side(other, corner, before, after)
+
+
+def _local_directions(polygon: PolygonShape, record: _PolygonHit, corner: Point2) -> Tuple[Point2, Point2]:
+    """The two directions the polygon's boundary leaves ``corner`` in (along its edges)."""
+    vertex = record.at_vertex.get(polygon.name)
+    if vertex is not None:
+        before, after = polygon.neighbours(vertex)
+        return (_minus(before, corner), _minus(after, corner))
+    edge = polygon.edges[min(record.on_edges[polygon.name])]
+    assert edge is not None
+    return ((edge.dx, edge.dy), (-edge.dx, -edge.dy))
+
+
+def _curve_probes(
+    curve: ParametricShape, record: _PolygonHit, corner: Point2, neighbours: Tuple[Point2, Point2]
+) -> Optional[Tuple[Point2, Point2]]:
+    """Directions from the corner to the curve a little before and after it."""
+    s = record.params.get(curve.name, {}).get("t")
+    if s is None:
+        return None
+    speed = math.hypot(*curve.derivative(s))
+    if not math.isfinite(speed) or speed == 0.0:
+        return None
+    shortest = min(_distance(neighbours[0], corner), _distance(neighbours[1], corner))
+    for fraction in _PROBE_FRACTIONS:
+        step = fraction * shortest / speed
+        if s - step < curve.t_min or s + step > curve.t_max:
+            return None
+        p, q = curve.point(s - step), curve.point(s + step)
+        if all(math.isfinite(v) for v in p + q) and min(_distance(p, corner), _distance(q, corner)) > 0.0:
+            return (_minus(p, corner), _minus(q, corner))
+    return None
+
+
+def _same_side(other: _OpenShape, corner: Point2, before: Point2, after: Point2) -> Optional[bool]:
+    """Whether points a little along both edges from the corner lie on the same side of the other object."""
+    if isinstance(other, (PointShape, ParametricShape)):
+        return None
+    for fraction in _PROBE_FRACTIONS:
+        sides = []
+        for neighbour in (before, after):
+            x = corner[0] + fraction * (neighbour[0] - corner[0])
+            y = corner[1] + fraction * (neighbour[1] - corner[1])
+            value = other.implicit(x, y)
+            if not math.isfinite(value):
+                return None
+            if abs(value) > other.noise(x, y):
+                sides.append(value > 0.0)
+        if len(sides) == 2:
+            return sides[0] == sides[1]
+    return None
+
+
+def _same_sector(rays: Tuple[Point2, Point2], probes: Tuple[Point2, Point2]) -> Optional[bool]:
+    """Whether both probe directions lie in the same one of the two sectors the rays cut the
+    plane into (None when a probe runs along a ray)."""
+    start = math.atan2(rays[0][1], rays[0][0])
+    span = (math.atan2(rays[1][1], rays[1][0]) - start) % _TWO_PI
+
+    def sector(direction: Point2) -> Optional[bool]:
+        offset = (math.atan2(direction[1], direction[0]) - start) % _TWO_PI
+        if offset < _SECTOR_SLACK or offset > _TWO_PI - _SECTOR_SLACK or abs(offset - span) < _SECTOR_SLACK:
+            return None
+        return offset < span
+
+    first, second = sector(probes[0]), sector(probes[1])
+    if first is None or second is None:
+        return None
+    return first == second
+
+
+def _minus(p: Point2, q: Point2) -> Point2:
+    return (p[0] - q[0], p[1] - q[1])
+
+
+def _distance(p: Point2, q: Point2) -> float:
+    return math.hypot(p[0] - q[0], p[1] - q[1])
+
+
 # ---------------------------------------------------------------------------
 # Merging, rounding and the report
 # ---------------------------------------------------------------------------
@@ -1152,13 +1480,34 @@ def _report(found: _Found, max_results: int, size: float) -> IntersectionReport:
 
 
 def _merged_hits(hits: List[_Hit], size: float) -> List[_Hit]:
-    """One hit per location (a root found from both ends of a closed curve's turn)."""
+    """One hit per location (a root found from both ends of a closed curve's turn).
+
+    Hits are filed by x in slots as wide as the largest merge distance, so each is compared
+    only with the hits in its own and the neighbouring slots.
+    """
     merged: List[_Hit] = []
+    if not hits:
+        return merged
+    magnitude = max(max(abs(hit.x), abs(hit.y)) for hit in hits)
+    width = _MERGE_TOLERANCE * size + _SAME_POINT_ULPS * _EPS * magnitude
+    slots: Dict[int, List[int]] = {}
     for hit in hits:
-        same = [m for m in merged if _same_point((m.x, m.y), (hit.x, hit.y), size)]
+        slot = int(math.floor(hit.x / width)) if width > 0.0 and math.isfinite(hit.x) else 0
+        nearby = sorted(i for key in (slot - 1, slot, slot + 1) for i in slots.get(key, []))
+        same = [merged[i] for i in nearby if _same_point((merged[i].x, merged[i].y), (hit.x, hit.y), size)]
         if same:
             same[0].tangent = same[0].tangent or hit.tangent
+            for name, edges in hit.edges.items():
+                kept = same[0].edges.setdefault(name, [])
+                kept.extend(edge for edge in edges if edge not in kept)
+            for name, vertex in hit.vertex.items():
+                same[0].vertex.setdefault(name, vertex)
             continue
+        # Not setdefault: Brython's dict.setdefault turns int keys into strings
+        if slot in slots:
+            slots[slot].append(len(merged))
+        else:
+            slots[slot] = [len(merged)]
         merged.append(hit)
     return merged
 
@@ -1191,6 +1540,8 @@ def _shape_size(shape: Union[Shape, _EllipseCurve]) -> float:
         return shape.right - shape.left
     if isinstance(shape, ParametricShape):
         return shape.extent()
+    if isinstance(shape, PolygonShape):
+        return shape.size()
     return 0.0
 
 
@@ -1206,6 +1557,10 @@ def _rounded_point(hit: _Hit, size: float) -> IntersectionPoint:
     params = {name: _rounded_params(values) for name, values in hit.params.items() if values}
     if params:
         point["params"] = params
+    if hit.edges:
+        point["edges"] = {name: list(edges) for name, edges in hit.edges.items()}
+    if hit.vertex:
+        point["vertex"] = dict(hit.vertex)
     if hit.tangent:
         point["tangent"] = True
     return point
@@ -1214,7 +1569,9 @@ def _rounded_point(hit: _Hit, size: float) -> IntersectionPoint:
 def _rounded_params(values: Params) -> Params:
     rounded: Params = {}
     for key, value in values.items():
-        if key == "angle":
+        if key == "edge":
+            rounded[key] = int(value)
+        elif key == "angle":
             angle = _round(value % _TWO_PI, _TWO_PI)
             rounded[key] = 0.0 if angle >= _round(_TWO_PI) else angle
         else:
