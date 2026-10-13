@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from canvas import Canvas
 from function_registry import FunctionRegistry
+from managers.polygon_type import PolygonType
 from process_function_calls import ProcessFunctionCalls
 from workspace_manager import WorkspaceManager
 
@@ -192,6 +193,105 @@ class TestObjectIntersectionsCanvas(unittest.TestCase):
         undo_count = len(self.canvas.undo_redo_manager.undo_stack)
         self._find([segment.name, circle.name])
         self.assertEqual(len(self.canvas.undo_redo_manager.undo_stack), undo_count)
+
+    # ------------------- Polygons -------------------
+
+    def _triangle(self) -> Any:
+        return self.canvas.create_polygon(
+            [(0, 0), (4, 0), (0, 3)], polygon_type=PolygonType.TRIANGLE, extra_graphics=False
+        )
+
+    def _point_name_at(self, x: float, y: float) -> str:
+        point = self.canvas.get_point(x, y)
+        self.assertIsNotNone(point)
+        return str(point.name)
+
+    def test_polygon_by_name_with_vertex_and_edges(self) -> None:
+        triangle = self._triangle()
+        segment = self.canvas.create_segment(6, -1, 2, 1, extra_graphics=False)
+        result = self._find([triangle.name, segment.name])
+        self.assertEqual(result["object_types"], ["triangle", "segment"])
+        self.assertEqual(self._xy(result), [(4.0, 0.0)])
+        point = result["intersections"][0]
+        self.assertEqual(point["vertex"], {triangle.name: self._point_name_at(4, 0)})
+        self.assertNotIn("tangent", point)
+        edge_names = point["edges"][triangle.name]
+        self.assertEqual(len(edge_names), 2)
+        for edge_name in edge_names:
+            edge = self.canvas.get_segment_by_name(edge_name)
+            self.assertIsNotNone(edge)
+            self.assertIn((4.0, 0.0), [(edge.point1.x, edge.point1.y), (edge.point2.x, edge.point2.y)])
+
+    def test_rectangle_and_circle(self) -> None:
+        rectangle = self.canvas.create_polygon(
+            [(0, 0), (4, 0), (4, 2), (0, 2)], polygon_type=PolygonType.RECTANGLE, extra_graphics=False
+        )
+        circle = self.canvas.create_circle(4, 2, 1, extra_graphics=False)
+        result = self._find([circle.name, rectangle.name])
+        self.assertEqual(result["object_types"], ["circle", "rectangle"])
+        self.assertEqual(self._xy(result), [(3.0, 2.0), (4.0, 1.0)])
+        for point in result["intersections"]:
+            self.assertEqual(len(point["edges"][rectangle.name]), 1)
+            self.assertNotIn("vertex", point)
+
+    def test_polygons_sharing_an_edge_overlap(self) -> None:
+        triangle = self._triangle()
+        below = self.canvas.create_polygon(
+            [(0, 0), (4, 0), (2, -3)], polygon_type=PolygonType.TRIANGLE, extra_graphics=False
+        )
+        result = self._find([triangle.name, below.name], place_points=True)
+        self.assertEqual(result["intersections"], [])
+        self.assertEqual(result["overlaps"], [{"kind": "segment", "start": [0.0, 0.0], "end": [4.0, 0.0]}])
+        self.assertIn("overlap", result["note"])
+
+    def test_polygon_points_are_one_undo_step_and_vertices_are_reused(self) -> None:
+        triangle = self._triangle()
+        line = self.canvas.create_segment(6, -1, 2, 1, extra_graphics=False)
+        vertex_name = self._point_name_at(4, 0)
+        before = self._point_count()
+        through_vertex = self._find([triangle.name, line.name], extend_lines=True, place_points=True)
+        self.assertEqual(self._xy(through_vertex), [(0.0, 2.0), (4.0, 0.0)])
+        self.assertEqual(through_vertex["reused_point_names"], [vertex_name])
+        self.assertEqual(len(through_vertex["created_point_names"]), 1)
+        self.assertNotIn(vertex_name, through_vertex["created_point_names"])
+        self.assertIn(vertex_name, through_vertex["note"])
+        self.assertEqual(self._point_count(), before + 1)
+
+        self.assertTrue(self.canvas.undo())
+        self.assertEqual(self._point_count(), before)
+        self.assertIsNotNone(self.canvas.get_point_by_name(vertex_name))
+        self.assertTrue(self.canvas.redo())
+        self.assertEqual(self._point_count(), before + 1)
+
+    def test_bad_polygon_kinds_still_raise(self) -> None:
+        triangle = self._triangle()
+        with self.assertRaises(ValueError):
+            self._find([triangle.name, self._point_name_at(0, 0)])
+
+    # ------------------- Two parametric curves -------------------
+
+    def test_two_parametric_curves(self) -> None:
+        first = self.canvas.draw_parametric_function("cos(t)", "sin(t)", name="unit")
+        second = self.canvas.draw_parametric_function("1 + cos(2*t)", "sin(2*t)", name="moved", t_max=math.pi)
+        before = self._point_count()
+        result = self._find([first.name, second.name], place_points=True)
+        self.assertEqual(result["object_types"], ["parametric_function", "parametric_function"])
+        self.assertEqual(len(result["intersections"]), 2)
+        for point in result["intersections"]:
+            self.assertAlmostEqual(point["x"], 0.5, places=9)
+            self.assertAlmostEqual(abs(point["y"]), math.sqrt(3) / 2, places=9)
+            self.assertEqual(sorted(point["params"]), sorted([first.name, second.name]))
+        self.assertEqual(len(result["created_point_names"]), 2)
+        self.assertEqual(self._point_count(), before + 2)
+        self.assertTrue(self.canvas.undo())
+        self.assertEqual(self._point_count(), before)
+
+    def test_same_curve_drawn_twice_overlaps(self) -> None:
+        first = self.canvas.draw_parametric_function("cos(t)", "sin(t)", name="unit")
+        second = self.canvas.draw_parametric_function("cos(t + 1)", "sin(t + 1)", name="turned")
+        result = self._find([first.name, second.name])
+        self.assertEqual(result["intersections"], [])
+        self.assertEqual(result["overlaps"], [{"kind": "curve"}])
 
     def _run_tool_calls(self, calls: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Run tool calls through the same registry and result processor the AI uses."""
