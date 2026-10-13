@@ -23,6 +23,7 @@ from cli.scenarios.checks import (
     validate_check,
 )
 from cli.scenarios.geometry import CanvasView, SampleRequests, Tolerance, triangle_flags
+from cli.scenarios.model import Catalogue, load_catalogue
 
 from server_tests.test_cli.scenario_states import (
     angle,
@@ -53,6 +54,18 @@ def call(tool: str, result: Any = "Call successful!", is_error: bool = False, **
 
 def by_id(results: list[CheckResult], invariant: str) -> CheckResult:
     return next(r for r in results if r.name == invariant)
+
+
+_CATALOGUE: list[Catalogue] = []
+
+
+def catalogue_answer_check(scenario_id: str) -> dict[str, Any]:
+    """The answer check of the scenario's turn with a live_optional tool_result."""
+    if not _CATALOGUE:
+        _CATALOGUE.append(load_catalogue())
+    scenario = next(s for s in _CATALOGUE[0].scenarios if s.id == scenario_id)
+    step = next(s for s in scenario.steps if any(c.get("live_optional") for c in s.checks))
+    return next(c for c in step.checks if c.get("check") == "answer_mentions")
 
 
 # ----------------------------------------------------------------------
@@ -444,39 +457,57 @@ class TestOutcomeChecks:
         assert run(check, view, step=called).status == "fail"
 
     @pytest.mark.parametrize(
-        "text, passed",
+        "scenario_id, text, passed",
         [
-            ("The area of triangle ABC is now **2.5** square units.", True),
-            ("The triangle now has vertices A(1,1), B(4,0), and C(0,3), and its area is **2.5** square units.", True),
-            ("With A at (2.5, 1), the area is 6.", False),
-            ("The area is 2.55.", False),
-            ("The triangle ABC has area 6; A moved by 2.5 units.", False),
+            # MT-01 t3: the area of the moved triangle is 2.5.
+            ("MT-01", "The area of triangle ABC is now **2.5** square units.", True),
+            (
+                "MT-01",
+                "The triangle now has vertices A(1,1), B(4,0), and C(0,3), and its area is **2.5** square units.",
+                True,
+            ),
+            ("MT-01", "The area is 5/2 = 2.5 square units.", True),
+            ("MT-01", "The area of triangle ABC (with A at (1,1)) is 2.5 square units.", True),
+            ("MT-01", "Using the shoelace formula, the area is |1(0-3) + 4(3-1) + 0(1-0)|/2 = 5/2 = 2.5.", True),
+            ("MT-01", "Using the shoelace formula, the area is |1(0-3) + …|/2 = 5/2 = 2.5.", True),
+            ("MT-01", r"The area of the triangle is \(\frac{5}{2} = 2.5\).", True),
+            ("MT-01", "2.5 sq units is the area.", True),
+            ("MT-01", "The area changed from 6 to 2.5.", True),
+            ("MT-01", "With A at (2.5, 1), the area is 6.", False),
+            ("MT-01", "The area is 2.55.", False),
+            ("MT-01", "The area is 12.5.", False),
+            ("MT-01", "The area is -2.5.", False),
+            ("MT-01", "The triangle ABC has area 6; A moved by 2.5 units.", False),
+            # AR-03 t1: the area of the 2 by 2 square is 4.
+            ("AR-03", "The square is filled pink; its area is 4 square units.", True),
+            ("AR-03", "The square's area is 2 × 2 = 4 square units.", True),
+            ("AR-03", "The area of square ABCD (side 2) is 4.", True),
+            ("AR-03", "Its area is 2² = 4.", True),
+            ("AR-03", "Area = side² = 2² = 4", True),
+            ("AR-03", "Its area is 4.0.", True),
+            ("AR-03", "The square has 4 equal sides of length 2, so its area is 8.", False),
+            ("AR-03", "A square with 4 sides has area 16.", False),
+            ("AR-03", "The area is 4.5.", False),
+            ("AR-03", "The area is 40.", False),
+            ("AR-03", "The area is 14.", False),
         ],
     )
-    def test_answer_matches_pins_the_number_to_its_context(self, text: str, passed: bool) -> None:
-        view = CanvasView(state())
-        check = {"check": "answer_mentions", "numbers": [2.5], "matches": r"\barea\b[^0-9]{0,40}2\.50*(?![0-9])"}
-        result = run(check, view, step=StepData(final_text=text, mode="live"))
+    def test_catalogue_area_answers_pin_the_value_to_the_area(self, scenario_id: str, text: str, passed: bool) -> None:
+        result = run(
+            catalogue_answer_check(scenario_id), CanvasView(state()), step=StepData(final_text=text, mode="live")
+        )
         assert result.status == ("pass" if passed else "fail"), result.message
-        if not passed:
-            assert "a match for" in result.message
 
-    def test_answer_matches_on_the_square_area(self) -> None:
-        view = CanvasView(state())
-        check = {
-            "check": "answer_mentions",
-            "numbers": [4],
-            "matches": r"\barea\b[^0-9]{0,40}4(?:\.0+)?(?![0-9]|\.[0-9])",
-        }
-
-        def status(text: str) -> str:
-            return run(check, view, step=StepData(final_text=text, mode="live")).status
-
-        assert status("The square is filled pink; its area is 4 square units.") == "pass"
-        assert status("Its area is 4.0.") == "pass"
-        assert status("The square has 4 equal sides of length 2, so its area is 8.") == "fail"
-        assert status("The area is 4.5.") == "fail"
-        assert status("The area is 40.") == "fail"
+    @pytest.mark.parametrize(
+        "scenario_id, text",
+        [("MT-01", "The area is not 2.5; it is 6."), ("AR-03", "Its area is 8, since it has 4 equal sides.")],
+    )
+    def test_catalogue_area_answers_known_false_positives(self, scenario_id: str, text: str) -> None:
+        # Documented limit: a wrong value followed in the same sentence by the right one passes.
+        result = run(
+            catalogue_answer_check(scenario_id), CanvasView(state()), step=StepData(final_text=text, mode="live")
+        )
+        assert result.status == "pass"
 
     def test_answer_matches_must_be_a_valid_pattern(self) -> None:
         assert validate_check({"check": "answer_mentions", "matches": r"area\D+4"}) == []
