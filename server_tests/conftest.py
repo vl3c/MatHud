@@ -60,8 +60,8 @@ if not live_tests_enabled():
 # Every app the tests build runs LogManager, which turns off propagation on the
 # "mathud" logger and adds a file handler to it. Left in place, later tests that
 # capture "mathud" warnings with caplog see nothing, since caplog's handler sits
-# on the root logger (pytest 9 also attaches it to non-propagating loggers,
-# which hides the leak there; pytest 8 does not). The baseline is taken once,
+# on the root logger (pytest 9.1 also attaches it to non-propagating loggers,
+# which hides the leak there; pytest 8.3 does not). The baseline is taken once,
 # not per test, because module-scoped fixtures can build the app (test_app_entry
 # imports app.py) before any per-test snapshot.
 _MATHUD_LOGGER = logging.getLogger("mathud")
@@ -70,7 +70,7 @@ _MATHUD_LOGGER_BASELINE = (_MATHUD_LOGGER.propagate, _MATHUD_LOGGER.level, tuple
 
 @pytest.fixture(autouse=True)
 def _restore_mathud_logger() -> Iterator[None]:
-    """Put the "mathud" logger back to its state at session start after each test."""
+    """After each test, reset propagation and level on the "mathud" logger and drop the handlers the test added."""
     yield
     propagate, level, handlers = _MATHUD_LOGGER_BASELINE
     root_handlers = logging.getLogger().handlers
