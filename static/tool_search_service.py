@@ -65,27 +65,43 @@ TEST_QUERY_WORDS = frozenset({"test", "tests", "testing"})
 # A function applied to a single number, e.g. "f(3)" or "g(-2.5)".
 _FUNCTION_AT_POINT_RE = re.compile(r"\b[a-z]\w*\(\s*-?\d+(?:\.\d+)?\s*\)")
 
-# "graph" means a graph of vertices and edges (generate_graph) rather than the
-# plot of a function when the query describes that structure: graph-theory words,
-# vertices and edges named in geometric terms ("points ... segments"), or a request
-# to create a graph with nothing to plot.
+# "graph" means a graph of vertices and edges (generate_graph) rather than the plot of
+# a function when the query names that structure (_GRAPH_STRUCTURE_WORDS). Two weaker
+# signals count only when nothing ties "graph" to another tool (_OTHER_GRAPH_WORDS or
+# function notation): vertices and edges named in geometric terms ("points ...
+# segments", "connect"), and a bare request such as "create a graph" or "build graph G1".
+# Graph-analysis words only cancel the function-plot penalty; analyze_graph has its own boosts.
 _GRAPH_STRUCTURE_WORDS = frozenset(
     {"vertex", "vertices", "edge", "edges", "node", "nodes", "directed", "undirected", "weighted", "network"}
 )
 _GRAPH_ANALYSIS_WORDS = frozenset(
     {"shortest", "path", "bfs", "dfs", "mst", "topological", "spanning", "adjacency", "degree", "dag", "tree"}
 )
-_GRAPH_VERTEX_WORDS = frozenset({"point", "points", "vertex", "vertices", "node", "nodes"})
-_GRAPH_EDGE_WORDS = frozenset(
-    {"segment", "segments", "edge", "edges", "connect", "connected", "connecting", "connects", "connections"}
+_GRAPH_VERTEX_WORDS = frozenset({"point", "points"})
+_GRAPH_EDGE_WORDS = frozenset({"segment", "segments", "connect", "connected", "connecting", "connects"})
+# Words that make "graph" another tool's object: plots and charts, curves and functions,
+# shapes, calculus, statistics and the coordinate system.
+_OTHER_GRAPH_WORDS = frozenset(
+    {"bar", "bars", "chart", "histogram", "distribution", "normal", "gaussian", "bell", "probability"}
+    | {"scatter", "data", "regression", "line", "lines", "linear", "trend"}
+    | {"parametric", "polar", "cartesian", "coordinate", "coordinates", "axes", "axis", "grid"}
+    | {"piecewise", "inequality", "inequalities", "function", "functions", "curve", "curves", "equation"}
+    | {"equations", "plot", "plotted", "parabola", "polynomial", "quadratic", "squared", "cubed"}
+    | {"sin", "cos", "tan", "exp", "ln", "log", "sqrt", "abs", "absolute", "value"}
+    | {"circle", "circles", "ellipse", "ellipses", "triangle", "polygon", "arc", "angle"}
+    | {"derivative", "integral", "tangent", "slope", "area"}
 )
-_GRAPH_CREATE_WORDS = frozenset({"create", "make", "build", "generate", "construct", "new"})
-_FUNCTION_PLOT_WORDS = frozenset(
-    {"function", "functions", "curve", "curves", "equation", "plot", "plotted", "parabola", "polynomial"}
-    | {"sin", "cos", "tan", "exp", "ln", "log", "sqrt"}
+# Function notation such as "f(x)", "y = ...", "x^2", "x > 3", "1/x".
+_FUNCTION_NOTATION_RE = re.compile(r"\b[a-z]\(\s*[a-z]\s*\)|[=^<>/+*]")
+# "create a graph", "build graph G1", "make a new graph called net": nothing but the request.
+_BARE_GRAPH_REQUEST_RE = re.compile(
+    r"^\s*(?:please\s+)?(?:create|build|make|generate|construct)\s+(?:(?:a|an|the|new)\s+)*graph"
+    r"(?:\s+(?:named|called))?(?:\s+[a-z]\w*)?\s*[.!]?\s*$"
 )
-# Function notation such as "f(x)", "y = ...", "x^2".
-_FUNCTION_NOTATION_RE = re.compile(r"\b[a-z]\(\s*[a-z]\s*\)|[=^]")
+# Function names and notation that make "graph" a function plot (draw_function).
+_FUNCTION_NAME_WORDS = frozenset({"sin", "cos", "exp", "ln", "log", "squared", "cubed"})
+_FUNCTION_EQUATION_RE = re.compile(r"\b[a-z]\(\s*[a-z]\s*\)|[=^]")
+_PIECEWISE_RE = re.compile(r"for\s+x\s*[<>]|when\s+x\s*[<>]|x\s*>=|x\s*<=")
 
 # ---------------------------------------------------------------------------
 # Result cache
@@ -239,7 +255,7 @@ TOOL_CATEGORIES: Dict[str, CategoryEntry] = {
             "generate_graph", "delete_graph", "analyze_graph",
         ],
         "keywords": [
-            "graph", "tree", "dag", "vertex", "vertices", "edge", "edges", "nodes",
+            "graph", "tree", "dag", "vertex", "vertices", "edge", "nodes",
             "node", "shortest", "path", "bfs", "dfs", "mst",
             "topological", "sort", "spanning", "adjacency",
             "directed", "undirected", "weighted", "network",
@@ -701,10 +717,11 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         """Whether a query that says "graph" means vertices and edges, not a function plot."""
         if token_set & _GRAPH_STRUCTURE_WORDS:
             return True
+        if token_set & _OTHER_GRAPH_WORDS or _FUNCTION_NOTATION_RE.search(raw_lower):
+            return False
         if token_set & _GRAPH_VERTEX_WORDS and token_set & _GRAPH_EDGE_WORDS:
             return True
-        plots_function = bool(token_set & _FUNCTION_PLOT_WORDS or _FUNCTION_NOTATION_RE.search(raw_lower))
-        return bool(token_set & _GRAPH_CREATE_WORDS) and not plots_function
+        return _BARE_GRAPH_REQUEST_RE.match(raw_lower) is not None
 
     @staticmethod
     def _apply_intent_boosts(
@@ -906,10 +923,17 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         if token_set & {"piecewise", "rules"}:
             scores["draw_piecewise_function"] += 6.0
         # Detect piecewise patterns: "for x<..." or "when x>..." with multiple conditions
-        if re.search(r"for\s+x\s*[<>]|when\s+x\s*[<>]|x\s*>=|x\s*<=", raw_lower):
+        piecewise_pattern = _PIECEWISE_RE.search(raw_lower) is not None
+        if piecewise_pattern:
             scores["draw_piecewise_function"] += 6.0
-        # "graph f(x)" / "graph y=" means draw_function, not graph theory
-        if "graph" in token_set and token_set & {"f(x)", "y=", "sin", "cos", "exp", "ln", "log"}:
+        # "graph f(x)", "graph y = x^2", "graph sin(x)", "graph x squared" mean draw_function, not
+        # graph theory. Notation is read from the raw query (the tokenizer drops "(", "=" and
+        # one-letter words); piecewise definitions are left to draw_piecewise_function.
+        if (
+            "graph" in token_set
+            and not (piecewise_pattern or token_set & {"piecewise", "rules"})
+            and (token_set & _FUNCTION_NAME_WORDS or _FUNCTION_EQUATION_RE.search(raw_lower))
+        ):
             scores["draw_function"] += 6.0
         graph_structure_query = (
             "graph" in token_set and ToolSearchService._describes_graph_structure(token_set, raw_lower)
@@ -930,6 +954,11 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         if graph_structure_query:
             scores["generate_graph"] += 8.0
             scores["analyze_graph"] += 4.0
+        elif token_set & {"connect", "connects", "connecting", "join", "joins", "joining"} and not (
+            token_set & {"node", "nodes", "edge", "edges"}
+        ):
+            # "connect the points with segments": a segment, unless graph words are used
+            scores["create_segment"] += 6.0
         if token_set & {"shortest", "bfs", "dfs", "mst", "topological", "spanning", "degree"}:
             scores["analyze_graph"] += 8.0
         if "graph" in token_set and token_set & {"analysis", "analyze", "statistics", "degree"}:

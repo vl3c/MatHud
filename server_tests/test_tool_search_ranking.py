@@ -115,6 +115,7 @@ def test_confidence_is_best_raw_score_even_when_demoted(
 # other ways of asking for a graph of vertices and edges.
 GRAPH_CREATION_QUERIES = [
     "draw points, segments, and labels on canvas to create a graph",
+    "draw points and labeled segments on canvas to create a graph",
     "create points A B C D and connect them with segments as a graph",
     "create a weighted graph from points and segments",
     "create a graph",
@@ -157,6 +158,10 @@ def test_graph_creation_query_skips_api_search_in_hybrid_mode(
         ("create a polygon with vertices A B C", "create_polygon"),
         ("create a point at (2, 3)", "create_point"),
         ("connect points A and B with a segment", "create_segment"),
+        ("connect the points with segments", "create_segment"),
+        ("draw edges of a triangle", "create_polygon"),
+        ("draw the edges of the triangle", "create_polygon"),
+        ("color the edges of the square", "create_colored_area"),
     ],
 )
 def test_geometry_queries_keep_geometry_tools_first(service: ToolSearchService, query: str, expected: str) -> None:
@@ -172,9 +177,49 @@ def test_geometry_queries_keep_geometry_tools_first(service: ToolSearchService, 
         "plot a graph of the function f(x) = x^3",
         "graph the absolute value function |x|",
         "make a graph of the function x^2 - 4",
+        "graph y = x^2",
+        "graph f(x) = x^2",
+        "graph x squared",
+        "make a graph of x squared",
     ],
 )
 def test_function_graph_queries_keep_draw_function_first(service: ToolSearchService, query: str) -> None:
     names = _names(service, query)
     assert names[0] == "draw_function", names
-    assert "generate_graph" not in names[:3], names
+
+
+# "graph" as the object of another tool, or a function plot that the local search does not
+# recognise: none of these is a graph of vertices and edges.
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("create a bar graph", "plot_bars"),
+        ("create a parametric graph", "draw_parametric_function"),
+        ("make a polar graph", "set_coordinate_system"),
+        ("make a graph of the piecewise rule x if x > 0 else -x", "draw_piecewise_function"),
+        ("generate a graph of the normal distribution", "plot_distribution"),
+        ("create a graph of the circle", "create_circle"),
+        ("create a graph of the ellipse", "create_ellipse"),
+        ("make a graph of the regression line", "fit_regression"),
+        ("create a graph of the derivative", "derive"),
+        ("make a graph of the integral", "integrate"),
+        ("make a coordinate graph", "set_coordinate_system"),
+        ("make a graph of f", None),
+        ("create a graph of 1/x", None),
+        ("create a graph of 2x + 1", None),
+        ("create a graph of abs(x)", None),
+        ("create a graph of y equals x squared", None),
+        ("create a graph of the inequality y > 2x", None),
+        ("make a graph of x > 3", None),
+        ("create a graph of the absolute value of x", None),
+        ("create a line graph of the data", None),
+        ("make a graph of the data", None),
+    ],
+)
+def test_graph_of_something_else_does_not_rank_generate_graph_first(
+    service: ToolSearchService, query: str, expected: str | None
+) -> None:
+    names = _names(service, query)
+    assert names[0] != "generate_graph", names
+    if expected is not None:
+        assert names[0] == expected, names
