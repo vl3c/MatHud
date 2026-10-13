@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sys
 import os
+from typing import Any, Dict
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -20,6 +21,7 @@ if _project_root not in sys.path:
 
 from static.tool_search_service import (
     API_SEARCH_FALLBACK_MODEL,
+    MAX_SEARCH_RESULTS,
     TOOL_CATEGORIES,
     ToolSearchService,
     _TOOL_BY_NAME,
@@ -223,17 +225,16 @@ class TestSearchToolsWithMock:
         assert len(result) <= 1
 
     def test_search_clamps_max_results_high(self, service: ToolSearchService, mock_client: MagicMock) -> None:
-        """search_tools should clamp max_results to maximum of 20."""
+        """search_tools should clamp max_results to MAX_SEARCH_RESULTS."""
         self._setup_mock_response(mock_client, '["create_circle", "create_point"]')
 
-        # Passing 100 should be clamped to 20
+        # Passing 100 should be clamped to MAX_SEARCH_RESULTS
         service.search_tools("draw", max_results=100)
 
-        # Verify the prompt contains max 20
         call_args = mock_client.chat.completions.create.call_args
         messages = call_args.kwargs.get("messages", [])
         prompt = messages[0]["content"] if messages else ""
-        assert "up to 20 tool names" in prompt
+        assert f"up to {MAX_SEARCH_RESULTS} tool names" in prompt
 
     def test_search_filters_unknown_tools(self, service: ToolSearchService, mock_client: MagicMock) -> None:
         """search_tools should filter out unknown tool names from response."""
@@ -513,6 +514,14 @@ class TestSearchToolsFormatted:
 
         assert result["query"] == query
 
+    def test_formatted_lists_tool_names(self, service: ToolSearchService, mock_client: MagicMock) -> None:
+        """tools should name the found tools; their schemas reach the model through the tool list."""
+        self._setup_mock_response(mock_client, '["create_circle", "create_point"]')
+
+        result = service.search_tools_formatted("draw shapes")
+
+        assert result["tools"] == ["create_circle", "create_point"]
+
 
 class TestToolModeConfiguration:
     """Test tool mode configuration in OpenAIAPIBase."""
@@ -753,7 +762,7 @@ class TestDynamicToolInjection:
     """Test inject_tools and reset_tools methods."""
 
     def test_inject_tools_replaces_tool_set(self) -> None:
-        """inject_tools should replace the current tool set."""
+        """A first inject_tools should replace the default tool set."""
         with patch("static.openai_api_base.OpenAI"):
             from static.openai_api_base import OpenAIAPIBase
 
@@ -840,6 +849,60 @@ class TestDynamicToolInjection:
                 api.reset_tools()
                 assert len(api.tools) == len(SEARCH_MODE_TOOLS)
 
+    @staticmethod
+    def _search_mode_api() -> Any:
+        with patch("static.openai_api_base.OpenAI"):
+            from static.openai_api_base import OpenAIAPIBase
+
+            with patch.object(OpenAIAPIBase, "_initialize_api_key", return_value="test-key"):
+                return OpenAIAPIBase(tool_mode="search")
+
+    @staticmethod
+    def _tool(name: str) -> Dict[str, Any]:
+        return {"type": "function", "function": {"name": name}}
+
+    def test_injected_tools_accumulate_after_the_essentials(self) -> None:
+        """Later searches add tools after those already loaded, which keep their place."""
+        from static.openai_api_base import SEARCH_MODE_TOOLS
+
+        api = self._search_mode_api()
+        api.inject_tools([self._tool("create_circle"), self._tool("create_point")])
+        api.inject_tools([self._tool("create_point"), self._tool("draw_function")])
+
+        names = [t["function"]["name"] for t in api.tools]
+        essentials = [t["function"]["name"] for t in SEARCH_MODE_TOOLS]
+        assert names == essentials + ["create_circle", "create_point", "draw_function"]
+        assert api.loaded_tool_names() == ["create_circle", "create_point", "draw_function"]
+
+    def test_injecting_known_tools_leaves_the_tool_list_unchanged(self) -> None:
+        """Re-finding loaded tools must not reorder the list (it leads every prompt)."""
+        api = self._search_mode_api()
+        api.inject_tools([self._tool("create_circle"), self._tool("create_point")])
+        before = [t["function"]["name"] for t in api.tools]
+        api.inject_tools([self._tool("create_point"), self._tool("create_circle")])
+        assert [t["function"]["name"] for t in api.tools] == before
+
+    def test_loaded_tools_past_the_limit_keep_only_the_latest_search(self) -> None:
+        """Past MAX_LOADED_TOOLS only the latest search's tools stay loaded."""
+        from static.openai_api_base import MAX_LOADED_TOOLS
+
+        api = self._search_mode_api()
+        api.inject_tools([self._tool(f"tool_{i}") for i in range(MAX_LOADED_TOOLS)])
+        api.inject_tools([self._tool("tool_3"), self._tool("tool_new")])
+
+        assert api.loaded_tool_names() == ["tool_3", "tool_new"]
+
+    def test_changing_tool_mode_unloads_searched_tools(self) -> None:
+        """Switching tool mode starts from that mode's default tools."""
+        from static.functions_definitions import FUNCTIONS
+
+        api = self._search_mode_api()
+        api.inject_tools([self._tool("create_circle")])
+        api.set_tool_mode("full")
+        assert not api.has_injected_tools()
+        assert api.loaded_tool_names() == []
+        assert len(api.tools) == len(FUNCTIONS)
+
 
 class TestExtractListFromParsed:
     """Test the _extract_list_from_parsed helper method."""
@@ -903,6 +966,13 @@ class TestLocalSearch:
         """search_tools_local should limit results."""
         results = self.service.search_tools_local("create something", max_results=3)
         assert len(results) <= 3
+
+    def test_local_search_drops_weak_matches(self) -> None:
+        """Matches far below the best score are left out instead of filling max_results."""
+        results = self.service.search_tools_local("save workspace as a named scene", max_results=20)
+        names = [t["function"]["name"] for t in results]
+        assert names[0] == "save_workspace"
+        assert "construct_midpoint" not in names
 
     def test_local_search_empty_query(self) -> None:
         """search_tools_local should return empty for empty tokens."""

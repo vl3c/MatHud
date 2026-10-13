@@ -19,7 +19,7 @@ import logging
 import math
 import threading
 import time
-from collections.abc import Callable, Iterator, Set as AbstractSet
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from typing import Any, Dict, List, Optional, Tuple, TypeVar, Union, cast
 
 from flask import Response, flash, jsonify, redirect, render_template, request, session, stream_with_context, url_for
@@ -34,9 +34,10 @@ from static.config import (
 )
 from static.openai_api_base import OpenAIAPIBase, get_configured_tool_mode
 from static.providers import ProviderRegistry, create_provider_instance, is_local_provider
-from static.route_helpers import conversation_apis, get_active_provider, reset_tools_for_all_providers
+from static.route_helpers import conversation_apis, get_active_provider
 from static.tool_argument_validator import ToolArgumentValidator
 from static.tool_call_processor import ProcessedToolCall, ToolCallProcessor
+from static.tool_search_service import DEFAULT_SEARCH_RESULTS
 from static.tts_manager import get_tts_manager
 from static.workspace_chat import build_restored_history, sanitize_chat_record
 
@@ -212,9 +213,9 @@ def _intercept_search_tools(
     """Intercept search_tools calls and filter other tool calls.
 
     When search_tools is called alongside other tools, this function:
-    1. Executes search_tools server-side
-    2. Injects the returned tools
-    3. Filters out tool calls not in the allowed set
+    1. Executes every search_tools call of the reply server-side
+    2. Loads the tools they found (added to those already loaded)
+    3. Filters out tool calls to tools that are not loaded
 
     Args:
         app: The Flask application instance.
@@ -227,18 +228,19 @@ def _intercept_search_tools(
     from static.tool_search_service import ToolSearchService
     from static.openai_api_base import ESSENTIAL_TOOLS
 
-    search_tools_call = _find_search_tools_call(tool_calls)
+    search_calls = _find_search_tools_calls(tool_calls)
 
-    if search_tools_call is None:
+    if not search_calls:
         return tool_calls  # No search_tools, return as-is
 
     active_provider = provider or app.ai_api
     if active_provider.get_tool_mode() == "full":
         return tool_calls  # Every tool is already loaded; nothing to inject or filter
 
-    query, max_results = _extract_search_query_and_limit(search_tools_call)
+    searches = [_extract_search_query_and_limit(call) for call in search_calls]
+    searches = [(query, max_results) for query, max_results in searches if query]
 
-    if not query:
+    if not searches:
         return tool_calls  # No query, return as-is
 
     # Execute search_tools server-side using the current provider's client/model
@@ -247,9 +249,14 @@ def _intercept_search_tools(
             client=active_provider.client,
             default_model=active_provider.get_model(),
         )
-        result = service.search_tools(query=query, max_results=max_results or 10)
+        result = _merge_tool_lists(
+            service.search_tools(query=query, max_results=max_results) for query, max_results in searches
+        )
 
-        allowed_names = _collect_allowed_tool_names(result, ESSENTIAL_TOOLS)
+        # Tools loaded before this reply stay callable in it, even when this search
+        # replaces them (see OpenAIAPIBase.inject_tools); this search's tools count once loaded.
+        allowed_names = set(ESSENTIAL_TOOLS)
+        allowed_names.update(active_provider.loaded_tool_names())
 
         # Inject tools into shared APIs and the active provider (if distinct).
         if result:
@@ -257,6 +264,7 @@ def _intercept_search_tools(
             app.responses_api.inject_tools(result, include_essentials=True)
             if provider is not None and provider not in (app.ai_api, app.responses_api):
                 provider.inject_tools(result, include_essentials=True)
+        allowed_names.update(active_provider.loaded_tool_names())
 
         filtered_calls = _filter_tool_calls_by_allowed_names(tool_calls, allowed_names)
         _report_dropped_tool_calls(app, provider, tool_calls, filtered_calls)
@@ -280,12 +288,22 @@ def _tool_call_name(call: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-def _find_search_tools_call(tool_calls: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Return the first search_tools call, if any."""
-    for call in tool_calls:
-        if _tool_call_name(call) == "search_tools":
-            return call
-    return None
+def _find_search_tools_calls(tool_calls: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Return every search_tools call, in order."""
+    return [call for call in tool_calls if _tool_call_name(call) == "search_tools"]
+
+
+def _merge_tool_lists(tool_lists: Iterable[Sequence[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+    """Concatenate tool definitions, keeping the first occurrence of each tool name."""
+    merged: List[Dict[str, Any]] = []
+    seen: set[str] = set()
+    for tools in tool_lists:
+        for tool in tools:
+            name = tool.get("function", {}).get("name")
+            if isinstance(name, str) and name not in seen:
+                seen.add(name)
+                merged.append(tool)
+    return merged
 
 
 def _normalize_search_tools_args(call: Dict[str, Any]) -> Dict[str, Any]:
@@ -309,22 +327,12 @@ def _extract_search_query_and_limit(call: Dict[str, Any]) -> tuple[str, int]:
     query = args.get("query", "")
     if not isinstance(query, str):
         query = ""
-    raw_max_results = args.get("max_results", 10)
-    if isinstance(raw_max_results, int):
+    raw_max_results = args.get("max_results")
+    if isinstance(raw_max_results, int) and not isinstance(raw_max_results, bool):
         max_results = raw_max_results
     else:
-        max_results = 10
+        max_results = DEFAULT_SEARCH_RESULTS
     return query, max_results
-
-
-def _collect_allowed_tool_names(
-    search_result: List[Dict[str, Any]],
-    essential_tools: AbstractSet[str],
-) -> set[str]:
-    """Collect allowed tool names from search result plus essentials."""
-    allowed_names = {t.get("function", {}).get("name") for t in search_result if isinstance(t, dict)}
-    allowed_names.update(essential_tools)
-    return allowed_names
 
 
 def _filter_tool_calls_by_allowed_names(
@@ -387,7 +395,12 @@ def _maybe_inject_search_tools(api: OpenAIAPIBase, tool_call_results: str) -> No
 
 
 def _extract_injectable_tools(tool_call_results: str) -> Optional[List[Dict[str, Any]]]:
-    """Extract tools payload from a search_tools tool_call_results JSON string."""
+    """The tools every search_tools result in a tool_call_results JSON string found.
+
+    A result lists tool names (see ``ToolSearchService.search_tools_formatted``);
+    names of unknown tools and any other entries are ignored, so only the app's own
+    tool definitions are loaded.
+    """
     try:
         results = json.loads(tool_call_results)
     except (json.JSONDecodeError, TypeError):
@@ -402,13 +415,42 @@ def _extract_injectable_tools(tool_call_results: str) -> Optional[List[Dict[str,
     if not isinstance(results, dict):
         return None
 
+    found: List[List[Dict[str, Any]]] = []
     for result in results.values():
         if not (isinstance(result, dict) and "tools" in result and "query" in result):
             continue
         tools = result.get("tools")
-        if isinstance(tools, list) and tools:
-            return [cast(Dict[str, Any], tool) for tool in tools if isinstance(tool, dict)]
-    return None
+        if isinstance(tools, list):
+            found.append(_resolve_tool_names(tools))
+    found_tools = _merge_tool_lists(found)
+    return found_tools or None
+
+
+def _resolve_tool_names(entries: List[Any]) -> List[Dict[str, Any]]:
+    """The app's tool definitions for the tool names among a search result's entries."""
+    from static.tool_search_service import ToolSearchService
+
+    tools: List[Dict[str, Any]] = []
+    for entry in entries:
+        tool = ToolSearchService.get_tool_by_name(entry) if isinstance(entry, str) else None
+        if tool is not None:
+            tools.append(cast(Dict[str, Any], tool))
+    return tools
+
+
+def _unload_tools_after_error(app: MatHudFlask, provider: Optional[OpenAIAPIBase]) -> None:
+    """Unload the tools ``search_tools`` loaded once a request failed.
+
+    Loaded tools otherwise stay for the whole conversation, so a tool the provider
+    rejects (a schema it does not accept, for instance) would fail every later
+    request; the next request starts from the default tools instead.
+    """
+    apis = [app.ai_api, app.responses_api]
+    if provider is not None and provider not in apis:
+        apis.append(provider)
+    for api in apis:
+        if api.has_injected_tools():
+            api.reset_tools()
 
 
 def _record_response_metrics(app: MatHudFlask, metrics: Any, tool_call_results: Any) -> Optional[Dict[str, Any]]:
@@ -505,17 +547,15 @@ def _abandoned_stream_response() -> Response:
 
 
 def _claim_generation(
-    app: MatHudFlask,
     request_api: OpenAIAPIBase,
-    provider: OpenAIAPIBase,
     tool_call_results: Any,
     request_turn: Any,
 ) -> Optional[int]:
     """The conversation generation a request runs under, or None when its turn already ended.
 
     A request with a new user message starts a new turn: whatever an earlier turn
-    still runs is abandoned, and tools its ``search_tools`` calls loaded are unloaded
-    everywhere, so the turn starts from the default tools. A request with tool
+    still runs is abandoned (tools its ``search_tools`` calls loaded stay loaded for
+    the rest of the conversation). A request with tool
     results continues the turn ``request_turn`` (the client sends the turn it got
     from the server); once a stop, a timeout or a new conversation has ended that
     turn, the request is dropped. The provider is handed the generation claimed
@@ -524,9 +564,7 @@ def _claim_generation(
     if isinstance(tool_call_results, str) and tool_call_results:
         turn = request_turn if isinstance(request_turn, str) and request_turn else None
         return request_api.continue_turn(turn)
-    generation = request_api.begin_turn()
-    reset_tools_for_all_providers(app, "new_turn", active_provider=provider)
-    return generation
+    return request_api.begin_turn()
 
 
 def _inject_searched_tools(app: MatHudFlask, provider: OpenAIAPIBase, tool_call_results: Any) -> None:
@@ -878,7 +916,7 @@ def register_routes(app: MatHudFlask) -> None:
         # or acted on, and the stream ends with an "abandoned" final event. Tool results of
         # a turn that already ended get only that event.
         tool_call_results_raw = message_json.get("tool_call_results")
-        claimed = _claim_generation(app, stream_api, provider, tool_call_results_raw, request_payload.get("turn"))
+        claimed = _claim_generation(stream_api, tool_call_results_raw, request_payload.get("turn"))
         if claimed is None:
             _logger.info("Dropped the tool results of a turn that was stopped or whose conversation was reset")
             return _abandoned_stream_response()
@@ -936,6 +974,7 @@ def register_routes(app: MatHudFlask) -> None:
                             if event_dict.get("finish_reason") == "error":
                                 # The provider reported it (a provider or network failure).
                                 event_dict.setdefault("error_source", "provider")
+                                _unload_tools_after_error(app, provider)
                             _record_response_metrics(app, event_dict.get("metrics"), tool_call_results_raw)
                             try:
                                 app.log_manager.log_ai_response(str(event_dict.get("ai_message", "")))
@@ -951,9 +990,6 @@ def register_routes(app: MatHudFlask) -> None:
                                         app.log_manager.log_ai_tool_calls(filtered_calls)
                             except Exception:
                                 _logger.exception("Failed to log/filter final stream event")
-                            # Reset tools if AI finished (not requesting more tool calls)
-                            finish_reason = event_dict.get("finish_reason")
-                            reset_tools_for_all_providers(app, finish_reason, active_provider=provider)
                         yield json.dumps(event_dict) + "\n"
                     else:
                         yield json.dumps(event) + "\n"
@@ -967,8 +1003,7 @@ def register_routes(app: MatHudFlask) -> None:
                 error_msg = f"Streaming exception: {exc}"
                 _logger.error("%s", error_msg)
                 app.log_manager.log_error(error_msg, source="routes")
-                # Reset tools on error
-                reset_tools_for_all_providers(app, "error", active_provider=provider)
+                _unload_tools_after_error(app, provider)
                 # Yield pending logs so client sees them before error
                 yield from _yield_pending_logs()
                 # Include error details in the payload for transparency
@@ -1130,7 +1165,6 @@ def register_routes(app: MatHudFlask) -> None:
             if isinstance(turn, str) and turn:
                 abandoned = [api for api in _api_instances(app) if api.abandon_turn(turn, partial_message)]
                 if abandoned:
-                    reset_tools_for_all_providers(app, "abandoned", active_provider=abandoned[0])
                     return AppManager.make_response(message="Partial response saved.")
                 return AppManager.make_response(message="The turn already ended; nothing to stop.")
 
@@ -1228,7 +1262,7 @@ def register_routes(app: MatHudFlask) -> None:
         model = provider.get_model()
         request_api = app.responses_api if model.provider == PROVIDER_OPENAI and model.is_reasoning_model else provider
         tool_call_results_raw = message_json_raw.get("tool_call_results")
-        claimed = _claim_generation(app, request_api, provider, tool_call_results_raw, request_payload.get("turn"))
+        claimed = _claim_generation(request_api, tool_call_results_raw, request_payload.get("turn"))
         if claimed is None:
             _logger.info("Dropped the tool results of a turn that was stopped or whose conversation was reset")
             return _abandoned_reply_response()
@@ -1261,7 +1295,7 @@ def register_routes(app: MatHudFlask) -> None:
                 if request_api.is_abandoned(generation):
                     return _abandoned_reply_response()
                 if final_event is None:
-                    reset_tools_for_all_providers(app, "error", active_provider=provider)
+                    _unload_tools_after_error(app, provider)
                     return AppManager.make_response(
                         message="No final response event produced",
                         status="error",
@@ -1279,12 +1313,13 @@ def register_routes(app: MatHudFlask) -> None:
                 if ai_tool_calls:
                     ai_tool_calls = _prepare_tool_calls(app, ai_tool_calls, provider)
                 finish_reason = final_event.get("finish_reason")
+                if finish_reason == "error":
+                    _unload_tools_after_error(app, provider)
 
                 app.log_manager.log_ai_response(ai_message)
                 app.log_manager.log_ai_tool_calls(ai_tool_calls)
                 reasoning_metrics = _record_response_metrics(app, final_event.get("metrics"), tool_call_results_raw)
 
-                reset_tools_for_all_providers(app, finish_reason, active_provider=provider)
                 return AppManager.make_response(
                     data=cast(
                         JsonObject,
@@ -1311,11 +1346,12 @@ def register_routes(app: MatHudFlask) -> None:
             if ai_tool_calls:
                 ai_tool_calls = _prepare_tool_calls(app, ai_tool_calls, provider)
             finish_reason = getattr(choice, "finish_reason", None)
+            if finish_reason == "error":
+                _unload_tools_after_error(app, provider)
             completion_metrics = _record_response_metrics(
                 app, getattr(provider, "last_response_metrics", None), tool_call_results_raw
             )
 
-            reset_tools_for_all_providers(app, finish_reason, active_provider=provider)
             return AppManager.make_response(
                 data=cast(
                     JsonObject,
@@ -1329,7 +1365,7 @@ def register_routes(app: MatHudFlask) -> None:
                 )
             )
         except Exception as exc:
-            reset_tools_for_all_providers(app, "error", active_provider=provider)
+            _unload_tools_after_error(app, provider)
             return AppManager.make_response(
                 message=str(exc),
                 status="error",
@@ -1383,10 +1419,10 @@ def register_routes(app: MatHudFlask) -> None:
 
         Request body:
             query (str): Description of what the user wants to accomplish
-            max_results (int, optional): Maximum number of tools to return (default: 10)
+            max_results (int, optional): Maximum number of tools to return (default: 5, max: 6)
 
         Returns:
-            JSON response with matching tool definitions
+            JSON response with the names of the matching tools
         """
         from static.tool_search_service import ToolSearchService
 
@@ -1407,7 +1443,7 @@ def register_routes(app: MatHudFlask) -> None:
             )
 
         max_results_raw = request_payload.get("max_results")
-        max_results = 10  # default
+        max_results = DEFAULT_SEARCH_RESULTS
         if isinstance(max_results_raw, int):
             max_results = max_results_raw
         elif isinstance(max_results_raw, float):
