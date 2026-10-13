@@ -11,6 +11,7 @@ from static.app_manager import AppManager, MatHudFlask
 from static.workspace_manager import WorkspaceManager
 from static.openai_completions_api import OpenAIChatCompletionsAPI
 from static.openai_responses_api import OpenAIResponsesAPI
+from static.tool_search_service import DEFAULT_SEARCH_RESULTS
 
 
 class TestRoutes(unittest.TestCase):
@@ -535,6 +536,72 @@ class TestInterceptSearchTools(unittest.TestCase):
         self.assertIn("undo", names)  # Essential should be allowed
         self.assertIn("create_circle", names)
 
+    @patch("static.tool_search_service.ToolSearchService")
+    def test_every_search_call_loads_its_tools(self, mock_service_class: Mock) -> None:
+        """Each search_tools call of a reply runs, and the tools of all of them are loaded."""
+        from static.routes import _intercept_search_tools
+
+        found = {
+            "draw a graph": [{"function": {"name": "generate_graph"}}],
+            "shortest path": [{"function": {"name": "analyze_graph"}}],
+        }
+        mock_service = Mock()
+        mock_service.search_tools.side_effect = lambda query, max_results: found[query]
+        mock_service_class.return_value = mock_service
+
+        tool_calls = [
+            {"function_name": "search_tools", "arguments": {"query": "draw a graph"}},
+            {"function_name": "search_tools", "arguments": {"query": "shortest path"}},
+            {"function_name": "analyze_graph", "arguments": {}},
+        ]
+
+        result = _intercept_search_tools(self.app, tool_calls)
+
+        self.assertEqual(mock_service.search_tools.call_count, 2)
+        self.assertEqual(self.app.ai_api.loaded_tool_names(), ["generate_graph", "analyze_graph"])
+        self.assertIn("analyze_graph", [c.get("function_name") for c in result])
+
+    @patch("static.tool_search_service.ToolSearchService")
+    def test_tools_loaded_by_an_earlier_search_stay_allowed(self, mock_service_class: Mock) -> None:
+        """A call to a tool an earlier search loaded is kept next to a new search."""
+        from static.routes import _intercept_search_tools
+
+        self.app.ai_api.inject_tools([{"function": {"name": "create_point"}}])
+        mock_service = Mock()
+        mock_service.search_tools.return_value = [{"function": {"name": "create_circle"}}]
+        mock_service_class.return_value = mock_service
+
+        tool_calls = [
+            {"function_name": "search_tools", "arguments": {"query": "draw circle"}},
+            {"function_name": "create_point", "arguments": {}},
+        ]
+
+        result = _intercept_search_tools(self.app, tool_calls)
+
+        self.assertIn("create_point", [c.get("function_name") for c in result])
+
+    @patch("static.tool_search_service.ToolSearchService")
+    def test_found_tools_that_do_not_fit_are_not_allowed(self, mock_service_class: Mock) -> None:
+        """A reply's searches finding more tools than can be loaded keep only the loaded ones callable."""
+        from static.openai_api_base import MAX_LOADED_TOOLS
+        from static.routes import _intercept_search_tools
+
+        found = [{"function": {"name": f"tool_{i}"}} for i in range(MAX_LOADED_TOOLS + 2)]
+        mock_service = Mock()
+        mock_service.search_tools.return_value = found
+        mock_service_class.return_value = mock_service
+
+        tool_calls = [
+            {"function_name": "search_tools", "arguments": {"query": "everything"}},
+            {"function_name": "tool_0", "arguments": {}},
+            {"function_name": f"tool_{MAX_LOADED_TOOLS + 1}", "arguments": {}},
+        ]
+
+        names = [c.get("function_name") for c in _intercept_search_tools(self.app, tool_calls)]
+
+        self.assertIn("tool_0", names)
+        self.assertNotIn(f"tool_{MAX_LOADED_TOOLS + 1}", names)
+
     def test_empty_query_returns_unchanged(self) -> None:
         """search_tools with empty query should return tool_calls unchanged."""
         from static.routes import _intercept_search_tools
@@ -657,6 +724,7 @@ class TestInterceptSearchTools(unittest.TestCase):
         provider = Mock()
         provider.client = Mock()
         provider.get_model.return_value = self.app.ai_api.get_model()
+        provider.loaded_tool_names.return_value = []
 
         with (
             patch.object(self.app.ai_api, "inject_tools") as mock_ai_inject,
@@ -690,9 +758,10 @@ class TestSearchToolHelpers(unittest.TestCase):
         call = {"function_name": "search_tools", "arguments": "not-json"}
         query, limit = _extract_search_query_and_limit(call)
         self.assertEqual(query, "")
-        self.assertEqual(limit, 10)
+        self.assertEqual(limit, DEFAULT_SEARCH_RESULTS)
 
-    def test_extract_injectable_tools_returns_tools_payload(self) -> None:
+    def test_extract_injectable_tools_ignores_tool_definitions(self) -> None:
+        """Only the app's own definitions load: a result carrying definitions loads nothing."""
         from static.routes import _extract_injectable_tools
 
         payload = json.dumps(
@@ -703,10 +772,31 @@ class TestSearchToolHelpers(unittest.TestCase):
                 }
             }
         )
+        self.assertIsNone(_extract_injectable_tools(payload))
+
+    def test_extract_injectable_tools_resolves_tool_names(self) -> None:
+        from static.functions_definitions import FUNCTIONS
+        from static.routes import _extract_injectable_tools
+
+        payload = json.dumps({"tool_call_1": {"query": "circle", "tools": ["create_circle", "no_such_tool"]}})
         tools = _extract_injectable_tools(payload)
-        self.assertIsNotNone(tools)
+        expected = next(tool for tool in FUNCTIONS if tool["function"]["name"] == "create_circle")
+        self.assertEqual(tools, [expected])
+
+    def test_extract_injectable_tools_merges_every_search_result(self) -> None:
+        from static.routes import _extract_injectable_tools
+
+        payload = json.dumps(
+            {
+                "tool_call_1": {"query": "graph", "tools": ["generate_graph", "create_point"]},
+                "tool_call_2": {"query": "path", "tools": ["analyze_graph", "create_point"]},
+            }
+        )
+        tools = _extract_injectable_tools(payload)
         assert tools is not None
-        self.assertEqual(tools[0]["function"]["name"], "create_circle")
+        self.assertEqual(
+            [tool["function"]["name"] for tool in tools], ["generate_graph", "create_point", "analyze_graph"]
+        )
 
     def test_extract_injectable_tools_ignores_non_search_payload(self) -> None:
         from static.routes import _extract_injectable_tools

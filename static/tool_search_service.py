@@ -420,6 +420,14 @@ _build_indices()
 # Confidence threshold for hybrid mode
 CONFIDENCE_THRESHOLD = 6.0
 
+# Every loaded tool's schema is sent with each later request, so a search returns at
+# most MAX_SEARCH_RESULTS tools, and local search leaves out matches scoring below
+# RELATIVE_SCORE_CUTOFF of the leading match (generic verbs like "create" or "draw" give
+# every create_*/draw_* tool a weak score that would otherwise fill the list).
+DEFAULT_SEARCH_RESULTS = 5
+MAX_SEARCH_RESULTS = 6
+RELATIVE_SCORE_CUTOFF = 0.3
+
 # Action-verb to tool-name prefix mapping
 _ACTION_VERB_MAP: Dict[str, str] = {
     "create": "create_",
@@ -568,7 +576,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         self,
         query: str,
         model: Optional[AIModel] = None,
-        max_results: int = 10,
+        max_results: int = DEFAULT_SEARCH_RESULTS,
     ) -> List[FunctionDefinition]:
         """Search for tools matching a query description.
 
@@ -577,7 +585,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         Args:
             query: Description of what the user wants to accomplish.
             model: AI model to use for matching (API mode only).
-            max_results: Maximum number of tools to return (1-20).
+            max_results: Maximum number of tools to return (1 to MAX_SEARCH_RESULTS).
 
         Returns:
             List of matching tool definitions, ordered by relevance.
@@ -588,7 +596,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         self.last_error = None
 
         # Clamp max_results to valid range
-        max_results = max(1, min(20, max_results))
+        max_results = max(1, min(MAX_SEARCH_RESULTS, max_results))
 
         mode = configured_search_mode()
 
@@ -701,10 +709,15 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         )
 
         # Return top results as full FunctionDefinition objects
+        # Relative to the leading match, so a demoted destructive tool's high score
+        # does not cut the matches ranked ahead of it
+        min_score = RELATIVE_SCORE_CUTOFF * ranked[0][1] if ranked else 0.0
         results: List[FunctionDefinition] = []
         for tool_name, score in ranked:
             if score <= 0:
                 break
+            if score < min_score:
+                continue  # Demoted destructive tools follow lower scores, so keep scanning
             tool = _TOOL_BY_NAME.get(tool_name)
             if tool is not None:
                 results.append(tool)
@@ -1284,9 +1297,13 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         self,
         query: str,
         model: Optional[AIModel] = None,
-        max_results: int = 10,
+        max_results: int = DEFAULT_SEARCH_RESULTS,
     ) -> Dict[str, Any]:
         """Search for tools and return formatted result for AI consumption.
+
+        The result names the tools rather than repeating their schemas: the server
+        loads the found tools into the request's tool list, which already carries
+        each schema, while this result stays in the conversation history.
 
         Args:
             query: Description of what the user wants to accomplish.
@@ -1294,11 +1311,11 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             max_results: Maximum number of tools to return.
 
         Returns:
-            Dict with 'tools' list and 'count' for the AI to use.
+            Dict with the found tool names under 'tools', plus 'count' and 'query'.
         """
         tools = self.search_tools(query, model, max_results)
         return {
-            "tools": tools,
+            "tools": [tool["function"]["name"] for tool in tools],
             "count": len(tools),
             "query": query,
         }

@@ -207,12 +207,14 @@ class TestGenerationScoping(unittest.TestCase):
     def test_turn_tokens_differ_between_providers(self) -> None:
         self.assertNotEqual(self.make().turn_token.split(":")[0], self.make().turn_token.split(":")[0])
 
-    def test_abandoning_unloads_searched_tools(self) -> None:
+    def test_abandoning_keeps_searched_tools_until_the_conversation_resets(self) -> None:
         api = self.make()
         api.set_tool_mode("search")
         api.inject_tools([FUNCTIONS[0]])
         self.assertTrue(api.has_injected_tools())
         api.abandon_requests_in_flight()
+        self.assertTrue(api.has_injected_tools())
+        api.reset_conversation()
         self.assertFalse(api.has_injected_tools())
 
     def test_a_stop_waits_for_a_reply_being_stored(self) -> None:
@@ -348,18 +350,30 @@ class TestRoutes(unittest.TestCase):
         self.assertTrue(api.is_abandoned(generation))
         self.assertEqual(api.messages[-1]["content"], "part")
 
-    def test_stop_and_new_turn_unload_searched_tools(self) -> None:
+    def test_searched_tools_stay_loaded_until_a_new_conversation(self) -> None:
         api = self.app.ai_api
         api.set_tool_mode("search")
         api.inject_tools([FUNCTIONS[0]])
         self.client.post("/save_partial_response", json={"partial_message": "", "turn": api.turn_token})
+        self.assertTrue(api.has_injected_tools())
+
+        def events() -> Iterator[Dict[str, Any]]:
+            yield {"type": "final", "ai_message": "", "ai_tool_calls": [], "finish_reason": "stop"}
+
+        self.stream(events())  # a new user message, ending with a final answer
+        self.assertEqual(api.loaded_tool_names(), [FUNCTIONS[0]["function"]["name"]])
+        self.client.post("/new_conversation")
         self.assertFalse(api.has_injected_tools())
+
+    def test_a_failed_request_unloads_searched_tools(self) -> None:
+        api = self.app.ai_api
+        api.set_tool_mode("search")
         api.inject_tools([FUNCTIONS[0]])
 
         def events() -> Iterator[Dict[str, Any]]:
-            yield {"type": "final", "ai_message": "", "ai_tool_calls": [], "finish_reason": "tool_calls"}
+            yield {"type": "final", "ai_message": "", "ai_tool_calls": [], "finish_reason": "error"}
 
-        self.stream(events())  # a new user message
+        self.stream(events())
         self.assertFalse(api.has_injected_tools())
 
     def test_tool_results_continue_the_same_turn(self) -> None:
