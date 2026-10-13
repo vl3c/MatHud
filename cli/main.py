@@ -9,6 +9,7 @@ from typing import Any
 
 import click
 
+from cli import __version__
 from cli.console import make_stdio_safe
 from cli.server import server
 from cli.tests import test
@@ -28,7 +29,7 @@ class _SafeOutputGroup(click.Group):
 
 
 @click.group(cls=_SafeOutputGroup)
-@click.version_option(package_name="mathud-cli")
+@click.version_option(version=__version__, prog_name="mathud")
 def cli() -> None:
     """MatHud - Command-line interface for canvas automation.
 

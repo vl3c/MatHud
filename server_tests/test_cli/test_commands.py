@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
 
+from cli import __version__
 from cli.main import cli
 
 
@@ -25,6 +26,13 @@ class TestMainCli:
         assert "workspace" in result.output
         assert "chat" in result.output
         assert "screenshot" in result.output
+
+    def test_cli_version(self) -> None:
+        """--version should print the CLI version without needing an installed package."""
+        result = CliRunner().invoke(cli, ["--version"])
+
+        assert result.exit_code == 0, result.output
+        assert result.output == f"mathud, version {__version__}\n"
 
 
 class TestServerCommands:
