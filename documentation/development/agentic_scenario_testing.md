@@ -249,8 +249,8 @@ Checks are pure functions of stored data: the state and inspection view after ea
 | `unchanged_except` | Nothing but the listed selectors changed since a snapshot. Catches side effects such as K9 and K15. |
 | `tool_called` / `tool_not_called` / `max_tool_calls` | Over the turn's executed calls, not counting `search_tools` |
 | `no_tool_errors` / `tool_error` | No call failed / a given call failed (an `Error...` string, a flagged call or an `{"error": ...}` dict) |
-| `tool_result` | A result matches a number (with tolerance), a set of names, or a JSON path, e.g. `analyze_graph` `path == [A,B,C,D]` or `cost == 4`. It checks the tool's last call, or call `index`; with `any: true`, any one of its calls may match. |
-| `answer_mentions` | Numbers or names in the final assistant text. Model quality only. |
+| `tool_result` | A result matches a number (with tolerance), a set of names, or a JSON path, e.g. `analyze_graph` `path == [A,B,C,D]` or `cost == 4`. It checks the tool's last call, or call `index`; with `any: true`, any one of its calls may match. With `live_optional: true`, a live turn that answered in text without calling the tool skips the check, for questions a model may answer from the canvas text; the loader requires an `answer_mentions` check with `matches` in the same user turn, which then judges the answer. A call that was made must still match, a turn with no answer text (stopped at `max_requests`, cut short) fails as before, and replay always checks. A retrace of a turn that answered without the tool skips the check too: it re-runs the live calls, and the answer was judged live (answer checks do not run in a retrace). |
+| `answer_mentions` | Numbers (`numbers`, tolerance 1e-2) or words (`words`, `names`) in the final assistant text, and with `matches` a regular expression (case-insensitive) the text must contain, to pin a number to its context. MT-01 and AR-03 accept the value later in the sentence that says "area" (a sentence ends at a newline, `;`, `!`, `?` or a `.` not followed by a digit, so working such as "5/2 = 2.5" or "2 × 2 = 4" is allowed), or right before "area" ("2.5 sq units is the area"), and the value must stand alone (not 12.5, -2.5, 2.55 or 40). That accepts "The area changed from 6 to 2.5" and rejects "With A at (2.5, 1), the area is 6"; the known false positive is a wrong value followed by the right one in the same sentence ("The area is not 2.5; it is 6" passes, as does "Its area is 8, since it has 4 equal sides"). `test_scenario_checks.py` runs both scenarios' patterns over right and wrong answers. Model quality only; skipped outside live mode. |
 
 **Invariants.** They run after every step of every scenario. A failure is always an app bug, whoever made the calls:
 
@@ -844,7 +844,7 @@ Added after the first live run (phase 6, item 10).
 - Turn 2: "Move the square 5 units right."
   - Reference: `translate_object(name="ABCD", x_offset=5, y_offset=0)`
 - Checks:
-  - turn 1: a ClosedShapeColoredArea over ABCD; calculate_area result 4 (tol 1e-9); answer mentions 4
+  - turn 1: a ClosedShapeColoredArea over ABCD; calculate_area result 4 (tol 1e-9; `live_optional`: a live reply may give the area of the 2 by 2 square without the tool); answer gives 4 as the area (`matches`, see 4.5; "4 equal sides of length 2, so its area is 8" fails)
   - turn 2: the fill's geometry_snapshot moved by (5,0) (works today; pins it)
 - Targets: region areas bound to polygons.
 
@@ -1357,7 +1357,7 @@ Added after the first live run (phase 6, item 10).
   - Reference: `undo()`
 - Checks:
   - turn 2: A at (1,1), B and C unchanged
-  - turn 3: calculate_area result 2.5 (|3*2 - (-1)*(-1)|/2 with A at (1,1)); answer mentions 2.5
+  - turn 3: calculate_area result 2.5 (|3*2 - (-1)*(-1)|/2 with A at (1,1); `live_optional`: the canvas text gives the vertices, so a live reply may answer without the tool); answer gives 2.5 as the area (`matches`, see 4.5)
   - turn 4: A back at (0,0) (the calculate_area turn added no undo entry)
 - Targets: multi-turn reference resolution; undo accounting across read-only turns.
 

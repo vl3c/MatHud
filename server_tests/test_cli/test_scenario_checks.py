@@ -23,6 +23,7 @@ from cli.scenarios.checks import (
     validate_check,
 )
 from cli.scenarios.geometry import CanvasView, SampleRequests, Tolerance, triangle_flags
+from cli.scenarios.model import Catalogue, load_catalogue
 
 from server_tests.test_cli.scenario_states import (
     angle,
@@ -53,6 +54,18 @@ def call(tool: str, result: Any = "Call successful!", is_error: bool = False, **
 
 def by_id(results: list[CheckResult], invariant: str) -> CheckResult:
     return next(r for r in results if r.name == invariant)
+
+
+_CATALOGUE: list[Catalogue] = []
+
+
+def catalogue_answer_check(scenario_id: str) -> dict[str, Any]:
+    """The answer check of the scenario's turn with a live_optional tool_result."""
+    if not _CATALOGUE:
+        _CATALOGUE.append(load_catalogue())
+    scenario = next(s for s in _CATALOGUE[0].scenarios if s.id == scenario_id)
+    step = next(s for s in scenario.steps if any(c.get("live_optional") for c in s.checks))
+    return next(c for c in step.checks if c.get("check") == "answer_mentions")
 
 
 # ----------------------------------------------------------------------
@@ -399,6 +412,109 @@ class TestOutcomeChecks:
         live = StepData(final_text="The area is 2.50.", mode="live")
         assert run(check, view, step=live).status == "pass"
         assert run({**check, "numbers": [3]}, view, step=live).status == "fail"
+
+    def test_live_optional_tool_result_lets_a_live_answer_stand_in_for_the_tool(self) -> None:
+        view = CanvasView(state())
+        check = {"check": "tool_result", "tool": "calculate_area", "path": "value", "eq": 2.5, "live_optional": True}
+        answer = {"check": "answer_mentions", "numbers": [2.5]}
+        # Live, no call: the tool check is skipped and the answer decides.
+        right = StepData(final_text="The area of triangle ABC is now **2.5** square units.", mode="live")
+        skipped = run(check, view, step=right)
+        assert skipped.status == "skip" and "calculate_area was not called" in skipped.message
+        assert run(answer, view, step=right).status == "pass"
+        wrong = StepData(final_text="The area is 6 square units.", mode="live")
+        assert run(check, view, step=wrong).status == "skip"
+        assert run(answer, view, step=wrong).status == "fail"
+        # Live with a call: the result must still match.
+        called = StepData(calls=[call("calculate_area", {"value": 6})], final_text="2.5", mode="live")
+        assert run(check, view, step=called).status == "fail"
+        called_ok = StepData(calls=[call("calculate_area", {"value": 2.5})], final_text="2.5", mode="live")
+        assert run(check, view, step=called_ok).status == "pass"
+        # Replay never skips: the reference calls the tool.
+        replay = StepData(calls=[], final_text=None)
+        failed = run(check, view, step=replay)
+        assert failed.status == "fail" and "was not called" in failed.message
+        without_flag = {key: value for key, value in check.items() if key != "live_optional"}
+        assert run(without_flag, view, step=right).status == "fail"
+
+    @pytest.mark.parametrize("text", [None, "", "  \n"])
+    def test_live_optional_tool_result_fails_a_turn_without_answer_text(self, text: Optional[str]) -> None:
+        # A turn stopped at max_requests or cut short leaves no answer to judge instead.
+        view = CanvasView(state())
+        check = {"check": "tool_result", "tool": "calculate_area", "path": "value", "eq": 2.5, "live_optional": True}
+        result = run(check, view, step=StepData(calls=[], final_text=text, mode="live"))
+        assert result.status == "fail" and "calculate_area was not called" in result.message
+
+    def test_live_optional_tool_result_skips_in_the_retrace_of_a_turn_that_answered(self) -> None:
+        # A retrace re-runs the live calls and carries the live answer text.
+        view = CanvasView(state())
+        check = {"check": "tool_result", "tool": "calculate_area", "path": "value", "eq": 2.5, "live_optional": True}
+        answered = StepData(calls=[], final_text="The area is 2.5.", mode="retrace")
+        assert run(check, view, step=answered).status == "skip"
+        silent = StepData(calls=[], final_text=None, mode="retrace")
+        assert run(check, view, step=silent).status == "fail"
+        called = StepData(calls=[call("calculate_area", {"value": 6})], final_text="2.5", mode="retrace")
+        assert run(check, view, step=called).status == "fail"
+
+    @pytest.mark.parametrize(
+        "scenario_id, text, passed",
+        [
+            # MT-01 t3: the area of the moved triangle is 2.5.
+            ("MT-01", "The area of triangle ABC is now **2.5** square units.", True),
+            (
+                "MT-01",
+                "The triangle now has vertices A(1,1), B(4,0), and C(0,3), and its area is **2.5** square units.",
+                True,
+            ),
+            ("MT-01", "The area is 5/2 = 2.5 square units.", True),
+            ("MT-01", "The area of triangle ABC (with A at (1,1)) is 2.5 square units.", True),
+            ("MT-01", "Using the shoelace formula, the area is |1(0-3) + 4(3-1) + 0(1-0)|/2 = 5/2 = 2.5.", True),
+            ("MT-01", "Using the shoelace formula, the area is |1(0-3) + …|/2 = 5/2 = 2.5.", True),
+            ("MT-01", r"The area of the triangle is \(\frac{5}{2} = 2.5\).", True),
+            ("MT-01", "2.5 sq units is the area.", True),
+            ("MT-01", "The area changed from 6 to 2.5.", True),
+            ("MT-01", "With A at (2.5, 1), the area is 6.", False),
+            ("MT-01", "The area is 2.55.", False),
+            ("MT-01", "The area is 12.5.", False),
+            ("MT-01", "The area is -2.5.", False),
+            ("MT-01", "The triangle ABC has area 6; A moved by 2.5 units.", False),
+            # AR-03 t1: the area of the 2 by 2 square is 4.
+            ("AR-03", "The square is filled pink; its area is 4 square units.", True),
+            ("AR-03", "The square's area is 2 × 2 = 4 square units.", True),
+            ("AR-03", "The area of square ABCD (side 2) is 4.", True),
+            ("AR-03", "Its area is 2² = 4.", True),
+            ("AR-03", "Area = side² = 2² = 4", True),
+            ("AR-03", "Its area is 4.0.", True),
+            ("AR-03", "The square has 4 equal sides of length 2, so its area is 8.", False),
+            ("AR-03", "A square with 4 sides has area 16.", False),
+            ("AR-03", "The area is 4.5.", False),
+            ("AR-03", "The area is 40.", False),
+            ("AR-03", "The area is 14.", False),
+        ],
+    )
+    def test_catalogue_area_answers_pin_the_value_to_the_area(self, scenario_id: str, text: str, passed: bool) -> None:
+        result = run(
+            catalogue_answer_check(scenario_id), CanvasView(state()), step=StepData(final_text=text, mode="live")
+        )
+        assert result.status == ("pass" if passed else "fail"), result.message
+
+    @pytest.mark.parametrize(
+        "scenario_id, text",
+        [("MT-01", "The area is not 2.5; it is 6."), ("AR-03", "Its area is 8, since it has 4 equal sides.")],
+    )
+    def test_catalogue_area_answers_known_false_positives(self, scenario_id: str, text: str) -> None:
+        # Documented limit: a wrong value followed in the same sentence by the right one passes.
+        result = run(
+            catalogue_answer_check(scenario_id), CanvasView(state()), step=StepData(final_text=text, mode="live")
+        )
+        assert result.status == "pass"
+
+    def test_answer_matches_must_be_a_valid_pattern(self) -> None:
+        assert validate_check({"check": "answer_mentions", "matches": r"area\D+4"}) == []
+        assert "answer_mentions matches must be a regular expression" in validate_check(
+            {"check": "answer_mentions", "matches": 4}
+        )
+        assert "not a valid regular expression" in validate_check({"check": "answer_mentions", "matches": "area("})[0]
 
     def test_known_check_that_crashes_is_an_error_not_xfail(self) -> None:
         broken = {

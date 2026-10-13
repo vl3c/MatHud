@@ -182,6 +182,10 @@ class CheckFailure(Exception):
         self.actual = actual
 
 
+class CheckSkipped(Exception):
+    """A check does not apply to this run (e.g. a ``live_optional`` tool_result whose tool a live turn skipped)."""
+
+
 # ----------------------------------------------------------------------
 # Results
 # ----------------------------------------------------------------------
@@ -371,8 +375,8 @@ _CHECK_KEYS: dict[str, frozenset[str]] = {
     "max_tool_calls": frozenset({"max"}),
     "no_tool_errors": frozenset(),
     "tool_error": frozenset({"tool", "index"}),
-    "tool_result": frozenset({"tool", "path", "index", "any", "mod"}) | COMPARISON_OPS,
-    "answer_mentions": frozenset({"numbers", "words", "names"}),
+    "tool_result": frozenset({"tool", "path", "index", "any", "mod", "live_optional"}) | COMPARISON_OPS,
+    "answer_mentions": frozenset({"numbers", "words", "names", "matches"}),
 }
 _BIND_KEYS = frozenset({"bind", "select", "known", "tol", "id", "note"})
 # Keys each check type must carry.
@@ -500,9 +504,23 @@ def validate_check(check: Any) -> list[str]:
         problems.append(f"{kind} needs a comparison ({', '.join(sorted(COMPARISON_OPS))})")
     if kind == "tool_result" and "any" in check and ("index" in check or not isinstance(check["any"], bool)):
         problems.append("tool_result takes either index or any (true or false), not both")
+    if kind == "tool_result" and "live_optional" in check and not isinstance(check["live_optional"], bool):
+        problems.append("tool_result live_optional must be true or false")
+    if kind == "answer_mentions" and "matches" in check:
+        problems.extend(_pattern_problems(check["matches"], "answer_mentions matches"))
     if kind == "attribute" and "select" not in check and check.get("target") not in ("view", "state", "inspection"):
         problems.append("attribute needs a select or target (view, state or inspection)")
     return problems
+
+
+def _pattern_problems(pattern: Any, label: str) -> list[str]:
+    if not isinstance(pattern, str) or not pattern:
+        return [f"{label} must be a regular expression"]
+    try:
+        re.compile(pattern)
+    except re.error as exc:
+        return [f"{label} is not a valid regular expression: {exc}"]
+    return []
 
 
 def _validate_selector(selector: Any) -> list[str]:
@@ -888,6 +906,9 @@ def evaluate_check(check: dict[str, Any], ctx: CheckContext, check_id: str) -> C
         result.passed = None
         result.unrecorded = True
         result.message = f"needs a function sample that was not recorded: {exc}"
+    except CheckSkipped as exc:
+        result.passed = None
+        result.message = str(exc)
     except CheckFailure as exc:
         result.passed = False
         result.message = str(exc)
@@ -1080,8 +1101,14 @@ def _check_tool_result(check: dict[str, Any], ctx: CheckContext) -> Any:
     """The result of the tool's last call (or call ``index``) satisfies the comparison.
 
     With ``any: true`` it is enough that one call's result does, whatever the order of the
-    calls (a live model may make them in any order).
+    calls (a live model may make them in any order). With ``live_optional: true`` a live
+    turn that answered in text without calling the tool skips the check: the model may
+    answer from the canvas, and the step's ``answer_mentions`` check judges that answer.
+    A retrace of such a turn re-runs the live calls, so it skips the check too (its answer
+    was judged live). A turn with no answer text fails as usual, and replay always checks.
     """
+    if check.get("live_optional") and _answered_without_tool(check["tool"], ctx):
+        raise CheckSkipped(f"{check['tool']} was not called; the answer checks judge the reply")
     if not check.get("any"):
         return _tool_result_value(check, ctx, _tool_call(check, ctx))
     calls = _executed(ctx, check["tool"])
@@ -1097,6 +1124,12 @@ def _check_tool_result(check: dict[str, Any], ctx: CheckContext) -> Any:
         f"no {check['tool']} result of {len(calls)} satisfies the check: " + "; ".join(str(f) for f in failures),
         actual=[call.get("result") for call in calls],
     )
+
+
+def _answered_without_tool(tool: str, ctx: CheckContext) -> bool:
+    """A live turn (or its retrace) that replied in text and never called ``tool``."""
+    answered = bool((ctx.step.final_text or "").strip())
+    return ctx.step.mode in ("live", "retrace") and answered and not _executed(ctx, tool)
 
 
 def _tool_result_value(check: dict[str, Any], ctx: CheckContext, call: dict[str, Any]) -> Any:
@@ -1129,6 +1162,9 @@ def _check_answer(check: dict[str, Any], ctx: CheckContext, result: CheckResult)
     for word in check.get("names", []) + check.get("words", []):
         if str(word).lower() not in text.lower():
             missing.append(repr(word))
+    pattern = check.get("matches")
+    if pattern is not None and re.search(str(pattern), text, re.IGNORECASE) is None:
+        missing.append(f"a match for {pattern!r}")
     if missing:
         result.passed = False
         result.message = "answer does not mention " + ", ".join(missing)

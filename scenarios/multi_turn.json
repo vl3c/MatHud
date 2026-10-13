@@ -36,8 +36,8 @@
           "user": "What is the area of the triangle now?",
           "reference": [{"tool": "calculate_area", "args": {"expression": "ABC"}}],
           "checks": [
-            {"check": "tool_result", "tool": "calculate_area", "path": "value", "eq": 2.5},
-            {"check": "answer_mentions", "numbers": [2.5]}
+            {"check": "tool_result", "tool": "calculate_area", "path": "value", "eq": 2.5, "live_optional": true},
+            {"check": "answer_mentions", "numbers": [2.5], "matches": "\\barea\\b(?:[^\\n.;!?]|\\.\\d){0,80}?(?<![\\d.\\-])2\\.50*(?!\\d)|(?<![\\d.\\-])2\\.50*(?!\\d)\\s*(?:sq(?:uare)?\\.?\\s*units?)?\\s+(?:is\\s+)?(?:the\\s+|its\\s+)?area\\b"}
           ]
         },
         {

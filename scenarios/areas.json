@@ -109,8 +109,8 @@
           ],
           "checks": [
             {"check": "count", "select": {"type": "ClosedShapeColoredArea"}, "eq": 1},
-            {"check": "tool_result", "tool": "calculate_area", "path": "value", "eq": 4},
-            {"check": "answer_mentions", "numbers": [4]}
+            {"check": "tool_result", "tool": "calculate_area", "path": "value", "eq": 4, "live_optional": true},
+            {"check": "answer_mentions", "numbers": [4], "matches": "\\barea\\b(?:[^\\n.;!?]|\\.\\d){0,80}?(?<![\\d.\\-])4(?:\\.0+)?(?!\\d|\\.\\d)|(?<![\\d.\\-])4(?:\\.0+)?(?!\\d|\\.\\d)\\s*(?:sq(?:uare)?\\.?\\s*units?)?\\s+(?:is\\s+)?(?:the\\s+|its\\s+)?area\\b"}
           ]
         },
         {

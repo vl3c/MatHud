@@ -275,7 +275,24 @@ def _parse_step(raw: Any, index: int, counters: dict[str, int], where: str, prob
     for number, check in enumerate(checks, start=1):
         problems.extend(f"{where} check {number}: {problem}" for problem in validate_check(check))
     step.checks = [check for check in checks if isinstance(check, dict)]
+    problems.extend(_live_optional_problems(step, where))
     return step
+
+
+def _live_optional_problems(step: Step, where: str) -> list[str]:
+    """A ``live_optional`` tool_result belongs to a user turn whose answer is checked instead.
+
+    That answer check is then the only judge of a reply that skipped the tool, so it
+    must pin the value in context with ``matches`` (a bare number can appear in a wrong
+    answer, as in "sides of length 4, so the area is 16").
+    """
+    if not any(check.get("check") == "tool_result" and check.get("live_optional") for check in step.checks):
+        return []
+    if step.kind != "user":
+        return [f"{where}: live_optional tool_result checks belong to user turns"]
+    if not any(check.get("check") == "answer_mentions" and check.get("matches") for check in step.checks):
+        return [f"{where}: a live_optional tool_result needs an answer_mentions check with matches in the same step"]
+    return []
 
 
 def _reference_batches(raw: Any, where: str, problems: list[str]) -> list[list[ToolCall]]:
