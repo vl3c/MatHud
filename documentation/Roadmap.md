@@ -112,7 +112,7 @@ Ordered by value for exploring math; cheap, independent items first.
 
 ## A3. UI and workflow
 
-1. **Math symbol input for the chat box** — a symbol button next to the input opening a grouped palette (Greek letters, operators `± × ÷ · ≤ ≥ ≠ ≈`, calculus `∫ ∑ ∏ ∂ ∞ √`, superscripts `² ³ ⁿ`, sets/logic `∈ ∪ ∩ ⊂ ∀ ∃ ¬ ∧ ∨`, arrows), inserting at the cursor; plus `\alpha`-style completion reusing `CommandAutocomplete`. Extend the expression normalizer (which already maps `π`, `√`, `°`) with `² ³ × ÷ · − ≤ ≥ ≠` so the same text works when passed into tools.
+1. ~~**Math symbol input for the chat box**~~ Done (vl3c/MatHud#70): the Σ button (or `Ctrl+↑`) next to the chat input opens a grouped palette (Operators, Calculus, Sets & logic, Geometry, Greek, plus a Recent row) that inserts at the caret; `\alpha`-style completion and Alt shortcuts (`Alt+P` → π); and Unicode-aware parsing, so the same text works when passed into tools (`static/client/math_symbols.py`, `math_symbol_palette.py`, `math_symbol_input.py`).
 2. **Tabs for parallel problems** — each tab holds its own canvas state, chat history, and selected model. Implement by swapping state through the workspace serializer (depends on the A0 round-trip fixes) rather than running multiple `Canvas` instances; AI tools `create_tab`, `switch_tab`, `list_tabs`. Enables side-by-side model comparison (A1).
 3. **Export** — canvas to PNG/SVG; session (chat + results) to Markdown/LaTeX.
 4. **One `highlight`/`annotate` tool** — lets the AI point at objects and label them temporarily (replaces the earlier list of 11 temporary-drawable types).
@@ -148,7 +148,7 @@ Not scheduled. Worth revisiting once Part A is solid, or better built as a separ
 ### Canvas and workflow
 - Construction history timeline, reusable macros and analysis templates.
 - Session snapshots with diff/restore, "what changed" summaries, command palette.
-- CLI replay of action traces.
+- ~~CLI replay of action traces.~~ Done: `python -m cli.main test scenarios --mode retrace` replays a live run's executed tool calls on a fresh canvas.
 - Tabular data workflow and CSV import/export; plotting from table columns; box plots; residual diagnostics.
 - Numerical-methods visualizations (Newton iterations, bisection steps).
 - Graph workflows: random/complete generators, edit tools, algorithm playback.
@@ -190,7 +190,7 @@ Not scheduled. Worth revisiting once Part A is solid, or better built as a separ
 | **2 — Unified app** ✓ | Desktop shell ✓, vendored libs ✓, client-side snapshots ✓, per-response metrics ✓, chat persistence ✓ |
 | **3 — Workbench** | Benchmark suite, CAS audit, side-by-side comparison, local-model tuning |
 | **4 — Explore I** | Sliders, roots/extrema/intersections, adaptive plotting, polar, calculus visuals, adaptive quadrature |
-| **5 — UI** | Symbol palette, tabs, export, highlight tool |
+| **5 — UI** | Symbol palette ✓, tabs, export, highlight tool |
 | **6 — Explore II** | Implicit curves and inequalities, conics, inversion/tangents, ODEs, distributions, sequences |
 | **7 — Dynamic geometry** | Dependent constructions, loci, relations "in general" |
 | **8 — Photo to math** | Image underlay, calibration, AI-assisted extraction |
