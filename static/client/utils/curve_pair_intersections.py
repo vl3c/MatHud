@@ -5,12 +5,12 @@ server-side pytest suites as well as the Brython test runner. ``utils.object_int
 turns its result into intersection points and overlaps.
 
 Method:
-    1. Each curve is sampled (its own sample count, then intervals whose midpoint strays
-       from the chord are halved, within a budget of one extra sample per sample) into a
-       polyline, and each polyline gets a tree of bounding boxes.
+    1. Each curve is sampled by its complexity (a first grid, then intervals whose midpoint
+       strays from the chord halved, up to 256 times finer) into a polyline, and each
+       polyline gets a tree of bounding boxes.
     2. Walking both trees together finds the pairs of polyline segments that cross, and the
-       pairs that come within a quarter of a segment length of each other without crossing.
-    3. Overlaps: the samples of the first curve that lie near the second are projected onto
+       pairs that come within 0.12 of a segment length of each other without crossing.
+    3. Overlaps: the samples of the first curve that lie along the second are projected onto
        it (Gauss-Newton on the distance); runs of samples on it are shared stretches, their
        ends bisected. The second curve is walked the same way for stretches the first walk
        cannot see (a short piece of a long curve). A short stretch where the curves stay
@@ -29,8 +29,10 @@ Method:
        the foot of the perpendicular) and flagged as a tangency. At a cusp (a curve that all
        but stops) the tangency is whether the curves stay on one side of each other there.
     Pairs near a point already found on another pass of either curve (a parameter range that
-    retraces it) are not searched again, and the whole search after sampling has a work
-    budget (about two seconds in the browser); a search stopped there is marked incomplete.
+    retraces it) are not searched again, and the whole search, sampling first, has a work
+    budget (about 2.5 seconds in the browser); a search stopped there is marked incomplete.
+    ``repeat_period`` finds the period of a curve that retraces itself, so the caller can
+    search one period of it.
 
 A point counts when the curves are within 1e-10 of the pair's size there, plus the rounding
 of the coordinates and of the parameters.
@@ -51,9 +53,14 @@ _ROUNDING_UNITS = 16.0
 # An interval is halved while its midpoint is farther than this fraction of the chord from
 # the chord's midpoint (about 0.4 radians of turning)
 _DEVIATION_RATIO = 0.05
-_REFINE_PASSES = 6
+_REFINE_PASSES = 8
 # Segments this many of their lengths apart are near (the polylines' error is far smaller)
-_NEAR_FACTOR = 0.25
+_NEAR_FACTOR = 0.12
+# A segment with both ends this many of the other segment's lengths from it lies along it (the
+# polylines stray from their curves by about 0.05 of a chord)
+_ALONG_FACTOR = 0.1
+# ...and runs within this sine of parallel to it (chords of a curve turn about 0.4 radians)
+_ALONG_SINE = 0.3
 # Slack of a segment parameter beyond [0, 1] when two polyline segments cross
 _SEGMENT_SLACK = 1e-9
 _LEAF_SIZE = 2
@@ -74,6 +81,14 @@ _TANGENT_ANGLE = 1e-7
 _BISECTION_STEPS = 120
 # Distinct foot guesses tried per sample when walking one curve along the other
 _WALK_GUESSES = 3
+# A projection for an on-curve test stops once its distance is this many tolerances away and
+# no longer halving each step
+_GIVE_UP_FACTOR = 100.0
+# Periods 2*pi*p/q tried for a curve that retraces itself (q up to this), checked at this many
+# points within this fraction of its extent (times 1 + |t| + period, for rounding)
+_PERIOD_DENOMINATOR = 12
+_PERIOD_CHECKS = 12
+_PERIOD_TOLERANCE = 1e-9
 # Hits found within this many sample steps (of both curves) of a candidate pair do not stop
 # it being searched: a second crossing close by is a near tangency, not a retrace
 _LOCAL_SPACINGS = 2.0
@@ -88,21 +103,26 @@ _GOLDEN_STEPS = 80
 # As in object_intersections: points this close (relative to the size, plus rounding) are one
 _MERGE_TOLERANCE = 1e-9
 _SAME_POINT_ULPS = 4.0
-# Most initial samples of a curve for the pair search
-_PAIR_SAMPLES = 3000
-# Work allowed after sampling (about 0.08 s in CPython, two seconds in the browser), in curve
-# evaluations: a derivative counts two, a pair of polyline segments compared one, a close pair
-# kept _PAIR_WORK and a crossing pair checked against the points found _CHECK_WORK. Curves
-# whose parameter ranges retrace them many times (pairs pile up at every crossing) or that
-# cross very many times stop there, the result marked incomplete; the first curve's segments
-# are visited in order.
-_WORK_BUDGET = 100000
-_PAIR_WORK = 5
+# First grid of a curve (its own sample count, at most this many) and most samples after
+# refinement by turning
+_PROBE_SAMPLES = 1500
+_MAX_SAMPLES = 32000
+# Work allowed for the whole search, sampling included (about 0.1 s in CPython, 2.5 s in the
+# browser), in curve evaluations: a derivative counts two, a pair of tree nodes or polyline
+# segments compared one, a crossing pair kept _CROSSING_PAIR_WORK (a near one
+# _NEAR_PAIR_WORK) and a crossing pair checked against the points found _CHECK_WORK. Long
+# ranges of curves that do not retrace themselves (incommensurate frequencies) stop there, the
+# result marked incomplete; the first curve's segments are visited in order.
+_WORK_BUDGET = 150000
+_CROSSING_PAIR_WORK = 5
+_NEAR_PAIR_WORK = 2
 _CHECK_WORK = 3
-# Shares of the budget by which the search for close segment pairs, and then the search for
-# shared stretches, must be done (the rest refines the crossings)
-_PAIR_SHARE = 0.6
-_WALK_SHARE = 0.75
+# Shares of the budget by which refining the samples, the search for close segment pairs,
+# and then the search for shared stretches must be done (the rest refines the crossings).
+# Sampling comes first: a well-sampled curve keeps the later stages cheap
+_SAMPLE_SHARE = 0.25
+_PAIR_SHARE = 0.8
+_WALK_SHARE = 0.9
 # Found points are filed in grid cells this many typical segment lengths wide; a lookup
 # spanning more cells than this scans every point
 _GRID_SEGMENTS = 4.0
@@ -150,6 +170,36 @@ class CurvePairResult:
         self.complete = True
 
 
+def repeat_period(curve: Curve, extent: float) -> Optional[float]:
+    """The smallest period 2*pi*p/q (p, q up to 12) after which the curve retraces itself all
+    along its range, when the range covers at least two of them; None otherwise.
+
+    Checked at points spread over the whole range (within 1e-9 of the curve's ``extent``, more
+    at large parameters), so a curve that only returns to its start point is not one.
+    """
+    low, high = curve.t_min, curve.t_max
+    span = high - low
+    if not span > 0.0 or not extent > 0.0:
+        return None
+    candidates = sorted({2.0 * math.pi * p / q for q in range(1, _PERIOD_DENOMINATOR + 1) for p in range(1, 13)})
+    for period in candidates:
+        if 2.0 * period > span:
+            break
+        if all(
+            _repeats(curve, low + (span - period) * (k + 0.5) / _PERIOD_CHECKS, period, extent)
+            for k in range(_PERIOD_CHECKS)
+        ):
+            return period
+    return None
+
+
+def _repeats(curve: Curve, t: float, period: float, extent: float) -> bool:
+    here, later = curve.point(t), curve.point(t + period)
+    if not (_finite(here) and _finite(later)):
+        return False
+    return _distance(here, later) <= _PERIOD_TOLERANCE * extent * (1.0 + abs(t) + period)
+
+
 def intersect_curves(first: Curve, second: Curve, size: float) -> CurvePairResult:
     """Find where two parametric curves meet; ``size`` (the smaller curve's extent) scales tolerances."""
     return _PairSearch(first, second, size).run()
@@ -167,19 +217,24 @@ def _finite(point: Point2) -> bool:
 class _Polyline:
     """Samples of a curve, the segments between consecutive finite samples, and a box tree."""
 
-    def __init__(self, curve: Curve) -> None:
+    def __init__(self, curve: Curve, work: List[int]) -> None:
         self.curve = curve
         self.low, self.high = float(curve.t_min), float(curve.t_max)
-        # The curve's own sample count, at most _PAIR_SAMPLES (refinement adds detail where needed)
-        count = max(2, min(int(curve.samples(self.high - self.low)), _PAIR_SAMPLES))
-        self.spacing = (self.high - self.low) / count
-        self.ts, self.points = _adaptive_samples(curve, self.low, self.high, count)
+        # A first grid of the curve's own sample count (at most _PROBE_SAMPLES), then refined
+        # by its turning: the samples follow the curve's complexity, not its length on screen
+        count = max(2, min(int(curve.samples(self.high - self.low)), _PROBE_SAMPLES))
+        self.ts, self.points, self.cut_short = _adaptive_samples(curve, self.low, self.high, count, work)
+        # The mean sample step
+        self.spacing = (self.high - self.low) / (len(self.ts) - 1)
         # Segment k joins sample k and sample k + 1
         self.segments = [k for k in range(len(self.ts) - 1) if _finite(self.points[k]) and _finite(self.points[k + 1])]
         self.lengths: Dict[int, float] = {}
+        # Each segment's bounding box (low x, low y, high x, high y)
+        self.boxes: Dict[int, Tuple[float, float, float, float]] = {}
         for k in self.segments:
             (x0, y0), (x1, y1) = self.points[k], self.points[k + 1]
             self.lengths[k] = math.hypot(x1 - x0, y1 - y0)
+            self.boxes[k] = (x0 if x0 < x1 else x1, y0 if y0 < y1 else y1, x1 if x0 < x1 else x0, y1 if y0 < y1 else y0)
         self.tree = _BoxTree(self)
 
     def speed(self) -> float:
@@ -193,92 +248,114 @@ class _Polyline:
         return max(values) if values else 1.0
 
 
-def _adaptive_samples(curve: Curve, low: float, high: float, count: int) -> Tuple[List[float], List[Point2]]:
-    """``count`` uniform steps, then intervals whose midpoint leaves the chord halved (budget: ``count``)."""
-    ts = [low + (high - low) * i / count for i in range(count)] + [high]
-    points = [curve.point(t) for t in ts]
-    active = [True] * count
-    budget = count
-    for _ in range(_REFINE_PASSES):
-        new_ts, new_points, new_active = [ts[0]], [points[0]], []
-        added = 0
-        for k in range(len(ts) - 1):
-            middle = 0.5 * (ts[k] + ts[k + 1])
-            split = False
-            if active[k] and added < budget and middle not in (ts[k], ts[k + 1]):
-                p0, p1 = points[k], points[k + 1]
-                if _finite(p0) and _finite(p1):
-                    pm = curve.point(middle)
-                    if _finite(pm) and _deviates(p0, pm, p1):
-                        new_ts.append(middle)
-                        new_points.append(pm)
-                        new_active.extend([True, True])
-                        added += 1
-                        split = True
-            if not split:
-                new_active.append(False)
-            new_ts.append(ts[k + 1])
-            new_points.append(points[k + 1])
-        ts, points, active = new_ts, new_points, new_active
-        budget -= added
-        if added == 0 or budget <= 0:
-            break
-    return ts, points
-
-
-def _deviates(p0: Point2, pm: Point2, p1: Point2) -> bool:
-    chord = math.hypot(p1[0] - p0[0], p1[1] - p0[1])
-    off = math.hypot(pm[0] - 0.5 * (p0[0] + p1[0]), pm[1] - 0.5 * (p0[1] + p1[1]))
-    rounding = _ROUNDING_UNITS * _EPS * max(abs(pm[0]), abs(pm[1]), 1.0)
-    return off > _DEVIATION_RATIO * chord + rounding
+def _adaptive_samples(
+    curve: Curve, low: float, high: float, count: int, work: List[int]
+) -> Tuple[List[float], List[Point2], bool]:
+    """``count`` uniform steps, each halved (depth first, so the samples stay in order) while its
+    midpoint leaves the chord, up to _REFINE_PASSES times, _MAX_SAMPLES samples in all and the
+    sampling share of the work. Also returns whether refinement ran into those limits of work."""
+    ts = [low]
+    points = [curve.point(low)]
+    extra_left = _MAX_SAMPLES - count
+    limit = _SAMPLE_SHARE * _WORK_BUDGET
+    cut_short = False
+    for i in range(1, count + 1):
+        right_t = high if i == count else low + (high - low) * i / count
+        # Pending right ends (parameter, point, depth of the interval ending there)
+        stack = [(right_t, curve.point(right_t), 0)]
+        left_t, left_p = ts[-1], points[-1]
+        while stack:
+            end_t, end_p, depth = stack[-1]
+            middle = 0.5 * (left_t + end_t)
+            # (the checks are inlined: this loop runs once per sample)
+            isfinite = math.isfinite
+            if (
+                depth < _REFINE_PASSES
+                and middle != left_t
+                and middle != end_t
+                and isfinite(left_p[0])
+                and isfinite(left_p[1])
+                and isfinite(end_p[0])
+                and isfinite(end_p[1])
+            ):
+                if extra_left <= 0 or work[0] > limit:
+                    cut_short = True
+                else:
+                    mid_p = curve.point(middle)
+                    off_x = mid_p[0] - 0.5 * (left_p[0] + end_p[0])
+                    off_y = mid_p[1] - 0.5 * (left_p[1] + end_p[1])
+                    chord_x, chord_y = end_p[0] - left_p[0], end_p[1] - left_p[1]
+                    rounding = _ROUNDING_UNITS * _EPS * (abs(mid_p[0]) + abs(mid_p[1]) + 1.0)
+                    allowed = _DEVIATION_RATIO * math.sqrt(chord_x * chord_x + chord_y * chord_y) + rounding
+                    # (NaN compares false: a midpoint off the curve's domain is not a split)
+                    if off_x * off_x + off_y * off_y > allowed * allowed:
+                        extra_left -= 1
+                        stack[-1] = (end_t, end_p, depth + 1)
+                        stack.append((middle, mid_p, depth + 1))
+                        continue
+            stack.pop()
+            ts.append(end_t)
+            points.append(end_p)
+            left_t, left_p = end_t, end_p
+    return ts, points, cut_short
 
 
 class _BoxTree:
-    """A binary tree of bounding boxes over runs of a polyline's segments."""
+    """A binary tree of bounding boxes over runs of a polyline's segments (built bottom up:
+    leaves of _LEAF_SIZE consecutive segments, then neighbouring nodes paired, so a node's
+    children are in the polyline's order)."""
 
     def __init__(self, line: _Polyline) -> None:
-        self.line = line
         self.boxes: List[Tuple[float, float, float, float]] = []
         self.reach: List[float] = []
         self.children: List[Optional[Tuple[int, int]]] = []
         self.spans: List[Tuple[int, int]] = []
-        self.root = self._build(0, len(line.segments)) if line.segments else -1
-
-    def _build(self, lo: int, hi: int) -> int:
-        node = len(self.boxes)
-        self.boxes.append((0.0, 0.0, 0.0, 0.0))
-        self.reach.append(0.0)
-        self.children.append(None)
-        self.spans.append((lo, hi))
-        if hi - lo <= _LEAF_SIZE:
-            xs: List[float] = []
-            ys: List[float] = []
+        segments, points, lengths = line.segments, line.points, line.lengths
+        level: List[int] = []
+        for lo in range(0, len(segments), _LEAF_SIZE):
+            hi = min(lo + _LEAF_SIZE, len(segments))
+            first = points[segments[lo]]
+            low_x = high_x = first[0]
+            low_y = high_y = first[1]
             longest = 0.0
-            for k in self.line.segments[lo:hi]:
-                for x, y in (self.line.points[k], self.line.points[k + 1]):
-                    xs.append(x)
-                    ys.append(y)
-                longest = max(longest, self.line.lengths[k])
-            self.boxes[node] = (min(xs), min(ys), max(xs), max(ys))
-            self.reach[node] = _NEAR_FACTOR * longest
-            return node
-        middle = (lo + hi) // 2
-        left, right = self._build(lo, middle), self._build(middle, hi)
-        a, b = self.boxes[left], self.boxes[right]
-        self.boxes[node] = (min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3]))
-        self.reach[node] = max(self.reach[left], self.reach[right])
-        self.children[node] = (left, right)
-        return node
+            for k in segments[lo:hi]:
+                for x, y in (points[k], points[k + 1]):
+                    if x < low_x:
+                        low_x = x
+                    elif x > high_x:
+                        high_x = x
+                    if y < low_y:
+                        low_y = y
+                    elif y > high_y:
+                        high_y = y
+                if lengths[k] > longest:
+                    longest = lengths[k]
+            level.append(self._node((low_x, low_y, high_x, high_y), _NEAR_FACTOR * longest, None, (lo, hi)))
+        while len(level) > 1:
+            paired: List[int] = []
+            for index in range(0, len(level) - 1, 2):
+                left, right = level[index], level[index + 1]
+                a, b = self.boxes[left], self.boxes[right]
+                box = (min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3]))
+                reach = max(self.reach[left], self.reach[right])
+                paired.append(self._node(box, reach, (left, right), (self.spans[left][0], self.spans[right][1])))
+            if len(level) % 2:
+                paired.append(level[-1])
+            level = paired
+        self.root = level[0] if level else -1
 
-    def size(self, node: int) -> int:
-        lo, hi = self.spans[node]
-        return hi - lo
-
-
-def _box_gap(a: Tuple[float, float, float, float], b: Tuple[float, float, float, float]) -> float:
-    dx = max(0.0, a[0] - b[2], b[0] - a[2])
-    dy = max(0.0, a[1] - b[3], b[1] - a[3])
-    return math.hypot(dx, dy)
+    def _node(
+        self,
+        box: Tuple[float, float, float, float],
+        reach: float,
+        children: Optional[Tuple[int, int]],
+        span: Tuple[int, int],
+    ) -> int:
+        self.boxes.append(box)
+        self.reach.append(reach)
+        self.children.append(children)
+        self.spans.append(span)
+        return len(self.boxes) - 1
 
 
 class _Pair:
@@ -332,23 +409,40 @@ def _close_pairs(a: _Polyline, b: _Polyline, work: List[int]) -> Tuple[List[_Pai
     ta, tb = a.tree, b.tree
     if ta.root < 0 or tb.root < 0:
         return pairs, True
-    stack = [(ta.root, tb.root)]
-    while stack:
-        if work[0] > _PAIR_SHARE * _WORK_BUDGET:
+    # The hottest loop of the search: plain comparisons, no tuples or builtins per visit
+    limit = _PAIR_SHARE * _WORK_BUDGET
+    boxes_a, boxes_b, reach_a, reach_b = ta.boxes, tb.boxes, ta.reach, tb.reach
+    children_a, children_b, spans_a, spans_b = ta.children, tb.children, ta.spans, tb.spans
+    stack_a, stack_b = [ta.root], [tb.root]
+    while stack_a:
+        if work[0] > limit:
             return pairs, False
-        na, nb = stack.pop()
-        if _box_gap(ta.boxes[na], tb.boxes[nb]) > max(ta.reach[na], tb.reach[nb]):
+        na, nb = stack_a.pop(), stack_b.pop()
+        work[0] += 1
+        box_a, box_b = boxes_a[na], boxes_b[nb]
+        reach = reach_a[na]
+        if reach_b[nb] > reach:
+            reach = reach_b[nb]
+        gap_x = box_a[0] - box_b[2]
+        if box_b[0] - box_a[2] > gap_x:
+            gap_x = box_b[0] - box_a[2]
+        gap_y = box_a[1] - box_b[3]
+        if box_b[1] - box_a[3] > gap_y:
+            gap_y = box_b[1] - box_a[3]
+        if gap_x > reach or gap_y > reach:
             continue
-        ca, cb = ta.children[na], tb.children[nb]
+        if gap_x > 0.0 and gap_y > 0.0 and gap_x * gap_x + gap_y * gap_y > reach * reach:
+            continue
+        ca, cb = children_a[na], children_b[nb]
         if ca is None and cb is None:
-            _leaf_pairs(a, b, ta.spans[na], tb.spans[nb], pairs, work)
-        elif cb is None or (ca is not None and ta.size(na) >= tb.size(nb)):
+            _leaf_pairs(a, b, spans_a[na], spans_b[nb], pairs, work)
+        elif cb is None or (ca is not None and spans_a[na][1] - spans_a[na][0] >= spans_b[nb][1] - spans_b[nb][0]):
             assert ca is not None
-            stack.append((ca[1], nb))
-            stack.append((ca[0], nb))
+            stack_a.extend((ca[1], ca[0]))
+            stack_b.extend((nb, nb))
         else:
-            stack.append((na, cb[1]))
-            stack.append((na, cb[0]))
+            stack_a.extend((na, na))
+            stack_b.extend((cb[1], cb[0]))
     return pairs, True
 
 
@@ -361,24 +455,24 @@ def _leaf_pairs(
     work: List[int],
 ) -> None:
     work[0] += (span_a[1] - span_a[0]) * (span_b[1] - span_b[0])
+    boxes_a, boxes_b, lengths_a, lengths_b = a.boxes, b.boxes, a.lengths, b.lengths
+    segments_b = b.segments[span_b[0] : span_b[1]]
     for i in a.segments[span_a[0] : span_a[1]]:
-        p0, p1 = a.points[i], a.points[i + 1]
-        a_low_x, a_high_x = min(p0[0], p1[0]), max(p0[0], p1[0])
-        a_low_y, a_high_y = min(p0[1], p1[1]), max(p0[1], p1[1])
-        for j in b.segments[span_b[0] : span_b[1]]:
-            q0, q1 = b.points[j], b.points[j + 1]
-            reach = _NEAR_FACTOR * max(a.lengths[i], b.lengths[j])
+        box_a, length_a = boxes_a[i], lengths_a[i]
+        for j in segments_b:
+            box_b, length_b = boxes_b[j], lengths_b[j]
+            reach = _NEAR_FACTOR * (length_a if length_a > length_b else length_b)
             if (
-                min(q0[0], q1[0]) - a_high_x > reach
-                or a_low_x - max(q0[0], q1[0]) > reach
-                or min(q0[1], q1[1]) - a_high_y > reach
-                or a_low_y - max(q0[1], q1[1]) > reach
+                box_b[0] - box_a[2] > reach
+                or box_a[0] - box_b[2] > reach
+                or box_b[1] - box_a[3] > reach
+                or box_a[1] - box_b[3] > reach
             ):
                 continue
-            gap, u, v, crossing = _segment_pair(p0, p1, q0, q1)
+            gap, u, v, crossing = _segment_pair(a.points[i], a.points[i + 1], b.points[j], b.points[j + 1])
             if crossing or gap <= reach:
                 pairs.append(_Pair(i, j, gap, u, v, crossing))
-                work[0] += _PAIR_WORK
+                work[0] += _CROSSING_PAIR_WORK if crossing else _NEAR_PAIR_WORK
 
 
 # ---------------------------------------------------------------------------
@@ -446,19 +540,22 @@ class _PairSearch:
     # ------------------- Driver -------------------
 
     def run(self) -> CurvePairResult:
-        line_a, line_b = _Polyline(self.a), _Polyline(self.b)
+        line_a, line_b = _Polyline(self.a, self.evaluations), _Polyline(self.b, self.evaluations)
+        self.lines = (line_a, line_b)
         self.result.spacing = (line_a.spacing, line_b.spacing)
         self.max_step = (_STEP_SPACINGS * line_a.spacing, _STEP_SPACINGS * line_b.spacing)
         # Found points are filed in a grid of cells a few typical segments wide
-        lengths = sorted(list(line_a.lengths.values()) + list(line_b.lengths.values()))
-        typical = lengths[len(lengths) // 2] if lengths else 0.0
+        # (the larger curve's median segment: a finely refined curve must not shrink the cells
+        # until a lookup spans too many of them)
+        typical = max(_median(list(line_a.lengths.values())), _median(list(line_b.lengths.values())))
         self.cell = max(_GRID_SEGMENTS * typical, _EPS * max(line_a.magnitude(), line_b.magnitude(), 1.0))
         self.grid: Dict[Tuple[int, int], List[CurveHit]] = {}
         self.speed = (line_a.speed(), line_b.speed())
         self.closed = (self._closed(self.a), self._closed(self.b))
-        # The work budget counts from here, after sampling
-        self.evaluations[0] = 0
         pairs, self.result.complete = _close_pairs(line_a, line_b, self.evaluations)
+        if line_a.cut_short or line_b.cut_short:
+            # Parts of a curve stayed coarser than its turning asks for
+            self.result.complete = False
         if not pairs:
             return self.result
         self._find_overlaps(line_a, line_b, pairs)
@@ -597,12 +694,17 @@ class _PairSearch:
         closed curve the foot may lie on either side of its seam).
         """
         flags: Dict[int, Tuple[bool, float]] = {}
-        for k in sorted(guesses):
+        # A stretch needs two neighbouring samples on the other curve: a lone candidate is a crossing
+        candidates = [k for k in sorted(guesses) if k - 1 in guesses or k + 1 in guesses]
+        # More than one foot is worth trying only across the seam of a closed curve
+        other_closed = self.closed[1] if line is self.lines[0] else self.closed[0]
+        tries = _WALK_GUESSES if other_closed else 1
+        for k in candidates:
             if self._out_of_budget(_WALK_SHARE):
                 break
             tried: List[float] = []
             for _, guess in sorted(guesses[k]):
-                if len(tried) >= _WALK_GUESSES or any(abs(guess - g) <= 2.0 * other_spacing for g in tried):
+                if len(tried) >= tries or any(abs(guess - g) <= 2.0 * other_spacing for g in tried):
                     continue
                 tried.append(guess)
                 flag = on_other(line.ts[k], guess)
@@ -662,14 +764,16 @@ class _PairSearch:
         point = self.a.point(s)
         if not _finite(point):
             return (False, t_guess)
-        t, distance = self._project(self.b, point, t_guess, self.clamp_t, self.max_step[1])
+        limit = self.tolerance(s, t_guess, point)
+        t, distance = self._project(self.b, point, t_guess, self.clamp_t, self.max_step[1], limit)
         return (distance <= self.tolerance(s, t, point), t)
 
     def _on_first_outside_pieces(self, t: float, s_guess: float) -> Tuple[bool, float]:
         point = self.b.point(t)
         if not _finite(point):
             return (False, s_guess)
-        s, distance = self._project(self.a, point, s_guess, self.clamp_s, self.max_step[0])
+        limit = self.tolerance(s_guess, t, point)
+        s, distance = self._project(self.a, point, s_guess, self.clamp_s, self.max_step[0], limit)
         on = distance <= self.tolerance(s, t, point) and not self._in_first_pieces(s)
         return (on, s)
 
@@ -680,9 +784,19 @@ class _PairSearch:
         return any(low <= t <= high for low, high in self.result.second_pieces)
 
     def _project(
-        self, curve: Curve, point: Point2, guess: float, clamp: Callable[[float], float], max_step: float
+        self,
+        curve: Curve,
+        point: Point2,
+        guess: float,
+        clamp: Callable[[float], float],
+        max_step: float,
+        give_up: float = 0.0,
     ) -> Tuple[float, float]:
-        """Gauss-Newton on the distance from ``point`` to the curve near ``guess``: (parameter, distance)."""
+        """Gauss-Newton on the distance from ``point`` to the curve near ``guess``: (parameter, distance).
+
+        With ``give_up``, stops once the distance is far above it and no longer shrinking fast:
+        a point on the curve converges quadratically, so it cannot be one (the on-curve tests).
+        """
         t = clamp(guess)
         here = curve.point(t)
         distance = _distance(here, point)
@@ -710,8 +824,11 @@ class _PairSearch:
             if not improved:
                 break
             moved = abs(candidate - t)
+            previous = distance
             t, here, distance = candidate, there, candidate_distance
             if distance == 0.0 or moved <= 4.0 * _EPS * max(1.0, abs(t)):
+                break
+            if give_up > 0.0 and distance > _GIVE_UP_FACTOR * give_up and distance > 0.5 * previous:
                 break
         return (t, distance)
 
@@ -1073,13 +1190,27 @@ class _PairSearch:
 def _add_guesses(
     table: Dict[int, List[Tuple[float, float]]], line: _Polyline, segment: int, other: _Polyline, other_segment: int
 ) -> None:
-    """For both ends of ``segment`` lying within reach of ``other_segment``: (distance, foot parameter)."""
+    """When both ends of ``segment`` lie along ``other_segment`` (within the polylines' own error
+    of it, as a shared stretch does), each end's (distance, foot parameter)."""
     start, end = other.points[other_segment], other.points[other_segment + 1]
-    reach = _NEAR_FACTOR * other.lengths[other_segment]
+    p0, p1 = line.points[segment], line.points[segment + 1]
+    if _sine((p1[0] - p0[0], p1[1] - p0[1]), (end[0] - start[0], end[1] - start[1])) > _ALONG_SINE:
+        return
+    length = other.lengths[other_segment]
+    if length == 0.0:
+        return
+    dx, dy = (end[0] - start[0]) / length, (end[1] - start[1]) / length
+    feet: List[Tuple[float, float]] = []
     for k in (segment, segment + 1):
-        fraction, distance = _foot(line.points[k], start, end[0] - start[0], end[1] - start[1])
-        if distance > reach:
-            continue
+        # Off the chord's line (not its nearest end: the other curve's samples fall anywhere
+        # along a shared stretch), with the foot at most a chord beyond either end
+        rx, ry = line.points[k][0] - start[0], line.points[k][1] - start[1]
+        fraction = (rx * dx + ry * dy) / length
+        distance = abs(rx * dy - ry * dx)
+        if distance > _ALONG_FACTOR * length or not -1.0 <= fraction <= 2.0:
+            return
+        feet.append((min(max(fraction, 0.0), 1.0), distance))
+    for k, (fraction, distance) in zip((segment, segment + 1), feet):
         item = (distance, _along(other, other_segment, fraction))
         # Not setdefault: Brython's dict.setdefault turns int keys into strings
         if k in table:
@@ -1090,6 +1221,10 @@ def _add_guesses(
 
 def _along(line: _Polyline, k: int, fraction: float) -> float:
     return line.ts[k] + fraction * (line.ts[k + 1] - line.ts[k])
+
+
+def _median(values: List[float]) -> float:
+    return sorted(values)[len(values) // 2] if values else 0.0
 
 
 def _norm(v: Sequence[float]) -> float:

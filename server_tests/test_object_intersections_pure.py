@@ -1043,40 +1043,78 @@ class TestParametricPairs(_Assertions):
 
     def test_work_limit_is_reported_and_bounded(self) -> None:
         start = time.perf_counter()
+        # Incommensurate frequencies over a long range: no period to cut it down to
+        root = math.sqrt
+        lissajous = find_object_intersections(
+            ParametricShape("a", lambda u: math.sin(root(2) * u), math.sin, 0, 2000),
+            ParametricShape("b", lambda u: math.sin(root(3) * u), lambda u: math.sin(root(5) * u), 0, 2000),
+        )
+        self.assertIn("may be incomplete", lissajous["notes"][-1])
+        self.assertGreater(lissajous["total_found"], 0)
+        # About 0.12 s in CPython; generous for slow test machines
+        self.assertLess(time.perf_counter() - start, 10.0)
+
+    def test_curves_that_retrace_themselves_are_searched_over_one_period(self) -> None:
         turns = 200 * 2 * math.pi
         retraced = find_object_intersections(
             ParametricShape("a", math.cos, math.sin, 0, turns),
             ParametricShape("b", lambda u: 1 + math.cos(u), math.sin, 0, turns),
         )
         self.assertPoints(retraced, [(0.5, -math.sqrt(3) / 2), (0.5, math.sqrt(3) / 2)])
-        self.assertIn("may be incomplete", retraced["notes"][0])
-        lissajous = find_object_intersections(
+        self.assertEqual(len(retraced["notes"]), 2)
+        self.assertTrue(all("retraces itself every 6.283185307" in note for note in retraced["notes"]))
+        self.assertLessEqual(retraced["points"][0]["params"]["a"]["t"], 2 * math.pi)
+        long_range = find_object_intersections(
             ParametricShape("a", lambda u: math.sin(3 * u), lambda u: math.sin(2 * u), 0, 2000),
             ParametricShape("b", lambda u: math.sin(5 * u), lambda u: math.sin(4 * u), 0, 2000),
+            max_results=100,
         )
-        self.assertIn("may be incomplete", lissajous["notes"][0])
-        self.assertGreater(lissajous["total_found"], 0)
-        # About 0.2 s together in CPython; generous for slow test machines
-        self.assertLess(time.perf_counter() - start, 10.0)
+        one_period = find_object_intersections(
+            ParametricShape("a", lambda u: math.sin(3 * u), lambda u: math.sin(2 * u), 0, 2 * math.pi),
+            ParametricShape("b", lambda u: math.sin(5 * u), lambda u: math.sin(4 * u), 0, 2 * math.pi),
+            max_results=100,
+        )
+        self.assertEqual(_xy(long_range), _xy(one_period))
+        self.assertFalse(any("incomplete" in note for note in long_range["notes"]))
+        # A spiral is not periodic: its whole range is searched
+        spiral = ParametricShape("s", lambda u: u * math.cos(u), lambda u: u * math.sin(u), 0, 30)
+        self.assertEqual(find_object_intersections(spiral, self.unit)["notes"], [])
+
+    def test_rapidly_oscillating_curves_are_complete(self) -> None:
+        wave = ParametricShape("a", lambda u: u, lambda u: math.sin(100 * u), 0, 10)
+        level = ParametricShape("b", lambda u: u, lambda u: 0.5, -1, 11)
+        report = find_object_intersections(wave, level, max_results=1000)
+        self.assertEqual(report["notes"], [])
+        # sin(100 t) = 1/2 at 100 t = pi/6 + 2 pi k and 5 pi/6 + 2 pi k
+        expected = sorted(
+            [(math.pi / 6 + 2 * math.pi * k) / 100 for k in range(160)]
+            + [(5 * math.pi / 6 + 2 * math.pi * k) / 100 for k in range(159)]
+        )
+        self.assertEqual(report["total_found"], 319)
+        for point, x in zip(report["points"], expected):
+            self.assertAlmostEqual(point["x"], x, delta=1e-9)
+        fast = ParametricShape("a", lambda u: u, lambda u: math.sin(200 * u), 0, 2)
+        slow = ParametricShape("b", lambda u: u, lambda u: math.sin(150 * u), 0, 2)
+        both = find_object_intersections(fast, slow, max_results=1000)
+        self.assertEqual(both["notes"], [])
+        # sin(200 x) = sin(150 x) at x = 2 pi k / 50 and x = pi (2 k + 1) / 350
+        expected = sorted([2 * math.pi * k / 50 for k in range(16)] + [math.pi * (2 * k + 1) / 350 for k in range(111)])
+        self.assertEqual(both["total_found"], 127)
+        for point, x in zip(both["points"], expected):
+            self.assertAlmostEqual(point["x"], x, delta=1e-9)
 
     def test_large_parameter_ranges_stay_fast(self) -> None:
         start = time.perf_counter()
-        sine = ParametricShape("a", lambda u: u, math.sin, -500, 500)
-        cosine = ParametricShape("b", lambda u: u, math.cos, -500, 500)
+        sine = ParametricShape("a", lambda u: u, math.sin, -1000, 1000)
+        cosine = ParametricShape("b", lambda u: u, math.cos, -1000, 1000)
         report = find_object_intersections(sine, cosine, max_results=1000)
+        self.assertEqual(report["notes"], [])
         # sin x = cos x at x = pi/4 + k pi
-        expected = [math.pi / 4 + k * math.pi for k in range(-159, 159)]
+        expected = [math.pi / 4 + k * math.pi for k in range(-318, 319)]
         self.assertEqual(report["total_found"], len(expected))
         for point, x in zip(report["points"], expected):
             self.assertAlmostEqual(point["x"], x, delta=1e-9 * abs(x))
-        # A range that retraces both circles 159 times stops at its work limit, with a note
-        retraced = find_object_intersections(
-            ParametricShape("a", math.cos, math.sin, 0, 1000),
-            ParametricShape("b", lambda u: 1 + math.cos(u), math.sin, 0, 1000),
-        )
-        self.assertPoints(retraced, [(0.5, -math.sqrt(3) / 2), (0.5, math.sqrt(3) / 2)])
-        self.assertIn("work limit", retraced["notes"][0])
-        self.assertLess(time.perf_counter() - start, 20.0)
+        self.assertLess(time.perf_counter() - start, 10.0)
 
 
 if __name__ == "__main__":

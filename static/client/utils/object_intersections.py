@@ -48,7 +48,7 @@ from __future__ import annotations
 import math
 from typing import Callable, Dict, List, Optional, Sequence, Tuple, TypedDict, Union
 
-from utils.curve_pair_intersections import intersect_curves
+from utils.curve_pair_intersections import intersect_curves, repeat_period
 from utils.function_features import MAX_SAMPLES, scan_roots, sample_count
 
 DEFAULT_MAX_RESULTS = 50
@@ -1241,8 +1241,9 @@ def _parametric_pair(a: ParametricShape, b: ParametricShape) -> _Found:
     """Two parametric curves (walked in name order, so the result does not depend on argument order)."""
     first, second = (a, b) if a.name <= b.name else (b, a)
     size = _pair_size(first, second)
-    result = intersect_curves(first, second, size)
     found = _Found()
+    first, second = _one_period(first, found), _one_period(second, found)
+    result = intersect_curves(first, second, size)
     for hit in result.hits:
         params = {first.name: first.params(hit.s), second.name: second.params(hit.t)}
         found.hits.append(_Hit(hit.x, hit.y, params, hit.tangent))
@@ -1263,6 +1264,20 @@ def _parametric_pair(a: ParametricShape, b: ParametricShape) -> _Found:
             "incomplete: intersections and overlaps may be missing. Shorter parameter ranges give a complete search."
         )
     return found
+
+
+def _one_period(curve: ParametricShape, found: _Found) -> ParametricShape:
+    """The curve over one period when its range retraces it (a circle over t in [0, 1000]): the
+    same points, found once, with a note."""
+    period = repeat_period(curve, curve.extent())
+    if period is None:
+        return curve
+    end = curve.t_min + period
+    found.notes.append(
+        f"{curve.name} retraces itself every {_round(period)} in t, so one period, t in "
+        f"[{_round(curve.t_min)}, {_round(end)}], was searched; its parameters are given in that period."
+    )
+    return ParametricShape(curve.name, curve.x_of_t, curve.y_of_t, curve.t_min, end, curve.pixels_per_unit)
 
 
 def _snapped_to(ends: List[Point2], point: Point2, size: float) -> Point2:
