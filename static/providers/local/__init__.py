@@ -260,6 +260,7 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         self._tool_mode = get_configured_tool_mode()
         self._custom_tools = tools
         self._injected_tools = False
+        self._loaded_tools: List[FunctionDefinition] = []
         self.tools: Sequence[FunctionDefinition] = self._resolve_tools()
 
         # Use developer message as system prompt
@@ -342,6 +343,7 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         """Reset the conversation history."""
         with self._history_lock:
             self.abandon_requests_in_flight()
+            self._unload_searched_tools()
             self.messages = [{"role": "system", "content": self._build_system_prompt()}]
         self._last_canvas_state = None
 
@@ -564,6 +566,7 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         """
         canvas_format = self._get_canvas_format()
         if canvas_format == "json":
+            self._record_json_user_canvas(full_prompt)
             return self._prepare_object_count_content(full_prompt)
         prompt_json = self._parse_prompt_json(full_prompt)
         if prompt_json is None:

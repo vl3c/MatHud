@@ -373,14 +373,14 @@ class FunctionRegistry:
 
             Args:
                 query: Description of what the user wants to accomplish.
-                max_results: Maximum number of tools to return (default: 10, max: 20).
+                max_results: Maximum number of tools to return (default: 5, max: 6).
 
             Returns:
-                Dict with matching tool definitions.
+                Dict with the names of the matching tools, which the server loads.
             """
             # Handle None or invalid max_results
             if max_results is None or not isinstance(max_results, int):
-                max_results = 10
+                max_results = 5
 
             # Default result structure
             default_result: dict = {"tools": [], "count": 0, "query": query, "error": None}

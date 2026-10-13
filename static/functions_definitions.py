@@ -2785,7 +2785,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "search_tools",
-            "description": "Find and load the tools for a task. When only a few tools are available (search-first mode), call this before any other tool: describe what you want to do and the most relevant tool definitions are returned and made available for your next calls. Calls to tools that were not loaded fail.",
+            "description": "Find and load the tools for a task. When only a few tools are available (search-first mode), call this before any other tool: describe what you want to do and the most relevant tools are loaded for the rest of the conversation; the result lists their names. Calls to tools that were not loaded fail.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2796,7 +2796,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     },
                     "max_results": {
                         "type": ["integer", "null"],
-                        "description": "Maximum number of tools to return (default: 10, max: 20)",
+                        "description": "Maximum number of tools to return (default: 5, max: 6)",
                     },
                 },
                 "required": ["query", "max_results"],

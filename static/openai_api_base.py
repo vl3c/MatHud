@@ -24,7 +24,16 @@ from openai import APITimeoutError, OpenAI
 
 from static.ai_model import AIModel
 from static.env_config import get_api_key
-from static.canvas_state_formatter import CanvasFormat, parse_canvas_format, render_state, render_update
+from static.canvas_state_formatter import (
+    CANVAS_SIZE_KEY,
+    CHANGES_HEADER,
+    CURVE_EXTENTS_KEY,
+    CanvasFormat,
+    parse_canvas_format,
+    render_state,
+    render_update,
+)
+from static.canvas_view_note import VIEW_NOTE_PREFIX, view_note
 from static.canvas_state_summarizer import compare_canvas_states
 from static.functions_definitions import FUNCTIONS, FunctionDefinition
 from static.response_metrics import ResponseMetrics, ResponseMetricsTracker
@@ -119,6 +128,54 @@ _CANVAS_PROMPT_SENTENCES: Dict[CanvasFormat, str] = {
     "text": "Each user message starts with the current canvas in a <canvas> block (one object per line as name = definition, followed after tool calls by [canvas changes] at the end of the last tool result); the lengths, areas and angles it lists come from the math engine and can be quoted directly.",
 }
 
+# After a tool batch, the [canvas changes] may end with a view note (static/canvas_view_note.py)
+# when something the model just drew can't be seen. The app never changes the view on its own,
+# and neither should the model: it mentions the problem and offers the suggested view. Notes
+# older than the previous turn are removed from the history when the user sends a new message.
+VIEW_NOTE_GUIDANCE = "If the [canvas changes] after the tool calls you made since the user's latest message end with a view note (something you just drew is too small or too flat on screen, or outside the visible area), end your reply with one short sentence that mentions it and offers the suggested zoom. Never call zoom or other view tools because of a view note: change the view only when the user asks for it or agrees."
+
+
+def _without_view_note_lines(text: str) -> str:
+    """``text`` without its view note: "View note:" lines (and a [canvas changes] header left with
+    nothing under it), and the "view_note" key of a min_json canvas line."""
+    if VIEW_NOTE_PREFIX not in text:
+        return text
+    lines = [_without_view_note_key(line) for line in text.split("\n") if not line.startswith(VIEW_NOTE_PREFIX)]
+    if lines and lines[-1] == CHANGES_HEADER:
+        lines.pop()
+    return "\n".join(lines)
+
+
+def _without_view_note_key(line: str) -> str:
+    """A min_json canvas line (sent as [canvas now]) without its "view_note" key."""
+    if not line.startswith("{") or '"view_note"' not in line:
+        return line
+    try:
+        canvas = json.loads(line)
+    except json.JSONDecodeError:
+        return line
+    if not isinstance(canvas, dict):
+        return line
+    canvas.pop("view_note", None)
+    return json.dumps(canvas, separators=(",", ":"), ensure_ascii=False)
+
+
+def without_measurement_keys(full_prompt: str) -> str:
+    """The prompt JSON without the client's measuring data (canvas size, curve extents) in canvas_state.
+
+    Those keys only feed the view note; the model never sees them. Returns the prompt
+    unchanged when it has none of them.
+    """
+    try:
+        prompt_json = json.loads(full_prompt)
+    except (json.JSONDecodeError, TypeError):
+        return full_prompt
+    state = prompt_json.get("canvas_state") if isinstance(prompt_json, dict) else None
+    if not isinstance(state, dict) or not (CANVAS_SIZE_KEY in state or CURVE_EXTENTS_KEY in state):
+        return full_prompt
+    prompt_json["canvas_state"] = {k: v for k, v in state.items() if k not in (CANVAS_SIZE_KEY, CURVE_EXTENTS_KEY)}
+    return json.dumps(prompt_json)
+
 
 def _is_canvas_state_result(value: Any) -> bool:
     """True for a get_current_canvas_state result value: ``{"type": "canvas_state", "value": {...}}``."""
@@ -127,7 +184,7 @@ def _is_canvas_state_result(value: Any) -> bool:
 
 def build_developer_message(canvas_format: CanvasFormat) -> str:
     """Return the system prompt describing how canvas state is presented in ``canvas_format``."""
-    return f"{_DEV_MSG_INTRO} {_CANVAS_PROMPT_SENTENCES[canvas_format]} {_DEV_MSG_OUTRO}"
+    return f"{_DEV_MSG_INTRO} {_CANVAS_PROMPT_SENTENCES[canvas_format]} {VIEW_NOTE_GUIDANCE} {_DEV_MSG_OUTRO}"
 
 
 # Essential tool names that should always be available after injection
@@ -158,6 +215,14 @@ def _build_search_mode_tools() -> List[FunctionDefinition]:
 
 # Precomputed search mode tools
 SEARCH_MODE_TOOLS: List[FunctionDefinition] = _build_search_mode_tools()
+
+# Most tools search_tools keeps loaded at once; past it only the latest search's tools stay.
+MAX_LOADED_TOOLS = 16
+
+
+def _tool_name(tool: FunctionDefinition) -> str:
+    """The function name of a tool definition ("" when it has none)."""
+    return str(tool.get("function", {}).get("name", ""))
 
 
 class OpenAIAPIBase:
@@ -193,7 +258,7 @@ class OpenAIAPIBase:
     # stop or reset landing in between. One lock for every provider: requests are rare and short.
     _history_lock = threading.RLock()
 
-    SEARCH_MODE_MSG = """Tool loading: at the start only search_tools and a few essential tools (undo, redo, get_current_canvas_state) are available. Before using any other tool, call search_tools with a short description of what you want to do (e.g. "plot a function", "evaluate an expression at a point"); the matching tools are then loaded for your following calls until you give your final answer. Calls to tools that were not loaded fail."""
+    SEARCH_MODE_MSG = """Tool loading: at the start only search_tools and a few essential tools (undo, redo, get_current_canvas_state) are available. Before using any other tool, call search_tools with a short description of what you want to do (e.g. "plot a function", "evaluate an expression at a point"); the matching tools are then loaded and stay available for the rest of the conversation, so call a loaded tool directly instead of searching for it again. Calls to tools that were not loaded fail."""
 
     CANVAS_SUMMARY_MODE_ENV = "AI_CANVAS_SUMMARY_MODE"
     CANVAS_HYBRID_MAX_BYTES_ENV = "AI_CANVAS_HYBRID_FULL_MAX_BYTES"
@@ -243,6 +308,7 @@ class OpenAIAPIBase:
         self._tool_mode: ToolMode = tool_mode
         self._custom_tools: Optional[Sequence[FunctionDefinition]] = tools
         self._injected_tools: bool = False  # Track if tools were dynamically injected
+        self._loaded_tools: List[FunctionDefinition] = []  # Tools search_tools loaded, in load order
         self.tools: Sequence[FunctionDefinition] = self._resolve_tools()
         self.messages: List[MessageDict] = [{"role": "developer", "content": self._build_system_prompt()}]
 
@@ -291,6 +357,8 @@ class OpenAIAPIBase:
             self._tool_mode = mode
             # Only update tools if not using custom tools
             if self._custom_tools is None:
+                self._injected_tools = False
+                self._loaded_tools = []
                 self.tools = self._resolve_tools()
                 self._refresh_system_prompt()
                 msg = f"Tool mode changed to: {mode} ({len(self.tools)} tools available)"
@@ -298,34 +366,53 @@ class OpenAIAPIBase:
                 _logger.info(msg)
 
     def inject_tools(self, tools: Sequence[FunctionDefinition], include_essentials: bool = True) -> None:
-        """Dynamically inject specific tools for the next API call.
+        """Load tools found by ``search_tools`` for the rest of the conversation.
 
-        This allows search results to directly influence which tools are available.
-        The injected tools replace the current tool set until reset.
+        Loaded tools accumulate: those already loaded keep their place and new ones
+        are appended, so the tool list, which every request sends ahead of the
+        history, changes only when a search finds a new tool and the provider's
+        prompt cache stays valid across turns. When the new tools would pass
+        ``MAX_LOADED_TOOLS``, only they stay loaded: unloading any tool changes the
+        list from that tool on, which costs the cache as much as starting over, and
+        starting over leaves room for the next searches. ``reset_tools`` (a new
+        conversation) unloads all.
 
         Args:
             tools: List of tool definitions to make available.
-            include_essentials: If True, also include essential tools (search_tools, undo, redo, get_current_canvas_state).
+            include_essentials: If True, the essential tools (search_tools, undo, redo,
+                get_current_canvas_state) lead the list.
         """
         if not tools:
             _logger.debug("inject_tools called with empty tools list, ignoring")
             return
 
-        injected: List[FunctionDefinition] = list(tools)
+        loaded = self._merge_loaded_tools(self._loaded_tools, tools, include_essentials)
+        if len(loaded) > MAX_LOADED_TOOLS:
+            loaded = self._merge_loaded_tools([], tools, include_essentials)[:MAX_LOADED_TOOLS]
 
-        if include_essentials:
-            # Add essential tools if not already present
-            injected_names = {t.get("function", {}).get("name") for t in injected}
-            for tool in FUNCTIONS:
-                func = tool.get("function", {})
-                name = func.get("name", "")
-                if name in ESSENTIAL_TOOLS and name not in injected_names:
-                    injected.append(tool)
-
+        changed = not self._injected_tools or [_tool_name(t) for t in loaded] != self.loaded_tool_names()
+        self._loaded_tools = loaded
         self._injected_tools = True
-        self.tools = injected
-        msg = f"Injected {len(injected)} tools (essentials={'included' if include_essentials else 'excluded'})"
-        _logger.info(msg)
+        essentials = list(SEARCH_MODE_TOOLS) if include_essentials else []
+        self.tools = essentials + loaded
+        if changed:
+            msg = f"Loaded tools: {len(self.tools)} available (essentials={'included' if include_essentials else 'excluded'})"
+            _logger.info(msg)
+
+    @staticmethod
+    def _merge_loaded_tools(
+        loaded: Sequence[FunctionDefinition], tools: Sequence[FunctionDefinition], include_essentials: bool
+    ) -> List[FunctionDefinition]:
+        """``loaded`` followed by the tools of ``tools`` not loaded yet (essentials left out when they lead)."""
+        merged: List[FunctionDefinition] = list(loaded)
+        names = {_tool_name(tool) for tool in merged}
+        for tool in tools:
+            name = _tool_name(tool)
+            if name in names or (include_essentials and name in ESSENTIAL_TOOLS):
+                continue
+            merged.append(tool)
+            names.add(name)
+        return merged
 
     def reset_tools(self) -> None:
         """Reset tools to the default set based on current tool mode.
@@ -334,9 +421,19 @@ class OpenAIAPIBase:
         """
         if self._injected_tools:
             self._injected_tools = False
+            self._loaded_tools = []
             self.tools = self._resolve_tools()
             msg = f"Tools reset to {self._tool_mode} mode ({len(self.tools)} tools)"
             _logger.info(msg)
+
+    def loaded_tool_names(self) -> List[str]:
+        """Names of the tools ``search_tools`` has loaded, in load order."""
+        return [_tool_name(tool) for tool in self._loaded_tools]
+
+    def _unload_searched_tools(self) -> None:
+        """Unload the tools ``search_tools`` loaded: a new or restored conversation starts from the default tools."""
+        if getattr(self, "_injected_tools", False):
+            self.reset_tools()
 
     def has_injected_tools(self) -> bool:
         """Check if tools were dynamically injected.
@@ -411,14 +508,12 @@ class OpenAIAPIBase:
         The browser's stop only aborts its fetch: the request goes on here, and a
         reply that ends in tool calls would otherwise append those calls and their
         "Awaiting result..." placeholders to whatever conversation is current then.
-        Tools a ``search_tools`` call loaded for the abandoned turn are unloaded too.
+        Tools ``search_tools`` loaded stay loaded until the conversation is reset.
         """
         with self._history_lock:
             self._conversation_generation += 1
             self._turn_ended = True
             self._close_unanswered_tool_calls()
-            if getattr(self, "_injected_tools", False):
-                self.reset_tools()
 
     def _close_unanswered_tool_calls(self) -> None:
         """Answer the tool calls still awaiting a result: the turn that made them has ended.
@@ -540,6 +635,7 @@ class OpenAIAPIBase:
         """Reset the conversation history to start a new session."""
         with self._history_lock:
             self.abandon_requests_in_flight()
+            self._unload_searched_tools()
             self.messages = [{"role": "developer", "content": self._build_system_prompt()}]
             self._last_canvas_state = None
 
@@ -747,13 +843,41 @@ class OpenAIAPIBase:
         if not isinstance(canvas_state, dict):
             return text
         self._strip_canvas_blocks(keep_latest=False)
-        self._last_canvas_state = canvas_state
+        self._record_user_canvas(canvas_state)
         block = self._render_canvas_block(canvas_state, canvas_format)
         return f"{block}\n\n{text}" if text else block
 
     def _render_canvas_block(self, canvas_state: Dict[str, Any], canvas_format: CanvasFormat) -> str:
         rendered = render_state(canvas_state, canvas_format, self._get_canvas_budget_tokens())
         return f"{CANVAS_BLOCK_START}\n{rendered}\n{CANVAS_BLOCK_END}"
+
+    def _record_user_canvas(self, canvas_state: Dict[str, Any]) -> None:
+        """Remember the canvas sent with a user message; the next tool batch is measured against it.
+
+        User messages never carry a view note: the user's view, and anything the user loaded
+        or drew, is the user's business. Notes older than the previous turn leave the history.
+        """
+        self._strip_view_notes()
+        self._last_canvas_state = canvas_state
+
+    def _next_view_note(self, canvas_state: Dict[str, Any]) -> Optional[str]:
+        """The view note for a tool batch's canvas (see canvas_view_note.view_note), then remember it."""
+        note: Optional[str] = view_note(self._last_canvas_state, canvas_state)
+        self._last_canvas_state = canvas_state
+        return note
+
+    def _strip_view_notes(self) -> None:
+        """Remove "View note:" lines older than the previous turn from the tool messages.
+
+        The previous turn keeps its notes: the user's new message may answer one ("yes,
+        zoom"), and its suggested view must still be there.
+        """
+        users = [index for index, message in enumerate(self.messages) if message.get("role") == "user"]
+        previous_turn_start = users[-1] if users else 0
+        for message in self.messages[:previous_turn_start]:
+            content = message.get("content")
+            if message.get("role") == "tool" and isinstance(content, str):
+                message["content"] = _without_view_note_lines(content)
 
     @staticmethod
     def _extract_attached_images(prompt_json: Dict[str, Any]) -> Optional[List[str]]:
@@ -789,7 +913,10 @@ class OpenAIAPIBase:
         """Legacy path: send the prompt JSON (with canvas_state or its summary) as the user message."""
         telemetry_enabled = self._is_canvas_summary_telemetry_enabled()
         start_time = time.perf_counter() if telemetry_enabled else 0.0
-        normalized_prompt, summary_metrics = self._normalize_prompt_canvas_state_with_metrics(full_prompt)
+        self._record_json_user_canvas(full_prompt)
+        normalized_prompt, summary_metrics = self._normalize_prompt_canvas_state_with_metrics(
+            without_measurement_keys(full_prompt)
+        )
         prompt_kind = "text"
         message_content: MessageContent = normalized_prompt
         prompt_json: Optional[Dict[str, Any]] = None
@@ -827,6 +954,13 @@ class OpenAIAPIBase:
                 summary_metrics=summary_metrics,
             )
         return message_content
+
+    def _record_json_user_canvas(self, full_prompt: str) -> None:
+        """json format: remember the user message's canvas_state (see ``_record_user_canvas``)."""
+        prompt_json = self._parse_prompt_json(full_prompt)
+        canvas_state = prompt_json.get("canvas_state") if prompt_json is not None else None
+        if isinstance(canvas_state, dict):
+            self._record_user_canvas(canvas_state)
 
     def _normalize_prompt_canvas_state(self, full_prompt: str) -> str:
         """Normalize prompt canvas payload according to summary mode."""
@@ -983,18 +1117,37 @@ class OpenAIAPIBase:
 
         Runs after every result of the batch has been written, so matching results
         to tool-call ids is unaffected. Nothing is added when the canvas did not
-        change or the json canvas format is active.
+        change; the json canvas format gets only a view note, when there is one.
         """
         canvas_format = self._get_canvas_format()
-        if canvas_format == "json" or not isinstance(canvas_state, dict):
+        if not isinstance(canvas_state, dict):
             return
         pending = self._get_pending_tool_messages()
         if not pending or pending[-1].get("content") == TOOL_RESULT_PLACEHOLDER:
             return
-        update = render_update(self._last_canvas_state, canvas_state, canvas_format, self._get_canvas_budget_tokens())
-        self._last_canvas_state = canvas_state
+        previous = self._last_canvas_state
+        note = self._next_view_note(canvas_state)
+        if self._batch_only_steps_through_history(len(pending)):
+            note = None  # an undo or redo brings back what was there; nothing new was drawn
+        if canvas_format == "json":
+            update = note or ""
+        else:
+            update = render_update(previous, canvas_state, canvas_format, self._get_canvas_budget_tokens(), note)
         if update:
             pending[-1]["content"] = f"{pending[-1]['content']}\n{update}"
+
+    def _batch_only_steps_through_history(self, pending_count: int) -> bool:
+        """True when every call of the batch answered by the pending tool messages is an undo or redo."""
+        index = len(self.messages) - pending_count - 1
+        calls = self.messages[index].get("tool_calls") if index >= 0 else None
+        if not isinstance(calls, list) or not calls:
+            return False
+        names = []
+        for call in calls:
+            function = call.get("function") if isinstance(call, dict) else getattr(call, "function", None)
+            name = function.get("name") if isinstance(function, dict) else getattr(function, "name", None)
+            names.append(name)
+        return all(name in ("undo", "redo") for name in names)
 
     def _update_tool_messages_with_results(self, tool_call_results: str) -> None:
         """Update placeholder tool messages with actual results from the client.
