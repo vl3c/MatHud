@@ -19,11 +19,13 @@ Tests that need a key set a fake one themselves (for example ``test-api-key``).
 
 from __future__ import annotations
 
+import logging
 import os
-from typing import Any
+from typing import Any, Iterator
 
 import dotenv
 import dotenv.main
+import pytest
 
 PROVIDER_KEY_VARS = ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY")
 LIVE_TESTS_ENV = "MATHUD_LIVE_TESTS"
@@ -53,3 +55,29 @@ if not live_tests_enabled():
     dotenv.load_dotenv = _guarded_load_dotenv
     dotenv.main.load_dotenv = _guarded_load_dotenv
     _blank_real_provider_keys()
+
+
+# Every app the tests build runs LogManager, which turns off propagation on the
+# "mathud" logger and adds a file handler to it. Left in place, later tests that
+# capture "mathud" warnings with caplog see nothing, since caplog's handler sits
+# on the root logger (pytest 9 also attaches it to non-propagating loggers,
+# which hides the leak there; pytest 8 does not). The baseline is taken once,
+# not per test, because module-scoped fixtures can build the app (test_app_entry
+# imports app.py) before any per-test snapshot.
+_MATHUD_LOGGER = logging.getLogger("mathud")
+_MATHUD_LOGGER_BASELINE = (_MATHUD_LOGGER.propagate, _MATHUD_LOGGER.level, tuple(_MATHUD_LOGGER.handlers))
+
+
+@pytest.fixture(autouse=True)
+def _restore_mathud_logger() -> Iterator[None]:
+    """Put the "mathud" logger back to its state at session start after each test."""
+    yield
+    propagate, level, handlers = _MATHUD_LOGGER_BASELINE
+    root_handlers = logging.getLogger().handlers
+    for handler in list(_MATHUD_LOGGER.handlers):
+        # Handlers also on the root logger are pytest's capture handlers; pytest removes them itself.
+        if handler not in handlers and handler not in root_handlers:
+            _MATHUD_LOGGER.removeHandler(handler)
+            handler.close()
+    _MATHUD_LOGGER.propagate = propagate
+    _MATHUD_LOGGER.setLevel(level)
