@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Tuple
 
 from utils.function_features import scan_roots
 from utils.object_intersections import (
+    CURVE_PAIR_SAMPLING_NOTE,
     CircleShape,
     EllipseShape,
     FunctionShape,
@@ -1061,12 +1062,13 @@ class TestParametricPairs(_Assertions):
             ParametricShape("b", lambda u: 1 + math.cos(u), math.sin, 0, turns),
         )
         self.assertPoints(retraced, [(0.5, -math.sqrt(3) / 2), (0.5, math.sqrt(3) / 2)])
-        self.assertEqual(len(retraced["notes"]), 2)
-        self.assertTrue(all("retraces itself every 6.283185307" in note for note in retraced["notes"]))
+        self.assertEqual(retraced["notes"][-1], CURVE_PAIR_SAMPLING_NOTE)
+        self.assertEqual(len(retraced["notes"]), 3)
+        self.assertTrue(all("retraces itself every 6.283185307" in note for note in retraced["notes"][:2]))
         self.assertLessEqual(retraced["points"][0]["params"]["a"]["t"], 2 * math.pi)
         # A spiral is not periodic: its whole range is searched
         spiral = ParametricShape("s", lambda u: u * math.cos(u), lambda u: u * math.sin(u), 0, 30)
-        self.assertEqual(find_object_intersections(spiral, self.unit)["notes"], [])
+        self.assertEqual(find_object_intersections(spiral, self.unit)["notes"], [CURVE_PAIR_SAMPLING_NOTE])
 
     def test_a_period_must_hold_at_every_sample(self) -> None:
         # Periodic at a dozen spot checks, but not everywhere: the whole range is searched
@@ -1076,7 +1078,7 @@ class TestParametricPairs(_Assertions):
         grow = ParametricShape("g", lambda u: grown(u) * math.cos(u), lambda u: grown(u) * math.sin(u), 0, 100)
         late = find_object_intersections(grow, ParametricShape("l", lambda u: u, lambda u: -1.4, -3, 3))
         self.assertEqual(len(late["points"]), 2)
-        self.assertEqual(late["notes"], [])
+        self.assertEqual(late["notes"], [CURVE_PAIR_SAMPLING_NOTE])
 
         def bumped(u: float) -> float:
             return 1.5 if 60 < u < 60.5 else 1.0
@@ -1084,7 +1086,7 @@ class TestParametricPairs(_Assertions):
         bump = ParametricShape("g", lambda u: bumped(u) * math.cos(u), lambda u: bumped(u) * math.sin(u), 0, 100)
         once = find_object_intersections(bump, ParametricShape("l", lambda u: u, lambda u: -1.05, -3, 3))
         self.assertEqual(len(once["points"]), 1)
-        self.assertEqual(once["notes"], [])
+        self.assertEqual(once["notes"], [CURVE_PAIR_SAMPLING_NOTE])
         # Retracing curves sampled too coarsely to check are searched in full, flagged when cut
         long_range = find_object_intersections(
             ParametricShape("a", lambda u: math.sin(3 * u), lambda u: math.sin(2 * u), 0, 2000),
@@ -1108,7 +1110,7 @@ class TestParametricPairs(_Assertions):
                 "c", lambda u, r=radius: r * math.cos(u), lambda u, r=radius: r * math.sin(u), 0, 2 * math.pi
             )
             report = find_object_intersections(epicycloid, circle, max_results=1000)
-            self.assertEqual((report["total_found"], report["notes"]), (60, []), radius)
+            self.assertEqual((report["total_found"], report["notes"]), (60, [CURVE_PAIR_SAMPLING_NOTE]), radius)
             for point in report["points"]:
                 self.assertAlmostEqual(math.hypot(point["x"], point["y"]), radius, places=8)
         target = ParametricShape(
@@ -1117,7 +1119,7 @@ class TestParametricPairs(_Assertions):
         for drift in (1e-3, 1e-4, 1e-5):
             drifting = ParametricShape("d", lambda u, d=drift: math.cos(u) + d * u, math.sin, 0, 200)
             report = find_object_intersections(drifting, target, max_results=1000)
-            self.assertEqual((report["total_found"], report["notes"]), (64, []), drift)
+            self.assertEqual((report["total_found"], report["notes"]), (64, [CURVE_PAIR_SAMPLING_NOTE]), drift)
 
     def test_crossings_hidden_between_samples(self) -> None:
         # A curve wiggling around a line by far less than its samples resolve
@@ -1126,14 +1128,14 @@ class TestParametricPairs(_Assertions):
             wiggle = ParametricShape("w", lambda u: u, lambda u, a=amplitude, f=frequency: a * math.sin(f * u), 0, 1)
             report = find_object_intersections(wiggle, axis, max_results=5000)
             self.assertEqual(report["total_found"], int(frequency / math.pi) + 1)
-            self.assertEqual(report["notes"], [])
+            self.assertEqual(report["notes"], [CURVE_PAIR_SAMPLING_NOTE])
         # Circles a hair apart do not meet, and that takes no more than the budget to show
         for gap in (1e-6, 1e-8):
             outer = ParametricShape(
                 "b", lambda u, g=gap: (1 + g) * math.cos(u), lambda u, g=gap: (1 + g) * math.sin(u), 0, 2 * math.pi
             )
             apart = find_object_intersections(self.unit, outer)
-            self.assertEqual((apart["points"], apart["overlaps"], apart["notes"]), ([], [], []))
+            self.assertEqual((apart["points"], apart["overlaps"], apart["notes"]), ([], [], [CURVE_PAIR_SAMPLING_NOTE]))
 
     def test_collinear_stretches_are_one_overlap(self) -> None:
         line = ParametricShape("a", lambda u: u, lambda u: u, 1, 4)
@@ -1158,7 +1160,7 @@ class TestParametricPairs(_Assertions):
         wave = ParametricShape("a", lambda u: u, lambda u: math.sin(100 * u), 0, 10)
         level = ParametricShape("b", lambda u: u, lambda u: 0.5, -1, 11)
         report = find_object_intersections(wave, level, max_results=1000)
-        self.assertEqual(report["notes"], [])
+        self.assertEqual(report["notes"], [CURVE_PAIR_SAMPLING_NOTE])
         # sin(100 t) = 1/2 at 100 t = pi/6 + 2 pi k and 5 pi/6 + 2 pi k
         expected = sorted(
             [(math.pi / 6 + 2 * math.pi * k) / 100 for k in range(160)]
@@ -1170,7 +1172,7 @@ class TestParametricPairs(_Assertions):
         fast = ParametricShape("a", lambda u: u, lambda u: math.sin(200 * u), 0, 2)
         slow = ParametricShape("b", lambda u: u, lambda u: math.sin(150 * u), 0, 2)
         both = find_object_intersections(fast, slow, max_results=1000)
-        self.assertEqual(both["notes"], [])
+        self.assertEqual(both["notes"], [CURVE_PAIR_SAMPLING_NOTE])
         # sin(200 x) = sin(150 x) at x = 2 pi k / 50 and x = pi (2 k + 1) / 350
         expected = sorted([2 * math.pi * k / 50 for k in range(16)] + [math.pi * (2 * k + 1) / 350 for k in range(111)])
         self.assertEqual(both["total_found"], 127)
@@ -1182,7 +1184,7 @@ class TestParametricPairs(_Assertions):
         sine = ParametricShape("a", lambda u: u, math.sin, -1000, 1000)
         cosine = ParametricShape("b", lambda u: u, math.cos, -1000, 1000)
         report = find_object_intersections(sine, cosine, max_results=1000)
-        self.assertEqual(report["notes"], [])
+        self.assertEqual(report["notes"], [CURVE_PAIR_SAMPLING_NOTE])
         # sin x = cos x at x = pi/4 + k pi
         expected = [math.pi / 4 + k * math.pi for k in range(-318, 319)]
         self.assertEqual(report["total_found"], len(expected))
@@ -1193,3 +1195,12 @@ class TestParametricPairs(_Assertions):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_finished_search_always_carries_the_sampling_note(self) -> None:
+        # Sampling cannot guarantee every crossing, so a finished search always says so
+        report = find_object_intersections(
+            ParametricShape("a", math.cos, math.sin, 0, 2 * math.pi),
+            ParametricShape("b", lambda u: 1 + math.cos(u), math.sin, 0, 2 * math.pi),
+        )
+        self.assertEqual(report["count"], 2)
+        self.assertEqual(report["notes"], [CURVE_PAIR_SAMPLING_NOTE])

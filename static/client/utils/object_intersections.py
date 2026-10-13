@@ -52,6 +52,12 @@ from utils.curve_pair_intersections import intersect_curves
 from utils.function_features import MAX_SAMPLES, scan_roots, sample_count
 
 DEFAULT_MAX_RESULTS = 50
+# Always given for two parametric curves whose search finished: they are intersected by
+# sampling, which cannot guarantee every crossing
+CURVE_PAIR_SAMPLING_NOTE = (
+    "Two parametric curves are intersected by sampling them: on long or intricate curves a crossing can "
+    "occasionally be missed. Narrow a curve's t range to check a region."
+)
 
 # Rounding units (of every term of a computation) within which a gap is zero: a line or
 # circle that close to touching is tangent, and a coordinate that close is the same
@@ -1275,6 +1281,9 @@ def _parametric_pair(a: ParametricShape, b: ParametricShape) -> _Found:
             "may be incomplete: intersections and overlaps may be missing. (Very long parameter ranges, very many "
             "crossings and curves running very close together over long stretches take the most work.)"
         )
+    else:
+        # Sampling cannot guarantee every crossing: reviews found rare single misses on long, intricate curves
+        found.notes.append(CURVE_PAIR_SAMPLING_NOTE)
     return found
 
 
