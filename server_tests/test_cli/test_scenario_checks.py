@@ -417,12 +417,73 @@ class TestOutcomeChecks:
         assert run(check, view, step=called).status == "fail"
         called_ok = StepData(calls=[call("calculate_area", {"value": 2.5})], final_text="2.5", mode="live")
         assert run(check, view, step=called_ok).status == "pass"
-        # Replay (and retrace) never skip: the reference calls the tool.
+        # Replay never skips: the reference calls the tool.
         replay = StepData(calls=[], final_text=None)
         failed = run(check, view, step=replay)
         assert failed.status == "fail" and "was not called" in failed.message
         without_flag = {key: value for key, value in check.items() if key != "live_optional"}
         assert run(without_flag, view, step=right).status == "fail"
+
+    @pytest.mark.parametrize("text", [None, "", "  \n"])
+    def test_live_optional_tool_result_fails_a_turn_without_answer_text(self, text: Optional[str]) -> None:
+        # A turn stopped at max_requests or cut short leaves no answer to judge instead.
+        view = CanvasView(state())
+        check = {"check": "tool_result", "tool": "calculate_area", "path": "value", "eq": 2.5, "live_optional": True}
+        result = run(check, view, step=StepData(calls=[], final_text=text, mode="live"))
+        assert result.status == "fail" and "calculate_area was not called" in result.message
+
+    def test_live_optional_tool_result_skips_in_the_retrace_of_a_turn_that_answered(self) -> None:
+        # A retrace re-runs the live calls and carries the live answer text.
+        view = CanvasView(state())
+        check = {"check": "tool_result", "tool": "calculate_area", "path": "value", "eq": 2.5, "live_optional": True}
+        answered = StepData(calls=[], final_text="The area is 2.5.", mode="retrace")
+        assert run(check, view, step=answered).status == "skip"
+        silent = StepData(calls=[], final_text=None, mode="retrace")
+        assert run(check, view, step=silent).status == "fail"
+        called = StepData(calls=[call("calculate_area", {"value": 6})], final_text="2.5", mode="retrace")
+        assert run(check, view, step=called).status == "fail"
+
+    @pytest.mark.parametrize(
+        "text, passed",
+        [
+            ("The area of triangle ABC is now **2.5** square units.", True),
+            ("The triangle now has vertices A(1,1), B(4,0), and C(0,3), and its area is **2.5** square units.", True),
+            ("With A at (2.5, 1), the area is 6.", False),
+            ("The area is 2.55.", False),
+            ("The triangle ABC has area 6; A moved by 2.5 units.", False),
+        ],
+    )
+    def test_answer_matches_pins_the_number_to_its_context(self, text: str, passed: bool) -> None:
+        view = CanvasView(state())
+        check = {"check": "answer_mentions", "numbers": [2.5], "matches": r"\barea\b[^0-9]{0,40}2\.50*(?![0-9])"}
+        result = run(check, view, step=StepData(final_text=text, mode="live"))
+        assert result.status == ("pass" if passed else "fail"), result.message
+        if not passed:
+            assert "a match for" in result.message
+
+    def test_answer_matches_on_the_square_area(self) -> None:
+        view = CanvasView(state())
+        check = {
+            "check": "answer_mentions",
+            "numbers": [4],
+            "matches": r"\barea\b[^0-9]{0,40}4(?:\.0+)?(?![0-9]|\.[0-9])",
+        }
+
+        def status(text: str) -> str:
+            return run(check, view, step=StepData(final_text=text, mode="live")).status
+
+        assert status("The square is filled pink; its area is 4 square units.") == "pass"
+        assert status("Its area is 4.0.") == "pass"
+        assert status("The square has 4 equal sides of length 2, so its area is 8.") == "fail"
+        assert status("The area is 4.5.") == "fail"
+        assert status("The area is 40.") == "fail"
+
+    def test_answer_matches_must_be_a_valid_pattern(self) -> None:
+        assert validate_check({"check": "answer_mentions", "matches": r"area\D+4"}) == []
+        assert "answer_mentions matches must be a regular expression" in validate_check(
+            {"check": "answer_mentions", "matches": 4}
+        )
+        assert "not a valid regular expression" in validate_check({"check": "answer_mentions", "matches": "area("})[0]
 
     def test_known_check_that_crashes_is_an_error_not_xfail(self) -> None:
         broken = {

@@ -249,8 +249,8 @@ Checks are pure functions of stored data: the state and inspection view after ea
 | `unchanged_except` | Nothing but the listed selectors changed since a snapshot. Catches side effects such as K9 and K15. |
 | `tool_called` / `tool_not_called` / `max_tool_calls` | Over the turn's executed calls, not counting `search_tools` |
 | `no_tool_errors` / `tool_error` | No call failed / a given call failed (an `Error...` string, a flagged call or an `{"error": ...}` dict) |
-| `tool_result` | A result matches a number (with tolerance), a set of names, or a JSON path, e.g. `analyze_graph` `path == [A,B,C,D]` or `cost == 4`. It checks the tool's last call, or call `index`; with `any: true`, any one of its calls may match. With `live_optional: true`, a live turn that did not call the tool skips the check, for questions a model may answer from the canvas text; the loader requires an `answer_mentions` check in the same user turn, which then judges the answer. A call that was made must still match, and replay always checks. |
-| `answer_mentions` | Numbers or names in the final assistant text. Model quality only. |
+| `tool_result` | A result matches a number (with tolerance), a set of names, or a JSON path, e.g. `analyze_graph` `path == [A,B,C,D]` or `cost == 4`. It checks the tool's last call, or call `index`; with `any: true`, any one of its calls may match. With `live_optional: true`, a live turn that answered in text without calling the tool skips the check, for questions a model may answer from the canvas text; the loader requires an `answer_mentions` check with `matches` in the same user turn, which then judges the answer. A call that was made must still match, a turn with no answer text (stopped at `max_requests`, cut short) fails as before, and replay always checks. A retrace of a turn that answered without the tool skips the check too: it re-runs the live calls, and the answer was judged live (answer checks do not run in a retrace). |
+| `answer_mentions` | Numbers (`numbers`, tolerance 1e-2) or words (`words`, `names`) in the final assistant text, and with `matches` a regular expression (case-insensitive) the text must contain, to pin a number to its context: `\barea\b[^0-9]{0,40}2\.50*(?![0-9])` accepts "the area is now **2.5**" but not "With A at (2.5, 1), the area is 6". Model quality only; skipped outside live mode. |
 
 **Invariants.** They run after every step of every scenario. A failure is always an app bug, whoever made the calls:
 
@@ -844,7 +844,7 @@ Added after the first live run (phase 6, item 10).
 - Turn 2: "Move the square 5 units right."
   - Reference: `translate_object(name="ABCD", x_offset=5, y_offset=0)`
 - Checks:
-  - turn 1: a ClosedShapeColoredArea over ABCD; calculate_area result 4 (tol 1e-9; `live_optional`: a live reply may give the area of the 2 by 2 square without the tool); answer mentions 4
+  - turn 1: a ClosedShapeColoredArea over ABCD; calculate_area result 4 (tol 1e-9; `live_optional`: a live reply may give the area of the 2 by 2 square without the tool); answer mentions 4 right after "area" (`matches`, so "4 equal sides ... area is 8" fails)
   - turn 2: the fill's geometry_snapshot moved by (5,0) (works today; pins it)
 - Targets: region areas bound to polygons.
 
@@ -1357,7 +1357,7 @@ Added after the first live run (phase 6, item 10).
   - Reference: `undo()`
 - Checks:
   - turn 2: A at (1,1), B and C unchanged
-  - turn 3: calculate_area result 2.5 (|3*2 - (-1)*(-1)|/2 with A at (1,1); `live_optional`: the canvas text gives the vertices, so a live reply may answer without the tool); answer mentions 2.5
+  - turn 3: calculate_area result 2.5 (|3*2 - (-1)*(-1)|/2 with A at (1,1); `live_optional`: the canvas text gives the vertices, so a live reply may answer without the tool); answer mentions 2.5 right after "area" (`matches`)
   - turn 4: A back at (0,0) (the calculate_area turn added no undo entry)
 - Targets: multi-turn reference resolution; undo accounting across read-only turns.
 

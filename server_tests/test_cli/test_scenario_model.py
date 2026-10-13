@@ -142,12 +142,15 @@ class TestParseScenario:
 
     def test_live_optional_tool_result_needs_an_answer_check_in_a_user_turn(self) -> None:
         optional = {"check": "tool_result", "tool": "calculate_area", "path": "value", "eq": 4, "live_optional": True}
-        answer = {"check": "answer_mentions", "numbers": [4]}
+        answer = {"check": "answer_mentions", "numbers": [4], "matches": r"\barea\b\D{0,40}4"}
         turn = {"user": "What is the area?", "reference": [{"tool": "calculate_area", "args": {"expression": "ABCD"}}]}
         _, problems = parse(scenario(steps=[{**turn, "checks": [optional, answer]}]))
         assert problems == []
         _, problems = parse(scenario(steps=[{**turn, "checks": [optional]}]))
-        assert any("needs an answer_mentions check in the same step" in p for p in problems)
+        assert any("needs an answer_mentions check with matches in the same step" in p for p in problems)
+        bare_answer = {"check": "answer_mentions", "numbers": [4]}
+        _, problems = parse(scenario(steps=[{**turn, "checks": [optional, bare_answer]}]))
+        assert any("needs an answer_mentions check with matches in the same step" in p for p in problems)
         do_step = {"do": [{"tool": "calculate_area", "args": {"expression": "ABCD"}}], "checks": [optional, answer]}
         _, problems = parse(scenario(steps=[do_step]))
         assert any("live_optional tool_result checks belong to user turns" in p for p in problems)

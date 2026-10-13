@@ -110,7 +110,7 @@
           "checks": [
             {"check": "count", "select": {"type": "ClosedShapeColoredArea"}, "eq": 1},
             {"check": "tool_result", "tool": "calculate_area", "path": "value", "eq": 4, "live_optional": true},
-            {"check": "answer_mentions", "numbers": [4]}
+            {"check": "answer_mentions", "numbers": [4], "matches": "\\barea\\b[^0-9]{0,40}4(?:\\.0+)?(?![0-9]|\\.[0-9])"}
           ]
         },
         {

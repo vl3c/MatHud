@@ -37,7 +37,7 @@
           "reference": [{"tool": "calculate_area", "args": {"expression": "ABC"}}],
           "checks": [
             {"check": "tool_result", "tool": "calculate_area", "path": "value", "eq": 2.5, "live_optional": true},
-            {"check": "answer_mentions", "numbers": [2.5]}
+            {"check": "answer_mentions", "numbers": [2.5], "matches": "\\barea\\b[^0-9]{0,40}2\\.50*(?![0-9])"}
           ]
         },
         {
