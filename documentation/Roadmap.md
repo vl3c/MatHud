@@ -57,7 +57,7 @@ Follow-ups:
 - Drawable names are unique only within some types: each manager checks its own type (ellipses check every drawable, but only when an ellipse is named), so a function or label created later can take an ellipse's custom name, and a segment and a vector, or a point and a graph, can share a name (`AB`, `G`; scenario invariant I1 warns about these). `rotate_object` and the other transform tools then reach whichever comes first, and an ellipse whose custom name a drawable restored before it also holds comes back from a reload with a `_<n>` suffix, losing the areas that refer to it. Needs one name-uniqueness check shared by every manager (`DrawablesContainer.names_in_use`).
 - Region boolean operations ignore holes and use only outer boundaries when results are combined further.
 - Undirected graph analysis collapses parallel edges (a doubled edge is still reported as a bridge).
-- Server-side: remaining mypy `no-any-return` warnings in modules outside `mypy.ini`'s file list; a route test can make a live OpenAI call when a key is configured.
+- Server-side mypy errors in modules outside `mypy.ini`'s file list: `cli/server.py` (two `no-any-return`), `static/canvas_state_formatter.py`, `static/providers/__init__.py` and `cli/scenarios/live_config.py`. (Route tests no longer reach a live provider: `server_tests/conftest.py` blanks the keys unless `MATHUD_LIVE_TESTS=1`.)
 
 ## A1. Unified app and model workbench
 
@@ -71,12 +71,13 @@ Goal: one command (later one executable) opens a MatHud window; no separate serv
 
 ### Model workbench
 1. ~~**Per-response metrics** shown in chat and logged: provider, model, latency, time-to-first-token, tokens/s, prompt/completion tokens, number of tool calls, tool errors.~~ Done: footer under each answer, JSON log lines, `window.getMatHudLastTurnMetrics()`.
-2. **Benchmark suite (CLI):** *(in progress)* a curated set of math prompts with machine-checkable expectations (canvas state or tool results), run against a list of models; outputs a comparison table (accuracy, tool-call validity, speed). Builds on the existing tool-discovery benchmark and action traces. Design: `documentation/development/agentic_scenario_testing.md`.
-   - ~~**Replay mode**~~ Done: `python -m cli.main test scenarios --mode replay` runs the 74-scenario catalogue in `scenarios/` through the app's real tool path in headless Chrome with no model (about 45 s), checks every step by geometry and invariants, and reports open known bugs as expected failures (K1, K2, K6, K7, K18 and K21 are fixed and now guarded).
-   - ~~**Live mode**~~ Done: `--mode live` sends the prompts to LocalAgent (default) or OpenRouter through `sendMatHudMessage`, with per-turn caps, spend guards, `--repeats`, retrace (`--mode retrace`) and failure classification (app, model, nondeterministic, known, infra) in a per-model summary. The first run on the local model is next.
-   - **CI job:** a non-blocking `scenario-replay` job next to `client-tests`.
+2. **Benchmark suite (CLI):** *(mostly done)* a curated set of math prompts with machine-checkable expectations (canvas state or tool results), run against a list of models; outputs a comparison table (accuracy, tool-call validity, speed). Builds on the existing tool-discovery benchmark and action traces. Design: `documentation/development/agentic_scenario_testing.md`.
+   - ~~**Replay mode**~~ Done: `python -m cli.main test scenarios --mode replay` runs the scenario catalogue in `scenarios/` (86 scenarios) through the app's real tool path in headless Chrome with no model, checks every step by geometry and invariants, and reports open known bugs as expected failures; fixed ones stay in the catalogue as regression guards.
+   - ~~**Live mode**~~ Done: `--mode live` sends the prompts to LocalAgent (default) or OpenRouter through `sendMatHudMessage`, with per-turn caps, spend guards, `--repeats`, retrace (`--mode retrace`) and failure classification (app, model, nondeterministic, known, infra) in a per-model summary. Live runs are manual, on the workstation's GPU.
+   - ~~**First local-model run**~~ Done: two smoke-subset runs on a local Qwen at medium reasoning effort (the first: 18 turns in 232 s, 6 of 11 scenarios passing, every failure classed `model`); the app and checker problems they found are fixed (vl3c/MatHud#98 and #105). Still open: a live run of the whole catalogue, and the same run on a second model for a side-by-side table.
+   - ~~**CI job**~~ Done: the `scenario-replay` job in `tests.yml` replays the catalogue on every push and pull request. It never calls a model: CI has no keys and no GPU, so it runs only the recorded reference tool calls. Still open: make it blocking once it is stable.
 3. **Side-by-side mode:** send the same prompt to two models (pairs naturally with tabs, A3).
-4. **Local-model tuning:** tool descriptions and search-first prompts tuned for small local models; measure with the suite. LocalAgent now sends a reasoning effort (`chat_template_kwargs.reasoning_effort`, default `medium`, `MATHUD_LOCAL_REASONING_EFFORT`): without it Qwen3.8 27B thought to the 16,000-token limit on a trivial question.
+4. **Local-model tuning:** tool descriptions and search-first prompts tuned for small local models; measure with the suite. LocalAgent now sends a reasoning effort (`chat_template_kwargs.reasoning_effort`, default `medium`, `MATHUD_LOCAL_REASONING_EFFORT`): without it Qwen3.8 27B thought to the 16,000-token limit on a trivial question. The live smoke runs also tuned local tool-search ranking (graph tools for graph requests, vl3c/MatHud#105).
 
 ### CAS reliability
 1. Known-answer audit of `derive`, `integrate`, `limit`, `solve`, `simplify`, `factor`, systems against nerdamer (unmaintained).
@@ -111,7 +112,7 @@ Ordered by value for exploring math; cheap, independent items first.
 
 ## A3. UI and workflow
 
-1. **Math symbol input for the chat box** — a symbol button next to the input opening a grouped palette (Greek letters, operators `± × ÷ · ≤ ≥ ≠ ≈`, calculus `∫ ∑ ∏ ∂ ∞ √`, superscripts `² ³ ⁿ`, sets/logic `∈ ∪ ∩ ⊂ ∀ ∃ ¬ ∧ ∨`, arrows), inserting at the cursor; plus `\alpha`-style completion reusing `CommandAutocomplete`. Extend the expression normalizer (which already maps `π`, `√`, `°`) with `² ³ × ÷ · − ≤ ≥ ≠` so the same text works when passed into tools.
+1. ~~**Math symbol input for the chat box**~~ Done (vl3c/MatHud#70): the Σ button (or `Ctrl+↑`) next to the chat input opens a grouped palette (Operators, Calculus, Sets & logic, Geometry, Greek, plus a Recent row) that inserts at the caret; `\alpha`-style completion and Alt shortcuts (`Alt+P` → π); and Unicode-aware parsing, so the same text works when passed into tools (`static/client/math_symbols.py`, `math_symbol_palette.py`, `math_symbol_input.py`).
 2. **Tabs for parallel problems** — each tab holds its own canvas state, chat history, and selected model. Implement by swapping state through the workspace serializer (depends on the A0 round-trip fixes) rather than running multiple `Canvas` instances; AI tools `create_tab`, `switch_tab`, `list_tabs`. Enables side-by-side model comparison (A1).
 3. **Export** — canvas to PNG/SVG; session (chat + results) to Markdown/LaTeX.
 4. **One `highlight`/`annotate` tool** — lets the AI point at objects and label them temporarily (replaces the earlier list of 11 temporary-drawable types).
@@ -147,7 +148,7 @@ Not scheduled. Worth revisiting once Part A is solid, or better built as a separ
 ### Canvas and workflow
 - Construction history timeline, reusable macros and analysis templates.
 - Session snapshots with diff/restore, "what changed" summaries, command palette.
-- CLI replay of action traces.
+- ~~CLI replay of action traces.~~ Done: `python -m cli.main test scenarios --mode retrace` replays a live run's executed tool calls on a fresh canvas.
 - Tabular data workflow and CSV import/export; plotting from table columns; box plots; residual diagnostics.
 - Numerical-methods visualizations (Newton iterations, bisection steps).
 - Graph workflows: random/complete generators, edit tools, algorithm playback.
@@ -187,9 +188,9 @@ Not scheduled. Worth revisiting once Part A is solid, or better built as a separ
 |---|---|
 | **1 — Stable** ✓ | A0 complete: known math bugs fixed, workspace round-trip, tool-result plumbing, canvas-state format, renderer fixes and speed |
 | **2 — Unified app** ✓ | Desktop shell ✓, vendored libs ✓, client-side snapshots ✓, per-response metrics ✓, chat persistence ✓ |
-| **3 — Workbench** | Benchmark suite, CAS audit, side-by-side comparison, local-model tuning |
-| **4 — Explore I** | Sliders, roots/extrema/intersections, adaptive plotting, polar, calculus visuals, adaptive quadrature |
-| **5 — UI** | Symbol palette, tabs, export, highlight tool |
+| **3 — Workbench** | Benchmark suite (built; full-catalogue runs open), CAS audit, side-by-side comparison, local-model tuning |
+| **4 — Explore I** | Sliders, roots/extrema/intersections ✓, adaptive plotting, polar, calculus visuals, adaptive quadrature |
+| **5 — UI** | Symbol palette ✓, tabs, export, highlight tool |
 | **6 — Explore II** | Implicit curves and inequalities, conics, inversion/tangents, ODEs, distributions, sequences |
 | **7 — Dynamic geometry** | Dependent constructions, loci, relations "in general" |
 | **8 — Photo to math** | Image underlay, calibration, AI-assisted extraction |
