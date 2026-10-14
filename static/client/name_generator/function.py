@@ -97,7 +97,7 @@ class FunctionNameGenerator(NameGenerator):
             ValueError: If all function names are somehow taken (highly unlikely)
         """
         func_alphabet: str = "fghijklmnopqrstuvwxyzabcde"
-        function_names: List[str] = self.get_drawable_names("Function")
+        function_names: List[str] = self.taken_names("Function")
 
         for number in count():
             for letter in func_alphabet:
@@ -153,7 +153,7 @@ class FunctionNameGenerator(NameGenerator):
         if not preferred_name:
             return self._generate_unique_function_name()
 
-        function_names: List[str] = self.get_drawable_names("Function")
+        function_names: List[str] = self.taken_names("Function")
 
         # Extract name before parenthesis if present
         clean_name: str = self._extract_function_name_before_parenthesis(preferred_name)
@@ -187,7 +187,7 @@ class FunctionNameGenerator(NameGenerator):
             Unique parametric function name
         """
         func_alphabet: str = "fghijklmnopqrstuvwxyzabcde"
-        parametric_names: List[str] = self.get_drawable_names("ParametricFunction")
+        parametric_names: List[str] = self.taken_names("ParametricFunction")
 
         for number in count():
             for letter in func_alphabet:
@@ -214,7 +214,7 @@ class FunctionNameGenerator(NameGenerator):
             return self._generate_unique_parametric_function_name()
 
         # If a preferred name is provided, check if it's available
-        parametric_names: List[str] = self.get_drawable_names("ParametricFunction")
+        parametric_names: List[str] = self.taken_names("ParametricFunction")
 
         if preferred_name not in parametric_names:
             return preferred_name

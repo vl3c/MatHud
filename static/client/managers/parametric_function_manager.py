@@ -98,9 +98,11 @@ class ParametricFunctionManager:
         """
         self._archive_for_undo()
 
-        # Generate name if not provided
+        # Generate name if not provided; a requested name no other drawable uses is kept
         if not name:
             name = self.name_generator.generate_parametric_function_name(None)
+        else:
+            name = self.drawables.unique_name(name)
 
         # Use default color if not specified
         if color is None:

@@ -95,7 +95,7 @@ class PointNameGenerator(NameGenerator):
 
     def _free_letters_in_place(self, letters: List[str], n: int) -> List[str]:
         """The first n letters of a hint, each replaced by "" when a point already has that name."""
-        point_names: List[str] = self.get_drawable_names("Point")
+        point_names: List[str] = self.taken_names("Point")
         return [letters[i] if i < len(letters) and letters[i] not in point_names else "" for i in range(n)]
 
     def split_point_names(self, expression: Optional[str], n: int = 2) -> List[str]:
@@ -126,7 +126,7 @@ class PointNameGenerator(NameGenerator):
         Returns:
             str: Unique point name following alphabetical progression
         """
-        point_names: List[str] = self.get_drawable_names("Point")
+        point_names: List[str] = self.taken_names("Point")
 
         return self._find_available_name_from_alphabet(ALPHABET, point_names)
 
@@ -226,7 +226,7 @@ class PointNameGenerator(NameGenerator):
         # Filter and uppercase the preferred name
         preferred_name = self.filter_string(preferred_name).upper()
 
-        point_names: List[str] = self.get_drawable_names("Point")
+        point_names: List[str] = self.taken_names("Point")
 
         # Initialize tracking for this name
         name_data: Dict[str, Any] = self._init_tracking_for_preferred_name(preferred_name)

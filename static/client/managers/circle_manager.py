@@ -35,6 +35,7 @@ Dependencies:
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
 from drawables.circle import Circle
@@ -49,6 +50,15 @@ if TYPE_CHECKING:
     from managers.drawable_manager_proxy import DrawableManagerProxy
     from managers.point_manager import PointManager
     from name_generator.drawable import DrawableNameGenerator
+
+# A requested name that only names the centre point: one letter with optional primes, or
+# capital letters with primes, the names segments and polygons take (see ellipse_manager).
+_CENTER_HINT_PATTERN = re.compile(r"^(?:[A-Za-z]'*|(?:[A-Z]'*)+)$")
+# A custom circle name: one that area expressions can read.
+_CUSTOM_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_']*$")
+# A requested name in the default '<center>(<radius>)' form, as saved workspaces store it,
+# with an optional '_<n>' suffix.
+_DEFAULT_NAME_PATTERN = re.compile(r"^[^()]+\([^(),]+\)(?:_\d+)?$")
 
 
 class CircleManager(BaseDrawableManager):
@@ -131,6 +141,7 @@ class CircleManager(BaseDrawableManager):
         name: str = "",
         color: Optional[str] = None,
         extra_graphics: bool = True,
+        reuse_existing: bool = True,
     ) -> Circle:
         """
         Create a circle with the specified center and radius.
@@ -142,23 +153,38 @@ class CircleManager(BaseDrawableManager):
             center_x (float): X-coordinate of the circle center
             center_y (float): Y-coordinate of the circle center
             radius (float): Radius of the circle
-            name (str): Optional name for the circle (default: "")
+            name (str): Optional name (default: ""). Its letters name the centre point. A
+                point name such as "A" or "B'", capital letters such as "AB", or a name
+                already in the default '<center>(<radius>)' form gives the circle the
+                default name; any other name, such as "c1", becomes the circle's own name
+                and is kept through transforms. A custom name uses letters, digits,
+                underscores and primes and starts with a letter or an underscore. A name
+                in use gets the first free '_<n>' suffix.
             color (str): Optional color for the circle
             extra_graphics (bool): Whether to create additional graphics (default: True)
+            reuse_existing (bool): Return an existing circle with the same centre and
+                radius instead of creating one (default: True); a workspace restore
+                passes False so every saved circle comes back
+
+        Raises:
+            ValueError: If a custom name has characters other than those above
 
         Returns:
             Circle: The newly created circle object, or existing circle if already present
         """
+        requested_name = str(name or "").strip()
+        custom_name = self._custom_name_from_request(requested_name)
+
         # Archive before creation
         self.canvas.undo_redo_manager.archive()
 
         # Check if the circle already exists
         existing_circle = self.get_circle(center_x, center_y, radius)
-        if existing_circle:
+        if existing_circle and reuse_existing:
             return existing_circle
 
         # Extract point name from circle name
-        point_names: List[str] = self.name_generator.split_point_names(name, 1)
+        point_names: List[str] = self.name_generator.split_point_names(requested_name, 1)
 
         # Create center point with the correct name
         center = self.point_manager.create_point(center_x, center_y, point_names[0], extra_graphics=False)
@@ -166,9 +192,10 @@ class CircleManager(BaseDrawableManager):
         # Create the circle (math-only)
         color_value = str(color).strip() if color is not None else ""
         if color_value:
-            new_circle = Circle(center, radius, color=color_value)
+            new_circle = Circle(center, radius, color=color_value, name=custom_name)
         else:
-            new_circle = Circle(center, radius)
+            new_circle = Circle(center, radius, name=custom_name)
+        self._name_new_circle(new_circle, requested_name)
 
         # Add to drawables
         self.drawables.add(new_circle)
@@ -185,6 +212,37 @@ class CircleManager(BaseDrawableManager):
             self.canvas.draw()
 
         return new_circle
+
+    def _custom_name_from_request(self, requested_name: str) -> str:
+        """The requested name when it names the circle itself; "" when it only hints at the centre.
+
+        Raises:
+            ValueError: If a custom name has characters area expressions cannot read
+        """
+        if not requested_name:
+            return ""
+        if _CENTER_HINT_PATTERN.match(requested_name) or _DEFAULT_NAME_PATTERN.match(requested_name):
+            return ""
+        if not _CUSTOM_NAME_PATTERN.match(requested_name):
+            raise ValueError(
+                f"Circle name '{requested_name}' is not valid: use letters, digits, underscores and "
+                "primes, starting with a letter or an underscore (for example 'c1' or 'orbit')."
+            )
+        return requested_name
+
+    def _name_new_circle(self, circle: Circle, requested_name: str) -> None:
+        """Give a new circle a name no other drawable uses.
+
+        A requested default name that fits the circle is kept as it is, so a workspace
+        restores an '_<n>' suffix and the colored areas that refer to it.
+        """
+        taken_names = self.drawables.names_in_use(exclude=circle)
+        if circle.has_custom_name:
+            circle.name = self.drawables.unique_name(circle.name, exclude=circle)
+        elif requested_name not in taken_names and circle.is_default_name(requested_name):
+            circle.name = requested_name
+        else:
+            circle.regenerate_name(taken_names)
 
     def delete_circle(self, name: str) -> bool:
         """

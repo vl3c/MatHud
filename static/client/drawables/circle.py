@@ -25,11 +25,12 @@ from __future__ import annotations
 
 import math
 from copy import deepcopy
-from typing import Any, Dict, cast
+from typing import Any, Collection, Dict, cast
 
 from constants import default_color
 from drawables.drawable import Drawable
 from drawables.point import Point
+from name_generator.base import with_unique_suffix
 from utils.math_utils import MathUtils
 
 
@@ -44,19 +45,22 @@ class Circle(Drawable):
         center (Point): Center point of the circle
         radius (float): Radius in mathematical coordinate units
         circle_formula (str): Algebraic circle equation, computed from the current geometry
+        has_custom_name (bool): True when the name was chosen rather than generated
     """
 
-    def __init__(self, center_point: Point, radius: float, color: str = default_color) -> None:
+    def __init__(self, center_point: Point, radius: float, color: str = default_color, name: str = "") -> None:
         """Initialize a circle with center point and radius.
 
         Args:
             center_point (Point): Center point of the circle
             radius (float): Radius in mathematical coordinate units
             color (str): CSS color value for circle visualization
+            name (str): Custom name kept through transforms; empty for the default name
         """
         self.center: Point = center_point
         self.radius: float = radius
-        super().__init__(name=self._generate_default_name(), color=color)
+        self.has_custom_name: bool = bool(name)
+        super().__init__(name=name or self._generate_default_name(), color=color)
 
     def get_class_name(self) -> str:
         return "Circle"
@@ -94,6 +98,7 @@ class Circle(Drawable):
         # Create a new Circle instance with the copied center point and other properties
         new_circle: Circle = Circle(new_center, self.radius, color=self.color)
         new_circle.name = self.name
+        new_circle.has_custom_name = self.has_custom_name
         memo[id(self)] = new_circle
         return new_circle
 
@@ -147,9 +152,29 @@ class Circle(Drawable):
             return str(int(radius))
         return str(radius)
 
-    def regenerate_name(self) -> None:
-        """Refresh the circle name based on its center name and radius."""
-        self.name = self._generate_default_name()
+    def is_default_name(self, name: str) -> bool:
+        """True when name is the default name, with or without a '_<n>' suffix."""
+        base = self._generate_default_name()
+        suffix = name[len(base) + 1 :] if name.startswith(base + "_") else ""
+        return name == base or suffix.isdigit()
+
+    def regenerate_name(self, taken_names: Collection[str] = ()) -> None:
+        """Refresh a default name from the current centre and radius; a custom name is kept.
+
+        A default name that still fits the centre and radius and is not in taken_names is
+        kept as it is, so a circle keeps its '_<n>' suffix through transforms. Otherwise
+        the name becomes the default name, with the first free '_<n>' suffix when the
+        default name is in taken_names.
+
+        Args:
+            taken_names: Names other drawables already use
+        """
+        if self.has_custom_name:
+            return
+        current_name = self.get_name()
+        if current_name not in taken_names and self.is_default_name(current_name):
+            return
+        self.name = with_unique_suffix(self._generate_default_name(), taken_names)
 
     def update_color(self, color: str) -> None:
         """Update the circle color metadata."""

@@ -16,7 +16,7 @@ Dependencies:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, Collection, List, Set
 
 import re
 
@@ -25,6 +25,16 @@ if TYPE_CHECKING:
 
 
 ALPHABET: str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+
+def with_unique_suffix(base_name: str, taken_names: Collection[str]) -> str:
+    """base_name, or base_name with the first ``_<n>`` suffix that is not in taken_names."""
+    if base_name not in taken_names:
+        return base_name
+    suffix = 1
+    while f"{base_name}_{suffix}" in taken_names:
+        suffix += 1
+    return f"{base_name}_{suffix}"
 
 
 class NameGenerator:
@@ -57,6 +67,26 @@ class NameGenerator:
         drawables = self.canvas.get_drawables_by_class_name(class_name)
         drawable_names: List[str] = sorted([drawable.name for drawable in drawables])
         return drawable_names
+
+    def names_in_use(self) -> Set[str]:
+        """Names of every drawable on the canvas, of any type (``DrawablesContainer.names_in_use``).
+
+        Returns an empty set when the canvas has no drawables container (simple test canvases).
+        """
+        drawables = getattr(getattr(self.canvas, "drawable_manager", None), "drawables", None)
+        names_in_use = getattr(drawables, "names_in_use", None)
+        if not callable(names_in_use):
+            return set()
+        names = names_in_use()
+        if not isinstance(names, (set, frozenset, list, tuple)):
+            return set()
+        return {name for name in names if isinstance(name, str)}
+
+    def taken_names(self, class_name: str) -> List[str]:
+        """Sorted names a new drawable of class_name must avoid: its own type's and every other drawable's."""
+        names: Set[str] = set(self.get_drawable_names(class_name))
+        names.update(self.names_in_use())
+        return sorted(names)
 
     def filter_string(self, name: str) -> str:
         """Filter a string to keep only letters, apostrophes, digits, and parentheses.

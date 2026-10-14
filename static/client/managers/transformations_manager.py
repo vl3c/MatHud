@@ -476,7 +476,7 @@ class TransformationsManager:
     def _refresh_circle_dependencies(self, circle: Any) -> None:
         dependency_manager = getattr(self.canvas, "dependency_manager", None)
         drawables = self._gather_dependency_children({circle}, dependency_manager)
-        circle.regenerate_name()
+        circle.regenerate_name(self._names_in_use_except(circle))
         self._invalidate_drawables([circle] + list(drawables))
 
     def _refresh_ellipse_dependencies(self, ellipse: Any) -> None:

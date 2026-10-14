@@ -109,12 +109,13 @@ class GraphManager:
                 preexisting = id(edge_obj) in existing_ids
                 self._apply_weight_label(edge_obj, str(edge.weight), preexisting, original_labels, label_seq)
 
+        graph_name = self.drawables.unique_name(state.name)
         if is_tree:
             # Translate internal vertex ID to actual point name for root
             internal_root = getattr(state, "root", None)
             root_point_name = vertex_name_map.get(internal_root) if internal_root else None
             graph = Tree(
-                state.name,
+                graph_name,
                 root=root_point_name,
                 segments=segments_created,
                 isolated_points=list(id_to_point.values()),
@@ -122,13 +123,13 @@ class GraphManager:
         else:
             if state.directed:
                 graph = DirectedGraph(
-                    state.name,
+                    graph_name,
                     vectors=vectors_created,
                     isolated_points=list(id_to_point.values()),
                 )
             else:
                 graph = UndirectedGraph(
-                    state.name,
+                    graph_name,
                     segments=segments_created,
                     isolated_points=list(id_to_point.values()),
                 )
@@ -555,11 +556,13 @@ class GraphManager:
         return point
 
     def _resolve_requested_vertex_name(self, requested: Optional[str]) -> Optional[str]:
-        """Return the filtered requested vertex name if it is non-empty and not used by another point."""
+        """Return the filtered requested vertex name if it is non-empty and no point or other drawable has it."""
         if not requested:
             return None
         filtered = str(self.name_generator.filter_string(requested)).strip()
         if not filtered or self.point_manager.get_point_by_name(filtered) is not None:
+            return None
+        if filtered in self.drawables.names_in_use():
             return None
         return filtered
 

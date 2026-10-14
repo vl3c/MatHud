@@ -45,6 +45,7 @@ class TestAngleManager(unittest.TestCase):
             Angles=[],  # Holds created Angle instances
             add=MagicMock(side_effect=lambda x: self.drawables_container_mock.Angles.append(x)),
             get_by_class_name=lambda cls_name: self.drawables_container_mock.Angles if cls_name == "Angle" else [],
+            unique_name=lambda name, exclude=None: name,
         )
         self.name_generator_mock = SimpleMock(name="NameGeneratorMock")  # Basic mock for now
 

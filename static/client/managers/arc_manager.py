@@ -130,7 +130,7 @@ class ArcManager(BaseDrawableManager):
         use_major_arc: bool,
     ) -> str:
         """Generate arc name using the name generator."""
-        existing_names = {arc.name for arc in self.drawables.CircleArcs}
+        existing_names = self.drawables.names_in_use()
         return self.name_generator.generate_arc_name(
             proposed_name, point1.name, point2.name, use_major_arc, existing_names
         )
