@@ -19,6 +19,13 @@ from .path import (
 
 _GEOMETRY_UTILS = None
 
+# Boolean results are signed sums of simple pieces; these caps keep repeated
+# operations (each one multiplies the pieces) from growing without bound.
+_MAX_TERMS = 256
+_MAX_RINGS = 512
+# Pieces and results whose area is this small relative to their operands are empty.
+_RELATIVE_AREA_TOLERANCE = 1e-9
+
 
 def _get_geometry_utils():
     global _GEOMETRY_UTILS
@@ -451,7 +458,10 @@ class Region:
 
         if not self._is_convex(second_points):
             if not self._is_convex(first_points):
-                raise ValueError("Boolean operations on two non-convex regions are not supported")
+                raise ValueError(
+                    "Region operations need one of each pair of pieces (outer boundaries and holes) "
+                    "to be convex; this expression combines two non-convex pieces"
+                )
             first_points, second_points = second_points, first_points
 
         clipped = self._sutherland_hodgman_clip(first_points, second_points)
@@ -466,18 +476,40 @@ class Region:
         for coefficient, term in self._signed_terms():
             for other_coefficient, other_term in other._signed_terms():
                 clipped = self._clip_pair(term, other_term, num_samples)
-                if clipped is not None:
-                    terms.append((coefficient * other_coefficient, clipped))
+                if clipped is None or self._is_negligible(clipped.area(), (term.area(), other_term.area())):
+                    continue
+                terms.append((coefficient * other_coefficient, clipped))
+        return terms
+
+    @staticmethod
+    def _is_negligible(area: float, reference_areas: Tuple[float, ...]) -> bool:
+        scale = max([abs(value) for value in reference_areas] + [1e-300])
+        return abs(area) <= _RELATIVE_AREA_TOLERANCE * scale
+
+    def _sampled_terms(self, num_samples: int) -> List[Tuple[int, Region]]:
+        """This region's terms as polygons sampled like the clipped overlaps.
+
+        Combined with an overlap, the terms must use the same boundary points as the
+        clipping did; analytic curves would leave slivers between the two.
+        """
+        terms: List[Tuple[int, Region]] = []
+        for coefficient, term in self._signed_terms():
+            points = term._sample_to_points(num_samples)
+            if len(points) >= 3:
+                terms.append((coefficient, Region.from_points(self._ensure_ccw(points))))
         return terms
 
     @staticmethod
     def _from_terms(terms: List[Tuple[int, Region]]) -> Optional[Region]:
-        """The region for a signed sum of terms: a plain region when that is all it is."""
+        """The region for a signed sum of terms: a plain region when that is all it is, None when empty."""
         if not terms:
             return None
         if len(terms) == 1 and terms[0][0] == 1:
             return terms[0][1]
-        return _SignedRegion(terms)
+        result = _SignedRegion(terms)
+        if result.is_empty():
+            return None
+        return result
 
     @staticmethod
     def _scaled(terms: List[Tuple[int, Region]], factor: int) -> List[Tuple[int, Region]]:
@@ -497,7 +529,8 @@ class Region:
             A new Region representing the intersection, or None if empty
 
         Raises:
-            ValueError: If two terms are both non-convex (not supported)
+            ValueError: If two terms are both non-convex (not supported), or the result
+                has too many terms
         """
         return self._from_terms(self._intersection_terms(other, num_samples))
 
@@ -512,7 +545,9 @@ class Region:
             A Region representing the union
         """
         overlap = self._intersection_terms(other, num_samples)
-        terms = self._signed_terms() + other._signed_terms() + self._scaled(overlap, -1)
+        if not overlap:
+            return _SignedRegion(self._signed_terms() + other._signed_terms())
+        terms = self._sampled_terms(num_samples) + other._sampled_terms(num_samples) + self._scaled(overlap, -1)
         return _SignedRegion(terms)
 
     @staticmethod
@@ -553,18 +588,20 @@ class Region:
             num_samples: Number of sample points for boundary approximation
 
         Returns:
-            A new Region for the part of this region outside the other, or a copy of
-            this region if they do not overlap
+            A new Region for the part of this region outside the other, a copy of this
+            region if they do not overlap, or None if nothing is left
         """
         overlap = self._intersection_terms(other, num_samples)
 
         if not overlap:
             return self._copy()
 
-        if self._is_plain() and not self._holes and len(overlap) == 1 and overlap[0][0] == 1:
-            return Region(self._outer_boundary, [overlap[0][1]._outer_boundary])
+        own_terms = self._sampled_terms(num_samples)
+        if self._is_plain() and not self._holes and len(overlap) == 1 and overlap[0][0] == 1 and own_terms:
+            result: Region = Region(own_terms[0][1]._outer_boundary, [overlap[0][1]._outer_boundary])
+            return None if self._is_negligible(result.area(), (self.area(),)) else result
 
-        return _SignedRegion(self._signed_terms() + self._scaled(overlap, -1))
+        return self._from_terms(own_terms + self._scaled(overlap, -1))
 
     def symmetric_difference(self, other: Region, num_samples: int = 100) -> "Region":
         """Compute the symmetric difference of this region with another: A + B - 2 (A & B).
@@ -577,7 +614,9 @@ class Region:
             A Region representing the symmetric difference
         """
         overlap = self._intersection_terms(other, num_samples)
-        terms = self._signed_terms() + other._signed_terms() + self._scaled(overlap, -2)
+        if not overlap:
+            return _SignedRegion(self._signed_terms() + other._signed_terms())
+        terms = self._sampled_terms(num_samples) + other._sampled_terms(num_samples) + self._scaled(overlap, -2)
         return _SignedRegion(terms)
 
     def _is_plain(self) -> bool:
@@ -594,9 +633,18 @@ class Region:
         a negative one, repeated |coefficient| times, so the winding number at any point is
         the region's indicator. The rings are joined through the first ring's first point;
         each bridge is walked once in each direction and cancels out.
+
+        Pass the num_samples the region's operations used, so curved terms are sampled at
+        the same points the clipped overlaps were.
+
+        Raises:
+            ValueError: If the region needs more than _MAX_RINGS rings
         """
+        terms = self._signed_terms()
+        if sum(abs(coefficient) for coefficient, _ in terms) > _MAX_RINGS:
+            raise ValueError(f"This region is too complex to draw (more than {_MAX_RINGS} boundary rings)")
         rings: List[List[Tuple[float, float]]] = []
-        for coefficient, term in self._signed_terms():
+        for coefficient, term in terms:
             ring = self._ensure_ccw(term._sample_to_points(num_samples))
             if len(ring) < 3:
                 continue
@@ -623,6 +671,8 @@ class _SignedRegion(Region):
 
     def __init__(self, terms: List[Tuple[int, Region]]) -> None:
         self._terms: List[Tuple[int, Region]] = [(c, t) for c, t in terms if c != 0]
+        if len(self._terms) > _MAX_TERMS:
+            raise ValueError(f"This region expression is too complex (its result has more than {_MAX_TERMS} pieces)")
         positive = [t for c, t in self._terms if c > 0]
         source = positive[0] if positive else (self._terms[0][1] if self._terms else None)
         self._outer_boundary = source._outer_boundary if source is not None else CompositePath([])
@@ -637,9 +687,19 @@ class _SignedRegion(Region):
     def _copy(self) -> Region:
         return _SignedRegion(self._terms)
 
+    def add_hole(self, hole: CompositePath) -> None:
+        """Cut a hole out of the region: the hole becomes a term with coefficient -1."""
+        if not hole.is_closed():
+            raise ValueError("Hole must be a closed path")
+        self._terms.append((-1, Region(hole)))
+
     def area(self) -> float:
         """Sum of each term's area times its coefficient."""
         return sum(coefficient * term.area() for coefficient, term in self._terms)
+
+    def is_empty(self) -> bool:
+        """True when the terms cancel out (no area left)."""
+        return self._is_negligible(self.area(), tuple(abs(c) * term.area() for c, term in self._terms))
 
     def signed_area(self) -> float:
         return self.area()

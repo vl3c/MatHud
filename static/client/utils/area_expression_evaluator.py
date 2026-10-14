@@ -113,12 +113,14 @@ class AreaExpressionEvaluator:
     }
 
     @staticmethod
-    def evaluate(expression: str, canvas: "Canvas") -> AreaExpressionResult:
+    def evaluate(expression: str, canvas: "Canvas", num_samples: int = 100) -> AreaExpressionResult:
         """Evaluate an area expression and return the computed area.
 
         Args:
             expression: Boolean expression with drawable names
             canvas: Canvas instance to resolve drawable names
+            num_samples: Boundary samples per curve for the region operations; draw the
+                result's boundary_points with the same count
 
         Returns:
             AreaExpressionResult with computed area or error
@@ -127,7 +129,7 @@ class AreaExpressionEvaluator:
             AreaExpressionEvaluator._validate_expression(expression)
             tokens = AreaExpressionEvaluator._tokenize(expression)
             ast = AreaExpressionEvaluator._parse(tokens)
-            result = AreaExpressionEvaluator._evaluate_ast(ast, canvas)
+            result = AreaExpressionEvaluator._evaluate_ast(ast, canvas, num_samples)
 
             # Normalize _RegionWithSource to Region
             if isinstance(result, _RegionWithSource):
@@ -340,6 +342,7 @@ class AreaExpressionEvaluator:
     def _evaluate_ast(
         node: _ASTNode,
         canvas: "Canvas",
+        num_samples: int = 100,
     ) -> Union[_RegionWithSource, Region, List[Region], None]:
         """Recursively evaluate an AST node."""
         if isinstance(node, _NameNode):
@@ -347,9 +350,9 @@ class AreaExpressionEvaluator:
             return AreaExpressionEvaluator._drawable_to_region_with_source(drawable)
 
         if isinstance(node, _BinaryOpNode):
-            left_result = AreaExpressionEvaluator._evaluate_ast(node.left, canvas)
-            right_result = AreaExpressionEvaluator._evaluate_ast(node.right, canvas)
-            return AreaExpressionEvaluator._apply_operation(left_result, right_result, node.op)
+            left_result = AreaExpressionEvaluator._evaluate_ast(node.left, canvas, num_samples)
+            right_result = AreaExpressionEvaluator._evaluate_ast(node.right, canvas, num_samples)
+            return AreaExpressionEvaluator._apply_operation(left_result, right_result, node.op, num_samples)
 
         raise ValueError(f"Unknown AST node type: {type(node)}")
 
@@ -539,6 +542,7 @@ class AreaExpressionEvaluator:
         left: Union[_RegionWithSource, Region, List[Region], None],
         right: Union[_RegionWithSource, Region, List[Region], None],
         op: str,
+        num_samples: int = 100,
     ) -> Union[Region, List[Region], None]:
         """Apply a boolean operation to two region results."""
         # Extract source info if available
@@ -547,7 +551,7 @@ class AreaExpressionEvaluator:
 
         # Handle segment intersection with shape specially
         if op == "&":
-            result = AreaExpressionEvaluator._handle_segment_intersection(left_source, right_source)
+            result = AreaExpressionEvaluator._handle_segment_intersection(left_source, right_source, num_samples)
             if result is not None:
                 return result
 
@@ -561,28 +565,28 @@ class AreaExpressionEvaluator:
         if op == "&":
             if left_region is None or right_region is None:
                 return None
-            return left_region.intersection(right_region)
+            return left_region.intersection(right_region, num_samples)
 
         if op == "|":
             if left_region is None:
                 return right_region
             if right_region is None:
                 return left_region
-            return left_region.union(right_region)
+            return left_region.union(right_region, num_samples)
 
         if op == "-":
             if left_region is None:
                 return None
             if right_region is None:
                 return left_region
-            return left_region.difference(right_region)
+            return left_region.difference(right_region, num_samples)
 
         if op == "^":
             if left_region is None:
                 return right_region
             if right_region is None:
                 return left_region
-            return left_region.symmetric_difference(right_region)
+            return left_region.symmetric_difference(right_region, num_samples)
 
         raise ValueError(f"Unknown operator: {op}")
 
@@ -590,6 +594,7 @@ class AreaExpressionEvaluator:
     def _handle_segment_intersection(
         left: Optional[_RegionWithSource],
         right: Optional[_RegionWithSource],
+        num_samples: int = 100,
     ) -> Optional[Union[Region, List[Region]]]:
         """Handle special cases of segment intersection with shapes.
 
@@ -629,7 +634,7 @@ class AreaExpressionEvaluator:
             half_plane = Region.from_half_plane(p1, p2)
             if shape_source.region is None:
                 return None
-            return shape_source.region.intersection(half_plane)
+            return shape_source.region.intersection(half_plane, num_samples)
 
         return None
 

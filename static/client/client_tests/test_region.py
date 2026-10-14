@@ -10,6 +10,7 @@ from geometry import (
     CompositePath,
     Region,
 )
+from geometry.region import _MAX_RINGS, _MAX_TERMS, _SignedRegion
 from utils.geometry_utils import GeometryUtils
 
 
@@ -282,6 +283,49 @@ class TestRegion(unittest.TestCase):
         ring, square = self._ring_and_square()
         for region, expected in ((ring, 12.0), (ring.union(square), 18.0), (ring.symmetric_difference(square), 15.0)):
             self.assertAlmostEqual(self._shoelace(region.boundary_points()), expected, places=6)
+
+    def test_boundary_points_line_up_with_curved_overlaps(self) -> None:
+        a = Region.from_circle((0.0, 0.0), 2.0)
+        b = Region.from_circle((1.5, 0.0), 2.0)
+        ring = a.difference(Region.from_circle((0.0, 0.0), 1.0))
+        assert ring is not None
+        for samples in (16, 64):
+            for region in (a.union(b, samples), a.symmetric_difference(b, samples), ring.union(b, samples)):
+                # Rings drawn at the operations' sample count close up without slivers.
+                self.assertAlmostEqual(self._shoelace(region.boundary_points(samples)), region.area(), places=6)
+
+    def test_regions_that_cancel_out_are_empty(self) -> None:
+        circle = Region.from_circle((0.0, 0.0), 1.0)
+        square = self._square(0.0, 0.0, 2.0, 2.0)
+        self.assertIsNone(circle.difference(Region.from_circle((0.0, 0.0), 1.0)))
+        self.assertIsNone(square.difference(self._square(0.0, 0.0, 2.0, 2.0)))
+        ring, _ = self._ring_and_square()
+        # The ring's hole: outer & hole minus hole & hole leaves nothing.
+        self.assertIsNone(ring.intersection(self._square(1.0, 1.0, 3.0, 3.0)))
+        self.assertIsNone(ring.difference(self._square(-1.0, -1.0, 5.0, 5.0)))
+
+    def test_concave_hole_against_concave_operand_names_the_pieces(self) -> None:
+        with_l_hole = self._square(-1.0, -1.0, 3.0, 3.0).difference(Region.from_points(self._L_SHAPE))
+        assert with_l_hole is not None
+        self.assertAlmostEqual(with_l_hole.area(), 13.0, places=6)
+        other_l = Region.from_points([(x + 0.5, y + 0.5) for x, y in self._L_SHAPE])
+        with self.assertRaises(ValueError) as context:
+            with_l_hole.intersection(other_l)
+        self.assertIn("holes", str(context.exception))
+
+    def test_add_hole_to_a_combined_region(self) -> None:
+        union = self._square(0.0, 0.0, 4.0, 4.0).union(self._square(10.0, 0.0, 12.0, 2.0))
+        union.add_hole(self._square(1.0, 1.0, 2.0, 2.0).outer_boundary)
+        self.assertAlmostEqual(union.area(), 19.0, places=6)
+        self.assertFalse(union.contains_point(1.5, 1.5))
+        self.assertAlmostEqual(self._shoelace(union.boundary_points()), 19.0, places=6)
+
+    def test_too_many_terms_or_rings_raise(self) -> None:
+        square = self._square(0.0, 0.0, 1.0, 1.0)
+        with self.assertRaises(ValueError):
+            _SignedRegion([(1, square)] * (_MAX_TERMS + 1))
+        with self.assertRaises(ValueError):
+            _SignedRegion([(_MAX_RINGS + 1, square)]).boundary_points()
 
     def test_repr(self) -> None:
         region = Region.from_points([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)])

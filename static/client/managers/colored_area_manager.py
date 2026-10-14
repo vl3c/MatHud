@@ -331,7 +331,7 @@ class ColoredAreaManager:
         """Create a colored area from a boolean region expression."""
         from utils.area_expression_evaluator import AreaExpressionEvaluator
 
-        result = AreaExpressionEvaluator.evaluate(expression, self.canvas)
+        result = AreaExpressionEvaluator.evaluate(expression, self.canvas, num_samples=resolution)
         if result.error:
             raise ValueError(result.error)
 
