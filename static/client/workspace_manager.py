@@ -140,6 +140,14 @@ class WorkspaceManager:
             payload["chat"] = self.chat_persistence.export_chat_state()
         return payload
 
+    def snapshot_canvas_state(self) -> Any:
+        """The canvas state as a saved workspace stores it (the browser-storage backup uses it too)."""
+        return self._snapshot_persistable_canvas_state()
+
+    def restore_canvas_state(self, state: Dict[str, Any]) -> None:
+        """Replace the canvas with a state from ``snapshot_canvas_state``, as one undo step."""
+        self._restore_workspace_state(state)
+
     def _snapshot_persistable_canvas_state(self) -> Any:
         state = self.canvas.get_canvas_state()
         return self._drop_plot_derived_bars(state)

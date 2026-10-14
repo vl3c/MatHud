@@ -284,6 +284,7 @@ from .test_image_attachment import (
     TestImageOnlySending,
 )
 from .test_tool_call_log import TestToolCallLog
+from .test_canvas_backup import TestCanvasBackup
 from .test_chat_persistence import (
     TestChatTranscript,
     TestChatUIRecordAndRestore,
@@ -740,6 +741,7 @@ class Tests:
             TestChatUIRecordAndRestore,
             TestChatPersistenceManager,
             TestWorkspaceManagerChat,
+            TestCanvasBackup,
             TestChatHtmlSafety,
             TestAutocompleteHtmlSafety,
             TestMathJaxHrefDisabled,

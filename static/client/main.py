@@ -22,6 +22,7 @@ from typing import Optional
 from ai_interface import AIInterface
 from browser import aio, document, window
 from canvas import Canvas
+from canvas_backup_manager import CanvasBackupManager
 from canvas_event_handler import CanvasEventHandler
 from math_symbol_input import MathSymbolInput
 from scenario_hooks import ScenarioHooks
@@ -190,6 +191,16 @@ def redraw_canvas() -> None:
     _canvas.draw()
 
 
+def _start_canvas_backup(canvas: Canvas, ai_interface: AIInterface) -> None:
+    """Restore the canvas from browser storage and back it up from now on (see canvas_backup_manager)."""
+    try:
+        backup = CanvasBackupManager(canvas, ai_interface.workspace_manager)
+        backup.restore()
+        backup.start()
+    except Exception as e:
+        print(f"Error starting the canvas backup: {e}")
+
+
 def main() -> None:
     """Initialize the MatHud client-side application.
 
@@ -205,6 +216,9 @@ def main() -> None:
 
     # Instantiate the AIInterface class to handle interactions with the AI backend
     _ai_interface = AIInterface(canvas)
+
+    # Bring back the canvas a reload or a closed window left behind, then keep mirroring it.
+    _start_canvas_backup(canvas, _ai_interface)
 
     # Create event handler for user interactions (clicks, keyboard, etc.)
     CanvasEventHandler(canvas, _ai_interface)

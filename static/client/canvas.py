@@ -33,7 +33,7 @@ Dependencies:
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Set, Tuple, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union, cast
 
 from constants import (
     default_area_fill_color,
@@ -115,6 +115,8 @@ class Canvas:
         # Legacy properties for backward compatibility - delegate to coordinate_mapper
         self.dragging: bool = False
         self.draw_enabled: bool = draw_enabled
+        # Called after every frame draw() renders (the browser-storage backup listens here).
+        self._draw_listeners: List[Callable[[], None]] = []
 
         # Initialize coordinate system and managers
         self.cartesian2axis: Cartesian2Axis = Cartesian2Axis(self.coordinate_mapper)
@@ -227,6 +229,18 @@ class Canvas:
             self._render_drawables(renderer, apply_zoom)
         finally:
             self._end_renderer_frame(renderer_end)
+        self._notify_draw_listeners()
+
+    def add_draw_listener(self, listener: Callable[[], None]) -> None:
+        """Call ``listener`` after every frame ``draw()`` renders; every visible change redraws."""
+        self._draw_listeners.append(listener)
+
+    def _notify_draw_listeners(self) -> None:
+        for listener in self._draw_listeners:
+            try:
+                listener()
+            except Exception as exc:
+                print(f"Warning: canvas draw listener failed: {exc}")
 
     def _begin_renderer_frame(self, renderer: Optional[RendererProtocol]) -> Optional[Any]:
         """Best-effort frame begin hook for renderers that support batching."""

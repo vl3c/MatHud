@@ -694,6 +694,8 @@ Args:
 - `save_workspace(name=None)`: Save the current workspace state to server via AJAX, with the chat transcript as `chat` when chat persistence is attached
 - `load_workspace(name=None)`: Load and restore the canvas from the server. This is the AI's `load_workspace` tool, which can run in the middle of a turn, so it leaves the chat and the AI conversation alone; when the workspace has a saved chat, the result says so and names the `/load <name>` command that restores it. The name is percent-encoded in the `/load_workspace?name=` URL (`encodeURIComponent`), so a name such as `a&x=1` or `a#b` reaches the server whole and is rejected as invalid instead of loading `a`
 - `load_workspace_with_chat(name=None)`: The user's `/load`: restore the canvas, then replace the chat and the AI conversation with the saved chat (a workspace without one starts an empty chat) and append "Restored N chat messages." to the result
+- `snapshot_canvas_state()`: The canvas state as a saved workspace stores it (plot-derived bars left out); the browser-storage backup stores the same form
+- `restore_canvas_state(state)`: Replace the canvas with such a state, as one undo step (`_restore_workspace_state`)
 - `list_workspaces()`: Retrieve list of available workspace names from server
 - `delete_workspace(name)`: Remove workspace from server persistent storage
 - `_create_points(state)`: Create points from workspace state during restoration
@@ -711,6 +713,19 @@ Args:
 - `_restore_workspace_state(state)`: Main restoration orchestrator for complete workspace state; the whole restore, including the canvas clear, is one undo step, so one `undo` after a load or import restores the objects that were on the canvas before it
 - `_find_rectangle_segments(points)`: Find existing segments that form a rectangle
 - `_get_properly_oriented_rectangle_segments(segments, points)`: Arrange segments in proper rectangle order
+
+#### Canvas Backup (`canvas_backup_manager.py`)
+
+Mirrors the canvas to the browser's `localStorage`, so an accidental reload or a closed window does not lose work. `main.py` restores the backup when the page loads, before the event handlers and scenario hooks are set up, then starts the mirror.
+
+**What is stored:** `{"version": 1, "state": ..., "view": ...}` under `mathud.canvas.backup`, where `state` is `WorkspaceManager.snapshot_canvas_state()` (drawables, computations, coordinate system and grid) and `view` is `Canvas.get_view_state()` (zoom, pan, coordinate mode, grid visibility). The chat is not stored; saved workspaces keep it.
+
+**When it is written:** `Canvas.add_draw_listener` calls `schedule_backup()` after every frame the canvas draws, which writes at most once per `BACKUP_DELAY_MS` (1 s), so dragging and panning do not serialize every frame; `pagehide` and `visibilitychange` (hidden) write at once. A canvas identical to the last write is not written again. The key is per origin, so every tab of the app on the same host and port shares one backup and the last write wins.
+
+**`CanvasBackupManager`:**
+- `restore()`: Replace the canvas with the backup and its view, and empty the undo and redo stacks (a freshly loaded page has no history); True when restored. A backup that cannot be read or restored is copied to `mathud.canvas.backup.unrestored` first, so later backups never overwrite it
+- `start()`: Register the draw listener and the page-hide handlers (does nothing when the browser refuses storage access)
+- `schedule_backup()` / `backup_now()`: The delayed and the immediate write. A write the browser refuses (storage full) removes the backup, so a reload never brings back an older canvas, and prints one warning
 
 #### Chat Persistence (`chat_transcript.py`, `chat_persistence_manager.py`)
 
