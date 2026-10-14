@@ -107,7 +107,7 @@ class TestResponsesVision(CanvasFormatEnv):
         api = self.responses_api()
         api._prepare_messages_for_stream(vision_prompt())
         self.assertEqual(
-            api._get_latest_user_message_for_input(),
+            api._convert_messages_to_input()[-1:],
             [
                 {
                     "role": "user",

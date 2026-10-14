@@ -724,8 +724,7 @@ class OpenAIAPIBase:
     def _remove_images_from_user_messages(self) -> None:
         """Remove image content from all user messages in the conversation history.
 
-        This reduces token usage for the fallback case when not using previous_response_id.
-        When using previous_response_id, OpenAI maintains the full context server-side.
+        This reduces token usage: every provider resends this history with each request.
         """
         for message in reversed(self.messages):
             if message.get("role") == "user" and "content" in message:
