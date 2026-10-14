@@ -91,13 +91,13 @@ class ServerManager:
                 process = psutil.Process(pid)
                 cmdline = " ".join(process.cmdline()).lower()
                 app_path = str(APP_MODULE).lower()
-                return app_path in cmdline or "app.py" in cmdline
+                return bool(app_path in cmdline or "app.py" in cmdline)
             except (psutil.Error, OSError):
                 return False
 
         try:
             process = psutil.Process(pid)
-            current_create_time = process.create_time()
+            current_create_time = float(process.create_time())
             # Tolerate sub-second rounding differences across platforms.
             return abs(current_create_time - float(create_time)) < 1.0
         except (psutil.Error, OSError, ValueError, TypeError):
@@ -155,7 +155,7 @@ class ServerManager:
                 if laddr.ip not in (self.host, "0.0.0.0", "::", "::1"):
                     continue
                 if conn.pid is not None:
-                    return conn.pid
+                    return int(conn.pid)
         except (psutil.Error, OSError):
             return None
         return None

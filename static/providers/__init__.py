@@ -82,7 +82,7 @@ class ProviderRegistry:
         if provider_name in LOCAL_PROVIDERS:
             from static.providers.local import LocalProviderRegistry
 
-            return LocalProviderRegistry.is_provider_available(provider_name)
+            return bool(LocalProviderRegistry.is_provider_available(provider_name))
 
         # API-based providers use API key check
         load_env_files()
@@ -180,7 +180,8 @@ def create_provider_instance(
             return None
 
         try:
-            return provider_class(**kwargs)
+            provider: OpenAIAPIBase = provider_class(**kwargs)
+            return provider
         except Exception as e:
             _logger.error(f"Failed to create local provider {provider_name}: {e}")
             return None

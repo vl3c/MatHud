@@ -158,11 +158,12 @@ def check_request_cap(planned: int, max_requests: int) -> None:
 
 def estimated_prompt_tokens(settings: LiveSettings) -> int:
     """A rough prompt size per request: system prompt, tool schemas, canvas budget and history."""
+    from static.canvas_state_formatter import parse_canvas_format
     from static.functions_definitions import FUNCTIONS
     from static.openai_api_base import SEARCH_MODE_TOOLS, OpenAIAPIBase, build_developer_message
     from static.token_estimation import estimate_tokens_from_text
 
-    system = build_developer_message(settings.canvas_format)
+    system = build_developer_message(parse_canvas_format(settings.canvas_format) or "text")
     if settings.tool_exposure == "search":
         system += " " + OpenAIAPIBase.SEARCH_MODE_MSG
         tools = list(SEARCH_MODE_TOOLS)
