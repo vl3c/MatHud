@@ -491,6 +491,17 @@ class TestAreaCalculation(unittest.TestCase):
         self.assertIsNone(result.error)
         self.assertGreaterEqual(result.area, 0)
 
+    def test_nested_difference_keeps_the_hole(self) -> None:
+        """(A - B) & C with B inside A: the hole B is not part of the intersection."""
+        self.canvas.drawable_manager.add_drawable("A", MockQuadrilateral([(0, 0), (4, 0), (4, 4), (0, 4)], "A"))
+        self.canvas.drawable_manager.add_drawable("B", MockQuadrilateral([(1, 1), (3, 1), (3, 3), (1, 3)], "B"))
+        self.canvas.drawable_manager.add_drawable("C", MockQuadrilateral([(2, 2), (5, 2), (5, 5), (2, 5)], "C"))
+        result = AreaExpressionEvaluator.evaluate("(A - B) & C", self.canvas)
+        self.assertIsNone(result.error)
+        self.assertAlmostEqual(result.area, 3.0, places=6)
+        result = AreaExpressionEvaluator.evaluate("(A - B) - C", self.canvas)
+        self.assertAlmostEqual(result.area, 9.0, places=6)
+
     def test_three_shape_expression(self) -> None:
         self._setup_base_shapes()
         result = AreaExpressionEvaluator.evaluate("(circle & quad) - triangle", self.canvas)

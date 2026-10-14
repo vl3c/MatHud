@@ -19,6 +19,13 @@ from .path import (
 
 _GEOMETRY_UTILS = None
 
+# Boolean results are signed sums of simple pieces; these caps keep repeated
+# operations (each one multiplies the pieces) from growing without bound.
+_MAX_TERMS = 256
+_MAX_RINGS = 512
+# Pieces and results whose area is this small relative to their operands are empty.
+_RELATIVE_AREA_TOLERANCE = 1e-9
+
 
 def _get_geometry_utils():
     global _GEOMETRY_UTILS
@@ -422,12 +429,97 @@ class Region:
                 return False
         return True
 
+    # A region is also a signed sum of simple regions (no holes): its indicator is
+    # sum(coefficient * indicator(term)). A plain region is its outer boundary (+1)
+    # minus each hole (-1), and A & B is the sum over term pairs of the products.
+    # Areas add up the same way, so nested operations keep every hole.
+
+    def _signed_terms(self) -> List[Tuple[int, Region]]:
+        """This region as (coefficient, simple region) terms."""
+        terms: List[Tuple[int, Region]] = [(1, Region(self._outer_boundary))]
+        terms.extend((-1, Region(hole)) for hole in self._holes)
+        return terms
+
+    def _clip_pair(self, first: Region, second: Region, num_samples: int) -> Optional[Region]:
+        """Intersect two simple regions by Sutherland-Hodgman clipping of their sampled boundaries.
+
+        The clip polygon must be convex, so a convex operand is used as the clip polygon
+        (intersection is commutative).
+        """
+        first_points = first._sample_to_points(num_samples)
+        second_points = second._sample_to_points(num_samples)
+
+        if len(first_points) < 3 or len(second_points) < 3:
+            return None
+
+        # Ensure both polygons are CCW for correct clipping
+        first_points = self._ensure_ccw(first_points)
+        second_points = self._ensure_ccw(second_points)
+
+        if not self._is_convex(second_points):
+            if not self._is_convex(first_points):
+                raise ValueError(
+                    "Region operations need one of each pair of pieces (outer boundaries and holes) "
+                    "to be convex; this expression combines two non-convex pieces"
+                )
+            first_points, second_points = second_points, first_points
+
+        clipped = self._sutherland_hodgman_clip(first_points, second_points)
+
+        if len(clipped) < 3:
+            return None
+
+        return Region.from_points(clipped)
+
+    def _intersection_terms(self, other: Region, num_samples: int) -> List[Tuple[int, Region]]:
+        terms: List[Tuple[int, Region]] = []
+        for coefficient, term in self._signed_terms():
+            for other_coefficient, other_term in other._signed_terms():
+                clipped = self._clip_pair(term, other_term, num_samples)
+                if clipped is None or self._is_negligible(clipped.area(), (term.area(), other_term.area())):
+                    continue
+                terms.append((coefficient * other_coefficient, clipped))
+        return terms
+
+    @staticmethod
+    def _is_negligible(area: float, reference_areas: Tuple[float, ...]) -> bool:
+        scale = max([abs(value) for value in reference_areas] + [1e-300])
+        return abs(area) <= _RELATIVE_AREA_TOLERANCE * scale
+
+    def _sampled_terms(self, num_samples: int) -> List[Tuple[int, Region]]:
+        """This region's terms as polygons sampled like the clipped overlaps.
+
+        Combined with an overlap, the terms must use the same boundary points as the
+        clipping did; analytic curves would leave slivers between the two.
+        """
+        terms: List[Tuple[int, Region]] = []
+        for coefficient, term in self._signed_terms():
+            points = term._sample_to_points(num_samples)
+            if len(points) >= 3:
+                terms.append((coefficient, Region.from_points(self._ensure_ccw(points))))
+        return terms
+
+    @staticmethod
+    def _from_terms(terms: List[Tuple[int, Region]]) -> Optional[Region]:
+        """The region for a signed sum of terms: a plain region when that is all it is, None when empty."""
+        if not terms:
+            return None
+        if len(terms) == 1 and terms[0][0] == 1:
+            return terms[0][1]
+        result = _SignedRegion(terms)
+        if result.is_empty():
+            return None
+        return result
+
+    @staticmethod
+    def _scaled(terms: List[Tuple[int, Region]], factor: int) -> List[Tuple[int, Region]]:
+        return [(coefficient * factor, term) for coefficient, term in terms]
+
     def intersection(self, other: Region, num_samples: int = 100) -> Optional[Region]:
         """Compute the intersection of this region with another.
 
-        Uses Sutherland-Hodgman polygon clipping on sampled boundaries. The
-        clip polygon must be convex, so a convex operand is used as the clip
-        polygon (intersection is commutative).
+        Each pair of terms (outer boundaries and holes) is clipped with Sutherland-Hodgman
+        on sampled boundaries; of each pair, at least one must be convex.
 
         Args:
             other: Another Region to intersect with
@@ -437,35 +529,13 @@ class Region:
             A new Region representing the intersection, or None if empty
 
         Raises:
-            ValueError: If both regions are non-convex (not supported)
+            ValueError: If two terms are both non-convex (not supported), or the result
+                has too many terms
         """
-        self_points = self._sample_to_points(num_samples)
-        other_points = other._sample_to_points(num_samples)
-
-        if len(self_points) < 3 or len(other_points) < 3:
-            return None
-
-        # Ensure both polygons are CCW for correct clipping
-        self_points = self._ensure_ccw(self_points)
-        other_points = self._ensure_ccw(other_points)
-
-        if not self._is_convex(other_points):
-            if not self._is_convex(self_points):
-                raise ValueError("Boolean operations on two non-convex regions are not supported")
-            self_points, other_points = other_points, self_points
-
-        clipped = self._sutherland_hodgman_clip(self_points, other_points)
-
-        if len(clipped) < 3:
-            return None
-
-        return Region.from_points(clipped)
+        return self._from_terms(self._intersection_terms(other, num_samples))
 
     def union(self, other: Region, num_samples: int = 100) -> "Region":
-        """Compute the union of this region with another.
-
-        Uses area formula: union = A + B - intersection.
-        Returns a CompositeRegion that computes area correctly.
+        """Compute the union of this region with another: A + B - (A & B).
 
         Args:
             other: Another Region to union with
@@ -474,8 +544,11 @@ class Region:
         Returns:
             A Region representing the union
         """
-        intersection = self.intersection(other, num_samples)
-        return _CompositeRegion([self, other], intersection)
+        overlap = self._intersection_terms(other, num_samples)
+        if not overlap:
+            return _SignedRegion(self._signed_terms() + other._signed_terms())
+        terms = self._sampled_terms(num_samples) + other._sampled_terms(num_samples) + self._scaled(overlap, -1)
+        return _SignedRegion(terms)
 
     @staticmethod
     def _convex_hull(points: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
@@ -506,33 +579,32 @@ class Region:
         return lower[:-1] + upper[:-1]
 
     def difference(self, other: Region, num_samples: int = 100) -> Optional[Region]:
-        """Compute the difference of this region minus another.
+        """Compute the difference of this region minus another: A - (A & B).
 
-        Returns the area of this region that is not in the other region.
-        Uses intersection as hole to correctly handle partial overlaps.
+        A plain region minus one overlapping plain region keeps the overlap as a hole.
 
         Args:
             other: Region to subtract from this region
             num_samples: Number of sample points for boundary approximation
 
         Returns:
-            A new Region with the intersection as a hole, or self if no overlap
+            A new Region for the part of this region outside the other, a copy of this
+            region if they do not overlap, or None if nothing is left
         """
-        inter = self.intersection(other, num_samples)
+        overlap = self._intersection_terms(other, num_samples)
 
-        if inter is None:
-            return Region(self._outer_boundary, list(self._holes))
+        if not overlap:
+            return self._copy()
 
-        new_holes = list(self._holes)
-        new_holes.append(inter._outer_boundary)
+        own_terms = self._sampled_terms(num_samples)
+        if self._is_plain() and not self._holes and len(overlap) == 1 and overlap[0][0] == 1 and own_terms:
+            result: Region = Region(own_terms[0][1]._outer_boundary, [overlap[0][1]._outer_boundary])
+            return None if self._is_negligible(result.area(), (self.area(),)) else result
 
-        return Region(self._outer_boundary, new_holes)
+        return self._from_terms(own_terms + self._scaled(overlap, -1))
 
     def symmetric_difference(self, other: Region, num_samples: int = 100) -> "Region":
-        """Compute the symmetric difference of this region with another.
-
-        Returns the area in either region but not in both.
-        Uses formula: A ^ B = A + B - 2 * (A & B)
+        """Compute the symmetric difference of this region with another: A + B - 2 (A & B).
 
         Args:
             other: Another Region
@@ -541,57 +613,103 @@ class Region:
         Returns:
             A Region representing the symmetric difference
         """
-        inter = self.intersection(other, num_samples)
-        return _SymmetricDifferenceRegion(self, other, inter)
+        overlap = self._intersection_terms(other, num_samples)
+        if not overlap:
+            return _SignedRegion(self._signed_terms() + other._signed_terms())
+        terms = self._sampled_terms(num_samples) + other._sampled_terms(num_samples) + self._scaled(overlap, -2)
+        return _SignedRegion(terms)
+
+    def _is_plain(self) -> bool:
+        """True for a region given by one outer boundary and its holes."""
+        return True
+
+    def _copy(self) -> Region:
+        return Region(self._outer_boundary, list(self._holes))
+
+    def boundary_points(self, num_samples: int = 100) -> List[Tuple[float, float]]:
+        """One closed point path whose fill (nonzero or even-odd rule) is exactly this region.
+
+        Each term's ring runs counterclockwise for a positive coefficient and clockwise for
+        a negative one, repeated |coefficient| times, so the winding number at any point is
+        the region's indicator. The rings are joined through the first ring's first point;
+        each bridge is walked once in each direction and cancels out.
+
+        Pass the num_samples the region's operations used, so curved terms are sampled at
+        the same points the clipped overlaps were.
+
+        Raises:
+            ValueError: If the region needs more than _MAX_RINGS rings
+        """
+        terms = self._signed_terms()
+        if sum(abs(coefficient) for coefficient, _ in terms) > _MAX_RINGS:
+            raise ValueError(f"This region is too complex to draw (more than {_MAX_RINGS} boundary rings)")
+        rings: List[List[Tuple[float, float]]] = []
+        for coefficient, term in terms:
+            ring = self._ensure_ccw(term._sample_to_points(num_samples))
+            if len(ring) < 3:
+                continue
+            if coefficient < 0:
+                ring = list(reversed(ring))
+            rings.extend([ring] * abs(coefficient))
+        if not rings:
+            return []
+        anchor = rings[0][0]
+        path: List[Tuple[float, float]] = list(rings[0]) + [anchor]
+        for ring in rings[1:]:
+            path.extend(ring)
+            path.append(ring[0])
+            path.append(anchor)
+        return path
 
 
-class _CompositeRegion(Region):
-    """A composite region representing the union of two regions.
+class _SignedRegion(Region):
+    """A region given as a signed sum of simple regions (see ``Region._signed_terms``).
 
-    This is used internally to correctly compute union area using the
-    formula: area(A | B) = area(A) + area(B) - area(A & B)
+    Union, symmetric difference and differences of regions with holes produce one; it
+    combines further like any region, holes included.
     """
 
-    def __init__(self, regions: List[Region], intersection: Optional[Region]) -> None:
-        self._regions = regions
-        self._intersection = intersection
-        self._outer_boundary = regions[0]._outer_boundary if regions else CompositePath([])
+    def __init__(self, terms: List[Tuple[int, Region]]) -> None:
+        self._terms: List[Tuple[int, Region]] = [(c, t) for c, t in terms if c != 0]
+        if len(self._terms) > _MAX_TERMS:
+            raise ValueError(f"This region expression is too complex (its result has more than {_MAX_TERMS} pieces)")
+        positive = [t for c, t in self._terms if c > 0]
+        source = positive[0] if positive else (self._terms[0][1] if self._terms else None)
+        self._outer_boundary = source._outer_boundary if source is not None else CompositePath([])
         self._holes: List[CompositePath] = []
 
-    def area(self) -> float:
-        """Calculate union area as sum of regions minus intersection."""
-        total = sum(r.area() for r in self._regions)
-        if self._intersection is not None:
-            total -= self._intersection.area()
-        return total
+    def _signed_terms(self) -> List[Tuple[int, Region]]:
+        return list(self._terms)
 
-    def contains_point(self, x: float, y: float) -> bool:
-        """Check if point is in any of the regions."""
-        return any(r.contains_point(x, y) for r in self._regions)
+    def _is_plain(self) -> bool:
+        return False
 
+    def _copy(self) -> Region:
+        return _SignedRegion(self._terms)
 
-class _SymmetricDifferenceRegion(Region):
-    """A region representing the symmetric difference of two regions.
-
-    Uses formula: area(A ^ B) = area(A) + area(B) - 2 * area(A & B)
-    """
-
-    def __init__(self, region1: Region, region2: Region, intersection: Optional[Region]) -> None:
-        self._region1 = region1
-        self._region2 = region2
-        self._intersection = intersection
-        self._outer_boundary = region1._outer_boundary
-        self._holes: List[CompositePath] = []
+    def add_hole(self, hole: CompositePath) -> None:
+        """Cut a hole out of the region: the hole becomes a term with coefficient -1."""
+        if not hole.is_closed():
+            raise ValueError("Hole must be a closed path")
+        self._terms.append((-1, Region(hole)))
 
     def area(self) -> float:
-        """Calculate symmetric difference area."""
-        total = self._region1.area() + self._region2.area()
-        if self._intersection is not None:
-            total -= 2 * self._intersection.area()
-        return total
+        """Sum of each term's area times its coefficient."""
+        return sum(coefficient * term.area() for coefficient, term in self._terms)
+
+    def is_empty(self) -> bool:
+        """True when the terms cancel out (no area left)."""
+        return self._is_negligible(self.area(), tuple(abs(c) * term.area() for c, term in self._terms))
+
+    def signed_area(self) -> float:
+        return self.area()
 
     def contains_point(self, x: float, y: float) -> bool:
-        """Check if point is in exactly one of the regions."""
-        in1 = self._region1.contains_point(x, y)
-        in2 = self._region2.contains_point(x, y)
-        return in1 != in2
+        """Check if the terms containing the point add up to at least one."""
+        return sum(coefficient for coefficient, term in self._terms if term.contains_point(x, y)) > 0
+
+    def _sample_to_points(self, num_samples: int = 100) -> List[Tuple[float, float]]:
+        return self.boundary_points(num_samples)
+
+    def __repr__(self) -> str:
+        return f"Region(terms={len(self._terms)})"

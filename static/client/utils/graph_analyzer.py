@@ -75,14 +75,22 @@ class GraphAnalyzer:
         v: str,
         directed: bool,
     ) -> Optional[str]:
+        """Name of the edge from u to v; among parallel edges, the lightest one (the one a path or MST uses)."""
+        best: Optional[GraphEdgeDescriptor] = None
         for edge in state.edges:
-            if directed:
-                if edge.source == u and edge.target == v:
-                    return GraphAnalyzer._string_or_none(edge.name) or GraphAnalyzer._string_or_none(edge.id)
-            else:
-                if (edge.source == u and edge.target == v) or (edge.source == v and edge.target == u):
-                    return GraphAnalyzer._string_or_none(edge.name) or GraphAnalyzer._string_or_none(edge.id)
-        return None
+            forward = edge.source == u and edge.target == v
+            backward = edge.source == v and edge.target == u
+            if not (forward or (backward and not directed)):
+                continue
+            if best is None or GraphAnalyzer._weight_or_inf(edge) < GraphAnalyzer._weight_or_inf(best):
+                best = edge
+        if best is None:
+            return None
+        return GraphAnalyzer._string_or_none(best.name) or GraphAnalyzer._string_or_none(best.id)
+
+    @staticmethod
+    def _weight_or_inf(edge: GraphEdgeDescriptor) -> float:
+        return float("inf") if edge.weight is None else float(edge.weight)
 
     @staticmethod
     def _resolve_root(
@@ -185,7 +193,7 @@ class GraphAnalyzer:
         undirected_adjacency = GraphAnalyzer._build_adjacency(state, False) if directed else adjacency
 
         if operation == "bridges":
-            bridges = GraphUtils.find_bridges(undirected_adjacency)
+            bridges = GraphUtils.find_multigraph_bridges(edges)
             names = []
             for u, v in bridges:
                 name = GraphAnalyzer._edge_name_for_endpoints(state, u, v, directed=False)
@@ -201,7 +209,7 @@ class GraphAnalyzer:
             if directed:
                 status = GraphUtils.directed_euler_status(edges)
             else:
-                status = GraphUtils.euler_status(adjacency)
+                status = GraphUtils.undirected_euler_status(edges)
             return {"status": status}
 
         if operation == "bipartite":

@@ -331,14 +331,14 @@ class ColoredAreaManager:
         """Create a colored area from a boolean region expression."""
         from utils.area_expression_evaluator import AreaExpressionEvaluator
 
-        result = AreaExpressionEvaluator.evaluate(expression, self.canvas)
+        result = AreaExpressionEvaluator.evaluate(expression, self.canvas, num_samples=resolution)
         if result.error:
             raise ValueError(result.error)
 
         if result.region is None:
             raise ValueError(f"Expression '{expression}' did not produce a valid region")
 
-        points = result.region._sample_to_points(resolution)
+        points = result.region.boundary_points(resolution)
 
         closed_area = ClosedShapeColoredArea(
             shape_type="region",

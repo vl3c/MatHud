@@ -157,6 +157,15 @@ class TestAnalyzeGraphShortestPath(unittest.TestCase):
             result = GraphAnalyzer.analyze(state, "shortest_path", {"start": "A", "goal": "B"})
 
             self.assertEqual(result.get("cost"), 1.0)
+            self.assertEqual(result.get("highlight_vectors"), ["AB_0"])
+
+    def test_shortest_path_highlights_the_cheaper_parallel_edge(self) -> None:
+        """Parallel A-B (5) then A-B (1): the highlighted edge is the one the path uses."""
+        state = _make_state("AB", [("A", "B", 5.0), ("B", "A", 1.0)], directed=False)
+        result = GraphAnalyzer.analyze(state, "shortest_path", {"start": "A", "goal": "B"})
+
+        self.assertEqual(result.get("cost"), 1.0)
+        self.assertEqual(result.get("highlight_vectors"), ["BA_1"])
 
 
 class TestAnalyzeGraphMST(unittest.TestCase):
@@ -227,6 +236,8 @@ class TestAnalyzeGraphMST(unittest.TestCase):
         edges = {frozenset(e) for e in result.get("edges", [])}
         self.assertEqual(len(edges), 2)
         self.assertIn(frozenset({"A", "B"}), edges)
+        self.assertIn("AB_1", result.get("highlight_vectors", []))
+        self.assertNotIn("BA_0", result.get("highlight_vectors", []))
 
     def test_mst_edges_are_json_lists(self) -> None:
         """MST edges are [source, target] lists, so the raw result serializes as JSON."""
@@ -365,6 +376,21 @@ class TestAnalyzeGraphBridges(unittest.TestCase):
         self.assertEqual(sorted(bridges[0]), ["C", "D"])
         self.assertEqual(json.loads(json.dumps(result))["bridges"], bridges)
 
+    def test_bridges_parallel_edges_are_not_bridges(self) -> None:
+        """A doubled edge A-B keeps A and B connected without either copy; B-C is still a bridge."""
+        state = _make_state("ABC", [("A", "B"), ("B", "A"), ("B", "C")], directed=False)
+        result = GraphAnalyzer.analyze(state, "bridges", {})
+
+        self.assertEqual([sorted(b) for b in result.get("bridges", [])], [["B", "C"]])
+        self.assertEqual(result.get("highlight_vectors"), ["BC_2"])
+
+    def test_bridges_directed_two_way_edge_is_not_a_bridge(self) -> None:
+        """A->B and B->A are two parallel edges of the underlying undirected graph."""
+        state = _make_state("ABC", [("A", "B"), ("B", "A"), ("B", "C")], directed=True)
+        result = GraphAnalyzer.analyze(state, "bridges", {})
+
+        self.assertEqual([sorted(b) for b in result.get("bridges", [])], [["B", "C"]])
+
 
 class TestAnalyzeGraphArticulationPoints(unittest.TestCase):
     """Tests for articulation_points operation."""
@@ -481,6 +507,19 @@ class TestAnalyzeGraphEulerStatus(unittest.TestCase):
         result = GraphAnalyzer.analyze(state, "euler_status", {})
 
         self.assertIsNone(result.get("status"))
+
+    def test_euler_status_counts_parallel_edges(self) -> None:
+        """A doubled edge A-B gives A and B degree 2: an Euler circuit, not a path."""
+        state = _make_state("AB", [("A", "B"), ("A", "B")], directed=False)
+        self.assertEqual(GraphAnalyzer.analyze(state, "euler_status", {}).get("status"), "cycle")
+
+        state = _make_state("ABC", [("A", "B"), ("A", "B"), ("B", "C")], directed=False)
+        self.assertEqual(GraphAnalyzer.analyze(state, "euler_status", {}).get("status"), "path")
+
+    def test_euler_status_counts_a_loop_twice(self) -> None:
+        """A loop at A adds 2 to A's degree: A-A plus A-B leaves A and B odd, an Euler path."""
+        state = _make_state("AB", [("A", "A"), ("A", "B")], directed=False)
+        self.assertEqual(GraphAnalyzer.analyze(state, "euler_status", {}).get("status"), "path")
 
 
 class TestAnalyzeGraphBipartite(unittest.TestCase):
