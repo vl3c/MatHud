@@ -219,6 +219,70 @@ class TestRegion(unittest.TestCase):
         with self.assertRaises(ValueError):
             l_shape.symmetric_difference(other_l)
 
+    # Holes: A ring (4x4 square minus the 2x2 square in its middle) and the square [2, 5]^2.
+    @staticmethod
+    def _square(x0: float, y0: float, x1: float, y1: float) -> Region:
+        return Region.from_points([(x0, y0), (x1, y0), (x1, y1), (x0, y1)])
+
+    @staticmethod
+    def _shoelace(points: list) -> float:
+        n = len(points)
+        return 0.5 * sum(
+            points[i][0] * points[(i + 1) % n][1] - points[(i + 1) % n][0] * points[i][1] for i in range(n)
+        )
+
+    def _ring_and_square(self) -> tuple:
+        ring = self._square(0.0, 0.0, 4.0, 4.0).difference(self._square(1.0, 1.0, 3.0, 3.0))
+        assert ring is not None
+        return ring, self._square(2.0, 2.0, 5.0, 5.0)
+
+    def test_intersection_keeps_holes(self) -> None:
+        ring, square = self._ring_and_square()
+        self.assertAlmostEqual(ring.area(), 12.0, places=6)
+        # [2,4]^2 minus the hole's [2,3]^2 corner; the outer boundary alone would give 4.
+        for result in (ring.intersection(square), square.intersection(ring)):
+            assert result is not None
+            self.assertAlmostEqual(result.area(), 3.0, places=6)
+            self.assertFalse(result.contains_point(2.5, 2.5))
+            self.assertTrue(result.contains_point(3.5, 3.5))
+
+    def test_difference_of_a_region_with_holes_subtracts_overlaps_once(self) -> None:
+        ring, square = self._ring_and_square()
+        result = ring.difference(square)
+        assert result is not None
+        self.assertAlmostEqual(result.area(), 9.0, places=6)
+        self.assertFalse(result.contains_point(1.5, 1.5))
+        self.assertFalse(result.contains_point(3.5, 3.5))
+        self.assertTrue(result.contains_point(0.5, 0.5))
+
+    def test_union_and_symmetric_difference_keep_holes(self) -> None:
+        ring, square = self._ring_and_square()
+        union = ring.union(square)
+        self.assertAlmostEqual(union.area(), 18.0, places=6)
+        self.assertFalse(union.contains_point(1.5, 1.5))
+        self.assertTrue(union.contains_point(2.5, 2.5))
+        self.assertAlmostEqual(ring.symmetric_difference(square).area(), 15.0, places=6)
+
+    def test_union_result_combines_further(self) -> None:
+        far = self._square(10.0, 0.0, 12.0, 2.0)
+        union = self._square(0.0, 0.0, 4.0, 4.0).union(far)
+        # The far square is not lost when the union is intersected again.
+        result = union.intersection(self._square(11.0, 1.0, 13.0, 3.0))
+        assert result is not None
+        self.assertAlmostEqual(result.area(), 1.0, places=6)
+
+    def test_annulus_intersection(self) -> None:
+        annulus = Region.from_circle((0.0, 0.0), 2.0).difference(Region.from_circle((0.0, 0.0), 1.0))
+        assert annulus is not None
+        half = annulus.intersection(self._square(0.0, -5.0, 5.0, 5.0))
+        assert half is not None
+        self.assertAlmostEqual(half.area(), 1.5 * math.pi, places=1)
+
+    def test_boundary_points_trace_holes(self) -> None:
+        ring, square = self._ring_and_square()
+        for region, expected in ((ring, 12.0), (ring.union(square), 18.0), (ring.symmetric_difference(square), 15.0)):
+            self.assertAlmostEqual(self._shoelace(region.boundary_points()), expected, places=6)
+
     def test_repr(self) -> None:
         region = Region.from_points([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)])
         repr_str = repr(region)

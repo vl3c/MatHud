@@ -338,7 +338,7 @@ class ColoredAreaManager:
         if result.region is None:
             raise ValueError(f"Expression '{expression}' did not produce a valid region")
 
-        points = result.region._sample_to_points(resolution)
+        points = result.region.boundary_points(resolution)
 
         closed_area = ClosedShapeColoredArea(
             shape_type="region",

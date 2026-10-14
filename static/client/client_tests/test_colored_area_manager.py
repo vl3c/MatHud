@@ -508,7 +508,7 @@ class TestColoredAreaManager(unittest.TestCase):
         from types import ModuleType
 
         mock_region = SimpleMock(name="MockRegion")
-        mock_region._sample_to_points = SimpleMock(return_value=[(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)])
+        mock_region.boundary_points = SimpleMock(return_value=[(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)])
 
         mock_result = SimpleMock()
         mock_result.error = None
