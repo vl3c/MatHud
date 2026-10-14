@@ -720,11 +720,11 @@ Mirrors the canvas to the browser's `localStorage`, so an accidental reload or a
 
 **What is stored:** `{"version": 1, "state": ..., "view": ...}` under `mathud.canvas.backup`, where `state` is `WorkspaceManager.snapshot_canvas_state()` (drawables, computations, coordinate system and grid) and `view` is `Canvas.get_view_state()` (zoom, pan, coordinate mode, grid visibility). The chat is not stored; saved workspaces keep it.
 
-**When it is written:** `Canvas.add_draw_listener` calls `schedule_backup()` after every frame the canvas draws, which writes at most once per `BACKUP_DELAY_MS` (1 s), so dragging and panning do not serialize every frame; `pagehide` and `visibilitychange` (hidden) write at once. A canvas identical to the last write is not written again. The key is per origin, so every tab of the app on the same host and port shares one backup and the last write wins.
+**When it is written:** `Canvas.add_draw_listener` calls `schedule_backup()` after every frame the canvas draws, which writes at most once per `BACKUP_DELAY_MS` (1 s), so dragging and panning do not serialize every frame; `pagehide` and `visibilitychange` (hidden) write at once. A canvas identical to the last write is not written again. The key is per origin, so every tab of the app on the same host and port shares one backup. When another tab writes it (the `storage` event), this tab skips its backups until its own canvas changes (its undo or redo depth moves), so panning an older tab does not replace newer work from another tab.
 
 **`CanvasBackupManager`:**
-- `restore()`: Replace the canvas with the backup and its view, and empty the undo and redo stacks (a freshly loaded page has no history); True when restored. A backup that cannot be read or restored is copied to `mathud.canvas.backup.unrestored` first, so later backups never overwrite it
-- `start()`: Register the draw listener and the page-hide handlers (does nothing when the browser refuses storage access)
+- `restore()`: Replace the canvas with the backup and its view, and empty the undo and redo stacks (a freshly loaded page has no history); True when restored. A backup that cannot be read or restored, or whose restore skipped items (a drawable bucket came back with fewer items), is copied to `mathud.canvas.backup.unrestored` first, so later backups never overwrite it
+- `start()`: Register the draw listener, the `storage` listener and the page-hide handlers (does nothing when the browser refuses storage access)
 - `schedule_backup()` / `backup_now()`: The delayed and the immediate write. A write the browser refuses (storage full) removes the backup, so a reload never brings back an older canvas, and prints one warning
 
 #### Chat Persistence (`chat_transcript.py`, `chat_persistence_manager.py`)

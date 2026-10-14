@@ -12,12 +12,15 @@ When the backup is written:
 - at once when the page is hidden or unloaded (reload, tab switch, window close).
 
 Unchanged canvases are not written again. The backup is per origin, so every tab
-of the app on the same host and port shares it and the last write wins.
+of the app on the same host and port shares it. When another tab writes it, this
+tab stops writing until its own canvas changes (an undo step), so panning an old
+tab does not replace the newer work of another.
 
-A backup that cannot be restored (unreadable, or a restore that raised) is moved
-to ``UNRESTORED_STORAGE_KEY`` before the canvas is backed up again, so a failed
-restore never overwrites the only copy. A write the browser refuses (storage full
-or disabled) removes the backup instead of leaving an older canvas to come back.
+A backup that cannot be fully restored (unreadable, a restore that raised, or a
+bucket that came back with fewer items) is copied to ``UNRESTORED_STORAGE_KEY``
+before the canvas is backed up again, so a failed restore never overwrites the
+only copy. A write the browser refuses (storage full or disabled) removes the
+backup instead of leaving an older canvas to come back.
 
 Chat history is not part of the backup; saved workspaces keep the chat.
 """
@@ -25,7 +28,7 @@ Chat history is not part of the backup; saved workspaces keep the chat.
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 from browser import document, window
 from json_safe import ensure_json_safe
@@ -54,6 +57,8 @@ class CanvasBackupManager:
         _pending: True while a delayed backup is scheduled.
         _last_written: The text last written to storage, to skip unchanged canvases.
         _write_failed: True after a refused write, so the warning is printed once.
+        _superseded_at: The undo depths when another tab last wrote the backup; this tab
+            skips its backups until its own canvas changes. None when this tab wrote last.
     """
 
     def __init__(
@@ -70,6 +75,7 @@ class CanvasBackupManager:
         self._pending = False
         self._last_written: Optional[str] = None
         self._write_failed = False
+        self._superseded_at: Optional[Tuple[int, int]] = None
 
     @property
     def enabled(self) -> bool:
@@ -93,6 +99,12 @@ class CanvasBackupManager:
             print(f"Warning: could not restore the canvas backup: {exc}")
             self._keep_unrestored(raw)
             return False
+        missing = self._buckets_missing_items(backup["state"])
+        if missing:
+            # Items that failed one by one were skipped with a warning; keep the full copy.
+            print(f"Warning: the canvas backup was restored without some {', '.join(missing)}")
+            self._keep_unrestored(raw)
+            return True
         self._last_written = raw
         return True
 
@@ -101,6 +113,7 @@ class CanvasBackupManager:
         if not self.enabled:
             return
         self.canvas.add_draw_listener(self.schedule_backup)
+        window.bind("storage", self._on_storage_event)
         window.bind("pagehide", lambda _event: self.backup_now())
         document.bind("visibilitychange", self._on_visibility_change)
 
@@ -115,6 +128,10 @@ class CanvasBackupManager:
         """Write the canvas to storage now; True when the backup is current."""
         if not self.enabled:
             return False
+        if self._superseded_at is not None:
+            if self._superseded_at == self._undo_depths():
+                return False
+            self._superseded_at = None
         try:
             text = self._serialize_backup()
             if text != self._last_written:
@@ -129,6 +146,36 @@ class CanvasBackupManager:
     def _run_scheduled_backup(self) -> None:
         self._pending = False
         self.backup_now()
+
+    def mark_superseded(self) -> None:
+        """Another tab wrote the backup: skip backups until this tab's canvas changes."""
+        self._superseded_at = self._undo_depths()
+        self._last_written = None
+
+    def _on_storage_event(self, event: Any) -> None:
+        key = getattr(event, "key", None)
+        if key is None or str(key) == BACKUP_STORAGE_KEY:  # None: the storage was cleared
+            self.mark_superseded()
+
+    def _undo_depths(self) -> Tuple[int, int]:
+        """Every change to the canvas made in this tab moves one of the undo or redo depths."""
+        manager = self.canvas.undo_redo_manager
+        return len(manager.undo_stack), len(manager.redo_stack)
+
+    def _buckets_missing_items(self, saved_state: Dict[str, Any]) -> List[str]:
+        """The drawable buckets that have fewer items on the canvas than in the backup."""
+        restored = self.workspace_manager.snapshot_canvas_state()
+        restored = restored if isinstance(restored, dict) else {}
+        missing: List[str] = []
+        for bucket, items in saved_state.items():
+            # Drawable buckets are capitalized ("Points"); computations skip workspace calls on purpose.
+            if not isinstance(items, list) or not bucket[:1].isupper():
+                continue
+            restored_items = restored.get(bucket)
+            restored_count = len(restored_items) if isinstance(restored_items, list) else 0
+            if restored_count < len(items):
+                missing.append(bucket)
+        return missing
 
     def _on_visibility_change(self, _event: Any) -> None:
         if str(getattr(document, "visibilityState", "")) == "hidden":

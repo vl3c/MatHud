@@ -136,6 +136,54 @@ class TestCanvasBackup(unittest.TestCase):
         self.assertEqual(storage.items[UNRESTORED_STORAGE_KEY], "{not json")
         self.assertIn('"C"', storage.items[BACKUP_STORAGE_KEY])
 
+    def test_items_skipped_by_the_restore_are_kept_aside(self) -> None:
+        self.canvas.create_point(1, 2, name="A")
+        self.backup.backup_now()
+        stored = self._stored_backup()
+        # A point the restore cannot rebuild (no position): it is skipped with a warning.
+        stored["state"]["Points"].append({"name": "Z", "args": {}})
+        raw = json.dumps(stored)
+        storage = FakeStorage({BACKUP_STORAGE_KEY: raw})
+
+        reloaded = _new_canvas()
+        backup = _backup_for(reloaded, storage)
+        self.assertTrue(backup.restore())
+        self.assertEqual(_point_names(reloaded), ["A"])
+        self.assertEqual(storage.items[UNRESTORED_STORAGE_KEY], raw)
+        self.assertTrue(backup.backup_now())
+        self.assertEqual(storage.items[UNRESTORED_STORAGE_KEY], raw)
+        self.assertNotEqual(storage.items[BACKUP_STORAGE_KEY], raw)
+
+    def test_restore_brings_back_polar_mode_on_a_drawing_canvas(self) -> None:
+        self.canvas.create_point(1, 2, name="A")
+        self.canvas.coordinate_system_manager.set_mode("polar", redraw=False)
+        self.canvas.restore_view_state({"scale_factor": 0.5, "offset": [10.0, 0.0]})
+        self.backup.backup_now()
+
+        reloaded = _new_canvas()
+        reloaded.renderer = None
+        reloaded.draw_enabled = True
+        self.assertTrue(_backup_for(reloaded, FakeStorage(dict(self.storage.items))).restore())
+        view = reloaded.get_view_state()
+        self.assertEqual(view["coordinate_mode"], "polar")
+        self.assertEqual(view["scale_factor"], 0.5)
+        self.assertEqual(_point_names(reloaded), ["A"])
+
+    def test_tab_whose_backup_another_tab_replaced_writes_only_after_its_canvas_changes(self) -> None:
+        self.canvas.create_point(1, 2, name="A")
+        self.backup.backup_now()
+        newer = '{"version": 1, "state": {}, "view": {}}'
+        self.storage.items[BACKUP_STORAGE_KEY] = newer
+        self.backup.mark_superseded()
+
+        self.canvas.restore_view_state({"scale_factor": 3.0, "offset": [0.0, 0.0]})  # a pan or zoom
+        self.assertFalse(self.backup.backup_now())
+        self.assertEqual(self.storage.items[BACKUP_STORAGE_KEY], newer)
+
+        self.canvas.create_point(3, 4, name="B")
+        self.assertTrue(self.backup.backup_now())
+        self.assertEqual(sorted(p["name"] for p in self._stored_backup()["state"]["Points"]), ["A", "B"])
+
     def test_unchanged_canvas_is_not_written_again(self) -> None:
         self.canvas.create_point(1, 2, name="A")
         self.backup.backup_now()
