@@ -97,7 +97,7 @@ Objects are compared by their rendered line, so moving a point also reports the 
 
 ### 3.4 History
 
-The `<canvas>` block stays on the latest user message (tool results describe changes against it) and is stripped by marker from older user messages. With the Responses API and `previous_response_id`, OpenAI keeps earlier turns (and their canvas blocks) server-side.
+The `<canvas>` block stays on the latest user message (tool results describe changes against it) and is stripped by marker from older user messages. The Responses API provider sends this stripped history with every request and does not chain responses with `previous_response_id`, so OpenAI never keeps the older blocks either.
 
 ### 3.5 View notes
 
@@ -122,7 +122,7 @@ A missed note is far better than a false or useless one: every rule stays silent
 4. Extents below the grid's finest spacing (`min_tick_spacing`, 1e-6) or 1e-9 of the coordinates' magnitude count as a point; coordinates from 1e15 on are written in short scientific notation; view bounds are rounded like the canvas view line.
 5. Wording: the note names the new objects (whole shapes before their edges and points, at most three), with the verb agreeing with the names as printed (`the new ABC spans`, `the new P, Q are`), and "new or changed" when a named object existed before the batch.
 6. Placement: the last line of `[canvas changes]` in text and min_json (a header line, or a `"view_note"` key in min_json, when the full canvas is sent instead), and the last line of the batch's last tool message in json. User messages never carry a note.
-7. History: when the user sends a new message, view notes older than the previous turn are removed from the tool messages (the `View note:` lines, and the `"view_note"` key of a min_json `[canvas now]`); the previous turn keeps its notes, since the new message may accept the offer ("yes, zoom"). The guidance speaks of the `[canvas changes]` after the tool calls made since the user's latest message, so a reply without tool calls does not offer again. With the Responses API and `previous_response_id`, OpenAI keeps earlier turns, and their notes, on its side. There is no memory across turns: if the user declines and the model later draws another separate speck, the new speck gets its own note.
+7. History: when the user sends a new message, view notes older than the previous turn are removed from the tool messages (the `View note:` lines, and the `"view_note"` key of a min_json `[canvas now]`); the previous turn keeps its notes, since the new message may accept the offer ("yes, zoom"). The guidance speaks of the `[canvas changes]` after the tool calls made since the user's latest message, so a reply without tool calls does not offer again. There is no memory across turns: if the user declines and the model later draws another separate speck, the new speck gets its own note.
 8. Scenario CV-08 (`scenarios/canvas.json`) draws the motivating triangle; replay checks that the view is unchanged and no view tool ran, and live mode also checks that the reply mentions zooming.
 
 ### 3.6 Measurements

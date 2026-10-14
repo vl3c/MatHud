@@ -444,8 +444,6 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
         self.assertEqual(api.messages[-1]["role"], "assistant")
         self.assertEqual(api.messages[-1]["content"], "Drawing it")
         self.assertFalse(api.messages[-1].get("tool_calls"))
-        # The next turn must not continue from a response with unanswered tool calls.
-        self.assertIsNone(api._previous_response_id)
 
     @patch("static.openai_api_base.OpenAI")
     def test_create_response_stream_incomplete_content_filter(self, mock_openai: Mock) -> None:
@@ -656,69 +654,83 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
         self.assertEqual(final_event["ai_tool_calls"][0]["arguments"], {"x": 5, "y": 10})
 
     @patch("static.openai_api_base.OpenAI")
-    def test_clear_previous_response_id(self, mock_openai: Mock) -> None:
-        """Test clear_previous_response_id resets the stored ID."""
+    def test_later_turns_send_stripped_history_without_chaining(self, mock_openai: Mock) -> None:
+        """Responses are not chained, so OpenAI never holds the canvas blocks MatHud strips."""
+        mock_client = MagicMock()
+        mock_openai.return_value = mock_client
+
+        def completed(response_id: str, text: str) -> Any:
+            return iter(
+                [
+                    SimpleNamespace(type="response.output_text.delta", delta=text),
+                    SimpleNamespace(
+                        type="response.completed",
+                        response=SimpleNamespace(id=response_id, status="completed", output=[]),
+                    ),
+                ]
+            )
+
+        mock_client.responses.create.side_effect = [completed("resp_1", "One point."), completed("resp_2", "Two.")]
         api = OpenAIResponsesAPI()
-        api._previous_response_id = "resp_abc123"
+        first_state = {"Points": [{"name": "A", "args": {"position": {"x": 1, "y": 2}}}]}
+        second_state = {"Points": [{"name": "B", "args": {"position": {"x": 3, "y": 4}}}]}
 
-        api.clear_previous_response_id()
+        list(api.create_response_stream(json.dumps({"user_message": "how many points?", "canvas_state": first_state})))
+        list(api.create_response_stream(json.dumps({"user_message": "and now?", "canvas_state": second_state})))
 
-        self.assertIsNone(api._previous_response_id)
+        second_call = mock_client.responses.create.call_args_list[1].kwargs
+        self.assertNotIn("previous_response_id", second_call)
+        user_texts = [m["content"] for m in second_call["input"] if m["role"] == "user"]
+        self.assertEqual(len(user_texts), 2)
+        self.assertNotIn("<canvas>", user_texts[0])
+        self.assertTrue(user_texts[0].endswith("how many points?"))
+        self.assertTrue(user_texts[1].startswith("<canvas>"))
+        self.assertIn("B", user_texts[1])
+        self.assertIn({"role": "assistant", "content": "One point."}, second_call["input"])
 
     @patch("static.openai_api_base.OpenAI")
-    def test_clear_previous_response_id_noop_when_none(self, mock_openai: Mock) -> None:
-        """Test clear_previous_response_id is a no-op when ID is already None."""
+    def test_turn_after_a_stopped_tool_call_sends_no_pending_call(self, mock_openai: Mock) -> None:
+        """Stopping a turn that ended in a tool call leaves nothing unanswered in the next request."""
+        mock_client = MagicMock()
+        mock_openai.return_value = mock_client
+        tool_turn = iter(
+            [
+                SimpleNamespace(
+                    type="response.function_call_arguments.delta",
+                    output_index=0,
+                    call_id="call_1",
+                    name="create_point",
+                    delta='{"x": 1, "y": 2}',
+                ),
+                SimpleNamespace(
+                    type="response.completed",
+                    response=SimpleNamespace(id="resp_1", status="completed", output=[]),
+                ),
+            ]
+        )
+        next_turn = iter(
+            [
+                SimpleNamespace(type="response.output_text.delta", delta="Hi."),
+                SimpleNamespace(
+                    type="response.completed",
+                    response=SimpleNamespace(id="resp_2", status="completed", output=[]),
+                ),
+            ]
+        )
+        mock_client.responses.create.side_effect = [tool_turn, next_turn]
         api = OpenAIResponsesAPI()
-        self.assertIsNone(api._previous_response_id)
 
-        api.clear_previous_response_id()  # Should not raise
-
-        self.assertIsNone(api._previous_response_id)
-
-    @patch("static.openai_api_base.OpenAI")
-    def test_add_partial_message_clears_previous_response_id(self, mock_openai: Mock) -> None:
-        """Test add_partial_assistant_message clears stale previous_response_id."""
-        api = OpenAIResponsesAPI()
-        api._previous_response_id = "resp_stale_with_pending_tool_calls"
-
-        api.add_partial_assistant_message("Partial AI response before stop")
-
-        self.assertIsNone(api._previous_response_id)
-
-    @patch("static.openai_api_base.OpenAI")
-    def test_partial_message_still_appends_to_history(self, mock_openai: Mock) -> None:
-        """Test add_partial_assistant_message still appends the message via super()."""
-        api = OpenAIResponsesAPI()
-        api._previous_response_id = "resp_xyz"
-        initial_count = len(api.messages)
-
-        api.add_partial_assistant_message("Some partial text")
-
-        # Message should be appended
-        self.assertEqual(len(api.messages), initial_count + 1)
-        self.assertEqual(api.messages[-1]["role"], "assistant")
-        self.assertEqual(api.messages[-1]["content"], "Some partial text")
-        # And ID should be cleared
-        self.assertIsNone(api._previous_response_id)
-
-    @patch("static.openai_api_base.OpenAI")
-    def test_add_empty_partial_message_still_clears_response_id(self, mock_openai: Mock) -> None:
-        """Test that empty partial message still clears stale previous_response_id.
-
-        When the user interrupts a tool-call-only response, the stream buffer
-        is empty. The backend must still clear the stale response ID even though
-        no message is appended to history.
-        """
-        api = OpenAIResponsesAPI()
-        api._previous_response_id = "resp_pending_tool_calls"
-        initial_count = len(api.messages)
-
+        list(api.create_response_stream(json.dumps({"user_message": "make a point", "use_vision": False})))
         api.add_partial_assistant_message("")
+        list(api.create_response_stream(json.dumps({"user_message": "hello", "use_vision": False})))
 
-        # No message should be appended (base class skips empty content)
-        self.assertEqual(len(api.messages), initial_count)
-        # But the stale response ID must still be cleared
-        self.assertIsNone(api._previous_response_id)
+        second_call = mock_client.responses.create.call_args_list[1].kwargs
+        self.assertNotIn("previous_response_id", second_call)
+        self.assertFalse(second_call["store"])
+        self.assertTrue(all(item.get("type") != "function_call" for item in second_call["input"]))
+        self.assertEqual(second_call["input"][-1], {"role": "user", "content": "hello"})
+        roles = [item["role"] for item in second_call["input"]]
+        self.assertEqual(roles.count("user"), 3)  # first prompt, its tool results, the new prompt
 
 
 class TestOpenAIResponsesAPIIntegration(unittest.TestCase):

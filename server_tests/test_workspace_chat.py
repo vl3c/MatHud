@@ -307,7 +307,6 @@ class TestWorkspaceChatRoutes(unittest.TestCase):
 
     def test_restore_conversation_rebuilds_history(self) -> None:
         self.app.ai_api.messages.append({"role": "user", "content": "old"})
-        self.app.responses_api._previous_response_id = "resp_123"
         chat = _chat(_user("draw A"), _assistant("Drew A."))
 
         response = self.client.post("/restore_conversation", json={"chat": chat})
@@ -321,7 +320,6 @@ class TestWorkspaceChatRoutes(unittest.TestCase):
                 api.messages[1:],
                 [{"role": "user", "content": "draw A"}, {"role": "assistant", "content": "Drew A."}],
             )
-        self.assertIsNone(self.app.responses_api._previous_response_id)
 
     def test_restore_conversation_reaches_cached_providers(self) -> None:
         provider = self.app.ai_api.__class__()

@@ -1169,8 +1169,8 @@ def register_routes(app: MatHudFlask) -> None:
                 return AppManager.make_response(message="The turn already ended; nothing to stop.")
 
             # Without a turn (the stop came before the server answered at all), notify all
-            # APIs so they can clear stale conversation state (e.g. previous_response_id
-            # after interrupted tool calls). The base class skips appending empty text.
+            # APIs so each abandons its request in flight and keeps the partial text.
+            # The base class skips appending empty text.
             for api in _api_instances(app):
                 api.add_partial_assistant_message(partial_message)
 

@@ -642,8 +642,8 @@ class OpenAIAPIBase:
     def restore_conversation(self, history: Sequence[HistoryTurn]) -> None:
         """Start over from restored plain-text turns (e.g. a chat loaded with a workspace).
 
-        Resets the conversation (subclasses clear their own state, such as a stored
-        response id), then appends each ``{"role", "content"}`` turn as given.
+        Resets the conversation (subclasses clear their own state in their
+        ``reset_conversation``), then appends each ``{"role", "content"}`` turn as given.
         """
         with self._history_lock:
             self.reset_conversation()
@@ -724,8 +724,7 @@ class OpenAIAPIBase:
     def _remove_images_from_user_messages(self) -> None:
         """Remove image content from all user messages in the conversation history.
 
-        This reduces token usage for the fallback case when not using previous_response_id.
-        When using previous_response_id, OpenAI maintains the full context server-side.
+        This reduces token usage: every provider resends this history with each request.
         """
         for message in reversed(self.messages):
             if message.get("role") == "user" and "content" in message:

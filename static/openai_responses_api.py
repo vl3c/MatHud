@@ -26,17 +26,17 @@ _CUT_OFF_FINISH_REASONS = frozenset({"length", "content_filter"})
 class OpenAIResponsesAPI(OpenAIAPIBase):
     """OpenAI Responses API for reasoning models (GPT-6 Sol/Astra/Luna, GPT-5.6 Sol).
 
-    Uses `previous_response_id` for multi-turn conversations, allowing OpenAI
-    to manage conversation state server-side. This properly handles images
-    across turns without manual stripping or context management.
+    Every request sends MatHud's own history rather than chaining responses with
+    `previous_response_id`: OpenAI would keep every earlier turn server-side,
+    including the old `<canvas>` blocks and images MatHud strips from its history.
+    Requests are sent with `store=False` for the same reason: nothing reads them back.
     """
 
     def __init__(self) -> None:
-        """Initialize the Responses API with log deduplication and response ID tracking."""
+        """Initialize the Responses API with log deduplication."""
         super().__init__()
         self._last_log_message: Optional[str] = None
         self._log_repeat_count: int = 0
-        self._previous_response_id: Optional[str] = None
 
     def _log(self, message: str) -> None:
         """Log a message, collapsing consecutive duplicates with a count."""
@@ -58,58 +58,6 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
             _logger.info(msg)  # File logging
             self._last_log_message = None
             self._log_repeat_count = 0
-
-    def reset_conversation(self) -> None:
-        """Reset the conversation history and clear the previous response ID."""
-        super().reset_conversation()
-        self._previous_response_id = None
-        self._log("[Responses API] Conversation reset, cleared previous_response_id")
-
-    def clear_previous_response_id(self) -> None:
-        """Clear the stored response ID (e.g. after user interruption)."""
-        if self._previous_response_id is not None:
-            self._log("[Responses API] Cleared previous_response_id")
-            self._previous_response_id = None
-
-    def add_partial_assistant_message(self, content: str) -> None:
-        """Add a partial assistant message and clear stale response ID.
-
-        When the user interrupts, the previous response may have pending
-        tool calls that will never be answered.  Clearing the ID prevents
-        the next request from referencing that broken state.
-        """
-        super().add_partial_assistant_message(content)
-        self.clear_previous_response_id()
-
-    def _is_regular_message_turn(self) -> bool:
-        """Check if this is a regular user message turn (not a tool call continuation).
-
-        Returns True if the last message is a user message without pending tool calls.
-        """
-        if not self.messages:
-            return False
-        last_msg = self.messages[-1]
-        # Regular message turn if last message is from user and not a tool result
-        return last_msg.get("role") == "user" and "tool_call_id" not in last_msg
-
-    def _get_latest_user_message_for_input(self) -> List[Dict[str, Any]]:
-        """Get only the latest user message for use with previous_response_id.
-
-        When using previous_response_id, we only need to send the new user message
-        as OpenAI maintains the conversation context server-side.
-        """
-        if not self.messages:
-            return []
-
-        # Find the last user message
-        for msg in reversed(self.messages):
-            if msg.get("role") == "user":
-                content = msg.get("content", "")
-                # Convert content format if needed
-                converted_content = self._convert_content_for_responses_api(content)
-                return [{"role": "user", "content": converted_content}]
-
-        return []
 
     def _convert_tools_for_responses_api(self) -> List[Dict[str, Any]]:
         """Convert Chat Completions tool format to Responses API format.
@@ -319,24 +267,13 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         """Create API stream, falling back if some reasoning params are not supported.
 
         Notes:
-        - Uses `previous_response_id` for multi-turn conversations when available,
-          allowing OpenAI to manage context server-side (better for images).
+        - Sends the full (stripped) history every time; responses are not chained.
         - Some models may not support `reasoning.summary`.
         - Every OpenAI model sets an explicit effort (GPT-6 Luna "low", the others "medium");
           GPT-6 Astra rejects effort "none".
         - If the API rejects a reasoning sub-parameter, retry with a reduced set of reasoning params.
         """
-        # Determine if we can use previous_response_id for this turn
-        # Only use it for regular user messages, not tool call continuations
-        use_previous_response = self._previous_response_id is not None and self._is_regular_message_turn()
-
-        if use_previous_response:
-            # With previous_response_id, only send the new user message
-            input_messages = self._get_latest_user_message_for_input()
-            self._log(f"[Responses API] Using previous_response_id: {self._previous_response_id}")
-        else:
-            # First turn or tool call - send full history
-            input_messages = self._convert_messages_to_input()
+        input_messages = self._convert_messages_to_input()
 
         base_kwargs: Dict[str, Any] = {
             "model": self.model.id,
@@ -344,11 +281,8 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
             "tools": self._convert_tools_for_responses_api(),
             "max_output_tokens": self.max_tokens,
             "stream": True,
+            "store": False,
         }
-
-        # Add previous_response_id if using stateful conversation
-        if use_previous_response:
-            base_kwargs["previous_response_id"] = self._previous_response_id
 
         reasoning: Dict[str, Any] = {"summary": "detailed"}
         if getattr(self.model, "reasoning_effort", None):
@@ -486,13 +420,6 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         if not response_obj:
             return
 
-        # Store response ID for multi-turn conversations
-        response_id = getattr(response_obj, "id", None)
-        with self._reply_guard(state.get("generation", self.conversation_generation)) as current:
-            if response_id and current:
-                self._previous_response_id = response_id
-                self._log(f"[Responses API] Stored response ID: {response_id}")
-
         status = getattr(response_obj, "status", "completed")
         self._log(f"[Responses API] Response status: {status}")
 
@@ -554,9 +481,6 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         note = ""
         if state["finish_reason"] in _CUT_OFF_FINISH_REASONS:
             note = self._cut_off_note(state["finish_reason"], len(normalized))
-            if normalized:
-                # The stored response ends in tool calls that will never get results.
-                self.clear_previous_response_id()
             normalized = []
 
         with self._reply_guard(state.get("generation", self.conversation_generation)) as current:

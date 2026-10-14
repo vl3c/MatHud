@@ -122,7 +122,7 @@ class TestTextCanvasBlock(CanvasFormatEnv):
         api = self.responses_api()
         api._prepare_messages_for_stream(user_prompt())
         self.assertEqual(
-            api._get_latest_user_message_for_input(),
+            api._convert_messages_to_input()[-1:],
             [{"role": "user", "content": f"{CANVAS_BLOCK}\n\nHow long is AB?"}],
         )
 

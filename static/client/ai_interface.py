@@ -891,9 +891,8 @@ class AIInterface:
         self._turn_metrics.finish_turn("stopped")
         self._abort_current_stream()
         self._cancel_response_timeout()
-        # Always notify the backend so it can clear stale conversation state
-        # (e.g. previous_response_id pointing to unanswered tool calls).
-        # The backend handles empty text gracefully.
+        # Always notify the backend so it abandons the request in flight
+        # and keeps the partial reply. The backend handles empty text gracefully.
         self._save_partial_response(self._chat_ui.unsaved_reply_text() or "")
         self._finalize_stream_message()
         self._print_system_message_in_chat("Generation stopped.")
