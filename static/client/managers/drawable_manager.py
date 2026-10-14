@@ -718,6 +718,7 @@ class DrawableManager:
         name: str = "",
         color: Optional[str] = None,
         extra_graphics: bool = True,
+        reuse_existing: bool = True,
     ) -> "Circle":
         """Create a new circle with the specified center and radius"""
         return self.circle_manager.create_circle(
@@ -727,6 +728,7 @@ class DrawableManager:
             name,
             color=color,
             extra_graphics=extra_graphics,
+            reuse_existing=reuse_existing,
         )
 
     def delete_circle(self, name: str) -> bool:

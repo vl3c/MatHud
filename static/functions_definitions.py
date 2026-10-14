@@ -499,7 +499,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "color": {"type": ["string", "null"], "description": "Optional color to assign to the circle"},
                     "name": {
                         "type": ["string", "null"],
-                        "description": "Optional name hint used to name the center point; the circle itself is named '<center>(<radius>)'",
+                        "description": "Optional name. A point name such as 'A' (or capital letters such as 'AB') names the center point and the circle is named '<center>(<radius>)'; any other name of letters, digits and underscores, such as 'c1' or 'orbit', names the circle itself (its letters still name the center) and is kept through transforms. A name already in use gets a '_<n>' suffix",
                     },
                 },
                 "required": ["center_x", "center_y", "radius", "color", "name"],

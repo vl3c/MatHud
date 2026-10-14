@@ -42,6 +42,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Set
 
+from name_generator.base import with_unique_suffix
+
 if TYPE_CHECKING:
     from drawables.drawable import Drawable
 
@@ -176,6 +178,19 @@ class DrawablesContainer:
             set: Non-empty names of the other drawables
         """
         return {drawable.name for drawable in self.get_all() if drawable is not exclude and drawable.name}
+
+    def unique_name(self, base_name: str, exclude: Optional["Drawable"] = None) -> str:
+        """base_name, or base_name with the first free ``_<n>`` suffix when another drawable has it.
+
+        Args:
+            base_name: The requested or generated name
+            exclude: A drawable whose own name does not count, such as one being renamed
+
+        Returns:
+            str: A name no other drawable has
+        """
+        unique: str = with_unique_suffix(base_name, self.names_in_use(exclude=exclude))
+        return unique
 
     def get_colored_areas(self) -> List["Drawable"]:
         """

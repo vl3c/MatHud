@@ -98,7 +98,7 @@ class BarManager:
                     except Exception:
                         pass
                 return existing
-            resolved_name = sanitized_name
+            resolved_name = self.drawables.unique_name(sanitized_name)
         else:
             resolved_name = self._generate_unique_name("bar")
 
@@ -174,25 +174,7 @@ class BarManager:
         base = str(base or "").strip()
         if not base:
             base = "bar"
-
-        existing_names = set()
-        try:
-            for drawable in self.drawables.get_by_class_name("Bar"):
-                dname = getattr(drawable, "name", "")
-                if dname:
-                    existing_names.add(str(dname))
-        except Exception:
-            existing_names = set()
-
-        if base not in existing_names:
-            return base
-
-        idx = 1
-        while True:
-            candidate = f"{base}_{idx}"
-            if candidate not in existing_names:
-                return candidate
-            idx += 1
+        return self.drawables.unique_name(base)
 
     def _update_existing_bar(
         self,

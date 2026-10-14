@@ -19,7 +19,7 @@ class LabelNameGenerator(NameGenerator):
     def generate_label_name(self, preferred_name: Optional[str]) -> str:
         """Return a unique label name, honoring the preferred value when possible."""
         normalized = self._normalize_preferred_name(preferred_name)
-        existing = set(self.get_drawable_names("Label"))
+        existing = set(self.taken_names("Label"))
 
         if normalized:
             candidate = normalized

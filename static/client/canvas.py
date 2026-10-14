@@ -1294,6 +1294,7 @@ class Canvas:
         name: str = "",
         color: Optional[str] = None,
         extra_graphics: bool = True,
+        reuse_existing: bool = True,
     ) -> "Drawable":
         """Create a circle with the specified center and radius"""
         return self.drawable_manager.create_circle(
@@ -1303,6 +1304,7 @@ class Canvas:
             name,
             color=color,
             extra_graphics=extra_graphics,
+            reuse_existing=reuse_existing,
         )
 
     def delete_circle(self, name: str) -> bool:

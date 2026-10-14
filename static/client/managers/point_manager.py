@@ -386,7 +386,7 @@ class PointManager(BaseDrawableManager):
     def _rename_dependent_rotational_drawables(self, point: Point) -> None:
         for circle in getattr(self.drawables, "Circles", []):
             if getattr(circle, "center", None) is point and hasattr(circle, "regenerate_name"):
-                circle.regenerate_name()
+                circle.regenerate_name(self.drawables.names_in_use(exclude=circle))
         for ellipse in getattr(self.drawables, "Ellipses", []):
             if getattr(ellipse, "center", None) is point and hasattr(ellipse, "regenerate_name"):
                 ellipse.regenerate_name(self.drawables.names_in_use(exclude=ellipse))
@@ -501,6 +501,10 @@ class PointManager(BaseDrawableManager):
         existing_point = self.get_point_by_name(filtered_candidate)
         if existing_point and existing_point is not original_point:
             raise ValueError(f"Another point named '{filtered_candidate}' already exists.")
+        if filtered_candidate != original_point.name and filtered_candidate in self.drawables.names_in_use(
+            exclude=original_point
+        ):
+            raise ValueError(f"The name '{filtered_candidate}' is already used by another object.")
 
         return filtered_candidate
 

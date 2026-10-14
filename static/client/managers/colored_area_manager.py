@@ -179,6 +179,7 @@ class ColoredAreaManager:
                                                      color=color, opacity=opacity)
 
         # Add to drawables
+        colored_area.name = self.drawables.unique_name(colored_area.name)
         self.drawables.add(colored_area)
         self.dependency_manager.analyze_drawable_for_dependencies(colored_area)
 
@@ -305,6 +306,7 @@ class ColoredAreaManager:
             opacity=opacity,
         )
 
+        closed_area.name = self.drawables.unique_name(closed_area.name)
         self.drawables.add(closed_area)
         self.dependency_manager.analyze_drawable_for_dependencies(closed_area)
 
@@ -349,6 +351,7 @@ class ColoredAreaManager:
             opacity=opacity,
         )
 
+        closed_area.name = self.drawables.unique_name(closed_area.name)
         self.drawables.add(closed_area)
 
         if self.canvas.draw_enabled:

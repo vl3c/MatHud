@@ -37,6 +37,7 @@ from typing import Any, Collection, Dict, Optional, Tuple, cast
 from constants import default_color
 from drawables.drawable import Drawable
 from drawables.point import Point
+from name_generator.base import with_unique_suffix
 from utils.math_utils import MathUtils
 
 
@@ -253,9 +254,5 @@ class Ellipse(Drawable):
     @staticmethod
     def unique_name(base_name: str, taken_names: Collection[str]) -> str:
         """base_name, or base_name with the first '_<n>' suffix not in taken_names."""
-        candidate = base_name
-        suffix = 1
-        while candidate in taken_names:
-            candidate = f"{base_name}_{suffix}"
-            suffix += 1
-        return candidate
+        unique: str = with_unique_suffix(base_name, taken_names)
+        return unique

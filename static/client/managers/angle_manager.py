@@ -191,7 +191,8 @@ class AngleManager(BaseDrawableManager):
                 undo_manager.restore_state(baseline_state, redraw=self.canvas.draw_enabled)
                 return None
 
-            # 5. Add to drawables container
+            # 5. Add to drawables container, under a name no other drawable uses
+            new_angle.name = self.drawables.unique_name(new_angle.name)
             self.drawables.add(new_angle)
 
             # 6. Register dependencies
