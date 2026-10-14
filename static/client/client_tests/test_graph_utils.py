@@ -538,6 +538,17 @@ class TestGraph(unittest.TestCase):
         self.assertEqual(GraphUtils.euler_status(cycle_adj), "cycle")
         self.assertEqual(GraphUtils.euler_status(path_adj), "path")
 
+    def test_multigraph_bridges_skip_parallel_edges(self) -> None:
+        edges = [Edge("A", "B"), Edge("B", "A"), Edge("B", "C"), Edge("C", "C")]
+        self.assertEqual(GraphUtils.find_multigraph_bridges(edges), [("B", "C")])
+        self.assertEqual(GraphUtils.undirected_edge_multiplicity(edges)[frozenset(("A", "B"))], 2)
+
+    def test_undirected_euler_status_counts_parallel_edges_and_loops(self) -> None:
+        self.assertEqual(GraphUtils.undirected_euler_status([Edge("A", "B"), Edge("B", "A")]), "cycle")
+        self.assertEqual(GraphUtils.undirected_multigraph_degrees([Edge("A", "A"), Edge("A", "B")]), {"A": 3, "B": 1})
+        self.assertEqual(GraphUtils.undirected_euler_status([Edge("A", "A"), Edge("A", "B")]), "path")
+        self.assertIsNone(GraphUtils.undirected_euler_status([Edge("A", "B"), Edge("C", "D")]))
+
     def test_is_bipartite(self) -> None:
         adjacency = GraphUtils.build_adjacency_map([Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A")])
         is_bipartite, coloring = GraphUtils.is_bipartite(adjacency)

@@ -860,6 +860,35 @@ class GraphUtils:
         return bridges
 
     @staticmethod
+    def find_multigraph_bridges(edges: Sequence[Edge[V]]) -> List[Tuple[V, V]]:
+        """Bridges of the undirected multigraph formed by ``edges``.
+
+        An edge is a bridge when it is a bridge of the simple graph and has no parallel
+        edge: two edges between the same vertices keep each other connected.
+        """
+        multiplicity = GraphUtils.undirected_edge_multiplicity(edges)
+        bridges = GraphUtils.find_bridges(GraphUtils.build_adjacency_map(edges))
+        return [(u, v) for u, v in bridges if multiplicity.get(frozenset((u, v)), 0) == 1]
+
+    @staticmethod
+    def undirected_edge_multiplicity(edges: Sequence[Edge[V]]) -> Dict[FrozenSet[V], int]:
+        """Number of edges between each unordered pair of vertices (a loop is keyed by one vertex)."""
+        counts: Dict[FrozenSet[V], int] = {}
+        for edge in edges:
+            key = edge.as_frozenset()
+            counts[key] = counts.get(key, 0) + 1
+        return counts
+
+    @staticmethod
+    def undirected_multigraph_degrees(edges: Sequence[Edge[V]]) -> Dict[V, int]:
+        """Vertex degrees counting every parallel edge, and a loop twice."""
+        degrees: Dict[V, int] = {}
+        for edge in edges:
+            degrees[edge.source] = degrees.get(edge.source, 0) + 1
+            degrees[edge.target] = degrees.get(edge.target, 0) + 1
+        return degrees
+
+    @staticmethod
     def find_articulation_points(adjacency: Dict[V, Set[V]]) -> Set[V]:
         time = 0
         visited: Set[V] = set()
@@ -900,6 +929,22 @@ class GraphUtils:
         if not GraphUtils.is_connected(active):
             return None
         degrees = GraphUtils.get_vertex_degrees(active)
+        odd = sum(1 for d in degrees.values() if d % 2 == 1)
+        if odd == 0:
+            return "cycle"
+        if odd == 2:
+            return "path"
+        return None
+
+    @staticmethod
+    def undirected_euler_status(edges: Sequence[Edge[V]]) -> Optional[str]:
+        """Euler status of an undirected multigraph from its edge list.
+
+        Unlike ``euler_status``, parallel edges and loops count toward the degrees.
+        """
+        if not GraphUtils.is_connected(GraphUtils.build_adjacency_map(edges)):
+            return None
+        degrees = GraphUtils.undirected_multigraph_degrees(edges)
         odd = sum(1 for d in degrees.values() if d % 2 == 1)
         if odd == 0:
             return "cycle"
