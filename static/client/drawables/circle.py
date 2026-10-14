@@ -45,6 +45,7 @@ class Circle(Drawable):
         center (Point): Center point of the circle
         radius (float): Radius in mathematical coordinate units
         circle_formula (str): Algebraic circle equation, computed from the current geometry
+        has_custom_name (bool): True when the name was chosen rather than generated
     """
 
     def __init__(self, center_point: Point, radius: float, color: str = default_color, name: str = "") -> None:

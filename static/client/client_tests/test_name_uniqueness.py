@@ -83,11 +83,11 @@ class TestNamesOnCanvas(unittest.TestCase):
         saved = json.loads(json.dumps(manager._snapshot_persistable_canvas_state()))
         manager._restore_workspace_state(saved)
 
-    def _graph(self, name: str, vertex_names: str) -> Any:
+    def _graph(self, name: str, vertex_names: str, y: float = 0.0) -> Any:
         return self.canvas.generate_graph(
             name=name,
             graph_type="graph",
-            vertices=[{"name": v, "x": 10.0 * i, "y": 0.0} for i, v in enumerate(vertex_names)],
+            vertices=[{"name": v, "x": 10.0 * i, "y": y} for i, v in enumerate(vertex_names)],
             edges=[{"source": 0, "target": 1}],
             adjacency_matrix=None,
             directed=None,
@@ -124,7 +124,15 @@ class TestNamesOnCanvas(unittest.TestCase):
 
     def test_graph_vertex_name_in_use_is_not_taken(self) -> None:
         self._graph("K", "AB")
-        self._graph("M", "KL")
+        self._graph("M", "KL", y=20.0)
+        self.assertIsNone(self.canvas.get_point_by_name("K"))
+        self.assertIsNotNone(self.canvas.get_point_by_name("L"))
+        self._assert_unique()
+
+    def test_point_name_held_by_a_label_is_not_taken(self) -> None:
+        self.canvas.create_label(5, 5, "note", name="A")
+        point = self.canvas.create_point(1, 1, name="A", extra_graphics=False)
+        self.assertNotEqual(point.name, "A")
         self._assert_unique()
 
     def test_point_rename_to_a_name_in_use_is_refused(self) -> None:
@@ -195,6 +203,23 @@ class TestNamesOnCanvas(unittest.TestCase):
         self.assertTrue(restored.has_custom_name)
         self.canvas.redo()
         self.assertEqual(self._circle("orbit").radius, 6)
+
+    def test_existing_circle_is_returned_with_its_own_name(self) -> None:
+        first = self.canvas.create_circle(0, 0, 3, name="A", extra_graphics=False)
+        again = self.canvas.create_circle(0, 0, 3, name="orbit", extra_graphics=False)
+        self.assertIs(again, first)
+        self.assertEqual(again.name, "A(3)")
+        self.assertEqual(len(list(self.drawables.Circles)), 1)
+
+    def test_renaming_the_centre_keeps_a_custom_name_and_renames_a_default_one(self) -> None:
+        custom = self.canvas.create_circle(0, 0, 3, name="orbit", extra_graphics=False)
+        default = self.canvas.create_circle(0, 0, 5, extra_graphics=False)
+        self.assertIs(default.center, custom.center)
+        old_center = custom.center.name
+        self.canvas.update_point(old_center, new_name="Z")
+        self.assertEqual(custom.name, "orbit")
+        self.assertEqual(default.name, "Z(5)")
+        self._assert_unique()
 
     def test_scaling_into_a_name_in_use_gets_suffix(self) -> None:
         self.canvas.create_circle(0, 0, 6, name="A", extra_graphics=False)

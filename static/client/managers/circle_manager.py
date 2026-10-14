@@ -244,10 +244,6 @@ class CircleManager(BaseDrawableManager):
         else:
             circle.regenerate_name(taken_names)
 
-    def refresh_circle_name(self, circle: Circle) -> None:
-        """Regenerate a default name after the geometry changed, avoiding names in use."""
-        circle.regenerate_name(self.drawables.names_in_use(exclude=circle))
-
     def delete_circle(self, name: str) -> bool:
         """
         Delete a circle by its name.

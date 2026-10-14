@@ -499,7 +499,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "color": {"type": ["string", "null"], "description": "Optional color to assign to the circle"},
                     "name": {
                         "type": ["string", "null"],
-                        "description": "Optional name. A point name such as 'A' (or capital letters such as 'AB') names the center point and the circle is named '<center>(<radius>)'; any other name of letters, digits and underscores, such as 'c1' or 'orbit', names the circle itself (its letters still name the center) and is kept through transforms. A name already in use gets a '_<n>' suffix",
+                        "description": "Optional name. A point name such as 'A' (or capital letters such as 'AB') names the center point and the circle is named '<center>(<radius>)'; any other name of letters, digits and underscores, such as 'c1' or 'orbit', names the circle itself (its letters still name the center) and is kept through transforms. A name already in use gets a '_<n>' suffix. If a circle with this center and radius already exists, it is returned with its own name",
                     },
                 },
                 "required": ["center_x", "center_y", "radius", "color", "name"],
@@ -1370,7 +1370,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     },
                     "p2_name": {"type": ["string", "null"], "description": "Name of the second point"},
                     "p3_name": {"type": ["string", "null"], "description": "Name of the third point"},
-                    "name": {"type": ["string", "null"], "description": "Optional name for the created circumcircle"},
+                    "name": {"type": ["string", "null"], "description": "Optional name for the created circumcircle, such as 'c1': letters, digits, underscores and primes, starting with a letter or an underscore. A name already in use gets a '_<n>' suffix"},
                     "color": {"type": ["string", "null"], "description": "Optional color for the circumcircle"},
                 },
                 "required": ["triangle_name", "p1_name", "p2_name", "p3_name", "name", "color"],
@@ -1388,7 +1388,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "type": "object",
                 "properties": {
                     "triangle_name": {"type": "string", "description": "Name of an existing triangle"},
-                    "name": {"type": ["string", "null"], "description": "Optional name for the created incircle"},
+                    "name": {"type": ["string", "null"], "description": "Optional name for the created incircle, such as 'c1': letters, digits, underscores and primes, starting with a letter or an underscore. A name already in use gets a '_<n>' suffix"},
                     "color": {"type": ["string", "null"], "description": "Optional color for the incircle"},
                 },
                 "required": ["triangle_name", "name", "color"],
