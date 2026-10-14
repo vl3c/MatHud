@@ -642,8 +642,8 @@ class OpenAIAPIBase:
     def restore_conversation(self, history: Sequence[HistoryTurn]) -> None:
         """Start over from restored plain-text turns (e.g. a chat loaded with a workspace).
 
-        Resets the conversation (subclasses clear their own state, such as a stored
-        response id), then appends each ``{"role", "content"}`` turn as given.
+        Resets the conversation (subclasses clear their own state in their
+        ``reset_conversation``), then appends each ``{"role", "content"}`` turn as given.
         """
         with self._history_lock:
             self.reset_conversation()

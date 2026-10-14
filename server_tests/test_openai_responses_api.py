@@ -688,6 +688,50 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
         self.assertIn("B", user_texts[1])
         self.assertIn({"role": "assistant", "content": "One point."}, second_call["input"])
 
+    @patch("static.openai_api_base.OpenAI")
+    def test_turn_after_a_stopped_tool_call_sends_no_pending_call(self, mock_openai: Mock) -> None:
+        """Stopping a turn that ended in a tool call leaves nothing unanswered in the next request."""
+        mock_client = MagicMock()
+        mock_openai.return_value = mock_client
+        tool_turn = iter(
+            [
+                SimpleNamespace(
+                    type="response.function_call_arguments.delta",
+                    output_index=0,
+                    call_id="call_1",
+                    name="create_point",
+                    delta='{"x": 1, "y": 2}',
+                ),
+                SimpleNamespace(
+                    type="response.completed",
+                    response=SimpleNamespace(id="resp_1", status="completed", output=[]),
+                ),
+            ]
+        )
+        next_turn = iter(
+            [
+                SimpleNamespace(type="response.output_text.delta", delta="Hi."),
+                SimpleNamespace(
+                    type="response.completed",
+                    response=SimpleNamespace(id="resp_2", status="completed", output=[]),
+                ),
+            ]
+        )
+        mock_client.responses.create.side_effect = [tool_turn, next_turn]
+        api = OpenAIResponsesAPI()
+
+        list(api.create_response_stream(json.dumps({"user_message": "make a point", "use_vision": False})))
+        api.add_partial_assistant_message("")
+        list(api.create_response_stream(json.dumps({"user_message": "hello", "use_vision": False})))
+
+        second_call = mock_client.responses.create.call_args_list[1].kwargs
+        self.assertNotIn("previous_response_id", second_call)
+        self.assertFalse(second_call["store"])
+        self.assertTrue(all(item.get("type") != "function_call" for item in second_call["input"]))
+        self.assertEqual(second_call["input"][-1], {"role": "user", "content": "hello"})
+        roles = [item["role"] for item in second_call["input"]]
+        self.assertEqual(roles.count("user"), 3)  # first prompt, its tool results, the new prompt
+
 
 class TestOpenAIResponsesAPIIntegration(unittest.TestCase):
     """Integration tests that actually call the OpenAI Responses API.

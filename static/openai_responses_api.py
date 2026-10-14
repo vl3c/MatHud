@@ -29,10 +29,11 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
     Every request sends MatHud's own history rather than chaining responses with
     `previous_response_id`: OpenAI would keep every earlier turn server-side,
     including the old `<canvas>` blocks and images MatHud strips from its history.
+    Requests are sent with `store=False` for the same reason: nothing reads them back.
     """
 
     def __init__(self) -> None:
-        """Initialize the Responses API with log deduplication and response ID tracking."""
+        """Initialize the Responses API with log deduplication."""
         super().__init__()
         self._last_log_message: Optional[str] = None
         self._log_repeat_count: int = 0
@@ -280,6 +281,7 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
             "tools": self._convert_tools_for_responses_api(),
             "max_output_tokens": self.max_tokens,
             "stream": True,
+            "store": False,
         }
 
         reasoning: Dict[str, Any] = {"summary": "detailed"}
