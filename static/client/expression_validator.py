@@ -745,17 +745,12 @@ class ExpressionValidator(ast.NodeVisitor):
 
     @staticmethod
     def _replace_function_names(expression: str) -> str:
-        """Replace common mathematical function names with their Python equivalents"""
-        replacements = ExpressionValidator._get_function_replacements()
-        # Longest names first so "sine(" doesn't clobber "arcsine(", "cosine(" or "hyperbolic sine("
-        for old, new in sorted(replacements.items(), key=lambda item: len(item[0]), reverse=True):
-            expression = expression.replace(old, new)
-        return expression
+        """Rewrite function aliases as the canonical names (sine( -> sin(, ln -> log).
 
-    @staticmethod
-    def _get_function_replacements() -> Dict[str, str]:
-        """Get a dictionary of function name replacements"""
-        return {"π": "pi", **ef.ALIAS_REPLACEMENTS}
+        Each alias is matched as a whole token, so names that contain one (kiln, x2ln,
+        artifact) are left alone. π was already spelled out by the Unicode step.
+        """
+        return cast(str, ef.replace_aliases(expression))
 
     @staticmethod
     def _handle_power_and_imaginary(expression: str, python_compatible: bool) -> str:

@@ -25,6 +25,27 @@ from server_tests.test_expression_function_tables import GOLDEN_PATH, _label
 SYMPY_ONLY_NAMES = {"coth", "sech", "csch", "sign", "sgn", "gamma", "erf", "cbrt", "nthroot", "atan2"}
 
 
+# Aliases are matched as whole tokens; the client suite runs the same cases through Brython's re
+ALIAS_CASES = {
+    "2ln(x) + sine(x)": "2log(x) + sin(x)",
+    "1e3ln(x)": "1e3log(x)",
+    "2.5e-3ln(x)": "2.5e-3log(x)",
+    "θ2ln(x)": "θ2log(x)",
+    "ln (x)": "log (x)",
+    "hyperbolic sine(x) + 2square root(x)": "sinh(x) + 2sqrt(x)",
+    "arcsine(x)*cosine(x)": "asin(x)*cos(x)",
+    "std(x)+var(y)": "stdev(x)+variance(y)",
+    "kiln": "kiln",
+    "ln2": "ln2",
+    "x2ln(x)": "x2ln(x)",
+    "a1sine(x)": "a1sine(x)",
+    "artifact(3)": "artifact(3)",
+    "myvar(2)": "myvar(2)",
+    "sine (x)": "sine (x)",
+    "var": "var",
+}
+
+
 def _golden() -> Dict[str, Any]:
     with open(GOLDEN_PATH, encoding="utf-8") as golden_file:
         return dict(json.load(golden_file))
@@ -66,7 +87,8 @@ class TestDerivedTables(unittest.TestCase):
         self.assertEqual(sorted(node.__name__ for node in ef.ALLOWED_NODES), tables["allowed_nodes"])
         self.assertEqual(sorted(ef.SUPERSCRIPT_NAMES), tables["superscript_functions"])
         self.assertEqual(ef.INVERSE_NAMES, tables["inverse_functions"])
-        self.assertEqual({**ef.ALIAS_REPLACEMENTS, "π": "pi"}, tables["function_replacements"])
+        self.assertEqual(ef.CALL_ALIASES, tables["call_aliases"])
+        self.assertEqual(ef.WORD_ALIASES, tables["word_aliases"])
 
     def test_python_only_names(self) -> None:
         # randint has its own "randint(" check in MathUtils.evaluate
@@ -148,6 +170,21 @@ class TestRowIntegrity(unittest.TestCase):
     def test_rename_targets_are_not_sources(self) -> None:
         # Otherwise renames would chain (a -> b -> c) depending on their order
         self.assertEqual(set(ef.MATHJS_RENAMES) & set(ef.MATHJS_RENAMES.values()), set())
+
+
+class TestAliases(unittest.TestCase):
+    def test_aliases_are_matched_as_whole_tokens(self) -> None:
+        for text, expected in ALIAS_CASES.items():
+            with self.subTest(text=text):
+                self.assertEqual(ef.replace_aliases(text), expected)
+
+    def test_hints_cover_every_alias(self) -> None:
+        # The pre-check must not skip text an alias could change
+        for alias in list(ef.CALL_ALIASES) + list(ef.WORD_ALIASES):
+            text = alias + "(" if alias in ef.CALL_ALIASES else alias
+            with self.subTest(alias=alias):
+                self.assertTrue(any(hint in text for hint in ef._ALIAS_HINTS))
+                self.assertNotEqual(ef.replace_aliases(text), text)
 
 
 class TestBrowserFreeImport(unittest.TestCase):

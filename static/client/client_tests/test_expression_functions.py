@@ -50,6 +50,26 @@ CURVE_UNARY_SAMPLES: Dict[str, Sequence[float]] = {
     "trunc": (2.7, -2.7),
 }
 
+# Aliases are matched as whole tokens; the same cases as server_tests/test_expression_functions.py, run through Brython's re
+ALIAS_CASES = {
+    "2ln(x) + sine(x)": "2log(x) + sin(x)",
+    "1e3ln(x)": "1e3log(x)",
+    "2.5e-3ln(x)": "2.5e-3log(x)",
+    "θ2ln(x)": "θ2log(x)",
+    "ln (x)": "log (x)",
+    "hyperbolic sine(x) + 2square root(x)": "sinh(x) + 2sqrt(x)",
+    "arcsine(x)*cosine(x)": "asin(x)*cos(x)",
+    "std(x)+var(y)": "stdev(x)+variance(y)",
+    "kiln": "kiln",
+    "ln2": "ln2",
+    "x2ln(x)": "x2ln(x)",
+    "a1sine(x)": "a1sine(x)",
+    "artifact(3)": "artifact(3)",
+    "myvar(2)": "myvar(2)",
+    "sine (x)": "sine (x)",
+    "var": "var",
+}
+
 
 class TestExpressionFunctions(unittest.TestCase):
     def test_namespace_keys(self) -> None:
@@ -95,3 +115,8 @@ class TestExpressionFunctions(unittest.TestCase):
         for name in absent + sorted(ef.MATHJS_RENAMES):
             with self.subTest(name=name):
                 self.assertFalse(hasattr(window.math, name), f"math.{name} exists; it may not need special handling")
+
+    def test_aliases_are_matched_as_whole_tokens(self) -> None:
+        for text, expected in ALIAS_CASES.items():
+            with self.subTest(text=text):
+                self.assertEqual(ef.replace_aliases(text), expected)

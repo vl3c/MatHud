@@ -20,6 +20,7 @@ from typing import Any, Callable, Dict, List
 from unittest import mock
 
 from server_tests import client_renderer  # noqa: F401  (installs the browser stub)
+import expression_functions as ef
 from expression_validator import ExpressionValidator
 from utils.math_utils import MathUtils
 
@@ -110,7 +111,8 @@ def _tables() -> Dict[str, Any]:
         "allowed_nodes": sorted(node.__name__ for node in ExpressionValidator.ALLOWED_NODES),
         "superscript_functions": sorted(ExpressionValidator._SUPERSCRIPT_FUNCTIONS),
         "inverse_functions": dict(sorted(ExpressionValidator._INVERSE_FUNCTIONS.items())),
-        "function_replacements": dict(sorted(ExpressionValidator._get_function_replacements().items())),
+        "call_aliases": dict(sorted(ef.CALL_ALIASES.items())),
+        "word_aliases": dict(sorted(ef.WORD_ALIASES.items())),
         "python_only_functions": sorted(MathUtils._PYTHON_ONLY_FUNCTIONS),
     }
 
@@ -137,7 +139,7 @@ def _curve_values() -> Dict[str, List[str]]:
 
 
 def _alias_corpus() -> Dict[str, List[str]]:
-    words = [old[:-1] for old in ExpressionValidator._get_function_replacements() if old.endswith("(")]
+    words = list(ef.CALL_ALIASES)
     names = sorted(ExpressionValidator.ALLOWED_FUNCTIONS) + sorted(words) + ["ln"]
     expressions = [context.replace("N", name) for name in names for context in _ALIAS_CONTEXTS]
     expressions.extend(_ALIAS_EXTRAS)

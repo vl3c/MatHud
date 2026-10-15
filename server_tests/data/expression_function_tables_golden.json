@@ -413,8 +413,8 @@
    "'_abs(x)'"
   ],
   "_absolute(x)": [
-   "'_abs(x)'",
-   "'_abs(x)'"
+   "'_absolute(x)'",
+   "'_absolute(x)'"
   ],
   "_acos(x)": [
    "'_acos(x)'",
@@ -433,16 +433,16 @@
    "'_acsc(x)'"
   ],
   "_arccosine(x)": [
-   "'_acos(x)'",
-   "'_acos(x)'"
+   "'_arccosine(x)'",
+   "'_arccosine(x)'"
   ],
   "_arcsine(x)": [
-   "'_asin(x)'",
-   "'_asin(x)'"
+   "'_arcsine(x)'",
+   "'_arcsine(x)'"
   ],
   "_arctangent(x)": [
-   "'_atan(x)'",
-   "'_atan(x)'"
+   "'_arctangent(x)'",
+   "'_arctangent(x)'"
   ],
   "_arithmetic_sum(x)": [
    "'_arithmetic_sum(x)'",
@@ -477,8 +477,8 @@
    "'_bin(x)'"
   ],
   "_binary(x)": [
-   "'_bin(x)'",
-   "'_bin(x)'"
+   "'_binary(x)'",
+   "'_binary(x)'"
   ],
   "_ceil(x)": [
    "'_ceil(x)'",
@@ -497,8 +497,8 @@
    "'_cosh(x)'"
   ],
   "_cosine(x)": [
-   "'_cos(x)'",
-   "'_cos(x)'"
+   "'_cosine(x)'",
+   "'_cosine(x)'"
   ],
   "_cot(x)": [
    "'_cot(x)'",
@@ -509,12 +509,12 @@
    "'_csc(x)'"
   ],
   "_derivate(x)": [
-   "'_derive(x)'",
-   "'_derive(x)'"
+   "'_derivate(x)'",
+   "'_derivate(x)'"
   ],
   "_derivative(x)": [
-   "'_derive(x)'",
-   "'_derive(x)'"
+   "'_derivative(x)'",
+   "'_derivative(x)'"
   ],
   "_derive(x)": [
    "'_derive(x)'",
@@ -525,8 +525,8 @@
    "'_det(x)'"
   ],
   "_determinant(x)": [
-   "'_det(x)'",
-   "'_det(x)'"
+   "'_determinant(x)'",
+   "'_determinant(x)'"
   ],
   "_divisors(x)": [
    "'_divisors(x)'",
@@ -545,12 +545,12 @@
    "'_expand(x)'"
   ],
   "_exponential(x)": [
-   "'_exp(x)'",
-   "'_exp(x)'"
+   "'_exponential(x)'",
+   "'_exponential(x)'"
   ],
   "_fact(x)": [
-   "'_factorial(x)'",
-   "'_factorial(x)'"
+   "'_fact(x)'",
+   "'_fact(x)'"
   ],
   "_factor(x)": [
    "'_factor(x)'",
@@ -577,20 +577,20 @@
    "'_geometric_sum_infinite(x)'"
   ],
   "_hyperbolic cosine(x)": [
-   "'_cosh(x)'",
-   "'_cosh(x)'"
+   "'_hyperbolic cos(x)'",
+   "'_hyperbolic cos(x)'"
   ],
   "_hyperbolic sine(x)": [
-   "'_sinh(x)'",
-   "'_sinh(x)'"
+   "'_hyperbolic sin(x)'",
+   "'_hyperbolic sin(x)'"
   ],
   "_hyperbolic tangent(x)": [
-   "'_tanh(x)'",
-   "'_tanh(x)'"
+   "'_hyperbolic tan(x)'",
+   "'_hyperbolic tan(x)'"
   ],
   "_integral(x)": [
-   "'_integrate(x)'",
-   "'_integrate(x)'"
+   "'_integral(x)'",
+   "'_integral(x)'"
   ],
   "_integrate(x)": [
    "'_integrate(x)'",
@@ -605,16 +605,16 @@
    "'_lcm(x)'"
   ],
   "_lim(x)": [
-   "'_limit(x)'",
-   "'_limit(x)'"
+   "'_lim(x)'",
+   "'_lim(x)'"
   ],
   "_limit(x)": [
    "'_limit(x)'",
    "'_limit(x)'"
   ],
   "_ln(x)": [
-   "'_log(x)'",
-   "'_log(x)'"
+   "'_ln(x)'",
+   "'_ln(x)'"
   ],
   "_log(x)": [
    "'_log(x)'",
@@ -629,16 +629,16 @@
    "'_log2(x)'"
   ],
   "_logarithm(x)": [
-   "'_log(x)'",
-   "'_log(x)'"
+   "'_logarithm(x)'",
+   "'_logarithm(x)'"
   ],
   "_logarithm10(x)": [
-   "'_log10(x)'",
-   "'_log10(x)'"
+   "'_logarithm10(x)'",
+   "'_logarithm10(x)'"
   ],
   "_logarithm2(x)": [
-   "'_log2(x)'",
-   "'_log2(x)'"
+   "'_logarithm2(x)'",
+   "'_logarithm2(x)'"
   ],
   "_max(x)": [
    "'_max(x)'",
@@ -689,8 +689,8 @@
    "'_pow(x)'"
   ],
   "_power(x)": [
-   "'_pow(x)'",
-   "'_pow(x)'"
+   "'_power(x)'",
+   "'_power(x)'"
   ],
   "_prev_prime(x)": [
    "'_prev_prime(x)'",
@@ -705,8 +705,8 @@
    "'_product(x)'"
   ],
   "_rand(x)": [
-   "'_random(x)'",
-   "'_random(x)'"
+   "'_rand(x)'",
+   "'_rand(x)'"
   ],
   "_randint(x)": [
    "'_randint(x)'",
@@ -741,8 +741,8 @@
    "'_sin(x)'"
   ],
   "_sine(x)": [
-   "'_sin(x)'",
-   "'_sin(x)'"
+   "'_sine(x)'",
+   "'_sine(x)'"
   ],
   "_sinh(x)": [
    "'_sinh(x)'",
@@ -757,12 +757,12 @@
    "'_sqrt(x)'"
   ],
   "_square root(x)": [
-   "'_sqrt(x)'",
-   "'_sqrt(x)'"
+   "'_square root(x)'",
+   "'_square root(x)'"
   ],
   "_std(x)": [
-   "'_stdev(x)'",
-   "'_stdev(x)'"
+   "'_std(x)'",
+   "'_std(x)'"
   ],
   "_stdev(x)": [
    "'_stdev(x)'",
@@ -781,8 +781,8 @@
    "'_tan(x)'"
   ],
   "_tangent(x)": [
-   "'_tan(x)'",
-   "'_tan(x)'"
+   "'_tangent(x)'",
+   "'_tangent(x)'"
   ],
   "_tanh(x)": [
    "'_tanh(x)'",
@@ -797,16 +797,16 @@
    "'_trunc(x)'"
   ],
   "_var(x)": [
-   "'_variance(x)'",
-   "'_variance(x)'"
+   "'_var(x)'",
+   "'_var(x)'"
   ],
   "_variance(x)": [
    "'_variance(x)'",
    "'_variance(x)'"
   ],
   "a1sine(x)": [
-   "'a1sin(x)'",
-   "'a1sin(x)'"
+   "'a1sine(x)'",
+   "'a1sine(x)'"
   ],
   "abs": [
    "'abs'",
@@ -1073,8 +1073,8 @@
    "'arrangementsx'"
   ],
   "artifact(3)": [
-   "'artifactorial(3)'",
-   "'artifactorial(3)'"
+   "'artifact(3)'",
+   "'artifact(3)'"
   ],
   "asec": [
    "'asec'",
@@ -1245,12 +1245,12 @@
    "'binx'"
   ],
   "brand(1)": [
-   "'brandom(1)'",
-   "'brandom(1)'"
+   "'brand(1)'",
+   "'brand(1)'"
   ],
   "c2ln": [
-   "'c2log'",
-   "'c2log'"
+   "'c2ln'",
+   "'c2ln'"
   ],
   "ceil": [
    "'ceil'",
@@ -1977,8 +1977,8 @@
    "'kabs(x)'"
   ],
   "kabsolute(x)": [
-   "'kabs(x)'",
-   "'kabs(x)'"
+   "'kabsolute(x)'",
+   "'kabsolute(x)'"
   ],
   "kacos(x)": [
    "'kacos(x)'",
@@ -1997,16 +1997,16 @@
    "'kacsc(x)'"
   ],
   "karccosine(x)": [
-   "'kacos(x)'",
-   "'kacos(x)'"
+   "'karccosine(x)'",
+   "'karccosine(x)'"
   ],
   "karcsine(x)": [
-   "'kasin(x)'",
-   "'kasin(x)'"
+   "'karcsine(x)'",
+   "'karcsine(x)'"
   ],
   "karctangent(x)": [
-   "'katan(x)'",
-   "'katan(x)'"
+   "'karctangent(x)'",
+   "'karctangent(x)'"
   ],
   "karithmetic_sum(x)": [
    "'karithmetic_sum(x)'",
@@ -2041,8 +2041,8 @@
    "'kbin(x)'"
   ],
   "kbinary(x)": [
-   "'kbin(x)'",
-   "'kbin(x)'"
+   "'kbinary(x)'",
+   "'kbinary(x)'"
   ],
   "kceil(x)": [
    "'kceil(x)'",
@@ -2061,8 +2061,8 @@
    "'kcosh(x)'"
   ],
   "kcosine(x)": [
-   "'kcos(x)'",
-   "'kcos(x)'"
+   "'kcosine(x)'",
+   "'kcosine(x)'"
   ],
   "kcot(x)": [
    "'kcot(x)'",
@@ -2073,12 +2073,12 @@
    "'kcsc(x)'"
   ],
   "kderivate(x)": [
-   "'kderive(x)'",
-   "'kderive(x)'"
+   "'kderivate(x)'",
+   "'kderivate(x)'"
   ],
   "kderivative(x)": [
-   "'kderive(x)'",
-   "'kderive(x)'"
+   "'kderivative(x)'",
+   "'kderivative(x)'"
   ],
   "kderive(x)": [
    "'kderive(x)'",
@@ -2089,8 +2089,8 @@
    "'kdet(x)'"
   ],
   "kdeterminant(x)": [
-   "'kdet(x)'",
-   "'kdet(x)'"
+   "'kdeterminant(x)'",
+   "'kdeterminant(x)'"
   ],
   "kdivisors(x)": [
    "'kdivisors(x)'",
@@ -2109,12 +2109,12 @@
    "'kexpand(x)'"
   ],
   "kexponential(x)": [
-   "'kexp(x)'",
-   "'kexp(x)'"
+   "'kexponential(x)'",
+   "'kexponential(x)'"
   ],
   "kfact(x)": [
-   "'kfactorial(x)'",
-   "'kfactorial(x)'"
+   "'kfact(x)'",
+   "'kfact(x)'"
   ],
   "kfactor(x)": [
    "'kfactor(x)'",
@@ -2141,24 +2141,24 @@
    "'kgeometric_sum_infinite(x)'"
   ],
   "khyperbolic cosine(x)": [
-   "'kcosh(x)'",
-   "'kcosh(x)'"
+   "'khyperbolic cos(x)'",
+   "'khyperbolic cos(x)'"
   ],
   "khyperbolic sine(x)": [
-   "'ksinh(x)'",
-   "'ksinh(x)'"
+   "'khyperbolic sin(x)'",
+   "'khyperbolic sin(x)'"
   ],
   "khyperbolic tangent(x)": [
-   "'ktanh(x)'",
-   "'ktanh(x)'"
+   "'khyperbolic tan(x)'",
+   "'khyperbolic tan(x)'"
   ],
   "kiln*2": [
-   "'kilog*2'",
-   "'kilog*2'"
+   "'kiln*2'",
+   "'kiln*2'"
   ],
   "kintegral(x)": [
-   "'kintegrate(x)'",
-   "'kintegrate(x)'"
+   "'kintegral(x)'",
+   "'kintegral(x)'"
   ],
   "kintegrate(x)": [
    "'kintegrate(x)'",
@@ -2173,16 +2173,16 @@
    "'klcm(x)'"
   ],
   "klim(x)": [
-   "'klimit(x)'",
-   "'klimit(x)'"
+   "'klim(x)'",
+   "'klim(x)'"
   ],
   "klimit(x)": [
    "'klimit(x)'",
    "'klimit(x)'"
   ],
   "kln(x)": [
-   "'klog(x)'",
-   "'klog(x)'"
+   "'kln(x)'",
+   "'kln(x)'"
   ],
   "klog(x)": [
    "'klog(x)'",
@@ -2197,16 +2197,16 @@
    "'klog2(x)'"
   ],
   "klogarithm(x)": [
-   "'klog(x)'",
-   "'klog(x)'"
+   "'klogarithm(x)'",
+   "'klogarithm(x)'"
   ],
   "klogarithm10(x)": [
-   "'klog10(x)'",
-   "'klog10(x)'"
+   "'klogarithm10(x)'",
+   "'klogarithm10(x)'"
   ],
   "klogarithm2(x)": [
-   "'klog2(x)'",
-   "'klog2(x)'"
+   "'klogarithm2(x)'",
+   "'klogarithm2(x)'"
   ],
   "kmax(x)": [
    "'kmax(x)'",
@@ -2257,8 +2257,8 @@
    "'kpow(x)'"
   ],
   "kpower(x)": [
-   "'kpow(x)'",
-   "'kpow(x)'"
+   "'kpower(x)'",
+   "'kpower(x)'"
   ],
   "kprev_prime(x)": [
    "'kprev_prime(x)'",
@@ -2273,8 +2273,8 @@
    "'kproduct(x)'"
   ],
   "krand(x)": [
-   "'krandom(x)'",
-   "'krandom(x)'"
+   "'krand(x)'",
+   "'krand(x)'"
   ],
   "krandint(x)": [
    "'krandint(x)'",
@@ -2309,8 +2309,8 @@
    "'ksin(x)'"
   ],
   "ksine(x)": [
-   "'ksin(x)'",
-   "'ksin(x)'"
+   "'ksine(x)'",
+   "'ksine(x)'"
   ],
   "ksinh(x)": [
    "'ksinh(x)'",
@@ -2325,12 +2325,12 @@
    "'ksqrt(x)'"
   ],
   "ksquare root(x)": [
-   "'ksqrt(x)'",
-   "'ksqrt(x)'"
+   "'ksquare root(x)'",
+   "'ksquare root(x)'"
   ],
   "kstd(x)": [
-   "'kstdev(x)'",
-   "'kstdev(x)'"
+   "'kstd(x)'",
+   "'kstd(x)'"
   ],
   "kstdev(x)": [
    "'kstdev(x)'",
@@ -2349,8 +2349,8 @@
    "'ktan(x)'"
   ],
   "ktangent(x)": [
-   "'ktan(x)'",
-   "'ktan(x)'"
+   "'ktangent(x)'",
+   "'ktangent(x)'"
   ],
   "ktanh(x)": [
    "'ktanh(x)'",
@@ -2365,8 +2365,8 @@
    "'ktrunc(x)'"
   ],
   "kvar(x)": [
-   "'kvariance(x)'",
-   "'kvariance(x)'"
+   "'kvar(x)'",
+   "'kvar(x)'"
   ],
   "kvariance(x)": [
    "'kvariance(x)'",
@@ -2465,16 +2465,16 @@
    "'log(x)+log(y)'"
   ],
   "ln2": [
-   "'log2'",
-   "'log2'"
+   "'ln2'",
+   "'ln2'"
   ],
   "ln2(x)": [
-   "'log2(x)'",
-   "'log2(x)'"
+   "'ln2(x)'",
+   "'ln2(x)'"
   ],
   "lnx": [
-   "'logx'",
-   "'logx'"
+   "'lnx'",
+   "'lnx'"
   ],
   "log": [
    "'log'",
@@ -2785,12 +2785,12 @@
    "'modex'"
   ],
   "myvar(2)": [
-   "'myvariance(2)'",
-   "'myvariance(2)'"
+   "'myvar(2)'",
+   "'myvar(2)'"
   ],
   "nderivative(x)": [
-   "'nderive(x)'",
-   "'nderive(x)'"
+   "'nderivative(x)'",
+   "'nderivative(x)'"
   ],
   "next_prime": [
    "'next_prime'",
@@ -4005,20 +4005,20 @@
    "'x*variance'"
   ],
   "x2ln(x)": [
-   "'x2log(x)'",
-   "'x2log(x)'"
+   "'x2ln(x)'",
+   "'x2ln(x)'"
   ],
   "x_ln(x)": [
-   "'x_log(x)'",
-   "'x_log(x)'"
+   "'x_ln(x)'",
+   "'x_ln(x)'"
   ],
   "xhyperbolic sine(1)": [
-   "'xsinh(1)'",
-   "'xsinh(1)'"
+   "'xhyperbolic sin(1)'",
+   "'xhyperbolic sin(1)'"
   ],
   "xstd(1)": [
-   "'xstdev(1)'",
-   "'xstdev(1)'"
+   "'xstd(1)'",
+   "'xstd(1)'"
   ],
   "θ2ln(x)": [
    "'θ2*log(x)'",
@@ -5034,35 +5034,33 @@
    "USub",
    "UnaryOp"
   ],
-  "function_replacements": {
-   "absolute(": "abs(",
-   "arccosine(": "acos(",
-   "arcsine(": "asin(",
-   "arctangent(": "atan(",
-   "binary(": "bin(",
-   "cosine(": "cos(",
-   "derivate(": "derive(",
-   "derivative(": "derive(",
-   "determinant(": "det(",
-   "exponential(": "exp(",
-   "fact(": "factorial(",
-   "hyperbolic cosine(": "cosh(",
-   "hyperbolic sine(": "sinh(",
-   "hyperbolic tangent(": "tanh(",
-   "integral(": "integrate(",
-   "lim(": "limit(",
-   "ln": "log",
-   "logarithm(": "log(",
-   "logarithm10(": "log10(",
-   "logarithm2(": "log2(",
-   "power(": "pow(",
-   "rand(": "random(",
-   "sine(": "sin(",
-   "square root(": "sqrt(",
-   "std(": "stdev(",
-   "tangent(": "tan(",
-   "var(": "variance(",
-   "π": "pi"
+  "call_aliases": {
+   "absolute": "abs",
+   "arccosine": "acos",
+   "arcsine": "asin",
+   "arctangent": "atan",
+   "binary": "bin",
+   "cosine": "cos",
+   "derivate": "derive",
+   "derivative": "derive",
+   "determinant": "det",
+   "exponential": "exp",
+   "fact": "factorial",
+   "hyperbolic cosine": "cosh",
+   "hyperbolic sine": "sinh",
+   "hyperbolic tangent": "tanh",
+   "integral": "integrate",
+   "lim": "limit",
+   "logarithm": "log",
+   "logarithm10": "log10",
+   "logarithm2": "log2",
+   "power": "pow",
+   "rand": "random",
+   "sine": "sin",
+   "square root": "sqrt",
+   "std": "stdev",
+   "tangent": "tan",
+   "var": "variance"
   },
   "inverse_functions": {
    "cos": "acos",
@@ -5119,6 +5117,9 @@
    "sqrt",
    "tan",
    "tanh"
-  ]
+  ],
+  "word_aliases": {
+   "ln": "log"
+  }
  }
 }

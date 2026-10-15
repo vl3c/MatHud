@@ -26,7 +26,8 @@ from __future__ import annotations
 import ast
 import math
 import random
-from typing import Any, Callable, Dict, FrozenSet, Optional, Tuple, Type, Union, cast
+import re
+from typing import Any, Callable, Dict, FrozenSet, List, Optional, Tuple, Type, Union, cast
 
 PythonFunction = Union[Callable[..., Any], str]
 Arity = Tuple[int, Optional[int]]
@@ -248,11 +249,10 @@ SUPERSCRIPT_NAMES: FrozenSet[str] = frozenset(
 # A superscript ⁻¹ on these names the inverse function: sin⁻¹(x) = asin(x)
 INVERSE_NAMES: Dict[str, str] = {row.name: row.inverse for row in FUNCTIONS if row.inverse is not None}
 
-# Alias rewrites: "sine(" -> "sin(" for call aliases, "ln" -> "log" for word aliases
-ALIAS_REPLACEMENTS: Dict[str, str] = {
-    **{alias + "(": row.name + "(" for row in FUNCTIONS for alias in row.aliases},
-    **{alias: row.name for row in FUNCTIONS for alias in row.word_aliases},
-}
+# Aliases and the names they stand for: call aliases only before "(" (sine -> sin), word
+# aliases anywhere (ln -> log); see replace_aliases
+CALL_ALIASES: Dict[str, str] = {alias: row.name for row in FUNCTIONS for alias in row.aliases}
+WORD_ALIASES: Dict[str, str] = {alias: row.name for row in FUNCTIONS for alias in row.word_aliases}
 
 # Functions MathUtils.evaluate computes in Python because math.js lacks them
 PYTHON_ONLY_NAMES: FrozenSet[str] = frozenset(row.name for row in FUNCTIONS if row.python_only)
@@ -296,3 +296,49 @@ def rename_for_mathjs(text: str) -> str:
     for name, mathjs in MATHJS_RENAMES.items():
         text = text.replace(name + "(", mathjs + "(")
     return text
+
+
+# ----- Rewrites by whole tokens -----
+# Identifiers and number literals (with an optional exponent), matched whole from left to
+# right, so a name inside a longer identifier (kiln, x2ln, artifact) is never a match while
+# one after a number (2ln(x), 1e3sine(x), 2.5ln(x)) is.
+# Note: "[-+]" rather than "[+-]" -- Brython's re fails to match "e-5" with the latter.
+_TOKEN = r"[a-zA-Z_][a-zA-Z_0-9]*|(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?"
+# Call aliases with a space ("hyperbolic sine") are matched with their "(" before any
+# identifier; "(" is escaped by hand, since re.escape would also escape the space
+_SPACED_CALL_ALIASES = sorted((alias for alias in CALL_ALIASES if " " in alias), key=lambda a: (-len(a), a))
+_ALIAS_PATTERN = re.compile("|".join([alias + "\\(" for alias in _SPACED_CALL_ALIASES] + [_TOKEN]))
+
+
+def _minimal_substrings(texts: List[str]) -> Tuple[str, ...]:
+    """The texts that contain none of the others: any text occurs only where one of these does."""
+    return tuple(text for text in texts if not any(other != text and other in text for other in texts))
+
+
+# Text that must occur for replace_aliases to change anything ("sine(" also covers "cosine(")
+_ALIAS_HINTS = _minimal_substrings(sorted([alias + "(" for alias in CALL_ALIASES] + list(WORD_ALIASES)))
+
+
+def _replace_alias(match: re.Match[str]) -> str:
+    token = match.group(0)
+    if token[-1] == "(":  # a call alias with a space, matched with its "("
+        return CALL_ALIASES[token[:-1]] + "("
+    word_target = WORD_ALIASES.get(token)
+    if word_target is not None:
+        return word_target
+    call_target = CALL_ALIASES.get(token)
+    if call_target is not None and match.string[match.end() : match.end() + 1] == "(":
+        return call_target
+    return token
+
+
+def replace_aliases(text: str) -> str:
+    """Rewrite aliases as canonical names, each matched as a whole token.
+
+    Call aliases change only when "(" follows: sine(x) -> sin(x), 2sine(x) -> 2sin(x).
+    Word aliases change anywhere: ln(x) -> log(x), 2ln -> 2log. Names that merely contain an
+    alias stay: kiln, ln2, x2ln(x), artifact(3), myvar(2).
+    """
+    if not any(hint in text for hint in _ALIAS_HINTS):
+        return text
+    return _ALIAS_PATTERN.sub(_replace_alias, text)
