@@ -33,8 +33,20 @@ WORKLOAD_SCENE: Dict[str, Any] = {
 }
 
 
-def _populate_scene(canvas: Canvas, spec: Dict[str, Any]) -> Dict[str, int]:
+def _populate_scene(
+    canvas: Canvas, spec: Dict[str, Any], build_ms: Optional[Dict[str, float]] = None
+) -> Dict[str, int]:
+    """Create the scene's drawables; when ``build_ms`` is given, record the time each kind took."""
     rng = random.Random(spec.get("seed", 42))
+    perf_api = window.performance
+    section = {"name": None, "start": 0.0}
+
+    def mark(name: Optional[str]) -> None:
+        now = perf_api.now()
+        if build_ms is not None and section["name"] is not None:
+            build_ms[section["name"]] = build_ms.get(section["name"], 0.0) + now - section["start"]
+        section["name"] = name
+        section["start"] = now
 
     created: Dict[str, int] = {
         "points": 0,
@@ -45,6 +57,10 @@ def _populate_scene(canvas: Canvas, spec: Dict[str, Any]) -> Dict[str, int]:
         "circles": 0,
         "ellipses": 0,
         "functions": 0,
+        "parametric": 0,
+        "colored_areas": 0,
+        "distributions": 0,
+        "bars": 0,
     }
 
     points: List[Any] = []
@@ -57,11 +73,13 @@ def _populate_scene(canvas: Canvas, spec: Dict[str, Any]) -> Dict[str, int]:
         created["points"] += 1
         return point
 
+    mark("points")
     for _ in range(spec.get("points", 0)):
         point = canvas.create_point(rng.uniform(-50, 50), rng.uniform(-50, 50))
         points.append(point)
     created["points"] = len(points)
 
+    mark("segments")
     for _ in range(spec.get("segments", 0)):
         p1 = pick_point()
         p2 = pick_point()
@@ -70,6 +88,7 @@ def _populate_scene(canvas: Canvas, spec: Dict[str, Any]) -> Dict[str, int]:
         canvas.create_segment(p1.x, p1.y, p2.x, p2.y)
         created["segments"] += 1
 
+    mark("vectors")
     for _ in range(spec.get("vectors", 0)):
         origin = pick_point()
         tip = pick_point()
@@ -78,6 +97,7 @@ def _populate_scene(canvas: Canvas, spec: Dict[str, Any]) -> Dict[str, int]:
         canvas.create_vector(origin.x, origin.y, tip.x, tip.y)
         created["vectors"] += 1
 
+    mark("triangles")
     for _ in range(spec.get("triangles", 0)):
         p1 = pick_point()
         p2 = pick_point()
@@ -90,6 +110,7 @@ def _populate_scene(canvas: Canvas, spec: Dict[str, Any]) -> Dict[str, int]:
         )
         created["triangles"] += 1
 
+    mark("rectangles")
     for _ in range(spec.get("rectangles", 0)):
         p = pick_point()
         opposite = pick_point()
@@ -102,12 +123,14 @@ def _populate_scene(canvas: Canvas, spec: Dict[str, Any]) -> Dict[str, int]:
         canvas.create_polygon(vertices, polygon_type=PolygonType.RECTANGLE)
         created["rectangles"] += 1
 
+    mark("circles")
     for _ in range(spec.get("circles", 0)):
         center = pick_point()
         radius = rng.uniform(5, 25)
         canvas.create_circle(center.x, center.y, radius)
         created["circles"] += 1
 
+    mark("ellipses")
     for _ in range(spec.get("ellipses", 0)):
         center = pick_point()
         radius_x = rng.uniform(5, 30)
@@ -116,6 +139,7 @@ def _populate_scene(canvas: Canvas, spec: Dict[str, Any]) -> Dict[str, int]:
         canvas.create_ellipse(center.x, center.y, radius_x, radius_y, rotation)
         created["ellipses"] += 1
 
+    mark("functions")
     for func_spec in spec.get("functions", []):
         expression = func_spec.get("expression", "sin(x)")
         name = func_spec.get("name", f"f_{created['functions']}")
@@ -124,6 +148,49 @@ def _populate_scene(canvas: Canvas, spec: Dict[str, Any]) -> Dict[str, int]:
         canvas.draw_function(expression, name, left, right)
         created["functions"] += 1
 
+    mark("parametric")
+    for curve_spec in spec.get("parametric", []):
+        canvas.draw_parametric_function(
+            curve_spec["x"],
+            curve_spec["y"],
+            name=curve_spec.get("name"),
+            t_min=curve_spec.get("t_min", 0.0),
+            t_max=curve_spec.get("t_max"),
+        )
+        created["parametric"] += 1
+
+    mark("colored_areas")
+    for area_spec in spec.get("colored_areas", []):
+        canvas.create_colored_area(
+            area_spec["drawable1"],
+            area_spec.get("drawable2"),
+            area_spec.get("left"),
+            area_spec.get("right"),
+        )
+        created["colored_areas"] += 1
+
+    mark("distributions")
+    for dist_spec in spec.get("distributions", []):
+        shade = dist_spec.get("shade")
+        canvas.plot_distribution(
+            name=dist_spec.get("name"),
+            representation=dist_spec.get("representation", "continuous"),
+            distribution_params={"mean": dist_spec.get("mean", 0), "sigma": dist_spec.get("sigma", 1)},
+            shade_bounds={"left_bound": shade[0], "right_bound": shade[1]} if shade else None,
+        )
+        created["distributions"] += 1
+
+    mark("bars")
+    for bars_spec in spec.get("bars", []):
+        values = bars_spec.get("values", [])
+        canvas.plot_bars(
+            name=bars_spec.get("name"),
+            values=values,
+            labels_below=[str(index + 1) for index in range(len(values))],
+        )
+        created["bars"] += 1
+
+    mark(None)
     return created
 
 
@@ -155,7 +222,16 @@ def run_renderer_performance(
 
     spec: Dict[str, Any] = {**WORKLOAD_SCENE, **(scene_spec or {})}
 
-    drawables_created = _populate_scene(canvas, spec)
+    # Build the scene without a redraw or an undo snapshot per drawable (both grow with the
+    # scene, so populating took far longer than the measured draws).
+    canvas.draw_enabled = False
+    canvas.undo_redo_manager.begin_batch()
+    build_ms: Dict[str, float] = {}
+    try:
+        drawables_created = _populate_scene(canvas, spec, build_ms)
+    finally:
+        canvas.undo_redo_manager.end_batch()
+        canvas.draw_enabled = True
 
     metrics: List[Dict[str, float]] = []
 
@@ -169,6 +245,15 @@ def run_renderer_performance(
                 "dom_nodes": float(len(document["math-svg"].children)),
             }
         )
+
+    # The first frame builds every plan; time it on its own, then drop its telemetry so
+    # the phase timings below describe warm frames, as the per-drawable redraws used to.
+    start = perf_api.now()
+    canvas.draw()
+    collect("first_draw", perf_api.now() - start, 1)
+    drain_first = getattr(canvas.renderer, "drain_telemetry", None)
+    if callable(drain_first):
+        drain_first()
 
     start = perf_api.now()
     for _ in range(iterations):
@@ -297,6 +382,7 @@ def run_renderer_performance(
     result["phase_metrics"] = phase_metrics
     result["renderer"] = renderer_label
     result["default_mode"] = DEFAULT_RENDERER_MODE
+    result["build_ms"] = build_ms
 
     return result
 
