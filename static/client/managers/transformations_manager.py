@@ -50,6 +50,9 @@ _EXCLUDE_TRANSFORM: Tuple[str, ...] = (
     "ParametricFunction",
     "PiecewiseFunction",
     "Graph",
+    "UndirectedGraph",
+    "DirectedGraph",
+    "Tree",
     "Angle",
     "CircleArc",
     "ColoredArea",
@@ -62,7 +65,7 @@ _SHAPES = "points, segments, vectors, polygons, circles and ellipses"
 
 # What each tool can transform, for the error naming an unsupported drawable.
 _TOOL_SUPPORT = {
-    "translate_object": f"{_SHAPES}, functions (plain, parametric and piecewise) and labels",
+    "translate_object": f"{_SHAPES}, functions (plain, parametric and piecewise), labels and graphs",
     "rotate_object": (
         "segments, vectors, polygons and ellipses about their own center, and "
         f"{_SHAPES} about a point given by center_x and center_y"

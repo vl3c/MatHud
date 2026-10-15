@@ -508,7 +508,9 @@ class TestRootsAtDiscontinuities(unittest.TestCase):
 
 
 class TestCloseRootsOnWideIntervals(unittest.TestCase):
-    def test_close_root_pair_does_not_depend_on_the_interval_width(self) -> None:
+    def test_close_root_pair_survives_wider_intervals(self) -> None:
+        # Roots 2e-4 apart stay separate up to a width of about 1000; wider intervals merge
+        # them at the span-relative root resolution (1e-7 of the span).
         f = lambda x: (x - 1e-4) * (x + 1e-4)  # noqa: E731
         for left, right in ((-10, 10.3), (-50, 50.3), (-100, 100.3)):
             with self.subTest(width=right - left):

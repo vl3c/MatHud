@@ -147,12 +147,19 @@ class TestTreeOperations(unittest.TestCase):
         cycle = _state("ABCDE", [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "A")])
         for operation, params in [
             ("lca", {"root": "A", "a": "C", "b": "D"}),
-            ("levels", {"root": "A"}),
             ("reroot", {"root": "A", "new_root": "C"}),
             ("balance_children", {}),
             ("invert_children", {}),
         ]:
             self.assertIn("has a cycle", GraphAnalyzer.analyze(cycle, operation, params)["error"], operation)
+
+    def test_levels_of_a_graph_that_is_not_a_tree_are_bfs_distances(self) -> None:
+        cycle = _state("ABCDE", [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "A")])
+        result = GraphAnalyzer.analyze(cycle, "levels", {"root": "A"})
+        self.assertEqual(result["levels"], [["A"], ["B", "E"], ["C", "D"]])
+        self.assertIn("not a tree", result["note"])
+        dag = _state("ABCD", [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")], directed=True)
+        self.assertEqual(GraphAnalyzer.analyze(dag, "levels")["levels"], [["A"], ["B", "C"], ["D"]])
 
     def test_tree_operations_refuse_forests(self) -> None:
         forest = _state("ABCD", [("A", "B"), ("C", "D")], tree=True, tree_root="A")

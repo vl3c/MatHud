@@ -517,11 +517,11 @@ class TestGraphManager(unittest.TestCase):
             [("v0", "v1", 1.0, None), ("v0", "v2", 2.0, None), ("v1", "v2", 3.0, None)],
         )
 
-    def test_undirected_matrix_diagonal_gives_self_loop(self) -> None:
+    def test_matrix_diagonal_is_a_self_loop_only_when_directed(self) -> None:
         matrix = [[4, 2], [2, 0]]
         self.assertEqual(
             self._matrix_edges("graph", False, matrix),
-            [("v0", "v0", 4.0, None), ("v0", "v1", 2.0, None)],
+            [("v0", "v1", 2.0, None)],
         )
         self.assertEqual(
             self._matrix_edges("graph", True, matrix),

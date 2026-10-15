@@ -373,6 +373,8 @@ class GraphAnalyzer:
 
     @staticmethod
     def _levels(state: GraphState, params: Dict[str, Any]) -> Result:
+        if GraphAnalyzer._not_a_tree_reason(state) is not None:
+            return GraphAnalyzer._bfs_levels(state, params)
         rooted = GraphAnalyzer._rooted_tree(state, params, "levels")
         if isinstance(rooted, dict):
             return rooted
@@ -383,6 +385,24 @@ class GraphAnalyzer:
             levels.append(current)
             current = [child for node in current for child in children.get(node, [])]
         return {"root": root, "levels": levels}
+
+    @staticmethod
+    def _bfs_levels(state: GraphState, params: Dict[str, Any]) -> Result:
+        """Levels of a graph that is not a tree: vertices grouped by BFS distance from the root.
+
+        Edges are followed in their direction on a directed graph (a DAG's layers from its
+        source); vertices the root cannot reach are not listed.
+        """
+        root = GraphAnalyzer._resolve_root(state, params)
+        if isinstance(root, dict):
+            return root
+        adjacency = GraphAnalyzer._build_adjacency(state, bool(state.directed))
+        levels = GraphUtils.tree_levels(root, adjacency) or [[root]]
+        return {
+            "root": root,
+            "levels": levels,
+            "note": f"{state.name} is not a tree, so levels are BFS distances (in edges) from {root}.",
+        }
 
     @staticmethod
     def _lca(state: GraphState, params: Dict[str, Any]) -> Result:

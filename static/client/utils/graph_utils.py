@@ -1172,8 +1172,9 @@ class GraphUtils:
     def graph_diameter(adjacency: Dict[V, Set[V]]) -> Tuple[Optional[List[V]], int]:
         """Longest shortest path, counted in edges, over an undirected adjacency map.
 
-        Runs a BFS from every vertex (exact on any graph, not only trees). Vertices and
-        neighbours are visited in sorted order, so ties resolve the same way every time.
+        Exact on any graph: a tree component takes two BFS sweeps, any other component a
+        BFS from every vertex. Vertices and neighbours are visited in sorted order, so ties
+        resolve the same way every time.
 
         Returns:
             (path, component_count). On a disconnected graph the path is the longest
@@ -1181,29 +1182,46 @@ class GraphUtils:
         """
         if not adjacency:
             return None, 0
+        ordered = {vertex: _ordered(adjacency.get(vertex, ())) for vertex in _ordered(adjacency)}
+        components = GraphUtils.get_connected_components(adjacency)
+        best: Optional[List[V]] = None
+        for component in components:
+            members = [vertex for vertex in ordered if vertex in component]
+            degree_sum = sum(len(ordered[vertex]) for vertex in members)
+            has_loop = any(vertex in adjacency.get(vertex, ()) for vertex in members)
+            if not has_loop and degree_sum == 2 * (len(members) - 1):
+                # A tree: two BFS sweeps find the exact diameter.
+                far = GraphUtils._bfs_farthest_path(members[0], ordered)[-1]
+                candidates = [GraphUtils._bfs_farthest_path(far, ordered)]
+            else:
+                candidates = [GraphUtils._bfs_farthest_path(start, ordered) for start in members]
+            for path in candidates:
+                if best is None or len(path) > len(best):
+                    best = path
+        return best, len(components)
+
+    @staticmethod
+    def _bfs_farthest_path(start: V, ordered: Dict[V, List[V]]) -> List[V]:
+        """Path from start to the last vertex a BFS reaches (a farthest one), neighbours in order."""
         from collections import deque
 
-        best: Optional[List[V]] = None
-        for start in _ordered(adjacency):
-            parent: Dict[V, Optional[V]] = {start: None}
-            queue: deque[V] = deque([start])
-            last = start
-            while queue:
-                node = queue.popleft()
-                last = node
-                for neighbor in _ordered(adjacency.get(node, ())):
-                    if neighbor not in parent:
-                        parent[neighbor] = node
-                        queue.append(neighbor)
-            path: List[V] = []
-            walk: Optional[V] = last
-            while walk is not None:
-                path.append(walk)
-                walk = parent[walk]
-            path.reverse()
-            if best is None or len(path) > len(best):
-                best = path
-        return best, len(GraphUtils.get_connected_components(adjacency))
+        parent: Dict[V, Optional[V]] = {start: None}
+        queue: deque[V] = deque([start])
+        last = start
+        while queue:
+            node = queue.popleft()
+            last = node
+            for neighbor in ordered.get(node, ()):
+                if neighbor not in parent:
+                    parent[neighbor] = node
+                    queue.append(neighbor)
+        path: List[V] = []
+        walk: Optional[V] = last
+        while walk is not None:
+            path.append(walk)
+            walk = parent[walk]
+        path.reverse()
+        return path
 
     @staticmethod
     def bfs_order(root: V, adjacency: Dict[V, Set[V]]) -> Optional[List[V]]:

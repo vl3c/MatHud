@@ -283,6 +283,17 @@ class TestGraphTools(unittest.TestCase):
         self._call("undo")
         self.assertEqual(sorted(self._vertex_coords("G")), [(10.0, 10.0), (12.0, 10.0)])
 
+    def test_rotate_graph_is_refused_and_moves_nothing(self) -> None:
+        self._graph(vertices=[_vertex("A", 0, 0), _vertex("B", 4, 0)], edges=[_edge(0, 1)])
+
+        self._call_error("rotate_object", "is an UndirectedGraph", name="G", angle=90, center_x=None, center_y=None)
+
+        self.assertEqual(sorted(self._vertex_coords("G")), [(0.0, 0.0), (4.0, 0.0)])
+
+    def test_root_is_ignored_for_a_graph_that_is_not_a_tree(self) -> None:
+        self._graph(root="Z", vertices=[_vertex("A", 0, 0), _vertex("B", 4, 0)], edges=[_edge(0, 1)])
+        self.assertIsNotNone(self.canvas.get_graph("G"))
+
 
 if __name__ == "__main__":
     unittest.main()

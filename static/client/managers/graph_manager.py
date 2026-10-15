@@ -244,9 +244,8 @@ class GraphManager:
         if adjacency_matrix and not edges:
             edge_descriptors.extend(self._edges_from_adjacency_matrix(adjacency_matrix, id_list, resolved_directed))
 
-        resolved_root = self._resolve_requested_root(root, vertex_descriptors)
-
         if graph_type == "tree":
+            resolved_root = self._resolve_requested_root(root, vertex_descriptors)
             self._check_tree(name, id_list, edge_descriptors)
             if resolved_root is None:
                 resolved_root = self._inferred_tree_root(id_list, edge_descriptors)
@@ -626,8 +625,9 @@ class GraphManager:
 
         Directed graphs get one edge per nonzero entry. Undirected graphs get one edge per
         vertex pair, read from the upper triangle (or the lower one where the upper is zero).
-        A nonzero diagonal entry is a self-loop in both. 0 means no edge, so a weight-0 edge
-        cannot be given in a matrix. Edges take their direction from the graph.
+        A nonzero diagonal entry is a self-loop on a directed graph and is ignored on an
+        undirected one (a segment from a point to itself has no length). 0 means no edge,
+        so a weight-0 edge cannot be given in a matrix. Edges take their direction from the graph.
         """
         descriptors: List[GraphEdgeDescriptor] = []
         n = min(len(adjacency_matrix), len(id_list))
@@ -635,7 +635,7 @@ class GraphManager:
             for j in range(n):
                 if directed:
                     weight = GraphManager._matrix_entry(adjacency_matrix, i, j)
-                elif j >= i:
+                elif j > i:
                     weight = GraphManager._matrix_entry(adjacency_matrix, i, j) or GraphManager._matrix_entry(
                         adjacency_matrix, j, i
                     )
