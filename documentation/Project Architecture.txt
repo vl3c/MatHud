@@ -179,6 +179,8 @@ static/
 ├── env_config.py                      # Shared environment loading utility
 ├── route_helpers.py                   # Extracted route helper functions
 ├── canvas2d_paths.js                  # JavaScript path-tracing helpers for the Canvas2D renderer
+├── sympy_cas.py                       # SymPy CAS operations behind /api/cas, with a safe ast parser (run as a worker process)
+├── sympy_engine.py                    # Runs the sympy_cas worker with a per-request time limit
 ├── nerdamer_guard.js                  # Step and time budget for nerdamer's limit() (its L'Hopital loop can run forever)
 ├── style.css                          # Frontend CSS styling
 └── client/                           # Custom Python modules for Brython (moved from Brython-3.11.3/Lib/site-packages/)
