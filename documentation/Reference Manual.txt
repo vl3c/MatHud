@@ -4635,11 +4635,13 @@ Examples (as user prompts):
 1. Direction: `parallel`, `perpendicular`
 2. Point alignment: `collinear`, `concyclic`
 3. Measurement: `equal_length`
-4. Triangle comparison: `similar`, `congruent`
+4. Shape comparison: `similar`, `congruent` (two triangles, by their sides, or two rectangles, by their sides and diagonals)
 5. Tangency: `tangent` (segment+circle or circle+circle)
 6. Line concurrence: `concurrent` (3+ segments meet at one point)
-7. Incidence: `point_on_line`, `point_on_circle`
+7. Incidence: `point_on_line`, `point_on_circle`, `point_on_ellipse` (rotated ellipses too)
 8. Automatic: `auto` (runs all applicable checks for the given type combination)
+
+Tolerances: lengths (equal_length, congruent, similar's side ratios, point_on_ellipse's scaled distance) agree to 1e-6 of their own size, with no absolute floor, so the answer does not depend on the scale or on the order of the objects. Directions (parallel, perpendicular) agree within 0.01 degrees, `GeometryUtils.ANGLE_TOLERANCE_DEGREES`, the tolerance the triangle and quadrilateral type flags use, so a triangle flagged `right` has perpendicular legs. `concurrent` takes two lines as parallel when the sine of their angle is below 1e-6, and the other lines must pass within 1e-6 of the longest segment's length of their intersection (plus the rounding of coordinates far from the origin).
 
 Parameters:
 1. `operation`: one of the enum values above.

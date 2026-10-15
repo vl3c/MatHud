@@ -2254,7 +2254,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "inspect_relation",
-            "description": "Check and explain geometric relations between objects on the canvas. Supported: parallel, perpendicular, collinear, concyclic, equal_length, similar, congruent, tangent, concurrent, point_on_line, point_on_circle. Use 'auto' to check all applicable relations.",
+            "description": "Check and explain geometric relations between objects on the canvas. Supported: parallel, perpendicular, collinear, concyclic, equal_length, similar and congruent (two triangles or two rectangles), tangent, concurrent, point_on_line, point_on_circle, point_on_ellipse. Lengths compare relative to their size; directions within 0.01 degrees, the tolerance of the shape type flags. Use 'auto' to check all applicable relations.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2273,6 +2273,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             "concurrent",
                             "point_on_line",
                             "point_on_circle",
+                            "point_on_ellipse",
                             "auto",
                         ],
                     },
