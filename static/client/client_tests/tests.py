@@ -55,6 +55,7 @@ from .test_periodicity_detection import TestPeriodicityDetection, TestPeriodicit
 from .test_geometry_utils import TestGeometryUtils, TestConvexHull, TestPointInConvexHull
 from .test_graph_layout import TestGraphLayout, TestGraphLayoutVisibility
 from .test_graph_manager import TestGraphManager
+from .test_graph_tools import TestGraphTools
 from .test_graph_analyzer import (
     TestAnalyzeGraphShortestPath,
     TestAnalyzeGraphMST,
@@ -552,6 +553,7 @@ class Tests:
             TestGraphLayout,
             TestGraphLayoutVisibility,
             TestGraphManager,
+            TestGraphTools,
             TestGraphUtils,
             TestStatisticsDistributions,
             TestStatisticsManager,
