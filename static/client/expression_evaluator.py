@@ -152,8 +152,9 @@ class ExpressionEvaluator:
                         return bad_result_msg
                     return function_result
                 else:
-                    # If no canvas is available, just return the numeric evaluation error
-                    return f"{bad_result_msg} Error: {str(e)}"
+                    # Without a canvas there are no canvas functions to try: report the numeric error
+                    # itself (e.g. "Result is infinite" for 1/0, "Undefined symbol x" for 3x)
+                    return numeric_error or f"{bad_result_msg} Error: {str(e)}"
             except Exception as e:
                 exception_details: str = str(e).split(":", 1)[0]
                 error_result: str = f"{bad_result_msg} Exception for ({expression}): {exception_details}."
