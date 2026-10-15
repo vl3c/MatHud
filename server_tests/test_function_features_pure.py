@@ -421,12 +421,14 @@ class TestReviewRegressions(unittest.TestCase):
         cases = {
             "pole": lambda x: 1 / x,
             "jump through 0": lambda x: x if x < 0 else x + 1,
-            "sign": lambda x: float((x > 0) - (x < 0)),
             "hole": lambda x: x * x if x != 0 else math.nan,
         }
         for name, f in cases.items():
             with self.subTest(name):
                 self.assertEqual(find_function_features(f, -1.3, 1.7, breakpoints=[0.0])["features"], [])
+        # A jump where f itself is 0 (sign(0) = 0) is a root, though no sample sees it
+        sign = find_function_features(lambda x: float((x > 0) - (x < 0)), -1.3, 1.7, breakpoints=[0.0])
+        self.assertEqual(_summary(sign), [(0.0, 0.0, "root")])
         tangent = find_function_features(
             math.tan, -5, 5, breakpoints=[-1.5 * math.pi, -0.5 * math.pi, 0.5 * math.pi, 1.5 * math.pi]
         )
@@ -438,6 +440,80 @@ class TestReviewRegressions(unittest.TestCase):
         c = 1e12
         report = find_function_features(lambda x: x - c - 0.3, c - 5, c + 5, features=["roots"])
         self.assertEqual(_xs_of(report, "root"), [c + 0.3])
+
+
+def _undefined_outside_domain(f):
+    """f with math domain errors as NaN (as the canvas evaluates functions)."""
+
+    def safe(x: float) -> float:
+        try:
+            return f(x)
+        except (ValueError, ZeroDivisionError):
+            return math.nan
+
+    return safe
+
+
+class TestRootsAtDomainEdges(unittest.TestCase):
+    """Roots where f's domain ends between two samples (no sign change, an undefined neighbour)."""
+
+    def test_semicircle_ends_are_roots(self) -> None:
+        report = find_function_features(_undefined_outside_domain(lambda x: math.sqrt(1 - x * x)), -2, 2.3)
+        self.assertEqual(_xs_of(report, "root"), [-1.0, 1.0])
+
+    def test_square_root_starts_with_a_root(self) -> None:
+        report = find_function_features(_undefined_outside_domain(lambda x: math.sqrt(x - 0.3)), -1, 1)
+        self.assertEqual(_summary(report), [(0.3, 0.0, "root")])
+        outer = find_function_features(_undefined_outside_domain(lambda x: math.sqrt(x * x - 1)), -2, 2.5)
+        self.assertEqual(_xs_of(outer, "root"), [-1.0, 1.0])
+
+    def test_intersections_at_domain_edges(self) -> None:
+        semicircle = _undefined_outside_domain(lambda x: math.sqrt(4 - x * x))
+        report = find_intersections(semicircle, lambda x: 0.0, -3, 3.3)
+        self.assertEqual(_xs_of(report, "intersection"), [-2.0, 2.0])
+        branches = find_intersections(
+            _undefined_outside_domain(math.sqrt), _undefined_outside_domain(lambda x: -math.sqrt(x)), -2, 2.3
+        )
+        self.assertEqual(_summary(branches), [(0.0, 0.0, "intersection")])
+
+    def test_domain_edges_away_from_zero_are_not_roots(self) -> None:
+        cases = {
+            "shifted sqrt": lambda x: math.sqrt(x) + 1,
+            "log": math.log,
+            "shifted asin": lambda x: math.asin(x) + 2,
+            "reciprocal sqrt": lambda x: 1 / math.sqrt(x),
+        }
+        for name, f in cases.items():
+            with self.subTest(name):
+                report = find_function_features(_undefined_outside_domain(f), -1.7, 0.9, features=["roots"])
+                self.assertEqual(report["features"], [])
+
+    def test_a_hole_where_f_tends_to_zero_is_no_root(self) -> None:
+        # (x - 1)^2 / (x - 1) is x - 1 except undefined at 1; a sample lands on the hole
+        report = find_function_features(
+            _undefined_outside_domain(lambda x: (x - 1) ** 2 / (x - 1)), -3, 3.5, features=["roots"]
+        )
+        self.assertEqual(report["features"], [])
+
+
+class TestRootsAtDiscontinuities(unittest.TestCase):
+    def test_jump_with_f_zero_at_the_cut_is_a_root(self) -> None:
+        # {x for x <= 0; x + 1 for x > 0}: f(0) = 0 at the closed end of the left piece
+        report = find_function_features(lambda x: x if x <= 0 else x + 1, -5, 5, breakpoints=[0.0])
+        self.assertEqual(_summary(report), [(0.0, 0.0, "root")])
+
+    def test_jump_with_f_nonzero_at_the_cut_is_no_root(self) -> None:
+        report = find_function_features(lambda x: x - 1 if x < 0 else x + 1, -5, 5, breakpoints=[0.0])
+        self.assertEqual(report["features"], [])
+
+
+class TestCloseRootsOnWideIntervals(unittest.TestCase):
+    def test_close_root_pair_does_not_depend_on_the_interval_width(self) -> None:
+        f = lambda x: (x - 1e-4) * (x + 1e-4)  # noqa: E731
+        for left, right in ((-10, 10.3), (-50, 50.3), (-100, 100.3)):
+            with self.subTest(width=right - left):
+                report = find_function_features(f, left, right, features=["roots"])
+                self.assertEqual(_xs_of(report, "root"), [-0.0001, 0.0001])
 
 
 if __name__ == "__main__":
