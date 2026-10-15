@@ -15,6 +15,13 @@ PIXEL_TOLERANCE: float = 0.5
 INITIAL_SEGMENTS: int = 8
 RANDOM_PROBE_COUNT: int = 10
 MAX_INITIAL_SEGMENTS: int = 64
+# With a pixel budget (max_samples) the initial grid gets one segment per this many
+# pixels (bounded by INITIAL_SEGMENTS and MAX_INITIAL_SEGMENTS), so a narrow spike or
+# dip between two grid nodes is less likely to be stepped over as a straight line.
+PIXELS_PER_INITIAL_SEGMENT: int = 16
+# Oscillation probes run when refinement added fewer samples than this to the
+# initial grid (an apparently flat curve may be aliased by the grid).
+MIN_EXPECTED_REFINEMENTS: int = 11
 # Smallest sample budget a sub-range between asymptotes gets when the overall
 # budget is shared out in proportion to sub-range width.
 MIN_SUBRANGE_SAMPLES: int = 64
@@ -32,9 +39,10 @@ class AdaptiveSampler:
     """
     Generates sample x-values using recursive subdivision.
 
-    Starts with INITIAL_SEGMENTS evenly spaced points to catch periodic
-    oscillations, then recursively subdivides intervals where the midpoint
-    deviates from the chord by more than PIXEL_TOLERANCE pixels.
+    Starts with evenly spaced points (INITIAL_SEGMENTS, or one segment per
+    PIXELS_PER_INITIAL_SEGMENT pixels of the sample budget) to catch periodic
+    oscillations and narrow features, then recursively subdivides intervals where
+    the midpoint deviates from the chord by more than PIXEL_TOLERANCE pixels.
     """
 
     @staticmethod
@@ -140,7 +148,8 @@ class AdaptiveSampler:
             right_bound: Right x boundary
             eval_func: Function to evaluate y = f(x)
             math_to_screen: Converts (x, y) math coords to screen coords
-            initial_segments: Override for initial segment count (for periodic functions)
+            initial_segments: Override for initial segment count (for periodic functions);
+                by default it follows max_samples (see default_initial_segments)
             max_samples: Maximum number of samples (typically canvas width in pixels)
             viewport_band: (top, bottom) screen-y band; when given, parts of the
                 curve entirely above or below it are not refined
@@ -152,28 +161,41 @@ class AdaptiveSampler:
             return [], None
 
         effective_max = max_samples if max_samples is not None else MAX_INITIAL_SEGMENTS * 8
-        segments = initial_segments if initial_segments is not None else INITIAL_SEGMENTS
-        segments = min(segments, effective_max)
+        segments = (
+            initial_segments if initial_segments is not None else AdaptiveSampler.default_initial_segments(max_samples)
+        )
+        segments = max(1, min(segments, effective_max))
 
         results = AdaptiveSampler._generate_with_segments(
             left_bound, right_bound, eval_func, math_to_screen, segments, effective_max, viewport_band
         )
 
         estimated_period: Optional[float] = None
-        min_expected_samples = 20
-        if len(results) < min_expected_samples and initial_segments is None:
+        refinements = len(results) - (segments + 1)
+        if refinements < MIN_EXPECTED_REFINEMENTS and initial_segments is None:
             estimated_period = AdaptiveSampler._detect_periodicity(
                 left_bound, right_bound, results, eval_func, math_to_screen
             )
             if estimated_period is not None:
                 range_width = right_bound - left_bound
                 num_periods = range_width / estimated_period
-                new_segments = min(effective_max, max(INITIAL_SEGMENTS, int(num_periods * 4)))
+                new_segments = min(effective_max, max(segments, int(num_periods * 4)))
                 results = AdaptiveSampler._generate_with_segments(
                     left_bound, right_bound, eval_func, math_to_screen, new_segments, effective_max, viewport_band
                 )
 
         return sorted(results), estimated_period
+
+    @staticmethod
+    def default_initial_segments(max_samples: Optional[int]) -> int:
+        """Initial grid size for a sample budget of max_samples (about one per pixel).
+
+        One segment per PIXELS_PER_INITIAL_SEGMENT pixels, between INITIAL_SEGMENTS and
+        MAX_INITIAL_SEGMENTS; INITIAL_SEGMENTS without a budget.
+        """
+        if max_samples is None:
+            return INITIAL_SEGMENTS
+        return max(INITIAL_SEGMENTS, min(MAX_INITIAL_SEGMENTS, int(max_samples) // PIXELS_PER_INITIAL_SEGMENT))
 
     @staticmethod
     def _generate_with_segments(

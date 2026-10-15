@@ -14,6 +14,7 @@ sys.path.insert(0, "static/client/rendering/renderables")
 
 from adaptive_sampler import (
     AdaptiveSampler,
+    INITIAL_SEGMENTS,
     MAX_INITIAL_SEGMENTS,
 )
 
@@ -314,6 +315,32 @@ class TestAdaptiveSamplerSubrangeBudget(unittest.TestCase):
         self.assertLessEqual(total, budget * 1.1)
         for samples in subranges:
             self.assertGreaterEqual(len(samples), 3)
+
+
+class TestAdaptiveSamplerInitialGrid(unittest.TestCase):
+    """The initial grid follows the pixel budget so narrow features are not stepped over."""
+
+    def test_default_initial_segments_follow_the_budget(self) -> None:
+        self.assertEqual(AdaptiveSampler.default_initial_segments(None), INITIAL_SEGMENTS)
+        self.assertEqual(AdaptiveSampler.default_initial_segments(50), INITIAL_SEGMENTS)
+        self.assertEqual(AdaptiveSampler.default_initial_segments(480), 30)
+        self.assertEqual(AdaptiveSampler.default_initial_segments(4000), MAX_INITIAL_SEGMENTS)
+
+    def test_narrow_peak_is_found_wherever_it_is(self) -> None:
+        # A peak a few pixels wide (0.1 math units at 32 px per unit) on a 640 px range;
+        # with 8 initial segments most positions were drawn as a flat line.
+        for k in range(50):
+            centre = -9 + 18 * k / 50 + 0.0123
+
+            def peak(x: float, c: float = centre) -> float:
+                return 5 * math.exp(-(((x - c) / 0.1) ** 2))
+
+            samples = get_samples(-10, 10, peak, scaled_transform, max_samples=1000, viewport_band=(0, 480))
+            self.assertGreater(max(peak(x) for x in samples), 4.9, f"peak at {centre}")
+
+    def test_line_with_a_budget_stays_cheap(self) -> None:
+        samples = get_samples(-10, 10, lambda x: x, scaled_transform, max_samples=1000)
+        self.assertLessEqual(len(samples), 2 * MAX_INITIAL_SEGMENTS + 1)
 
 
 class TestIsStraight(unittest.TestCase):
