@@ -33,12 +33,15 @@ Integration Points:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Iterable, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Iterable, List, Optional, Set, Tuple
 
 from drawables.segment import Segment
 
 if TYPE_CHECKING:
     from canvas import Canvas
+
+# An arc, its circle's centre (x, y) and its endpoints with their (x, y), before a transform.
+_ArcSnapshot = Tuple[Any, float, float, List[Tuple[Any, float, float]]]
 
 # Types that do not support geometric transforms via AI tools.
 _EXCLUDE_TRANSFORM: Tuple[str, ...] = (
@@ -188,6 +191,67 @@ class TransformationsManager:
             self.canvas.draw()
 
     # ------------------------------------------------------------------
+    # Arcs follow their circles
+    # ------------------------------------------------------------------
+
+    def _snapshot_arcs(self) -> List[_ArcSnapshot]:
+        """Each circle-bound arc with its circle's centre and its endpoints' positions, before a transform."""
+        drawables = getattr(self.canvas.drawable_manager, "drawables", None)
+        snapshot: List[_ArcSnapshot] = []
+        for arc in getattr(drawables, "CircleArcs", None) or []:
+            circle = getattr(arc, "circle", None)
+            if circle is None:
+                continue
+            endpoints = [(point, point.x, point.y) for point in (arc.point1, arc.point2)]
+            snapshot.append((arc, circle.center.x, circle.center.y, endpoints))
+        return snapshot
+
+    def _move_arcs_with_circles(
+        self,
+        drawable: Any,
+        snapshot: List[_ArcSnapshot],
+        point_op: Optional[Callable[[Any], None]],
+        rigid: bool,
+    ) -> None:
+        """Keep the endpoints of arcs on circles the transform moved.
+
+        The endpoints of arcs on the transformed circle get point_op, the transform the circle
+        got. When only a circle's centre moved (the transform moved the centre point, or a
+        shape holding it), a rigid transform (translate, rotate about a point, reflect) also
+        applies point_op; otherwise the endpoints shift with the centre, since the radius is
+        unchanged. Each endpoint moves once, and one the transform itself moved stays put.
+        """
+        moved: List[Any] = []
+        seen: Set[int] = set()
+        touched_arcs: List[Any] = []
+        for arc, old_cx, old_cy, endpoints in snapshot:
+            circle = arc.circle
+            dx = circle.center.x - old_cx
+            dy = circle.center.y - old_cy
+            direct = circle is drawable
+            if not direct and dx == 0 and dy == 0:
+                continue
+            for point, old_x, old_y in endpoints:
+                if id(point) in seen:
+                    continue
+                seen.add(id(point))
+                if point.x != old_x or point.y != old_y:
+                    continue
+                if point_op is not None and (direct or rigid):
+                    point_op(point)
+                else:
+                    point.translate(dx, dy)
+                moved.append(point)
+            arc.sync_with_circle()
+            touched_arcs.append(arc)
+        if not touched_arcs:
+            return
+        moved_ids = {id(point) for point in moved}
+        segments = self._collect_segments_from_canvas(moved, moved_ids)
+        updated = self._refresh_segment_formulas(set(segments), moved_ids)
+        self._invalidate_drawables(touched_arcs + moved + updated)
+
+    # ------------------------------------------------------------------
     # Public transform operations
     # ------------------------------------------------------------------
 
@@ -220,9 +284,9 @@ class TransformationsManager:
         self.canvas.undo_redo_manager.archive()
 
         moved_points = self._gather_moved_points(drawable)
+        arcs = self._snapshot_arcs()
 
         # Apply translation using the drawable's translate method
-        # (All drawable objects should implement this method)
         try:
             drawable.translate(x_offset, y_offset)
         except Exception as e:
@@ -230,6 +294,7 @@ class TransformationsManager:
             raise ValueError(f"Error translating drawable: {str(e)}")
 
         self._refresh_dependencies_after_transform(drawable, moved_points)
+        self._move_arcs_with_circles(drawable, arcs, lambda point: point.translate(x_offset, y_offset), rigid=True)
         if self._get_class_name(drawable) == "Function":
             self._shift_areas_with_function(drawable, x_offset)
 
@@ -287,6 +352,7 @@ class TransformationsManager:
         self.canvas.undo_redo_manager.archive()
 
         moved_points = self._gather_moved_points(drawable)
+        arcs = self._snapshot_arcs()
 
         try:
             if arbitrary_center:
@@ -297,6 +363,12 @@ class TransformationsManager:
             raise ValueError(f"Error rotating drawable: {str(e)}")
 
         self._refresh_dependencies_after_transform(drawable, moved_points)
+        if arbitrary_center:
+            self._move_arcs_with_circles(
+                drawable, arcs, lambda point: point.rotate_around(angle, center_x, center_y), rigid=True
+            )
+        else:
+            self._move_arcs_with_circles(drawable, arcs, None, rigid=False)
 
         self._redraw()
         return True
@@ -336,6 +408,7 @@ class TransformationsManager:
         drawable = self._find_drawable_by_name(name, exclude_types=_EXCLUDE_TRANSFORM)
         self.canvas.undo_redo_manager.archive()
         moved_points = self._gather_moved_points(drawable)
+        arcs = self._snapshot_arcs()
 
         try:
             drawable.reflect(axis, a, b, c)
@@ -343,6 +416,7 @@ class TransformationsManager:
             raise ValueError(f"Error reflecting drawable: {str(e)}")
 
         self._refresh_dependencies_after_transform(drawable, moved_points)
+        self._move_arcs_with_circles(drawable, arcs, lambda point: point.reflect(axis, a, b, c), rigid=True)
         self._redraw()
         return True
 
@@ -372,6 +446,7 @@ class TransformationsManager:
         self._validate_scale_support(drawable, sx, sy)
         self.canvas.undo_redo_manager.archive()
         moved_points = self._gather_moved_points(drawable)
+        arcs = self._snapshot_arcs()
 
         try:
             drawable.scale(sx, sy, cx, cy)
@@ -379,6 +454,7 @@ class TransformationsManager:
             raise ValueError(f"Error scaling drawable: {str(e)}")
 
         self._refresh_dependencies_after_transform(drawable, moved_points)
+        self._move_arcs_with_circles(drawable, arcs, lambda point: point.scale(sx, sy, cx, cy), rigid=False)
         self._redraw()
         return True
 
@@ -408,6 +484,7 @@ class TransformationsManager:
         self._validate_shear_support(drawable)
         self.canvas.undo_redo_manager.archive()
         moved_points = self._gather_moved_points(drawable)
+        arcs = self._snapshot_arcs()
 
         try:
             drawable.shear(axis, factor, cx, cy)
@@ -415,6 +492,7 @@ class TransformationsManager:
             raise ValueError(f"Error shearing drawable: {str(e)}")
 
         self._refresh_dependencies_after_transform(drawable, moved_points)
+        self._move_arcs_with_circles(drawable, arcs, None, rigid=False)
         self._redraw()
         return True
 

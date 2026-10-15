@@ -48,7 +48,9 @@ class CircleArc(Drawable):
         use_major_arc: bool = False,
         color: Optional[str] = None,
         name: Optional[str] = None,
+        strict: bool = True,
     ) -> None:
+        """Build the arc; strict=False skips the check that both endpoints lie on the circle."""
         if radius is None or float(radius) <= 0:
             raise ValueError("CircleArc requires a positive radius.")
         if point1 is point2:
@@ -63,7 +65,7 @@ class CircleArc(Drawable):
         self.circle_name: Optional[str] = getattr(circle, "name", None)
         self.use_major_arc: bool = bool(use_major_arc)
 
-        self._validate_points_on_circle()
+        self._validate_points_on_circle(strict=strict)
 
         chosen_color = str(color) if color is not None else DEFAULT_CIRCLE_ARC_COLOR
         computed_name = (
@@ -175,6 +177,8 @@ class CircleArc(Drawable):
         new_point2 = deepcopy(self.point2, memo)
         new_circle = deepcopy(self.circle, memo) if self.circle else None
 
+        # A copy keeps the arc as it is (undo archives copy every arc), so it skips the
+        # on-circle check that a newly built arc must pass.
         new_arc = CircleArc(
             new_point1,
             new_point2,
@@ -185,6 +189,7 @@ class CircleArc(Drawable):
             use_major_arc=self.use_major_arc,
             color=self.color,
             name=self.name,
+            strict=False,
         )
         memo[id(self)] = new_arc
         return new_arc
