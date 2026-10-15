@@ -25,6 +25,7 @@ Dependencies:
 
 from __future__ import annotations
 
+import math
 from typing import Any, Dict, List, Optional, cast
 
 from constants import default_color
@@ -189,35 +190,44 @@ class PiecewiseFunction(Drawable):
 
         self.point_discontinuities.sort()
 
+    # Offset (relative to max(1, |x|)) of the probes either side of a boundary
+    _JUMP_PROBE_OFFSET = 1e-7
+    # The one-sided limits at a boundary differ by more than this fraction of max(1, |limit|)
+    _JUMP_RELATIVE_TOLERANCE = 1e-6
+
     def _is_jump_discontinuity(self, x: float) -> bool:
-        """Check if there's a jump discontinuity at x."""
-        epsilon = 1e-9
+        """Check if the one-sided limits at boundary x differ (a jump) or either is undefined.
 
-        left_value: Optional[float] = None
-        right_value: Optional[float] = None
+        Each limit is extrapolated linearly from two probes on its side, so a steep but
+        continuous join (x^3 meeting its tangent line at x = 20, slope 1200) is not mistaken
+        for a jump, and the limits are compared relative to their size.
+        """
+        h = self._JUMP_PROBE_OFFSET * max(1.0, abs(x))
+        left_limit = self._one_sided_limit(x, -h)
+        right_limit = self._one_sided_limit(x, h)
+        if left_limit is None or right_limit is None:
+            return True
+        scale = max(1.0, abs(left_limit), abs(right_limit))
+        return abs(left_limit - right_limit) > self._JUMP_RELATIVE_TOLERANCE * scale
 
+    def _one_sided_limit(self, x: float, h: float) -> Optional[float]:
+        """f's limit at x from the side of x + h, extrapolated from f(x + h) and f(x + 2h)."""
+        near = self._value_in_interval(x + h)
+        far = self._value_in_interval(x + 2 * h)
+        if near is None or far is None:
+            return None
+        return 2.0 * near - far
+
+    def _value_in_interval(self, x: float) -> Optional[float]:
+        """f(x) from the interval containing x, or None where no interval does or f is undefined."""
         for interval in self.intervals:
-            if interval.contains(x - epsilon):
+            if interval.contains(x):
                 try:
-                    left_value = interval.evaluate(x - epsilon)
+                    value = float(interval.evaluate(x))
                 except Exception:
-                    pass
-            if interval.contains(x + epsilon):
-                try:
-                    right_value = interval.evaluate(x + epsilon)
-                except Exception:
-                    pass
-
-        if left_value is None or right_value is None:
-            return True
-
-        try:
-            if abs(left_value - right_value) > 1e-6:
-                return True
-        except Exception:
-            return True
-
-        return False
+                    return None
+                return value if math.isfinite(value) else None
+        return None
 
     def _compute_asymptotes(self) -> None:
         """Compute vertical asymptotes from all intervals."""

@@ -163,6 +163,41 @@ class TestPiecewiseFunction(unittest.TestCase):
 
         self.assertNotIn(0, pf.point_discontinuities)
 
+    def test_steep_continuous_join_is_not_a_discontinuity(self) -> None:
+        """x^3 meeting its tangent line at x = 20 (value 8000, slope 1200) joins continuously."""
+        pieces = [
+            {"expression": "x^3", "left": None, "right": 20, "left_inclusive": True, "right_inclusive": False},
+            {"expression": "8000 + 1200*(x - 20)", "left": 20, "right": None, "left_inclusive": True},
+        ]
+        pf = PiecewiseFunction(pieces, name="f")
+
+        self.assertNotIn(20, pf.point_discontinuities)
+
+    def test_small_jump_far_from_zero_is_a_discontinuity(self) -> None:
+        """A jump of 0.01 between values near 1000 is still a jump."""
+        pieces = [
+            {"expression": "1000", "left": None, "right": 5, "left_inclusive": True, "right_inclusive": False},
+            {"expression": "1000.01", "left": 5, "right": None, "left_inclusive": True},
+        ]
+        pf = PiecewiseFunction(pieces, name="f")
+
+        self.assertIn(5, pf.point_discontinuities)
+
+    def test_root_at_a_jump_is_found(self) -> None:
+        """{x for x <= 0; x + 1 for x > 0} is 0 at the jump: 0 is a root."""
+        from utils.function_features import find_function_features
+
+        pieces = [
+            {"expression": "x", "left": None, "right": 0, "left_inclusive": True, "right_inclusive": True},
+            {"expression": "x + 1", "left": 0, "right": None, "left_inclusive": False},
+        ]
+        pf = PiecewiseFunction(pieces, name="f")
+        self.assertIn(0, pf.point_discontinuities)
+
+        report = find_function_features(pf.function, -5, 5, breakpoints=pf.point_discontinuities)
+        roots = [feature["x"] for feature in report["features"] if feature["kind"] == "root"]
+        self.assertEqual(roots, [0.0])
+
     def test_three_piece_function(self) -> None:
         pieces = [
             {"expression": "-1", "left": None, "right": -1, "left_inclusive": True, "right_inclusive": False},
