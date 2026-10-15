@@ -1559,7 +1559,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "numeric_integrate",
-            "description": "Numerically approximate a definite integral over finite bounds using trapezoid, midpoint, or Simpson's rule.",
+            "description": "Numerically approximate a definite integral over finite bounds using trapezoid, midpoint, or Simpson's rule. Returns value, error_estimate and steps. Equal bounds give 0; reversed bounds give the negated value. An integrand that is singular or undefined inside the interval (1/x across 0, tan(x) across pi/2) is an error, since the integral is improper and may diverge: integrate each side separately. Where the integrand is undefined at a bound (ln(x) at 0), the midpoint rule is used and the result carries a warning that the value is approximate.",
             "strict": True,
             "parameters": {
                 "type": "object",

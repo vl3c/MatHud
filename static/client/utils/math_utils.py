@@ -1573,13 +1573,15 @@ class MathUtils:
         variable: str,
         lower_bound: Number,
         upper_bound: Number,
-        method: str = "simpson",
-        steps: int = 200,
+        method: Optional[str] = "simpson",
+        steps: Optional[int] = 200,
     ) -> Dict[str, Number]:
         """Numerically integrate an expression over a finite interval.
 
         This is intended for fast approximation workflows where symbolic
-        integration is unnecessary or unavailable.
+        integration is unnecessary or unavailable. None method or steps take
+        the defaults; equal bounds give 0 and reversed bounds the negated value;
+        an integrand singular inside the interval raises ValueError.
         """
         from utils.numeric_integration import integrate as integrate_numeric
 
@@ -1593,9 +1595,8 @@ class MathUtils:
         upper = float(upper_bound)
         if not math.isfinite(lower) or not math.isfinite(upper):
             raise ValueError("lower_bound and upper_bound must be finite")
-        if lower >= upper:
-            raise ValueError("lower_bound must be less than upper_bound")
-
+        if steps is None:
+            steps = 200
         if isinstance(steps, bool) or not isinstance(steps, int):
             raise TypeError("steps must be an integer")
         if steps <= 0:

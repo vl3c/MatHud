@@ -1049,9 +1049,28 @@ class TestMathFunctions(unittest.TestCase):
         self.assertAlmostEqual(float(result["value"]), 1.0 / 3.0, places=8)
         self.assertGreaterEqual(float(result["error_estimate"]), 0.0)
 
-    def test_numeric_integrate_rejects_bad_bounds(self) -> None:
-        with self.assertRaises(ValueError):
-            MathUtils.numeric_integrate("x", "x", 1, 1, "trapezoid", 10)
+    def test_numeric_integrate_equal_and_reversed_bounds(self) -> None:
+        self.assertEqual(float(MathUtils.numeric_integrate("x", "x", 1, 1, "trapezoid", 10)["value"]), 0.0)
+        forward = MathUtils.numeric_integrate("x^2", "x", 0, 1, "simpson", 50)
+        backward = MathUtils.numeric_integrate("x^2", "x", 1, 0, "simpson", 50)
+        self.assertAlmostEqual(float(backward["value"]), -float(forward["value"]), places=12)
+
+    def test_numeric_integrate_none_method_and_steps_use_defaults(self) -> None:
+        result = MathUtils.numeric_integrate("x^2", "x", 0, 1, None, None)
+        self.assertEqual(result["steps"], 400)
+        self.assertAlmostEqual(float(result["value"]), 1.0 / 3.0, places=8)
+
+    def test_numeric_integrate_rejects_interior_singularity(self) -> None:
+        for expression, lower, upper in (("1/x", -1, 2), ("1/x^2", -1, 1), ("tan(x)", 0, 2)):
+            with self.subTest(expression=expression):
+                with self.assertRaises(ValueError) as ctx:
+                    MathUtils.numeric_integrate(expression, "x", lower, upper, "simpson", 100)
+                self.assertIn("singular or undefined", str(ctx.exception))
+
+    def test_numeric_integrate_endpoint_singularity_falls_back_to_midpoint(self) -> None:
+        result = MathUtils.numeric_integrate("log(x)", "x", 0, 1, "simpson", 200)
+        self.assertAlmostEqual(float(result["value"]), -1.0, places=2)
+        self.assertIn("midpoint", result["warning"])
 
     def test_numeric_integrate_rejects_too_many_steps(self) -> None:
         with self.assertRaises(ValueError):
