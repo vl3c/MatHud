@@ -9,6 +9,11 @@ Supported drawables:
     - Polygons (Triangle, Quadrilateral, etc.): Closed polygonal regions
     - Segments: Treated as half-planes (area to the LEFT of segment direction)
 
+Circles, ellipses and arcs keep their exact curves on their own; boolean operations clip
+polygons sampled from them (num_samples points per curve). The reported area of an
+expression that combines curved shapes is extrapolated from two sample counts (Richardson
+extrapolation), which removes the sampling error to leading order.
+
 Name conventions (supports prime symbols for point names):
     - Points: A, A', A'', B'
     - Segments: AB, A'B, A''E'
@@ -20,7 +25,7 @@ Example expressions:
     - "circle_A | triangle_ABC"     (union)
     - "circle_A - triangle_ABC"     (difference)
     - "(circle_A & triangle_ABC) - square_DEFG"  (nested)
-    - "C(5) & AB"                   (circle cut by segment - circular segment area)
+    - "C(5) & AB"                   (circle cut by segment AB: the part LEFT of A->B)
     - "ArcMajor & A''E'"            (arc intersected with segment using prime names)
 """
 
@@ -30,11 +35,16 @@ import math
 import re
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
-from geometry import Region
+from geometry import CircularArc, CompositePath, LineSegment, Region
 
 if TYPE_CHECKING:
     from canvas import Canvas
     from drawables.drawable import Drawable
+
+
+# Arc sweeps (radians) at or below this are too small for a CircularArc element: the
+# area formula treats a span under GeometryUtils.INTERSECTION_EPSILON as a full turn.
+_MIN_ARC_SWEEP = 1e-8
 
 
 class _RegionWithSource:
@@ -113,7 +123,9 @@ class AreaExpressionEvaluator:
     }
 
     @staticmethod
-    def evaluate(expression: str, canvas: "Canvas", num_samples: int = 100) -> AreaExpressionResult:
+    def evaluate(
+        expression: str, canvas: "Canvas", num_samples: int = 100, refine_area: bool = True
+    ) -> AreaExpressionResult:
         """Evaluate an area expression and return the computed area.
 
         Args:
@@ -121,6 +133,9 @@ class AreaExpressionEvaluator:
             canvas: Canvas instance to resolve drawable names
             num_samples: Boundary samples per curve for the region operations; draw the
                 result's boundary_points with the same count
+            refine_area: When the expression combines curved shapes, also evaluate it with
+                twice as many sample steps and extrapolate the area (see
+                ``_extrapolated_area``). Callers that only draw the region can skip it.
 
         Returns:
             AreaExpressionResult with computed area or error
@@ -129,26 +144,69 @@ class AreaExpressionEvaluator:
             AreaExpressionEvaluator._validate_expression(expression)
             tokens = AreaExpressionEvaluator._tokenize(expression)
             ast = AreaExpressionEvaluator._parse(tokens)
-            result = AreaExpressionEvaluator._evaluate_ast(ast, canvas, num_samples)
-
-            # Normalize _RegionWithSource to Region
-            if isinstance(result, _RegionWithSource):
-                result = AreaExpressionEvaluator._normalize_to_single(result)
-
+            result = AreaExpressionEvaluator._evaluate_to_regions(ast, canvas, num_samples)
+            area = AreaExpressionEvaluator._total_area(result)
+            if refine_area and AreaExpressionEvaluator._combines_curves(ast, canvas):
+                finer = AreaExpressionEvaluator._evaluate_to_regions(ast, canvas, 2 * num_samples - 1)
+                area = AreaExpressionEvaluator._extrapolated_area(area, AreaExpressionEvaluator._total_area(finer))
             if isinstance(result, list):
-                total_area = sum(r.area() for r in result)
                 combined = result[0] if len(result) == 1 else None
-                return AreaExpressionResult(area=max(0.0, total_area), regions=result, region=combined)
+                return AreaExpressionResult(area=max(0.0, area), regions=result, region=combined)
             elif result is None:
                 return AreaExpressionResult(area=0.0, regions=[], region=None)
             else:
-                area = result.area()
                 return AreaExpressionResult(area=max(0.0, area), regions=[result], region=result)
 
         except ValueError as e:
             return AreaExpressionResult(area=0.0, error=str(e))
         except Exception as e:
             return AreaExpressionResult(area=0.0, error=f"Evaluation error: {e}")
+
+    @staticmethod
+    def _evaluate_to_regions(ast: _ASTNode, canvas: "Canvas", num_samples: int) -> Union[Region, List[Region], None]:
+        """Evaluate the AST to a region, a list of regions or None (empty)."""
+        result = AreaExpressionEvaluator._evaluate_ast(ast, canvas, num_samples)
+        if isinstance(result, _RegionWithSource):
+            return AreaExpressionEvaluator._normalize_to_single(result)
+        return result
+
+    @staticmethod
+    def _total_area(result: Union[Region, List[Region], None]) -> float:
+        if result is None:
+            return 0.0
+        if isinstance(result, list):
+            return sum(region.area() for region in result)
+        return result.area()
+
+    @staticmethod
+    def _extrapolated_area(coarse: float, fine: float) -> float:
+        """Richardson extrapolation of an area sampled with n and 2n steps per curve.
+
+        A polygon sampled from a smooth curve with n steps misses an area proportional to
+        1/n^2, so (4 A(2n) - A(n)) / 3 cancels that term. num_samples points per curve make
+        num_samples - 1 steps and 2 * num_samples - 1 points make exactly twice as many.
+        Exact (polygon-only or analytic) results come out unchanged.
+        """
+        return (4.0 * fine - coarse) / 3.0
+
+    @staticmethod
+    def _combines_curves(ast: _ASTNode, canvas: "Canvas") -> bool:
+        """True when the expression is an operation (sampled) and names a circle, ellipse or arc."""
+        if not isinstance(ast, _BinaryOpNode):
+            return False
+        curved = ("Circle", "Ellipse", "CircleArc")
+        return any(
+            AreaExpressionEvaluator._resolve_drawable(name, canvas).get_class_name() in curved
+            for name in AreaExpressionEvaluator._names(ast)
+        )
+
+    @staticmethod
+    def _names(node: _ASTNode) -> List[str]:
+        if isinstance(node, _NameNode):
+            return [node.name]
+        if isinstance(node, _BinaryOpNode):
+            return AreaExpressionEvaluator._names(node.left) + AreaExpressionEvaluator._names(node.right)
+        return []
 
     @staticmethod
     def _validate_expression(expression: str) -> None:
@@ -477,19 +535,26 @@ class AreaExpressionEvaluator:
                 # CCW is shorter, use it
                 sweep = ccw_sweep
 
-        # Create region from circular segment (chord + arc curve, no center)
-        num_points = max(32, int(abs(sweep) * 16))
-        points: List[Tuple[float, float]] = []
+        return AreaExpressionEvaluator._circular_cap_region(center, radius, angle1, sweep)
 
-        # Trace along arc from p1 to p2
-        for i in range(num_points + 1):
-            t = i / num_points
-            angle = angle1 + t * sweep
-            x = center[0] + radius * math.cos(angle)
-            y = center[1] + radius * math.sin(angle)
-            points.append((x, y))
+    @staticmethod
+    def _circular_cap_region(center: Tuple[float, float], radius: float, start_angle: float, sweep: float) -> Region:
+        """The region between a circle's arc (from start_angle, sweeping by sweep radians) and its chord.
 
-        return Region.from_points(points)
+        The arc stays exact, so the region's own area is exact; operations sample it like a circle.
+        A sweep too small for an arc (an arc element that short would count as a full circle)
+        gives the thin triangle through its ends and middle.
+        """
+        if abs(sweep) <= _MIN_ARC_SWEEP:
+            return Region.from_points(
+                [
+                    (center[0] + radius * math.cos(angle), center[1] + radius * math.sin(angle))
+                    for angle in (start_angle, start_angle + sweep / 2.0, start_angle + sweep)
+                ]
+            )
+        arc = CircularArc(center, radius, start_angle, start_angle + sweep, clockwise=sweep < 0)
+        chord = LineSegment(arc.end_point(), arc.start_point())
+        return Region(CompositePath([arc, chord]))
 
     @staticmethod
     def _region_from_segments(segments: list) -> Region:
@@ -598,8 +663,10 @@ class AreaExpressionEvaluator:
     ) -> Optional[Union[Region, List[Region]]]:
         """Handle special cases of segment intersection with shapes.
 
-        For arc & segment or circle & segment, creates the enclosed region
-        bounded by both the shape's curve and the segment line.
+        For arc & segment, creates the enclosed region bounded by both the arc's curve
+        and the segment line. A circle, ellipse or polygon is intersected with the
+        half-plane to the LEFT of the segment's direction (reverse the segment for the
+        other side), like any other operation with a segment.
 
         Returns None when the combination is not handled here, and an empty
         list when it is handled but the enclosed region is empty.
@@ -624,17 +691,15 @@ class AreaExpressionEvaluator:
 
         if shape_source.source_type == "arc":
             return AreaExpressionEvaluator._arc_segment_enclosed_region(shape, segment)
-        elif shape_source.source_type == "circle":
-            enclosed = AreaExpressionEvaluator._circle_segment_enclosed_region(shape, segment)
-            return enclosed if enclosed is not None else []
-        elif shape_source.source_type in ("polygon", "ellipse"):
-            # For polygons/ellipses, use half-plane intersection
+        elif shape_source.source_type in ("polygon", "ellipse", "circle"):
+            # Half-plane intersection: the part on the segment's left
             p1 = (segment.point1.x, segment.point1.y)
             p2 = (segment.point2.x, segment.point2.y)
             half_plane = Region.from_half_plane(p1, p2)
             if shape_source.region is None:
                 return None
-            return shape_source.region.intersection(half_plane, num_samples)
+            clipped = shape_source.region.intersection(half_plane, num_samples)
+            return clipped if clipped is not None else []
 
         return None
 
@@ -770,84 +835,4 @@ class AreaExpressionEvaluator:
             # P1 is in CW direction, so go CCW
             arc_sweep = ccw_sweep_i
 
-        # Sample the arc from i1 to i2
-        points: List[Tuple[float, float]] = []
-        num_points = max(16, int(abs(arc_sweep) * 16))
-        for i in range(num_points + 1):
-            t = i / num_points
-            angle = i1_angle + t * arc_sweep
-            x = center[0] + radius * math.cos(angle)
-            y = center[1] + radius * math.sin(angle)
-            points.append((x, y))
-
-        if len(points) < 3:
-            return AreaExpressionEvaluator._arc_to_region(arc)
-
-        return Region.from_points(points)
-
-    @staticmethod
-    def _circle_segment_enclosed_region(circle: "Drawable", segment: "Drawable") -> Optional[Region]:
-        """Create the enclosed region (circular segment) cut by a segment from a circle.
-
-        Creates the smaller circular segment (minor segment) on the side
-        opposite to the circle center relative to the segment, so the result
-        does not depend on the segment's direction. When the segment line
-        passes through the center, the half on the LEFT of the segment
-        direction is used (matching the half-plane convention).
-
-        Returns None when the segment line misses (or only touches) the circle,
-        i.e. the enclosed region is empty.
-        """
-        center = (circle.center.x, circle.center.y)
-        radius = circle.radius
-
-        intersections = AreaExpressionEvaluator._line_circle_intersections(
-            segment.point1.x, segment.point1.y, segment.point2.x, segment.point2.y, center[0], center[1], radius
-        )
-
-        if len(intersections) < 2:
-            # No intersection (or tangent) - the enclosed region is empty
-            return None
-
-        i1_angle = intersections[0]["angle"]
-        i2_angle = intersections[1]["angle"]
-
-        # Determine which side of the segment the center is on
-        seg_p1 = (segment.point1.x, segment.point1.y)
-        seg_p2 = (segment.point2.x, segment.point2.y)
-
-        dx = seg_p2[0] - seg_p1[0]
-        dy = seg_p2[1] - seg_p1[1]
-        cx = center[0] - seg_p1[0]
-        cy = center[1] - seg_p1[1]
-        cross = dx * cy - dy * cx
-
-        # Calculate sweep to get the arc on the opposite side of the center
-        ccw_sweep = i2_angle - i1_angle
-        if ccw_sweep < 0:
-            ccw_sweep += 2 * math.pi
-
-        # i1 is the intersection nearer segment.point1, so the CCW arc from i1
-        # to i2 lies on the RIGHT of the segment direction and the CW arc on the LEFT.
-        # Choose the arc opposite to the center (the minor segment).
-        if cross > 1e-9 * math.hypot(dx, dy) * radius:
-            # Center is on left - use right arc (CCW)
-            sweep = ccw_sweep
-        else:
-            # Center is on right (or on the line) - use left arc (CW)
-            sweep = -(2 * math.pi - ccw_sweep)
-
-        # Sample the arc
-        points: List[Tuple[float, float]] = []
-        num_points = max(16, int(abs(sweep) * 16))
-        for i in range(num_points + 1):
-            t = i / num_points
-            angle = i1_angle + t * sweep
-            x = center[0] + radius * math.cos(angle)
-            y = center[1] + radius * math.sin(angle)
-            points.append((x, y))
-
-        if len(points) < 3:
-            return None
-
-        return Region.from_points(points)
+        return AreaExpressionEvaluator._circular_cap_region(center, radius, i1_angle, arc_sweep)

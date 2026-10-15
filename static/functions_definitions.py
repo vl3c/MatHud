@@ -2716,7 +2716,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "properties": {
                     "expression": {
                         "type": "string",
-                        "description": "Boolean expression with drawable names as the canvas shows them: a circle is named after its centre and radius, like 'A(5)', unless it was given its own name such as 'c1'; a polygon by its vertices, like 'ABC' or 'DEFG'; a segment like 'EF'. Examples: 'A(5)' (single shape), 'A(5) & BCD' (intersection), 'C(5) & AB' (circle cut by segment AB), 'ArcMaj_CD & BEF' (arc segment intersected with triangle), 'A(5) - BCD' (difference), '(A(5) & BCDE) & FG' (shapes intersected then cut by segment).",
+                        "description": "Boolean expression with drawable names as the canvas shows them: a circle is named after its centre and radius, like 'A(5)', unless it was given its own name such as 'c1'; a polygon by its vertices, like 'ABC' or 'DEFG'; a segment like 'EF'. Examples: 'A(5)' (single shape), 'A(5) & BCD' (intersection), 'C(5) & AB' (the part of the circle to the left of segment A->B; use BA for the other side), 'ArcMaj_CD & BEF' (arc segment intersected with triangle), 'A(5) - BCD' (difference), '(A(5) & BCDE) & FG' (shapes intersected then cut by segment).",
                     }
                 },
                 "required": ["expression"],
