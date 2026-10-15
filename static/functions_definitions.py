@@ -1400,7 +1400,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "evaluate_expression",
-            "description": "Calculate or evaluate a mathematical expression and return the numerical result. Use for arithmetic (+, -, *, /, ^), algebra, and math functions. Supports variables (x, y), constants (e, pi), and functions: sin, cos, tan, sqrt, log, log10, log2, factorial, arrangements, permutations, combinations, asin, acos, atan, sinh, cosh, tanh, exp, abs, pow, det, bin, round, ceil, floor, trunc, max, min, sum, gcd, lcm, is_prime, prime_factors, mod_pow, mod_inverse, next_prime, prev_prime, totient, divisors, mean, median, mode, stdev, variance, random, randint. Also supports sequence/series helpers such as summation('n^2','n',0,50), product('n+1','n',0,10), arithmetic_sum(1,2,20), geometric_sum(3,0.5,15), ratio_test('1/factorial(n)','n'), root_test('(1/2)^n','n'), and p_series_test(2). Numbers like 2e-3 are scientific notation (0.002); write 2*e for a multiple of Euler's number.",
+            "description": "Calculate or evaluate a mathematical expression and return the numerical result. Use for arithmetic (+, -, *, /, ^), algebra, and math functions. Supports variables (x, y), constants (e, pi), and functions: sin, cos, tan, sqrt, log, log10, log2, factorial, arrangements, permutations, combinations, asin, acos, atan, sinh, cosh, tanh, exp, abs, pow, det, bin, round, ceil, floor, trunc, max, min, sum, gcd, lcm, is_prime, prime_factors, mod_pow, mod_inverse, next_prime (smallest prime >= n, so next_prime(7) = 7), prev_prime (largest prime <= n), totient, divisors, mean, median, mode, stdev, variance, random, randint. Also supports sequence/series helpers such as summation('n^2','n',0,50), product('n+1','n',0,10), arithmetic_sum(1,2,20), geometric_sum(3,0.5,15), ratio_test('1/factorial(n)','n'), root_test('(1/2)^n','n'), and p_series_test(2). Numbers like 2e-3 are scientific notation (0.002); write 2*e for a multiple of Euler's number.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -1469,14 +1469,20 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "convert",
-            "description": "Converts a numeric value between units (e.g., degrees to radians, km to m, F to C). For Cartesian/polar coordinate conversion, use convert_coordinates instead.",
+            "description": "Converts a numeric value between units (e.g., degrees to radians, km to m, Fahrenheit to Celsius), given as math.js unit names: deg, rad, km, m, degF, degC (plain F and C are farad and coulomb). For Cartesian/polar coordinate conversion, use convert_coordinates instead.",
             "strict": True,
             "parameters": {
                 "type": "object",
                 "properties": {
                     "value": {"type": "number", "description": "The value to be converted"},
-                    "from_unit": {"type": "string", "description": "The unit to convert from"},
-                    "to_unit": {"type": "string", "description": "The unit to convert to"},
+                    "from_unit": {
+                        "type": "string",
+                        "description": "The unit to convert from, as a math.js unit name (e.g. 'degF', 'km', 'deg')",
+                    },
+                    "to_unit": {
+                        "type": "string",
+                        "description": "The unit to convert to, as a math.js unit name (e.g. 'degC', 'm', 'rad')",
+                    },
                 },
                 "required": ["value", "from_unit", "to_unit"],
                 "additionalProperties": False,
@@ -1559,7 +1565,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "numeric_integrate",
-            "description": "Numerically approximate a definite integral over finite bounds using trapezoid, midpoint, or Simpson's rule.",
+            "description": "Numerically approximate a definite integral over finite bounds using trapezoid, midpoint, or Simpson's rule. Returns value, error_estimate and steps. Equal bounds give 0; reversed bounds give the negated value. An integrand that is singular or undefined inside the interval (1/x across 0, tan(x) across pi/2) is an error, since the integral is improper and may diverge: integrate each side separately. Where the integrand is undefined at a bound (ln(x) at 0), the midpoint rule is used and the result carries a warning that the value is approximate.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -1572,16 +1578,16 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "lower_bound": {"type": "number", "description": "Lower finite bound of integration."},
                     "upper_bound": {"type": "number", "description": "Upper finite bound of integration."},
                     "method": {
-                        "type": "string",
-                        "enum": ["trapezoid", "midpoint", "simpson"],
-                        "description": "Numeric integration method. Optional; defaults to 'simpson' when omitted.",
+                        "type": ["string", "null"],
+                        "enum": ["trapezoid", "midpoint", "simpson", None],
+                        "description": "Numeric integration method. Null defaults to 'simpson'.",
                     },
                     "steps": {
-                        "type": "integer",
-                        "description": "Number of subintervals. Must be a positive integer and <= 10000. Optional; defaults to 200 when omitted.",
+                        "type": ["integer", "null"],
+                        "description": "Number of subintervals. Must be a positive integer and <= 10000. Null defaults to 200.",
                     },
                 },
-                "required": ["expression", "variable", "lower_bound", "upper_bound"],
+                "required": ["expression", "variable", "lower_bound", "upper_bound", "method", "steps"],
                 "additionalProperties": False,
             },
         },
@@ -1734,7 +1740,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "rotate_object",
-            "description": "Rotates a drawable object by the specified angle. By default rotates around the object's own center. When center_x and center_y are provided, rotates around that arbitrary point (works for all types including points and circles). Plots cannot be rotated.",
+            "description": "Rotates a segment, vector, polygon, ellipse, circle or point by the specified angle. By default rotates around the object's own center (segments, vectors, polygons and ellipses). When center_x and center_y are provided, rotates around that point (also points and circles). Functions, labels, angles, arcs, colored areas, graphs and plots cannot be rotated.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -1964,7 +1970,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "properties": {
                     "expression": {
                         "type": ["string", "null"],
-                        "description": "Boolean region expression using shape names and operators. Examples: 'ArcMaj_AB & CD' (arc intersected with segment), 'circle_A - triangle_ABC' (difference). Takes precedence over other parameters.",
+                        "description": "Boolean region expression using shape names and operators. Examples: 'ArcMaj_AB & CD' (arc intersected with segment), 'A(5) - BCD' (circle A(5) minus triangle BCD). Takes precedence over other parameters.",
                     },
                     "triangle_name": {
                         "type": ["string", "null"],
@@ -2070,7 +2076,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "generate_graph",
-            "description": "Generates a graph, tree or DAG (vertices joined by edges, optionally weighted or directed) on the canvas from vertices/edges or an adjacency matrix. Use it for any graph of vertices and edges, instead of building one from points and segments; not for plotting functions. Returns the created graph state and drawable names for follow-up highlighting.",
+            "description": "Generates a graph, tree or DAG (vertices joined by edges, optionally weighted or directed) on the canvas from vertices/edges or an adjacency matrix. Use it for any graph of vertices and edges, instead of building one from points and segments; not for plotting functions. Every edge takes the graph's direction. Parallel edges between the same two vertices share one segment or vector, which shows their cheapest weight (an unweighted edge counts as 1). Returns the created graph state and drawable names for follow-up highlighting; invalid input (an edge index that is not a vertex index, an unknown root, two vertices at the same coordinates, a tree that is not a tree, a dag with a cycle) returns an error.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2079,13 +2085,19 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "graph_type": {
                         "type": "string",
                         "enum": ["graph", "tree", "dag"],
-                        "description": "Type of graph to create.",
+                        "description": "Type of graph to create. A tree must be connected with exactly one edge fewer than vertices and is undirected; a dag must have no directed cycle and is always directed.",
                     },
-                    "directed": {"type": ["boolean", "null"]},
-                    "root": {"type": ["string", "null"], "description": "Root id for trees."},
+                    "directed": {
+                        "type": ["boolean", "null"],
+                        "description": "Whether a 'graph' is directed (default false). Ignored for trees (undirected) and dags (directed).",
+                    },
+                    "root": {
+                        "type": ["string", "null"],
+                        "description": "Root vertex for trees: a vertex name or 0-based index. Defaults to the first vertex no edge points to.",
+                    },
                     "layout": {
                         "type": ["string", "null"],
-                        "description": "Layout hint: 'tree' or 'hierarchical' for top-down tree display (default for trees), 'radial' for concentric rings from root, 'circular' for nodes on a circle, 'grid' for rectangular grid, 'force' for force-directed.",
+                        "description": "Layout, used as given: 'tree' or 'hierarchical' for top-down tree display (default for trees), 'radial' for concentric rings from root, 'circular' for nodes on a circle, 'grid' for rectangular grid (each connected component side by side), 'force' for force-directed. When null, a graph whose edges form a tree gets the tree layout.",
                     },
                     "placement_box": {
                         "type": ["object", "null"],
@@ -2125,7 +2137,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             "required": ["name", "x", "y", "color", "label"],
                             "additionalProperties": False,
                         },
-                        "description": "List of vertex descriptors. Vertex id is implied by array index starting at 0.",
+                        "description": "List of vertex descriptors. Vertex id is implied by array index starting at 0. A vertex with explicit x and y reuses a point already there; no two vertices may share coordinates. Vertices without coordinates are laid out, clear of existing points.",
                     },
                     "edges": {
                         "type": "array",
@@ -2134,16 +2146,19 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             "properties": {
                                 "source": {
                                     "type": "number",
-                                    "description": "Source vertex index (0-based, matches vertices array order)",
+                                    "description": "Source vertex index (integer, 0-based, matches vertices array order)",
                                 },
                                 "target": {
                                     "type": "number",
-                                    "description": "Target vertex index (0-based, matches vertices array order)",
+                                    "description": "Target vertex index (integer, 0-based, matches vertices array order)",
                                 },
                                 "weight": {"type": ["number", "null"]},
                                 "name": {"type": ["string", "null"]},
                                 "color": {"type": ["string", "null"]},
-                                "directed": {"type": ["boolean", "null"]},
+                                "directed": {
+                                    "type": ["boolean", "null"],
+                                    "description": "Ignored: every edge takes the graph's direction.",
+                                },
                             },
                             "required": ["source", "target", "weight", "name", "color", "directed"],
                             "additionalProperties": False,
@@ -2153,7 +2168,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "adjacency_matrix": {
                         "type": ["array", "null"],
                         "items": {"type": "array", "items": {"type": "number"}},
-                        "description": "Optional adjacency matrix (weights allowed). Rows/columns follow the order of the provided vertices array (0-based). Edges follow the graph's direction: for an undirected graph each nonzero pair gives one edge.",
+                        "description": "Optional adjacency matrix (weights allowed). Rows/columns follow the order of the provided vertices array (0-based). Edges follow the graph's direction: for an undirected graph each nonzero pair gives one edge. A nonzero diagonal entry is a self-loop. 0 means no edge, so give a weight-0 edge in edges instead.",
                     },
                 },
                 "required": [
@@ -2189,7 +2204,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "analyze_graph",
-            "description": 'Analyzes an existing graph/tree for connectivity and structural queries (connectedness, shortest path, BFS/DFS, bipartite, bridges, articulation points, diameter, etc.). Use generate_graph first if the graph does not exist yet. Notes: shortest_path supports negative weights on directed graphs (Bellman-Ford) and returns {"error": ...} for negative weights on undirected graphs or a reachable negative cycle; mst on a disconnected graph returns a minimum spanning forest with connected: false and a note; bridges, articulation_points and bipartite on directed graphs use the underlying undirected graph; euler_status on directed graphs uses in/out-degree balance.',
+            "description": 'Analyzes an existing graph/tree: shortest path, minimum spanning tree, topological sort, BFS/DFS, bipartite, bridges, articulation points, Euler path/circuit, diameter, tree operations and convex hull. Use generate_graph first if the graph does not exist yet. Notes: a vertex name that is not in the graph returns {"error": ...} listing the vertices; unweighted edges count as weight 1 and parallel edges use the cheapest one; shortest_path supports negative weights on directed graphs (Bellman-Ford) and returns {"error": ...} for negative weights on undirected graphs or a reachable negative cycle; mst on a directed graph is the MST of the underlying undirected graph, and on a disconnected graph a minimum spanning forest with connected: false and a note; topological_sort needs a directed graph without cycles (errors name the cycle); diameter counts edges (weights are ignored) on the underlying undirected graph and returns path, length and connected (on a disconnected graph: connected: false, the largest component diameter and a note); bridges, articulation_points and bipartite on directed graphs use the underlying undirected graph; euler_status on directed graphs uses in/out-degree balance; lca, balance_children, invert_children and reroot need a tree (edges read as undirected); levels on a tree gives its depth levels and on any other graph the BFS distance levels from the root (following edge direction on a directed graph, with a note). The root defaults to the stored tree root, else on an undirected graph the first vertex, else on a directed graph the only vertex without incoming edges (an error asks for a root when there is not exactly one).',
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2229,7 +2244,10 @@ FUNCTIONS: List[Dict[str, Any]] = [
                                 "description": "Start vertex for shortest_path, bfs, dfs.",
                             },
                             "goal": {"type": ["string", "null"], "description": "Goal vertex for shortest_path."},
-                            "root": {"type": ["string", "null"], "description": "Root vertex for tree operations."},
+                            "root": {
+                                "type": ["string", "null"],
+                                "description": "Root vertex for tree operations (an unknown name is an error).",
+                            },
                             "a": {"type": ["string", "null"], "description": "First vertex for LCA."},
                             "b": {"type": ["string", "null"], "description": "Second vertex for LCA."},
                             "new_root": {
@@ -2254,7 +2272,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "inspect_relation",
-            "description": "Check and explain geometric relations between objects on the canvas. Supported: parallel, perpendicular, collinear, concyclic, equal_length, similar, congruent, tangent, concurrent, point_on_line, point_on_circle. Use 'auto' to check all applicable relations.",
+            "description": "Check and explain geometric relations between objects on the canvas. Supported: parallel, perpendicular, collinear, concyclic, equal_length, similar and congruent (two triangles or two rectangles), tangent, concurrent, point_on_line, point_on_circle, point_on_ellipse. Lengths compare relative to their size; directions within 0.01 degrees, the tolerance of the shape type flags. Use 'auto' to check all applicable relations.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2273,6 +2291,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             "concurrent",
                             "point_on_line",
                             "point_on_circle",
+                            "point_on_ellipse",
                             "auto",
                         ],
                     },
@@ -2407,7 +2426,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     },
                     "bar_count": {
                         "type": ["number", "null"],
-                        "description": "Discrete only. Number of bars to draw across the bounds. If null, a default is used.",
+                        "description": "Discrete only. Number of bars to draw across the bounds: a whole number from 1 to 500. If null, 24 is used.",
                     },
                 },
                 "required": [
@@ -2442,7 +2461,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "values": {
                         "type": "array",
                         "items": {"type": "number"},
-                        "description": "Bar heights (math-space units). Must have at least one entry.",
+                        "description": "Bar heights (math-space units), finite numbers; a zero value draws a zero-height bar that keeps its labels. Must have at least one entry.",
                     },
                     "labels_below": {
                         "type": "array",
@@ -2590,7 +2609,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "compute_descriptive_statistics",
-            "description": "Computes descriptive statistics for a list of numbers. Returns count, mean, median, mode, population standard deviation, population variance, min, max, first quartile (Q1), third quartile (Q3), interquartile range (IQR), and range. Mode is returned as a list of values with the highest frequency; the list is empty if all values appear with equal frequency (no meaningful mode). Quartiles use the median-of-halves (exclusive) method. Use this for summarizing datasets, finding central tendency and spread, or answering questions about data distributions.",
+            "description": "Computes descriptive statistics for a list of numbers. Returns count, mean, median, mode, population standard deviation, population variance, min, max, first quartile (Q1), third quartile (Q3), interquartile range (IQR), and range. Mode is returned as a list of every value with the highest frequency, sorted ascending; it is empty when there are two or more distinct values and all appear equally often (e.g. [1, 2, 3] or [1, 1, 2, 2]), and a single distinct value is the mode however often it appears ([5] and [7, 7, 7] give [5] and [7]). Quartiles use the median-of-halves (exclusive) method. Use this for summarizing datasets, finding central tendency and spread, or answering questions about data distributions.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2697,7 +2716,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "properties": {
                     "expression": {
                         "type": "string",
-                        "description": "Boolean expression with drawable names. Examples: 'circle_A' (single shape), 'circle_A & triangle_ABC' (intersection), 'C(5) & AB' (circle cut by segment AB), 'ArcMaj_CD & triangle_ABC' (arc segment intersected with triangle), 'circle_A - triangle_ABC' (difference), '(circle_A & quad_ABCD) & EF' (shapes intersected then cut by segment).",
+                        "description": "Boolean expression with drawable names as the canvas shows them: a circle is named after its centre and radius, like 'A(5)', unless it was given its own name such as 'c1'; a polygon by its vertices, like 'ABC' or 'DEFG'; a segment like 'EF'. Examples: 'A(5)' (single shape), 'A(5) & BCD' (intersection), 'C(5) & AB' (the part of the circle to the left of segment A->B; use BA for the other side), 'ArcMaj_CD & BEF' (arc segment intersected with triangle), 'A(5) - BCD' (difference), '(A(5) & BCDE) & FG' (shapes intersected then cut by segment).",
                     }
                 },
                 "required": ["expression"],

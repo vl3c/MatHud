@@ -130,7 +130,7 @@ class Vector(Drawable):
         self.segment.rotate_around(angle_deg, cx, cy)
 
     def rotate(self, angle: float) -> Tuple[bool, Optional[str]]:
-        """Rotate the vector around its origin by the given angle in degrees"""
+        """Rotate the vector around its midpoint (the segment's rotation) by the given angle in degrees"""
         # Use segment's rotation method to rotate the line portion
         should_proceed: bool
         message: Optional[str]

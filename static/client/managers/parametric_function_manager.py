@@ -11,6 +11,7 @@ and Lissajous figures that cannot be expressed as y = f(x).
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING, Any, Optional
 
 from constants import default_color
@@ -94,8 +95,10 @@ class ParametricFunctionManager:
             The created ParametricFunction drawable
 
         Raises:
-            ValueError: If expressions cannot be parsed
+            ValueError: If expressions cannot be parsed, or t_min equals t_max (a reversed
+                range is swapped)
         """
+        ParametricFunction.ordered_t_range(t_min, t_max if t_max is not None else 2 * math.pi)
         self._archive_for_undo()
 
         # Generate name if not provided; a requested name no other drawable uses is kept
@@ -212,15 +215,19 @@ class ParametricFunctionManager:
         if not changes_needed:
             return True
 
+        # Validate the resulting range before archiving (a reversed one is swapped)
+        t_range = ParametricFunction.ordered_t_range(
+            func.t_min if new_t_min is None else new_t_min,
+            func.t_max if new_t_max is None else new_t_max,
+        )
+
         self._archive_for_undo()
 
         # Apply updates
         if new_color is not None:
             func.update_color(new_color)
-        if new_t_min is not None:
-            func.update_t_min(new_t_min)
-        if new_t_max is not None:
-            func.update_t_max(new_t_max)
+        if new_t_min is not None or new_t_max is not None:
+            func.update_t_range(*t_range)
 
         # Invalidate renderable cache if bounds changed
         if new_t_min is not None or new_t_max is not None:

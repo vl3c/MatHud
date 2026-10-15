@@ -385,10 +385,43 @@ class GeometryUtils:
             angles.append(angle)
         return angles
 
+    @staticmethod
+    def _is_strictly_convex(points: Sequence[PointLike]) -> bool:
+        """True when every turn goes the same way and the boundary winds once (no star polygons)."""
+        coords = GeometryUtils._points_to_coordinates(points)
+        count = len(coords)
+        sign = 0
+        turning = 0.0
+        for idx in range(count):
+            x_prev, y_prev = coords[idx - 1]
+            x_curr, y_curr = coords[idx]
+            x_next, y_next = coords[(idx + 1) % count]
+            e1x, e1y = x_curr - x_prev, y_curr - y_prev
+            e2x, e2y = x_next - x_curr, y_next - y_curr
+            cross = e1x * e2y - e1y * e2x
+            if cross == 0.0:
+                return False
+            turn_sign = 1 if cross > 0 else -1
+            if sign and turn_sign != sign:
+                return False
+            sign = turn_sign
+            turning += math.atan2(cross, e1x * e2x + e1y * e2y)
+        return abs(abs(turning) - 2 * math.pi) < 1e-6
+
+    @staticmethod
+    def _is_degenerate_triangle(points: Sequence[PointLike]) -> bool:
+        """True when the three points are collinear, relative to the longest side."""
+        (ax, ay), (bx, by), (cx, cy) = GeometryUtils._points_to_coordinates(points)
+        cross = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax)
+        longest = max(math.hypot(bx - ax, by - ay), math.hypot(cx - bx, cy - by), math.hypot(ax - cx, ay - cy))
+        return abs(cross) <= GeometryUtils.DEGENERATE_AREA_RELATIVE_TOLERANCE * longest * longest
+
     # Shape classification tolerances, loose enough for user-entered decimals
     # (e.g. 3.464 for 2*sqrt(3)) but tight enough to reject visibly unequal shapes.
     SIDE_LENGTH_RELATIVE_TOLERANCE = 1e-4
     ANGLE_TOLERANCE_DEGREES = 1e-2
+    # Twice a triangle's area, relative to its longest side squared, below which it is a segment.
+    DEGENERATE_AREA_RELATIVE_TOLERANCE = 1e-10
 
     @staticmethod
     def _comparison_tolerance(reference: float = 1.0, *, override: Optional[float] = None) -> float:
@@ -429,6 +462,9 @@ class GeometryUtils:
     def triangle_type_flags(points: Sequence[PointLike]) -> Dict[str, bool]:
         if len(points) != 3:
             raise ValueError("Triangle classification requires exactly three points.")
+        if GeometryUtils._is_degenerate_triangle(points):
+            # Collinear points are a segment, not a triangle of any kind.
+            return {"equilateral": False, "isosceles": False, "scalene": False, "right": False}
         side_lengths = GeometryUtils._polygon_side_lengths(points)
         angles = GeometryUtils._polygon_internal_angles(points)
 
@@ -569,8 +605,12 @@ class GeometryUtils:
     def polygon_flags(points: Sequence[PointLike]) -> Dict[str, bool]:
         side_lengths = GeometryUtils._polygon_side_lengths(points)
         angles = GeometryUtils._polygon_internal_angles(points)
-        regular = GeometryUtils._all_close(side_lengths) and GeometryUtils._all_close(
-            angles, tolerance=GeometryUtils.ANGLE_TOLERANCE_DEGREES
+        # Interior angles are unsigned, so equal sides and angles alone also fit star
+        # polygons and plus shapes; a regular polygon must be convex too.
+        regular = (
+            GeometryUtils._all_close(side_lengths)
+            and GeometryUtils._all_close(angles, tolerance=GeometryUtils.ANGLE_TOLERANCE_DEGREES)
+            and GeometryUtils._is_strictly_convex(points)
         )
         return {
             "regular": regular,

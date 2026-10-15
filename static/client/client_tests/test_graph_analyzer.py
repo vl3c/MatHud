@@ -824,22 +824,20 @@ class TestAnalyzeGraphEdgeCases(unittest.TestCase):
         ]
         # Simulate old format: root is "v0" but adjacency uses point names
         state = TreeState("T", vertices, edges, root="v0")
-        adjacency = {"A": {"B", "C"}, "B": {"A"}, "C": {"A"}}
 
-        resolved = GraphAnalyzer._resolve_root(state, adjacency, {})
+        resolved = GraphAnalyzer._resolve_root(state, {})
         self.assertEqual(resolved, "A")
 
     def test_resolve_root_already_valid(self) -> None:
-        """Test that _resolve_root returns root as-is if already in adjacency."""
+        """Test that _resolve_root returns root as-is if it is a vertex."""
         vertices = [GraphVertexDescriptor(v) for v in ["A", "B", "C"]]
         edges = [
             GraphEdgeDescriptor("e1", "A", "B"),
             GraphEdgeDescriptor("e2", "A", "C"),
         ]
         state = TreeState("T", vertices, edges, root="A")
-        adjacency = {"A": {"B", "C"}, "B": {"A"}, "C": {"A"}}
 
-        resolved = GraphAnalyzer._resolve_root(state, adjacency, {})
+        resolved = GraphAnalyzer._resolve_root(state, {})
         self.assertEqual(resolved, "A")
 
     def test_resolve_root_from_params(self) -> None:
@@ -847,10 +845,18 @@ class TestAnalyzeGraphEdgeCases(unittest.TestCase):
         vertices = [GraphVertexDescriptor(v) for v in ["A", "B", "C"]]
         edges = [GraphEdgeDescriptor("e1", "A", "B")]
         state = TreeState("T", vertices, edges, root="A")
-        adjacency = {"A": {"B"}, "B": {"A"}, "C": set()}
 
-        resolved = GraphAnalyzer._resolve_root(state, adjacency, {"root": "B"})
+        resolved = GraphAnalyzer._resolve_root(state, {"root": "B"})
         self.assertEqual(resolved, "B")
+
+    def test_resolve_root_unknown_is_an_error(self) -> None:
+        """An unknown root is an error listing the vertices, not a silent fallback."""
+        vertices = [GraphVertexDescriptor(v) for v in ["A", "B"]]
+        state = TreeState("T", vertices, [GraphEdgeDescriptor("e1", "A", "B")], root="A")
+
+        resolved = GraphAnalyzer._resolve_root(state, {"root": "Z"})
+        self.assertIsInstance(resolved, dict)
+        self.assertIn("A, B", resolved["error"])
 
     def test_empty_graph(self) -> None:
         """Operations on empty graph don't crash."""

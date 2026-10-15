@@ -1,6 +1,7 @@
 """Regression tests for derived geometry that must follow the points (K8, K9, K16, K17, K19).
 
-Also covers rectangles after non-rigid transforms (undo snapshots, save and load).
+Also covers rectangles after non-rigid transforms (undo snapshots, save and load), and
+arcs that follow their circle through transforms.
 
 Each test drives the canvas with the same function registry and result processor
 the AI uses, so it covers the tool path the model takes.
@@ -8,6 +9,7 @@ the AI uses, so it covers the tool path the model takes.
 
 from __future__ import annotations
 
+import copy
 import json
 import math
 import unittest
@@ -620,3 +622,123 @@ class TestStaleGeometry(unittest.TestCase):
 
         self.assertIs(self._only("CircleArc").point1, point_q)
         self.assertEqual(self._points(), [(0.0, 5.0), (5.0, 0.0)])
+
+    # ------------------------------------------------------------------
+    # Arcs follow their circle through transforms, and undo still works
+    # ------------------------------------------------------------------
+    def _circle_with_arc(self) -> Tuple[Any, Any]:
+        self._call("create_circle", center_x=0, center_y=0, radius=5)
+        circle = self._only("Circle")
+        self._call("create_circle_arc", point1_x=5, point1_y=0, point2_x=0, point2_y=5, circle_name=circle.name)
+        return circle, self._only("CircleArc")
+
+    def _assert_arc_on_circle(self, circle: Any, arc: Any) -> None:
+        arc.sync_with_circle()
+        for point in (arc.point1, arc.point2):
+            distance = math.hypot(point.x - circle.center.x, point.y - circle.center.y)
+            self.assertAlmostEqual(distance, circle.radius, places=9)
+        self.assertAlmostEqual(arc.center_x, circle.center.x)
+        self.assertAlmostEqual(arc.radius, circle.radius)
+
+    def _assert_undo_restores_arc(self) -> None:
+        """An archiving tool and two undos bring back the arc as it was first drawn."""
+        self._call("create_point", x=40, y=40, name="Z")
+        self._call("undo")
+        self._call("undo")
+        restored = self._only("CircleArc")
+        self.assertEqual(self._coords(restored.point1), (5.0, 0.0))
+        self.assertEqual(self._coords(restored.point2), (0.0, 5.0))
+
+    def test_arc_follows_its_circle_through_each_transform(self) -> None:
+        transforms: List[Tuple[str, dict[str, Any]]] = [
+            ("translate_object", {"x_offset": 10, "y_offset": -3}),
+            ("rotate_object", {"angle": 90, "center_x": 1, "center_y": 1}),
+            ("reflect_object", {"axis": "line", "line_a": 1, "line_b": 1, "line_c": 2}),
+            ("scale_object", {"sx": 2, "sy": 2, "cx": 1, "cy": 1}),
+        ]
+        for tool, args in transforms:
+            for target in ("circle", "centre"):
+                with self.subTest(tool=tool, target=target):
+                    self.canvas.clear()
+                    circle, arc = self._circle_with_arc()
+                    name = circle.name if target == "circle" else circle.center.name
+                    self._call(tool, name=name, **args)
+                    self._assert_arc_on_circle(circle, arc)
+                    self._assert_undo_restores_arc()
+
+    def test_arc_follows_its_circle_when_a_shape_moves_its_centre(self) -> None:
+        circle, arc = self._circle_with_arc()
+        self._polygon([(0, 0), (-4, 0), (0, -3)], "triangle", "ADE")
+        self.assertIs(self._point("A"), circle.center)
+
+        self._call("shear_object", name="ADE", axis="horizontal", factor=1, cx=3, cy=-3)
+
+        self._assert_arc_on_circle(circle, arc)
+
+    def test_arcs_sharing_an_endpoint_move_it_once(self) -> None:
+        circle, arc = self._circle_with_arc()
+        self._call("create_circle_arc", point1_name=arc.point2.name, point2_x=-5, point2_y=0, circle_name=circle.name)
+
+        self._call("translate_object", name=circle.name, x_offset=3, y_offset=4)
+
+        arcs = list(self.canvas.get_drawables_by_class_name("CircleArc"))
+        self.assertEqual(len(arcs), 2)
+        for each in arcs:
+            self._assert_arc_on_circle(circle, each)
+
+    def test_update_circle_centre_moves_its_arcs(self) -> None:
+        circle, arc = self._circle_with_arc()
+
+        self._call("update_circle", name=circle.name, new_center_x=3, new_center_y=3)
+
+        self._assert_arc_on_circle(circle, arc)
+        self._assert_undo_restores_arc()
+
+    def test_arc_copy_never_raises_when_an_endpoint_left_the_circle(self) -> None:
+        _circle, arc = self._circle_with_arc()
+        arc.point1.update_position(9, 9)
+
+        copied = copy.deepcopy(arc)
+
+        self.assertEqual(self._coords(copied.point1), (9.0, 9.0))
+        self.assertEqual(copied.name, arc.name)
+
+    # ------------------------------------------------------------------
+    # Transform tools name the type they cannot transform
+    # ------------------------------------------------------------------
+    def test_transform_tools_name_unsupported_types(self) -> None:
+        _circle, arc = self._circle_with_arc()
+        self.canvas.draw_function("x^2", name="f")
+        undo_depth = len(self.canvas.undo_redo_manager.undo_stack)
+
+        cases = [
+            ("translate_object", arc.name, {"x_offset": 1, "y_offset": 1}, "is a CircleArc; translate_object supports"),
+            (
+                "rotate_object",
+                "f",
+                {"angle": 30, "center_x": 0, "center_y": 0},
+                "is a Function; rotate_object supports",
+            ),
+            ("reflect_object", arc.name, {"axis": "x_axis"}, "is a CircleArc; reflect_object supports"),
+            ("scale_object", "f", {"sx": 2, "sy": 2, "cx": 0, "cy": 0}, "is a Function; scale_object supports"),
+        ]
+        for tool, name, args, expected in cases:
+            with self.subTest(tool=tool, name=name):
+                error = self._call_error(tool, name=name, **args)
+                self.assertIn(expected, error)
+                self.assertNotIn("No drawable found", error)
+                self.assertNotIn("has no attribute", error)
+        self.assertEqual(len(self.canvas.undo_redo_manager.undo_stack), undo_depth)
+
+    def test_rotating_a_point_about_itself_asks_for_a_center(self) -> None:
+        self._call("create_point", x=1, y=2, name="K")
+
+        error = self._call_error("rotate_object", name="K", angle=30, center_x=None, center_y=None)
+
+        self.assertIn("'K' is a Point", error)
+        self.assertIn("center_x and center_y", error)
+
+    def test_unknown_name_still_says_not_found(self) -> None:
+        error = self._call_error("rotate_object", name="nothing", angle=30, center_x=None, center_y=None)
+
+        self.assertIn("No drawable found with name 'nothing'", error)

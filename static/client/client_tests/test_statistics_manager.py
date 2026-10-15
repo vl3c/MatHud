@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import math
 import unittest
-from typing import List
+from typing import Any, Dict, List
 
 from constants import default_area_fill_color, default_area_opacity
 from drawables.bars_plot import BarsPlot
@@ -630,3 +631,111 @@ class TestStatisticsManager(unittest.TestCase):
         self.assertNotIn("PartialDiscrete_bar_0", self._names_for_class("Bar"))
         self.assertNotIn("PartialDiscrete_bar_1", self._names_for_class("Bar"))
         self.assertNotIn("PartialDiscrete_bar_2", self._names_for_class("Bar"))
+
+    def _plot_bars(self, name: str, values: List[Any], **overrides: Any) -> Dict[str, Any]:
+        kwargs: Dict[str, Any] = {
+            "name": name,
+            "values": values,
+            "labels_below": [f"L{i}" for i in range(len(values))],
+            "labels_above": [str(v) for v in values],
+            "bar_spacing": None,
+            "bar_width": None,
+            "stroke_color": None,
+            "fill_color": None,
+            "fill_opacity": None,
+            "x_start": None,
+            "y_base": None,
+        }
+        kwargs.update(overrides)
+        return self.canvas.plot_bars(**kwargs)
+
+    def _plot_discrete(self, name: str, left: float, right: float, bar_count: Any) -> Dict[str, Any]:
+        return self.canvas.plot_distribution(
+            name=name,
+            representation="discrete",
+            distribution_type="normal",
+            distribution_params={"mean": 0.0, "sigma": 1.0},
+            plot_bounds={"left_bound": left, "right_bound": right},
+            shade_bounds=None,
+            curve_color=None,
+            fill_color=None,
+            fill_opacity=None,
+            bar_count=bar_count,
+        )
+
+    def _bars_by_name(self) -> Dict[str, Any]:
+        return {b.name: b for b in self.canvas.get_drawables_by_class_name("Bar")}
+
+    def test_plot_bars_allows_zero_value(self) -> None:
+        result = self._plot_bars("Zero", [3.0, 0.0, 5.0])
+        self.assertEqual(result["bar_count"], 3)
+        zero_bar = self._bars_by_name()["Zero_bar_1"]
+        self.assertEqual(zero_bar.y_bottom, zero_bar.y_top)
+        self.assertEqual(zero_bar.label_below_text, "L1")
+        self.assertEqual(zero_bar.label_above_text, "0.0")
+
+    def test_plot_bars_rejects_invalid_value_without_partial_state(self) -> None:
+        for bad in (float("inf"), float("nan"), "abc", None):
+            with self.subTest(bad=bad):
+                with self.assertRaises(ValueError):
+                    self._plot_bars("Bad", [1.0, bad, 2.0])
+                self.assertEqual(self._names_for_class("BarsPlot"), [])
+                self.assertEqual(self._names_for_class("Bar"), [])
+
+    def test_plot_bars_failure_while_building_rolls_back(self) -> None:
+        # At x = 1e20 a width of 1 is below float resolution, so the bar manager rejects the bar.
+        with self.assertRaises(ValueError):
+            self._plot_bars("Far", [1.0, 2.0], x_start=1e20, bar_width=1.0)
+        self.assertEqual(self._names_for_class("BarsPlot"), [])
+        self.assertEqual(self._names_for_class("Bar"), [])
+
+    def test_materialize_bars_plot_keeps_zero_spacing(self) -> None:
+        plot = BarsPlot(
+            "Touching",
+            plot_type="bars",
+            values=[1.0, 2.0],
+            labels_below=["A", "B"],
+            labels_above=None,
+            bar_spacing=0.0,
+            bar_width=1.0,
+            x_start=0.0,
+            y_base=0.0,
+            stroke_color=None,
+            fill_color=None,
+            fill_opacity=None,
+            bounds=None,
+            metadata=None,
+        )
+        self.canvas.drawable_manager.drawables.add(plot)
+        self.canvas.drawable_manager.statistics_manager.materialize_bars_plot(plot)
+        self.assertAlmostEqual(self._bars_by_name()["Touching_bar_1"].x_left, 1.0)
+
+    def test_plot_bars_zero_spacing_bars_touch(self) -> None:
+        self._plot_bars("Hist", [1.0, 2.0, 3.0], bar_spacing=0.0, bar_width=0.5, x_start=-1.0)
+        by_name = self._bars_by_name()
+        self.assertAlmostEqual(by_name["Hist_bar_0"].x_right, by_name["Hist_bar_1"].x_left)
+        self.assertAlmostEqual(by_name["Hist_bar_2"].x_left, 0.0)
+
+    def test_plot_distribution_discrete_rejects_bar_count_above_cap(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            self._plot_discrete("TooMany", -3.0, 3.0, 501)
+        self.assertIn("500", str(ctx.exception))
+        self.assertEqual(self._names_for_class("DiscretePlot"), [])
+        self.assertEqual(self._names_for_class("Bar"), [])
+
+    def test_plot_distribution_discrete_wide_bounds_with_underflowing_tails(self) -> None:
+        result = self._plot_discrete("Wide", -100.0, 100.0, 50)
+        self.assertEqual(result["bar_count"], 50)
+        by_name = self._bars_by_name()
+        self.assertEqual(len([n for n in by_name if n.startswith("Wide_bar_")]), 50)
+        self.assertEqual(by_name["Wide_bar_0"].y_top, 0.0)
+        self.assertGreater(by_name["Wide_bar_24"].y_top, 0.0)
+
+    def test_plot_distribution_discrete_bars_tile_the_bounds(self) -> None:
+        self._plot_discrete("Tiles", -2.0, 2.0, 4)
+        by_name = self._bars_by_name()
+        self.assertAlmostEqual(by_name["Tiles_bar_0"].x_left, -2.0)
+        self.assertAlmostEqual(by_name["Tiles_bar_3"].x_right, 2.0)
+        # A bar is as tall as the pdf at its midpoint (x = -1.5 for the first bar)
+        expected = math.exp(-0.5 * 1.5 * 1.5) / math.sqrt(2.0 * math.pi)
+        self.assertAlmostEqual(by_name["Tiles_bar_0"].y_top, expected, places=12)

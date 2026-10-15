@@ -1315,18 +1315,18 @@ class TestAreaCalculation(unittest.TestCase):
         self.assertIsNone(result.error)
         self.assertAlmostEqual(result.area, 0.0, places=6)
 
-    def test_segment_not_intersecting_reversed(self) -> None:
-        """A missing segment gives zero area regardless of its direction."""
+    def test_segment_not_intersecting_reversed_keeps_the_whole_circle(self) -> None:
+        """A segment line that misses the circle keeps all of it when the circle is on its left."""
         circle = MockCircle(0, 0, 5, "circle")
         segment = MockSegmentDrawable((20, 10), (10, 10), "far")
         self.canvas.drawable_manager.add_drawable("circle", circle)
         self.canvas.drawable_manager.add_drawable("far", segment)
         result = AreaExpressionEvaluator.evaluate("circle & far", self.canvas)
         self.assertIsNone(result.error)
-        self.assertAlmostEqual(result.area, 0.0, places=6)
+        self.assertAlmostEqual(result.area, math.pi * 25, delta=1e-3)
 
-    def test_circle_cut_by_chord_gives_minor_segment_in_both_directions(self) -> None:
-        """An off-center chord gives the minor segment whichever way it is drawn."""
+    def test_circle_cut_by_chord_keeps_the_left_side(self) -> None:
+        """An off-center chord keeps the part left of its direction: the cap one way, the rest the other."""
         circle = MockCircle(0, 0, 5, "circle")
         left_to_right = MockSegmentDrawable((-10, 2.5), (10, 2.5), "AB")
         right_to_left = MockSegmentDrawable((10, 2.5), (-10, 2.5), "BA")
@@ -1335,21 +1335,76 @@ class TestAreaCalculation(unittest.TestCase):
         self.canvas.drawable_manager.add_drawable("BA", right_to_left)
         theta = 2 * math.acos(2.5 / 5)
         minor_segment_area = 0.5 * 25 * (theta - math.sin(theta))
-        for name in ("AB", "BA"):
-            result = AreaExpressionEvaluator.evaluate(f"circle & {name}", self.canvas)
-            self.assertIsNone(result.error)
-            self.assertAlmostEqual(result.area, minor_segment_area, delta=0.1, msg=name)
+        above = AreaExpressionEvaluator.evaluate("circle & AB", self.canvas)
+        below = AreaExpressionEvaluator.evaluate("circle & BA", self.canvas)
+        self.assertIsNone(above.error)
+        self.assertIsNone(below.error)
+        self.assertAlmostEqual(above.area, minor_segment_area, delta=1e-3)
+        self.assertAlmostEqual(below.area, math.pi * 25 - minor_segment_area, delta=1e-3)
 
-    def test_circle_cut_by_offset_vertical_chord_minor_segment(self) -> None:
-        """Chord on the left of the center, drawn upward, still gives the minor segment."""
+    def test_circle_and_segment_agree_with_circle_minus_segment(self) -> None:
+        """circle & AB and circle - AB split the circle: their areas add up to the whole."""
         circle = MockCircle(1, 1, 4, "circle")
         segment = MockSegmentDrawable((-1, -10), (-1, 10), "CD")
         self.canvas.drawable_manager.add_drawable("circle", circle)
         self.canvas.drawable_manager.add_drawable("CD", segment)
-        result = AreaExpressionEvaluator.evaluate("circle & CD", self.canvas)
-        self.assertIsNone(result.error)
+        kept = AreaExpressionEvaluator.evaluate("circle & CD", self.canvas)
+        removed = AreaExpressionEvaluator.evaluate("circle - CD", self.canvas)
+        self.assertIsNone(kept.error)
+        self.assertIsNone(removed.error)
         theta = 2 * math.acos(2 / 4)
-        self.assertAlmostEqual(result.area, 0.5 * 16 * (theta - math.sin(theta)), delta=0.1)
+        cap = 0.5 * 16 * (theta - math.sin(theta))
+        # CD runs upward at x = -1, so its left side is x < -1: the cap
+        self.assertAlmostEqual(kept.area, cap, delta=1e-3)
+        self.assertAlmostEqual(kept.area + removed.area, math.pi * 16, delta=1e-3)
+
+    # -------------------------------------------------------------------------
+    # Accuracy of areas with curved boundaries
+    # -------------------------------------------------------------------------
+
+    def test_square_minus_inscribed_circle_is_accurate(self) -> None:
+        """Sampling the circle no longer biases the area (it was 21.5129 instead of 21.4602)."""
+        square = MockQuadrilateral([(-5, -5), (5, -5), (5, 5), (-5, 5)], "sq")
+        circle = MockCircle(0, 0, 5, "circle")
+        self.canvas.drawable_manager.add_drawable("sq", square)
+        self.canvas.drawable_manager.add_drawable("circle", circle)
+        result = AreaExpressionEvaluator.evaluate("sq - circle", self.canvas)
+        self.assertIsNone(result.error)
+        self.assertAlmostEqual(result.area, 100 - 25 * math.pi, delta=1e-4)
+
+    def test_union_of_a_circle_with_itself_is_the_circle(self) -> None:
+        """C | C has the circle's area (78.540), not the sampled polygon's (78.487)."""
+        circle = MockCircle(0, 0, 5, "circle")
+        self.canvas.drawable_manager.add_drawable("circle", circle)
+        for expression in ("circle | circle", "circle & circle"):
+            result = AreaExpressionEvaluator.evaluate(expression, self.canvas)
+            self.assertIsNone(result.error)
+            self.assertAlmostEqual(result.area, 25 * math.pi, delta=1e-4, msg=expression)
+
+    def test_arc_segment_region_area_is_exact(self) -> None:
+        """A circular arc's region keeps its exact curve: a quarter arc's segment area is exact."""
+        arc = MockCircleArc((5, 0), (0, 5), 0, 0, 5, False, "quarter")
+        self.canvas.drawable_manager.add_drawable("quarter", arc)
+        result = AreaExpressionEvaluator.evaluate("quarter", self.canvas)
+        self.assertIsNone(result.error)
+        self.assertAlmostEqual(result.area, 25 * (math.pi / 2 - 1) / 2, places=9)
+
+    def test_polygon_only_expressions_stay_exact(self) -> None:
+        """Expressions without curves are not extrapolated: their clipped areas are exact."""
+        square = MockQuadrilateral([(0, 0), (10, 0), (10, 10), (0, 10)], "sq")
+        triangle = MockTriangle([(0, 0), (10, 0), (0, 10)], "tri")
+        self.canvas.drawable_manager.add_drawable("sq", square)
+        self.canvas.drawable_manager.add_drawable("tri", triangle)
+        result = AreaExpressionEvaluator.evaluate("sq - tri", self.canvas)
+        self.assertIsNone(result.error)
+        self.assertAlmostEqual(result.area, 50.0, places=9)
+
+    def test_extrapolation_can_be_skipped(self) -> None:
+        """refine_area=False reports the sampled area (used when the region is only drawn)."""
+        circle = MockCircle(0, 0, 5, "circle")
+        self.canvas.drawable_manager.add_drawable("circle", circle)
+        sampled = AreaExpressionEvaluator.evaluate("circle | circle", self.canvas, refine_area=False)
+        self.assertLess(sampled.area, 25 * math.pi - 0.01)
 
     def test_diametric_major_arc_uses_opposite_half(self) -> None:
         """With endpoints diametrically opposite, major and minor arcs cover different halves."""

@@ -61,13 +61,61 @@ def _validate_data(data: List[float]) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _average_of_two(a: float, b: float) -> float:
+    """Return (a + b) / 2 without overflowing for values near the float limit."""
+    total = a + b
+    if math.isfinite(total):
+        return total / 2.0
+    return a / 2.0 + b / 2.0
+
+
+def _compute_mean(values: List[float]) -> float:
+    """Return the mean using an exactly rounded sum (math.fsum).
+
+    A plain running sum loses small values next to large ones of opposite
+    sign ([1e16, 1, -1e16] would give 0). When the sum overflows although the
+    mean is finite, the values are divided by the count before summing.
+    """
+    n = len(values)
+    try:
+        total = math.fsum(values)
+    except OverflowError:
+        total = math.inf
+    if math.isfinite(total):
+        return total / n
+    return math.fsum(v / n for v in values)
+
+
+# Deviations below this square without overflow, so the variance is summed directly
+_SAFE_DEVIATION = 1e150
+
+
+def _compute_spread(values: List[float], mean: float) -> tuple[float, float]:
+    """Return the population (variance, standard deviation).
+
+    Squared deviations are summed with math.fsum. Deviations too large to square
+    are scaled first, so the standard deviation stays finite when the variance
+    alone would overflow (the variance is then inf).
+    """
+    n = len(values)
+    deviations = [v - mean for v in values]
+    largest = max(abs(d) for d in deviations)
+    if largest <= _SAFE_DEVIATION:
+        variance = math.fsum(d * d for d in deviations) / n
+        return variance, math.sqrt(variance)
+    if not math.isfinite(largest):
+        return math.inf, math.inf
+    std_dev = largest * math.sqrt(math.fsum((d / largest) ** 2 for d in deviations) / n)
+    return std_dev * std_dev, std_dev
+
+
 def _compute_median(sorted_data: List[float]) -> float:
     """Return the median of an already-sorted list."""
     n = len(sorted_data)
     mid = n // 2
     if n % 2 == 1:
         return float(sorted_data[mid])
-    return (sorted_data[mid - 1] + sorted_data[mid]) / 2.0
+    return _average_of_two(float(sorted_data[mid - 1]), float(sorted_data[mid]))
 
 
 def _compute_quartiles(sorted_data: List[float]) -> tuple[float, float]:
@@ -100,9 +148,10 @@ def _compute_mode(sorted_data: List[float]) -> List[float]:
     """Return the mode(s) of an already-sorted list.
 
     - Returns all values tied for the highest frequency, sorted ascending.
-    - If every value appears the same number of times (multiple distinct
-      values), returns ``[]`` — no meaningful mode.
-    - Exception: if all values are identical, that value IS the mode.
+    - If there are two or more distinct values and they all appear the same
+      number of times, returns ``[]`` (no meaningful mode).
+    - A single distinct value is the mode however often it appears
+      ([5] and [7, 7, 7] give [5] and [7]).
     """
     # Build frequency map (iterate sorted data for deterministic order)
     freq: dict[float, int] = {}
@@ -111,11 +160,6 @@ def _compute_mode(sorted_data: List[float]) -> List[float]:
         freq[fv] = freq.get(fv, 0) + 1
 
     max_freq = max(freq.values())
-
-    # All unique → no mode
-    if max_freq == 1:
-        return []
-
     modes = sorted(v for v, c in freq.items() if c == max_freq)
 
     # All equal frequency with multiple distinct values → no mode
@@ -153,14 +197,12 @@ def compute_descriptive_statistics(
     n = len(sorted_data)
 
     # Central tendency
-    mean = sum(sorted_data) / n
+    mean = _compute_mean(sorted_data)
     median = _compute_median(sorted_data)
     mode = _compute_mode(sorted_data)
 
     # Spread — population formula (divide by N)
-    variance = sum((x - mean) ** 2 for x in sorted_data) / n
-    variance = max(0.0, variance)  # clamp tiny negatives from float rounding
-    std_dev = math.sqrt(variance)
+    variance, std_dev = _compute_spread(sorted_data, mean)
 
     # Extremes
     data_min = float(sorted_data[0])

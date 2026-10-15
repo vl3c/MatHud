@@ -673,6 +673,20 @@ def ellipse_shape(name: str, center: Point2, radius_x: float, radius_y: float, r
     return axis
 
 
+def segment_circle_points(start: Point2, end: Point2, center: Point2, radius: float) -> List[Point2]:
+    """Where the segment from ``start`` to ``end`` meets a circle, ordered from ``start``.
+
+    The line/circle closed form of ``find_intersections``, without names or rounding: two
+    points, one where the segment touches the circle (a gap within rounding error), or none.
+    A zero-length segment or a zero radius gives none.
+    """
+    line = line_shape("segment", start, end)
+    circle = circle_shape("circle", center, radius)
+    if not isinstance(line, LineShape) or not isinstance(circle, CircleShape):
+        return []
+    return [(hit.x, hit.y) for hit in _line_circle(line, circle).hits]
+
+
 def polygon_shape(
     name: str,
     vertices: Sequence[Point2],

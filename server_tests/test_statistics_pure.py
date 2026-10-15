@@ -9,7 +9,7 @@ from drawables.bars_plot import BarsPlot
 from drawables.continuous_plot import ContinuousPlot
 from drawables.discrete_plot import DiscretePlot
 from drawables.plot import Plot
-from utils.statistics.distributions import _require_finite, default_normal_bounds, normal_pdf_expression
+from utils.statistics.distributions import _require_finite, default_normal_bounds, normal_pdf, normal_pdf_expression
 
 
 class TestStatisticsDistributionsPure(unittest.TestCase):
@@ -61,6 +61,27 @@ class TestStatisticsDistributionsPure(unittest.TestCase):
             default_normal_bounds(0.0, float("nan"))
         with self.assertRaises(ValueError):
             default_normal_bounds(0.0, 1.0, k=float("inf"))
+
+    def test_normal_pdf_values(self) -> None:
+        self.assertAlmostEqual(normal_pdf(0.0, 0.0, 2.0), 1.0 / (2.0 * math.sqrt(2.0 * math.pi)), places=15)
+        self.assertAlmostEqual(normal_pdf(4.0, 3.0, 1.0), math.exp(-0.5) / math.sqrt(2.0 * math.pi), places=15)
+        self.assertAlmostEqual(normal_pdf(-1.0, 0.0, 1.0), normal_pdf(1.0, 0.0, 1.0), places=15)
+
+    def test_normal_pdf_far_tail_underflows_to_zero(self) -> None:
+        self.assertEqual(normal_pdf(100.0, 0.0, 1.0), 0.0)
+        self.assertEqual(normal_pdf(1e200, 0.0, 1.0), 0.0)
+
+    def test_normal_pdf_matches_expression(self) -> None:
+        expr = normal_pdf_expression(1.5, 0.75)
+        namespace = {"x": 2.0, "sqrt": math.sqrt, "exp": math.exp, "pi": math.pi}
+        from_expression = float(eval(expr.replace("^", "**"), {"__builtins__": {}}, namespace))
+        self.assertAlmostEqual(normal_pdf(2.0, 1.5, 0.75), from_expression, places=14)
+
+    def test_normal_pdf_rejects_non_positive_sigma(self) -> None:
+        for sigma in (0.0, -1.0):
+            with self.subTest(sigma=sigma):
+                with self.assertRaises(ValueError):
+                    normal_pdf(0.0, 0.0, sigma)
 
 
 class TestStatisticsDrawablesPure(unittest.TestCase):

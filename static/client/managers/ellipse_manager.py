@@ -35,6 +35,7 @@ Dependencies:
 
 from __future__ import annotations
 
+import math
 import re
 from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
@@ -52,6 +53,14 @@ if TYPE_CHECKING:
     from name_generator.drawable import DrawableNameGenerator
 
 ROTATION_MATCH_TOLERANCE_DEGREES: float = 1e-6
+
+
+def _require_positive_radius(field_name: str, value: float) -> None:
+    """Raise unless the radius is a finite number above zero."""
+    radius = float(value)
+    if not math.isfinite(radius) or radius <= 0:
+        raise ValueError(f"Ellipse {field_name} must be a positive number, got {value}.")
+
 
 # A requested name that only names the centre point: one letter with optional primes, or
 # capital letters with primes, the names segments and polygons take (so "ABC" is not an
@@ -117,8 +126,9 @@ class EllipseManager(BaseDrawableManager):
         Get an ellipse by its center coordinates, radii and (optionally) rotation angle.
 
         Rotation angles are compared modulo 180 degrees, since an ellipse turned by a
-        half revolution is the same shape. When the radii are equal the ellipse is a
-        circle and rotation is ignored.
+        half revolution is the same shape, and an ellipse with its radii swapped and
+        turned by 90 degrees is the same shape too. Radii agree to 1e-12 of their size.
+        When the radii are equal the ellipse is a circle and rotation is ignored.
 
         Args:
             center_x (float): X-coordinate of the ellipse center
@@ -131,19 +141,24 @@ class EllipseManager(BaseDrawableManager):
             Ellipse: The matching ellipse object, or None if not found
         """
         ellipses = self.drawables.Ellipses
+        swapped_rotation = None if rotation_angle is None else float(rotation_angle) + 90
         for ellipse in ellipses:
-            if (
-                ellipse.center.x == center_x
-                and ellipse.center.y == center_y
-                and ellipse.radius_x == radius_x
-                and ellipse.radius_y == radius_y
-                and self._rotation_matches(ellipse, rotation_angle)
-            ):
+            if ellipse.center.x != center_x or ellipse.center.y != center_y:
+                continue
+            if self._radii_match(ellipse, radius_x, radius_y) and self._rotation_matches(ellipse, rotation_angle):
+                return ellipse
+            if self._radii_match(ellipse, radius_y, radius_x) and self._rotation_matches(ellipse, swapped_rotation):
                 return ellipse
         return None
 
+    @staticmethod
+    def _radii_match(ellipse: Ellipse, radius_x: float, radius_y: float) -> bool:
+        return math.isclose(ellipse.radius_x, float(radius_x), rel_tol=1e-12) and math.isclose(
+            ellipse.radius_y, float(radius_y), rel_tol=1e-12
+        )
+
     def _rotation_matches(self, ellipse: Ellipse, rotation_angle: Optional[float]) -> bool:
-        if rotation_angle is None or ellipse.radius_x == ellipse.radius_y:
+        if rotation_angle is None or math.isclose(ellipse.radius_x, ellipse.radius_y, rel_tol=1e-12):
             return True
         difference = (float(rotation_angle) - float(ellipse.rotation_angle)) % 180
         return min(difference, 180 - difference) <= ROTATION_MATCH_TOLERANCE_DEGREES
@@ -199,12 +214,15 @@ class EllipseManager(BaseDrawableManager):
                 restore passes False so every saved ellipse comes back
 
         Raises:
-            ValueError: If a custom name has characters other than those above
+            ValueError: If a custom name has characters other than those above, or a
+                radius is not a positive number
 
         Returns:
             Ellipse: The newly created ellipse object, or the existing ellipse with the
                 same centre, radii and orientation if one is already present
         """
+        _require_positive_radius("radius_x", radius_x)
+        _require_positive_radius("radius_y", radius_y)
         requested_name = str(name or "").strip()
         custom_name = self._custom_name_from_request(requested_name)
 

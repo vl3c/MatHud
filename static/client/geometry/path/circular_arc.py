@@ -15,6 +15,8 @@ from __future__ import annotations
 import math
 from typing import Any, List, Tuple
 
+from drawables.circle_arc import arc_start_and_sweep
+
 from .path_element import PathElement
 from utils.math_utils import MathUtils
 
@@ -75,21 +77,14 @@ class CircularArc(PathElement):
         center = (float(arc.center_x), float(arc.center_y))
         radius = float(arc.radius)
 
-        start_angle = math.atan2(arc.point1.y - arc.center_y, arc.point1.x - arc.center_x)
+        start_angle, sweep = arc_start_and_sweep(
+            center,
+            (arc.point1.x, arc.point1.y),
+            (arc.point2.x, arc.point2.y),
+            bool(arc.use_major_arc),
+        )
         end_angle = math.atan2(arc.point2.y - arc.center_y, arc.point2.x - arc.center_x)
-
-        ccw_span = end_angle - start_angle
-        if ccw_span < 0:
-            ccw_span += 2 * math.pi
-
-        minor_is_ccw = ccw_span <= math.pi
-
-        if arc.use_major_arc:
-            clockwise = minor_is_ccw
-        else:
-            clockwise = not minor_is_ccw
-
-        return cls(center, radius, start_angle, end_angle, clockwise=clockwise)
+        return cls(center, radius, start_angle, end_angle, clockwise=sweep < 0)
 
     @classmethod
     def from_circle(cls, circle: Any) -> "CircularArc":

@@ -25,9 +25,7 @@ from utils.statistics.regression import (
     build_expression,
     _validate_data,
     _validate_positive,
-    _matrix_multiply,
-    _matrix_transpose,
-    _matrix_inverse,
+    _solve_least_squares,
 )
 
 
@@ -81,52 +79,45 @@ class TestValidation(unittest.TestCase):
             _validate_positive([1.0, -1.0, 3.0], "test")
 
 
-class TestMatrixOperations(unittest.TestCase):
-    """Tests for pure Python matrix operations."""
+class TestLeastSquares(unittest.TestCase):
+    """Tests for the Householder QR least squares solver."""
 
-    def test_matrix_transpose(self) -> None:
-        A = [[1, 2, 3], [4, 5, 6]]
-        At = _matrix_transpose(A)
-        self.assertEqual(At, [[1, 4], [2, 5], [3, 6]])
+    def test_square_system_is_solved_exactly(self) -> None:
+        X = [[4.0, 7.0], [2.0, 6.0]]
+        c = _solve_least_squares(X, [18.0, 14.0])  # c = (1, 2)
+        self.assertAlmostEqual(c[0], 1.0, places=12)
+        self.assertAlmostEqual(c[1], 2.0, places=12)
 
-    def test_matrix_transpose_empty(self) -> None:
-        self.assertEqual(_matrix_transpose([]), [])
+    def test_overdetermined_system_matches_least_squares(self) -> None:
+        # Line through (0, 1), (1, 2), (2, 2): slope 0.5, intercept 7/6
+        X = [[1.0, 0.0], [1.0, 1.0], [1.0, 2.0]]
+        c = _solve_least_squares(X, [1.0, 2.0, 2.0])
+        self.assertAlmostEqual(c[0], 7.0 / 6.0, places=12)
+        self.assertAlmostEqual(c[1], 0.5, places=12)
 
-    def test_matrix_multiply(self) -> None:
-        A = [[1, 2], [3, 4]]
-        B = [[5, 6], [7, 8]]
-        C = _matrix_multiply(A, B)
-        self.assertEqual(C, [[19, 22], [43, 50]])
+    def test_negative_leading_entries(self) -> None:
+        X = [[-1.0, 2.0, 3.0], [0.0, -1.0, 4.0], [5.0, 6.0, 0.0], [1.0, 1.0, 1.0]]
+        expected = [1.5, -2.0, 0.25]
+        y = [sum(a * b for a, b in zip(row, expected)) for row in X]
+        c = _solve_least_squares(X, y)
+        for got, want in zip(c, expected):
+            self.assertAlmostEqual(got, want, places=12)
 
-    def test_matrix_multiply_non_square(self) -> None:
-        A = [[1, 2, 3], [4, 5, 6]]  # 2x3
-        B = [[7], [8], [9]]  # 3x1
-        C = _matrix_multiply(A, B)
-        self.assertEqual(C, [[50], [122]])
+    def test_rank_deficient_design_raises(self) -> None:
+        X = [[1.0, 2.0], [2.0, 4.0], [3.0, 6.0]]  # column 2 = 2 * column 1
+        with self.assertRaises(ValueError) as ctx:
+            _solve_least_squares(X, [1.0, 2.0, 3.0])
+        self.assertIn("rank-deficient", str(ctx.exception))
 
-    def test_matrix_inverse_2x2(self) -> None:
-        A = [[4.0, 7.0], [2.0, 6.0]]
-        A_inv = _matrix_inverse(A)
-        # A * A_inv should be identity
-        I = _matrix_multiply(A, A_inv)
-        self.assertAlmostEqual(I[0][0], 1.0, places=10)
-        self.assertAlmostEqual(I[0][1], 0.0, places=10)
-        self.assertAlmostEqual(I[1][0], 0.0, places=10)
-        self.assertAlmostEqual(I[1][1], 1.0, places=10)
-
-    def test_matrix_inverse_3x3(self) -> None:
-        A = [[1.0, 2.0, 3.0], [0.0, 1.0, 4.0], [5.0, 6.0, 0.0]]
-        A_inv = _matrix_inverse(A)
-        I = _matrix_multiply(A, A_inv)
-        for i in range(3):
-            for j in range(3):
-                expected = 1.0 if i == j else 0.0
-                self.assertAlmostEqual(I[i][j], expected, places=9)
-
-    def test_matrix_inverse_singular_raises(self) -> None:
-        A = [[1.0, 2.0], [2.0, 4.0]]  # Singular (row 2 = 2 * row 1)
+    def test_underdetermined_system_raises(self) -> None:
         with self.assertRaises(ValueError):
-            _matrix_inverse(A)
+            _solve_least_squares([[1.0, 2.0, 3.0]], [1.0])
+
+    def test_small_scale_columns_are_not_rank_deficient(self) -> None:
+        X = [[2e-13, 0.0], [0.0, 4e-13]]
+        c = _solve_least_squares(X, [2e-13, 8e-13])
+        self.assertAlmostEqual(c[0], 1.0, places=10)
+        self.assertAlmostEqual(c[1], 2.0, places=10)
 
 
 class TestRSquared(unittest.TestCase):
@@ -731,12 +722,6 @@ class TestNumericalStability(unittest.TestCase):
         result = fit_polynomial(x, y, degree=2)
         self.assertEqual(result["expression"], "(1)*x^2")
 
-    def test_matrix_inverse_uses_relative_pivot_threshold(self) -> None:
-        A = [[2e-13, 0.0], [0.0, 4e-13]]
-        A_inv = _matrix_inverse(A)
-        self.assertAlmostEqual(A_inv[0][0] * 2e-13, 1.0, places=10)
-        self.assertAlmostEqual(A_inv[1][1] * 4e-13, 1.0, places=10)
-
     def test_logistic_fit_with_steep_growth_on_small_x_range(self) -> None:
         L, k, x0 = 10.0, 2000.0, 0.005
         x = [i * 0.001 for i in range(11)]
@@ -776,6 +761,58 @@ class TestNumericalStability(unittest.TestCase):
         y_actual = [1e-7, 2e-7, 3e-7, 4e-7]
         y_predicted = [2.5e-7] * 4
         self.assertAlmostEqual(calculate_r_squared(y_actual, y_predicted), 0.0, places=8)
+
+
+class TestAccuracyFixes(unittest.TestCase):
+    """Regression tests for audited accuracy problems."""
+
+    def test_r_squared_negative_when_worse_than_mean(self) -> None:
+        self.assertAlmostEqual(calculate_r_squared([1.0, 2.0, 3.0], [3.0, 2.0, 1.0]), -3.0, places=12)
+
+    def test_r_squared_never_above_one(self) -> None:
+        self.assertEqual(calculate_r_squared([1.0, 2.0, 3.0], [1.0, 2.0, 3.0]), 1.0)
+
+    def test_polynomial_large_offset_expression_matches_fit(self) -> None:
+        x = [1e6 + i for i in range(10)]
+        y = [5 * math.sin(i / 3) for i in range(10)]
+        result = fit_polynomial(x, y, 3)
+        # The fit in powers of (x - mean) reproduces the least squares values at the data
+        reference = fit_polynomial([float(i) for i in range(10)], y, 3)
+        for xi, i in zip(x, range(10)):
+            expected = _evaluate_expression(reference["expression"], float(i))
+            self.assertAlmostEqual(_evaluate_expression(result["expression"], xi), expected, places=9)
+        self.assertIn("(x - 1000004.5)", result["expression"])
+        # Raw coefficients stay in the coefficients dict
+        self.assertEqual(sorted(result["coefficients"]), ["a0", "a1", "a2", "a3"])
+
+    def test_polynomial_well_conditioned_fit_keeps_raw_powers(self) -> None:
+        result = fit_polynomial([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [2.1, 3.9, 9.2, 15.8, 25.1, 36.3], 2)
+        self.assertNotIn("(x -", result["expression"])
+        self.assertIn("*x^2", result["expression"])
+        years = [2000.0 + i for i in range(10)]
+        result = fit_polynomial(years, [0.5 * (xi - 2000) ** 2 + 3 for xi in years], 2)
+        self.assertNotIn("(x -", result["expression"])
+
+    def test_polynomial_high_degree_fit_uses_qr(self) -> None:
+        # 25 points, degree 18: the normal equations were too ill-conditioned for this
+        x = [i / 24 for i in range(25)]
+        y = [math.sin(3 * xi) + 0.1 * math.cos(17 * xi) for xi in x]
+        result = fit_polynomial(x, y, 18)
+        self.assertGreater(result["r_squared"], 0.999999)
+
+    def test_polynomial_with_too_few_distinct_x_raises(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            fit_polynomial([1.0, 1.0, 1.0, 2.0], [1.0, 2.0, 3.0, 4.0], 2)
+        self.assertIn("rank-deficient", str(ctx.exception))
+
+    def test_logistic_fit_negative_data(self) -> None:
+        L, k, x0 = -10.0, 1.5, 4.0
+        x = [i * 0.5 for i in range(17)]
+        y = [L / (1 + math.exp(-k * (xi - x0))) for xi in x]
+        result = fit_logistic(x, y)
+        self.assertGreater(result["r_squared"], 0.999)
+        self.assertAlmostEqual(result["coefficients"]["L"], L, delta=0.1)
+        self.assertAlmostEqual(result["coefficients"]["x0"], x0, delta=0.1)
 
 
 if __name__ == "__main__":

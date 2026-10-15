@@ -244,8 +244,8 @@ class TestSuccessfulValidation(unittest.TestCase):
         )
         self.assertTrue(result["valid"])
 
-    def test_numeric_integrate_required_only(self) -> None:
-        """numeric_integrate with only required fields."""
+    def test_numeric_integrate_null_optional_fields(self) -> None:
+        """numeric_integrate with null method and steps (strict mode lists every property as required)."""
         result = ToolArgumentValidator.validate(
             "numeric_integrate",
             {
@@ -253,6 +253,8 @@ class TestSuccessfulValidation(unittest.TestCase):
                 "variable": "x",
                 "lower_bound": 0,
                 "upper_bound": 1,
+                "method": None,
+                "steps": None,
             },
         )
         self.assertTrue(result["valid"])
@@ -743,6 +745,7 @@ class TestCanonicalization(unittest.TestCase):
                 "variable": "x",
                 "lower_bound": 0,
                 "upper_bound": 1,
+                "method": None,
                 "steps": "200",
             },
         )

@@ -55,6 +55,7 @@ from .test_periodicity_detection import TestPeriodicityDetection, TestPeriodicit
 from .test_geometry_utils import TestGeometryUtils, TestConvexHull, TestPointInConvexHull
 from .test_graph_layout import TestGraphLayout, TestGraphLayoutVisibility
 from .test_graph_manager import TestGraphManager
+from .test_graph_tools import TestGraphTools
 from .test_graph_analyzer import (
     TestAnalyzeGraphShortestPath,
     TestAnalyzeGraphMST,
@@ -87,7 +88,7 @@ from .test_segment_manager import TestSegmentManager
 from .test_polygon_manager import TestPolygonManager
 from .test_vector_manager import TestVectorManager
 from .test_circle_manager import TestCircleManager
-from .test_ellipse_manager import TestEllipseManager, TestEllipseReuseMatching
+from .test_ellipse_manager import TestEllipseManager, TestEllipseReuseMatching, TestEllipseScaleAtRightAngles
 from .test_ellipse_naming import TestEllipseNameModel, TestEllipseNamingOnCanvas
 from .test_name_uniqueness import TestCircleNameModel, TestNamesOnCanvas, TestUniqueSuffix
 from .test_colored_area_manager import TestColoredAreaManager
@@ -105,6 +106,7 @@ from .test_function_analysis import (
 from .test_parametric_function import (
     TestParametricFunction,
     TestParametricFunctionRenderable,
+    TestParametricFunctionDiscontinuities,
     TestExpressionValidatorParametric,
 )
 from .test_parametric_function_manager import TestParametricFunctionManager
@@ -552,6 +554,7 @@ class Tests:
             TestGraphLayout,
             TestGraphLayoutVisibility,
             TestGraphManager,
+            TestGraphTools,
             TestGraphUtils,
             TestStatisticsDistributions,
             TestStatisticsManager,
@@ -592,6 +595,7 @@ class Tests:
             TestCircleManager,
             TestEllipseManager,
             TestEllipseReuseMatching,
+            TestEllipseScaleAtRightAngles,
             TestEllipseNameModel,
             TestEllipseNamingOnCanvas,
             TestUniqueSuffix,
@@ -612,6 +616,7 @@ class Tests:
             TestLimitsCannotHang,
             TestParametricFunction,
             TestParametricFunctionRenderable,
+            TestParametricFunctionDiscontinuities,
             TestExpressionValidatorParametric,
             TestParametricFunctionManager,
             TestTangentToFunction,

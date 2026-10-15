@@ -858,6 +858,22 @@ class TestMathFunctions(unittest.TestCase):
         result = MathUtils.lcm(4, 5)
         self.assertEqual(result, 20)
 
+    def test_gcd_and_lcm_reject_non_integers(self) -> None:
+        with self.assertRaises(TypeError):
+            MathUtils.gcd(4.5, 6)
+        with self.assertRaises(TypeError):
+            MathUtils.lcm(4, 2.5)
+        self.assertEqual(MathUtils.gcd(48.0, 18), 6)
+
+    def test_geometric_sum_is_exact_for_integers(self) -> None:
+        self.assertEqual(MathUtils.geometric_sum(1, 2, 64), 2**64 - 1)
+        self.assertEqual(MathUtils.geometric_sum(3, 0.5, 2), 4.5)
+
+    def test_arithmetic_sum_rejects_fractional_term_count(self) -> None:
+        with self.assertRaises(TypeError):
+            MathUtils.arithmetic_sum(1, 1, 2.5)
+        self.assertEqual(MathUtils.arithmetic_sum(1, 1, 100), 5050)
+
     def test_mean(self) -> None:
         result = MathUtils.mean([1, 2, 3, 4, 5])
         self.assertEqual(result, 3)
@@ -1049,9 +1065,34 @@ class TestMathFunctions(unittest.TestCase):
         self.assertAlmostEqual(float(result["value"]), 1.0 / 3.0, places=8)
         self.assertGreaterEqual(float(result["error_estimate"]), 0.0)
 
-    def test_numeric_integrate_rejects_bad_bounds(self) -> None:
-        with self.assertRaises(ValueError):
-            MathUtils.numeric_integrate("x", "x", 1, 1, "trapezoid", 10)
+    def test_numeric_integrate_equal_and_reversed_bounds(self) -> None:
+        self.assertEqual(float(MathUtils.numeric_integrate("x", "x", 1, 1, "trapezoid", 10)["value"]), 0.0)
+        forward = MathUtils.numeric_integrate("x^2", "x", 0, 1, "simpson", 50)
+        backward = MathUtils.numeric_integrate("x^2", "x", 1, 0, "simpson", 50)
+        self.assertAlmostEqual(float(backward["value"]), -float(forward["value"]), places=12)
+
+    def test_numeric_integrate_none_method_and_steps_use_defaults(self) -> None:
+        result = MathUtils.numeric_integrate("x^2", "x", 0, 1, None, None)
+        self.assertEqual(result["steps"], 400)
+        self.assertAlmostEqual(float(result["value"]), 1.0 / 3.0, places=8)
+
+    def test_numeric_integrate_rejects_interior_singularity(self) -> None:
+        for expression, lower, upper in (("1/x", -1, 2), ("1/x^2", -1, 1), ("tan(x)", 0, 2)):
+            with self.subTest(expression=expression):
+                with self.assertRaises(ValueError) as ctx:
+                    MathUtils.numeric_integrate(expression, "x", lower, upper, "simpson", 100)
+                self.assertIn("singular or undefined", str(ctx.exception))
+
+    def test_numeric_integrate_endpoint_singularity_falls_back_to_midpoint(self) -> None:
+        result = MathUtils.numeric_integrate("log(x)", "x", 0, 1, "simpson", 200)
+        self.assertAlmostEqual(float(result["value"]), -1.0, places=2)
+        self.assertIn("midpoint", result["warning"])
+
+    def test_numeric_integrate_error_leaves_exact_cas_output(self) -> None:
+        # nerdamer leaves its decimal mode on after log(0) fails; that must not leak out
+        MathUtils.numeric_integrate("log(x)", "x", 0, 1, "simpson", 200)
+        self.assertEqual(MathUtils.solve("x^2-2=0", "x"), "[sqrt(2),-sqrt(2)]")
+        self.assertEqual(MathUtils.summation("1/n", "n", 1, 2), "1.5")
 
     def test_numeric_integrate_rejects_too_many_steps(self) -> None:
         with self.assertRaises(ValueError):
@@ -1912,6 +1953,17 @@ class TestNumberTheory(unittest.TestCase):
         self.assertEqual(MathUtils.prime_factors(1), [])
         self.assertEqual(MathUtils.prime_factors(2), [2])
         self.assertEqual(MathUtils.prime_factors(360), [2, 2, 2, 3, 3, 5])
+
+    def test_prime_factors_large_inputs(self) -> None:
+        self.assertEqual(MathUtils.prime_factors(1000000007 * 998244353), [998244353, 1000000007])
+        self.assertEqual(MathUtils.prime_factors(2**64 - 1), [3, 5, 17, 257, 641, 65537, 6700417])
+        with self.assertRaises(ValueError):
+            MathUtils.prime_factors(10**31)
+
+    def test_is_prime_large_inputs(self) -> None:
+        self.assertTrue(MathUtils.is_prime(2**61 - 1))
+        self.assertFalse(MathUtils.is_prime(100000007 * 100000007))
+        self.assertFalse(MathUtils.is_prime(3215031751))  # strong pseudoprime to bases 2, 3, 5, 7
 
     def test_prime_factors_invalid_input(self) -> None:
         """Test prime_factors raises ValueError for invalid input."""

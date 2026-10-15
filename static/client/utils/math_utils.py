@@ -421,36 +421,25 @@ class MathUtils:
     ) -> List[Dict[str, float]]:
         """
         Compute intersection points (if any) between a circle and a segment.
-        Returns a list of dicts with x, y, and angle (radians from positive x-axis).
+        Returns a list of dicts with x, y, and angle (radians from positive x-axis),
+        ordered along the segment: two points, one where the segment touches the circle,
+        or none.
+
+        Delegates to ``object_intersections.segment_circle_points`` (the closed form of
+        find_intersections), which works relative to the circle's centre and size, so
+        tiny circles and tangent segments at any scale are handled. ``epsilon`` is
+        kept for compatibility and unused.
         """
+        from utils.object_intersections import segment_circle_points
+
         r = float(radius)
         if r <= 0:
             return []
         x1, y1, x2, y2 = MathUtils._segment_endpoints(segment)
-        dx = x2 - x1
-        dy = y2 - y1
-        fx = x1 - float(cx)
-        fy = y1 - float(cy)
-        a = dx * dx + dy * dy
-        if abs(a) < epsilon:
-            return []
-        b = 2 * (fx * dx + fy * dy)
-        c = fx * fx + fy * fy - r * r
-        discriminant = b * b - 4 * a * c
-        if discriminant < -epsilon:
-            return []
-        discriminant = max(discriminant, 0.0)
-        sqrt_disc = math.sqrt(discriminant)
+        center_x, center_y = float(cx), float(cy)
         intersections: List[Dict[str, float]] = []
-        signs = [-1.0, 1.0] if sqrt_disc > epsilon else [0.0]
-        for sign in signs:
-            t = (-b + sign * sqrt_disc) / (2 * a)
-            if t < -epsilon or t > 1 + epsilon:
-                continue
-            t = min(max(t, 0.0), 1.0)
-            ix = x1 + t * dx
-            iy = y1 + t * dy
-            angle = math.atan2(iy - float(cy), ix - float(cx))
+        for ix, iy in segment_circle_points((x1, y1), (x2, y2), (center_x, center_y), r):
+            angle = math.atan2(iy - center_y, ix - center_x)
             intersections.append({"x": ix, "y": iy, "angle": MathUtils._normalize_angle(angle)})
         return intersections
 
@@ -1573,13 +1562,15 @@ class MathUtils:
         variable: str,
         lower_bound: Number,
         upper_bound: Number,
-        method: str = "simpson",
-        steps: int = 200,
+        method: Optional[str] = "simpson",
+        steps: Optional[int] = 200,
     ) -> Dict[str, Number]:
         """Numerically integrate an expression over a finite interval.
 
         This is intended for fast approximation workflows where symbolic
-        integration is unnecessary or unavailable.
+        integration is unnecessary or unavailable. None method or steps take
+        the defaults; equal bounds give 0 and reversed bounds the negated value;
+        an integrand singular inside the interval raises ValueError.
         """
         from utils.numeric_integration import integrate as integrate_numeric
 
@@ -1593,9 +1584,8 @@ class MathUtils:
         upper = float(upper_bound)
         if not math.isfinite(lower) or not math.isfinite(upper):
             raise ValueError("lower_bound and upper_bound must be finite")
-        if lower >= upper:
-            raise ValueError("lower_bound must be less than upper_bound")
-
+        if steps is None:
+            steps = 200
         if isinstance(steps, bool) or not isinstance(steps, int):
             raise TypeError("steps must be an integer")
         if steps <= 0:
@@ -1606,7 +1596,7 @@ class MathUtils:
         expr = window.nerdamer(expression)
 
         def eval_fn(x: float) -> float:
-            return float(expr.sub(variable, x).evaluate().text())
+            return MathUtils._nerdamer_number(expr.sub(variable, x))
 
         result = integrate_numeric(
             eval_fn=eval_fn,
@@ -2263,19 +2253,26 @@ class MathUtils:
 
     @staticmethod
     def gcd(*values: Number) -> int:
-        ints = [int(v) for v in values]
-        return math.gcd(*ints)
+        """Greatest common divisor; raises TypeError for a non-integer argument such as 4.5."""
+        from utils.number_theory import gcd
+
+        return cast(int, gcd(values))
 
     @staticmethod
     def lcm(*values: Number) -> int:
-        ints = [int(v) for v in values]
-        return math.lcm(*ints)
+        """Least common multiple; raises TypeError for a non-integer argument such as 4.5."""
+        from utils.number_theory import lcm
+
+        return cast(int, lcm(values))
 
     # ========== Number Theory Functions ==========
 
     @staticmethod
     def is_prime(n: Number) -> bool:
         """Check if a number is prime.
+
+        Uses trial division by small primes, then a deterministic Miller-Rabin test
+        (exact for n < 3.3e24; above that a composite passes with probability below 4^-25).
 
         Args:
             n: Integer to check for primality
@@ -2292,20 +2289,15 @@ class MathUtils:
         n = int(n)
         if n < 0:
             raise ValueError("is_prime requires a non-negative integer")
-        if n < 2:
-            return False
-        if n == 2:
-            return True
-        if n % 2 == 0:
-            return False
-        for i in range(3, int(n**0.5) + 1, 2):
-            if n % i == 0:
-                return False
-        return True
+        from utils.number_theory import is_prime
+
+        return cast(bool, is_prime(n))
 
     @staticmethod
     def prime_factors(n: Number) -> List[int]:
         """Return the prime factorization of n with multiplicity.
+
+        Trial division finds small factors and Pollard's rho the rest.
 
         Args:
             n: Positive integer to factorize
@@ -2314,7 +2306,8 @@ class MathUtils:
             list[int]: List of prime factors (with repetition for multiplicity)
 
         Raises:
-            ValueError: If n is less than 1
+            ValueError: If n is less than 1, above 10^30, or has only prime factors
+                too large to find quickly
             TypeError: If n is not an integer
 
         Examples:
@@ -2326,18 +2319,9 @@ class MathUtils:
         n = int(n)
         if n < 1:
             raise ValueError("prime_factors requires a positive integer")
-        if n == 1:
-            return []
-        factors = []
-        d = 2
-        while d * d <= n:
-            while n % d == 0:
-                factors.append(d)
-                n //= d
-            d += 1
-        if n > 1:
-            factors.append(n)
-        return factors
+        from utils.number_theory import prime_factors
+
+        return cast(List[int], prime_factors(n))
 
     @staticmethod
     def mod_pow(base: Number, exp: Number, mod: Number) -> int:
@@ -2549,12 +2533,28 @@ class MathUtils:
             raise ValueError(f"summation supports at most {MathUtils.MAX_SERIES_TERMS} terms")
         total = 0.0
         for i in range(start, end + 1):
-            value = float(window.nerdamer(expression).sub(variable, i).evaluate().text())
+            value = MathUtils._nerdamer_number(window.nerdamer(expression).sub(variable, i))
             total += value
         # Return integer if it's a whole number
         if total == int(total):
             return str(int(total))
         return str(total)
+
+    @staticmethod
+    def _nerdamer_number(parsed: Any) -> float:
+        """Evaluate a substituted nerdamer expression to a float without corrupting nerdamer.
+
+        nerdamer's evaluate() switches its global PARSE2NUMBER setting on and only switches it
+        back when evaluation succeeds; after an error such as log(0) every later solve,
+        integral or simplify would print decimals instead of exact results. The setting is
+        restored here whatever happens.
+        """
+        settings = window.nerdamer.getCore().Settings
+        saved = settings.PARSE2NUMBER
+        try:
+            return float(parsed.evaluate().text())
+        finally:
+            settings.PARSE2NUMBER = saved
 
     @staticmethod
     def product(expression: str, variable: str, start: int, end: int) -> str:
@@ -2583,7 +2583,7 @@ class MathUtils:
             raise ValueError(f"product supports at most {MathUtils.MAX_SERIES_TERMS} terms")
         total = 1.0
         for i in range(start, end + 1):
-            value = float(window.nerdamer(expression).sub(variable, i).evaluate().text())
+            value = MathUtils._nerdamer_number(window.nerdamer(expression).sub(variable, i))
             total *= value
         # Return integer if it's a whole number
         if total == int(total):
@@ -2602,22 +2602,18 @@ class MathUtils:
         Args:
             first: First term of the arithmetic sequence (a)
             diff: Common difference between consecutive terms (d)
-            n: Number of terms to sum
+            n: Number of terms to sum (a whole number)
 
         Returns:
-            Number: Sum of the arithmetic series
+            Number: Sum of the arithmetic series; exact for integer inputs
 
         Raises:
             ValueError: If n < 1
+            TypeError: If n is not a whole number
         """
-        n = int(n)
-        if n < 1:
-            raise ValueError("Number of terms must be at least 1")
-        result = n / 2 * (2 * first + (n - 1) * diff)
-        # Return integer if it's a whole number
-        if result == int(result):
-            return int(result)
-        return result
+        from utils.number_theory import arithmetic_sum
+
+        return cast(Number, arithmetic_sum(first, diff, n))
 
     @staticmethod
     def geometric_sum(first: Number, ratio: Number, n: int) -> Number:
@@ -2632,24 +2628,19 @@ class MathUtils:
         Args:
             first: First term of the geometric sequence (a)
             ratio: Common ratio between consecutive terms (r)
-            n: Number of terms to sum
+            n: Number of terms to sum (a whole number)
 
         Returns:
-            Number: Sum of the geometric series
+            Number: Sum of the geometric series; exact for integer inputs
+            (geometric_sum(1, 2, 64) is 2^64 - 1)
 
         Raises:
-            ValueError: If n < 1
+            ValueError: If n < 1 or the sum is too large to represent
+            TypeError: If n is not a whole number
         """
-        n = int(n)
-        if n < 1:
-            raise ValueError("Number of terms must be at least 1")
-        if ratio == 1:
-            return first * n
-        result = first * (1 - ratio**n) / (1 - ratio)
-        # Return integer if it's a whole number
-        if result == int(result):
-            return int(result)
-        return result
+        from utils.number_theory import geometric_sum
+
+        return cast(Number, geometric_sum(first, ratio, n))
 
     @staticmethod
     def geometric_sum_infinite(first: Number, ratio: Number) -> Number:
@@ -4085,12 +4076,14 @@ class MathUtils:
         c = math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)  # opposite vertex 3
 
         perimeter = a + b + c
-        if perimeter < MathUtils.EPSILON:
+        if perimeter == 0:
             raise ValueError("Degenerate triangle: zero perimeter")
 
         # Area via cross product: 2A = |(x2-x1)(y3-y1) - (x3-x1)(y2-y1)|
         area = abs((x2 - x1) * (y3 - y1) - (x3 - x1) * (y2 - y1)) / 2.0
-        if area < MathUtils.EPSILON:
+        # Relative collinearity test, the one circumcenter uses: 4A against the longest squared side
+        longest = max(a, b, c)
+        if 4.0 * area <= MathUtils.EPSILON * longest * longest:
             raise ValueError("Degenerate triangle: zero area")
 
         # Incenter: weighted average by opposite side lengths

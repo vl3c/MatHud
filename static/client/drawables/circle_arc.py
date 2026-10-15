@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import math
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 from constants import DEFAULT_CIRCLE_ARC_COLOR
 from drawables.drawable import Drawable
@@ -20,6 +20,32 @@ from utils.math_utils import MathUtils
 
 if TYPE_CHECKING:
     from drawables.circle import Circle
+
+
+def arc_start_and_sweep(
+    center: Tuple[float, float],
+    start_point: Tuple[float, float],
+    end_point: Tuple[float, float],
+    use_major_arc: bool,
+) -> Tuple[float, float]:
+    """Where an arc between two points of a circle starts, and which way and how far it turns.
+
+    Returns the angle of ``start_point`` about ``center`` (radians, math coordinates) and
+    the signed sweep to ``end_point``: positive counter-clockwise, along the shorter arc,
+    or the longer one when ``use_major_arc``. Points in the same direction from the centre
+    give a sweep of 0. Every consumer of an arc's direction (renderers, path elements,
+    intersections) uses this, so they all draw and measure the same arc.
+    """
+    cx, cy = center
+    start = math.atan2(start_point[1] - cy, start_point[0] - cx)
+    end = math.atan2(end_point[1] - cy, end_point[0] - cx)
+    counter_clockwise = (end - start) % (2 * math.pi)
+    if counter_clockwise == 0.0:
+        return start, 0.0
+    minor_is_counter_clockwise = counter_clockwise <= math.pi
+    if minor_is_counter_clockwise != bool(use_major_arc):
+        return start, counter_clockwise
+    return start, -(2 * math.pi - counter_clockwise)
 
 
 class CircleArc(Drawable):
@@ -48,7 +74,9 @@ class CircleArc(Drawable):
         use_major_arc: bool = False,
         color: Optional[str] = None,
         name: Optional[str] = None,
+        strict: bool = True,
     ) -> None:
+        """Build the arc; strict=False skips the check that both endpoints lie on the circle."""
         if radius is None or float(radius) <= 0:
             raise ValueError("CircleArc requires a positive radius.")
         if point1 is point2:
@@ -63,7 +91,7 @@ class CircleArc(Drawable):
         self.circle_name: Optional[str] = getattr(circle, "name", None)
         self.use_major_arc: bool = bool(use_major_arc)
 
-        self._validate_points_on_circle()
+        self._validate_points_on_circle(strict=strict)
 
         chosen_color = str(color) if color is not None else DEFAULT_CIRCLE_ARC_COLOR
         computed_name = (
@@ -101,6 +129,15 @@ class CircleArc(Drawable):
 
     def get_class_name(self) -> str:
         return "CircleArc"
+
+    def start_and_sweep(self) -> Tuple[float, float]:
+        """Angle of point1 about the centre and the signed sweep to point2 (see arc_start_and_sweep)."""
+        return arc_start_and_sweep(
+            (self.center_x, self.center_y),
+            (self.point1.x, self.point1.y),
+            (self.point2.x, self.point2.y),
+            self.use_major_arc,
+        )
 
     def get_state(self) -> Dict[str, Any]:
         return {
@@ -175,6 +212,8 @@ class CircleArc(Drawable):
         new_point2 = deepcopy(self.point2, memo)
         new_circle = deepcopy(self.circle, memo) if self.circle else None
 
+        # A copy keeps the arc as it is (undo archives copy every arc), so it skips the
+        # on-circle check that a newly built arc must pass.
         new_arc = CircleArc(
             new_point1,
             new_point2,
@@ -185,6 +224,7 @@ class CircleArc(Drawable):
             use_major_arc=self.use_major_arc,
             color=self.color,
             name=self.name,
+            strict=False,
         )
         memo[id(self)] = new_arc
         return new_arc

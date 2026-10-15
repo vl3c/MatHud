@@ -111,6 +111,16 @@ _ROOT_PROBE_OFFSET = 1e-7
 _ROOT_PROBE_ULPS = 64.0
 _ROOT_PROBE_FACTOR = 10.0
 _ROOT_SHRINK_RATIO = 0.95
+# The probes stay inside the root's bracket: the offset is at most this fraction of the
+# distance to its nearer end, so another root just past it ((x - 1e-4)(x + 1e-4) on a wide
+# interval) is not mistaken for |f| growing away from this one
+_ROOT_PROBE_BRACKET_SHARE = 0.05
+# A domain edge (f defined on one side, undefined on the other, as sqrt(x - 0.3) at 0.3)
+# is a root when |f| there, located to the float, is below this fraction of |f| at the
+# sample inside and shrinks towards the edge
+_DOMAIN_EDGE_ZERO_RATIO = 1e-3
+# Bisections that locate a domain edge (enough to reach adjacent floats from any sample step)
+_DOMAIN_EDGE_MAX_BISECTIONS = 1100
 # An interval endpoint whose |f| is below this fraction of the largest |f| sampled is a root
 # that rounding moved off zero (sin(2*pi) is -2.4e-16)...
 _ENDPOINT_ZERO_RATIO = 1e-12
@@ -275,12 +285,16 @@ class _Piece:
     The samples are the uniform grid plus finer ones where it did not resolve the curve.
     """
 
-    def __init__(self, a: float, b: float, xs: List[float], ys: List[float], step: float) -> None:
+    def __init__(
+        self, a: float, b: float, xs: List[float], ys: List[float], step: float, cut_after: Optional[float] = None
+    ) -> None:
         self.a = a
         self.b = b
         self.xs = xs
         self.ys = ys
         self.step = step
+        # The discontinuity that ends this piece (None at the end of the interval)
+        self.cut_after = cut_after
 
     def flat_limit(self) -> float:
         """Sign changes further apart than this are separated by a plateau (_MAX_FLAT_STEPS grid steps)."""
@@ -483,6 +497,7 @@ def _sampled_segments(
     """
     span = right - left
     cuts = _discontinuities(evaluate, breakpoints, span / max(1, total_samples))
+    inner_cuts = sorted(cut for cut in cuts if left < cut < right)
     pieces: List[_Piece] = []
     for a, b in _segments(left, right, cuts):
         count = max(MIN_SEGMENT_SAMPLES, int(round(total_samples * (b - a) / span)))
@@ -490,7 +505,8 @@ def _sampled_segments(
         ys = [evaluate(x) for x in xs]
         budget = int(_REFINE_BUDGET * count)
         xs, ys = _refined_samples(evaluate, xs, ys, budget, a != left, b != right)
-        pieces.append(_Piece(a, b, xs, ys, (b - a) / count))
+        cut_after = next((cut for cut in inner_cuts if cut >= b), None) if b != right else None
+        pieces.append(_Piece(a, b, xs, ys, (b - a) / count, cut_after))
     return pieces
 
 
@@ -655,8 +671,83 @@ def _scan(
         roots.extend(_segment_roots(evaluate, xs, ys, span))
         roots.extend(_roots_beside_extrema(evaluate, xs, ys, segment_extrema, span))
         roots.extend(_endpoint_roots(xs, ys, piece.a == left, piece.b == right))
+        roots.extend(_domain_edge_roots(evaluate, xs, ys))
         extrema.extend(segment_extrema)
+    roots.extend(_cut_roots(evaluate, pieces))
     return roots, extrema
+
+
+def _cut_roots(evaluate: Callable[[float], float], pieces: List[_Piece]) -> List[_Root]:
+    """Discontinuities where f itself is zero: {x for x <= 0; x + 1 for x > 0} has a root at 0.
+
+    The pieces stop short of each discontinuity, so no sample sees f there; it counts as
+    a root when f is zero or, like an interval end, within rounding of zero next to the
+    largest |f| sampled on either side.
+    """
+    roots: List[_Root] = []
+    for i, piece in enumerate(pieces):
+        cut = piece.cut_after
+        if cut is None:
+            continue
+        value = evaluate(cut)
+        if not math.isfinite(value):
+            continue
+        neighbours = [piece] + ([pieces[i + 1]] if i + 1 < len(pieces) else [])
+        scale = max((abs(y) for p in neighbours for y in p.ys if math.isfinite(y)), default=0.0)
+        if value == 0.0 or abs(value) <= _ENDPOINT_ZERO_RATIO * scale:
+            roots.append(_Root(cut))
+    return roots
+
+
+def _domain_edge_roots(evaluate: Callable[[float], float], xs: List[float], ys: List[float]) -> List[_Root]:
+    """Roots where f's domain ends between two samples and f shrinks to zero there.
+
+    sqrt(1 - x^2) ends at x = 1 with f(1) = 0, but unless a sample lands on 1 exactly, the
+    samples either side are a positive value and an undefined one, with no sign change
+    between them. The edge is located by bisection (to adjacent floats) and counts as a
+    root when |f| there is a small fraction of |f| at the inner sample and still shrinking
+    towards the edge. An isolated undefined point (a hole) is no domain edge.
+    """
+    roots: List[_Root] = []
+    for i in range(len(xs) - 1):
+        defined_a, defined_b = math.isfinite(ys[i]), math.isfinite(ys[i + 1])
+        if defined_a == defined_b:
+            continue
+        if defined_a:
+            edge = _domain_edge_root(evaluate, xs[i], ys[i], xs[i + 1])
+        else:
+            edge = _domain_edge_root(evaluate, xs[i + 1], ys[i + 1], xs[i])
+        if edge is not None:
+            roots.append(_Root(edge))
+    return roots
+
+
+def _domain_edge_root(
+    evaluate: Callable[[float], float], inside: float, inside_value: float, outside: float
+) -> Optional[float]:
+    """The domain edge between inside (f defined) and outside (undefined) if f is zero there, else None."""
+    if inside_value == 0.0:
+        return None  # already a root at the sample itself
+    defined, value, undefined = inside, inside_value, outside
+    for _ in range(_DOMAIN_EDGE_MAX_BISECTIONS):
+        middle = 0.5 * (defined + undefined)
+        if middle == defined or middle == undefined:
+            break
+        middle_value = evaluate(middle)
+        if math.isfinite(middle_value):
+            defined, value = middle, middle_value
+        else:
+            undefined = middle
+    beyond = undefined + (undefined - defined)
+    if math.isfinite(evaluate(beyond)):
+        return None  # f is undefined at a single point only: a hole, not the end of its domain
+    if value != 0.0 and abs(value) > _DOMAIN_EDGE_ZERO_RATIO * abs(inside_value):
+        return None
+    between = defined + (inside - defined) * _DOMAIN_EDGE_ZERO_RATIO
+    between_value = evaluate(between)
+    if value != 0.0 and not (math.isfinite(between_value) and abs(value) <= abs(between_value)):
+        return None  # |f| does not shrink towards the edge
+    return defined
 
 
 def _segment_roots(evaluate: Callable[[float], float], xs: List[float], ys: List[float], span: float) -> List[_Root]:
@@ -752,9 +843,20 @@ def _refine_root(
     scale = max(abs(fa), abs(fb))
     if abs(fx) > _ROOT_RESIDUAL_RATIO * scale + _float_step_change(evaluate, x, fx, scale):
         return None
-    if not _shrinks_towards(evaluate, x, max(_ROOT_PROBE_OFFSET * span, _ROOT_PROBE_ULPS * _EPS * abs(x))):
+    if not _shrinks_towards(evaluate, x, _root_probe_offset(x, a, b, span)):
         return None
     return x
+
+
+def _root_probe_offset(x: float, a: float, b: float, span: float) -> float:
+    """How far from a refined root x in [a, b] _shrinks_towards probes.
+
+    A fixed share of the interval width, but small enough that the probes (up to
+    _ROOT_PROBE_FACTOR times further out) stay well inside the bracket; never below a few
+    units in the last place of x, where rounding would decide.
+    """
+    inside = _ROOT_PROBE_BRACKET_SHARE * min(abs(x - a), abs(b - x))
+    return max(min(_ROOT_PROBE_OFFSET * span, inside), _ROOT_PROBE_ULPS * _EPS * abs(x))
 
 
 def _float_step_change(evaluate: Callable[[float], float], x: float, fx: float, scale: float) -> float:

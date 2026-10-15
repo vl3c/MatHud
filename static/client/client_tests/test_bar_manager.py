@@ -64,17 +64,21 @@ class TestBarManager(unittest.TestCase):
                 redraw=False,
             )
 
-    def test_create_bar_rejects_zero_height(self) -> None:
-        with self.assertRaises(ValueError):
-            self.bar_manager.create_bar(
-                name="BadBar",
-                x_left=0.0,
-                x_right=1.0,
-                y_bottom=2.0,
-                y_top=2.0,
-                archive=False,
-                redraw=False,
-            )
+    def test_create_bar_allows_zero_height(self) -> None:
+        bar = self.bar_manager.create_bar(
+            name="ZeroBar",
+            x_left=0.0,
+            x_right=1.0,
+            y_bottom=2.0,
+            y_top=2.0,
+            label_below_text="none",
+            archive=False,
+            redraw=False,
+        )
+        self.assertEqual(bar.y_bottom, 2.0)
+        self.assertEqual(bar.y_top, 2.0)
+        self.assertEqual(bar.label_below_text, "none")
+        self.assertIn("ZeroBar", [d.name for d in self.canvas.get_drawables_by_class_name("Bar")])
 
     def test_delete_bar_removes_drawable(self) -> None:
         self.bar_manager.create_bar(

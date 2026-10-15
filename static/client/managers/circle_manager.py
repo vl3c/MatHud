@@ -35,6 +35,7 @@ Dependencies:
 
 from __future__ import annotations
 
+import math
 import re
 from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
@@ -167,11 +168,14 @@ class CircleManager(BaseDrawableManager):
                 passes False so every saved circle comes back
 
         Raises:
-            ValueError: If a custom name has characters other than those above
+            ValueError: If a custom name has characters other than those above, or the
+                radius is not a positive number
 
         Returns:
             Circle: The newly created circle object, or existing circle if already present
         """
+        if not math.isfinite(float(radius)) or float(radius) <= 0:
+            raise ValueError(f"Circle radius must be a positive number, got {radius}.")
         requested_name = str(name or "").strip()
         custom_name = self._custom_name_from_request(requested_name)
 
@@ -398,4 +402,19 @@ class CircleManager(BaseDrawableManager):
             circle.update_color(str(new_color))
 
         if "center" in pending_fields and new_center_x is not None and new_center_y is not None:
+            dx = float(new_center_x) - circle.center.x
+            dy = float(new_center_y) - circle.center.y
             circle.update_center_position(float(new_center_x), float(new_center_y))
+            self._move_arcs_with_center(circle, dx, dy)
+
+    def _move_arcs_with_center(self, circle: Circle, dx: float, dy: float) -> None:
+        """Shift the endpoints of the circle's arcs with its centre, each endpoint once."""
+        seen: set = set()
+        for arc in getattr(self.drawables, "CircleArcs", None) or []:
+            if getattr(arc, "circle", None) is not circle:
+                continue
+            for point in (arc.point1, arc.point2):
+                if id(point) not in seen:
+                    seen.add(id(point))
+                    point.translate(dx, dy)
+            arc.sync_with_circle()
