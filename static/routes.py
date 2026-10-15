@@ -1475,6 +1475,33 @@ def register_routes(app: MatHudFlask) -> None:
                 code=500,
             )
 
+    @app.route("/api/cas", methods=["POST"])
+    @require_auth
+    def cas_route() -> ResponseReturnValue:
+        """Run one SymPy computation for the CAS tools (static/sympy_cas.py).
+
+        Request body:
+            operation (str): limit, integrate, solve, simplify or derive
+            args (dict): the operation's arguments, all strings (or null for an absent bound)
+
+        Returns:
+            data {"result": ...} (null when SymPy has no answer), {"error": message} for an
+            expression it refuses, {"timeout": true}, or 503 when SymPy is not available,
+            in which case the client uses nerdamer.
+        """
+        from static.sympy_engine import get_engine
+
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict) or not isinstance(payload.get("operation"), str):
+            return AppManager.make_response(message="Invalid request body", status="error", code=400)
+        args = payload.get("args")
+        if not isinstance(args, dict) or not all(isinstance(value, (str, type(None))) for value in args.values()):
+            return AppManager.make_response(message="args must map names to strings", status="error", code=400)
+        response = get_engine().compute(payload["operation"], cast(Dict[str, Optional[str]], args))
+        if response.get("unavailable"):
+            return AppManager.make_response(message="SymPy is not available", status="error", code=503)
+        return AppManager.make_response(data=cast(JsonValue, response))
+
     @app.route("/api/tts", methods=["POST"])
     @require_auth
     def generate_tts() -> ResponseReturnValue:
