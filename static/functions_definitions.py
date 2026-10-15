@@ -1469,14 +1469,20 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "convert",
-            "description": "Converts a numeric value between units (e.g., degrees to radians, km to m, F to C). For Cartesian/polar coordinate conversion, use convert_coordinates instead.",
+            "description": "Converts a numeric value between units (e.g., degrees to radians, km to m, Fahrenheit to Celsius), given as math.js unit names: deg, rad, km, m, degF, degC (plain F and C are farad and coulomb). For Cartesian/polar coordinate conversion, use convert_coordinates instead.",
             "strict": True,
             "parameters": {
                 "type": "object",
                 "properties": {
                     "value": {"type": "number", "description": "The value to be converted"},
-                    "from_unit": {"type": "string", "description": "The unit to convert from"},
-                    "to_unit": {"type": "string", "description": "The unit to convert to"},
+                    "from_unit": {
+                        "type": "string",
+                        "description": "The unit to convert from, as a math.js unit name (e.g. 'degF', 'km', 'deg')",
+                    },
+                    "to_unit": {
+                        "type": "string",
+                        "description": "The unit to convert to, as a math.js unit name (e.g. 'degC', 'm', 'rad')",
+                    },
                 },
                 "required": ["value", "from_unit", "to_unit"],
                 "additionalProperties": False,
@@ -2698,7 +2704,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "properties": {
                     "expression": {
                         "type": "string",
-                        "description": "Boolean expression with drawable names. Examples: 'circle_A' (single shape), 'circle_A & triangle_ABC' (intersection), 'C(5) & AB' (circle cut by segment AB), 'ArcMaj_CD & triangle_ABC' (arc segment intersected with triangle), 'circle_A - triangle_ABC' (difference), '(circle_A & quad_ABCD) & EF' (shapes intersected then cut by segment).",
+                        "description": "Boolean expression with drawable names as the canvas shows them: a circle is named after its centre and radius, like 'A(5)', unless it was given its own name such as 'c1'; a polygon by its vertices, like 'ABC' or 'DEFG'; a segment like 'EF'. Examples: 'A(5)' (single shape), 'A(5) & BCD' (intersection), 'C(5) & AB' (circle cut by segment AB), 'ArcMaj_CD & BEF' (arc segment intersected with triangle), 'A(5) - BCD' (difference), '(A(5) & BCDE) & FG' (shapes intersected then cut by segment).",
                     }
                 },
                 "required": ["expression"],
