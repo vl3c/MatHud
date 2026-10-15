@@ -206,5 +206,28 @@ class TestParametricFunctionManager(unittest.TestCase):
         self.canvas.undo_redo_manager.archive.assert_not_called()
 
 
+    def test_draw_parametric_function_orders_a_reversed_range(self) -> None:
+        func = self.manager.draw_parametric_function("cos(t)", "sin(t)", name="Back", t_min=3, t_max=1)
+        self.assertEqual((func.t_min, func.t_max), (1.0, 3.0))
+
+    def test_draw_parametric_function_rejects_an_empty_range_without_archiving(self) -> None:
+        with self.assertRaises(ValueError):
+            self.manager.draw_parametric_function("cos(t)", "sin(t)", name="Empty", t_min=2, t_max=2)
+        self.canvas.undo_redo_manager.archive.assert_not_called()
+        self.assertEqual(len(self.drawables.ParametricFunctions), 0)
+
+    def test_update_parametric_function_orders_a_reversed_range(self) -> None:
+        func = self._add_parametric_function(name="Circle")
+        self.manager.update_parametric_function("Circle", new_t_min=5.0, new_t_max=1.0)
+        self.assertEqual((func.t_min, func.t_max), (1.0, 5.0))
+
+    def test_update_parametric_function_rejects_an_empty_range_without_archiving(self) -> None:
+        func = self._add_parametric_function(name="Circle")
+        with self.assertRaises(ValueError):
+            self.manager.update_parametric_function("Circle", new_t_min=func.t_max)
+        self.canvas.undo_redo_manager.archive.assert_not_called()
+        self.assertEqual(func.t_min, 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -50,10 +50,19 @@ class TestParametricPaths(unittest.TestCase):
         mapper = _make_mapper()
         paths = ParametricFunctionRenderable(func, mapper).build_screen_paths().paths
 
+        # Long steps along one branch (both ends off screen on the same side) are kept;
+        # no step may join the branch on the left to the branch on the right.
         width = mapper.canvas_width
+        self.assertEqual(len(paths), 2)
         for path in paths:
             for (x1, _y1), (x2, _y2) in zip(path, path[1:]):
-                self.assertLessEqual(abs(x2 - x1), 2 * width)
+                self.assertFalse(min(x1, x2) < 0 and max(x1, x2) > width, (x1, x2))
+
+    def test_steep_continuous_crossing_is_not_broken(self) -> None:
+        # y(t) = 1e4 * t^3 crosses the whole screen between two samples near t = 0.
+        func = _parametric(lambda t: t, lambda t: 1e4 * t**3, -1.0, 1.0)
+        paths = ParametricFunctionRenderable(func, _make_mapper()).build_screen_paths().paths
+        self.assertEqual(len(paths), 1)
 
     def test_helper_keeps_off_screen_parts_for_reprojection(self) -> None:
         # A circle of radius 8 centred at (8, 0) is half off-screen at scale 32 (visible x-range is +-10).

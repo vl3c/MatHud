@@ -60,10 +60,12 @@ class ParametricFunction(Drawable):
             color: Display color for the curve
 
         Raises:
-            ValueError: If expressions cannot be parsed
+            ValueError: If expressions cannot be parsed, or t_min and t_max are equal or
+                not finite (a reversed range is put in increasing order)
         """
-        self.t_min: float = float(t_min)
-        self.t_max: float = float(t_max) if t_max is not None else 2 * math.pi
+        self.t_min: float
+        self.t_max: float
+        self.t_min, self.t_max = self.ordered_t_range(t_min, t_max if t_max is not None else 2 * math.pi)
 
         try:
             self.x_expression: str = ExpressionValidator.fix_math_expression(x_expression)
@@ -204,10 +206,31 @@ class ParametricFunction(Drawable):
         """Update the display color of the curve."""
         self.color = str(color)
 
+    @staticmethod
+    def ordered_t_range(t_min: float, t_max: float) -> Tuple[float, float]:
+        """The parameter range in increasing order (the curve is the same traced backwards).
+
+        Like FunctionManager.ordered_bounds, a reversed range is swapped and an empty one
+        (t_min == t_max) is rejected, as are non-finite ends.
+
+        Raises:
+            ValueError: If the ends are equal or not finite
+        """
+        low, high = float(t_min), float(t_max)
+        if not (math.isfinite(low) and math.isfinite(high)):
+            raise ValueError(f"t_min and t_max must be finite numbers, got {t_min} and {t_max}.")
+        if low == high:
+            raise ValueError(f"t_min and t_max are both {low}; t_min must be less than t_max.")
+        return (high, low) if low > high else (low, high)
+
+    def update_t_range(self, t_min: float, t_max: float) -> None:
+        """Set both ends of the parameter range (ordered, see ordered_t_range)."""
+        self.t_min, self.t_max = self.ordered_t_range(t_min, t_max)
+
     def update_t_min(self, t_min: float) -> None:
-        """Update the minimum parameter value."""
-        self.t_min = float(t_min)
+        """Update the minimum parameter value (the range is kept in increasing order)."""
+        self.update_t_range(t_min, self.t_max)
 
     def update_t_max(self, t_max: float) -> None:
-        """Update the maximum parameter value."""
-        self.t_max = float(t_max)
+        """Update the maximum parameter value (the range is kept in increasing order)."""
+        self.update_t_range(self.t_min, t_max)

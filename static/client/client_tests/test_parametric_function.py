@@ -125,6 +125,25 @@ class TestParametricFunction(unittest.TestCase):
         self.func.update_t_max(new_t_max)
         self.assertEqual(self.func.t_max, new_t_max)
 
+    def test_reversed_t_range_is_put_in_order(self) -> None:
+        func = ParametricFunction("cos(t)", "sin(t)", name="Back", t_min=math.pi, t_max=0)
+        self.assertEqual((func.t_min, func.t_max), (0.0, math.pi))
+
+    def test_empty_t_range_is_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            ParametricFunction("cos(t)", "sin(t)", name="Empty", t_min=1, t_max=1)
+        with self.assertRaises(ValueError):
+            ParametricFunction("cos(t)", "sin(t)", name="Inf", t_min=0, t_max=float("inf"))
+
+    def test_update_t_min_past_t_max_keeps_the_range_ordered(self) -> None:
+        self.func.update_t_min(10.0)
+        self.assertEqual((self.func.t_min, self.func.t_max), (2 * math.pi, 10.0))
+
+    def test_update_t_max_to_t_min_is_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            self.func.update_t_max(self.func.t_min)
+        self.assertEqual(self.func.t_max, 2 * math.pi)
+
 
 class TestParametricFunctionRenderable(unittest.TestCase):
     """Test suite for ParametricFunctionRenderable class."""
@@ -201,6 +220,49 @@ class TestParametricFunctionRenderable(unittest.TestCase):
         renderable = ParametricFunctionRenderable(lissajous, self.coordinate_mapper)
         screen_paths = renderable.build_screen_paths()
         self.assertTrue(len(screen_paths.paths) > 0)
+
+
+class _LinearMapper:
+    """Maps math to screen with the origin at the screen centre and a fixed scale."""
+
+    def __init__(self, scale: float, width: int = 800, height: int = 600) -> None:
+        self.scale_factor = scale
+        self.canvas_width = width
+        self.canvas_height = height
+
+    def math_to_screen(self, x: float, y: float) -> tuple:
+        return (self.canvas_width / 2 + x * self.scale_factor, self.canvas_height / 2 - y * self.scale_factor)
+
+
+class TestParametricFunctionDiscontinuities(unittest.TestCase):
+    """Paths break at poles and jumps but not at steep continuous crossings."""
+
+    def _paths(self, x_expression: str, y_expression: str, t_min: float, t_max: float, scale: float) -> list:
+        func = ParametricFunction(x_expression, y_expression, name="f", t_min=t_min, t_max=t_max)
+        return ParametricFunctionRenderable(func, _LinearMapper(scale)).build_screen_paths().paths
+
+    def _segments_crossing(self, paths: list, x_screen: float) -> list:
+        return [(a, b) for path in paths for a, b in zip(path, path[1:]) if a[0] < x_screen < b[0]]
+
+    def test_tan_pole_off_screen_on_both_sides_breaks_the_path(self) -> None:
+        for scale in (40, 10, 5, 2):
+            paths = self._paths("t", "tan(t)", -3, 3, scale)
+            self.assertEqual(len(paths), 3, f"scale {scale}")
+            for pole in (-math.pi / 2, math.pi / 2):
+                self.assertEqual(self._segments_crossing(paths, 400 + pole * scale), [], f"scale {scale}")
+
+    def test_horizontal_pole_breaks_the_path(self) -> None:
+        paths = self._paths("tan(t)", "t", -3, 3, 2)
+        self.assertEqual(len(paths), 3)
+
+    def test_steep_continuous_crossing_is_kept(self) -> None:
+        # y = 1e4 * t^3 goes from far below to far above the screen in one step
+        paths = self._paths("t", "10000*t^3", -1, 1, 40)
+        self.assertEqual(len(paths), 1)
+
+    def test_jump_breaks_the_path(self) -> None:
+        paths = self._paths("t", "1000*floor(t)", -1.5, 1.5, 40)
+        self.assertEqual(len(paths), 4)  # jumps at -1, 0 and 1
 
 
 class TestExpressionValidatorParametric(unittest.TestCase):

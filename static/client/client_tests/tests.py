@@ -106,6 +106,7 @@ from .test_function_analysis import (
 from .test_parametric_function import (
     TestParametricFunction,
     TestParametricFunctionRenderable,
+    TestParametricFunctionDiscontinuities,
     TestExpressionValidatorParametric,
 )
 from .test_parametric_function_manager import TestParametricFunctionManager
@@ -615,6 +616,7 @@ class Tests:
             TestLimitsCannotHang,
             TestParametricFunction,
             TestParametricFunctionRenderable,
+            TestParametricFunctionDiscontinuities,
             TestExpressionValidatorParametric,
             TestParametricFunctionManager,
             TestTangentToFunction,
