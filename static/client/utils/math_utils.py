@@ -1596,7 +1596,7 @@ class MathUtils:
         expr = window.nerdamer(expression)
 
         def eval_fn(x: float) -> float:
-            return float(expr.sub(variable, x).evaluate().text())
+            return MathUtils._nerdamer_number(expr.sub(variable, x))
 
         result = integrate_numeric(
             eval_fn=eval_fn,
@@ -2533,12 +2533,28 @@ class MathUtils:
             raise ValueError(f"summation supports at most {MathUtils.MAX_SERIES_TERMS} terms")
         total = 0.0
         for i in range(start, end + 1):
-            value = float(window.nerdamer(expression).sub(variable, i).evaluate().text())
+            value = MathUtils._nerdamer_number(window.nerdamer(expression).sub(variable, i))
             total += value
         # Return integer if it's a whole number
         if total == int(total):
             return str(int(total))
         return str(total)
+
+    @staticmethod
+    def _nerdamer_number(parsed: Any) -> float:
+        """Evaluate a substituted nerdamer expression to a float without corrupting nerdamer.
+
+        nerdamer's evaluate() switches its global PARSE2NUMBER setting on and only switches it
+        back when evaluation succeeds; after an error such as log(0) every later solve,
+        integral or simplify would print decimals instead of exact results. The setting is
+        restored here whatever happens.
+        """
+        settings = window.nerdamer.getCore().Settings
+        saved = settings.PARSE2NUMBER
+        try:
+            return float(parsed.evaluate().text())
+        finally:
+            settings.PARSE2NUMBER = saved
 
     @staticmethod
     def product(expression: str, variable: str, start: int, end: int) -> str:
@@ -2567,7 +2583,7 @@ class MathUtils:
             raise ValueError(f"product supports at most {MathUtils.MAX_SERIES_TERMS} terms")
         total = 1.0
         for i in range(start, end + 1):
-            value = float(window.nerdamer(expression).sub(variable, i).evaluate().text())
+            value = MathUtils._nerdamer_number(window.nerdamer(expression).sub(variable, i))
             total *= value
         # Return integer if it's a whole number
         if total == int(total):
