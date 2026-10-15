@@ -144,6 +144,40 @@ class TestParametricFunction(unittest.TestCase):
             self.func.update_t_max(self.func.t_min)
         self.assertEqual(self.func.t_max, 2 * math.pi)
 
+    def _fail_on_second_parse(self) -> None:
+        """Make the second parse_parametric_expression call fail, until the test ends."""
+        original = ExpressionValidator.parse_parametric_expression
+        calls = []
+
+        def parse(expression: str) -> object:
+            calls.append(expression)
+            if len(calls) == 2:
+                raise ValueError("cannot parse")
+            return original(expression)
+
+        ExpressionValidator.parse_parametric_expression = staticmethod(parse)
+        self.addCleanup(setattr, ExpressionValidator, "parse_parametric_expression", staticmethod(original))
+
+    def test_translate_shifts_both_expressions(self) -> None:
+        self.func.translate(2, -1)
+        x, y = self.func.evaluate(0)
+        self.assertAlmostEqual(x, 3.0)
+        self.assertAlmostEqual(y, -1.0)
+
+    def test_failed_translate_raises_and_leaves_the_curve_unchanged(self) -> None:
+        self._fail_on_second_parse()
+        with self.assertRaises(ValueError):
+            self.func.translate(2, -1)
+        self.assertEqual((self.func.x_expression, self.func.y_expression), (self.x_expr, self.y_expr))
+        self.assertAlmostEqual(self.func.evaluate(0)[0], 1.0)
+
+    def test_failed_rotate_raises_and_leaves_the_curve_unchanged(self) -> None:
+        self._fail_on_second_parse()
+        with self.assertRaises(ValueError):
+            self.func.rotate(math.pi / 2)
+        self.assertEqual((self.func.x_expression, self.func.y_expression), (self.x_expr, self.y_expr))
+        self.assertAlmostEqual(self.func.evaluate(0)[0], 1.0)
+
 
 class TestParametricFunctionRenderable(unittest.TestCase):
     """Test suite for ParametricFunctionRenderable class."""
