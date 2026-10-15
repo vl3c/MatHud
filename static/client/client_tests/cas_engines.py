@@ -27,6 +27,11 @@ class WithoutSympy:
         SympyClient._unavailable = self._saved
 
 
+def sympy_available() -> bool:
+    """True when the server's SymPy engine answers (tests of its exact output skip otherwise)."""
+    return SympyClient.compute("simplify", expression="x") is not None
+
+
 def value_of(result: Any) -> float:
     """A numeric CAS result ("1/3", "pi/2", "0.5 (numeric estimate; ...)") as a float."""
     text = str(result).split(" (")[0]

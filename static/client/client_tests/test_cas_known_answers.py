@@ -90,6 +90,19 @@ class TestCasKnownAnswers(unittest.TestCase):
             number = result.split("about ")[1].split(" ")[0] if "about " in result else result.split(" ")[0]
             self.assertAlmostEqual(float(number), expected, places=9, msg=result)
 
+    def test_piecewise_antiderivatives(self) -> None:
+        for expression in ("abs(x)", "sign(x)"):
+            result = MathUtils.integral(expression, "x")
+            self.assertFalse(result.startswith("Error"), f"{expression}: {result}")
+
+    def test_divergent_integral_has_no_complex_value(self) -> None:
+        result = MathUtils.integral("1/x", "x", "-Infinity", -1)
+        self.assertNotIn("pi", result)
+        self.assertNotIn("i*", result)
+
+    def test_unevaluated_derivative_is_not_returned(self) -> None:
+        self.assertNotIn("Derivative", MathUtils.derivative("floor(x)", "x"))
+
     def test_definite_integral_needs_both_bounds(self) -> None:
         result = MathUtils.integral("x", "x", 0, None)
         self.assertTrue(result.startswith("Error"), result)
@@ -152,6 +165,15 @@ class TestCasKnownAnswers(unittest.TestCase):
         for equation, root in (("(x-1)^5=0", 1.0), ("(x-3)^8=0", 3.0), ("(x-2)^6=0", 2.0)):
             result = MathUtils.solve(equation, "x")
             self.assertEqual([complex(round(z.real, 9), round(z.imag, 9)) for z in roots_of(result)], [root], result)
+
+    def test_repeated_roots_with_decimal_coefficients(self) -> None:
+        for equation, root in (("(x-0.3)^3=0", 0.3), ("(x-0.1)^5=0", 0.1)):
+            result = MathUtils.solve(equation, "x")
+            self.assertEqual([complex(round(z.real, 9), round(z.imag, 9)) for z in roots_of(result)], [root], result)
+
+    def test_complex_roots_of_a_rational_equation(self) -> None:
+        result = MathUtils.solve("1/x=-x", "x")
+        self.assertEqual(sorted((z.real, z.imag) for z in roots_of(result)), [(0.0, -1.0), (0.0, 1.0)], result)
 
     def test_cubic_roots_are_all_found(self) -> None:
         roots = real_roots(MathUtils.solve("x^3-3*x+1=0", "x"))
@@ -249,3 +271,13 @@ class TestCasSympyAnswers(unittest.TestCase):
     def test_general_solution_of_a_periodic_equation(self) -> None:
         result = MathUtils.solve("tan(x)=1", "x")
         self.assertIn("all solutions: x = pi*n+pi/4, for any integer n", result)
+
+    def test_dense_periodic_roots_shrink_the_window(self) -> None:
+        result = MathUtils.solve("tan(60*x)=0", "x")
+        self.assertIn("(the roots in [-29*pi/60, 29*pi/60]; all solutions: x = pi*n/60", result)
+        self.assertEqual(len(roots_of(result)), 59)
+
+    def test_solutions_not_affine_in_n_have_no_general_form(self) -> None:
+        result = MathUtils.solve("sin(x^2)=0", "x")
+        self.assertIn("there are infinitely many", result)
+        self.assertNotIn("any integer n", result)

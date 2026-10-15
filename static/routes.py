@@ -1486,9 +1486,10 @@ def register_routes(app: MatHudFlask) -> None:
 
         Returns:
             data {"result": ...} (null when SymPy has no answer), {"error": message} for an
-            expression it refuses, {"timeout": true}, or 503 when SymPy is not available,
-            in which case the client uses nerdamer.
+            expression it refuses, {"timeout": true}, 503 when SymPy is not installed (the
+            client then stops asking and uses nerdamer) or 502 when its worker did not answer.
         """
+        from static.sympy_cas import MAX_EXPRESSION_LENGTH
         from static.sympy_engine import get_engine
 
         payload = request.get_json(silent=True)
@@ -1497,9 +1498,14 @@ def register_routes(app: MatHudFlask) -> None:
         args = payload.get("args")
         if not isinstance(args, dict) or not all(isinstance(value, (str, type(None))) for value in args.values()):
             return AppManager.make_response(message="args must map names to strings", status="error", code=400)
+        if any(value is not None and len(value) > MAX_EXPRESSION_LENGTH for value in args.values()):
+            return AppManager.make_response(message="The expression is too long", status="error", code=400)
         response = get_engine().compute(payload["operation"], cast(Dict[str, Optional[str]], args))
+        if response.get("installed") is False:
+            return AppManager.make_response(message="SymPy is not installed", status="error", code=503)
         if response.get("unavailable"):
-            return AppManager.make_response(message="SymPy is not available", status="error", code=503)
+            # A worker that crashed or did not start: this request falls back, later ones retry
+            return AppManager.make_response(message="The SymPy worker did not answer", status="error", code=502)
         return AppManager.make_response(data=cast(JsonValue, response))
 
     @app.route("/api/tts", methods=["POST"])

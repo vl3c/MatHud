@@ -12,7 +12,7 @@ from browser import window
 
 from utils.math_utils import MathUtils
 
-from .cas_engines import AnyEngine, WithoutSympy, value_of
+from .cas_engines import AnyEngine, WithoutSympy, sympy_available, value_of
 
 
 def _parse_point_pairs(result: str) -> List[Tuple[float, float]]:
@@ -222,18 +222,21 @@ class TestMathUtilsSolving(unittest.TestCase):
             self.assertAlmostEqual(roots[1] / coefficient, 1.0, places=6)
 
     def test_solve_keeps_valid_complex_roots(self) -> None:
-        self.assertEqual(MathUtils.solve("x^2+1=0", "x"), "[-i,i]")
+        if sympy_available():
+            self.assertEqual(MathUtils.solve("x^2+1=0", "x"), "[-i,i]")
         with WithoutSympy():
             self.assertEqual(MathUtils.solve("x^2+1=0", "x"), "[i,-i]")
 
     def test_solve_keeps_regular_output(self) -> None:
-        self.assertEqual(MathUtils.solve("x^2 - 4", "x"), "[-2,2]")
-        self.assertEqual(MathUtils.solve("x^2-2=0", "x"), "[-sqrt(2),sqrt(2)]")
+        if sympy_available():
+            self.assertEqual(MathUtils.solve("x^2 - 4", "x"), "[-2,2]")
+            self.assertEqual(MathUtils.solve("x^2-2=0", "x"), "[-sqrt(2),sqrt(2)]")
         with WithoutSympy():
             self.assertEqual(MathUtils.solve("x^2 - 4", "x"), "[2,-2]")
             self.assertEqual(MathUtils.solve("x^2-2=0", "x"), "[sqrt(2),-sqrt(2)]")
 
     def test_solve_keeps_symbolic_roots_it_cannot_check(self) -> None:
-        self.assertEqual(MathUtils.solve("x + y = 3", "x"), "[3-y]")
+        if sympy_available():
+            self.assertEqual(MathUtils.solve("x + y = 3", "x"), "[3-y]")
         with WithoutSympy():
             self.assertEqual(MathUtils.solve("x + y = 3", "x"), "[-(-3+y)]")

@@ -156,6 +156,8 @@ def _evaluate_polynomial(coefficients: Sequence[complex], z: complex) -> Tuple[c
 # arithmetic first, so each factor has only simple roots (repeated roots are what the
 # iteration finds least accurately). Above it the work grows too fast for the browser.
 MAX_EXACT_SPLIT_DEGREE = 12
+# Coefficients are read as the nearest fraction with at most this denominator.
+_EXACT_DENOMINATOR = 10**12
 
 
 def polynomial_roots(coefficients_low_to_high: Sequence[float]) -> List[complex]:
@@ -175,12 +177,17 @@ def polynomial_roots(coefficients_low_to_high: Sequence[float]) -> List[complex]
         coefficients.pop(0)
         zero_roots += 1
     roots: List[complex] = []
+    high_to_low = [complex(c / coefficients[-1]) for c in reversed(coefficients)]
     if len(coefficients) - 1 <= MAX_EXACT_SPLIT_DEGREE:
-        for factor, multiplicity in square_free_factors([Fraction(c) for c in coefficients]):
+        # Decimal coefficients (0.3) are not exact in binary: read them as the fractions they
+        # stand for, or (x-0.3)^3 looks square-free and its triple root scatters
+        exact = [Fraction(c).limit_denominator(_EXACT_DENOMINATOR) for c in coefficients]
+        for factor, multiplicity in square_free_factors(exact):
             roots.extend(root for root in _simple_roots(factor) for _ in range(multiplicity))
     elif len(coefficients) > 1:
-        high_to_low = [complex(c / coefficients[-1]) for c in reversed(coefficients)]
-        roots = _merge_multiple_roots(high_to_low, _aberth(high_to_low))
+        roots = _aberth(high_to_low)
+    if len(coefficients) > 1:
+        roots = _merge_multiple_roots(high_to_low, roots)
     return [_realify(root) for root in roots] + [0j] * zero_roots
 
 

@@ -1327,7 +1327,11 @@ class MathUtils:
         # nerdamer has no (correct) answer: ask the server's SymPy engine
         answer = MathUtils._sympy_answer("derive", expression=expression, variable=variable)
         derivative = answer["result"] if answer is not None else None
-        if derivative is not None and SymbolicChecks.derivative_matches(expression, derivative, variable) is not False:
+        if (
+            derivative is not None
+            and not is_unevaluated(derivative)
+            and SymbolicChecks.derivative_matches(expression, derivative, variable) is not False
+        ):
             return str(derivative)
         if nerdamer_error is not None:
             return nerdamer_error
@@ -1506,10 +1510,9 @@ class MathUtils:
         return str(outcome.text)
 
     @staticmethod
-    def _took_too_long_message(what: str, seconds: Optional[float] = None) -> str:
-        """Error text for a computation that was stopped (by default nerdamer's, after its guard's limit)."""
-        if seconds is None:
-            seconds = MathUtils.NERDAMER_TOOL_MAX_MS / 1000
+    def _took_too_long_message(what: str) -> str:
+        """Error text for a nerdamer computation the guard stopped."""
+        seconds = MathUtils.NERDAMER_TOOL_MAX_MS / 1000
         return (
             f"Error: Computing {what} took too long and was stopped after about {seconds:g} s; "
             "the expression is probably too large for the symbolic engine."
@@ -1542,7 +1545,6 @@ class MathUtils:
         """
         from utils.cas_text import is_unevaluated
         from utils.symbolic_checks import SymbolicChecks
-        from utils.sympy_client import SympyClient
 
         if (lower_bound is None) != (upper_bound is None):
             return (
@@ -1560,17 +1562,15 @@ class MathUtils:
             {} if lower_bound is None else {"lower": str(lower_bound), "upper": str(upper_bound)}
         )
         answer = MathUtils._sympy_answer("integrate", expression=expression, variable=variable, **bounds)
-        if answer is not None and lower_bound is not None:
+        if answer is not None and answer["result"] is not None and lower_bound is not None:
             return MathUtils._definite_integral(
                 expression, variable, lower_bound, upper_bound, None, exact_text=answer["result"]
             )
-        if answer is not None:
+        if answer is not None and answer["result"] is not None:
             antiderivative = answer["result"]
-            if antiderivative is None and answer.get("timeout"):
-                return MathUtils._took_too_long_message(f"the integral of {expression}", SympyClient.TIME_LIMIT_S)
-            if antiderivative is None:
-                return MathUtils._no_antiderivative_message(expression)
         else:
+            # No SymPy, or no answer from it (a piecewise antiderivative such as abs(x)'s, or a
+            # timeout): nerdamer may still have one
             try:
                 antiderivative = MathUtils._guarded_nerdamer_text(
                     f"integrate({MathUtils._symbolic_input(expression)}, {variable})", MathUtils.NERDAMER_TOOL_MAX_MS
@@ -2087,7 +2087,6 @@ class MathUtils:
             only those in [-2*pi, 2*pi] are listed, with a note saying so.
         """
         from utils.cas_text import has_inequality
-        from utils.sympy_client import SympyClient
 
         if not isinstance(equation, str):
             return "Error: The equation must be given as text."
@@ -2101,13 +2100,10 @@ class MathUtils:
         if len(sides) > 2:
             return "Error: An equation has at most one '='."
         answer = MathUtils._sympy_answer("solve", equation=equation, variable=variable)
-        if answer is not None and answer.get("timeout"):
-            return MathUtils._took_too_long_message(
-                f"the solutions of {equation} for {variable}", SympyClient.TIME_LIMIT_S
-            )
         if answer is not None and answer["result"] is not None:
             return MathUtils._sympy_roots(answer["result"], sides, variable)
-        # SymPy found no closed form (cos(x) = x): nerdamer may still find numeric roots
+        # SymPy found no closed form (cos(x) = x) or ran out of time: nerdamer may still find
+        # numeric roots
         try:
             equation = MathUtils._symbolic_input(equation)
         except Exception as e:
@@ -2132,11 +2128,14 @@ class MathUtils:
         if solution.get("identity"):
             return f"Every value of {variable} satisfies the equation (it is an identity)."
         roots = MathUtils._checked_roots("[" + ",".join(solution.get("roots") or []) + "]", sides, variable)
-        general = solution.get("general")
-        if not general:
+        window = solution.get("window")
+        if not window:
             return roots
         listed = roots.split(" (only the roots")[0]
-        return f"{listed} (the roots in [-2*pi, 2*pi]; all solutions: {', '.join(general)}, for any integer n)"
+        general = solution.get("general")
+        if not general:
+            return f"{listed} (the roots in [-{window}, {window}]; there are infinitely many)"
+        return f"{listed} (the roots in [-{window}, {window}]; all solutions: {', '.join(general)}, for any integer n)"
 
     @staticmethod
     def _equation_difference(sides: Sequence[str]) -> str:
@@ -2196,8 +2195,19 @@ class MathUtils:
 
     @staticmethod
     def _is_decimal_root(text: str) -> bool:
-        """True for a numeric root nerdamer printed in decimals, e.g. 2.7182818284589910 or 0.18+1.08*i."""
-        return "." in text and all(char in "0123456789.+-*i " for char in text)
+        """True for a numeric root nerdamer printed in decimals, e.g. 2.7182818284589910, 0.18+1.08*i
+        or 0.1+4.47e-9*i."""
+        if "." not in text:
+            return False
+        for index, char in enumerate(text):
+            if char in "0123456789.+-*i ":
+                continue
+            # an exponent (4.47e-9), not the constant e: a digit before it and one after its sign
+            after = text[index + 1 : index + 2] if text[index + 1 : index + 2] not in ("+", "-") else ""
+            after = after or text[index + 2 : index + 3]
+            if char not in "eE" or not text[index - 1 : index].isdigit() or not after.isdigit():
+                return False
+        return True
 
     @staticmethod
     def _is_real_root_written_with_i(text: str, value: complex) -> bool:
@@ -2468,6 +2478,15 @@ class MathUtils:
             return f"Error: {e}"
 
     @staticmethod
+    def _all_hold(compiled_differences: Sequence[Any], solution: Dict[str, float]) -> bool:
+        """True when every compiled lhs - rhs is 0 (to rounding) at solution."""
+        scale = max([1.0] + [abs(value) for value in solution.values()])
+        try:
+            return all(abs(float(compiled.evaluate(solution))) <= 1e-9 * scale for compiled in compiled_differences)
+        except Exception:
+            return False
+
+    @staticmethod
     def _degenerate_linear_system(equations: Sequence[str]) -> Optional[str]:
         """The answer for a linear system nerdamer finds no distinct solution for.
 
@@ -2483,9 +2502,11 @@ class MathUtils:
         differences = [MathUtils._equation_difference(equation.split("=")) for equation in equations]
         variables = sorted({name for difference in differences for name in SymbolicChecks.free_variables(difference)})
         rows: List[List[float]] = []
+        compiled_differences = []
         try:
             for difference in differences:
                 compiled = window.math.compile(difference)
+                compiled_differences.append(compiled)
                 origin = {name: 0 for name in variables}
                 constant = float(compiled.evaluate(origin))
                 row = [float(compiled.evaluate({**origin, name: 1})) - constant for name in variables]
@@ -2496,10 +2517,16 @@ class MathUtils:
         if rank < matrix_rank(rows):
             return "No solution: the equations are inconsistent (they contradict each other)."
         unknowns = len(variables)
+        if unknowns == 0:
+            return None
         if rank == unknowns:
-            # More equations than unknowns, but consistent: the unique solution
+            # More equations than unknowns, but consistent: the unique solution, if every
+            # equation holds there (the coefficients assume the equations are linear)
             reduced, _ = rref(rows)
-            return ", ".join(f"{name} = {format_number(reduced[k][-1])}" for k, name in enumerate(variables))
+            solution = {name: reduced[k][-1] for k, name in enumerate(variables)}
+            if not MathUtils._all_hold(compiled_differences, solution):
+                return None
+            return ", ".join(f"{name} = {format_number(value)}" for name, value in solution.items())
         return (
             f"Infinitely many solutions: the equations are dependent ({rank} independent "
             f"equation{'s' if rank != 1 else ''} for {unknowns} unknowns)."
@@ -2776,7 +2803,15 @@ class MathUtils:
     def round(value: Number, ndigits: int = 0) -> float:
         """Round half away from zero, as math.js does (Python's round() rounds half to even:
         round(2.5) is 2), so an expression rounds alike whichever evaluator runs it."""
-        return float(window.math.round(value, ndigits))
+        if isinstance(value, int) and ndigits >= 0:
+            return value  # already exact (a float would lose digits of a large integer)
+        if 0 <= ndigits <= 15:
+            return float(window.math.round(value, ndigits))  # math.js corrects 1.005 -> 1.01
+        if ndigits < 0:
+            step = 10.0**-ndigits  # round to tens, hundreds, ...
+            return math.copysign(math.floor(abs(value) / step + 0.5) * step, value)
+        scale = 10.0**ndigits
+        return math.copysign(math.floor(abs(value) * scale + 0.5) / scale, value)
 
     @staticmethod
     def gcd(*values: Number) -> int:

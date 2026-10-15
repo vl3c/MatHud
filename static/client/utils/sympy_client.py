@@ -15,8 +15,6 @@ class SympyClient:
     """Every method is static; _unavailable remembers a server without SymPy."""
 
     _unavailable = False
-    # Seconds the server lets a computation run (DEFAULT_TIME_LIMIT_S in static/sympy_engine.py)
-    TIME_LIMIT_S = 6.0
 
     @staticmethod
     def compute(operation: str, **args: Optional[str]) -> Optional[Dict[str, Any]]:

@@ -8,6 +8,7 @@ longer than its time limit. Requests are served one at a time.
 
 from __future__ import annotations
 
+import atexit
 import json
 import logging
 import os
@@ -15,7 +16,7 @@ import queue
 import subprocess
 import sys
 import threading
-from typing import IO, Any, Dict, Optional
+from typing import IO, Any, Dict, List, Optional
 
 _logger = logging.getLogger(__name__)
 
@@ -26,7 +27,16 @@ DEFAULT_TIME_LIMIT_S = 6.0
 STARTUP_TIME_LIMIT_S = 30.0
 
 
+_installed: List[bool] = []
+
+
 def sympy_installed() -> bool:
+    if not _installed:
+        _installed.append(_find_sympy())
+    return _installed[0]
+
+
+def _find_sympy() -> bool:
     try:
         import importlib.util
 
@@ -45,7 +55,13 @@ class SympyEngine:
         self._lines: "queue.Queue[Optional[str]]" = queue.Queue()
 
     def compute(self, operation: str, args: Dict[str, Optional[str]]) -> Dict[str, Any]:
-        """The worker's response: {"result": ...}, {"error": message} or {"timeout": True}."""
+        """The worker's response: {"result": ...}, {"error": message} or {"timeout": True}.
+
+        {"unavailable": True} when the worker could not answer, with "installed": False when
+        SymPy is not installed at all.
+        """
+        if not sympy_installed():
+            return {"unavailable": True, "installed": False}
         with self._lock:
             if not self._ensure_started():
                 return {"unavailable": True}
@@ -76,8 +92,6 @@ class SympyEngine:
         if self._process is not None and self._process.poll() is None:
             return True
         self._stop()
-        if not sympy_installed():
-            return False
         self._lines = queue.Queue()
         try:
             self._process = subprocess.Popen(
@@ -123,12 +137,13 @@ class SympyEngine:
             process.wait(timeout=5)
         except (OSError, subprocess.TimeoutExpired):
             pass
-        for stream in (process.stdin, process.stdout):
-            try:
-                if stream is not None:
-                    stream.close()
-            except OSError:
-                pass
+        # stdout is left to the reader thread, which ends at its end of file: closing it
+        # while the thread reads could block
+        try:
+            if process.stdin is not None:
+                process.stdin.close()
+        except OSError:
+            pass
 
 
 _engine: Optional[SympyEngine] = None
@@ -141,4 +156,5 @@ def get_engine() -> SympyEngine:
     with _engine_lock:
         if _engine is None:
             _engine = SympyEngine()
+            atexit.register(_engine.close)  # do not leave a worker computing after the app exits
         return _engine

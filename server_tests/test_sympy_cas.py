@@ -61,6 +61,9 @@ class TestParser(unittest.TestCase):
 
     def test_huge_powers_stay_unevaluated(self) -> None:
         self.assertIsInstance(parse_expression("10^(10^10)"), sympy.Pow)
+        self.assertIsInstance(parse_expression("pow(10, 10^10)"), sympy.Pow)
+        with self.assertRaises(ExpressionError):
+            parse_expression("1e300")
 
     def test_printing(self) -> None:
         x = sympy.Symbol("x")
@@ -70,6 +73,7 @@ class TestParser(unittest.TestCase):
         self.assertEqual(to_text(-sympy.oo), "-Infinity")
         self.assertEqual(to_text(x ** sympy.Rational(3, 2)), "x^(3/2)")
         self.assertEqual(to_text((x + 1) ** -2), "(x+1)^(-2)")
+        self.assertEqual(to_text(sympy.Min(x, 1)), "min(1,x)")
 
 
 class TestOperations(unittest.TestCase):
@@ -84,6 +88,8 @@ class TestOperations(unittest.TestCase):
         self.assertIsNone(compute_limit("abs(x)/x", "x", "0"))
         self.assertIsNone(compute_limit("sin(1/x)", "x", "0"))
         self.assertIsNone(compute_limit("sin(x)", "x", "Infinity"))
+        # Not real: (-8)^(1/3) is SymPy's principal (complex) root
+        self.assertIsNone(compute_limit("(-8)^(1/3)+x", "x", "0"))
 
     def test_integrals(self) -> None:
         self.assertEqual(compute_integral("1/(x^2+2*x+5)", "x"), "atan(x/2+1/2)/2")
@@ -91,6 +97,7 @@ class TestOperations(unittest.TestCase):
         self.assertEqual(compute_integral("sqrt(1-x^2)", "x", "-1", "1"), "pi/2")
         self.assertEqual(compute_integral("e^(-x^2)", "x", "-Infinity", "Infinity"), "sqrt(pi)")
         self.assertEqual(compute_integral("1/(x^2-1)", "x", "2", "3"), "-log(2)/2+log(3)/2")
+        self.assertIsNone(compute_integral("1/x", "x", "-Infinity", "-1"))  # SymPy: -Infinity + i*pi
 
     def test_simplify(self) -> None:
         self.assertEqual(compute_simplify("sin(x)^2+cos(x)^2"), "1")
@@ -101,6 +108,7 @@ class TestOperations(unittest.TestCase):
     def test_derivatives(self) -> None:
         self.assertEqual(compute_derivative("atan2(y,x)", "x"), "-y/(x^2+y^2)")
         self.assertEqual(compute_derivative("x^3", "x"), "3*x^2")
+        self.assertIsNone(compute_derivative("floor(x)", "x"))  # SymPy leaves it unevaluated
 
     def test_solve(self) -> None:
         self.assertEqual(compute_solve("x^2=4", "x"), {"roots": ["-2", "2"]})
@@ -111,6 +119,8 @@ class TestOperations(unittest.TestCase):
         self.assertEqual(compute_solve("x=x+1", "x"), {"roots": []})
         self.assertEqual(compute_solve("1/x=0", "x"), {"roots": []})
         self.assertIsNone(compute_solve("cos(x)=x", "x"))
+        # A rational equation is solved over the complex numbers, like a polynomial
+        self.assertEqual(compute_solve("1/x=-x", "x"), {"roots": ["-i", "i"]})
 
     def test_cubic_roots_without_cardano_forms(self) -> None:
         solution = compute_solve("x^3+x+1=0", "x")
@@ -123,11 +133,27 @@ class TestOperations(unittest.TestCase):
         assert solution is not None
         self.assertEqual(solution["roots"], ["-2*pi", "-pi", "0", "pi", "2*pi"])
         self.assertEqual(solution["general"], ["x = 2*pi*n", "x = 2*pi*n+pi"])
+        self.assertEqual(solution["window"], "2*pi")
         tangent = compute_solve("tan(x)=1", "x")
         assert tangent is not None
         self.assertEqual(len(tangent["roots"]), 4)
         for root in tangent["roots"]:
             self.assertLessEqual(abs(float(sympy.sympify(root.replace("^", "**")))), 2 * math.pi)
+
+    def test_dense_periodic_solutions_shrink_the_window(self) -> None:
+        solution = compute_solve("tan(60*x)=0", "x")
+        assert solution is not None
+        self.assertEqual(len(solution["roots"]), 59)
+        self.assertEqual(solution["window"], "29*pi/60")
+        self.assertEqual(solution["general"], ["x = pi*n/60"])
+
+    def test_periodic_solutions_without_affine_forms(self) -> None:
+        solution = compute_solve("sin(x^2)=0", "x")
+        assert solution is not None
+        self.assertNotIn("general", solution)  # sqrt(n) is not real for n < 0
+        self.assertEqual(solution["window"], "2*pi")
+        # Roots that pile up at 0 cannot all be listed
+        self.assertIsNone(compute_solve("sin(1/x)=0", "x"))
 
     def test_handle(self) -> None:
         self.assertEqual(handle({"operation": "simplify", "args": {"expression": "2x+3x"}}), {"result": "5*x"})
@@ -148,6 +174,11 @@ class TestEngine(unittest.TestCase):
             self.assertEqual(engine.compute("simplify", {"expression": "10^10^10"}), {"timeout": True})
             # A new worker serves the next request
             self.assertEqual(engine.compute("simplify", {"expression": "x+x"}), {"result": "2*x"})
+            # and one after a crash
+            assert engine._process is not None
+            engine._process.kill()
+            engine._process.wait()
+            self.assertEqual(engine.compute("simplify", {"expression": "x+x"}), {"result": "2*x"})
         finally:
             engine.close()
 
@@ -160,6 +191,11 @@ class TestRoute(unittest.TestCase):
         self.app.config["TESTING"] = True
         self.client = self.app.test_client()
 
+    def tearDown(self) -> None:
+        from static.sympy_engine import get_engine
+
+        get_engine().close()
+
     def test_cas_route(self) -> None:
         response = self.client.post(
             "/api/cas", json={"operation": "integrate", "args": {"expression": "2*x", "variable": "x"}}
@@ -171,6 +207,19 @@ class TestRoute(unittest.TestCase):
         self.assertEqual(self.client.post("/api/cas", json=[1]).status_code, 400)
         response = self.client.post("/api/cas", json={"operation": "simplify", "args": {"expression": 3}})
         self.assertEqual(response.status_code, 400)
+        response = self.client.post("/api/cas", json={"operation": "simplify", "args": {"expression": "x" * 5000}})
+        self.assertEqual(response.status_code, 400)
+
+    def test_cas_route_unavailable_answers(self) -> None:
+        from unittest import mock
+
+        body = {"operation": "simplify", "args": {"expression": "x"}}
+        with mock.patch(
+            "static.sympy_engine.SympyEngine.compute", return_value={"unavailable": True, "installed": False}
+        ):
+            self.assertEqual(self.client.post("/api/cas", json=body).status_code, 503)
+        with mock.patch("static.sympy_engine.SympyEngine.compute", return_value={"unavailable": True}):
+            self.assertEqual(self.client.post("/api/cas", json=body).status_code, 502)
 
 
 if __name__ == "__main__":

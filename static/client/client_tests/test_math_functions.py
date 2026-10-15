@@ -4,7 +4,7 @@ from typing import Dict, List, Tuple
 from utils.math_utils import MathUtils
 from drawables_aggregator import Position
 from .simple_mock import SimpleMock
-from .cas_engines import AnyEngine, WithoutSympy, real_roots, value_of
+from .cas_engines import AnyEngine, WithoutSympy, real_roots, sympy_available, value_of
 import math  # Add import at the top of the method
 from rendering.renderables import FunctionRenderable
 
@@ -855,6 +855,9 @@ class TestMathFunctions(unittest.TestCase):
         # Half away from zero, like math.js, not Python's half to even
         self.assertEqual(MathUtils.round(2.5), 3.0)
         self.assertEqual(MathUtils.round(-2.5), -3.0)
+        self.assertEqual(MathUtils.round(1234.5, -2), 1200.0)
+        self.assertEqual(MathUtils.round(-1250, -2), -1300.0)
+        self.assertEqual(MathUtils.round(10**20 + 1), 10**20 + 1)
         self.assertEqual(MathUtils.evaluate("round(2.5)"), MathUtils.evaluate("round(2.5) + 0*is_prime(7)"))
 
     def test_python_only_functions_get_every_variable(self) -> None:
@@ -1048,12 +1051,14 @@ class TestMathFunctions(unittest.TestCase):
     def test_integral_indefinite(self) -> None:
         result = MathUtils.integral("x^2", "x")
         result = MathUtils.simplify(result)  # simplify the result
-        self.assertEqual(result, "x^3/3")
+        if sympy_available():
+            self.assertEqual(result, "x^3/3")
         with WithoutSympy():
             self.assertEqual(MathUtils.simplify(MathUtils.integral("x^2", "x")), "0.3333333333333333*x^3")
 
     def test_integral(self) -> None:
-        self.assertEqual(MathUtils.integral("x^2", "x", 0, 1), "1/3")
+        if sympy_available():
+            self.assertEqual(MathUtils.integral("x^2", "x", 0, 1), "1/3")
         with WithoutSympy():
             self.assertAlmostEqual(value_of(MathUtils.integral("x^2", "x", 0, 1)), 1 / 3, places=9)
 
@@ -1071,7 +1076,8 @@ class TestMathFunctions(unittest.TestCase):
             MathUtils.numeric_integrate("x", "x", 0, 1, "midpoint", 10001)
 
     def test_simplify(self) -> None:
-        self.assertEqual(MathUtils.simplify("x^2 + 2*x + 1"), "x^2+2*x+1")
+        if sympy_available():
+            self.assertEqual(MathUtils.simplify("x^2 + 2*x + 1"), "x^2+2*x+1")
         with WithoutSympy():
             self.assertEqual(MathUtils.simplify("x^2 + 2*x + 1"), "(1+x)^2")
 
@@ -1305,8 +1311,9 @@ class TestMathFunctions(unittest.TestCase):
 
     def test_delta_names_stay_whole_in_nerdamer(self) -> None:
         # Regression: "Δx" was split into Δ*x, even in the variable argument
-        self.assertEqual(MathUtils.simplify("Δx/Δt"), "Δx/Δt")
-        self.assertEqual(MathUtils.integral("Δx", "Δx"), "Δx^2/2")
+        if sympy_available():
+            self.assertEqual(MathUtils.simplify("Δx/Δt"), "Δx/Δt")
+            self.assertEqual(MathUtils.integral("Δx", "Δx"), "Δx^2/2")
         with WithoutSympy():
             self._assert_delta_names_in_nerdamer()
 

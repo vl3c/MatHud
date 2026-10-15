@@ -196,6 +196,8 @@ class _Builder:
             return sp.Integer(value)
         if not math.isfinite(value):
             raise ExpressionError("Numbers must be finite.")
+        if abs(value) >= 10.0**MAX_INTEGER_DIGITS:
+            raise ExpressionError(f"Numbers have at most {MAX_INTEGER_DIGITS} digits before the point.")
         # A decimal such as 0.5 is read as the exact rational it stands for.
         return sp.nsimplify(sp.Float(repr(value)), rational=True)
 
@@ -224,7 +226,10 @@ class _Builder:
         builder, counts = entry
         if len(node.args) not in counts:
             raise ExpressionError(f"{name}() takes {' or '.join(str(count) for count in counts)} argument(s).")
-        return builder(*(self.build(argument) for argument in node.args))
+        arguments = [self.build(argument) for argument in node.args]
+        if name == "pow":
+            return self._power(*arguments)  # the same guard as ^
+        return builder(*arguments)
 
 
 # ----- printing --------------------------------------------------------------------------
@@ -265,6 +270,12 @@ def _printer_class() -> Any:
         def _print_ceiling(self, expr: Any) -> str:
             return f"ceil({self._print(expr.args[0])})"
 
+        def _print_Min(self, expr: Any) -> str:
+            return f"min({','.join(self._print(arg) for arg in expr.args)})"
+
+        def _print_Max(self, expr: Any) -> str:
+            return f"max({','.join(self._print(arg) for arg in expr.args)})"
+
         def _print_Float(self, expr: Any) -> str:
             value = float(expr)
             return repr(int(value)) if value.is_integer() and abs(value) < 1e15 else f"{value:.15g}"
@@ -283,10 +294,11 @@ def to_text(expression: Any) -> str:
 
 
 def _is_usable(expression: Any) -> bool:
-    """False for unevaluated integrals and limits, NaN, complex infinity and bounds such as <-1, 1>."""
+    """False for unevaluated integrals, limits and derivatives, NaN, complex infinity and bounds such as <-1, 1>."""
     import sympy as sp
 
-    if expression is None or expression.has(sp.Integral, sp.Limit, sp.nan, sp.zoo, sp.AccumBounds):
+    unevaluated = (sp.Integral, sp.Limit, sp.Derivative, sp.Subs)
+    if expression is None or expression.has(*unevaluated, sp.nan, sp.zoo, sp.AccumBounds):
         return False
     return not expression.has(sp.Piecewise)
 
@@ -349,9 +361,18 @@ def compute_limit(expression: str, variable: str, target: str) -> Optional[str]:
                 return to_text(right)
             return None
         result = right
-    if not _is_usable(result) or result.has(sp.I):
+    if not _is_usable(result) or not _is_real_value(result):
         return None
     return to_text(result)
+
+
+def _is_real_value(value: Any) -> bool:
+    """False for a value that is not real, or may not be: 2*(-1)^(1/3), -Infinity + i*pi."""
+    import sympy as sp
+
+    if value in (sp.oo, -sp.oo):
+        return True
+    return not value.has(sp.I, sp.oo, -sp.oo) and value.is_extended_real is not False
 
 
 def compute_integral(
@@ -367,6 +388,8 @@ def compute_integral(
     else:
         bounds = (x, parse_expression(lower, real=True), parse_expression(upper, real=True))
         result = sp.integrate(expr, bounds, conds="none")
+        if not result.free_symbols and not _is_real_value(result):
+            return None  # 1/x over [-Infinity, -1] gives -Infinity + i*pi
     if not _is_usable(result):
         return None
     if not result.free_symbols:
@@ -401,11 +424,13 @@ def compute_simplify(expression: str) -> Optional[str]:
 
 
 def compute_solve(equation: str, variable: str) -> Optional[Dict[str, Any]]:
-    """{"roots": [...], "general": [...] or absent, "identity": True or absent} for lhs = rhs, or None.
+    """The solution set of lhs = rhs, or None when it is not a list of roots.
 
-    A polynomial equation is solved over the complex numbers, any other over the reals. A
-    periodic solution set is given both as its general forms (with an integer n) and as
-    the roots in [-2*pi, 2*pi].
+    Returns {"roots": [...]} or {"identity": True, "roots": []}. A periodic solution set
+    lists the real roots in [-window, window] (2*pi, or less when there are more than
+    MAX_LISTED_ROOTS), with "window" set to that bound and "general" to its general forms
+    (x = a*n + b for any integer n) when they are affine in n. A polynomial or rational
+    equation is solved over the complex numbers, any other over the reals.
     """
     import sympy as sp
 
@@ -414,13 +439,14 @@ def compute_solve(equation: str, variable: str) -> Optional[Dict[str, Any]]:
         raise ExpressionError("An equation has at most one '='.")
     x = _symbol(variable, real=False)
     difference = parse_expression(sides[0]) - (parse_expression(sides[1]) if len(sides) == 2 else 0)
-    polynomial = difference.is_polynomial(x)
-    if not polynomial:
+    numerator, denominator = sp.fraction(sp.together(difference))
+    rational = numerator.is_polynomial(x) and denominator.is_polynomial(x)
+    if not rational:
         # Over the reals the variable is real, so sqrt(x^2) and the like simplify.
         real_x = _symbol(variable, real=True)
         difference = difference.subs(x, real_x)
         x = real_x
-    domain = sp.S.Complexes if polynomial else sp.S.Reals
+    domain = sp.S.Complexes if rational else sp.S.Reals
     solutions = sp.solveset(difference, x, domain=domain)
     if solutions == domain:
         return {"identity": True, "roots": []}
@@ -431,6 +457,17 @@ def compute_solve(equation: str, variable: str) -> Optional[Dict[str, Any]]:
         if not all(_is_usable(root) for root in listed):
             return None
         return {"roots": [to_text(root) for root in _sorted_roots(listed)]}
+    return _periodic_solution(solutions, variable)
+
+
+# At most this many roots of a periodic equation are listed (the window shrinks to fit).
+MAX_LISTED_ROOTS = 60
+
+
+def _periodic_solution(solutions: Any, variable: str) -> Optional[Dict[str, Any]]:
+    """The roots near 0 of a union of finite sets and integer image sets, or None for other sets."""
+    import sympy as sp
+
     parts = list(solutions.args) if isinstance(solutions, sp.Union) else [solutions]
     general: List[str] = []
     roots: List[Any] = []
@@ -438,46 +475,103 @@ def compute_solve(equation: str, variable: str) -> Optional[Dict[str, Any]]:
         if isinstance(part, sp.FiniteSet):
             roots.extend(part)
         elif isinstance(part, sp.ImageSet) and part.base_sets[0] == sp.S.Integers:
-            general.append(_general_form(part, variable))
-            roots.extend(_roots_in_window(part))
+            form = _general_form(part, variable)
+            if form is not None:
+                general.append(form)
+            try:
+                roots.extend(_roots_in_window(part))
+            except _IncompleteSolution:
+                return None
         else:
             return None  # an interval, a condition set, or something else not a list of roots
     if not all(_is_usable(root) for root in roots):
         return None
-    result: Dict[str, Any] = {"roots": [to_text(root) for root in _sorted_roots(_distinct(roots))]}
-    if general:
+    listed, window = _nearest_roots(_distinct(roots))
+    result: Dict[str, Any] = {"roots": [to_text(root) for root in _sorted_roots(listed)], "window": window}
+    if general and len(general) == sum(isinstance(part, sp.ImageSet) for part in parts):
         result["general"] = general
     return result
 
 
-def _general_form(image: Any, variable: str) -> str:
+def _general_form(image: Any, variable: str) -> Optional[str]:
+    """ "x = a*n+b" for an image set n -> a*n + b, else None (sqrt(n) is not real for every n)."""
     import sympy as sp
 
     n = sp.Symbol("n", integer=True)
-    function = image.lamda
-    return f"{variable} = {to_text(function.expr.subs(function.variables[0], n))}"
+    expression = image.lamda.expr.subs(image.lamda.variables[0], n)
+    if sp.diff(expression, n, 2) != 0 or sp.diff(expression, n).has(n):
+        return None
+    return f"{variable} = {to_text(expression)}"
 
 
 def _roots_in_window(image: Any) -> List[Any]:
-    function = image.lamda
-    roots = []
-    for k in range(-50, 51):
-        value = function.expr.subs(function.variables[0], k)
-        try:
-            number = complex(value.evalf())
-        except (TypeError, ValueError):
-            continue
-        if abs(number.imag) < 1e-12 and abs(number.real) <= SOLUTION_WINDOW * (1 + 1e-12):
-            roots.append(value)
-    return roots
+    """The real values of an integer image set within SOLUTION_WINDOW of 0 (at most a few hundred)."""
+    import sympy as sp
+
+    k = image.lamda.variables[0]
+    expression = image.lamda.expr
+    slope, offset = sp.diff(expression, k), expression.subs(k, 0)
+    try:
+        step, start = float(slope), float(offset)
+        low = math.ceil((-SOLUTION_WINDOW - start) / step) if step else 0
+        high = math.floor((SOLUTION_WINDOW - start) / step) if step else 0
+        candidates = range(min(low, high) - 1, max(low, high) + 2)
+    except (TypeError, ValueError, OverflowError):
+        # Not affine in k: sample it, which finds every root in the window only when the
+        # values leave it at both ends (sqrt(n*pi) does; 1/(n*pi) piles up at 0 and does not)
+        if any(_inside_window(expression.subs(k, end)) for end in (-_SAMPLED_K, _SAMPLED_K)):
+            raise _IncompleteSolution()
+        candidates = range(-_SAMPLED_K, _SAMPLED_K + 1)
+    if len(candidates) > 4 * MAX_LISTED_ROOTS:
+        middle = -start / step if step else 0.0  # the k nearest 0
+        candidates = range(int(middle) - 2 * MAX_LISTED_ROOTS, int(middle) + 2 * MAX_LISTED_ROOTS + 1)
+    return [value for value in (expression.subs(k, index) for index in candidates) if _inside_window(value)]
+
+
+_SAMPLED_K = 50
+
+
+class _IncompleteSolution(Exception):
+    """The roots in the window cannot all be listed."""
+
+
+def _inside_window(value: Any) -> bool:
+    """True for a real value within SOLUTION_WINDOW of 0."""
+    try:
+        number = complex(value.evalf())
+    except (TypeError, ValueError):
+        return False
+    return abs(number.imag) < 1e-12 and abs(number.real) <= SOLUTION_WINDOW * (1 + 1e-12)
+
+
+def _nearest_roots(roots: Sequence[Any]) -> Tuple[List[Any], str]:
+    """The roots in the largest window [-w, w] (w <= 2*pi) holding at most MAX_LISTED_ROOTS, and w's text."""
+    import sympy as sp
+
+    if len(roots) <= MAX_LISTED_ROOTS:
+        return list(roots), "2*pi"
+    by_size = sorted(roots, key=lambda root: abs(float(root.evalf())))
+    sizes = [abs(float(root.evalf())) for root in by_size]
+    count = MAX_LISTED_ROOTS
+    while count > 0 and sizes[count] - sizes[count - 1] <= 1e-12 * max(1.0, sizes[count]):
+        count -= 1  # keep +r and -r together
+    kept = by_size[:count]
+    window = sp.nsimplify(sizes[count - 1], [sp.pi]) if count else sp.S.Zero
+    return kept, to_text(window)
 
 
 def _distinct(values: Sequence[Any]) -> List[Any]:
-    import sympy as sp
-
+    """values without repeats, compared by their decimal values."""
     unique: List[Any] = []
+    seen: set = set()
     for value in values:
-        if not any(sp.simplify(value - other) == 0 for other in unique):
+        try:
+            number = complex(value.evalf())
+            key: Any = (round(number.real, 10), round(number.imag, 10))
+        except (TypeError, ValueError):
+            key = value
+        if key not in seen:
+            seen.add(key)
             unique.append(value)
     return unique
 
@@ -533,9 +627,30 @@ def _limit_memory() -> None:
         pass
 
 
+def _exit_with_parent() -> None:
+    """End the worker when the app that started it is gone, even in the middle of a computation.
+
+    POSIX only in effect: there the worker is re-parented when the app dies, and getppid() changes.
+    """
+    import os
+    import threading
+    import time
+
+    parent = os.getppid()
+
+    def watch() -> None:
+        while True:
+            time.sleep(2)
+            if os.getppid() != parent:
+                os._exit(0)
+
+    threading.Thread(target=watch, daemon=True).start()
+
+
 def main() -> None:
     """Worker loop: one JSON request per stdin line, one JSON response per stdout line."""
     _limit_memory()
+    _exit_with_parent()
     output = sys.stdout
     sys.stdout = sys.stderr  # stray prints must not corrupt the protocol
     import sympy  # noqa: F401  (imported before the ready line, so the first request is fast)
