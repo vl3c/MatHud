@@ -1363,7 +1363,7 @@ Attributes:
 - `get_class_name()`: Return the class name 'Vector'
 - `draw()`: Render the vector (line + arrow tip)
 - `translate(x_offset, y_offset)`: Translate origin and tip
-- `rotate(angle)`: Rotate vector around origin
+- `rotate(angle)`: Rotate the vector around its midpoint (as a segment rotates), keeping its length; use `rotate_around` to turn it about its tail or any other point
 - `reflect(axis, a=0, b=0, c=0)`: Reflect vector (delegates to segment)
 - `scale(sx, sy, cx, cy)`: Scale vector (delegates to segment)
 - `shear(axis, factor, cx, cy)`: Shear vector (delegates to segment)
