@@ -134,7 +134,6 @@ class Canvas:
         self.renderer = self._initialize_renderer(renderer)
         self.renderer_mode: str = self._resolve_renderer_mode(self.renderer)
         self._render_initial_cartesian_if_enabled()
-        self._register_renderer_handlers()
 
     def add_drawable(self, drawable: "Drawable") -> None:
         self.drawable_manager.drawables.add(drawable)
@@ -151,71 +150,6 @@ class Canvas:
                 self.renderer.render_cartesian(self.cartesian2axis, self.coordinate_mapper)
             except Exception:
                 pass
-
-    def _register_renderer_handlers(self) -> None:
-        """Register renderer handlers for all drawable types."""
-        if self.renderer is None:
-            return
-        if not self._try_register_default_drawables():
-            self._register_renderer_handlers_legacy()
-
-    def _try_register_default_drawables(self) -> bool:
-        if self.renderer is None:
-            return False
-        try:
-            self.renderer.register_default_drawables()
-            return True
-        except AttributeError:
-            return False
-        except Exception:
-            return False
-
-    def _register_renderer_handlers_legacy(self) -> None:
-        if self.renderer is None:
-            return
-        for module_path, class_name, register_name in self._legacy_registration_specs():
-            self._register_legacy_drawable(module_path, class_name, register_name)
-
-    def _legacy_registration_specs(self) -> List[Tuple[str, str, str]]:
-        return [
-            ("drawables.point", "Point", "register_point"),
-            ("drawables.segment", "Segment", "register_segment"),
-            ("drawables.circle", "Circle", "register_circle"),
-            ("drawables.ellipse", "Ellipse", "register_ellipse"),
-            ("drawables.vector", "Vector", "register_vector"),
-            ("drawables.angle", "Angle", "register_angle"),
-            ("drawables.function", "Function", "register_function"),
-            ("drawables.triangle", "Triangle", "register_triangle"),
-            ("drawables.rectangle", "Rectangle", "register_rectangle"),
-            (
-                "drawables.functions_bounded_colored_area",
-                "FunctionsBoundedColoredArea",
-                "register_functions_bounded_colored_area",
-            ),
-            (
-                "drawables.function_segment_bounded_colored_area",
-                "FunctionSegmentBoundedColoredArea",
-                "register_function_segment_bounded_colored_area",
-            ),
-            (
-                "drawables.segments_bounded_colored_area",
-                "SegmentsBoundedColoredArea",
-                "register_segments_bounded_colored_area",
-            ),
-            ("drawables.label", "Label", "register_label"),
-            ("drawables.circle_arc", "CircleArc", "register_circle_arc"),
-        ]
-
-    def _register_legacy_drawable(self, module_path: str, class_name: str, register_name: str) -> None:
-        if self.renderer is None:
-            return
-        try:
-            module = __import__(module_path, fromlist=[class_name])
-            drawable_cls = getattr(module, class_name)
-            if hasattr(self.renderer, register_name):
-                getattr(self.renderer, register_name)(drawable_cls)
-        except Exception:
-            pass
 
     def draw(self, apply_zoom: bool = False) -> None:
         if not self.draw_enabled:

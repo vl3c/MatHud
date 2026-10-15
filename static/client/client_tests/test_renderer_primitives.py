@@ -14,7 +14,7 @@ from drawables.circle import Circle
 from drawables.vector import Vector
 from drawables.angle import Angle
 from drawables.function import Function
-from drawables.bar import Bar
+from rendering import cached_render_plan as optimized_plans
 
 from rendering.canvas2d_renderer import Canvas2DRenderer
 from rendering.svg_renderer import SvgRenderer
@@ -467,14 +467,14 @@ class TestRendererPrimitives(unittest.TestCase):
         self.angle_abc = Angle(self.point_b, self.point_a, self.point_c, color="magenta")
         self.function = Function("x", name="f", color="brown")
 
-    def test_canvas2d_registers_bar_drawable(self) -> None:
-        renderer = Canvas2DRenderer()
-        self.assertIn(Bar, getattr(renderer, "_handlers_by_type", {}))
-
-    def test_svg_registers_bar_drawable(self) -> None:
-        renderer = SvgRenderer()
-        renderer.register_default_drawables()
-        self.assertIn(Bar, getattr(renderer, "_handlers_by_type", {}))
+    def test_both_renderers_draw_every_class_with_a_plan_helper(self) -> None:
+        for renderer in (Canvas2DRenderer(), SvgRenderer()):
+            drawn: List[str] = []
+            renderer._render_drawable = lambda drawable, mapper, drawn=drawn: drawn.append(drawable.get_class_name())
+            for class_name in optimized_plans._HELPERS:
+                self.assertTrue(renderer.render(SimpleMock(get_class_name=lambda name=class_name: name), self.mapper))
+            self.assertFalse(renderer.render(SimpleMock(get_class_name=lambda: "Triangle"), self.mapper))
+            self.assertEqual(drawn, list(optimized_plans._HELPERS))
 
     def test_svg_primitives_render_shapes(self) -> None:
         log: List[Any] = []
@@ -573,12 +573,12 @@ class TestRendererPrimitives(unittest.TestCase):
             unittest.mock.patch("rendering.svg_primitive_adapter.document", mock_document),
         ):
             svg_renderer._shared_primitives = SvgPrimitiveAdapter("math-svg")
-            svg_renderer._render_point(self.point_a, self.mapper)
-            svg_renderer._render_segment(self.segment_ab, self.mapper)
-            svg_renderer._render_circle(self.circle, self.mapper)
-            svg_renderer._render_vector(self.vector_ab, self.mapper)
-            svg_renderer._render_angle(self.angle_abc, self.mapper)
-            svg_renderer._render_function(self.function, self.mapper)
+            svg_renderer.render(self.point_a, self.mapper)
+            svg_renderer.render(self.segment_ab, self.mapper)
+            svg_renderer.render(self.circle, self.mapper)
+            svg_renderer.render(self.vector_ab, self.mapper)
+            svg_renderer.render(self.angle_abc, self.mapper)
+            svg_renderer.render(self.function, self.mapper)
 
         svg_text_entries = collect_text_labels(mock_document.surface)
         svg_has_point_label = any(text and text.startswith("A(") for text in svg_text_entries)
@@ -591,12 +591,12 @@ class TestRendererPrimitives(unittest.TestCase):
         canvas_renderer = Canvas2DRenderer()
         mock_canvas = MockCanvasElement()
         ctx = reset_canvas_environment(canvas_renderer, mock_canvas)
-        canvas_renderer._render_point(self.point_a, self.mapper)
-        canvas_renderer._render_segment(self.segment_ab, self.mapper)
-        canvas_renderer._render_circle(self.circle, self.mapper)
-        canvas_renderer._render_vector(self.vector_ab, self.mapper)
-        canvas_renderer._render_angle(self.angle_abc, self.mapper)
-        canvas_renderer._render_function(self.function, self.mapper)
+        canvas_renderer.render(self.point_a, self.mapper)
+        canvas_renderer.render(self.segment_ab, self.mapper)
+        canvas_renderer.render(self.circle, self.mapper)
+        canvas_renderer.render(self.vector_ab, self.mapper)
+        canvas_renderer.render(self.angle_abc, self.mapper)
+        canvas_renderer.render(self.function, self.mapper)
 
         text_operations = [entry for entry in ctx.log if entry[0] == "fillText"]
         canvas_has_point_label = any(
@@ -608,7 +608,7 @@ class TestRendererPrimitives(unittest.TestCase):
         angle_only_renderer = Canvas2DRenderer()
         angle_only_canvas = MockCanvasElement()
         angle_only_ctx = reset_canvas_environment(angle_only_renderer, angle_only_canvas)
-        angle_only_renderer._render_angle(self.angle_abc, self.mapper)
+        angle_only_renderer.render(self.angle_abc, self.mapper)
         canvas_has_arc = any(entry[0] == "arc" for entry in normalize_canvas_log(angle_only_ctx.log))
 
         self.assertEqual(canvas_has_point_label, svg_has_point_label)
