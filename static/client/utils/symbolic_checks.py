@@ -35,6 +35,9 @@ PARAMETER_VALUES = (0.53, 1.27, 0.71, 1.9, 0.29, 2.4)
 AGREEMENT = 1e-6
 # A comparison needs at least this many sample points where both sides are real and finite.
 MIN_CHECKED_POINTS = 2
+# Numeric limit estimates are rounded to the digits their samples support, so two of them (or
+# one and a symbolic value) agree when they differ by at most this (relative to max(1, |value|)).
+LIMIT_AGREEMENT = 1e-4
 
 
 class SymbolicChecks:
@@ -137,8 +140,14 @@ class SymbolicChecks:
             if not math.isfinite(expected) or estimate is None:
                 continue
             value, tolerance = estimate
-            if abs(value - expected) > tolerance + AGREEMENT * max(1.0, abs(expected)):
-                return False
+            tolerance += AGREEMENT * max(1.0, abs(expected))
+            if abs(value - expected) > tolerance:
+                step = 1e-4 * max(1.0, abs(point))
+                noise = SymbolicChecks.rounding_noise(function, point) / step + SymbolicChecks.rounding_noise(
+                    derivative, point
+                )
+                if abs(value - expected) > tolerance + noise:
+                    return False
             checked += 1
         if broken >= MIN_CHECKED_POINTS:
             return False
@@ -170,14 +179,44 @@ class SymbolicChecks:
             estimate = adaptive_integral(integrand, a, b)
             if estimate is None or not estimate["converged"]:
                 continue
-            difference = right - left
-            if abs(difference - estimate["value"]) > AGREEMENT * max(1.0, abs(estimate["value"])):
+            mismatch = abs(right - left - estimate["value"])
+            tolerance = AGREEMENT * max(1.0, abs(estimate["value"]))
+            if mismatch > tolerance:
+                # Rounding noise excuses a mismatch only while it is small next to F itself: an
+                # antiderivative that is all noise (a denominator 0 up to rounding) is wrong.
+                noise = sum(SymbolicChecks.rounding_noise(antiderivative, end) for end in (a, b))
+                if noise <= 1e-3 * max(1.0, abs(left), abs(right)):
+                    tolerance += noise
+            if mismatch > tolerance:
                 mismatches += 1
             else:
                 matches += 1
         if mismatches >= MIN_CHECKED_POINTS:
             return False
         return True if matches >= MIN_CHECKED_POINTS and mismatches == 0 else None
+
+    # Rounding noise is estimated from f at point * (1 + k * 2^-52) for these k, and scaled up
+    # by _NOISE_FACTOR, since a few nudges only sample it.
+    _NOISE_NUDGES = (-8, -4, -2, -1, 1, 2, 4, 8)
+    _NOISE_FACTOR = 4.0
+
+    @staticmethod
+    def rounding_noise(function: RealFunction, point: float) -> float:
+        """How much f's floating-point value at point is off by rounding, estimated from its scatter.
+
+        An expanded polynomial near a root ((x-3)^15 expanded, at 2.2) cancels terms much larger
+        than its value, so its computed values scatter far beyond a relative tolerance on the value.
+        """
+        centre = function(point)
+        if centre is None or not math.isfinite(centre):
+            return math.inf
+        largest = 0.0
+        for nudge in SymbolicChecks._NOISE_NUDGES:
+            value = function(point * (1 + nudge * 2.0**-52) if point != 0 else nudge * 2.0**-1074)
+            if value is None or not math.isfinite(value):
+                return math.inf
+            largest = max(largest, abs(value - centre))
+        return SymbolicChecks._NOISE_FACTOR * largest
 
     @staticmethod
     def _difference_quotient(function: RealFunction, point: float) -> Optional[List[float]]:
@@ -216,8 +255,11 @@ class SymbolicChecks:
             if math.isfinite(a) != math.isfinite(b):
                 broken += 1
             elif math.isfinite(a):
-                if abs(a - b) > AGREEMENT * max(1.0, abs(a), abs(b)):
-                    return False
+                tolerance = AGREEMENT * max(1.0, abs(a), abs(b))
+                if abs(a - b) > tolerance:
+                    noise = sum(SymbolicChecks.rounding_noise(side, point) for side in pair)
+                    if abs(a - b) > tolerance + noise:
+                        return False
                 checked += 1
         if broken >= MIN_CHECKED_POINTS:
             return False
@@ -295,11 +337,12 @@ class SymbolicChecks:
         if verdict == "undefined" or values is None:
             return {"kind": "undefined"}
         if verdict == "grow":
-            tail = values[-3:]
-            if all(value > 0 for value in tail):
-                return {"kind": "+inf"}
-            if all(value < 0 for value in tail):
-                return {"kind": "-inf"}
+            infinite = SymbolicChecks._infinite_kind(values)
+            if infinite is not None:
+                return {"kind": infinite}
+            if not SymbolicChecks._grows_in_magnitude(values):
+                # A slow monotone approach (1/log(x) at Infinity, x^0.05 at 0) also reads as "grow"
+                return {"kind": "unclear"}
             return {"kind": "oscillates"}
         if verdict == "converge":
             settled = MathUtils._settled_value(values)
@@ -311,6 +354,29 @@ class SymbolicChecks:
         return SymbolicChecks._range_verdict(
             lambda u: evaluate(x0 + side * u * scale), SymbolicChecks._OSCILLATION_SCALES
         )
+
+    # |f| must reach this, rising over the last _GROWTH_TAIL samples, for a side to be infinite.
+    _INFINITE_MAGNITUDE = 10.0
+    _GROWTH_TAIL = 4
+
+    @staticmethod
+    def _infinite_kind(values: List[float]) -> Optional[str]:
+        """Return "+inf" or "-inf" when the last samples keep one sign and rise past _INFINITE_MAGNITUDE."""
+        tail = values[max(0, len(values) - SymbolicChecks._GROWTH_TAIL) :]
+        if len(tail) < 3 or not SymbolicChecks._grows_in_magnitude(tail):
+            return None
+        if abs(tail[-1]) < SymbolicChecks._INFINITE_MAGNITUDE:
+            return None
+        if all(value > 0 for value in tail):
+            return "+inf"
+        if all(value < 0 for value in tail):
+            return "-inf"
+        return None
+
+    @staticmethod
+    def _grows_in_magnitude(values: List[float]) -> bool:
+        tail = values[max(0, len(values) - SymbolicChecks._GROWTH_TAIL) :]
+        return all(abs(later) > abs(earlier) for earlier, later in zip(tail, tail[1:]))
 
     @staticmethod
     def _extrapolated(values: List[float]) -> Optional[float]:
@@ -333,15 +399,26 @@ class SymbolicChecks:
 
     @staticmethod
     def _range_verdict(at_offset: Callable[[float], Optional[float]], scales: Sequence[float]) -> Dict[str, Any]:
-        """Settle or oscillation from the range of f over shrinking (or, at infinity, growing) scales."""
+        """Settle or oscillation from the range of f over shrinking (or, at infinity, growing) scales.
+
+        A scale where f is rounding noise (Taylor-type cancellation such as (e^x-e^-x-2x)/x^3
+        near 0: nudging x by 1e-10 of itself changes f by a good part of its range) ends the
+        test; the scales before it decide, and fewer than two of them decide nothing.
+        """
         count = SymbolicChecks._OSCILLATION_SAMPLES
         ranges: List[List[float]] = []
         for scale in scales:
-            samples = [at_offset(scale * (0.1 + 0.9 * ((k * 0.618034) % 1.0))) for k in range(1, count + 1)]
+            offsets = [scale * (0.1 + 0.9 * ((k * 0.618034) % 1.0)) for k in range(1, count + 1)]
+            samples = [at_offset(offset) for offset in offsets]
             finite = [value for value in samples if value is not None and math.isfinite(value)]
             if len(finite) < count:
                 return {"kind": "unclear"}
-            ranges.append([min(finite), max(finite)])
+            low, high = min(finite), max(finite)
+            if SymbolicChecks._noise(at_offset, offsets[:5], finite[:5]) > SymbolicChecks._NOISY_SHARE * (high - low):
+                break
+            ranges.append([low, high])
+        if len(ranges) < 2:
+            return {"kind": "unclear"}
         first_range = ranges[0][1] - ranges[0][0]
         last_low, last_high = ranges[-1]
         middle = (last_low + last_high) / 2
@@ -359,6 +436,21 @@ class SymbolicChecks:
         if first_range > 0 and last_high - last_low >= SymbolicChecks._PERSISTENT_RANGE * first_range:
             return {"kind": "oscillates", "low": last_low, "high": last_high}
         return {"kind": "unclear"}
+
+    # A range is rounding noise when nudging x by _JITTER of its offset changes f by more than
+    # this share of the range.
+    _JITTER = 1e-10
+    _NOISY_SHARE = 0.1
+
+    @staticmethod
+    def _noise(at_offset: Callable[[float], Optional[float]], offsets: List[float], values: List[float]) -> float:
+        largest = 0.0
+        for offset, value in zip(offsets, values):
+            nudged = at_offset(offset * (1 + SymbolicChecks._JITTER))
+            if nudged is None or not math.isfinite(nudged):
+                return math.inf
+            largest = max(largest, abs(nudged - value))
+        return largest
 
     @staticmethod
     def _verdict_at_infinity(evaluate: RealFunction, sign: float) -> Dict[str, Any]:
@@ -399,7 +491,7 @@ class SymbolicChecks:
             return {"kind": "dne", "reason": SymbolicChecks._oscillation_reason(oscillating)}
         if kinds == ("value", "value"):
             a, b = left["value"], right["value"]
-            if abs(a - b) <= AGREEMENT * max(1.0, abs(a), abs(b)):
+            if abs(a - b) <= LIMIT_AGREEMENT * max(1.0, abs(a), abs(b)):
                 return {"kind": "value", "value": b}
         if left["kind"] == right["kind"] and left["kind"] in ("+inf", "-inf"):
             return {"kind": left["kind"]}

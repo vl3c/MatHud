@@ -13,7 +13,10 @@ from __future__ import annotations
 import re
 from typing import Iterable, List
 
-_IDENTIFIER_CALL = re.compile(r"(?<![A-Za-z0-9_.])([A-Za-z_][A-Za-z0-9_]*)\s*\(")
+# A name followed by "(". A digit may come before it (2ln(x) is 2*ln(x)); a letter, "_" or "."
+# may not, and since matches are found left to right, a name with digits inside (log10, x2ln)
+# is matched whole from its first letter.
+_IDENTIFIER_CALL = re.compile(r"(?<![A-Za-z_.])([A-Za-z_][A-Za-z0-9_]*)\s*\(")
 _INEQUALITY = re.compile(r"<|>|!=|≤|≥|≠")
 
 # Spellings nerdamer reads as a variable times its argument, and their nerdamer form.

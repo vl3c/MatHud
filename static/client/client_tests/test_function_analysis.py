@@ -17,6 +17,8 @@ from process_function_calls import ProcessFunctionCalls
 from utils.math_utils import MathUtils
 from workspace_manager import WorkspaceManager
 
+from .cas_engines import WithoutSympy
+
 
 def _rounded(values: Optional[List[float]]) -> List[float]:
     return sorted(round(float(value), 6) for value in values or [])
@@ -621,7 +623,8 @@ class TestLimitsCannotHang(_FunctionToolTestCase):
         for expression, target, expected in cases:
             with self.subTest(expression=expression, target=target):
                 started = _now_seconds()
-                traced = self.run_call("limit", expression=expression, variable="x", value_to_approach=target)
+                with WithoutSympy():  # the nerdamer budget is what this pins
+                    traced = self.run_call("limit", expression=expression, variable="x", value_to_approach=target)
                 self.assert_quick(started, f"limit({expression}, {target})")
                 self.assertFalse(traced["is_error"], traced["result"])
                 self.assertEqual(str(traced["result"]), expected)
@@ -648,7 +651,8 @@ class TestLimitsCannotHang(_FunctionToolTestCase):
         """This limit spent 37 s in expand/simplify between two derivative steps."""
         started = _now_seconds()
 
-        result = MathUtils.limit("x/(abs(x)/x+abs(sin(x))/sin(x))", "x", "0")
+        with WithoutSympy():
+            result = MathUtils.limit("x/(abs(x)/x+abs(sin(x))/sin(x))", "x", "0")
 
         elapsed = _now_seconds() - started
         self.assertLess(elapsed, MathUtils.NERDAMER_MAX_MS / 1000 + 2.0, f"took {elapsed:.1f} s")

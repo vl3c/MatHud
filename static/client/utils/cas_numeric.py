@@ -14,6 +14,7 @@ from __future__ import annotations
 import cmath
 import heapq
 import math
+from fractions import Fraction
 from typing import Callable, List, Optional, Sequence, Tuple, TypedDict
 
 # Gauss-Kronrod 15-point nodes (positive half, the last is 0) and weights, and the
@@ -67,12 +68,22 @@ def _kronrod_interval(f: Callable[[float], Optional[float]], a: float, b: float)
         points = (center,) if node == 0.0 else (center - half * node, center + half * node)
         for point in points:
             value = f(point)
+            if value is not None and math.isnan(value):
+                value = _removable_value(f, point, 1e-6 * half)
             if value is None or not math.isfinite(value):
                 return None
             kronrod += _KRONROD_WEIGHTS[index] * value
             if index % 2 == 1:
                 gauss += _GAUSS_WEIGHTS[index // 2] * value
     return kronrod * half, abs(kronrod - gauss) * half
+
+
+def _removable_value(f: Callable[[float], Optional[float]], point: float, step: float) -> Optional[float]:
+    """f at a 0/0 point ((e^x-1)/x at 0, often a node of a symmetric interval): the mean of its neighbours."""
+    below, above = f(point - step), f(point + step)
+    if below is None or above is None or not (math.isfinite(below) and math.isfinite(above)):
+        return None
+    return (below + above) / 2
 
 
 def adaptive_integral(
@@ -141,13 +152,19 @@ def _evaluate_polynomial(coefficients: Sequence[complex], z: complex) -> Tuple[c
     return value, derivative
 
 
+# Up to this degree a polynomial is split into square-free factors in exact rational
+# arithmetic first, so each factor has only simple roots (repeated roots are what the
+# iteration finds least accurately). Above it the work grows too fast for the browser.
+MAX_EXACT_SPLIT_DEGREE = 12
+
+
 def polynomial_roots(coefficients_low_to_high: Sequence[float]) -> List[complex]:
     """All complex roots of a polynomial, with multiplicity, real ones made exactly real.
 
     coefficients_low_to_high[k] is the coefficient of x^k. Trailing zero coefficients
     (above the degree) are ignored; a constant polynomial has no roots.
     """
-    coefficients = [complex(c) for c in coefficients_low_to_high]
+    coefficients = [float(c) for c in coefficients_low_to_high]
     while coefficients and coefficients[-1] == 0:
         coefficients.pop()
     degree = len(coefficients) - 1
@@ -157,15 +174,100 @@ def polynomial_roots(coefficients_low_to_high: Sequence[float]) -> List[complex]
     while coefficients[0] == 0:
         coefficients.pop(0)
         zero_roots += 1
-    high_to_low = [c / coefficients[-1] for c in reversed(coefficients)]
-    roots = _merge_multiple_roots(high_to_low, _aberth(high_to_low)) if len(high_to_low) > 1 else []
+    roots: List[complex] = []
+    if len(coefficients) - 1 <= MAX_EXACT_SPLIT_DEGREE:
+        for factor, multiplicity in square_free_factors([Fraction(c) for c in coefficients]):
+            roots.extend(root for root in _simple_roots(factor) for _ in range(multiplicity))
+    elif len(coefficients) > 1:
+        high_to_low = [complex(c / coefficients[-1]) for c in reversed(coefficients)]
+        roots = _merge_multiple_roots(high_to_low, _aberth(high_to_low))
     return [_realify(root) for root in roots] + [0j] * zero_roots
+
+
+def _simple_roots(factor: List[Fraction]) -> List[complex]:
+    """The roots of a polynomial without repeated roots (coefficients low to high)."""
+    if len(factor) < 2:
+        return []
+    high_to_low = [complex(float(c / factor[-1])) for c in reversed(factor)]
+    return _aberth(high_to_low)
+
+
+# ----- exact square-free factorisation (Yun's algorithm over the rationals) ---------------
+
+Polynomial = List[Fraction]  # coefficients from x^0 up, no trailing zeros
+
+
+def _trimmed(p: Sequence[Fraction]) -> Polynomial:
+    result = list(p)
+    while result and result[-1] == 0:
+        result.pop()
+    return result
+
+
+def _monic(p: Polynomial) -> Polynomial:
+    return [c / p[-1] for c in p] if p else p
+
+
+def _derivative(p: Polynomial) -> Polynomial:
+    return _trimmed([c * k for k, c in enumerate(p)][1:])
+
+
+def _subtract(p: Polynomial, q: Polynomial) -> Polynomial:
+    size = max(len(p), len(q))
+    return _trimmed(
+        [(p[k] if k < len(p) else Fraction(0)) - (q[k] if k < len(q) else Fraction(0)) for k in range(size)]
+    )
+
+
+def _divmod(p: Polynomial, q: Polynomial) -> Tuple[Polynomial, Polynomial]:
+    remainder = list(p)
+    quotient = [Fraction(0)] * max(0, len(p) - len(q) + 1)
+    while len(remainder) >= len(q) and remainder:
+        factor = remainder[-1] / q[-1]
+        shift = len(remainder) - len(q)
+        quotient[shift] = factor
+        for k, c in enumerate(q):
+            remainder[shift + k] -= factor * c
+        remainder = _trimmed(remainder[:-1] + [Fraction(0)]) if remainder[-1] == 0 else _trimmed(remainder)
+    return _trimmed(quotient), remainder
+
+
+def _gcd(p: Polynomial, q: Polynomial) -> Polynomial:
+    a, b = _monic(p), _monic(q)
+    while b:
+        a, b = b, _monic(_divmod(a, b)[1])
+    return a
+
+
+def square_free_factors(p: Sequence[Fraction]) -> List[Tuple[Polynomial, int]]:
+    """[(factor, multiplicity)] with p = c * product(factor^multiplicity), each factor square-free."""
+    f = _monic(_trimmed(p))
+    if len(f) < 2:
+        return []
+    factors: List[Tuple[Polynomial, int]] = []
+    derivative = _derivative(f)
+    common = _gcd(f, derivative)
+    b = _divmod(f, common)[0]
+    c = _divmod(derivative, common)[0]
+    d = _subtract(c, _derivative(b))
+    multiplicity = 1
+    while len(b) > 1:
+        a = _gcd(b, d) if d else _monic(b)
+        if len(a) > 1:
+            factors.append((a, multiplicity))
+        b = _divmod(b, a)[0]
+        c = _divmod(d, a)[0]
+        d = _subtract(c, _derivative(b))
+        multiplicity += 1
+    return factors
 
 
 def _aberth(monic: Sequence[complex]) -> List[complex]:
     degree = len(monic) - 1
-    # Cauchy bound: every root lies within this radius.
-    radius = 1 + max(abs(c) for c in monic[1:])
+    # Fujiwara bound: every root lies within this radius (no overflow for large coefficients,
+    # unlike 1 + max |c|).
+    radius = 2 * max(abs(c) ** (1.0 / k) for k, c in enumerate(monic[1:], start=1))
+    radius = radius if radius > 0 else 1.0
     roots = [radius * 0.5 * cmath.exp(1j * (2 * math.pi * k / degree + 0.4)) for k in range(degree)]
     for _ in range(_ABERTH_SWEEPS):
         largest_step = 0.0
@@ -201,10 +303,14 @@ def _merge_multiple_roots(monic: Sequence[complex], roots: List[complex]) -> Lis
     while remaining:
         seed = remaining.pop(0)
         cluster = [seed]
-        for other in list(remaining):
-            if abs(other - seed) <= _ROOT_CLUSTER * max(1.0, abs(seed)):
-                cluster.append(other)
-                remaining.remove(other)
+        grown = True
+        while grown:  # transitive: a root near any member joins
+            grown = False
+            for other in list(remaining):
+                if any(abs(other - member) <= _ROOT_CLUSTER * max(1.0, abs(member)) for member in cluster):
+                    cluster.append(other)
+                    remaining.remove(other)
+                    grown = True
         if len(cluster) == 1:
             merged.append(seed)
             continue

@@ -4,6 +4,7 @@ from typing import Dict, List, Tuple
 from utils.math_utils import MathUtils
 from drawables_aggregator import Position
 from .simple_mock import SimpleMock
+from .cas_engines import AnyEngine, WithoutSympy, real_roots, value_of
 import math  # Add import at the top of the method
 from rendering.renderables import FunctionRenderable
 
@@ -850,6 +851,16 @@ class TestMathFunctions(unittest.TestCase):
         result = MathUtils.round(1.2345, 2)
         self.assertEqual(result, 1.23)
 
+    def test_round_matches_mathjs_on_halves(self) -> None:
+        # Half away from zero, like math.js, not Python's half to even
+        self.assertEqual(MathUtils.round(2.5), 3.0)
+        self.assertEqual(MathUtils.round(-2.5), -3.0)
+        self.assertEqual(MathUtils.evaluate("round(2.5)"), MathUtils.evaluate("round(2.5) + 0*is_prime(7)"))
+
+    def test_python_only_functions_get_every_variable(self) -> None:
+        self.assertEqual(MathUtils.evaluate("mod_pow(a, 2, 7)", {"a": 3}), 2)
+        self.assertEqual(MathUtils.evaluate("is_prime(y)", {"y": 7}), "True")
+
     def test_gcd(self) -> None:
         result = MathUtils.gcd(48, 18)
         self.assertEqual(result, 6)
@@ -1037,12 +1048,14 @@ class TestMathFunctions(unittest.TestCase):
     def test_integral_indefinite(self) -> None:
         result = MathUtils.integral("x^2", "x")
         result = MathUtils.simplify(result)  # simplify the result
-        self.assertEqual(result, "0.3333333333333333*x^3")
+        self.assertEqual(result, "x^3/3")
+        with WithoutSympy():
+            self.assertEqual(MathUtils.simplify(MathUtils.integral("x^2", "x")), "0.3333333333333333*x^3")
 
     def test_integral(self) -> None:
-        result = MathUtils.integral("x^2", "x", 0, 1)
-        result = float(result)  # convert result to float
-        self.assertAlmostEqual(result, 0.333, places=3)
+        self.assertEqual(MathUtils.integral("x^2", "x", 0, 1), "1/3")
+        with WithoutSympy():
+            self.assertAlmostEqual(value_of(MathUtils.integral("x^2", "x", 0, 1)), 1 / 3, places=9)
 
     def test_numeric_integrate_simpson(self) -> None:
         result = MathUtils.numeric_integrate("x^2", "x", 0, 1, "simpson", 200)
@@ -1058,8 +1071,9 @@ class TestMathFunctions(unittest.TestCase):
             MathUtils.numeric_integrate("x", "x", 0, 1, "midpoint", 10001)
 
     def test_simplify(self) -> None:
-        result = MathUtils.simplify("x^2 + 2*x + 1")
-        self.assertEqual(result, "(1+x)^2")
+        self.assertEqual(MathUtils.simplify("x^2 + 2*x + 1"), "x^2+2*x+1")
+        with WithoutSympy():
+            self.assertEqual(MathUtils.simplify("x^2 + 2*x + 1"), "(1+x)^2")
 
     def test_expand(self) -> None:
         result = MathUtils.expand("(x + 1)^2")
@@ -1176,17 +1190,12 @@ class TestMathFunctions(unittest.TestCase):
         self.assertEqual(result, 0, "Other non-linear equations should indicate complex or uncertain scenarios.")
 
     def test_solve1(self) -> None:
-        result = MathUtils.solve("x^2 - 4", "x")
-        result = json.loads(result)  # parse result from JSON string to list
-        result = [float(r) for r in result]  # convert results to floats
-        self.assertEqual(result, [2.0, -2.0])
+        self.assertEqual(real_roots(MathUtils.solve("x^2 - 4", "x")), [-2.0, 2.0])
 
     def test_solve2(self) -> None:
-        result = MathUtils.solve("0.4 * x + 37.2 = -0.9 * x - 8", "x")
-        result = json.loads(result)  # Parse result from JSON string to list
-        # Assuming the result is always a list with a single item for this test case
-        solution = float(result[0])  # Convert the first (and only) result to float
-        self.assertAlmostEqual(solution, -34.7692307692308, places=5)
+        roots = real_roots(MathUtils.solve("0.4 * x + 37.2 = -0.9 * x - 8", "x"))
+        self.assertEqual(len(roots), 1)
+        self.assertAlmostEqual(roots[0], -34.7692307692308, places=5)
 
     def test_unicode_notation_reaches_math_engines(self) -> None:
         # Symbols typed by users or copied by models are rewritten before nerdamer and math.js see them
@@ -1200,8 +1209,8 @@ class TestMathFunctions(unittest.TestCase):
         self.assertEqual(MathUtils.expand("(x+1)²"), "1+2*x+x^2")
         self.assertEqual(MathUtils.limit("1/x", "x", "∞"), "0")
         self.assertEqual(MathUtils.integral("3x²", "x"), "x^3")
-        self.assertAlmostEqual(float(MathUtils.integral("cos(x)", "x", 0, "π/2")), 1)
-        self.assertEqual([float(root) for root in json.loads(MathUtils.solve("x² − 4 = 0", "x"))], [2.0, -2.0])
+        self.assertAlmostEqual(value_of(MathUtils.integral("cos(x)", "x", 0, "π/2")), 1)
+        self.assertEqual(real_roots(MathUtils.solve("x² − 4 = 0", "x")), [-2.0, 2.0])
 
     def test_evaluate_renames_greek_variant_variables(self) -> None:
         # Regression: the expression's ϕ became φ but the scope still said ϕ ("Undefined symbol φ")
@@ -1261,17 +1270,18 @@ class TestMathFunctions(unittest.TestCase):
             self.assertTrue(str(result).startswith("Error"), msg=f"{symbol}: {result}")
 
         # nerdamer receives the same rewrites
-        self.assertEqual(MathUtils.derivative("xⁿ", "x"), "n*x^(-1+n)")
-        self.assertEqual(MathUtils.derivative("x⁻¹", "x"), "-x^(-2)")
-        self.assertEqual(MathUtils.simplify("x²·x³"), "x^5")
-        self.assertEqual(MathUtils.integral("x⁴", "x"), "0.2*x^5")
-        self.assertEqual(MathUtils.derivative("sin(30°)·x", "x"), "0.5")
-        self.assertEqual(MathUtils.derivative("x√y", "y"), "0.5*x*y^(-0.5)")
-        self.assertEqual(MathUtils.simplify("6÷4"), "1.5")
-        self.assertEqual(MathUtils.simplify("2π/π"), "2")
-        self.assertEqual(MathUtils.derivative("2θ+1", "θ"), "2")
-        self.assertEqual(ExpressionValidator.fix_math_expression("lim(sin(x)/x, x, 0)"), "limit(sin(x)/x, x, 0)")
-        self.assertEqual(MathUtils.limit("sin(x)/x", "x", 0), "1")
+        with WithoutSympy():
+            self.assertEqual(MathUtils.derivative("xⁿ", "x"), "n*x^(-1+n)")
+            self.assertEqual(MathUtils.derivative("x⁻¹", "x"), "-x^(-2)")
+            self.assertEqual(MathUtils.simplify("x²·x³"), "x^5")
+            self.assertEqual(MathUtils.integral("x⁴", "x"), "0.2*x^5")
+            self.assertEqual(MathUtils.derivative("sin(30°)·x", "x"), "0.5")
+            self.assertEqual(MathUtils.derivative("x√y", "y"), "0.5*x*y^(-0.5)")
+            self.assertEqual(MathUtils.simplify("6÷4"), "1.5")
+            self.assertEqual(MathUtils.simplify("2π/π"), "2")
+            self.assertEqual(MathUtils.derivative("2θ+1", "θ"), "2")
+            self.assertEqual(ExpressionValidator.fix_math_expression("lim(sin(x)/x, x, 0)"), "limit(sin(x)/x, x, 0)")
+            self.assertEqual(MathUtils.limit("sin(x)/x", "x", 0), "1")
 
     def test_evaluate_reciprocal_and_inverse_hyperbolic_functions(self) -> None:
         # Regression: these passed math.js but failed the Python validation step first
@@ -1288,16 +1298,24 @@ class TestMathFunctions(unittest.TestCase):
 
     def test_degrees_reach_nerdamer_as_radians(self) -> None:
         # Regression: nerdamer received the ° sign itself
-        self.assertAlmostEqual(float(MathUtils.simplify("sin(30°)")), 0.5)
-        self.assertAlmostEqual(float(MathUtils.integral("1", "x", 0, "180°")), math.pi)
+        for engines in (WithoutSympy(), AnyEngine()):
+            with engines:
+                self.assertAlmostEqual(value_of(MathUtils.simplify("sin(30°)")), 0.5)
+                self.assertAlmostEqual(value_of(MathUtils.integral("1", "x", 0, "180°")), math.pi)
 
     def test_delta_names_stay_whole_in_nerdamer(self) -> None:
         # Regression: "Δx" was split into Δ*x, even in the variable argument
+        self.assertEqual(MathUtils.simplify("Δx/Δt"), "Δx/Δt")
+        self.assertEqual(MathUtils.integral("Δx", "Δx"), "Δx^2/2")
+        with WithoutSympy():
+            self._assert_delta_names_in_nerdamer()
+
+    def _assert_delta_names_in_nerdamer(self) -> None:
         self.assertEqual(MathUtils.simplify("Δx/Δt"), "Δt^(-1)*Δx")
         self.assertEqual(MathUtils.derivative("Δx^2", "Δx"), "2*Δx")
         self.assertEqual(MathUtils.derivative("δt²", "δt"), "2*δt")
         self.assertEqual(MathUtils.integral("Δx", "Δx"), "0.5*Δx^2")
-        self.assertEqual([float(root) for root in json.loads(MathUtils.solve("Δx² = 4", "Δx"))], [2.0, -2.0])
+        self.assertEqual(real_roots(MathUtils.solve("Δx² = 4", "Δx")), [-2.0, 2.0])
         self.assertEqual(MathUtils.derivative("ϕ²", "ϕ"), "2*φ")
         # Other Greek letters are still single-letter factors
         self.assertEqual(MathUtils.derivative("sin(ωt)", "t"), "cos(t*ω)*ω")
