@@ -203,6 +203,53 @@ class TestEllipseReuseMatching(unittest.TestCase):
         self.assertIs(self.ellipse_manager.get_ellipse(0.0, 0.0, 4.0, 2.0), first)
         self.assertIsNone(self.ellipse_manager.get_ellipse(0.0, 0.0, 4.0, 2.0, 60.0))
 
+    def test_swapped_radii_turned_a_quarter_turn_reuse(self) -> None:
+        first = self._create(4.0, 2.0, 30.0)
+
+        self.assertIs(self._create(2.0, 4.0, 120.0), first)
+        self.assertIs(self._create(2.0, 4.0, -60.0), first)
+        self.assertEqual(len(self.drawables.Ellipses), 1)
+        self.assertIsNotNone(self._create(2.0, 4.0, 30.0))
+        self.assertEqual(len(self.drawables.Ellipses), 2)
+
+    def test_radii_rounded_differently_reuse(self) -> None:
+        first = self._create(0.1 + 0.2, 2.0, 0.0)
+
+        self.assertIs(self._create(0.3, 2.0, 0.0), first)
+
+    def test_non_positive_radius_raises_before_archiving(self) -> None:
+        for radius_x, radius_y in ((0.0, 2.0), (4.0, -1.0), (float("nan"), 2.0)):
+            with self.subTest(radius_x=radius_x, radius_y=radius_y):
+                with self.assertRaises(ValueError):
+                    self._create(radius_x, radius_y, 0.0)
+        self.canvas.undo_redo_manager.archive.assert_not_called()
+        self.assertEqual(len(self.drawables.Ellipses), 0)
+
+
+class TestEllipseScaleAtRightAngles(unittest.TestCase):
+    """Non-uniform scaling works on an ellipse whose axes run along x and y, at any multiple of 90 degrees."""
+
+    def test_quarter_turn_swaps_which_radius_each_factor_scales(self) -> None:
+        ellipse = Ellipse(Point(2.0, 1.0, name="H"), radius_x=4.0, radius_y=1.0, rotation_angle=90.0)
+
+        ellipse.scale(2.0, 3.0, 0.0, 0.0)
+
+        self.assertEqual((ellipse.radius_x, ellipse.radius_y), (12.0, 2.0))
+        self.assertEqual((ellipse.center.x, ellipse.center.y), (4.0, 3.0))
+
+    def test_rounding_noise_in_the_rotation_is_tolerated(self) -> None:
+        for rotation in (-1e-12, 360 - 1e-12, 180.0, 270 + 1e-13):
+            with self.subTest(rotation=rotation):
+                ellipse = Ellipse(Point(0.0, 0.0, name="E"), radius_x=4.0, radius_y=1.0, rotation_angle=rotation)
+                ellipse.scale(2.0, 3.0, 0.0, 0.0)
+                self.assertIn(ellipse.axis_alignment(), (0.0, 90.0))
+
+    def test_other_rotations_are_refused(self) -> None:
+        ellipse = Ellipse(Point(0.0, 0.0, name="E"), radius_x=4.0, radius_y=1.0, rotation_angle=30.0)
+
+        with self.assertRaises(ValueError):
+            ellipse.scale(2.0, 3.0, 0.0, 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()

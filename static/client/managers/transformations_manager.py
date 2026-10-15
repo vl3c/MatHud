@@ -138,10 +138,10 @@ class TransformationsManager:
             raise ValueError(
                 "Non-uniform scaling of a circle is not supported; convert to an ellipse first or use equal sx and sy"
             )
-        if cn == "Ellipse" and not uniform:
-            rot = getattr(drawable, "rotation_angle", 0)
-            if (rot % 180) > 1e-9:
-                raise ValueError("Non-uniform scaling of a rotated ellipse is not supported")
+        if cn == "Ellipse" and not uniform and drawable.axis_alignment() is None:
+            raise ValueError(
+                "Non-uniform scaling of a rotated ellipse is not supported (only of one turned by a multiple of 90 degrees)"
+            )
 
     def _refresh_dependencies_after_transform(
         self,

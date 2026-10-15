@@ -87,7 +87,7 @@ from .test_segment_manager import TestSegmentManager
 from .test_polygon_manager import TestPolygonManager
 from .test_vector_manager import TestVectorManager
 from .test_circle_manager import TestCircleManager
-from .test_ellipse_manager import TestEllipseManager, TestEllipseReuseMatching
+from .test_ellipse_manager import TestEllipseManager, TestEllipseReuseMatching, TestEllipseScaleAtRightAngles
 from .test_ellipse_naming import TestEllipseNameModel, TestEllipseNamingOnCanvas
 from .test_name_uniqueness import TestCircleNameModel, TestNamesOnCanvas, TestUniqueSuffix
 from .test_colored_area_manager import TestColoredAreaManager
@@ -592,6 +592,7 @@ class Tests:
             TestCircleManager,
             TestEllipseManager,
             TestEllipseReuseMatching,
+            TestEllipseScaleAtRightAngles,
             TestEllipseNameModel,
             TestEllipseNamingOnCanvas,
             TestUniqueSuffix,

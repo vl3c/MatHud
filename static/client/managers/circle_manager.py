@@ -35,6 +35,7 @@ Dependencies:
 
 from __future__ import annotations
 
+import math
 import re
 from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
@@ -167,11 +168,14 @@ class CircleManager(BaseDrawableManager):
                 passes False so every saved circle comes back
 
         Raises:
-            ValueError: If a custom name has characters other than those above
+            ValueError: If a custom name has characters other than those above, or the
+                radius is not a positive number
 
         Returns:
             Circle: The newly created circle object, or existing circle if already present
         """
+        if not math.isfinite(float(radius)) or float(radius) <= 0:
+            raise ValueError(f"Circle radius must be a positive number, got {radius}.")
         requested_name = str(name or "").strip()
         custom_name = self._custom_name_from_request(requested_name)
 
