@@ -100,6 +100,10 @@ class TestGraphTools(unittest.TestCase):
         state = self.canvas.capture_graph_state(graph_name)
         return [(e.source, e.target, e.weight) for e in state.edges]
 
+    def _weights(self, graph_name: str) -> List[float]:
+        # Brython does not treat int 1 and float 1.0 as equal set members, so compare float lists.
+        return sorted(float(w) for _, _, w in self._edge_weights(graph_name))
+
     # ------------------------------------------------------------------
     # Vertex placement
     # ------------------------------------------------------------------
@@ -111,8 +115,8 @@ class TestGraphTools(unittest.TestCase):
 
         self.assertEqual(len(self.canvas.get_drawables_by_class_name("Point")), 6)
         self.assertTrue(set(self._vertex_coords("G1")).isdisjoint(self._vertex_coords("G2")))
-        self.assertEqual({w for _, _, w in self._edge_weights("G1")}, {1.0})
-        self.assertEqual({w for _, _, w in self._edge_weights("G2")}, {7.0})
+        self.assertEqual(self._weights("G1"), [1.0, 1.0, 1.0])
+        self.assertEqual(self._weights("G2"), [7.0, 7.0, 7.0])
         self.assertEqual(self._analyze("G2", "shortest_path", start="P", goal="Q").get("cost"), 7.0)
 
     def test_explicit_coordinates_reuse_an_existing_point(self) -> None:
@@ -189,7 +193,7 @@ class TestGraphTools(unittest.TestCase):
         self._graph(vertices=[_vertex("A"), _vertex("B")], edges=[_edge(0, 1, 5), _edge(0, 1, 1)])
 
         self.assertEqual(len(self.canvas.get_drawables_by_class_name("Segment")), 1)
-        self.assertEqual({w for _, _, w in self._edge_weights("G")}, {1.0})
+        self.assertEqual(self._weights("G"), [1.0, 1.0])
         self.assertEqual(self._analyze("G", "shortest_path", start="A", goal="B").get("cost"), 1.0)
 
     def test_directed_parallel_edges_carry_the_cheapest_weight(self) -> None:
