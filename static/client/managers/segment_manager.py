@@ -173,7 +173,15 @@ class SegmentManager(BaseDrawableManager):
 
         Returns:
             Segment: The newly created segment
+
+        Raises:
+            ValueError: If both endpoints are the same point
         """
+        if abs(x1 - x2) < MathUtils.EPSILON and abs(y1 - y2) < MathUtils.EPSILON:
+            raise ValueError(
+                f"A segment needs two distinct endpoints; both are at ({x1}, {y1}), which would give a zero-length segment"
+            )
+
         # Archive before creation
         self.canvas.undo_redo_manager.archive()
 
@@ -578,7 +586,9 @@ class SegmentManager(BaseDrawableManager):
             sp1x, sp1y = segment.point1.x, segment.point1.y
             sp2x, sp2y = segment.point2.x, segment.point2.y
             # If the new point is either of the segment's endpoints, we don't need to create new segments
-            if (x, y) == (sp1x, sp1y) or (x, y) == (sp2x, sp2y):
+            if MathUtils.point_matches_coordinates(segment.point1, x, y) or MathUtils.point_matches_coordinates(
+                segment.point2, x, y
+            ):
                 continue
             if MathUtils.is_point_on_segment(x, y, sp1x, sp1y, sp2x, sp2y):
                 # Create new segments

@@ -113,19 +113,79 @@ class ConstructionManager:
             raise ValueError(f"Triangle '{name}' not found")
         return tri  # type: ignore[return-value]
 
-    def _segment_slope(self, seg: "Segment") -> Optional[float]:
-        """Return the slope of a segment, or None for vertical.
+    def _segment_direction(self, seg: "Segment") -> Tuple[float, float]:
+        """Return the unit vector from a segment's first point to its second.
 
         Raises:
             ValueError: If the segment has zero length (coincident endpoints)
         """
         dx = seg.point2.x - seg.point1.x
         dy = seg.point2.y - seg.point1.y
-        if abs(dx) < MathUtils.EPSILON and abs(dy) < MathUtils.EPSILON:
+        length = math.hypot(dx, dy)
+        if length == 0.0 or not math.isfinite(length):
             raise ValueError(f"Degenerate segment '{getattr(seg, 'name', '')}': endpoints coincide")
-        if abs(dx) < MathUtils.EPSILON:
-            return None
-        return dy / dx
+        return dx / length, dy / length
+
+    @staticmethod
+    def _resolve_length(length: Optional[float]) -> float:
+        """The requested construction length, or the default; it must be a positive number."""
+        if length is None:
+            return DEFAULT_CONSTRUCTION_LENGTH
+        value = float(length)
+        if not math.isfinite(value) or value <= 0:
+            raise ValueError(f"length must be a positive number, got {length}")
+        return value
+
+    @staticmethod
+    def _centered_endpoints(
+        center: Tuple[float, float], direction: Tuple[float, float], length: float
+    ) -> Tuple[Tuple[float, float], Tuple[float, float]]:
+        """Endpoints of a segment of the given length centred on a point along a unit direction."""
+        half = length / 2
+        (cx, cy), (ux, uy) = center, direction
+        return (cx - ux * half, cy - uy * half), (cx + ux * half, cy + uy * half)
+
+    @staticmethod
+    def _require_point_off_line(pt: "Point", seg: "Segment", foot_x: float, foot_y: float) -> None:
+        """Raise when the point lies on the segment's line, relative to the segment's scale."""
+        distance = math.hypot(pt.x - foot_x, pt.y - foot_y)
+        scale = max(
+            math.hypot(seg.point2.x - seg.point1.x, seg.point2.y - seg.point1.y),
+            math.hypot(pt.x - seg.point1.x, pt.y - seg.point1.y),
+        )
+        if distance <= MathUtils.EPSILON * scale:
+            raise ValueError(
+                f"Point '{pt.name}' lies on the line through segment '{seg.name}', so the perpendicular "
+                "from it would have zero length; use a point off that line."
+            )
+
+    @staticmethod
+    def _bisector_direction(
+        vx: float, vy: float, p1x: float, p1y: float, p2x: float, p2y: float
+    ) -> Tuple[float, float, bool]:
+        """Unit vector from the vertex along the angle bisector, and whether the angle is straight.
+
+        The bisector of a straight angle is perpendicular to its arms, on the side
+        counterclockwise from the first arm, where the angle's arc is drawn.
+
+        Raises:
+            ValueError: If an arm has zero length
+        """
+        a1x, a1y = p1x - vx, p1y - vy
+        a2x, a2y = p2x - vx, p2y - vy
+        len1 = math.hypot(a1x, a1y)
+        len2 = math.hypot(a2x, a2y)
+        if len1 == 0.0 or len2 == 0.0:
+            raise ValueError("An arm of the angle has zero length: its bisector is undefined")
+        u1x, u1y = a1x / len1, a1y / len1
+        u2x, u2y = a2x / len2, a2y / len2
+        cross = u1x * u2y - u1y * u2x
+        dot = u1x * u2x + u1y * u2y
+        if dot < 0 and abs(cross) <= MathUtils.EPSILON:
+            return -u1y, u1x, True
+        bx, by = u1x + u2x, u1y + u2y
+        blen = math.hypot(bx, by)
+        return bx / blen, by / blen, False
 
     # ------------------- Public Construction Methods -------------------
 
@@ -201,17 +261,13 @@ class ConstructionManager:
             ValueError: If segment not found
         """
         seg = self._get_segment(segment_name)
-        if length is None:
-            length = DEFAULT_CONSTRUCTION_LENGTH
+        length = self._resolve_length(length)
         if color is None:
             color = getattr(seg, "color", default_color)
 
         midpoint = MathUtils.get_2D_midpoint(seg.point1, seg.point2)
-        tangent_slope = self._segment_slope(seg)
-        perp_slope = MathUtils.normal_slope(tangent_slope)
-        endpoints = MathUtils.tangent_line_endpoints(perp_slope, midpoint, length)
-
-        (x1, y1), (x2, y2) = endpoints
+        ux, uy = self._segment_direction(seg)
+        (x1, y1), (x2, y2) = self._centered_endpoints(midpoint, (-uy, ux), length)
 
         self._archive_for_undo()
         segment = self.segment_manager.create_segment(
@@ -248,7 +304,8 @@ class ConstructionManager:
             Dict with keys 'foot' (Point) and 'segment' (Segment)
 
         Raises:
-            ValueError: If point or segment not found
+            ValueError: If point or segment not found, or the point lies on the
+                segment's line (the perpendicular would have zero length)
         """
         pt = self._get_point(point_name)
         seg = self._get_segment(segment_name)
@@ -263,6 +320,7 @@ class ConstructionManager:
             seg.point2.x,
             seg.point2.y,
         )
+        self._require_point_off_line(pt, seg, foot_x, foot_y)
 
         # Use suspend_archiving pattern for composite construction
         undo_manager = self.canvas.undo_redo_manager
@@ -359,16 +417,15 @@ class ConstructionManager:
         else:
             raise ValueError("Provide either 'angle_name' or all of 'vertex_name', 'p1_name', 'p2_name'")
 
-        if length is None:
-            length = DEFAULT_CONSTRUCTION_LENGTH
+        length = self._resolve_length(length)
         if color is None:
             color = default_color
 
-        dx, dy = MathUtils.angle_bisector_direction(vx, vy, p1x, p1y, p2x, p2y)
+        dx, dy, straight = self._bisector_direction(vx, vy, p1x, p1y, p2x, p2y)
 
         # For reflex angles, negate the direction so the bisector points
-        # into the reflex arc instead of the minor arc.
-        if angle_name and getattr(angle, "is_reflex", False):
+        # into the reflex arc instead of the minor arc (a straight angle has none).
+        if angle_name and getattr(angle, "is_reflex", False) and not straight:
             dx, dy = -dx, -dy
 
         # Create segment from vertex along bisector direction
@@ -419,16 +476,12 @@ class ConstructionManager:
         seg = self._get_segment(segment_name)
         pt = self._get_point(point_name)
 
-        if length is None:
-            length = DEFAULT_CONSTRUCTION_LENGTH
+        length = self._resolve_length(length)
         if color is None:
             color = getattr(seg, "color", default_color)
 
-        slope = self._segment_slope(seg)
-        point = (pt.x, pt.y)
-        endpoints = MathUtils.tangent_line_endpoints(slope, point, length)
-
-        (x1, y1), (x2, y2) = endpoints
+        direction = self._segment_direction(seg)
+        (x1, y1), (x2, y2) = self._centered_endpoints((pt.x, pt.y), direction, length)
 
         self._archive_for_undo()
         segment = self.segment_manager.create_segment(
