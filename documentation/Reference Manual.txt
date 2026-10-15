@@ -3096,10 +3096,10 @@ Class Attributes:
 - `solve_numeric(equations, variables=None, initial_guesses=None, tolerance=1e-10, max_iterations=50)`: Numerically solve a system of equations using multi-start Newton-Raphson. Supports transcendental, mixed nonlinear, or systems that cannot be solved symbolically. Returns JSON string with solutions, variables, and method information
 - `random(min_value=0, max_value=1)`: Generate random number
 - `round(value, ndigits=0)`: Round number to specified digits
-- `gcd(*values)`: Calculate greatest common divisor
-- `lcm(*values)`: Calculate least common multiple
-- `is_prime(n)`: Check if a number is prime
-- `prime_factors(n)`: Get prime factorization with multiplicity (e.g., prime_factors(12) → [2, 2, 3])
+- `gcd(*values)`: Calculate greatest common divisor (integers only; 4.5 raises TypeError)
+- `lcm(*values)`: Calculate least common multiple (integers only)
+- `is_prime(n)`: Check if a number is prime (trial division by small primes, then a deterministic Miller-Rabin test, exact for n < 3.3e24; `utils/number_theory.py`)
+- `prime_factors(n)`: Get prime factorization with multiplicity (e.g., prime_factors(12) → [2, 2, 3]); trial division up to 10^4, then Pollard's rho. Raises ValueError above 10^30 or when every remaining prime factor is too large to find within the step budget
 - `mod_pow(base, exp, mod)`: Modular exponentiation (base^exp mod mod)
 - `mod_inverse(a, mod)`: Modular multiplicative inverse (raises ValueError if inverse doesn't exist)
 - `next_prime(n)`: Find the smallest prime >= n
@@ -3108,8 +3108,8 @@ Class Attributes:
 - `divisors(n)`: Get all positive divisors of n in sorted order
 - `summation(expr, var, start, end)`: Compute Σ expression from start to end (e.g., summation('n^2', 'n', 1, 5) → 55)
 - `product(expr, var, start, end)`: Compute Π expression from start to end (e.g., product('n', 'n', 1, 5) → 120)
-- `arithmetic_sum(first, diff, n)`: Sum of arithmetic series S_n = n/2 * (2a + (n-1)d)
-- `geometric_sum(first, ratio, n)`: Sum of finite geometric series S_n = a(1-r^n)/(1-r)
+- `arithmetic_sum(first, diff, n)`: Sum of arithmetic series S_n = n/2 * (2a + (n-1)d); n must be a whole number >= 1, and integer inputs give an exact integer
+- `geometric_sum(first, ratio, n)`: Sum of finite geometric series S_n = a(1-r^n)/(1-r); n must be a whole number >= 1, integer inputs give an exact integer (geometric_sum(1, 2, 64) = 2^64 - 1), and a float ratio near 1 uses expm1/log1p to avoid cancellation
 - `geometric_sum_infinite(first, ratio)`: Sum of infinite geometric series S = a/(1-r), requires |r| < 1
 - `ratio_test(expr, n_var)`: Apply ratio test for series convergence
 - `root_test(expr, n_var)`: Apply root test for series convergence

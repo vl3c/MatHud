@@ -858,6 +858,22 @@ class TestMathFunctions(unittest.TestCase):
         result = MathUtils.lcm(4, 5)
         self.assertEqual(result, 20)
 
+    def test_gcd_and_lcm_reject_non_integers(self) -> None:
+        with self.assertRaises(TypeError):
+            MathUtils.gcd(4.5, 6)
+        with self.assertRaises(TypeError):
+            MathUtils.lcm(4, 2.5)
+        self.assertEqual(MathUtils.gcd(48.0, 18), 6)
+
+    def test_geometric_sum_is_exact_for_integers(self) -> None:
+        self.assertEqual(MathUtils.geometric_sum(1, 2, 64), 2**64 - 1)
+        self.assertEqual(MathUtils.geometric_sum(3, 0.5, 2), 4.5)
+
+    def test_arithmetic_sum_rejects_fractional_term_count(self) -> None:
+        with self.assertRaises(TypeError):
+            MathUtils.arithmetic_sum(1, 1, 2.5)
+        self.assertEqual(MathUtils.arithmetic_sum(1, 1, 100), 5050)
+
     def test_mean(self) -> None:
         result = MathUtils.mean([1, 2, 3, 4, 5])
         self.assertEqual(result, 3)
@@ -1931,6 +1947,17 @@ class TestNumberTheory(unittest.TestCase):
         self.assertEqual(MathUtils.prime_factors(1), [])
         self.assertEqual(MathUtils.prime_factors(2), [2])
         self.assertEqual(MathUtils.prime_factors(360), [2, 2, 2, 3, 3, 5])
+
+    def test_prime_factors_large_inputs(self) -> None:
+        self.assertEqual(MathUtils.prime_factors(1000000007 * 998244353), [998244353, 1000000007])
+        self.assertEqual(MathUtils.prime_factors(2**64 - 1), [3, 5, 17, 257, 641, 65537, 6700417])
+        with self.assertRaises(ValueError):
+            MathUtils.prime_factors(10**31)
+
+    def test_is_prime_large_inputs(self) -> None:
+        self.assertTrue(MathUtils.is_prime(2**61 - 1))
+        self.assertFalse(MathUtils.is_prime(100000007 * 100000007))
+        self.assertFalse(MathUtils.is_prime(3215031751))  # strong pseudoprime to bases 2, 3, 5, 7
 
     def test_prime_factors_invalid_input(self) -> None:
         """Test prime_factors raises ValueError for invalid input."""

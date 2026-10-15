@@ -2264,19 +2264,26 @@ class MathUtils:
 
     @staticmethod
     def gcd(*values: Number) -> int:
-        ints = [int(v) for v in values]
-        return math.gcd(*ints)
+        """Greatest common divisor; raises TypeError for a non-integer argument such as 4.5."""
+        from utils.number_theory import gcd
+
+        return cast(int, gcd(values))
 
     @staticmethod
     def lcm(*values: Number) -> int:
-        ints = [int(v) for v in values]
-        return math.lcm(*ints)
+        """Least common multiple; raises TypeError for a non-integer argument such as 4.5."""
+        from utils.number_theory import lcm
+
+        return cast(int, lcm(values))
 
     # ========== Number Theory Functions ==========
 
     @staticmethod
     def is_prime(n: Number) -> bool:
         """Check if a number is prime.
+
+        Uses trial division by small primes, then a deterministic Miller-Rabin test
+        (exact for n < 3.3e24; above that a composite passes with probability below 4^-25).
 
         Args:
             n: Integer to check for primality
@@ -2293,20 +2300,15 @@ class MathUtils:
         n = int(n)
         if n < 0:
             raise ValueError("is_prime requires a non-negative integer")
-        if n < 2:
-            return False
-        if n == 2:
-            return True
-        if n % 2 == 0:
-            return False
-        for i in range(3, int(n**0.5) + 1, 2):
-            if n % i == 0:
-                return False
-        return True
+        from utils.number_theory import is_prime
+
+        return cast(bool, is_prime(n))
 
     @staticmethod
     def prime_factors(n: Number) -> List[int]:
         """Return the prime factorization of n with multiplicity.
+
+        Trial division finds small factors and Pollard's rho the rest.
 
         Args:
             n: Positive integer to factorize
@@ -2315,7 +2317,8 @@ class MathUtils:
             list[int]: List of prime factors (with repetition for multiplicity)
 
         Raises:
-            ValueError: If n is less than 1
+            ValueError: If n is less than 1, above 10^30, or has only prime factors
+                too large to find quickly
             TypeError: If n is not an integer
 
         Examples:
@@ -2327,18 +2330,9 @@ class MathUtils:
         n = int(n)
         if n < 1:
             raise ValueError("prime_factors requires a positive integer")
-        if n == 1:
-            return []
-        factors = []
-        d = 2
-        while d * d <= n:
-            while n % d == 0:
-                factors.append(d)
-                n //= d
-            d += 1
-        if n > 1:
-            factors.append(n)
-        return factors
+        from utils.number_theory import prime_factors
+
+        return cast(List[int], prime_factors(n))
 
     @staticmethod
     def mod_pow(base: Number, exp: Number, mod: Number) -> int:
@@ -2603,22 +2597,18 @@ class MathUtils:
         Args:
             first: First term of the arithmetic sequence (a)
             diff: Common difference between consecutive terms (d)
-            n: Number of terms to sum
+            n: Number of terms to sum (a whole number)
 
         Returns:
-            Number: Sum of the arithmetic series
+            Number: Sum of the arithmetic series; exact for integer inputs
 
         Raises:
             ValueError: If n < 1
+            TypeError: If n is not a whole number
         """
-        n = int(n)
-        if n < 1:
-            raise ValueError("Number of terms must be at least 1")
-        result = n / 2 * (2 * first + (n - 1) * diff)
-        # Return integer if it's a whole number
-        if result == int(result):
-            return int(result)
-        return result
+        from utils.number_theory import arithmetic_sum
+
+        return cast(Number, arithmetic_sum(first, diff, n))
 
     @staticmethod
     def geometric_sum(first: Number, ratio: Number, n: int) -> Number:
@@ -2633,24 +2623,19 @@ class MathUtils:
         Args:
             first: First term of the geometric sequence (a)
             ratio: Common ratio between consecutive terms (r)
-            n: Number of terms to sum
+            n: Number of terms to sum (a whole number)
 
         Returns:
-            Number: Sum of the geometric series
+            Number: Sum of the geometric series; exact for integer inputs
+            (geometric_sum(1, 2, 64) is 2^64 - 1)
 
         Raises:
-            ValueError: If n < 1
+            ValueError: If n < 1 or the sum is too large to represent
+            TypeError: If n is not a whole number
         """
-        n = int(n)
-        if n < 1:
-            raise ValueError("Number of terms must be at least 1")
-        if ratio == 1:
-            return first * n
-        result = first * (1 - ratio**n) / (1 - ratio)
-        # Return integer if it's a whole number
-        if result == int(result):
-            return int(result)
-        return result
+        from utils.number_theory import geometric_sum
+
+        return cast(Number, geometric_sum(first, ratio, n))
 
     @staticmethod
     def geometric_sum_infinite(first: Number, ratio: Number) -> Number:
