@@ -14,6 +14,9 @@ Adding a function:
        ``server_tests/test_expression_functions.py`` fails until both agree.
     3. Set ``sympy`` when ``static/sympy_cas.py`` accepts it (the same test checks the
        SymPy table).
+    4. A ``curve_safe`` row of exactly one argument needs sample points in
+       ``client_tests/test_expression_functions.py``, which compares its Python value with
+       math.js in the browser.
 
 Pure Python (no browser imports), so server-side pytest imports it directly.
 """

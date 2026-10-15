@@ -963,8 +963,8 @@ Expression Processing:
 Dependencies:
     - ast: Abstract syntax tree parsing for security
     - math: Standard mathematical functions
-    - random: Random number generation
     - re: Regular expression pattern matching
+    - expression_functions: The function rows the whitelist, aliases and namespaces derive from
     - utils.math_utils: Advanced mathematical operations
 ```
 
@@ -1008,6 +1008,8 @@ Attributes:
 - `_convert_degrees(expression)`: Convert degree symbols and text to radians
 - `_handle_special_symbols(expression, python_compatible)`: Handle square roots, absolute values, and factorials
 - `_replace_function_names(expression)`: Replace common mathematical function names with Python equivalents
+
+**Function registry (`expression_functions.py`):** One `ExpressionFunction` row per function expressions may call: its Python callable (or the name of a `MathUtils` attribute, resolved on first use), arity, math.js name (`None` when math.js lacks it), call aliases (`sine(`) and word aliases (`ln`), and the flags `curve_safe` (allowed in parametric curves), `superscript`, `inverse`, `python_only`, `sympy` and `described`. `ALLOWED_FUNCTIONS`, `ALLOWED_NODES`, the superscript and inverse tables, the alias rewrites and both evaluation namespaces (`build_python_namespace()`, `build_curve_namespace()`, built once and copied per parse) derive from the rows, as do `MathUtils._PYTHON_ONLY_FUNCTIONS` and `rename_for_mathjs(text)` (`arrangements` → `permutations`, `stdev` → `std`, `trunc` → `fix`). Pure Python, so `server_tests/test_expression_functions.py` checks it against the goldens, the callables' signatures, the `evaluate_expression` description and the SymPy table.
 - `_handle_power_and_imaginary(expression, python_compatible)`: Handle power operators and imaginary numbers
 - `_insert_multiplication_operators(expression, python_compatible)`: Insert multiplication operators for implicit multiplication
 

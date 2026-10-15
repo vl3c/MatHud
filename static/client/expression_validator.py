@@ -42,7 +42,6 @@ Expression Processing:
 Dependencies:
     - ast: Abstract syntax tree parsing for security
     - math: Standard mathematical functions
-    - random: Random number generation
     - re: Regular expression pattern matching
     - expression_functions: The function rows the whitelist, aliases and namespaces derive from
     - utils.math_utils: Advanced mathematical operations
