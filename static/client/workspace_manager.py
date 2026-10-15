@@ -87,6 +87,48 @@ class WorkspaceManager:
         chat_persistence: Saves and restores the chat with workspaces (None: canvas only).
     """
 
+    # Every list in a saved state that the restore reads. Bars are rebuilt from their plots,
+    # and nothing saves Plots or ColoredAreas today, but older files may hold them. A saved
+    # list missing here is skipped with a warning (server_tests/test_drawable_wiring.py
+    # keeps the list complete).
+    RESTORED_BUCKETS: Tuple[str, ...] = (
+        "Points",
+        "Labels",
+        "Segments",
+        "Vectors",
+        "Triangles",
+        "Rectangles",
+        "Quadrilaterals",
+        "Pentagons",
+        "Hexagons",
+        "Heptagons",
+        "Octagons",
+        "Nonagons",
+        "Decagons",
+        "GenericPolygons",
+        "UndirectedGraphs",
+        "DirectedGraphs",
+        "Trees",
+        "Circles",
+        "CircleArcs",
+        "Ellipses",
+        "Functions",
+        "PiecewiseFunctions",
+        "ParametricFunctions",
+        "FunctionsBoundedColoredAreas",
+        "SegmentsBoundedColoredAreas",
+        "FunctionSegmentBoundedColoredAreas",
+        "ClosedShapeColoredAreas",
+        "ColoredAreas",
+        "ContinuousPlots",
+        "DiscretePlots",
+        "BarsPlots",
+        "Plots",
+        "Bars",
+        "Angles",
+        "computations",
+    )
+
     def __init__(self, canvas: "Canvas") -> None:
         """Initialize workspace manager with canvas reference."""
         self.canvas: "Canvas" = canvas
@@ -1243,8 +1285,21 @@ class WorkspaceManager:
             self.canvas.end_undo_batch()
 
     def _run_restore_phases(self, state: Dict[str, Any]) -> None:
+        self._warn_unrestored_buckets(state)
         for phase in self._restore_phases():
             phase(state)
+
+    def _unrestored_buckets(self, state: Dict[str, Any]) -> List[str]:
+        """Non-empty lists in a saved state that no restore step reads."""
+        return [
+            key
+            for key, value in state.items()
+            if isinstance(value, list) and value and key not in self.RESTORED_BUCKETS
+        ]
+
+    def _warn_unrestored_buckets(self, state: Dict[str, Any]) -> None:
+        for key in self._unrestored_buckets(state):
+            print(f"Warning: the saved workspace has {len(state[key])} {key} item(s) this version cannot restore.")
 
     def _restore_phases(self) -> List[Callable[[Dict[str, Any]], None]]:
         return [

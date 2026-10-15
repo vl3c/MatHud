@@ -1,0 +1,238 @@
+{
+  "metadata": {
+    "name": "octagon",
+    "last_modified": "2026-10-15T22:07:32.249564",
+    "schema_version": 2
+  },
+  "state": {
+    "Points": [
+      {
+        "name": "A",
+        "args": {
+          "position": {
+            "x": 3,
+            "y": 0
+          }
+        }
+      },
+      {
+        "name": "B",
+        "args": {
+          "position": {
+            "x": 2.121,
+            "y": 2.121
+          }
+        }
+      },
+      {
+        "name": "C",
+        "args": {
+          "position": {
+            "x": 0,
+            "y": 3
+          }
+        }
+      },
+      {
+        "name": "D",
+        "args": {
+          "position": {
+            "x": -2.121,
+            "y": 2.121
+          }
+        }
+      },
+      {
+        "name": "E",
+        "args": {
+          "position": {
+            "x": -3,
+            "y": 0
+          }
+        }
+      },
+      {
+        "name": "F",
+        "args": {
+          "position": {
+            "x": -2.121,
+            "y": -2.121
+          }
+        }
+      },
+      {
+        "name": "G",
+        "args": {
+          "position": {
+            "x": 0,
+            "y": -3
+          }
+        }
+      },
+      {
+        "name": "H",
+        "args": {
+          "position": {
+            "x": 2.121,
+            "y": -2.121
+          }
+        }
+      }
+    ],
+    "Segments": [
+      {
+        "name": "AB",
+        "args": {
+          "p1": "A",
+          "p2": "B"
+        },
+        "_p1_coords": [
+          3,
+          0
+        ],
+        "_p2_coords": [
+          2.121,
+          2.121
+        ]
+      },
+      {
+        "name": "BC",
+        "args": {
+          "p1": "B",
+          "p2": "C"
+        },
+        "_p1_coords": [
+          2.121,
+          2.121
+        ],
+        "_p2_coords": [
+          0,
+          3
+        ]
+      },
+      {
+        "name": "CD",
+        "args": {
+          "p1": "C",
+          "p2": "D"
+        },
+        "_p1_coords": [
+          0,
+          3
+        ],
+        "_p2_coords": [
+          -2.121,
+          2.121
+        ]
+      },
+      {
+        "name": "DE",
+        "args": {
+          "p1": "D",
+          "p2": "E"
+        },
+        "_p1_coords": [
+          -2.121,
+          2.121
+        ],
+        "_p2_coords": [
+          -3,
+          0
+        ]
+      },
+      {
+        "name": "EF",
+        "args": {
+          "p1": "E",
+          "p2": "F"
+        },
+        "_p1_coords": [
+          -3,
+          0
+        ],
+        "_p2_coords": [
+          -2.121,
+          -2.121
+        ]
+      },
+      {
+        "name": "FG",
+        "args": {
+          "p1": "F",
+          "p2": "G"
+        },
+        "_p1_coords": [
+          -2.121,
+          -2.121
+        ],
+        "_p2_coords": [
+          0,
+          -3
+        ]
+      },
+      {
+        "name": "GH",
+        "args": {
+          "p1": "G",
+          "p2": "H"
+        },
+        "_p1_coords": [
+          0,
+          -3
+        ],
+        "_p2_coords": [
+          2.121,
+          -2.121
+        ]
+      },
+      {
+        "name": "HA",
+        "args": {
+          "p1": "H",
+          "p2": "A"
+        },
+        "_p1_coords": [
+          2.121,
+          -2.121
+        ],
+        "_p2_coords": [
+          3,
+          0
+        ]
+      }
+    ],
+    "Octagons": [
+      {
+        "name": "ABCDEFGH",
+        "args": {
+          "p1": "A",
+          "p2": "B",
+          "p3": "C",
+          "p4": "D",
+          "p5": "E",
+          "p6": "F",
+          "p7": "G",
+          "p8": "H"
+        },
+        "types": [
+          "octagon",
+          "irregular"
+        ]
+      }
+    ],
+    "Cartesian_System_Visibility": {
+      "left_bound": -250,
+      "right_bound": 250,
+      "top_bound": 250,
+      "bottom_bound": -250
+    },
+    "current_tick_spacing": 100,
+    "default_tick_spacing": 100,
+    "current_tick_spacing_repr": "100",
+    "min_tick_spacing": 1e-06,
+    "visible": true,
+    "coordinate_system": {
+      "mode": "cartesian"
+    }
+  }
+}

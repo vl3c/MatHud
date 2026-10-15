@@ -40,6 +40,7 @@ from constants import (
 from creation_report import CreationReport, CreationSnapshot
 from json_safe import ensure_json_safe, is_json_plain, to_json_safe
 from no_change_result import NoChangeResult
+from tool_kinds import META_TOOLS
 
 # Largest JSON-serialized return value of a canvas-mutating tool passed back to the model;
 # larger values are replaced by the success message to keep token usage bounded.
@@ -317,13 +318,7 @@ class ResultProcessor:
     def _prepare_helper_variables(undoable_functions: Tuple[str, ...]) -> Tuple[Tuple[str, ...], Tuple[str, ...]]:
         """Prepare helper variables needed for processing."""
         unformattable_functions: Tuple[str, ...] = undoable_functions + ("undo", "redo")
-        non_computation_functions: Tuple[str, ...] = unformattable_functions + (
-            "run_tests",
-            "list_workspaces",
-            "save_workspace",
-            "load_workspace",
-            "delete_workspace",
-        )
+        non_computation_functions: Tuple[str, ...] = undoable_functions + META_TOOLS
         return non_computation_functions, unformattable_functions
 
     @staticmethod

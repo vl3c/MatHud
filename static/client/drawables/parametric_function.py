@@ -156,22 +156,27 @@ class ParametricFunction(Drawable):
         Args:
             x_offset: Amount to shift in the x direction
             y_offset: Amount to shift in the y direction
+
+        Raises:
+            ValueError: If a new expression cannot be parsed; the curve is then unchanged.
         """
         if x_offset == 0 and y_offset == 0:
             return
 
+        # Build both new expressions before changing anything, so a failure leaves the curve as it was.
+        x_expression, x_function = self.x_expression, self._x_function
+        y_expression, y_function = self.y_expression, self._y_function
         try:
             if x_offset != 0:
-                new_x_expression = f"({self.x_expression}) + {x_offset}"
-                self.x_expression = ExpressionValidator.fix_math_expression(new_x_expression)
-                self._x_function = ExpressionValidator.parse_parametric_expression(self.x_expression)
-
+                x_expression = ExpressionValidator.fix_math_expression(f"({self.x_expression}) + {x_offset}")
+                x_function = ExpressionValidator.parse_parametric_expression(x_expression)
             if y_offset != 0:
-                new_y_expression = f"({self.y_expression}) + {y_offset}"
-                self.y_expression = ExpressionValidator.fix_math_expression(new_y_expression)
-                self._y_function = ExpressionValidator.parse_parametric_expression(self.y_expression)
-        except Exception as e:
-            print(f"Warning: Could not translate parametric function: {str(e)}")
+                y_expression = ExpressionValidator.fix_math_expression(f"({self.y_expression}) + {y_offset}")
+                y_function = ExpressionValidator.parse_parametric_expression(y_expression)
+        except Exception as exc:
+            raise ValueError(f"Could not translate parametric function '{self.name}': {exc}") from exc
+        self.x_expression, self._x_function = x_expression, x_function
+        self.y_expression, self._y_function = y_expression, y_function
 
     def rotate(self, angle: float) -> None:
         """
@@ -179,6 +184,9 @@ class ParametricFunction(Drawable):
 
         Args:
             angle: Rotation angle in radians
+
+        Raises:
+            ValueError: If a new expression cannot be parsed; the curve is then unchanged.
         """
         if angle == 0:
             return
@@ -186,21 +194,21 @@ class ParametricFunction(Drawable):
         cos_a = math.cos(angle)
         sin_a = math.sin(angle)
 
+        # x' = x*cos(angle) - y*sin(angle), y' = x*sin(angle) + y*cos(angle); both are built
+        # before changing anything, so a failure leaves the curve as it was.
         try:
-            # x' = x*cos(angle) - y*sin(angle)
-            # y' = x*sin(angle) + y*cos(angle)
-            old_x_expr = self.x_expression
-            old_y_expr = self.y_expression
-
-            new_x_expression = f"({old_x_expr})*{cos_a} - ({old_y_expr})*{sin_a}"
-            new_y_expression = f"({old_x_expr})*{sin_a} + ({old_y_expr})*{cos_a}"
-
-            self.x_expression = ExpressionValidator.fix_math_expression(new_x_expression)
-            self.y_expression = ExpressionValidator.fix_math_expression(new_y_expression)
-            self._x_function = ExpressionValidator.parse_parametric_expression(self.x_expression)
-            self._y_function = ExpressionValidator.parse_parametric_expression(self.y_expression)
-        except Exception as e:
-            print(f"Warning: Could not rotate parametric function: {str(e)}")
+            x_expression = ExpressionValidator.fix_math_expression(
+                f"({self.x_expression})*{cos_a} - ({self.y_expression})*{sin_a}"
+            )
+            y_expression = ExpressionValidator.fix_math_expression(
+                f"({self.x_expression})*{sin_a} + ({self.y_expression})*{cos_a}"
+            )
+            x_function = ExpressionValidator.parse_parametric_expression(x_expression)
+            y_function = ExpressionValidator.parse_parametric_expression(y_expression)
+        except Exception as exc:
+            raise ValueError(f"Could not rotate parametric function '{self.name}': {exc}") from exc
+        self.x_expression, self._x_function = x_expression, x_function
+        self.y_expression, self._y_function = y_expression, y_function
 
     def update_color(self, color: str) -> None:
         """Update the display color of the curve."""

@@ -1,0 +1,188 @@
+{
+  "metadata": {
+    "name": "hexagon",
+    "last_modified": "2026-10-15T22:07:32.248221",
+    "schema_version": 2
+  },
+  "state": {
+    "Points": [
+      {
+        "name": "A",
+        "args": {
+          "position": {
+            "x": 3,
+            "y": 0
+          }
+        }
+      },
+      {
+        "name": "B",
+        "args": {
+          "position": {
+            "x": 1.5,
+            "y": 2.598
+          }
+        }
+      },
+      {
+        "name": "C",
+        "args": {
+          "position": {
+            "x": -1.5,
+            "y": 2.598
+          }
+        }
+      },
+      {
+        "name": "D",
+        "args": {
+          "position": {
+            "x": -3,
+            "y": 0
+          }
+        }
+      },
+      {
+        "name": "E",
+        "args": {
+          "position": {
+            "x": -1.5,
+            "y": -2.598
+          }
+        }
+      },
+      {
+        "name": "F",
+        "args": {
+          "position": {
+            "x": 1.5,
+            "y": -2.598
+          }
+        }
+      }
+    ],
+    "Segments": [
+      {
+        "name": "AB",
+        "args": {
+          "p1": "A",
+          "p2": "B"
+        },
+        "_p1_coords": [
+          3,
+          0
+        ],
+        "_p2_coords": [
+          1.5,
+          2.598
+        ]
+      },
+      {
+        "name": "BC",
+        "args": {
+          "p1": "B",
+          "p2": "C"
+        },
+        "_p1_coords": [
+          1.5,
+          2.598
+        ],
+        "_p2_coords": [
+          -1.5,
+          2.598
+        ]
+      },
+      {
+        "name": "CD",
+        "args": {
+          "p1": "C",
+          "p2": "D"
+        },
+        "_p1_coords": [
+          -1.5,
+          2.598
+        ],
+        "_p2_coords": [
+          -3,
+          0
+        ]
+      },
+      {
+        "name": "DE",
+        "args": {
+          "p1": "D",
+          "p2": "E"
+        },
+        "_p1_coords": [
+          -3,
+          0
+        ],
+        "_p2_coords": [
+          -1.5,
+          -2.598
+        ]
+      },
+      {
+        "name": "EF",
+        "args": {
+          "p1": "E",
+          "p2": "F"
+        },
+        "_p1_coords": [
+          -1.5,
+          -2.598
+        ],
+        "_p2_coords": [
+          1.5,
+          -2.598
+        ]
+      },
+      {
+        "name": "FA",
+        "args": {
+          "p1": "F",
+          "p2": "A"
+        },
+        "_p1_coords": [
+          1.5,
+          -2.598
+        ],
+        "_p2_coords": [
+          3,
+          0
+        ]
+      }
+    ],
+    "Hexagons": [
+      {
+        "name": "ABCDEF",
+        "args": {
+          "p1": "A",
+          "p2": "B",
+          "p3": "C",
+          "p4": "D",
+          "p5": "E",
+          "p6": "F"
+        },
+        "types": [
+          "hexagon",
+          "regular"
+        ]
+      }
+    ],
+    "Cartesian_System_Visibility": {
+      "left_bound": -250,
+      "right_bound": 250,
+      "top_bound": 250,
+      "bottom_bound": -250
+    },
+    "current_tick_spacing": 100,
+    "default_tick_spacing": 100,
+    "current_tick_spacing_repr": "100",
+    "min_tick_spacing": 1e-06,
+    "visible": true,
+    "coordinate_system": {
+      "mode": "cartesian"
+    }
+  }
+}

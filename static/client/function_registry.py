@@ -26,6 +26,7 @@ from creation_report import CreationReport
 from no_change_result import NoChangeResult
 from utils.math_utils import MathUtils
 from process_function_calls import ProcessFunctionCalls
+from tool_kinds import UNDOABLE_TOOLS
 
 if TYPE_CHECKING:
     from ai_interface import AIInterface
@@ -434,96 +435,11 @@ class FunctionRegistry:
         """Get the tuple of function names that support undo/redo operations.
 
         Defines which operations modify canvas state and can be reversed through
-        the undo/redo system for user experience and error recovery.
+        the undo/redo system for user experience and error recovery. The list
+        lives in tool_kinds.py with the value-returning and meta tools.
 
         Returns:
             tuple: Function names that support undo/redo operations
         """
-        return (
-            # Canvas operations that modify state
-            "clear_canvas",
-            "reset_canvas",
-            "zoom",
-            "set_coordinate_system",
-            "set_grid_visible",
-            # Point operations
-            "create_point",
-            "delete_point",
-            "update_point",
-            # Segment operations
-            "create_segment",
-            "delete_segment",
-            "update_segment",
-            # Vector operations
-            "create_vector",
-            "delete_vector",
-            "update_vector",
-            # Polygon operations
-            "create_polygon",
-            "delete_polygon",
-            "update_polygon",
-            # Circle operations
-            "create_circle",
-            "delete_circle",
-            "update_circle",
-            # Circle arc operations
-            "create_circle_arc",
-            "delete_circle_arc",
-            "update_circle_arc",
-            # Ellipse operations
-            "create_ellipse",
-            "delete_ellipse",
-            "update_ellipse",
-            # Label operations
-            "create_label",
-            "delete_label",
-            "update_label",
-            # Function operations
-            "draw_function",
-            "delete_function",
-            "update_function",
-            # Piecewise function operations
-            "draw_piecewise_function",
-            "delete_piecewise_function",
-            "update_piecewise_function",
-            # Parametric function operations
-            "draw_parametric_function",
-            "delete_parametric_function",
-            "update_parametric_function",
-            # Tangent and normal line operations
-            "draw_tangent_line",
-            "draw_normal_line",
-            # Geometric construction operations
-            "construct_midpoint",
-            "construct_perpendicular_bisector",
-            "construct_perpendicular_from_point",
-            "construct_angle_bisector",
-            "construct_parallel_line",
-            "construct_circumcircle",
-            "construct_incircle",
-            # Object transformations
-            "translate_object",
-            "rotate_object",
-            "reflect_object",
-            "scale_object",
-            "shear_object",
-            # Colored area operations
-            "create_colored_area",
-            "create_region_colored_area",
-            "delete_colored_area",
-            "update_colored_area",
-            # Graph operations
-            "generate_graph",
-            "delete_graph",
-            # Plot operations
-            "plot_distribution",
-            "plot_bars",
-            "delete_plot",
-            # Note: fit_regression is NOT undoable - it returns stats to the AI.
-            # Neither are find_function_features and find_intersections: their values must
-            # reach the AI, and the points they may place form one undo step of their own.
-            # Angle operations
-            "create_angle",
-            "delete_angle",
-            "update_angle",
-        )
+        undoable: Tuple[str, ...] = UNDOABLE_TOOLS
+        return undoable

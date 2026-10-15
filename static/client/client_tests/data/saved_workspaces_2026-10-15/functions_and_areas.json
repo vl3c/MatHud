@@ -1,0 +1,185 @@
+{
+  "metadata": {
+    "name": "functions_and_areas",
+    "last_modified": "2026-10-15T22:07:32.254112",
+    "schema_version": 2
+  },
+  "state": {
+    "Functions": [
+      {
+        "name": "f",
+        "args": {
+          "function_string": "x^2",
+          "left_bound": -5,
+          "right_bound": 5
+        }
+      },
+      {
+        "name": "g",
+        "args": {
+          "function_string": "x",
+          "left_bound": -5,
+          "right_bound": 5
+        }
+      }
+    ],
+    "PiecewiseFunctions": [
+      {
+        "name": "pw",
+        "args": {
+          "pieces": [
+            {
+              "expression": "x^2",
+              "left": null,
+              "right": 0,
+              "left_inclusive": true,
+              "right_inclusive": false
+            },
+            {
+              "expression": "x+1",
+              "left": 0,
+              "right": null,
+              "left_inclusive": true,
+              "right_inclusive": true
+            }
+          ],
+          "point_discontinuities": [
+            0
+          ]
+        }
+      }
+    ],
+    "ParametricFunctions": [
+      {
+        "name": "pc",
+        "args": {
+          "x_expression": "cos(t)",
+          "y_expression": "sin(t)",
+          "t_min": 0,
+          "t_max": 6,
+          "color": "black"
+        }
+      }
+    ],
+    "Points": [
+      {
+        "name": "A",
+        "args": {
+          "position": {
+            "x": -4,
+            "y": 1
+          }
+        }
+      },
+      {
+        "name": "B",
+        "args": {
+          "position": {
+            "x": 4,
+            "y": 2
+          }
+        }
+      },
+      {
+        "name": "C",
+        "args": {
+          "position": {
+            "x": -4,
+            "y": -1
+          }
+        }
+      },
+      {
+        "name": "D",
+        "args": {
+          "position": {
+            "x": 4,
+            "y": -2
+          }
+        }
+      }
+    ],
+    "Segments": [
+      {
+        "name": "AB",
+        "args": {
+          "p1": "A",
+          "p2": "B"
+        },
+        "_p1_coords": [
+          -4,
+          1
+        ],
+        "_p2_coords": [
+          4,
+          2
+        ]
+      },
+      {
+        "name": "CD",
+        "args": {
+          "p1": "C",
+          "p2": "D"
+        },
+        "_p1_coords": [
+          -4,
+          -1
+        ],
+        "_p2_coords": [
+          4,
+          -2
+        ]
+      }
+    ],
+    "FunctionsBoundedColoredAreas": [
+      {
+        "name": "area_between_f_and_g",
+        "args": {
+          "color": "lightblue",
+          "opacity": 0.3,
+          "func1": "f",
+          "func2": "g",
+          "left_bound": -1,
+          "right_bound": 1,
+          "num_sample_points": 100
+        }
+      }
+    ],
+    "SegmentsBoundedColoredAreas": [
+      {
+        "name": "area_between_AB_and_CD",
+        "args": {
+          "color": "lightblue",
+          "opacity": 0.3,
+          "segment1": "AB",
+          "segment2": "CD"
+        }
+      }
+    ],
+    "FunctionSegmentBoundedColoredAreas": [
+      {
+        "name": "area_between_f_and_AB",
+        "args": {
+          "color": "lightblue",
+          "opacity": 0.3,
+          "func": "f",
+          "segment": "AB"
+        }
+      }
+    ],
+    "Cartesian_System_Visibility": {
+      "left_bound": -250,
+      "right_bound": 250,
+      "top_bound": 250,
+      "bottom_bound": -250
+    },
+    "current_tick_spacing": 100,
+    "default_tick_spacing": 100,
+    "current_tick_spacing_repr": "100",
+    "min_tick_spacing": 1e-06,
+    "visible": true,
+    "coordinate_system": {
+      "mode": "cartesian"
+    }
+  }
+}

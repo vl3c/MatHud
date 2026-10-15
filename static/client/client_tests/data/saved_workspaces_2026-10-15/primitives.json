@@ -1,0 +1,161 @@
+{
+  "metadata": {
+    "name": "primitives",
+    "last_modified": "2026-10-15T22:07:32.243100",
+    "schema_version": 2
+  },
+  "state": {
+    "Points": [
+      {
+        "name": "P",
+        "args": {
+          "position": {
+            "x": -90,
+            "y": 90
+          }
+        }
+      },
+      {
+        "name": "A",
+        "args": {
+          "position": {
+            "x": -90,
+            "y": 80
+          }
+        }
+      },
+      {
+        "name": "B",
+        "args": {
+          "position": {
+            "x": -80,
+            "y": 80
+          }
+        }
+      },
+      {
+        "name": "C",
+        "args": {
+          "position": {
+            "x": -90,
+            "y": 70
+          }
+        }
+      },
+      {
+        "name": "D",
+        "args": {
+          "position": {
+            "x": -80,
+            "y": 72
+          }
+        }
+      },
+      {
+        "name": "E",
+        "args": {
+          "position": {
+            "x": -70,
+            "y": 80
+          }
+        }
+      },
+      {
+        "name": "F",
+        "args": {
+          "position": {
+            "x": -65,
+            "y": 85
+          }
+        }
+      }
+    ],
+    "Segments": [
+      {
+        "name": "AB",
+        "args": {
+          "p1": "A",
+          "p2": "B",
+          "label": {
+            "text": "seg label",
+            "visible": true
+          }
+        },
+        "_p1_coords": [
+          -90,
+          80
+        ],
+        "_p2_coords": [
+          -80,
+          80
+        ]
+      },
+      {
+        "name": "CD",
+        "args": {
+          "p1": "C",
+          "p2": "D"
+        },
+        "_p1_coords": [
+          -90,
+          70
+        ],
+        "_p2_coords": [
+          -80,
+          72
+        ]
+      }
+    ],
+    "Vectors": [
+      {
+        "name": "EF",
+        "args": {
+          "origin": "E",
+          "tip": "F"
+        },
+        "_origin_coords": [
+          -70,
+          80
+        ],
+        "_tip_coords": [
+          -65,
+          85
+        ]
+      }
+    ],
+    "Labels": [
+      {
+        "name": "L1",
+        "args": {
+          "position": {
+            "x": -60,
+            "y": 80
+          },
+          "text": "hello",
+          "color": "black",
+          "font_size": 18,
+          "rotation_degrees": 0,
+          "reference_scale_factor": 1,
+          "visible": true,
+          "render_mode": {
+            "kind": "world"
+          }
+        }
+      }
+    ],
+    "Cartesian_System_Visibility": {
+      "left_bound": -250,
+      "right_bound": 250,
+      "top_bound": 250,
+      "bottom_bound": -250
+    },
+    "current_tick_spacing": 100,
+    "default_tick_spacing": 100,
+    "current_tick_spacing_repr": "100",
+    "min_tick_spacing": 1e-06,
+    "visible": true,
+    "coordinate_system": {
+      "mode": "cartesian"
+    }
+  }
+}
