@@ -43,6 +43,7 @@ State Management:
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from constants import (
@@ -73,6 +74,11 @@ if TYPE_CHECKING:
     from managers.drawable_manager_proxy import DrawableManagerProxy
     from name_generator.drawable import DrawableNameGenerator
     from drawables.rectangle import Rectangle
+
+# Upper limit on the samples per curved boundary of a region colored area; boolean region
+# operations clip every pair of sampled boundaries, so their cost grows with its square.
+MAX_REGION_RESOLUTION: int = 1024
+
 
 class ColoredAreaManager:
     """
@@ -171,7 +177,14 @@ class ColoredAreaManager:
             colored_area = SegmentsBoundedColoredArea(drawable1, drawable2, color=color, opacity=opacity)
         elif isinstance(drawable2, Segment):
             # Function-segment case (we know drawable1 is not a segment due to the swap above)
-            colored_area = FunctionSegmentBoundedColoredArea(drawable1, drawable2, color=color, opacity=opacity)
+            colored_area = FunctionSegmentBoundedColoredArea(
+                drawable1,
+                drawable2,
+                color=color,
+                opacity=opacity,
+                left_bound=left_bound,
+                right_bound=right_bound,
+            )
         else:
             # Function-function case
             colored_area = FunctionsBoundedColoredArea(drawable1, drawable2,
@@ -210,8 +223,7 @@ class ColoredAreaManager:
         A None color, opacity or resolution (strict-schema models send null) means the default.
         """
         color, opacity = self._style_or_defaults(color, opacity)
-        if resolution is None:
-            resolution = default_closed_shape_resolution
+        resolution = self._validated_resolution(resolution)
         self.canvas._validate_color_and_opacity(color, opacity)
         self.canvas.undo_redo_manager.archive()
 
@@ -298,10 +310,7 @@ class ColoredAreaManager:
             ellipse=ellipse,
             chord_segment=chord_segment,
             arc_clockwise=bool(arc_clockwise),
-            resolution=max(
-                closed_shape_resolution_minimum,
-                int(resolution if resolution is not None else default_closed_shape_resolution),
-            ),
+            resolution=resolution,
             color=color,
             opacity=opacity,
         )
@@ -314,6 +323,21 @@ class ColoredAreaManager:
             self.canvas.draw()
 
         return closed_area
+
+    @staticmethod
+    def _validated_resolution(resolution: Any) -> int:
+        """The sample count for curved boundaries: None means the default, others are clamped.
+
+        Both the shape and the expression paths use it, so a region expression samples its
+        curves like a shape does (at least closed_shape_resolution_minimum, at most
+        MAX_REGION_RESOLUTION).
+        """
+        if resolution is None:
+            return int(default_closed_shape_resolution)
+        if isinstance(resolution, bool) or not isinstance(resolution, (int, float)) or not math.isfinite(resolution):
+            raise ValueError(f"resolution must be a finite number, got {resolution!r}")
+        rounded: int = round(float(resolution))
+        return max(int(closed_shape_resolution_minimum), min(MAX_REGION_RESOLUTION, rounded))
 
     @staticmethod
     def _style_or_defaults(color: Optional[str], opacity: Optional[float]) -> tuple[str, float]:
@@ -333,7 +357,8 @@ class ColoredAreaManager:
         """Create a colored area from a boolean region expression."""
         from utils.area_expression_evaluator import AreaExpressionEvaluator
 
-        result = AreaExpressionEvaluator.evaluate(expression, self.canvas, num_samples=resolution)
+        # Only the region is drawn here, so its area need not be extrapolated
+        result = AreaExpressionEvaluator.evaluate(expression, self.canvas, num_samples=resolution, refine_area=False)
         if result.error:
             raise ValueError(result.error)
 

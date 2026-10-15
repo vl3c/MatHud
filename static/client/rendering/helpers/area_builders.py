@@ -38,6 +38,26 @@ def build_functions_colored_area(area_model, coordinate_mapper):
         return None
 
 
+def build_functions_colored_areas(area_model, coordinate_mapper):
+    """Build screen coordinates for every part of a function-bounded colored area.
+
+    The area has one part for each stretch where both bounding curves are defined
+    (sqrt(x^2 - 1) and the x-axis on [-3, 3] give [-3, -1] and [1, 3]).
+
+    Args:
+        area_model: FunctionsBoundedColoredArea with upper/lower functions.
+        coordinate_mapper: Mapper for math-to-screen coordinate conversion.
+
+    Returns:
+        List of ColoredAreas with forward/reverse points (empty on failure).
+    """
+    try:
+        renderable = FunctionsBoundedAreaRenderable(area_model, coordinate_mapper)
+        return renderable.build_screen_areas()
+    except Exception:
+        return []
+
+
 def build_function_segment_colored_area(area_model, coordinate_mapper, *, num_points=100):
     """Build screen coordinates for a function-segment bounded area.
 
