@@ -908,9 +908,6 @@ class TestCanvas(unittest.TestCase):
             def register(self, cls: type, handler: Any) -> None:
                 return None
 
-            def register_default_drawables(self) -> None:
-                return None
-
             def begin_frame(self) -> None:
                 return None
 

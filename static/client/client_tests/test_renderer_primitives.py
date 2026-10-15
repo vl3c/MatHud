@@ -14,7 +14,6 @@ from drawables.circle import Circle
 from drawables.vector import Vector
 from drawables.angle import Angle
 from drawables.function import Function
-from rendering import cached_render_plan as optimized_plans
 
 from rendering.canvas2d_renderer import Canvas2DRenderer
 from rendering.svg_renderer import SvgRenderer
@@ -467,15 +466,6 @@ class TestRendererPrimitives(unittest.TestCase):
         self.angle_abc = Angle(self.point_b, self.point_a, self.point_c, color="magenta")
         self.function = Function("x", name="f", color="brown")
 
-    def test_both_renderers_draw_every_class_with_a_plan_helper(self) -> None:
-        for renderer in (Canvas2DRenderer(), SvgRenderer()):
-            drawn: List[str] = []
-            renderer._render_drawable = lambda drawable, mapper, name=None, drawn=drawn: drawn.append(name)
-            for class_name in optimized_plans._HELPERS:
-                self.assertTrue(renderer.render(SimpleMock(get_class_name=lambda name=class_name: name), self.mapper))
-            self.assertFalse(renderer.render(SimpleMock(get_class_name=lambda: "Triangle"), self.mapper))
-            self.assertEqual(drawn, list(optimized_plans._HELPERS))
-
     def test_svg_primitives_render_shapes(self) -> None:
         log: List[Any] = []
         mock_svg, mock_document = reset_svg_environment(log)
@@ -489,12 +479,12 @@ class TestRendererPrimitives(unittest.TestCase):
             unittest.mock.patch("rendering.svg_primitive_adapter.document", mock_document),
         ):
             renderer._shared_primitives = SvgPrimitiveAdapter("math-svg")
-            renderer._render_point(self.point_a, self.mapper)
-            renderer._render_segment(self.segment_ab, self.mapper)
-            renderer._render_circle(self.circle, self.mapper)
-            renderer._render_vector(self.vector_ab, self.mapper)
-            renderer._render_angle(self.angle_abc, self.mapper)
-            renderer._render_function(self.function, self.mapper)
+            renderer.render(self.point_a, self.mapper)
+            renderer.render(self.segment_ab, self.mapper)
+            renderer.render(self.circle, self.mapper)
+            renderer.render(self.vector_ab, self.mapper)
+            renderer.render(self.angle_abc, self.mapper)
+            renderer.render(self.function, self.mapper)
 
         element_types = collect_element_types(mock_document.surface)
         self.assertIn("circle", element_types)
@@ -546,12 +536,12 @@ class TestRendererPrimitives(unittest.TestCase):
         renderer = Canvas2DRenderer()
         mock_canvas = MockCanvasElement()
         ctx = reset_canvas_environment(renderer, mock_canvas)
-        renderer._render_point(self.point_a, self.mapper)
-        renderer._render_segment(self.segment_ab, self.mapper)
-        renderer._render_circle(self.circle, self.mapper)
-        renderer._render_vector(self.vector_ab, self.mapper)
-        renderer._render_angle(self.angle_abc, self.mapper)
-        renderer._render_function(self.function, self.mapper)
+        renderer.render(self.point_a, self.mapper)
+        renderer.render(self.segment_ab, self.mapper)
+        renderer.render(self.circle, self.mapper)
+        renderer.render(self.vector_ab, self.mapper)
+        renderer.render(self.angle_abc, self.mapper)
+        renderer.render(self.function, self.mapper)
 
         operations = [entry[0] for entry in normalize_canvas_log(ctx.log)]
         self.assertIn("fill", operations)

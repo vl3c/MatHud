@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 from types import SimpleNamespace
-from typing import Any, Tuple
+from typing import Any, List, Tuple
 
 from rendering import cached_render_plan as optimized
 from rendering import shared_drawable_renderers as shared
@@ -86,6 +86,28 @@ class TestRendererLogic(unittest.TestCase):
         self.assertEqual(self._view_changes(renderer, "Point"), (False, False, False))
         for class_name in ("ParametricFunction", "Function", "FunctionSegmentBoundedColoredArea", "PolarGrid"):
             self.assertEqual(self._view_changes(renderer, class_name), (True, True, True), class_name)
+
+    def test_both_renderers_draw_every_class_with_a_plan_helper_by_class_name(self) -> None:
+        for renderer_class in (Canvas2DRenderer, SvgRenderer):
+            renderer = renderer_class.__new__(renderer_class)
+            renderer._handlers_by_type = {}
+            drawn: List[str] = []
+            renderer._render_drawable = lambda drawable, mapper, name=None, drawn=drawn: drawn.append(name)
+            for class_name in optimized._HELPERS:
+                drawable = SimpleNamespace(get_class_name=lambda name=class_name: name)
+                self.assertTrue(renderer.render(drawable, CoordinateMapperStub()), class_name)
+            self.assertFalse(renderer.render(SimpleNamespace(get_class_name=lambda: "Triangle"), CoordinateMapperStub()))
+            self.assertEqual(drawn, list(optimized._HELPERS))
+
+    def test_a_handler_registered_for_a_type_runs_before_the_plan_helper(self) -> None:
+        for renderer_class in (Canvas2DRenderer, SvgRenderer):
+            renderer = renderer_class.__new__(renderer_class)
+            handled: List[Any] = []
+            renderer._handlers_by_type = {SimpleNamespace: lambda drawable, mapper: handled.append(drawable)}
+            renderer._render_drawable = lambda drawable, mapper, name=None: self.fail("plan helper used")
+            drawable = SimpleNamespace(get_class_name=lambda: "Point")
+            self.assertTrue(renderer.render(drawable, CoordinateMapperStub()))
+            self.assertEqual(handled, [drawable])
 
     def test_style_manager_returns_independent_copy(self) -> None:
         style_a = style_manager.get_renderer_style()
