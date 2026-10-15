@@ -22,11 +22,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, cast
 
 import no_op_tools
-from tool_kinds import UNDOABLE_TOOLS
 from creation_report import CreationReport
 from no_change_result import NoChangeResult
 from utils.math_utils import MathUtils
 from process_function_calls import ProcessFunctionCalls
+from tool_kinds import UNDOABLE_TOOLS
 
 if TYPE_CHECKING:
     from ai_interface import AIInterface

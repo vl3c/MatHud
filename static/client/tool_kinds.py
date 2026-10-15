@@ -4,11 +4,11 @@ Every tool in ``static/functions_definitions.py`` sits on exactly one list
 (``server_tests/test_tool_wiring.py`` checks it):
 - ``UNDOABLE_TOOLS`` change the canvas; a tool batch containing one is one undo step,
   and their results are reported with a standard success message.
-- ``VALUE_TOOLS`` return a value for the model, which is recorded as a computation.
-  Some also place points (``find_function_features``, ``find_intersections``); those
-  form an undo step of their own, so the tools are not on the undoable list.
+- ``VALUE_TOOLS`` compute a value the model must see. Some also draw (``fit_regression``
+  plots its curve and data, ``find_function_features`` and ``find_intersections`` may
+  place points); those group their changes into an undo step of their own.
 - ``META_TOOLS`` act on the history, workspaces or tests rather than on the canvas
-  content: neither undoable nor recorded as computations.
+  content: they are not undoable, and their results are not computations.
 """
 
 from __future__ import annotations

@@ -88,8 +88,9 @@ class WorkspaceManager:
     """
 
     # Every list in a saved state that the restore reads. Bars are rebuilt from their plots,
-    # and Plots holds plots saved before the plot classes were split. A saved list missing
-    # here is skipped with a warning (server_tests/test_drawable_wiring.py keeps it complete).
+    # and nothing saves Plots or ColoredAreas today, but older files may hold them. A saved
+    # list missing here is skipped with a warning (server_tests/test_drawable_wiring.py
+    # keeps the list complete).
     RESTORED_BUCKETS: Tuple[str, ...] = (
         "Points",
         "Labels",
@@ -118,6 +119,7 @@ class WorkspaceManager:
         "SegmentsBoundedColoredAreas",
         "FunctionSegmentBoundedColoredAreas",
         "ClosedShapeColoredAreas",
+        "ColoredAreas",
         "ContinuousPlots",
         "DiscretePlots",
         "BarsPlots",
