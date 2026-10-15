@@ -150,10 +150,27 @@ class Ellipse(Drawable):
                 self.rotation_angle = (2 * line_angle_deg - self.rotation_angle) % 360
         self.regenerate_name()
 
+    # Degrees within which a rotation counts as a multiple of 90 (rounding left by rotations)
+    AXIS_ALIGNMENT_TOLERANCE_DEGREES = 1e-9
+
+    def axis_alignment(self) -> Optional[float]:
+        """0.0 when the ellipse's axes run along x and y, 90.0 when its radius_x runs along y, else None.
+
+        Rotations are compared modulo 180 degrees, with rounding noise tolerated.
+        """
+        tolerance = Ellipse.AXIS_ALIGNMENT_TOLERANCE_DEGREES
+        angle = float(self.rotation_angle) % 180
+        if angle <= tolerance or angle >= 180 - tolerance:
+            return 0.0
+        if abs(angle - 90) <= tolerance:
+            return 90.0
+        return None
+
     def scale(self, sx: float, sy: float, cx: float, cy: float) -> None:
         """Scale the ellipse from center (cx, cy).
 
-        Supports uniform scaling and axis-aligned non-uniform scaling.
+        Supports uniform scaling and non-uniform scaling of an ellipse whose axes run
+        along x and y (rotation a multiple of 90 degrees; at 90 the radii swap roles).
 
         Raises:
             ValueError: If non-uniform scaling on a rotated ellipse, or zero factor.
@@ -161,16 +178,21 @@ class Ellipse(Drawable):
         if abs(sx) < 1e-18 or abs(sy) < 1e-18:
             raise ValueError("Scale factor must not be zero")
         uniform = abs(sx - sy) < 1e-9
-        rotated = (self.rotation_angle % 180) > 1e-9
-        if not uniform and rotated:
+        alignment = None if uniform else self.axis_alignment()
+        if not uniform and alignment is None:
             raise ValueError("Non-uniform scaling of a rotated ellipse is not supported")
         self.center.scale(sx, sy, cx, cy)
         if uniform:
             self.radius_x = abs(self.radius_x * sx)
             self.radius_y = abs(self.radius_y * sx)
+        elif alignment == 90.0:
+            self.radius_x = abs(self.radius_x * sy)
+            self.radius_y = abs(self.radius_y * sx)
+            self.rotation_angle = 90.0
         else:
             self.radius_x = abs(self.radius_x * sx)
             self.radius_y = abs(self.radius_y * sy)
+            self.rotation_angle = 0.0
         self.regenerate_name()
 
     def shear(self, axis: str, factor: float, cx: float, cy: float) -> None:

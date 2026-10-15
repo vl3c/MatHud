@@ -237,6 +237,43 @@ class TestConstructPerpendicularFromPoint(TestConstructionManager):
         with self.assertRaises(ValueError):
             self.canvas.create_perpendicular_from_point("P", "nonexistent")
 
+    def test_perpendicular_from_point_on_the_line_raises(self) -> None:
+        """A point on the segment's line (here far out, at a large scale) would give a zero-length segment."""
+        self.canvas.create_segment(0, 0, 6e6, 6e6, name="AB")
+        self.canvas.create_point(9e6, 9e6, name="P")
+        pts_before = self._point_count()
+        segs_before = self._segment_count()
+        with self.assertRaisesRegex(ValueError, "lies on the line"):
+            self.canvas.create_perpendicular_from_point("P", "AB")
+        self.assertEqual(self._point_count(), pts_before)
+        self.assertEqual(self._segment_count(), segs_before)
+
+    def test_perpendicular_from_point_near_a_tiny_segment(self) -> None:
+        """Relative tolerance: a point 1e-7 off a segment of length 1e-6 is off its line."""
+        self.canvas.create_segment(0, 0, 1e-6, 0, name="AB")
+        self.canvas.create_point(5e-7, 1e-7, name="P")
+        result = self.canvas.create_perpendicular_from_point("P", "AB")
+        self.assertAlmostEqual(result["foot"].y, 0.0)
+
+    def test_zero_length_constructions_raise(self) -> None:
+        """length=0 is refused by every construction that takes a length."""
+        self.canvas.create_segment(0, 0, 6, 0, name="AB")
+        self.canvas.create_point(3, 5, name="P")
+        segs_before = self._segment_count()
+        with self.assertRaises(ValueError):
+            self.canvas.create_perpendicular_bisector("AB", length=0)
+        with self.assertRaises(ValueError):
+            self.canvas.create_parallel_line("AB", "P", length=0)
+        with self.assertRaises(ValueError):
+            self.canvas.create_angle_bisector("A", "B", "P", length=0)
+        self.assertEqual(self._segment_count(), segs_before)
+
+    def test_create_segment_rejects_identical_endpoints(self) -> None:
+        segs_before = self._segment_count()
+        with self.assertRaisesRegex(ValueError, "distinct endpoints"):
+            self.canvas.create_segment(1, 1, 1, 1)
+        self.assertEqual(self._segment_count(), segs_before)
+
 
 class TestConstructAngleBisector(TestConstructionManager):
     """Tests for angle bisector construction."""
@@ -286,13 +323,16 @@ class TestConstructAngleBisector(TestConstructionManager):
         actual_length = math.sqrt(dx**2 + dy**2)
         self.assertAlmostEqual(actual_length, 8.0, places=3)
 
-    def test_bisector_collinear_raises(self) -> None:
-        """Bisector of 180-degree angle (collinear arms) should raise ValueError."""
+    def test_bisector_of_straight_angle_is_perpendicular(self) -> None:
+        """A 180-degree angle's bisector is perpendicular to the arms, counterclockwise from the first arm."""
         self.canvas.create_point(0, 0, name="V")
         self.canvas.create_point(4, 0, name="A")
         self.canvas.create_point(-4, 0, name="B")
-        with self.assertRaises(ValueError):
-            self.canvas.create_angle_bisector("V", "A", "B")
+        bisector = self.canvas.create_angle_bisector("V", "A", "B", length=2.0)
+        self.assertAlmostEqual(bisector.point1.x, 0.0)
+        self.assertAlmostEqual(bisector.point1.y, 0.0)
+        self.assertAlmostEqual(bisector.point2.x, 0.0)
+        self.assertAlmostEqual(bisector.point2.y, 2.0)
 
     def test_bisector_zero_length_arm_raises(self) -> None:
         """Bisector with coincident vertex and arm point should raise."""

@@ -243,38 +243,6 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
         self.assertEqual(left_bound, -150)  # min(-150, 150)
         self.assertEqual(right_bound, 150)  # max(-150, 150)
 
-    def test_generate_function_points_coordinate_conversion(self) -> None:
-        """Test that _generate_function_points properly converts coordinates and generates points."""
-        area = FunctionSegmentBoundedColoredArea(self.func, self.segment)
-
-        # Test the method directly - generate 3 points from x=-1 to x=1
-        # For y=x^2: x=-1 gives y=1, x=0 gives y=0, x=1 gives y=1
-        left_bound, right_bound, num_points = -1, 1, 3
-        dx = (right_bound - left_bound) / (num_points - 1)  # dx = 1.0
-        points = area._generate_function_points(left_bound, right_bound, num_points, dx)
-
-        # Verify that points were generated
-        self.assertGreater(len(points), 0, "Should generate at least some points")
-        self.assertEqual(len(points), 3, "Should generate exactly 3 points")
-
-        # Verify that all points are tuples with two elements (x, y)
-        for i, point in enumerate(points):
-            self.assertIsInstance(point, tuple, f"Point {i} should be a tuple")
-            self.assertEqual(len(point), 2, f"Point {i} should have 2 coordinates")
-            self.assertIsInstance(point[0], (int, float), f"Point {i} x-coordinate should be numeric")
-            self.assertIsInstance(point[1], (int, float), f"Point {i} y-coordinate should be numeric")
-
-        # Test that function evaluation works directly
-        y_val = area._get_function_y_at_x(2)  # Should return 4 for x^2
-        self.assertEqual(y_val, 4, "Function evaluation should work")
-
-        # Test edge cases
-        y_val_zero = area._get_function_y_at_x(0)  # Should return 0 for x^2
-        self.assertEqual(y_val_zero, 0, "Function evaluation at x=0 should work")
-
-        y_val_negative = area._get_function_y_at_x(-3)  # Should return 9 for (-3)^2
-        self.assertEqual(y_val_negative, 9, "Function evaluation with negative x should work")
-
     def test_draw_method_integration(self) -> None:
         """Integration via renderable: build screen area paths."""
         area = FunctionSegmentBoundedColoredArea(self.func, self.segment)
@@ -284,11 +252,12 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
         self.assertGreater(len(closed_area.forward_points), 0)
         self.assertEqual(len(closed_area.reverse_points), 2)
         self.assertFalse(closed_area.is_screen)
-        expected_reverse = [
-            (self.segment.point2.x, self.segment.point2.y),
-            (self.segment.point1.x, self.segment.point1.y),
-        ]
-        self.assertEqual(closed_area.reverse_points, expected_reverse)
+        # The segment y = -x/3 is cut to the function's x-range [-5, 5], right end first
+        expected_reverse = [(5.0, -5.0 / 3.0), (-5.0, 5.0 / 3.0)]
+        self.assertEqual(len(closed_area.reverse_points), 2)
+        for actual, expected in zip(closed_area.reverse_points, expected_reverse):
+            self.assertAlmostEqual(actual[0], expected[0])
+            self.assertAlmostEqual(actual[1], expected[1])
 
     def test_segment_points_follow_mapper_transformations(self) -> None:
         """Segment reverse path should honor mapper scale and offset."""
@@ -301,11 +270,12 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
         closed_area = renderable.build_screen_area(num_points=25)
         self.assertIsNotNone(closed_area, "ClosedArea should be produced with mapper transforms applied")
         self.assertFalse(closed_area.is_screen)
-        expected_reverse = [
-            (self.segment.point2.x, self.segment.point2.y),
-            (self.segment.point1.x, self.segment.point1.y),
-        ]
-        self.assertEqual(closed_area.reverse_points, expected_reverse)
+        # The segment y = -x/3 is cut to the function's x-range [-5, 5], right end first
+        expected_reverse = [(5.0, -5.0 / 3.0), (-5.0, 5.0 / 3.0)]
+        self.assertEqual(len(closed_area.reverse_points), 2)
+        for actual, expected in zip(closed_area.reverse_points, expected_reverse):
+            self.assertAlmostEqual(actual[0], expected[0])
+            self.assertAlmostEqual(actual[1], expected[1])
 
     def test_edge_case_single_point_segment(self) -> None:
         """Test edge case where segment endpoints are the same."""
@@ -323,3 +293,56 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
         left_bound, right_bound = area._get_intersection_bounds(0, 0)
         self.assertEqual(left_bound, 0)  # max(0, -5)
         self.assertEqual(right_bound, 0)  # min(0, 5)
+
+    @staticmethod
+    def _polygon_area(points: list) -> float:
+        total = 0.0
+        for i in range(len(points)):
+            x1, y1 = points[i]
+            x2, y2 = points[(i + 1) % len(points)]
+            total += x1 * y2 - x2 * y1
+        return abs(total) / 2.0
+
+    def _shaded_area(self, area: FunctionSegmentBoundedColoredArea) -> float:
+        closed_area = FunctionSegmentAreaRenderable(area, self.coordinate_mapper).build_screen_area(num_points=401)
+        self.assertIsNotNone(closed_area)
+        return self._polygon_area(list(closed_area.forward_points) + list(closed_area.reverse_points))
+
+    def test_segment_direction_does_not_change_the_area(self) -> None:
+        """x^2 over the segment (0,0)-(2,0) encloses 8/3 whichever way the segment runs."""
+        parabola = SimpleMock(name="f", function=lambda x: x * x, left_bound=-10, right_bound=10)
+        for p1, p2 in (((0, 0), (2, 0)), ((2, 0), (0, 0))):
+            segment = SimpleMock(name="AB", point1=SimpleMock(x=p1[0], y=p1[1]), point2=SimpleMock(x=p2[0], y=p2[1]))
+            area = FunctionSegmentBoundedColoredArea(parabola, segment)
+            self.assertAlmostEqual(self._shaded_area(area), 8.0 / 3.0, places=4, msg=str((p1, p2)))
+
+    def test_unbounded_function_uses_the_segment_range(self) -> None:
+        """A function with no bounds (None) is shaded over the segment's x-range."""
+        parabola = SimpleMock(name="f", function=lambda x: x * x, left_bound=None, right_bound=None)
+        segment = SimpleMock(name="AB", point1=SimpleMock(x=0, y=0), point2=SimpleMock(x=2, y=0))
+        area = FunctionSegmentBoundedColoredArea(parabola, segment)
+        self.assertEqual(area._get_bounds(), (0, 2))
+        self.assertAlmostEqual(self._shaded_area(area), 8.0 / 3.0, places=4)
+
+    def test_area_bounds_limit_the_shaded_range(self) -> None:
+        """left_bound/right_bound narrow the area within the segment's range."""
+        parabola = SimpleMock(name="f", function=lambda x: x * x, left_bound=None, right_bound=None)
+        segment = SimpleMock(name="AB", point1=SimpleMock(x=2, y=0), point2=SimpleMock(x=0, y=0))
+        area = FunctionSegmentBoundedColoredArea(parabola, segment, left_bound=1, right_bound=5)
+        self.assertEqual(area._get_bounds(), (1, 2))
+        self.assertAlmostEqual(self._shaded_area(area), 7.0 / 3.0, places=4)
+
+    def test_area_bounds_are_saved_and_copied(self) -> None:
+        area = FunctionSegmentBoundedColoredArea(self.func, self.segment, left_bound=-2, right_bound=3)
+        state = area.get_state()
+        self.assertEqual(state["args"]["left_bound"], -2)
+        self.assertEqual(state["args"]["right_bound"], 3)
+        # The memo keeps the (slow to copy) mocks shared; only the area itself is copied
+        area_copy = copy.deepcopy(area, {id(self.func): self.func, id(self.segment): self.segment})
+        self.assertIsNot(area_copy, area)
+        self.assertEqual((area_copy.left_bound, area_copy.right_bound), (-2, 3))
+        self.assertNotIn("left_bound", FunctionSegmentBoundedColoredArea(self.func, self.segment).get_state()["args"])
+
+    def test_inverted_area_bounds_are_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            FunctionSegmentBoundedColoredArea(self.func, self.segment, left_bound=3, right_bound=-3)

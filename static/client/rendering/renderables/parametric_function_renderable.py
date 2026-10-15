@@ -3,7 +3,8 @@ Parametric Function Renderable for MatHud
 
 Computes screen paths for parametric curves by sampling the parameter t uniformly
 and converting math coordinates to screen coordinates. Handles discontinuities
-by breaking paths at NaN/Inf values.
+by breaking paths at NaN/Inf values and at poles or jumps (a long step whose middle
+point is not between its ends, e.g. tan(t) passing pi/2 off screen).
 
 Unlike regular function renderables that sample x uniformly, parametric curves
 sample the parameter t uniformly, which naturally handles curves that loop back
@@ -29,6 +30,8 @@ class ParametricFunctionRenderable:
 
     # Default number of sample points for smooth curves
     DEFAULT_SAMPLES: int = 400
+    # Pixels beyond a screen edge that still count as on screen
+    OFF_SCREEN_MARGIN: float = 50.0
 
     def __init__(self, parametric_model: Any, coordinate_mapper: Any) -> None:
         """
@@ -156,26 +159,67 @@ class ParametricFunctionRenderable:
 
         return samples
 
-    def _is_on_screen(self, sy: float, height: float) -> bool:
-        """Check if y coordinate is within screen bounds with margin."""
-        margin = 50
-        return -margin <= sy <= height + margin
-
     def _is_large_jump(self, prev_sy: float, sy: float, height: float) -> bool:
-        """Detect discontinuities by checking for large jumps between points."""
-        return abs(prev_sy - sy) > height * 2
+        """Whether a step in y is long enough (over a screen height) to check for a break."""
+        return height > 0 and abs(prev_sy - sy) > height
 
     def _is_large_horizontal_jump(self, prev_sx: float, sx: float, width: float) -> bool:
-        """Detect discontinuities in x(t), e.g. x = 1/(t - 1) crossing t = 1."""
-        return width > 0 and abs(prev_sx - sx) > width * 2
+        """Whether a step in x is long enough (over a screen width) to check for a break."""
+        return width > 0 and abs(prev_sx - sx) > width
+
+    def _is_off_screen_on_opposite_sides(
+        self, prev: Tuple[float, float], point: Tuple[float, float], width: float, height: float
+    ) -> bool:
+        """Whether two points lie beyond opposite edges of the screen (above/below or left/right)."""
+        margin = self.OFF_SCREEN_MARGIN
+        if height > 0 and self._beyond_opposite_ends(prev[1], point[1], -margin, height + margin):
+            return True
+        return width > 0 and self._beyond_opposite_ends(prev[0], point[0], -margin, width + margin)
+
+    @staticmethod
+    def _beyond_opposite_ends(a: float, b: float, low: float, high: float) -> bool:
+        return (a < low and b > high) or (b < low and a > high)
+
+    @staticmethod
+    def _follows(mid: float, a: float, b: float) -> bool:
+        """Whether a middle value lies between two ends (or all three are equal)."""
+        return min(a, b) < mid < max(a, b) or a == b == mid
+
+    def _is_break_between(
+        self,
+        prev_t: float,
+        prev: Tuple[float, float],
+        t: float,
+        point: Tuple[float, float],
+        width: float,
+        height: float,
+    ) -> bool:
+        """Detect a discontinuity (a pole such as tan(t) at pi/2, or a jump) between two samples.
+
+        A step is only suspicious when it is long (over a screen width or height) or runs
+        between opposite off-screen sides. Such a step is kept when the curve at the middle
+        parameter lies between its ends (a steep but continuous crossing); a pole or a jump
+        puts the middle point beyond one end, or leaves it undefined.
+        """
+        suspicious = (
+            self._is_large_jump(prev[1], point[1], height)
+            or self._is_large_horizontal_jump(prev[0], point[0], width)
+            or self._is_off_screen_on_opposite_sides(prev, point, width, height)
+        )
+        if not suspicious:
+            return False
+        mid_x, mid_y = self._evaluate_point((prev_t + t) / 2.0)
+        if mid_x is None or mid_y is None:
+            return True
+        return not (self._follows(mid_x, prev[0], point[0]) and self._follows(mid_y, prev[1], point[1]))
 
     def build_screen_paths(self) -> ScreenPolyline:
         """
         Build screen-space paths for rendering the parametric curve.
 
         Samples the parameter t uniformly, evaluates x(t) and y(t), converts
-        to screen coordinates, and breaks paths at discontinuities (NaN/Inf values
-        or large jumps).
+        to screen coordinates, and breaks paths at discontinuities: NaN/Inf values, and
+        long steps whose middle point is not between their ends (poles and jumps).
 
         Returns:
             ScreenPolyline containing one or more continuous path segments
@@ -192,33 +236,31 @@ class ParametricFunctionRenderable:
         width, height = self._get_screen_signature()
         paths: List[List[Tuple[float, float]]] = []
         current_path: List[Tuple[float, float]] = []
-        prev_sx: Optional[float] = None
-        prev_sy: Optional[float] = None
+        prev_t: Optional[float] = None
+        prev_point: Optional[Tuple[float, float]] = None
 
         for t in sample_points:
-            point = self._evaluate_point(t)
+            sx, sy = self._evaluate_point(t)
 
-            if point[0] is None:
+            if sx is None or sy is None:
                 # Invalid point - break the path
                 if current_path:
                     paths.append(current_path)
                     current_path = []
-                prev_sx = None
-                prev_sy = None
+                prev_t = None
+                prev_point = None
                 continue
 
-            sx, sy = point
-
-            # Check for large jumps (discontinuity detection)
-            if prev_sy is not None and prev_sx is not None:
-                if self._is_large_jump(prev_sy, sy, height) or self._is_large_horizontal_jump(prev_sx, sx, width):
+            point = (sx, sy)
+            if prev_t is not None and prev_point is not None:
+                if self._is_break_between(prev_t, prev_point, t, point, width, height):
                     if current_path:
                         paths.append(current_path)
                         current_path = []
 
-            current_path.append((sx, sy))
-            prev_sx = sx
-            prev_sy = sy
+            current_path.append(point)
+            prev_t = t
+            prev_point = point
 
         # Add the final path segment
         if current_path:

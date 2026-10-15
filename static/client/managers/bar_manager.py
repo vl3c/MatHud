@@ -112,8 +112,7 @@ class BarManager:
             raise ValueError("y_bottom and y_top must be finite")
         if x_left_f == x_right_f:
             raise ValueError("Bar requires x_left != x_right")
-        if y_bottom_f == y_top_f:
-            raise ValueError("Bar requires y_bottom != y_top")
+        # y_bottom == y_top is allowed: a zero value is a zero-height bar that keeps its labels
         if x_left_f > x_right_f:
             x_left_f, x_right_f = x_right_f, x_left_f
 

@@ -34,6 +34,7 @@ import math
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from constants import label_min_screen_font_px, label_vanish_threshold_px
+from drawables.circle_arc import arc_start_and_sweep
 from rendering import shared_drawable_renderers as shared
 from rendering.helpers.function_renderer import function_label_position
 from rendering.primitives import RendererPrimitives
@@ -372,15 +373,8 @@ def _compute_sweep_delta(
     Returns:
         Angular distance in radians for the requested arc type.
     """
-    start_angle_math = math.atan2(point1_math[1] - center_math[1], point1_math[0] - center_math[0])
-    target_angle_math = math.atan2(point2_math[1] - center_math[1], point2_math[0] - center_math[0])
-    full_turn = 2 * math.pi
-    delta_ccw_math = (target_angle_math - start_angle_math) % full_turn
-    delta_cw_math = (start_angle_math - target_angle_math) % full_turn
-    minor_is_ccw = delta_ccw_math <= delta_cw_math
-    minor_delta = delta_ccw_math if minor_is_ccw else delta_cw_math
-    major_delta = delta_cw_math if minor_is_ccw else delta_ccw_math
-    return major_delta if use_major else minor_delta
+    _start, sweep = arc_start_and_sweep(center_math, point1_math, point2_math, use_major)
+    return abs(sweep)
 
 
 def _reproject_arc_with_circle_meta(

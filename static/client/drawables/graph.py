@@ -188,3 +188,41 @@ class Graph(Drawable):
 
     def rotate(self, angle: float) -> Any:
         return False, "Graph rotation is not supported"
+
+    # ------------------------------------------------------------------
+    # Geometry
+    # ------------------------------------------------------------------
+    def _edge_drawables(self) -> List[Drawable]:
+        """Edge segments or vectors of the graph. Subclasses override this."""
+        return []
+
+    def _invalidate_cache(self) -> None:
+        """Drop cached descriptors (they hold vertex positions). Subclasses with a cache override this."""
+
+    def get_vertices(self) -> List["Point"]:
+        """Vertex points of the graph (edge endpoints and edge-less vertices), each once."""
+        vertices: List["Point"] = []
+        candidates: List[Any] = []
+        for edge in self._edge_drawables():
+            segment = getattr(edge, "segment", edge)
+            candidates.extend([segment.point1, segment.point2])
+        candidates.extend(self._isolated_points)
+        for point in candidates:
+            if point is not None and not any(point is seen for seen in vertices):
+                vertices.append(point)
+        return vertices
+
+    def translate(self, x_offset: float, y_offset: float) -> None:
+        """Move every vertex point by the offset; the edges and their weight labels follow."""
+        for point in self.get_vertices():
+            point.translate(x_offset, y_offset)
+        for edge in self._edge_drawables():
+            segment: Any = getattr(edge, "segment", edge)
+            try:
+                segment.line_formula = segment._calculate_line_algebraic_formula()
+            except Exception:
+                pass
+            sync = getattr(segment, "_sync_label_position", None)
+            if callable(sync):
+                sync()
+        self._invalidate_cache()

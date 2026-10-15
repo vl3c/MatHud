@@ -14,7 +14,7 @@ The manager handles different curve types:
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 from constants import default_color
 from utils.math_utils import MathUtils
@@ -49,6 +49,49 @@ _DERIVATIVE_STEP = 1e-7
 # Distance (relative to max(1, |x|)) from a listed vertical asymptote within which the
 # slope limit applies: there the numerical derivative loses accuracy as the slope grows
 _NEAR_ASYMPTOTE = 1e-3
+
+# Parameter step (relative to max(1, |t|)) of the secants that give a parametric curve's
+# direction where its velocity vanishes (a cusp, or t^3 at t = 0)
+_SECANT_STEP = 1e-4
+
+# Below this ratio of |velocity| * step to the secant length, the velocity has vanished
+# and the secants decide the tangent direction
+_VANISHING_VELOCITY_RATIO = 1e-2
+
+Vec = Tuple[float, float]
+
+
+def _unit(vector: Vec) -> Optional[Vec]:
+    """The vector scaled to length 1, or None when it is zero or not finite."""
+    length = math.hypot(vector[0], vector[1])
+    if length == 0.0 or not math.isfinite(length):
+        return None
+    return vector[0] / length, vector[1] / length
+
+
+def _direction_from_slope(slope: Optional[float]) -> Vec:
+    """Unit direction of a line with this slope (None for vertical)."""
+    if slope is None:
+        return 0.0, 1.0
+    direction = _unit((1.0, slope))
+    return direction if direction is not None else (0.0, 1.0)
+
+
+def _slope_of(direction: Vec) -> Optional[float]:
+    """Slope of a line along this direction, or None when it is vertical."""
+    return None if direction[0] == 0.0 else direction[1] / direction[0]
+
+
+def _line_data(point: Vec, direction: Vec, length: float) -> Dict[str, Any]:
+    """The point, direction, slope and endpoints of a segment centred on point."""
+    half = length / 2
+    (px, py), (ux, uy) = point, direction
+    return {
+        "point": point,
+        "direction": direction,
+        "slope": _slope_of(direction),
+        "endpoints": ((px - ux * half, py - uy * half), (px + ux * half, py + uy * half)),
+    }
 
 
 class TangentManager:
@@ -149,7 +192,8 @@ class TangentManager:
             length: Desired length of the tangent line segment
 
         Returns:
-            Dict with keys: 'point' (x, y), 'slope', 'endpoints' ((x1, y1), (x2, y2))
+            Dict with keys: 'point' (x, y), 'direction' (unit vector), 'slope' (None
+            when vertical), 'endpoints' ((x1, y1), (x2, y2))
 
         Raises:
             ValueError: If tangent cannot be computed
@@ -209,14 +253,7 @@ class TangentManager:
                 f"above {MAX_TANGENT_MAGNITUDE:g}, next to the vertical asymptote at x={nearby_asymptote}"
             )
 
-        point = (x, y)
-        endpoints = MathUtils.tangent_line_endpoints(slope, point, length)
-
-        return {
-            "point": point,
-            "slope": slope,
-            "endpoints": endpoints,
-        }
+        return _line_data((x, y), _direction_from_slope(slope), length)
 
     @staticmethod
     def _vertical_asymptote_within(func: "Function", x: float, relative_distance: float) -> Optional[float]:
@@ -240,7 +277,7 @@ class TangentManager:
         except Exception as e:
             raise ValueError(f"Cannot evaluate parametric function at t={t}: {e}")
 
-        x, y = point
+        x, y = float(point[0]), float(point[1])
 
         # Compute derivatives dx/dt and dy/dt numerically
         dx_dt = MathUtils.numerical_derivative_at(pfunc.evaluate_x, t)
@@ -249,20 +286,51 @@ class TangentManager:
         if dx_dt is None or dy_dt is None:
             raise ValueError(f"Cannot compute derivatives at t={t}")
 
-        # Calculate slope dy/dx = (dy/dt) / (dx/dt)
-        if abs(dx_dt) < MathUtils.EPSILON:
-            # Vertical tangent
-            slope: Optional[float] = None
-        else:
-            slope = dy_dt / dx_dt
+        direction = self._parametric_direction(pfunc, t, (x, y), (dx_dt, dy_dt))
+        return _line_data((x, y), direction, length)
 
-        endpoints = MathUtils.tangent_line_endpoints(slope, point, length)
+    @staticmethod
+    def _parametric_direction(pfunc: "ParametricFunction", t: float, point: Vec, velocity: Vec) -> Vec:
+        """Unit tangent direction of a parametric curve at t.
 
-        return {
-            "point": point,
-            "slope": slope,
-            "endpoints": endpoints,
-        }
+        The velocity gives it, at any scale, unless it vanishes compared with how far the
+        curve moves over a short step (a cusp such as (t^2, t^3) at t = 0, or (t^3, 2t^3));
+        then the secants to both sides give the limit direction.
+
+        Raises:
+            ValueError: If the curve does not move near t (a stationary point)
+        """
+        step = _SECANT_STEP * max(1.0, abs(t))
+        secants: List[Vec] = []
+        for neighbour in (t + step, t - step):
+            try:
+                nx, ny = pfunc.evaluate(neighbour)
+            except Exception:
+                continue
+            if math.isfinite(nx) and math.isfinite(ny):
+                secants.append((nx - point[0], ny - point[1]))
+        reach = 0.0
+        for sx, sy in secants:
+            reach = max(reach, math.hypot(sx, sy))
+        speed = math.hypot(velocity[0], velocity[1])
+        unit_velocity = _unit(velocity)
+        if unit_velocity is not None and speed * step >= _VANISHING_VELOCITY_RATIO * reach:
+            return unit_velocity
+        units = [unit for unit in (_unit(secant) for secant in secants) if unit is not None]
+        if len(units) == 2:
+            forward, backward = units
+            # Opposite secants: the curve passes through; the same way: it turns back (a cusp).
+            if forward[0] * backward[0] + forward[1] * backward[1] < 0:
+                combined = _unit((forward[0] - backward[0], forward[1] - backward[1]))
+            else:
+                combined = _unit((forward[0] + backward[0], forward[1] + backward[1]))
+            if combined is not None:
+                return combined
+        if units:
+            return units[0]
+        raise ValueError(
+            f"'{pfunc.name}' does not move near t={t} (a stationary point), so it has no tangent direction there"
+        )
 
     def _compute_circle_tangent(
         self,
@@ -277,14 +345,7 @@ class TangentManager:
             circle.radius,
             angle,
         )
-
-        endpoints = MathUtils.tangent_line_endpoints(slope, point, length)
-
-        return {
-            "point": point,
-            "slope": slope,
-            "endpoints": endpoints,
-        }
+        return _line_data(point, _direction_from_slope(slope), length)
 
     def _compute_ellipse_tangent(
         self,
@@ -301,14 +362,7 @@ class TangentManager:
             angle,
             ellipse.rotation_angle,
         )
-
-        endpoints = MathUtils.tangent_line_endpoints(slope, point, length)
-
-        return {
-            "point": point,
-            "slope": slope,
-            "endpoints": endpoints,
-        }
+        return _line_data(point, _direction_from_slope(slope), length)
 
     def _compute_normal_data(
         self,
@@ -327,23 +381,22 @@ class TangentManager:
             length: Desired length of the normal line segment
 
         Returns:
-            Dict with keys: 'point' (x, y), 'slope', 'endpoints' ((x1, y1), (x2, y2))
+            Dict with keys: 'point' (x, y), 'direction' (unit vector), 'slope' (None
+            when vertical), 'endpoints' ((x1, y1), (x2, y2))
         """
-        # First compute tangent data
         tangent_data = self._compute_tangent_data(curve, parameter, length)
+        ux, uy = tangent_data["direction"]
+        return _line_data(tangent_data["point"], (-uy, ux), length)
 
-        # Calculate normal slope
-        tangent_slope = tangent_data["slope"]
-        normal_slope = MathUtils.normal_slope(tangent_slope)
-
-        # Calculate normal endpoints
-        endpoints = MathUtils.tangent_line_endpoints(normal_slope, tangent_data["point"], length)
-
-        return {
-            "point": tangent_data["point"],
-            "slope": normal_slope,
-            "endpoints": endpoints,
-        }
+    @staticmethod
+    def _resolve_length(length: Optional[float]) -> float:
+        """The requested segment length, or the default; it must be a positive number."""
+        if length is None:
+            return DEFAULT_TANGENT_LENGTH
+        value = float(length)
+        if not math.isfinite(value) or value <= 0:
+            raise ValueError(f"length must be a positive number, got {length}")
+        return value
 
     def create_tangent_line(
         self,
@@ -375,8 +428,7 @@ class TangentManager:
             raise ValueError(f"Curve '{curve_name}' not found")
 
         # Set defaults
-        if length is None:
-            length = DEFAULT_TANGENT_LENGTH
+        length = self._resolve_length(length)
         if color is None:
             color = getattr(curve, "color", default_color)
 
@@ -434,8 +486,7 @@ class TangentManager:
             raise ValueError(f"Curve '{curve_name}' not found")
 
         # Set defaults
-        if length is None:
-            length = DEFAULT_TANGENT_LENGTH
+        length = self._resolve_length(length)
         if color is None:
             color = getattr(curve, "color", default_color)
 

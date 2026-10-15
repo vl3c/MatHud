@@ -81,7 +81,8 @@ class TestParallel(_RelationTestBase):
 
     def test_zero_length_segment_error(self) -> None:
         s1 = self.canvas.create_segment(0, 0, 4, 0, name="AB")
-        s2 = self.canvas.create_segment(2, 2, 2, 2, name="CD")
+        s2 = self.canvas.create_segment(2, 2, 3, 3, name="CD")
+        s2.point2.update_position(2, 2)  # create_segment refuses a zero-length segment
         res = self._inspect("parallel", [s1.name, s2.name], ["segment", "segment"])
         self.assertIn("error", res)
 
@@ -128,7 +129,8 @@ class TestPerpendicular(_RelationTestBase):
 
     def test_zero_length_error(self) -> None:
         s1 = self.canvas.create_segment(0, 0, 4, 0, name="AB")
-        s2 = self.canvas.create_segment(1, 1, 1, 1, name="CD")
+        s2 = self.canvas.create_segment(1, 1, 2, 2, name="CD")
+        s2.point2.update_position(1, 1)  # create_segment refuses a zero-length segment
         res = self._inspect("perpendicular", [s1.name, s2.name], ["segment", "segment"])
         self.assertIn("error", res)
 

@@ -48,6 +48,7 @@ from rendering.helpers.colored_area_renderer import (
 )
 from rendering.helpers.area_builders import (
     build_functions_colored_area,
+    build_functions_colored_areas,
     build_function_segment_colored_area,
     build_segments_colored_area,
     build_closed_shape_colored_area,
@@ -79,6 +80,7 @@ __all__ = [
     "_paths_form_single_loop",
     "_filter_valid_points",
     "build_functions_colored_area",
+    "build_functions_colored_areas",
     "build_function_segment_colored_area",
     "build_segments_colored_area",
     "build_closed_shape_colored_area",

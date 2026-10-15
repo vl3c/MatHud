@@ -120,6 +120,14 @@ class TestCircleManager(unittest.TestCase):
         self.assertTrue(removed)
         self.dependency_manager.remove_drawable.assert_called_once_with(circle)
 
+    def test_create_circle_rejects_non_positive_radius_before_archiving(self) -> None:
+        for radius in (0.0, -3.0, float("inf")):
+            with self.subTest(radius=radius):
+                with self.assertRaises(ValueError):
+                    self.circle_manager.create_circle(0.0, 0.0, radius)
+        self.canvas.undo_redo_manager.archive.assert_not_called()
+        self.assertEqual(len(self.drawables.Circles), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

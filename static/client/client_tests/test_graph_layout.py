@@ -1195,13 +1195,13 @@ class TestGraphLayout(unittest.TestCase):
         """Single node with no edges is a tree."""
         self.assertTrue(_is_tree_structure(["A"], []))
 
-    def test_circular_layout_overridden_for_tree(self) -> None:
-        """When graph is a tree, circular layout is overridden to tree layout."""
+    def test_unspecified_layout_uses_tree_layout_for_tree(self) -> None:
+        """With no layout requested, a tree gets the tree layout (root above its children)."""
         edges = [Edge("R", "A"), Edge("R", "B")]
         positions = layout_vertices(
             ["R", "A", "B"],
             edges,
-            layout="circular",
+            layout=None,
             placement_box=self.box,
             canvas_width=100.0,
             canvas_height=100.0,
@@ -1210,6 +1210,55 @@ class TestGraphLayout(unittest.TestCase):
         rx, ry = positions["R"]
         ax, ay = positions["A"]
         self.assertGreater(ry, ay)
+
+    def test_explicit_circular_layout_is_kept_for_tree(self) -> None:
+        """An explicit layout is used even when the edges form a tree."""
+        edges = [Edge("R", "A"), Edge("R", "B"), Edge("R", "C")]
+        positions = layout_vertices(
+            ["R", "A", "B", "C"],
+            edges,
+            layout="circular",
+            placement_box=self.box,
+            canvas_width=100.0,
+            canvas_height=100.0,
+            root_id=None,
+        )
+        cx = self.box["x"] + self.box["width"] / 2.0
+        cy = self.box["y"] + self.box["height"] / 2.0
+        radii = [((x - cx) ** 2 + (y - cy) ** 2) ** 0.5 for x, y in positions.values()]
+        for radius in radii:
+            self.assertAlmostEqual(radius, radii[0], places=6)
+
+    def test_grid_layout_separates_components(self) -> None:
+        """Vertices outside the first component get their own cells (A-B and C-D used to collide)."""
+        edges = [Edge("A", "B"), Edge("C", "D")]
+        positions = layout_vertices(
+            ["A", "B", "C", "D"],
+            edges,
+            layout="grid",
+            placement_box=self.box,
+            canvas_width=100.0,
+            canvas_height=100.0,
+        )
+        coords = list(positions.values())
+        self.assertEqual(len(set(coords)), 4)
+        for x, y in coords:
+            self.assertTrue(self.box["x"] <= x <= self.box["x"] + self.box["width"])
+            self.assertTrue(self.box["y"] <= y <= self.box["y"] + self.box["height"])
+
+    def test_layouts_never_stack_vertices(self) -> None:
+        """Every layout gives each vertex its own position, also with loops and isolated vertices."""
+        ids = ["A", "B", "C", "D", "E"]
+        edges = [Edge("A", "B"), Edge("B", "B"), Edge("C", "D")]
+        for layout in (None, "grid", "circular", "radial", "tree", "force"):
+            positions = layout_vertices(
+                ids, edges, layout=layout, placement_box=self.box, canvas_width=100.0, canvas_height=100.0
+            )
+            coords = [positions[v] for v in ids]
+            for i in range(len(coords)):
+                for j in range(i + 1, len(coords)):
+                    distance = ((coords[i][0] - coords[j][0]) ** 2 + (coords[i][1] - coords[j][1]) ** 2) ** 0.5
+                    self.assertGreater(distance, 1e-6, f"{layout}: {ids[i]} and {ids[j]} share a position")
 
 
 class TestGraphLayoutLegacy(TestGraphLayout):

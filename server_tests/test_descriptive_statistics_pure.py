@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import unittest
 
 from utils.statistics.descriptive import (
@@ -92,9 +93,10 @@ class TestMode(unittest.TestCase):
         result = compute_descriptive_statistics([1, 1, 2, 2, 3, 3])
         self.assertEqual(result["mode"], [])
 
-    def test_single_element_no_mode(self) -> None:
+    def test_single_element_is_the_mode(self) -> None:
+        # One distinct value is the mode however often it appears, like [7, 7]
         result = compute_descriptive_statistics([42])
-        self.assertEqual(result["mode"], [])
+        self.assertEqual(result["mode"], [42.0])
 
     def test_two_identical_elements(self) -> None:
         result = compute_descriptive_statistics([7, 7])
@@ -264,3 +266,28 @@ class TestResultStructure(unittest.TestCase):
         for key in float_keys:
             with self.subTest(key=key):
                 self.assertIsInstance(result[key], float)
+
+
+class TestPrecision(unittest.TestCase):
+    def test_mean_keeps_small_values_next_to_large_ones(self) -> None:
+        result = compute_descriptive_statistics([1e16, 1, -1e16])
+        self.assertAlmostEqual(result["mean"], 1.0 / 3.0, places=15)
+
+    def test_mean_with_cancelling_large_values(self) -> None:
+        result = compute_descriptive_statistics([1e16, 1, -1e16, 1])
+        self.assertAlmostEqual(result["mean"], 0.5, places=15)
+
+    def test_values_near_float_limit_do_not_overflow(self) -> None:
+        result = compute_descriptive_statistics([1e308, 1e308])
+        self.assertEqual(result["mean"], 1e308)
+        self.assertEqual(result["median"], 1e308)
+        self.assertEqual(result["variance"], 0.0)
+
+        result = compute_descriptive_statistics([1.5e308, 1.7e308, 1.6e308])
+        self.assertAlmostEqual(result["mean"] / 1.6e308, 1.0, places=12)
+        expected_std = math.sqrt(2.0 / 3.0) * 1e307
+        self.assertAlmostEqual(result["standard_deviation"] / expected_std, 1.0, places=9)
+
+    def test_large_offset_variance(self) -> None:
+        result = compute_descriptive_statistics([1e9 + 4, 1e9 + 7, 1e9 + 13, 1e9 + 16])
+        self.assertAlmostEqual(result["variance"], 22.5, places=6)

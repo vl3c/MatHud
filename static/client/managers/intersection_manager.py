@@ -184,14 +184,11 @@ class IntersectionManager:
         # Follow a parent circle that moved, as the renderer does
         arc.sync_with_circle()
         center = (float(arc.center_x), float(arc.center_y))
-        first = math.atan2(float(arc.point1.y) - center[1], float(arc.point1.x) - center[0])
-        second = math.atan2(float(arc.point2.y) - center[1], float(arc.point2.x) - center[0])
-        counter_clockwise = (second - first) % (2.0 * math.pi)
-        minor_is_counter_clockwise = counter_clockwise <= math.pi
-        if minor_is_counter_clockwise != bool(arc.use_major_arc):
-            start, sweep = first, counter_clockwise
-        else:
-            start, sweep = second, 2.0 * math.pi - counter_clockwise
+        start, sweep = arc.start_and_sweep()
+        if sweep < 0:
+            # The same arc traced counter-clockwise, from point2
+            start = math.atan2(float(arc.point2.y) - center[1], float(arc.point2.x) - center[0])
+            sweep = -sweep
         return circle_shape(str(arc.name), center, float(arc.radius), arc_start=start, arc_sweep=sweep)
 
     @staticmethod

@@ -23,7 +23,7 @@ All layouts fit vertices within a bounding box and return {vertex_id: (x, y)}.
 from __future__ import annotations
 
 import math
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Callable, Dict, List, Optional, Set, Tuple
 
 from utils.graph_utils import Edge, GraphUtils
 
@@ -90,6 +90,28 @@ def _center_graph_in_box(
     return {vid: (pos[0] + dx, pos[1] + dy) for vid, pos in positions.items()}
 
 
+def _shrink_into_box(
+    positions: Dict[str, Tuple[float, float]],
+    box: Dict[str, float],
+) -> Dict[str, Tuple[float, float]]:
+    """Scale a centered layout about the box center when it spills over the box (shape kept)."""
+    if not positions:
+        return positions
+    cx, cy = _center(box)
+    half_w = abs(box["width"]) / 2.0
+    half_h = abs(box["height"]) / 2.0
+    reach_x = max(abs(pos[0] - cx) for pos in positions.values())
+    reach_y = max(abs(pos[1] - cy) for pos in positions.values())
+    factor = 1.0
+    if reach_x > half_w > 0:
+        factor = min(factor, half_w / reach_x)
+    if reach_y > half_h > 0:
+        factor = min(factor, half_h / reach_y)
+    if factor >= 1.0:
+        return positions
+    return {vid: (cx + (pos[0] - cx) * factor, cy + (pos[1] - cy) * factor) for vid, pos in positions.items()}
+
+
 def _add_missing_vertices(
     positions: Dict[str, Tuple[float, float]],
     vertex_ids: List[str],
@@ -121,13 +143,15 @@ def layout_vertices(
     Compute vertex positions using the specified layout strategy.
 
     Selection priority:
-    1. Auto-detect tree structure: use tree layout (overrides circular/force)
-    2. Explicit layout name (grid, circular, radial, tree, force)
-    3. If root provided: use tree layout
-    4. If edges exist: use force-directed layout
-    5. Otherwise: use circular layout
+    1. Explicit layout name (grid, circular, radial, tree/hierarchical, force) is always used
+    2. No layout and a tree structure: tree layout
+    3. No layout and a root: tree layout
+    4. No layout and edges: force-directed layout
+    5. Otherwise: circular layout
 
-    Final step: Center the graph in the placement box to ensure visibility.
+    The grid layout places each connected component in its own part of the box.
+    Final steps: separate any vertices that landed on the same spot, then center the
+    graph in the placement box (scaling it down if it spills over) to ensure visibility.
     """
     if not vertex_ids:
         return {}
@@ -137,15 +161,8 @@ def layout_vertices(
 
     positions: Optional[Dict[str, Tuple[float, float]]] = None
 
-    # Explicit layout selection (radial, hierarchical, tree are always respected)
-    # Grid is overridden for trees since grid + many edges = overlapping mess
     if strategy == "grid":
-        if _is_tree_structure(vertex_ids, edges):
-            effective_root = root_id or _infer_root(vertex_ids, edges)
-            if effective_root:
-                positions = _tree_layout(vertex_ids, edges, box, effective_root)
-        if positions is None:
-            positions = _grid_layout(vertex_ids, edges, box)
+        positions = _layout_components(vertex_ids, edges, box, _grid_layout)
     elif strategy == "radial":
         effective_root = root_id or _infer_root(vertex_ids, edges)
         if effective_root:
@@ -154,27 +171,111 @@ def layout_vertices(
         effective_root = root_id or _infer_root(vertex_ids, edges)
         if effective_root:
             positions = _tree_layout(vertex_ids, edges, box, effective_root)
-    elif strategy in ("circular", "force", "") and _is_tree_structure(vertex_ids, edges):
-        # Auto-detect tree: override circular/force/unspecified with tree layout
+    elif strategy == "circular":
+        positions = _circular_layout(vertex_ids, box)
+    elif strategy == "force":
+        positions = _force_directed_layout(vertex_ids, edges, box)
+    elif _is_tree_structure(vertex_ids, edges):
+        # No layout requested: show a tree as a tree
         effective_root = root_id or _infer_root(vertex_ids, edges)
         if effective_root:
             positions = _tree_layout(vertex_ids, edges, box, effective_root)
 
-    # Remaining explicit layouts
     if positions is None:
-        if strategy == "circular":
-            positions = _circular_layout(vertex_ids, box)
-        elif strategy == "force":
-            positions = _force_directed_layout(vertex_ids, edges, box)
-        elif root_id is not None:
+        if root_id is not None:
             positions = _tree_layout(vertex_ids, edges, box, root_id)
         elif edges:
             positions = _force_directed_layout(vertex_ids, edges, box)
         else:
             positions = _circular_layout(vertex_ids, box)
 
+    positions = _separate_coincident(positions, vertex_ids, box)
     # Final step: Center the graph in the placement box to ensure visibility
-    return _center_graph_in_box(positions, box)
+    return _shrink_into_box(_center_graph_in_box(positions, box), box)
+
+
+def _layout_components(
+    vertex_ids: List[str],
+    edges: List[Edge[str]],
+    box: Dict[str, float],
+    layout_fn: Callable[[List[str], List[Edge[str]], Dict[str, float]], Dict[str, Tuple[float, float]]],
+) -> Dict[str, Tuple[float, float]]:
+    """Lay out each connected component in its own vertical strip of the box.
+
+    Strips are as wide as their share of the vertices; isolated vertices share one strip.
+    A connected graph is laid out in the whole box.
+    """
+    adjacency: Dict[str, Set[str]] = {vid: set() for vid in vertex_ids}
+    for edge in edges:
+        if edge.source in adjacency and edge.target in adjacency:
+            adjacency[edge.source].add(edge.target)
+            adjacency[edge.target].add(edge.source)
+    components = GraphUtils.get_connected_components(adjacency)
+    if len(components) <= 1:
+        return layout_fn(vertex_ids, edges, box)
+
+    order = {vid: index for index, vid in enumerate(vertex_ids)}
+    groups = [sorted(c, key=order.__getitem__) for c in components if len(c) > 1 or _has_loop(c, edges)]
+    groups.sort(key=lambda group: (-len(group), order[group[0]]))
+    singles = sorted(
+        (vid for c in components if len(c) == 1 and not _has_loop(c, edges) for vid in c), key=order.__getitem__
+    )
+    if singles:
+        groups.append(singles)
+
+    positions: Dict[str, Tuple[float, float]] = {}
+    left = box["x"]
+    total = float(len(vertex_ids))
+    for group in groups:
+        width = box["width"] * len(group) / total
+        strip = {"x": left, "y": box["y"], "width": width, "height": box["height"]}
+        members = set(group)
+        group_edges = [e for e in edges if e.source in members and e.target in members]
+        positions.update(layout_fn(group, group_edges, strip))
+        left += width
+    return positions
+
+
+def _has_loop(component: Set[str], edges: List[Edge[str]]) -> bool:
+    return any(e.source == e.target and e.source in component for e in edges)
+
+
+def _separate_coincident(
+    positions: Dict[str, Tuple[float, float]],
+    vertex_ids: List[str],
+    box: Dict[str, float],
+) -> Dict[str, Tuple[float, float]]:
+    """Guarantee distinct positions: a vertex on another vertex's spot moves to a free spot nearby.
+
+    Two vertices at one position would become one canvas point. Vertices are checked in
+    order, so the first keeps its spot.
+    """
+    scale = max(abs(box["width"]), abs(box["height"]), 1.0)
+    tolerance = 1e-9 * scale
+    step = 0.05 * min(abs(box["width"]), abs(box["height"])) or 0.05 * scale
+    directions = [(1, 0), (0, -1), (-1, 0), (0, 1), (1, -1), (-1, -1), (-1, 1), (1, 1)]
+
+    def taken(pos: Tuple[float, float], placed: List[Tuple[float, float]]) -> bool:
+        return any(abs(pos[0] - px) <= tolerance and abs(pos[1] - py) <= tolerance for px, py in placed)
+
+    result: Dict[str, Tuple[float, float]] = {}
+    placed: List[Tuple[float, float]] = []
+    for vid in vertex_ids:
+        if vid not in positions:
+            continue
+        base = positions[vid]
+        pos = base
+        attempt = 0
+        while taken(pos, placed):
+            dx, dy = directions[attempt % len(directions)]
+            ring = attempt // len(directions) + 1
+            pos = (base[0] + dx * ring * step, base[1] + dy * ring * step)
+            attempt += 1
+        result[vid] = pos
+        placed.append(pos)
+    for vid, pos in positions.items():
+        result.setdefault(vid, pos)
+    return result
 
 
 def _is_tree_structure(vertex_ids: List[str], edges: List[Edge[str]]) -> bool:
@@ -687,7 +788,7 @@ def _dfs_for_planarity(
         counter[0] += 1
         result.dfs_parent[node] = parent
 
-        for neighbor in adjacency.get(node, set()):
+        for neighbor in sorted(adjacency.get(node, set())):
             if neighbor not in result.visited:
                 result.tree_edges.append((node, neighbor))
                 stack.append((neighbor, node))
@@ -786,7 +887,7 @@ def _build_embedding_from_dfs(
     embedding: Dict[str, List[str]] = {}
 
     for v in vertex_ids:
-        neighbors = list(adjacency.get(v, set()))
+        neighbors = sorted(adjacency.get(v, set()))
         parent = dfs_parent.get(v)
 
         # Separate into parent, tree children, and back edges
@@ -889,7 +990,7 @@ def _find_component_from_start(
             continue
         visited.add(v)
         component_verts.append(v)
-        stack.extend(adj.get(v, set()))
+        stack.extend(sorted(adj.get(v, set()), reverse=True))
     return component_verts
 
 
@@ -1031,7 +1132,7 @@ def _walk_cycle(
     while len(ordered) < num_verts:
         ordered.append(current)
         visited.add(current)
-        for neighbor in comp_adj.get(current, set()):
+        for neighbor in sorted(comp_adj.get(current, set())):
             if neighbor not in visited:
                 current = neighbor
                 break
@@ -1209,7 +1310,7 @@ def _build_bfs_tree(
             result.levels.append([])
         result.levels[depth].append(node)
 
-        for neighbor in adjacency.get(node, set()):
+        for neighbor in sorted(adjacency.get(node, set())):
             if neighbor not in visited:
                 visited.add(neighbor)
                 result.parent[neighbor] = node
@@ -1226,24 +1327,6 @@ def _build_bfs_tree(
             result.parent[v] = None
 
     return result
-
-
-def _compute_subtree_sizes(
-    root: str,
-    children: Dict[str, List[str]],
-) -> Dict[str, int]:
-    """Compute subtree sizes for proportional column allocation."""
-    subtree_size: Dict[str, int] = {}
-
-    def compute_size(node: str) -> int:
-        size = 1
-        for child in children.get(node, []):
-            size += compute_size(child)
-        subtree_size[node] = size
-        return size
-
-    compute_size(root)
-    return subtree_size
 
 
 def _assign_columns_by_subtree(
@@ -1343,7 +1426,10 @@ def _orthogonalize(
     # Special case: multiple cycles connected by bridges
     cycle_components = _find_cycle_components(vertex_ids, edges)
     if cycle_components and len(cycle_components) > 1:
-        return _orthogonalize_multi_cycle(edges, cycle_components)
+        multi = _orthogonalize_multi_cycle(edges, cycle_components)
+        # The cycle split can miss vertices (loops, parallel edges); use the general layout then.
+        if all(v in multi.vertex_pos for v in vertex_ids):
+            return multi
 
     ortho = OrthogonalRep()
     if not vertex_ids:
@@ -1362,7 +1448,7 @@ def _orthogonalize(
             vertex_row[v] = row_idx
 
     # Assign columns using subtree sizes
-    subtree_size = _compute_subtree_sizes(root, tree.children)
+    subtree_size = GraphUtils.subtree_sizes(root, tree.children)
     vertex_col = _assign_columns_by_subtree(root, tree.children, subtree_size)
 
     # Align for orthogonality
@@ -1713,11 +1799,11 @@ def _find_crossing_pairs(
 
             if shares_vertex:
                 # Check for adjacent edge overlap
-                if _adjacent_edges_overlap(p1, p2, p3, p4):
+                if GraphUtils.adjacent_edges_overlap(p1, p2, p3, p4, True):
                     crossing_pairs.append((e1, e2))
             else:
                 # Check for crossing OR collinear overlap
-                if GraphUtils.segments_cross(p1, p2, p3, p4) or _edges_collinear_overlap(p1, p2, p3, p4):
+                if GraphUtils.segments_cross(p1, p2, p3, p4) or GraphUtils.edges_overlap(p1, p2, p3, p4):
                     crossing_pairs.append((e1, e2))
 
     return crossing_pairs
@@ -1781,103 +1867,6 @@ def _from_grid_coords(
     return positions
 
 
-def _edges_collinear_overlap(
-    p1: Tuple[float, float],
-    p2: Tuple[float, float],
-    p3: Tuple[float, float],
-    p4: Tuple[float, float],
-) -> bool:
-    """
-    Check if two edges are collinear and overlap (share more than just an endpoint).
-
-    Two edges overlap if they are on the same line and their projections overlap.
-    """
-
-    # Check if all 4 points are collinear
-    def cross_product(o: Tuple[float, float], a: Tuple[float, float], b: Tuple[float, float]) -> float:
-        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
-
-    eps = 1e-9
-
-    # Check collinearity: all 4 points must be on the same line
-    if abs(cross_product(p1, p2, p3)) > eps or abs(cross_product(p1, p2, p4)) > eps:
-        return False
-
-    # They are collinear - check if projections overlap
-    # Project onto the axis with larger span
-    dx = abs(p2[0] - p1[0])
-    dy = abs(p2[1] - p1[1])
-
-    if dx > dy:
-        # Project onto x-axis
-        min1, max1 = min(p1[0], p2[0]), max(p1[0], p2[0])
-        min2, max2 = min(p3[0], p4[0]), max(p3[0], p4[0])
-    else:
-        # Project onto y-axis
-        min1, max1 = min(p1[1], p2[1]), max(p1[1], p2[1])
-        min2, max2 = min(p3[1], p4[1]), max(p3[1], p4[1])
-
-    # Check if intervals overlap (more than just touching at endpoints)
-    overlap = min(max1, max2) - max(min1, min2)
-    return overlap > eps
-
-
-def _point_on_segment(
-    point: Tuple[float, float],
-    seg_start: Tuple[float, float],
-    seg_end: Tuple[float, float],
-    eps: float = 1e-9,
-) -> bool:
-    """
-    Check if a point lies strictly inside a segment (not at endpoints).
-    """
-    px = float(point[0])
-    py = float(point[1])
-    x1 = float(seg_start[0])
-    y1 = float(seg_start[1])
-    x2 = float(seg_end[0])
-    y2 = float(seg_end[1])
-
-    # Check collinearity using cross product
-    cross = (px - x1) * (y2 - y1) - (py - y1) * (x2 - x1)
-    if abs(cross) > eps:
-        return False
-
-    # Check if point is between endpoints (strictly inside)
-    dx = abs(x2 - x1)
-    dy = abs(y2 - y1)
-
-    if dx > dy:
-        min_v, max_v = min(x1, x2), max(x1, x2)
-        return min_v + eps < px < max_v - eps
-    else:
-        min_v, max_v = min(y1, y2), max(y1, y2)
-        return min_v + eps < py < max_v - eps
-
-
-def _adjacent_edges_overlap(
-    p1: Tuple[float, float],
-    p2: Tuple[float, float],
-    p3: Tuple[float, float],
-    p4: Tuple[float, float],
-) -> bool:
-    """
-    Check if two edges that share a vertex overlap.
-
-    Returns True if the non-shared vertex of one edge lies on the other edge.
-    """
-    # Check if any non-shared point lies on the other segment
-    if _point_on_segment(p1, p3, p4):
-        return True
-    if _point_on_segment(p2, p3, p4):
-        return True
-    if _point_on_segment(p3, p1, p2):
-        return True
-    if _point_on_segment(p4, p1, p2):
-        return True
-    return False
-
-
 def _count_crossings_for_vertex(
     vertex: str,
     pos: Tuple[int, int],
@@ -1926,11 +1915,11 @@ def _count_crossings_for_vertex(
 
             if shares_vertex:
                 # Check for adjacent edge overlap (vertex on segment)
-                if _adjacent_edges_overlap(p1, p2, p3, p4):
+                if GraphUtils.adjacent_edges_overlap(p1, p2, p3, p4, True):
                     problems += 1
             else:
                 # Check for crossing OR collinear overlap
-                if GraphUtils.segments_cross(p1, p2, p3, p4) or _edges_collinear_overlap(p1, p2, p3, p4):
+                if GraphUtils.segments_cross(p1, p2, p3, p4) or GraphUtils.edges_overlap(p1, p2, p3, p4):
                     problems += 1
 
     # Restore old position
@@ -3005,9 +2994,9 @@ def _tree_layout(
     if rooted is None:
         return _circular_layout(vertex_ids, box)
 
-    rooted[0]
     children = rooted[1]
-    depths = GraphUtils.node_depths(root_id, adjacency) or {}
+    # Depths of the same spanning tree the children come from (BFS depths differ on cyclic graphs).
+    depths = GraphUtils.depths_from_parents(rooted[0])
     max_depth = max(depths.values()) if depths else 0
 
     # Phase 1: Compute subtree widths bottom-up

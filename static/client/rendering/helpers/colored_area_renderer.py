@@ -18,7 +18,7 @@ import math
 from rendering.helpers.area_builders import (
     build_closed_shape_colored_area,
     build_function_segment_colored_area,
-    build_functions_colored_area,
+    build_functions_colored_areas,
     build_segments_colored_area,
 )
 from rendering.helpers.shape_decorator import _manages_shape
@@ -160,8 +160,8 @@ def render_functions_bounded_area_helper(primitives, area_model, coordinate_mapp
         coordinate_mapper: Mapper for math-to-screen coordinate conversion.
         style: Style dictionary with area styling settings.
     """
-    area = build_functions_colored_area(area_model, coordinate_mapper)
-    render_colored_area_helper(primitives, area, coordinate_mapper, style)
+    for area in build_functions_colored_areas(area_model, coordinate_mapper):
+        render_colored_area_helper(primitives, area, coordinate_mapper, style)
 
 
 def render_function_segment_area_helper(primitives, area_model, coordinate_mapper, style, *, num_points=100):

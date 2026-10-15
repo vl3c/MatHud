@@ -5,6 +5,7 @@ strings for probability distributions.
 
 Key Features:
     - Normal PDF expression generation with mean and sigma
+    - Normal PDF evaluation at a point
     - Default bounds calculation for normal distributions
     - Finite value validation for parameters
 """
@@ -63,6 +64,14 @@ def normal_pdf_expression(mean: float, sigma: float) -> str:
     mean_text = _format_plain_number(mean)
     sigma_text = _format_plain_number(sigma)
     return f"(1/(({sigma_text})*sqrt(2*pi)))*exp(-(((x-({mean_text}))^2)/(2*({sigma_text})^2)))"
+
+
+def normal_pdf(x: float, mean: float, sigma: float) -> float:
+    """Evaluate the normal PDF at x; far tails underflow to 0.0."""
+    if sigma <= 0.0:
+        raise ValueError("sigma must be > 0")
+    z = (float(x) - float(mean)) / float(sigma)
+    return math.exp(-0.5 * z * z) / (float(sigma) * math.sqrt(2.0 * math.pi))
 
 
 def default_normal_bounds(mean: float, sigma: float, k: float = 4.0) -> Tuple[float, float]:

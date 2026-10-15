@@ -339,6 +339,33 @@ class TestColoredAreaManager(unittest.TestCase):
         self.canvas.undo_redo_manager.archive.assert_called()
         self.canvas.draw.assert_called()
 
+    def test_create_colored_area_function_segment_keeps_bounds(self) -> None:
+        """left_bound/right_bound apply to a function-segment area as the tool schema says."""
+        func = Function("x^2", name="f1")
+        seg = Segment(Point(0.0, 0.0, "A"), Point(4.0, 0.0, "B"))
+        self.drawable_manager_proxy.get_function = lambda name: func if name == func.name else None
+        self.drawable_manager_proxy.get_segment_by_name = lambda name: seg if name == seg.name else None
+
+        area = self.manager.create_colored_area(
+            drawable1_name=func.name, drawable2_name=seg.name, left_bound=1, right_bound=3
+        )
+
+        self.assertIsInstance(area, FunctionSegmentBoundedColoredArea)
+        self.assertEqual(area._get_bounds(), (1.0, 3.0))
+
+    def test_region_expression_resolution_is_validated(self) -> None:
+        """The expression path clamps resolution like the shape path, and rejects non-numbers."""
+        from managers.colored_area_manager import MAX_REGION_RESOLUTION
+        from constants import closed_shape_resolution_minimum
+
+        self.assertEqual(self.manager._validated_resolution(None), default_closed_shape_resolution)
+        self.assertEqual(self.manager._validated_resolution(2), closed_shape_resolution_minimum)
+        self.assertEqual(self.manager._validated_resolution(10**9), MAX_REGION_RESOLUTION)
+        self.assertEqual(self.manager._validated_resolution(100.4), 100)
+        for bad in ("many", float("nan"), True):
+            with self.assertRaises(ValueError):
+                self.manager._validated_resolution(bad)
+
     def test_create_colored_area_function_function(self) -> None:
         func1 = Function("x", name="f1")
         func2 = Function("x^2", name="f2")

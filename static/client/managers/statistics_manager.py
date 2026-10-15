@@ -24,7 +24,7 @@ from drawables.continuous_plot import ContinuousPlot
 from drawables.bar import Bar
 from drawables.discrete_plot import DiscretePlot
 from drawables.plot import Plot
-from utils.statistics.distributions import default_normal_bounds, normal_pdf_expression
+from utils.statistics.distributions import default_normal_bounds, normal_pdf, normal_pdf_expression
 from utils.statistics.descriptive import (
     compute_descriptive_statistics as _compute_descriptive_statistics,
 )
@@ -38,6 +38,10 @@ if TYPE_CHECKING:
     from managers.function_manager import FunctionManager
     from managers.point_manager import PointManager
     from name_generator.drawable import DrawableNameGenerator
+
+
+DEFAULT_DISCRETE_BAR_COUNT = 24
+MAX_DISCRETE_BAR_COUNT = 500
 
 
 class StatisticsManager:
@@ -273,28 +277,15 @@ class StatisticsManager:
                 if not isinstance(labels_above, list) or len(labels_above) != len(values):
                     raise ValueError("labels_above length must match values length")
 
-            spacing = 0.2 if bar_spacing is None else float(bar_spacing)
-            if not math.isfinite(spacing) or spacing < 0.0:
-                raise ValueError("bar_spacing must be a finite number >= 0")
-
-            width = 1.0 if bar_width is None else float(bar_width)
-            if not math.isfinite(width) or width <= 0.0:
-                raise ValueError("bar_width must be a finite number > 0")
-
-            x0 = 0.0 if x_start is None else float(x_start)
-            if not math.isfinite(x0):
-                raise ValueError("x_start must be finite")
-
-            y0 = 0.0 if y_base is None else float(y_base)
-            if not math.isfinite(y0):
-                raise ValueError("y_base must be finite")
+            spacing, width, x0, y0 = self._resolve_bars_layout(bar_spacing, bar_width, x_start, y_base)
+            heights = self._validate_bar_values(values)
 
             plot_name = self._generate_unique_name(self.name_generator.filter_string(name or "") or "bars_plot")
 
             plot = BarsPlot(
                 plot_name,
                 plot_type="bars",
-                values=[float(v) for v in values],
+                values=heights,
                 labels_below=[str(v) for v in labels_below],
                 labels_above=None if labels_above is None else [str(v) for v in labels_above],
                 bar_spacing=spacing,
@@ -306,8 +297,13 @@ class StatisticsManager:
                 fill_opacity=self._normalize_fill_opacity(fill_opacity),
             )
             self.drawables.add(plot)
-
-            self.materialize_bars_plot(plot)
+            try:
+                self.materialize_bars_plot(plot)
+            except Exception:
+                # Never leave a half-built chart behind
+                self._delete_bars_plot(plot)
+                self.drawables.remove(plot)
+                raise
 
             if getattr(self.canvas, "draw_enabled", False):
                 try:
@@ -716,53 +712,18 @@ class StatisticsManager:
         if isinstance(labels, list):
             labels_list = [str(value) for value in labels]
 
-        curve_color = getattr(plot, "curve_color", None)
-        fill_color = getattr(plot, "fill_color", None)
-        fill_opacity = getattr(plot, "fill_opacity", None)
-
-        bar_manager = getattr(getattr(self.canvas, "drawable_manager", None), "bar_manager", None)
-        for i in range(n):
-            bar_name = f"{plot_name}_bar_{i}"
-            if self._drawable_exists(bar_name, "Bar"):
-                continue
-            x_left = left_f + i * ((right_f - left_f) / float(n))
-            x_right = left_f + (i + 1) * ((right_f - left_f) / float(n))
-            x_mid = (x_left + x_right) / 2.0
-            y_top = self._normal_pdf_value(x_mid, mean, sigma)
-
-            label_text = None
-            if labels_list is not None and i < len(labels_list):
-                label_text = labels_list[i]
-
-            if bar_manager is not None and hasattr(bar_manager, "create_bar"):
-                bar_manager.create_bar(
-                    name=bar_name,
-                    x_left=x_left,
-                    x_right=x_right,
-                    y_bottom=0.0,
-                    y_top=y_top,
-                    stroke_color=curve_color,
-                    fill_color=self._normalize_fill_color(fill_color),
-                    fill_opacity=self._normalize_fill_opacity(fill_opacity),
-                    label_above_text=label_text,
-                    label_below_text=None,
-                    archive=False,
-                    redraw=False,
-                )
-            else:
-                self.drawables.add(
-                    Bar(
-                        name=bar_name,
-                        x_left=x_left,
-                        x_right=x_right,
-                        y_bottom=0.0,
-                        y_top=y_top,
-                        stroke_color=curve_color,
-                        fill_color=self._normalize_fill_color(fill_color),
-                        fill_opacity=self._normalize_fill_opacity(fill_opacity),
-                        label_text=label_text,
-                    )
-                )
+        self._create_discrete_bars(
+            plot_name=plot_name,
+            left_bound=left_f,
+            right_bound=right_f,
+            bar_count=n,
+            mean=mean,
+            sigma=sigma,
+            curve_color=getattr(plot, "curve_color", None),
+            fill_color=getattr(plot, "fill_color", None),
+            fill_opacity=getattr(plot, "fill_opacity", None),
+            labels=labels_list,
+        )
 
     def materialize_bars_plot(self, plot: Any) -> None:
         """
@@ -788,27 +749,24 @@ class StatisticsManager:
                 return
 
         try:
-            spacing = float(getattr(plot, "bar_spacing", 0.2) or 0.2)
-            width = float(getattr(plot, "bar_width", 1.0) or 1.0)
-            x0 = float(getattr(plot, "x_start", 0.0) or 0.0)
-            y0 = float(getattr(plot, "y_base", 0.0) or 0.0)
+            spacing, width, x0, y0 = self._resolve_bars_layout(
+                getattr(plot, "bar_spacing", None),
+                getattr(plot, "bar_width", None),
+                getattr(plot, "x_start", None),
+                getattr(plot, "y_base", None),
+            )
         except Exception:
-            return
-        if not math.isfinite(spacing) or spacing < 0.0:
-            return
-        if not math.isfinite(width) or width <= 0.0:
-            return
-        if not math.isfinite(x0) or not math.isfinite(y0):
             return
 
         stroke_color = getattr(plot, "stroke_color", None)
         fill_color = getattr(plot, "fill_color", None)
         fill_opacity = getattr(plot, "fill_opacity", None)
 
-        bar_manager = getattr(getattr(self.canvas, "drawable_manager", None), "bar_manager", None)
+        bar_manager = self._get_bar_manager()
+        existing_bar_names = self._existing_names("Bar")
         for i in range(len(values)):
             bar_name = f"{plot_name}_bar_{i}"
-            if self._drawable_exists(bar_name, "Bar"):
+            if bar_name in existing_bar_names:
                 continue
             try:
                 height = float(values[i])
@@ -817,54 +775,20 @@ class StatisticsManager:
             if not math.isfinite(height):
                 continue
             x_left = x0 + float(i) * (width + spacing)
-            x_right = x_left + width
-            y_bottom = y0
-            y_top = y0 + height
-
-            above_text = None
-            try:
-                if labels_above is not None and i < len(labels_above):
-                    above_text = str(labels_above[i])
-            except Exception:
-                above_text = None
-
-            below_text = None
-            try:
-                if i < len(labels_below):
-                    below_text = str(labels_below[i])
-            except Exception:
-                below_text = None
-
-            if bar_manager is not None and hasattr(bar_manager, "create_bar"):
-                bar_manager.create_bar(
-                    name=bar_name,
-                    x_left=x_left,
-                    x_right=x_right,
-                    y_bottom=y_bottom,
-                    y_top=y_top,
-                    stroke_color=stroke_color,
-                    fill_color=fill_color,
-                    fill_opacity=fill_opacity,
-                    label_above_text=above_text,
-                    label_below_text=below_text,
-                    archive=False,
-                    redraw=False,
-                )
-            else:
-                self.drawables.add(
-                    Bar(
-                        name=bar_name,
-                        x_left=x_left,
-                        x_right=x_right,
-                        y_bottom=y_bottom,
-                        y_top=y_top,
-                        stroke_color=stroke_color,
-                        fill_color=fill_color,
-                        fill_opacity=fill_opacity,
-                        label_above_text=above_text,
-                        label_below_text=below_text,
-                    )
-                )
+            above_text = None if labels_above is None else str(labels_above[i])
+            self._add_bar(
+                bar_manager,
+                name=bar_name,
+                x_left=x_left,
+                x_right=x_left + width,
+                y_bottom=y0,
+                y_top=y0 + height,
+                stroke_color=stroke_color,
+                fill_color=fill_color,
+                fill_opacity=fill_opacity,
+                label_above_text=above_text,
+                label_below_text=str(labels_below[i]),
+            )
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -894,48 +818,8 @@ class StatisticsManager:
         bar_count: Optional[float],
     ) -> Dict[str, Any]:
         n = self._resolve_bar_count(bar_count)
-        width = (right_bound - left_bound) / float(n)
-        if width <= 0.0:
+        if not (right_bound - left_bound) / float(n) > 0.0:
             raise ValueError("Invalid bounds for discrete plot")
-
-        bar_manager = getattr(getattr(self.canvas, "drawable_manager", None), "bar_manager", None)
-        for i in range(n):
-            x_left = left_bound + i * width
-            x_right = x_left + width
-            x_mid = (x_left + x_right) / 2.0
-            height = self._normal_pdf_value(x_mid, mean, sigma)
-
-            bar_name = f"{plot_name}_bar_{i}"
-
-            if bar_manager is not None and hasattr(bar_manager, "create_bar"):
-                bar_manager.create_bar(
-                    name=bar_name,
-                    x_left=x_left,
-                    x_right=x_right,
-                    y_bottom=0.0,
-                    y_top=height,
-                    stroke_color=curve_color,
-                    fill_color=self._normalize_fill_color(fill_color),
-                    fill_opacity=self._normalize_fill_opacity(fill_opacity),
-                    label_above_text=None,
-                    label_below_text=None,
-                    archive=False,
-                    redraw=False,
-                )
-            else:
-                self.drawables.add(
-                    Bar(
-                        name=bar_name,
-                        x_left=x_left,
-                        x_right=x_right,
-                        y_bottom=0.0,
-                        y_top=height,
-                        stroke_color=curve_color,
-                        fill_color=self._normalize_fill_color(fill_color),
-                        fill_opacity=self._normalize_fill_opacity(fill_opacity),
-                        label_text=None,
-                    )
-                )
 
         plot = DiscretePlot(
             plot_name,
@@ -950,6 +834,23 @@ class StatisticsManager:
             bounds={"left": left_bound, "right": right_bound},
             metadata={"bar_count": n},
         )
+        try:
+            self._create_discrete_bars(
+                plot_name=plot_name,
+                left_bound=left_bound,
+                right_bound=right_bound,
+                bar_count=n,
+                mean=mean,
+                sigma=sigma,
+                curve_color=curve_color,
+                fill_color=fill_color,
+                fill_opacity=fill_opacity,
+                labels=None,
+            )
+        except Exception:
+            # Never leave a half-built plot behind
+            self._delete_discrete_plot(plot)
+            raise
         self.drawables.add(plot)
 
         return {
@@ -961,9 +862,140 @@ class StatisticsManager:
             "bar_count": n,
         }
 
+    def _create_discrete_bars(
+        self,
+        *,
+        plot_name: str,
+        left_bound: float,
+        right_bound: float,
+        bar_count: int,
+        mean: float,
+        sigma: float,
+        curve_color: Optional[str],
+        fill_color: Optional[str],
+        fill_opacity: Optional[float],
+        labels: Optional[List[str]],
+    ) -> None:
+        """Create the bars of a discrete normal plot, each as tall as the pdf at its midpoint."""
+        width = (right_bound - left_bound) / float(bar_count)
+        bar_manager = self._get_bar_manager()
+        existing_bar_names = self._existing_names("Bar")
+        for i in range(bar_count):
+            bar_name = f"{plot_name}_bar_{i}"
+            if bar_name in existing_bar_names:
+                continue
+            x_left = left_bound + i * width
+            x_right = left_bound + (i + 1) * width
+            label_text = labels[i] if labels is not None and i < len(labels) else None
+            self._add_bar(
+                bar_manager,
+                name=bar_name,
+                x_left=x_left,
+                x_right=x_right,
+                y_bottom=0.0,
+                y_top=normal_pdf((x_left + x_right) / 2.0, mean, sigma),
+                stroke_color=curve_color,
+                fill_color=self._normalize_fill_color(fill_color),
+                fill_opacity=self._normalize_fill_opacity(fill_opacity),
+                label_above_text=label_text,
+                label_below_text=None,
+            )
+
+    def _add_bar(
+        self,
+        bar_manager: Any,
+        *,
+        name: str,
+        x_left: float,
+        x_right: float,
+        y_bottom: float,
+        y_top: float,
+        stroke_color: Optional[str],
+        fill_color: Optional[str],
+        fill_opacity: Optional[float],
+        label_above_text: Optional[str],
+        label_below_text: Optional[str],
+    ) -> None:
+        """Add one plot bar through the bar manager (no undo entry, no redraw), or directly without one."""
+        if bar_manager is not None and hasattr(bar_manager, "create_bar"):
+            bar_manager.create_bar(
+                name=name,
+                x_left=x_left,
+                x_right=x_right,
+                y_bottom=y_bottom,
+                y_top=y_top,
+                stroke_color=stroke_color,
+                fill_color=fill_color,
+                fill_opacity=fill_opacity,
+                label_above_text=label_above_text,
+                label_below_text=label_below_text,
+                archive=False,
+                redraw=False,
+            )
+            return
+        self.drawables.add(
+            Bar(
+                name=name,
+                x_left=x_left,
+                x_right=x_right,
+                y_bottom=y_bottom,
+                y_top=y_top,
+                stroke_color=stroke_color,
+                fill_color=fill_color,
+                fill_opacity=fill_opacity,
+                label_above_text=label_above_text,
+                label_below_text=label_below_text,
+            )
+        )
+
+    def _get_bar_manager(self) -> Any:
+        return getattr(getattr(self.canvas, "drawable_manager", None), "bar_manager", None)
+
+    def _existing_names(self, class_name: str) -> set[str]:
+        try:
+            return {str(getattr(d, "name", "")) for d in self.drawables.get_by_class_name(class_name)}
+        except Exception:
+            return set()
+
+    @staticmethod
+    def _resolve_bars_layout(
+        bar_spacing: Optional[float],
+        bar_width: Optional[float],
+        x_start: Optional[float],
+        y_base: Optional[float],
+    ) -> Tuple[float, float, float, float]:
+        """Return (spacing, width, x_start, y_base) with defaults for None; raise ValueError when invalid."""
+        spacing = 0.2 if bar_spacing is None else float(bar_spacing)
+        if not math.isfinite(spacing) or spacing < 0.0:
+            raise ValueError("bar_spacing must be a finite number >= 0")
+        width = 1.0 if bar_width is None else float(bar_width)
+        if not math.isfinite(width) or width <= 0.0:
+            raise ValueError("bar_width must be a finite number > 0")
+        x0 = 0.0 if x_start is None else float(x_start)
+        if not math.isfinite(x0):
+            raise ValueError("x_start must be finite")
+        y0 = 0.0 if y_base is None else float(y_base)
+        if not math.isfinite(y0):
+            raise ValueError("y_base must be finite")
+        return spacing, width, x0, y0
+
+    @staticmethod
+    def _validate_bar_values(values: List[Any]) -> List[float]:
+        """Return the bar heights as floats; raise ValueError for a non-numeric or non-finite value."""
+        heights: List[float] = []
+        for i, value in enumerate(values):
+            try:
+                height = float(value)
+            except (TypeError, ValueError):
+                raise ValueError(f"values[{i}] must be a number, got {value!r}")
+            if not math.isfinite(height):
+                raise ValueError(f"values[{i}] must be finite, got {value!r}")
+            heights.append(height)
+        return heights
+
     def _resolve_bar_count(self, bar_count: Optional[float]) -> int:
         if bar_count is None:
-            return 24
+            return DEFAULT_DISCRETE_BAR_COUNT
         value = float(bar_count)
         if not math.isfinite(value):
             raise ValueError("bar_count must be finite")
@@ -972,13 +1004,9 @@ class StatisticsManager:
         n = int(round(value))
         if n <= 0:
             raise ValueError("bar_count must be > 0")
+        if n > MAX_DISCRETE_BAR_COUNT:
+            raise ValueError(f"bar_count must be at most {MAX_DISCRETE_BAR_COUNT}, got {n}")
         return n
-
-    def _normal_pdf_value(self, x: float, mean: float, sigma: float) -> float:
-        # f(x) = 1/(sigma*sqrt(2*pi)) * exp(-(x-mean)^2/(2*sigma^2))
-        coeff = 1.0 / (sigma * math.sqrt(2.0 * math.pi))
-        exponent = -((x - mean) ** 2) / (2.0 * (sigma**2))
-        return coeff * math.exp(exponent)
 
     def _delete_continuous_plot(self, plot: Any) -> None:
         fill_area_name = getattr(plot, "fill_area_name", None)
@@ -1060,17 +1088,6 @@ class StatisticsManager:
         if getattr(plot, "fill_area_names", None) or getattr(plot, "rectangle_names", None):
             self._delete_discrete_plot(plot)
             return
-
-    def _drawable_exists(self, name: str, class_name: str) -> bool:
-        if not name:
-            return False
-        try:
-            for d in self.drawables.get_by_class_name(class_name):
-                if getattr(d, "name", None) == name:
-                    return True
-        except Exception:
-            return False
-        return False
 
     def _delete_drawable_by_name(self, name: str, class_name: str) -> None:
         if not name:

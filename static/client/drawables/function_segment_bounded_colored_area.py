@@ -17,7 +17,7 @@ Dependencies:
 from __future__ import annotations
 
 import copy
-from typing import Any, Dict, List, Optional, Tuple, Union, cast
+from typing import Any, Dict, Optional, Tuple, Union, cast
 
 from drawables.colored_area import ColoredArea
 from drawables.function import Function
@@ -34,10 +34,18 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
     Attributes:
             func (Function, None, or number): The bounding function
             segment (Segment): The bounding line segment
+            left_bound, right_bound (float or None): Optional x-limits of the area; the
+                area always stays within the segment's and the function's x-ranges
     """
 
     def __init__(
-        self, func: Union[Function, None, float, int], segment: Segment, color: str = "lightblue", opacity: float = 0.3
+        self,
+        func: Union[Function, None, float, int],
+        segment: Segment,
+        color: str = "lightblue",
+        opacity: float = 0.3,
+        left_bound: Optional[float] = None,
+        right_bound: Optional[float] = None,
     ) -> None:
         """Initialize a function segment bounded colored area.
 
@@ -46,11 +54,20 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
                 segment (Segment): The bounding line segment
                 color (str): CSS color value for area fill
                 opacity (float): Opacity value between 0.0 and 1.0
+                left_bound (float, optional): Left x-limit of the area
+                right_bound (float, optional): Right x-limit of the area
         """
+        for bound_name, bound in (("left_bound", left_bound), ("right_bound", right_bound)):
+            if bound is not None and (isinstance(bound, bool) or not isinstance(bound, (int, float))):
+                raise TypeError(f"{bound_name} must be a numeric value")
+        if left_bound is not None and right_bound is not None and left_bound >= right_bound:
+            raise ValueError("left_bound must be less than right_bound")
         name = self._generate_name(func, segment)
         super().__init__(name=name, color=color, opacity=opacity)
         self.func: Union[Function, None, float, int] = func
         self.segment: Segment = segment
+        self.left_bound: Optional[float] = None if left_bound is None else float(left_bound)
+        self.right_bound: Optional[float] = None if right_bound is None else float(right_bound)
 
     def _generate_name(self, func: Union[Function, None, float, int], segment: Segment) -> str:
         """Generate a descriptive name for the colored area."""
@@ -108,18 +125,20 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
             return None
 
     def _get_bounds(self) -> Tuple[float, float]:
-        """Calculate the left and right bounds for the colored area."""
-        # Get segment bounds
+        """The x-range of the area: the segment's, within the function's and the area's own bounds.
+
+        Bounds that are None (an unbounded function, no explicit limit) do not restrict it.
+        The range is empty (left > right) when they do not overlap.
+        """
         seg_left: float
         seg_right: float
         seg_left, seg_right = self._get_segment_bounds()
-
-        # For function bounds
-        if isinstance(self.func, Function) or self._is_function_like(self.func):
-            return self._get_intersection_bounds(seg_left, seg_right)
-        else:
-            # For x-axis or constant function, use segment bounds
-            return seg_left, seg_right
+        left, right = self._get_intersection_bounds(seg_left, seg_right)
+        if self.left_bound is not None:
+            left = max(left, self.left_bound)
+        if self.right_bound is not None:
+            right = min(right, self.right_bound)
+        return left, right
 
     def _get_segment_bounds(self) -> Tuple[float, float]:
         """Get the left and right bounds of the segment."""
@@ -135,28 +154,12 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
             return seg_left, seg_right
         if isinstance(self.func, (int, float)) or self.func is None:
             return seg_left, seg_right
-        func_left: Optional[float] = self.func.left_bound if hasattr(self.func, "left_bound") else None
-        func_right: Optional[float] = self.func.right_bound if hasattr(self.func, "right_bound") else None
+        func_left: Optional[float] = getattr(self.func, "left_bound", None)
+        func_right: Optional[float] = getattr(self.func, "right_bound", None)
         # Use intersection of bounds
         left_bound: float = max(seg_left, func_left) if func_left is not None else seg_left
         right_bound: float = min(seg_right, func_right) if func_right is not None else seg_right
         return left_bound, right_bound
-
-    def _generate_segment_points(self) -> List[Tuple[float, float]]:
-        """Generate points for the segment path (in reverse order)."""
-        return [(self.segment.point2.x, self.segment.point2.y), (self.segment.point1.x, self.segment.point1.y)]
-
-    def _generate_function_points(
-        self, left_bound: float, right_bound: float, num_points: int, dx: float
-    ) -> List[Tuple[float, float]]:
-        """Generate math-space points; renderer does mapping."""
-        points: List[Tuple[float, float]] = []
-        for i in range(num_points):
-            x_math: float = left_bound + i * dx
-            y_math: Optional[float] = self._get_function_y_at_x(x_math)
-            if y_math is not None:
-                points.append((x_math, y_math))
-        return points
 
     def uses_segment(self, segment: Segment) -> bool:
         """Check if this colored area uses a specific segment.
@@ -202,6 +205,10 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
         else:
             func_name = str(self.func)
         state["args"].update({"func": func_name, "segment": self.segment.name})
+        if self.left_bound is not None:
+            state["args"]["left_bound"] = self.left_bound
+        if self.right_bound is not None:
+            state["args"]["right_bound"] = self.right_bound
         return state
 
     def __deepcopy__(self, memo: Dict[int, Any]) -> Any:
@@ -214,6 +221,8 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
             segment=copy.deepcopy(self.segment, memo),
             color=self.color,
             opacity=self.opacity,
+            left_bound=self.left_bound,
+            right_bound=self.right_bound,
         )
         new_area.name = self.name
         memo[id(self)] = new_area

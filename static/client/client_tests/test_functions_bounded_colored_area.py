@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import math
 import unittest
 from typing import Any
 
@@ -8,7 +9,6 @@ from drawables_aggregator import Position
 from coordinate_mapper import CoordinateMapper
 from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea
 from rendering.renderables import FunctionsBoundedAreaRenderable
-from drawables.function import Function
 from .simple_mock import SimpleMock
 
 
@@ -149,27 +149,6 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
         self.assertEqual(area_copy.color, area.color)
         self.assertEqual(area_copy.opacity, area.opacity)
 
-    def test_asymptote_detection_with_tangent_function(self) -> None:
-        """Asymptotes come from the function's own analysis (tan(x/100) has one at 50*pi)."""
-        import math
-
-        tangent_func = Function("tan(x/100)", name="t", left_bound=-500, right_bound=500)
-        area = FunctionsBoundedColoredArea(tangent_func, self.func2)
-        asym_x = 100 * (math.pi / 2)
-        dx = 1.0
-
-        self.assertTrue(area._has_asymptote_at(tangent_func, asym_x, dx), "Should detect asymptote at pi/2 * 100")
-        self.assertFalse(area._has_asymptote_at(tangent_func, 0, dx), "Should not detect asymptote at x=0")
-
-    def test_a_function_named_f3_gets_no_invented_asymptotes(self) -> None:
-        """The name "f3" used to trigger hard-coded tan(x/100) asymptotes whatever the expression."""
-        import math
-
-        parabola = Function("x^2", name="f3", left_bound=-500, right_bound=500)
-        area = FunctionsBoundedColoredArea(parabola, self.func2)
-
-        self.assertFalse(area._has_asymptote_at(parabola, 100 * (math.pi / 2), 1.0))
-
     def test_asymptote_handling_during_path_generation(self) -> None:
         """Test that asymptotes are properly handled during path generation."""
         # Create function with division by zero at x=0
@@ -288,24 +267,6 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
         left, right = area._get_bounds()
         self.assertEqual((left, right), (-3, 3))
 
-    def test_path_generation_with_large_values(self) -> None:
-        """Test path generation with very large function values."""
-        # Function that returns very large values
-        large_value_func = SimpleMock(
-            name="large_func",
-            function=lambda x: x**10,  # Very large values for |x| > 1
-            left_bound=-2,
-            right_bound=2,
-        )
-
-        area = FunctionsBoundedColoredArea(large_value_func, None)
-
-        # Should handle large values without crashing (math-only behavior now)
-        result = area._get_function_y_at_x_with_asymptote_handling(large_value_func, 1.5, 0.1)
-
-        # Should return a clipped value, not crash
-        self.assertIsNotNone(result)
-
     def test_function_name_generation_edge_cases(self) -> None:
         """Test function name generation with edge cases."""
         # Test with negative constant
@@ -338,28 +299,6 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
             _ = renderable.build_screen_area(num_points=50)
         except Exception as e:
             self.fail(f"Renderable should handle invalid functions gracefully, but raised: {e}")
-
-    def test_reverse_path_generation(self) -> None:
-        """Test reverse path generation functionality."""
-        area = FunctionsBoundedColoredArea(self.func1, self.func2)
-
-        # Mock coordinate_mapper for predictable results
-        call_count = [0]  # Use list to allow modification in nested function
-
-        def mock_math_to_screen(x: float, y: float) -> tuple[float, float]:
-            call_count[0] += 1
-            return (x * 10 + 250, 250 - y * 10)  # Simple linear transformation
-
-        self.coordinate_mapper.math_to_screen = mock_math_to_screen
-
-        # Mock canvas properties to avoid any potential issues
-        self.canvas.height = 500
-
-        # Generate reverse path with a constant function for predictability (math-space)
-        reverse_points = area._generate_path(5, -1, 1, 0.5, 5, reverse=True)
-
-        # Should generate math-space points; mapping happens in renderable
-        self.assertGreater(len(reverse_points), 0, "Should generate reverse points")
 
     def test_screen_points_align_with_function_values(self) -> None:
         """Forward and reverse screen paths must map to the actual function values (not just x-bounds)."""
@@ -419,3 +358,69 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
             ex, ey = self.coordinate_mapper.math_to_screen(x_math, 0.0)
             self.assertAlmostEqual(sx, ex, places=3)
             self.assertAlmostEqual(sy, ey, places=3)
+
+    def _shaded_x_ranges(self, area: FunctionsBoundedColoredArea) -> list[tuple[float, float]]:
+        self.coordinate_mapper.get_visible_left_bound = SimpleMock(return_value=-10)
+        self.coordinate_mapper.get_visible_right_bound = SimpleMock(return_value=10)
+        renderable = FunctionsBoundedAreaRenderable(area, self.coordinate_mapper)
+        ranges = []
+        for closed_area in renderable.build_screen_areas(num_points=121):
+            first_x, _ = self.coordinate_mapper.screen_to_math(*closed_area.forward_points[0])
+            last_x, _ = self.coordinate_mapper.screen_to_math(*closed_area.forward_points[-1])
+            ranges.append((first_x, last_x))
+        return ranges
+
+    def test_unbounded_function_is_shaded_across_the_view(self) -> None:
+        """A function without bounds (None on both sides) shades the whole visible range."""
+        unbounded = SimpleMock(name="u", function=lambda x: x * x, left_bound=None, right_bound=None)
+        ranges = self._shaded_x_ranges(FunctionsBoundedColoredArea(unbounded, None))
+        self.assertEqual(len(ranges), 1)
+        self.assertAlmostEqual(ranges[0][0], -10, places=6)
+        self.assertAlmostEqual(ranges[0][1], 10, places=6)
+
+    def test_one_sided_bounds_limit_only_their_side(self) -> None:
+        """An area bound on the left only (and a function bounded on the right only) is shaded."""
+        right_bounded = SimpleMock(name="r", function=lambda x: x * x, left_bound=None, right_bound=4)
+        ranges = self._shaded_x_ranges(FunctionsBoundedColoredArea(right_bounded, None, left_bound=-1))
+        self.assertEqual(len(ranges), 1)
+        self.assertAlmostEqual(ranges[0][0], -1, places=6)
+        self.assertAlmostEqual(ranges[0][1], 4, places=6)
+
+    def test_area_is_split_where_a_function_is_undefined(self) -> None:
+        """sqrt(x^2 - 1) and the x-axis on [-3, 3] shade [-3, -1] and [1, 3], not just one side."""
+        func = SimpleMock(name="s", function=_outer_sqrt, left_bound=None, right_bound=None)
+        ranges = self._shaded_x_ranges(FunctionsBoundedColoredArea(func, None, left_bound=-3, right_bound=3))
+        self.assertEqual(len(ranges), 2)
+        self.assertAlmostEqual(ranges[0][0], -3, places=6)
+        self.assertAlmostEqual(ranges[0][1], -1, delta=0.06)
+        self.assertAlmostEqual(ranges[1][0], 1, delta=0.06)
+        self.assertAlmostEqual(ranges[1][1], 3, places=6)
+
+    def test_render_helper_fills_every_part(self) -> None:
+        """The functions-area render helper fills one joined area per defined part."""
+        from rendering.shared_drawable_renderers import render_functions_bounded_area_helper
+
+        func = SimpleMock(name="s", function=_outer_sqrt, left_bound=None, right_bound=None)
+        area = FunctionsBoundedColoredArea(func, None, left_bound=-3, right_bound=3)
+        primitives = SimpleMock()
+        primitives.fill_polygon = SimpleMock()
+        primitives.fill_joined_area = SimpleMock()
+        style = {"area_fill_color": "blue", "area_opacity": 0.5}
+        render_functions_bounded_area_helper(primitives, area, self.coordinate_mapper, style)
+        self.assertEqual(len(primitives.fill_joined_area.calls), 2)
+
+    def test_area_outside_the_view_is_not_built(self) -> None:
+        """Bounds entirely outside the visible range give no area at all."""
+        self.coordinate_mapper.get_visible_left_bound = SimpleMock(return_value=-10)
+        self.coordinate_mapper.get_visible_right_bound = SimpleMock(return_value=10)
+        unbounded = SimpleMock(name="u", function=lambda x: x, left_bound=None, right_bound=None)
+        area = FunctionsBoundedColoredArea(unbounded, None, left_bound=20, right_bound=30)
+        renderable = FunctionsBoundedAreaRenderable(area, self.coordinate_mapper)
+        self.assertIsNone(renderable.build_screen_area())
+        self.assertEqual(renderable.build_screen_areas(), [])
+
+
+def _outer_sqrt(x: float) -> float:
+    """sqrt(x^2 - 1), NaN on (-1, 1) where it is undefined."""
+    value = x * x - 1
+    return math.sqrt(value) if value >= 0 else float("nan")

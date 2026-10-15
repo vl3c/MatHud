@@ -7,7 +7,12 @@ a registry dict.  No browser imports, no canvas mutation.
 Supported operations:
     parallel, perpendicular, collinear, concyclic, equal_length,
     similar, congruent, tangent, concurrent, point_on_line,
-    point_on_circle, auto
+    point_on_circle, point_on_ellipse, auto
+
+Lengths compare relative to the lengths involved (no absolute floor, so the
+answer does not depend on the scale), and directions within
+``GeometryUtils.ANGLE_TOLERANCE_DEGREES``, the tolerance of the triangle and
+quadrilateral type flags, so a triangle flagged 'right' has perpendicular legs.
 """
 
 from __future__ import annotations
@@ -131,9 +136,27 @@ class RelationInspector:
 
     @staticmethod
     def _relative_tolerance(mag1: float, mag2: float) -> float:
-        """Scale-aware tolerance: ``RELATION_TOLERANCE * max(1, max(mag1, mag2))``."""
-        scale = max(1.0, mag1, mag2)
-        return RelationInspector.RELATION_TOLERANCE * scale
+        """Length tolerance relative to the longer length: ``RELATION_TOLERANCE * max(mag1, mag2)``."""
+        return RelationInspector.RELATION_TOLERANCE * max(mag1, mag2)
+
+    @staticmethod
+    def _lengths_equal(len1: float, len2: float) -> bool:
+        """True when two lengths agree to RELATION_TOLERANCE of the longer one."""
+        return abs(len1 - len2) <= RelationInspector._relative_tolerance(len1, len2)
+
+    @staticmethod
+    def _angle_sine_tolerance() -> float:
+        """Sine of the angle tolerance shared with the shape type flags."""
+        from utils.geometry_utils import GeometryUtils
+
+        return math.sin(math.radians(GeometryUtils.ANGLE_TOLERANCE_DEGREES))
+
+    @staticmethod
+    def _is_zero_length(seg: Any) -> bool:
+        """True when a segment's length is lost in the rounding of its coordinates."""
+        coords = [float(seg.point1.x), float(seg.point1.y), float(seg.point2.x), float(seg.point2.y)]
+        scale = max(abs(value) for value in coords)
+        return RelationInspector._seg_length(seg) <= 1e-12 * scale
 
     @staticmethod
     def _seg_length(seg: Any) -> float:
@@ -174,18 +197,18 @@ class RelationInspector:
         m1 = RelationInspector._magnitude(*d1)
         m2 = RelationInspector._magnitude(*d2)
 
-        if m1 < RelationInspector.RELATION_TOLERANCE:
+        if RelationInspector._is_zero_length(s1):
             return {"error": "Error: first segment/vector has zero length"}
-        if m2 < RelationInspector.RELATION_TOLERANCE:
+        if RelationInspector._is_zero_length(s2):
             return {"error": "Error: second segment/vector has zero length"}
 
         cross = abs(d1[0] * d2[1] - d1[1] * d2[0])
-        tol = RelationInspector._relative_tolerance(m1, m2)
+        tol = RelationInspector._angle_sine_tolerance()
         # Normalize cross product by magnitudes for a scale-independent test
         sin_angle = cross / (m1 * m2)
         angle_deg = math.degrees(math.asin(min(sin_angle, 1.0)))
 
-        is_parallel = sin_angle < RelationInspector.RELATION_TOLERANCE
+        is_parallel = sin_angle <= tol
         expl = (
             f"Segments are parallel (angle: {angle_deg:.4f}\u00b0)"
             if is_parallel
@@ -206,19 +229,19 @@ class RelationInspector:
         m1 = RelationInspector._magnitude(*d1)
         m2 = RelationInspector._magnitude(*d2)
 
-        if m1 < RelationInspector.RELATION_TOLERANCE:
+        if RelationInspector._is_zero_length(s1):
             return {"error": "Error: first segment/vector has zero length"}
-        if m2 < RelationInspector.RELATION_TOLERANCE:
+        if RelationInspector._is_zero_length(s2):
             return {"error": "Error: second segment/vector has zero length"}
 
         dot = d1[0] * d2[0] + d1[1] * d2[1]
-        tol = RelationInspector._relative_tolerance(m1, m2)
+        tol = RelationInspector._angle_sine_tolerance()
         cos_angle = dot / (m1 * m2)
         # Clamp for acos safety
         cos_angle = max(-1.0, min(1.0, cos_angle))
         angle_deg = math.degrees(math.acos(abs(cos_angle)))
 
-        is_perp = abs(cos_angle) < RelationInspector.RELATION_TOLERANCE
+        is_perp = abs(cos_angle) <= tol
         expl = (
             f"Segments are perpendicular (angle: {angle_deg:.4f}\u00b0)"
             if is_perp
@@ -343,7 +366,7 @@ class RelationInspector:
         len2 = RelationInspector._seg_length(s2)
         tol = RelationInspector._relative_tolerance(len1, len2)
         diff = abs(len1 - len2)
-        equal = diff < tol
+        equal = RelationInspector._lengths_equal(len1, len2)
 
         expl = (
             f"Segments have equal length ({len1:.6f})"
@@ -364,35 +387,67 @@ class RelationInspector:
         verts = list(tri.get_vertices())
         if len(verts) != 3:
             return []
-        sides = []
-        for i in range(3):
-            j = (i + 1) % 3
-            dx = float(verts[j].x) - float(verts[i].x)
-            dy = float(verts[j].y) - float(verts[i].y)
-            sides.append(math.hypot(dx, dy))
-        sides.sort()
-        return sides
+        return RelationInspector._pairwise_distances(verts)
+
+    @staticmethod
+    def _pairwise_distances(verts: List[Any]) -> List[float]:
+        """Sorted distances between every pair of vertices."""
+        distances = []
+        for i in range(len(verts)):
+            for j in range(i + 1, len(verts)):
+                dx = float(verts[j].x) - float(verts[i].x)
+                dy = float(verts[j].y) - float(verts[i].y)
+                distances.append(math.hypot(dx, dy))
+        distances.sort()
+        return distances
+
+    # Vertex counts of the shapes 'similar' and 'congruent' compare. A shape is compared by
+    # the sorted distances between its vertices: a triangle's sides (SSS), and a rectangle's
+    # sides and diagonals, which fix a parallelogram up to congruence.
+    _COMPARABLE_SHAPES: Dict[str, int] = {"triangle": 3, "rectangle": 4}
+
+    @staticmethod
+    def _shape_distances(
+        operation: str, objects: List[Any], object_types: List[str]
+    ) -> Tuple[List[List[float]], Optional[Dict[str, Any]]]:
+        """Vertex distances of two triangles or two rectangles, or an error dict."""
+        shape = object_types[0] if object_types else ""
+        if len(objects) != 2 or shape not in RelationInspector._COMPARABLE_SHAPES or object_types[1] != shape:
+            return [], {"error": f"Error: '{operation}' requires exactly 2 triangles or 2 rectangles"}
+        count = RelationInspector._COMPARABLE_SHAPES[shape]
+        distances: List[List[float]] = []
+        for obj in objects:
+            verts = list(obj.get_vertices())
+            if len(verts) != count:
+                return [], {"error": f"Error: could not extract {count} vertices from {shape}"}
+            lengths = RelationInspector._pairwise_distances(verts)
+            if lengths[0] <= 1e-12 * lengths[-1]:
+                return [], {"error": f"Error: degenerate {shape} (zero-length side)"}
+            distances.append(lengths)
+        return distances, None
+
+    @staticmethod
+    def _shape_noun(object_types: List[str]) -> str:
+        return "Triangles" if object_types[0] == "triangle" else "Rectangles"
 
     @staticmethod
     def _check_similar(objects: List[Any], object_types: List[str]) -> Dict[str, Any]:
-        if len(objects) != 2 or not all(t == "triangle" for t in object_types):
-            return {"error": "Error: 'similar' requires exactly 2 triangles"}
+        distances, error = RelationInspector._shape_distances("similar", objects, object_types)
+        if error is not None:
+            return error
+        s1, s2 = distances
+        noun = RelationInspector._shape_noun(object_types)
 
-        s1 = RelationInspector._triangle_side_lengths(objects[0])
-        s2 = RelationInspector._triangle_side_lengths(objects[1])
-        if len(s1) != 3 or len(s2) != 3:
-            return {"error": "Error: could not extract 3 vertices from triangle"}
-        if s1[0] < RelationInspector.RELATION_TOLERANCE or s2[0] < RelationInspector.RELATION_TOLERANCE:
-            return {"error": "Error: degenerate triangle (zero-length side)"}
+        ratios = [s1[i] / s2[i] for i in range(len(s1))]
+        tol = RelationInspector.RELATION_TOLERANCE
+        # Relative to the first ratio, so the answer is the same whichever shape comes first.
+        similar = all(abs(ratio / ratios[0] - 1.0) <= tol for ratio in ratios[1:])
 
-        ratios = [s1[i] / s2[i] for i in range(3)]
-        tol = RelationInspector.RELATION_TOLERANCE * max(1.0, max(ratios))
-        similar = all(abs(ratios[i] - ratios[0]) < tol for i in range(1, 3))
-
+        listed = ", ".join(f"{ratio:.4f}" for ratio in ratios)
         expl = (
-            f"Triangles are similar (scale factor: {ratios[0]:.6f})"
+            f"{noun} are similar (scale factor: {ratios[0]:.6f})"
             if similar
-            else f"Triangles are not similar (side ratios: {ratios[0]:.4f}, {ratios[1]:.4f}, {ratios[2]:.4f})"
+            else f"{noun} are not similar (side ratios: {listed})"
         )
         return RelationInspector._ok(
             "similar",
@@ -404,24 +459,20 @@ class RelationInspector:
 
     @staticmethod
     def _check_congruent(objects: List[Any], object_types: List[str]) -> Dict[str, Any]:
-        if len(objects) != 2 or not all(t == "triangle" for t in object_types):
-            return {"error": "Error: 'congruent' requires exactly 2 triangles"}
+        distances, error = RelationInspector._shape_distances("congruent", objects, object_types)
+        if error is not None:
+            return error
+        s1, s2 = distances
+        noun = RelationInspector._shape_noun(object_types)
 
-        s1 = RelationInspector._triangle_side_lengths(objects[0])
-        s2 = RelationInspector._triangle_side_lengths(objects[1])
-        if len(s1) != 3 or len(s2) != 3:
-            return {"error": "Error: could not extract 3 vertices from triangle"}
-        if s1[0] < RelationInspector.RELATION_TOLERANCE or s2[0] < RelationInspector.RELATION_TOLERANCE:
-            return {"error": "Error: degenerate triangle (zero-length side)"}
+        tol = RelationInspector.RELATION_TOLERANCE
+        cong = all(RelationInspector._lengths_equal(a, b) for a, b in zip(s1, s2))
 
-        max_side = max(max(s1), max(s2))
-        tol = RelationInspector.RELATION_TOLERANCE * max(1.0, max_side)
-        cong = all(abs(s1[i] - s2[i]) < tol for i in range(3))
-
+        listed = ", ".join(f"{side:.4f}" for side in s1)
         expl = (
-            f"Triangles are congruent (side lengths: {s1[0]:.4f}, {s1[1]:.4f}, {s1[2]:.4f})"
+            f"{noun} are congruent (side lengths: {listed})"
             if cong
-            else f"Triangles are not congruent (sides1: {s1}, sides2: {s2})"
+            else f"{noun} are not congruent (sides1: {s1}, sides2: {s2})"
         )
         return RelationInspector._ok(
             "congruent",
@@ -566,7 +617,7 @@ class RelationInspector:
         segs = [RelationInspector._as_segment(o, t) for o, t in zip(objects, object_types)]
         # Validate no zero-length segments
         for i, seg in enumerate(segs):
-            if RelationInspector._seg_length(seg) < RelationInspector.RELATION_TOLERANCE:
+            if RelationInspector._is_zero_length(seg):
                 return {"error": f"Error: segment at index {i} has zero length"}
 
         # Find intersection of first two extended lines
@@ -583,12 +634,18 @@ class RelationInspector:
         ix: float = maybe_ix
         iy: float = maybe_iy
 
-        # Check remaining lines pass through the intersection
+        # Check remaining lines pass through the intersection, within RELATION_TOLERANCE of
+        # the longest segment (a length of the figure, not the intersection's coordinates),
+        # plus the rounding of coordinates that far from the origin.
         tol = RelationInspector.RELATION_TOLERANCE
+        reference = max(RelationInspector._seg_length(seg) for seg in segs)
+        coord_scale = max(abs(ix), abs(iy))
+        for seg in segs:
+            coord_scale = max(coord_scale, abs(float(seg.point1.x)), abs(float(seg.point1.y)))
+        allowed = tol * reference + 1e-12 * coord_scale
         for i in range(2, len(segs)):
             dist = RelationInspector._point_to_line_distance(ix, iy, segs[i])
-            ref = max(1.0, abs(ix), abs(iy), RelationInspector._seg_length(segs[i]))
-            if dist / ref > tol:
+            if dist > allowed:
                 return RelationInspector._ok(
                     "concurrent",
                     False,
@@ -617,7 +674,9 @@ class RelationInspector:
         d1 = RelationInspector._direction(s1)
         d2 = RelationInspector._direction(s2)
         det = d1[0] * d2[1] - d1[1] * d2[0]
-        if abs(det) < RelationInspector.RELATION_TOLERANCE:
+        # Parallel when the sine of the angle between the lines is negligible (scale-free).
+        norms = RelationInspector._magnitude(*d1) * RelationInspector._magnitude(*d2)
+        if norms == 0 or abs(det) <= RelationInspector.RELATION_TOLERANCE * norms:
             return None, None
 
         # Parametric: P = s1.point1 + t * d1
@@ -636,7 +695,7 @@ class RelationInspector:
         x2, y2 = float(seg.point2.x), float(seg.point2.y)
         dx, dy = x2 - x1, y2 - y1
         length = math.hypot(dx, dy)
-        if length < RelationInspector.RELATION_TOLERANCE:
+        if length == 0:
             return math.hypot(px - x1, py - y1)
         return abs(dx * (y1 - py) - dy * (x1 - px)) / length
 
@@ -660,7 +719,7 @@ class RelationInspector:
         pt = objects[pt_idx]
         seg = RelationInspector._as_segment(objects[seg_idx], object_types[seg_idx])
 
-        if RelationInspector._seg_length(seg) < RelationInspector.RELATION_TOLERANCE:
+        if RelationInspector._is_zero_length(seg):
             return {"error": "Error: segment has zero length"}
 
         dist = RelationInspector._point_to_line_distance(float(pt.x), float(pt.y), seg)
@@ -711,6 +770,41 @@ class RelationInspector:
             {"distance_from_center": dist, "radius": r, "deviation": abs(dist - r)},
         )
 
+    @staticmethod
+    def _check_point_on_ellipse(objects: List[Any], object_types: List[str]) -> Dict[str, Any]:
+        if len(objects) != 2 or sorted(object_types) != ["ellipse", "point"]:
+            return {"error": "Error: 'point_on_ellipse' requires one point and one ellipse"}
+
+        pt = objects[object_types.index("point")]
+        e = objects[object_types.index("ellipse")]
+        cx, cy = float(e.center.x), float(e.center.y)
+        rx, ry = float(e.radius_x), float(e.radius_y)
+        if rx <= 0 or ry <= 0:
+            return {"error": "Error: ellipse has a zero radius"}
+        # The point in the ellipse's own frame, where the ellipse is (u/rx)^2 + (v/ry)^2 = 1
+        theta = math.radians(float(getattr(e, "rotation_angle", 0.0) or 0.0))
+        dx, dy = float(pt.x) - cx, float(pt.y) - cy
+        u = dx * math.cos(theta) + dy * math.sin(theta)
+        v = -dx * math.sin(theta) + dy * math.cos(theta)
+        level = math.hypot(u / rx, v / ry)
+        tol = RelationInspector.RELATION_TOLERANCE
+        # level is 1 on the ellipse; |level - 1| is the relative distance along the ray from the centre.
+        on_ellipse = abs(level - 1.0) <= tol
+
+        position = "on" if on_ellipse else ("inside" if level < 1.0 else "outside")
+        expl = (
+            "Point lies on the ellipse"
+            if on_ellipse
+            else f"Point does not lie on the ellipse (it is {position}; scaled distance from center: {level:.6f})"
+        )
+        return RelationInspector._ok(
+            "point_on_ellipse",
+            on_ellipse,
+            expl,
+            tol,
+            {"scaled_distance_from_center": level, "deviation": abs(level - 1.0), "position": position},
+        )
+
     # ------------------------------------------------------------------
     # Auto-inspect
     # ------------------------------------------------------------------
@@ -741,7 +835,7 @@ class RelationInspector:
             checks = ["collinear"]
             if n >= 4:
                 checks.append("concyclic")
-        elif n == 2 and all_triangles:
+        elif n == 2 and (all_triangles or all(t == "rectangle" for t in object_types)):
             checks = ["similar", "congruent"]
         elif n == 2 and type_set == {"segment", "circle"} or n == 2 and type_set == {"vector", "circle"}:
             checks = ["tangent"]
@@ -751,6 +845,8 @@ class RelationInspector:
             checks = ["point_on_line"]
         elif n == 2 and type_set == {"point", "circle"}:
             checks = ["point_on_circle"]
+        elif n == 2 and type_set == {"point", "ellipse"}:
+            checks = ["point_on_ellipse"]
 
         if not checks:
             return {
@@ -801,5 +897,6 @@ RelationInspector._HANDLERS = {
     "concurrent": RelationInspector._check_concurrent,
     "point_on_line": RelationInspector._check_point_on_line,
     "point_on_circle": RelationInspector._check_point_on_circle,
+    "point_on_ellipse": RelationInspector._check_point_on_ellipse,
     "auto": RelationInspector._auto_inspect,
 }

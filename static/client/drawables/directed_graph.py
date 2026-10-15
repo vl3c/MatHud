@@ -71,6 +71,9 @@ class DirectedGraph(Graph):
     def _invalidate_cache(self) -> None:
         self._cached_descriptors = None
 
+    def _edge_drawables(self) -> List[Any]:
+        return list(self._vectors)
+
     def remove_point(self, point: "Point") -> bool:
         removed = super().remove_point(point)
         if removed:
