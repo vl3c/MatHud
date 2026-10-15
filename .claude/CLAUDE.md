@@ -347,10 +347,9 @@ Follow this checklist when introducing a new drawable type:
 - Implement a dedicated manager in `static/client/managers/`.
 - Register the manager within `DrawableManager` and expose delegating methods.
 - Add undo/redo archiving in manager methods before mutating state.
-- Update `workspace_manager.py` to handle serialization/deserialization.
+- Update `workspace_manager.py` to handle serialization/deserialization, and add the saved bucket to `WorkspaceManager.RESTORED_BUCKETS`.
 
 ### 4. Wire the Canvas API
-- Register the drawable in `Canvas._register_renderer_handlers`.
 - Add convenience methods on `Canvas` (create/get/delete) that delegate to the manager.
 - Expose new methods in `FunctionRegistry`.
 
@@ -360,10 +359,7 @@ Follow this checklist when introducing a new drawable type:
 
 ### 6. Implement Rendering Support
 - Create a helper in `rendering/shared_drawable_renderers.py`.
-- Register the helper in `_HELPERS` inside `rendering/cached_render_plan.py`.
-- Register the new drawable in each renderer's `register_default_drawables()`:
-  - `canvas2d_renderer.py`
-  - `svg_renderer.py`
+- Add it to `_HELPERS` in `rendering/cached_render_plan.py` under the class name `get_class_name` returns, with a `ViewMode` saying when a plan must be rebuilt on zoom or pan (`FIXED` unless it samples the view). Both renderers draw every class listed there; a drawable drawn only through its parts goes on `DRAWN_BY_PARTS` in `server_tests/test_drawable_wiring.py` instead.
 
 ### 7. Add Tests
 - Introduce unit tests in `static/client/client_tests/` covering:
