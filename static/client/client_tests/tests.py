@@ -51,6 +51,7 @@ from .test_math_functions import (
     TestSequencesAndSeriesEvaluate,
 )
 from .test_math_utils_solving import TestMathUtilsSolving
+from .test_cas_known_answers import TestCasKnownAnswers
 from .test_periodicity_detection import TestPeriodicityDetection, TestPeriodicityEdgeCases
 from .test_geometry_utils import TestGeometryUtils, TestConvexHull, TestPointInConvexHull
 from .test_graph_layout import TestGraphLayout, TestGraphLayoutVisibility
@@ -542,6 +543,7 @@ class Tests:
             TestMathFunctions,
             TestNumberTheory,
             TestMathUtilsSolving,
+            TestCasKnownAnswers,
             TestSequencesAndSeries,
             TestSequencesAndSeriesEvaluate,
             TestPeriodicityDetection,
