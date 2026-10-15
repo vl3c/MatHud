@@ -1149,7 +1149,7 @@ class MathUtils:
             if "randint(" in expression or any(func in expression for func in MathUtils._PYTHON_ONLY_FUNCTIONS):
                 # Use Python evaluation for number theory functions
                 result = ExpressionValidator.evaluate_expression(
-                    python_expression, variables.get("x", 0) if variables else 0
+                    python_expression, variables.get("x", 0) if variables else 0, variables
                 )
                 # Preserve boolean and list types for better display
                 if isinstance(result, bool):
@@ -1241,11 +1241,51 @@ class MathUtils:
         return values[0] if len(values) == 1 else result
 
     @staticmethod
+    def _error_text(error: Exception) -> str:
+        """'Error: <message>' for an exception, adding a JavaScript error's message when it says more."""
+        message = str(error)
+        js_message = getattr(error, "message", None)
+        if isinstance(js_message, str) and js_message and js_message not in message:
+            message = f"{message} {js_message}"
+        return f"Error: {message}"
+
+    @staticmethod
+    def _symbolic_input(expression: Any) -> Any:
+        """An expression ready for nerdamer: Unicode notation normalized, ln/log2/log(a, b) rewritten.
+
+        Raises:
+            ValueError: if it calls a function nerdamer does not define (SymbolicChecks.nerdamer_input).
+        """
+        from utils.symbolic_checks import SymbolicChecks
+
+        if not isinstance(expression, str):
+            return expression
+        return SymbolicChecks.nerdamer_input(MathUtils._normalize_symbols(expression))
+
+    @staticmethod
+    def _cas_input(expression: Any) -> Any:
+        """An expression for SymPy and math.js: Unicode notation normalized, ln/log2/log(a, b) rewritten."""
+        from utils.cas_text import rewrite_for_nerdamer
+
+        if not isinstance(expression, str):
+            return expression
+        return rewrite_for_nerdamer(MathUtils._normalize_symbols(expression))
+
+    @staticmethod
+    def _sympy_answer(operation: str, **args: Optional[str]) -> Optional[Dict[str, Any]]:
+        """{"result": ...} from the server's SymPy engine, or None when it is unavailable (use nerdamer)."""
+        from utils.sympy_client import SympyClient
+
+        return cast(Optional[Dict[str, Any]], SympyClient.answer(operation, **args))
+
+    @staticmethod
     def derivative(expression: str, variable: str) -> str:
         """Calculate the derivative of a mathematical expression.
 
-        Uses Nerdamer symbolic computation for analytical differentiation.
-        Supports all standard functions and multi-variable expressions.
+        Uses Nerdamer symbolic computation for analytical differentiation, and checks the
+        result against central differences (SymbolicChecks.derivative_matches). When nerdamer
+        gets it wrong (it has no rule for atan2's first argument, for example), cannot do it
+        (cbrt) or lacks the function (gamma), the server's SymPy engine is asked instead.
 
         Args:
             expression (str): Mathematical expression to differentiate
@@ -1254,19 +1294,60 @@ class MathUtils:
         Returns:
             str: Derivative expression as string or error message
         """
-        expression, variable = MathUtils._normalize_symbols(expression), MathUtils._normalize_variable(variable)
+        from utils.cas_text import is_unevaluated
+        from utils.symbolic_checks import SymbolicChecks
+
         try:
-            result = MathUtils._guarded_nerdamer_text(f"diff({expression}, {variable})", MathUtils.NERDAMER_TOOL_MAX_MS)
+            expression, variable = MathUtils._cas_input(expression), MathUtils._normalize_variable(variable)
         except Exception as e:
-            return f"Error: {e} {getattr(e, 'message', str(e))}"
-        return MathUtils._took_too_long_message(f"the derivative of {expression}") if result is None else result
+            return MathUtils._error_text(e)
+        result: Optional[str] = None
+        nerdamer_error: Optional[str] = None
+        try:
+            result = MathUtils._guarded_nerdamer_text(
+                f"diff({MathUtils._symbolic_input(expression)}, {variable})", MathUtils.NERDAMER_TOOL_MAX_MS
+            )
+        except Exception as e:
+            nerdamer_error = MathUtils._error_text(e)
+        if result is not None and not is_unevaluated(result):
+            if SymbolicChecks.derivative_matches(expression, result, variable) is not False:
+                return result
+            nerdamer_error = MathUtils._rejected_result_message(f"the derivative of {expression}", result)
+        # nerdamer has no (correct) answer: ask the server's SymPy engine
+        answer = MathUtils._sympy_answer("derive", expression=expression, variable=variable)
+        derivative = answer["result"] if answer is not None else None
+        if (
+            derivative is not None
+            and not is_unevaluated(derivative)
+            and SymbolicChecks.derivative_matches(expression, derivative, variable) is not False
+        ):
+            return str(derivative)
+        if nerdamer_error is not None:
+            return nerdamer_error
+        if result is None:
+            return MathUtils._took_too_long_message(f"the derivative of {expression}")
+        return f"Error: The symbolic engine cannot differentiate {expression}."
+
+    @staticmethod
+    def _rejected_result_message(what: str, result: str) -> str:
+        """Error text for a symbolic result the numeric check showed to be wrong."""
+        return (
+            f"Error: The symbolic engine returned {result} for {what}, but a numeric check shows it is wrong, "
+            "so no symbolic result is given."
+        )
 
     @staticmethod
     def limit(expression: str, variable: str, value_to_approach: Union[Number, str]) -> str:
         """Calculate the limit of a mathematical expression.
 
-        Uses Nerdamer symbolic computation for limit evaluation.
-        Supports finite limits and limits at infinity.
+        The symbolic limit comes from the server's SymPy engine, or from nerdamer when the
+        server has none, and is checked against the expression's values on each side of the
+        target (SymbolicChecks.limit_verdict): nerdamer gives Infinity for lim 1/x at 0 and
+        -Infinity for lim sqrt(x^2+x)-x at Infinity, and leaves many limits unevaluated. When
+        the values settle on something else, that is the answer (marked as a numeric
+        estimate); when the sides differ or the values oscillate, the limit does not exist.
+        nerdamer runs under a step and time budget (static/nerdamer_guard.js), since its
+        L'Hopital loop never ends for quotients such as abs(x)/x.
 
         Args:
             expression (str): Mathematical expression
@@ -1274,24 +1355,111 @@ class MathUtils:
             value_to_approach (str/float): Value or "inf"/"-inf" for infinity
 
         Returns:
-            str: Limit result as string or error message. nerdamer's limit runs under a step and
-            time budget (static/nerdamer_guard.js): its L'Hopital loop never ends for quotients
-            such as abs(x)/x, so a limit that runs out of budget is an error, with a numeric
-            estimate when one is clear.
+            str: The limit ("Infinity"/"-Infinity" when it diverges), "The limit does not
+            exist: ..." with the reason, or an error message.
         """
-        expression, variable = MathUtils._normalize_symbols(expression), MathUtils._normalize_variable(variable)
+        from utils.symbolic_checks import SymbolicChecks
+
         try:
-            value_to_approach = str(MathUtils._normalize_symbols(value_to_approach)).lower().replace(" ", "")
-            if value_to_approach in ["inf", "infinity", "+inf", "+infinity"]:
-                value_to_approach = "Infinity"
-            elif value_to_approach in ["-inf", "-infinity"]:
-                value_to_approach = "-Infinity"
-            result = MathUtils._guarded_nerdamer_text(f"limit({expression}, {variable}, {value_to_approach})")
+            expression, variable = MathUtils._cas_input(expression), MathUtils._normalize_variable(variable)
+            target = MathUtils._limit_target(value_to_approach)
         except Exception as e:
-            return f"Error: {e} {getattr(e, 'message', str(e))}"
-        if result is None:
-            return MathUtils._abandoned_limit_message(expression, variable, str(value_to_approach))
-        return result
+            return MathUtils._error_text(e)
+        answer = MathUtils._sympy_answer("limit", expression=expression, variable=variable, target=target)
+        trusted = answer is not None
+        if answer is not None:
+            symbolic = answer["result"]
+        else:
+            try:
+                nerdamer_expression = MathUtils._symbolic_input(expression)
+            except Exception as e:
+                return MathUtils._error_text(e)
+            try:
+                symbolic = MathUtils._guarded_nerdamer_text(f"limit({nerdamer_expression}, {variable}, {target})")
+            except Exception:
+                symbolic = None
+        verdict = SymbolicChecks.limit_verdict(expression, variable, target)
+        return MathUtils._reconciled_limit(symbolic, verdict, f"{expression} as {variable} -> {target}", trusted)
+
+    @staticmethod
+    def _limit_target(value_to_approach: Union[Number, str]) -> str:
+        """The limit target as nerdamer and math.js read it: "Infinity", "-Infinity" or the value's text."""
+        target = str(MathUtils._normalize_symbols(value_to_approach)).lower().replace(" ", "")
+        if target in ("inf", "infinity", "+inf", "+infinity", "oo", "+oo"):
+            return "Infinity"
+        if target in ("-inf", "-infinity", "-oo"):
+            return "-Infinity"
+        return str(MathUtils._normalize_symbols(value_to_approach))
+
+    @staticmethod
+    def _symbolic_limit_claim(symbolic: Optional[str]) -> Dict[str, Any]:
+        """What nerdamer's limit text claims: kind "value" (with value), "+inf", "-inf", "other" or "none".
+
+        "none" covers no result, unevaluated limits, and forms that are not one limit:
+        [-1,1] (nerdamer's answer for a bounded oscillation), e^Infinity, complex values.
+        "other" is a result the numeric check cannot evaluate, such as one with a parameter.
+        """
+        import re
+
+        from utils.cas_text import is_unevaluated
+        from utils.symbolic_checks import SymbolicChecks
+
+        if symbolic is None or is_unevaluated(symbolic) or "[" in symbolic or "NaN" in symbolic:
+            return {"kind": "none"}
+        text = symbolic.strip()
+        if text == "Infinity":
+            return {"kind": "+inf"}
+        if text == "-Infinity":
+            return {"kind": "-inf"}
+        if "Infinity" in text or re.search(r"(?<![A-Za-z_])i(?![A-Za-z_])", text):
+            return {"kind": "none"}
+        value = SymbolicChecks.numeric_value(text)
+        return {"kind": "value", "value": value} if value is not None else {"kind": "other"}
+
+    @staticmethod
+    def _reconciled_limit(
+        symbolic: Optional[str], verdict: Dict[str, Any], description: str, trusted: bool = False
+    ) -> str:
+        """The limit to report from the symbolic text and the numeric verdict (see limit()).
+
+        A trusted symbolic result (SymPy's, which checks both sides itself) is kept whatever the
+        samples say, since rounding noise can fool them; nerdamer's must agree with them.
+        """
+        from utils.symbolic_checks import LIMIT_AGREEMENT
+
+        claim = MathUtils._symbolic_limit_claim(symbolic)
+        kind = verdict["kind"]
+        side_note = MathUtils._one_sided_note(verdict)
+        if trusted and symbolic is not None and claim["kind"] != "none":
+            return symbolic + (side_note if kind != "dne" else "")
+        if kind == "dne":
+            return f"The limit does not exist: {verdict['reason']}."
+        if kind == "unclear":
+            if claim["kind"] != "none" and symbolic is not None:
+                return symbolic
+            return (
+                f"Error: The limit of {description} could not be computed: the symbolic engine gave no usable "
+                "result and the expression's values do not settle numerically."
+            )
+        if kind in ("+inf", "-inf"):
+            return ("Infinity" if kind == "+inf" else "-Infinity") + side_note
+        value = verdict["value"]
+        if claim["kind"] == "value" and abs(claim["value"] - value) <= LIMIT_AGREEMENT * max(1.0, abs(value)):
+            return str(symbolic) + side_note
+        reason = (
+            f"the symbolic result {symbolic} does not match the expression's values"
+            if claim["kind"] != "none"
+            else "the symbolic engine gave no usable result"
+        )
+        return f"{value:.12g} (numeric estimate; {reason}){side_note}"
+
+    @staticmethod
+    def _one_sided_note(verdict: Dict[str, Any]) -> str:
+        """' (one-sided: ...)' when the expression is real on one side of the target only, else ''."""
+        if not verdict.get("one_sided"):
+            return ""
+        side = verdict.get("side", "one side")
+        return f" (one-sided: the expression is real only on the {side} of the point)"
 
     # A guarded nerdamer computation (static/nerdamer_guard.js) is stopped after this many
     # derivative and limit steps (limits only) or once this many milliseconds have passed; it
@@ -1311,9 +1479,12 @@ class MathUtils:
 
         Only limits count derivative steps (max_ms None means a limit: NERDAMER_MAX_MS and
         NERDAMER_MAX_STEPS). With decimals the result is evaluated and printed as decimals.
-        Falls back to plain nerdamer when the guard script is not loaded. Errors raised by
-        nerdamer are raised again as ValueError.
+        nerdamer's settings are reset first, in case a direct nerdamer call that threw left one
+        changed. Falls back to plain nerdamer when the guard script is not loaded. Errors raised
+        by nerdamer are raised again as ValueError.
         """
+        if hasattr(window, "MatHudResetNerdamerSettings"):
+            window.MatHudResetNerdamerSettings()
         if not hasattr(window, "MatHudGuardedNerdamer"):
             parsed = window.nerdamer(nerdamer_input)
             return str(parsed.evaluate().text("decimals") if decimals else parsed.text())
@@ -1337,56 +1508,6 @@ class MathUtils:
         )
 
     @staticmethod
-    def _abandoned_limit_message(expression: str, variable: str, value_to_approach: str) -> str:
-        """Error text for a limit nerdamer could not finish, with a numeric estimate where one is clear."""
-        message = (
-            f"Error: The limit of {expression} as {variable} -> {value_to_approach} could not be computed "
-            "symbolically: the computation did not finish (nerdamer's L'Hopital loop does not end for "
-            "quotients with abs(), sqrt(x^2) or similar)."
-        )
-        estimate = MathUtils._numeric_limit_estimate(expression, variable, value_to_approach)
-        return f"{message} {estimate}" if estimate else message
-
-    @staticmethod
-    def _numeric_limit_estimate(expression: str, variable: str, value_to_approach: str) -> Optional[str]:
-        """Describe what f does near the target numerically, or None when the samples are unclear."""
-        try:
-            evaluate_ieee = MathUtils._mathjs_probe_evaluator(expression, variable)
-            if evaluate_ieee is None:
-                return None
-
-            def evaluate(point: float) -> Optional[float]:
-                value = evaluate_ieee(point)
-                return None if value is None or math.isnan(value) else value
-
-            if value_to_approach in ("Infinity", "-Infinity"):
-                sign = -1.0 if value_to_approach.startswith("-") else 1.0
-                limit_value = MathUtils._limit_at_infinity(evaluate_ieee, sign)
-                if limit_value is None:
-                    return None
-                return (
-                    f"Numerically, the expression approaches {limit_value:.12g} as {variable} -> {value_to_approach}."
-                )
-            x0 = float(window.math.evaluate(value_to_approach))
-            if not math.isfinite(x0):
-                return None
-            start = MathUtils._PROBE_START * max(1.0, abs(x0))
-            sides = [
-                MathUtils._settled_value(MathUtils._probe_side(evaluate, x0, side, start) or []) for side in (-1.0, 1.0)
-            ]
-        except Exception:
-            return None
-        left, right = sides
-        if left is None or right is None:
-            return None
-        if abs(left - right) <= 1e-9 * max(1.0, abs(left), abs(right)):
-            return f"Numerically, the expression approaches {left:.12g} from both sides."
-        return (
-            f"Numerically, it approaches {left:.12g} from the left and {right:.12g} from the right, "
-            "so the two-sided limit does not exist."
-        )
-
-    @staticmethod
     def integral(
         expression: str,
         variable: str,
@@ -1395,8 +1516,12 @@ class MathUtils:
     ) -> str:
         """Calculate the integral of a mathematical expression.
 
-        Uses Nerdamer symbolic computation for integration.
-        Supports both indefinite and definite integrals.
+        Uses Nerdamer symbolic computation for integration. An antiderivative is checked by
+        differentiating it back numerically, and a definite integral F(b) - F(a) against
+        adaptive Gauss-Kronrod quadrature: nerdamer returns some antiderivatives that are
+        wrong (1/(x^3+1)) or evaluates them wrongly (sqrt(1-x^2) over [-1, 1] gives 0). A
+        definite integral without a usable antiderivative (sin(x^2)) is computed numerically
+        and marked as such.
 
         Args:
             expression (str): Mathematical expression to integrate
@@ -1407,43 +1532,151 @@ class MathUtils:
         Returns:
             str: Integral result as string or error message
         """
-        import re
+        from utils.cas_text import is_unevaluated
+        from utils.symbolic_checks import SymbolicChecks
 
-        expression, variable = MathUtils._normalize_symbols(expression), MathUtils._normalize_variable(variable)
-        lower_bound, upper_bound = MathUtils._normalize_symbols(lower_bound), MathUtils._normalize_symbols(upper_bound)
-        try:
-            antiderivative = MathUtils._guarded_nerdamer_text(
-                f"integrate({expression}, {variable})", MathUtils.NERDAMER_TOOL_MAX_MS
+        if (lower_bound is None) != (upper_bound is None):
+            return (
+                "Error: A definite integral needs both lower_bound and upper_bound; give neither for an antiderivative."
             )
+        try:
+            expression, variable = MathUtils._cas_input(expression), MathUtils._normalize_variable(variable)
+            lower_bound, upper_bound = (
+                MathUtils._normalize_symbols(lower_bound),
+                MathUtils._normalize_symbols(upper_bound),
+            )
+        except Exception as e:
+            return MathUtils._error_text(e)
+        bounds: Dict[str, Optional[str]] = (
+            {} if lower_bound is None else {"lower": str(lower_bound), "upper": str(upper_bound)}
+        )
+        answer = MathUtils._sympy_answer("integrate", expression=expression, variable=variable, **bounds)
+        if answer is not None and answer["result"] is not None and lower_bound is not None:
+            return MathUtils._definite_integral(
+                expression, variable, lower_bound, upper_bound, None, exact_text=answer["result"]
+            )
+        if answer is not None and answer["result"] is not None:
+            antiderivative = answer["result"]
+        else:
+            # No SymPy, or no answer from it (a piecewise antiderivative such as abs(x)'s, or a
+            # timeout): nerdamer may still have one
+            try:
+                antiderivative = MathUtils._guarded_nerdamer_text(
+                    f"integrate({MathUtils._symbolic_input(expression)}, {variable})", MathUtils.NERDAMER_TOOL_MAX_MS
+                )
+            except Exception as e:
+                if lower_bound is None:
+                    return MathUtils._error_text(e)
+                antiderivative = None
+        usable = antiderivative is not None and not is_unevaluated(antiderivative)
+        if usable and SymbolicChecks.antiderivative_matches(antiderivative, expression, variable) is False:
+            if lower_bound is None:
+                return MathUtils._rejected_result_message(f"the integral of {expression}", str(antiderivative))
+            usable = False
+        if lower_bound is None:
             if antiderivative is None:
                 return MathUtils._took_too_long_message(f"the integral of {expression}")
-            if lower_bound is None and upper_bound is None:
-                return antiderivative
-            indefinite_integral = window.nerdamer(antiderivative)
-            evaluated_at_upper = indefinite_integral.sub(variable, upper_bound).text()
-            evaluated_at_lower = indefinite_integral.sub(variable, lower_bound).text()
-            result = str(window.nerdamer(f"{evaluated_at_upper} - {evaluated_at_lower}").evaluate().text())
-        except Exception as e:
-            return f"Error: {e} {getattr(e, 'message', str(e))}"
-
-        # F(b) - F(a) is only valid when the integrand has no singularity inside the interval
-        singular_point = (
-            MathUtils._find_interior_singularity(expression, variable, lower_bound, upper_bound)
-            if lower_bound is not None and upper_bound is not None
-            else None
+            if not usable:
+                return MathUtils._no_antiderivative_message(expression)
+            return str(antiderivative)
+        return MathUtils._definite_integral(
+            expression, variable, lower_bound, upper_bound, antiderivative if usable else None
         )
-        if singular_point is not None:
+
+    @staticmethod
+    def _no_antiderivative_message(expression: str) -> str:
+        return (
+            f"Error: The symbolic engine found no closed-form antiderivative of {expression}. "
+            "Give lower_bound and upper_bound to get a definite integral numerically."
+        )
+
+    @staticmethod
+    def _definite_integral(
+        expression: str,
+        variable: str,
+        lower_bound: Union[Number, str],
+        upper_bound: Union[Number, str],
+        antiderivative: Optional[str],
+        exact_text: Optional[str] = None,
+    ) -> str:
+        """The exact value (exact_text, else F(b) - F(a)) when it matches adaptive quadrature, else the
+        quadrature value or an error."""
+        from utils.cas_text import is_unevaluated
+        from utils.symbolic_checks import AGREEMENT, SymbolicChecks
+
+        bounds = f"[{lower_bound}, {upper_bound}]"
+        a, b = SymbolicChecks.numeric_value(lower_bound), SymbolicChecks.numeric_value(upper_bound)
+        if a is not None and b is not None:
+            singular_point = MathUtils._find_interior_singularity(expression, variable, a, b)
+            if singular_point is not None:
+                return (
+                    f"Error: The integrand {expression} is singular or undefined near {variable} = {singular_point:.6g} "
+                    f"inside {bounds}, so this is an improper integral that may diverge; "
+                    "the antiderivative cannot be evaluated across it."
+                )
+        symbolic_text = (
+            exact_text
+            if exact_text is not None
+            else MathUtils._antiderivative_difference(antiderivative, variable, lower_bound, upper_bound)
+        )
+        symbolic = SymbolicChecks.numeric_value(symbolic_text) if symbolic_text is not None else None
+        estimate = (
+            SymbolicChecks.numeric_integral(expression, variable, a, b) if a is not None and b is not None else None
+        )
+        if estimate is None or not estimate["converged"]:
+            if symbolic is not None and (
+                estimate is None or abs(symbolic - estimate["value"]) <= 1e-3 * max(1.0, abs(symbolic))
+            ):
+                return str(symbolic_text)
+            if symbolic_text is not None and (
+                a is None or b is None or SymbolicChecks.free_variables(expression) not in ([], [variable])
+            ):
+                return str(symbolic_text)  # a parameter in the integrand or a bound: no numeric check is possible
+            if symbolic_text in ("Infinity", "-Infinity"):
+                return f"{symbolic_text} (the integral diverges)"
             return (
-                f"Error: The integrand {expression} is singular or undefined near {variable} = {singular_point:.6g} "
-                f"inside [{lower_bound}, {upper_bound}], so this is an improper integral that may diverge; "
-                "the antiderivative cannot be evaluated across it."
+                f"Error: The definite integral of {expression} over {bounds} could not be computed: it is likely "
+                "improper (the integrand blows up or is not real in the interval) and may diverge."
             )
-        if re.search(r"\bi\b", result):
-            return (
-                f"Error: The definite integral of {expression} over [{lower_bound}, {upper_bound}] is not a real "
-                "number; the integrand is likely singular or undefined in the interval (improper or divergent integral)."
-            )
-        return result
+        value = estimate["value"]
+        if symbolic is not None and abs(symbolic - value) <= AGREEMENT * max(1.0, abs(value)):
+            return str(symbolic_text)
+        if symbolic_text is not None and not is_unevaluated(symbolic_text) and MathUtils._mathjs_fails(symbolic_text):
+            # An exact value math.js cannot evaluate (Si(1), fresnels(...)): give both
+            return f"{symbolic_text} (about {value:.12g} numerically)"
+        reason = (
+            "no closed-form antiderivative was found"
+            if symbolic_text is None
+            else f"the symbolic result {symbolic_text} does not match it"
+        )
+        return f"{value:.12g} (computed numerically; {reason})"
+
+    @staticmethod
+    def _mathjs_fails(text: str) -> bool:
+        """True when math.js raises on text (an unknown function such as Si), not when it gives a value."""
+        try:
+            window.math.evaluate(text)
+        except Exception:
+            return True
+        return False
+
+    @staticmethod
+    def _antiderivative_difference(
+        antiderivative: Optional[str],
+        variable: str,
+        lower_bound: Union[Number, str],
+        upper_bound: Union[Number, str],
+    ) -> Optional[str]:
+        """F(upper) - F(lower) evaluated by nerdamer, or None when that fails."""
+        if antiderivative is None:
+            return None
+        try:
+            parsed = window.nerdamer(antiderivative)
+            at_upper = parsed.sub(variable, upper_bound).text()
+            at_lower = parsed.sub(variable, lower_bound).text()
+            return str(window.nerdamer(f"{at_upper} - ({at_lower})").evaluate().text())
+        except Exception:
+            return None
 
     @staticmethod
     def _find_interior_singularity(
@@ -1627,12 +1860,7 @@ class MathUtils:
         Returns:
             str: Simplified expression as string or error message
         """
-        expression = MathUtils._normalize_symbols(expression)
-        try:
-            result = MathUtils._guarded_nerdamer_text(f"simplify({expression})", MathUtils.NERDAMER_TOOL_MAX_MS)
-        except Exception as e:
-            return f"Error: {e} {getattr(e, 'message', str(e))}"
-        return MathUtils._took_too_long_message(f"simplify({expression})") if result is None else result
+        return MathUtils._checked_rewrite("simplify", expression)
 
     @staticmethod
     def expand(expression: str) -> str:
@@ -1647,12 +1875,7 @@ class MathUtils:
         Returns:
             str: Expanded expression as string or error message
         """
-        expression = MathUtils._normalize_symbols(expression)
-        try:
-            result = MathUtils._guarded_nerdamer_text(f"expand({expression})", MathUtils.NERDAMER_TOOL_MAX_MS)
-        except Exception as e:
-            return f"Error: {e} {getattr(e, 'message', str(e))}"
-        return MathUtils._took_too_long_message(f"expand({expression})") if result is None else result
+        return MathUtils._checked_rewrite("expand", expression)
 
     @staticmethod
     def factor(expression: str) -> str:
@@ -1667,12 +1890,32 @@ class MathUtils:
         Returns:
             str: Factored expression as string or error message
         """
-        expression = MathUtils._normalize_symbols(expression)
+        return MathUtils._checked_rewrite("factor", expression)
+
+    @staticmethod
+    def _checked_rewrite(operation: str, expression: str) -> str:
+        """simplify/expand/factor of an expression, refused when its values differ from the input's.
+
+        simplify comes from the server's SymPy engine when it has an answer; everything else
+        from nerdamer.
+        """
+        from utils.symbolic_checks import SymbolicChecks
+
         try:
-            result = MathUtils._guarded_nerdamer_text(f"factor({expression})", MathUtils.NERDAMER_TOOL_MAX_MS)
+            expression = MathUtils._cas_input(expression)
+            answer = MathUtils._sympy_answer(operation, expression=expression) if operation == "simplify" else None
+            if answer is not None and answer["result"] is not None:
+                result = answer["result"]
+            else:
+                expression = MathUtils._symbolic_input(expression)
+                result = MathUtils._guarded_nerdamer_text(f"{operation}({expression})", MathUtils.NERDAMER_TOOL_MAX_MS)
         except Exception as e:
-            return f"Error: {e} {getattr(e, 'message', str(e))}"
-        return MathUtils._took_too_long_message(f"factor({expression})") if result is None else result
+            return MathUtils._error_text(e)
+        if result is None:
+            return MathUtils._took_too_long_message(f"{operation}({expression})")
+        if SymbolicChecks.equivalent(expression, result) is False:
+            return MathUtils._rejected_result_message(f"{operation}({expression})", result)
+        return str(result)
 
     @staticmethod
     def get_equation_type(equation: str) -> str:
@@ -1818,52 +2061,292 @@ class MathUtils:
     def solve(equation: str, variable: str) -> str:
         """Solve an equation for a specific variable.
 
-        Uses Nerdamer symbolic computation for equation solving.
-        Supports linear, quadratic, polynomial, and transcendental equations.
+        Uses Nerdamer symbolic computation for equation solving, then checks each root by
+        substituting it back: roots that fail the equation or make it undefined (x = 1 in
+        x/(x-1) = 2) are dropped, numerically equal roots are listed once, and decimal roots
+        are printed to 15 significant digits. For a polynomial, the roots nerdamer's closed
+        forms lose (it finds none for x^3+x+1 = 0) are added from a numeric root finder.
 
         Args:
             equation (str): Mathematical equation (e.g., "x^2 + 2*x - 3 = 0")
             variable (str): Variable to solve for (e.g., "x")
 
         Returns:
-            str: JSON string of solutions or error message
+            str: The roots as "[r1,r2,...]" ("[]" when there are none), a sentence for an
+            identity, or an error message. When a periodic equation has many numeric roots,
+            only those in [-2*pi, 2*pi] are listed, with a note saying so.
         """
-        equation, variable = MathUtils._normalize_symbols(equation), MathUtils._normalize_variable(variable)
+        from utils.cas_text import has_inequality
+
+        if not isinstance(equation, str):
+            return "Error: The equation must be given as text."
+        if has_inequality(MathUtils._normalize_symbols(equation)):
+            return "Error: solve handles equations (with '='), not inequalities."
+        try:
+            equation, variable = MathUtils._cas_input(equation), MathUtils._normalize_variable(variable)
+        except Exception as e:
+            return MathUtils._error_text(e)
+        sides = equation.split("=")
+        if len(sides) > 2:
+            return "Error: An equation has at most one '='."
+        answer = MathUtils._sympy_answer("solve", equation=equation, variable=variable)
+        if answer is not None and answer["result"] is not None:
+            return MathUtils._sympy_roots(answer["result"], sides, variable)
+        # SymPy found no closed form (cos(x) = x) or ran out of time: nerdamer may still find
+        # numeric roots
+        try:
+            equation = MathUtils._symbolic_input(equation)
+        except Exception as e:
+            return MathUtils._error_text(e)
+        identity = MathUtils._identity_or_contradiction(sides, variable)
+        if identity is not None:
+            return identity
         try:
             raw_solutions = MathUtils._guarded_nerdamer_text(
                 f"solve({equation}, {variable})", MathUtils.NERDAMER_TOOL_MAX_MS
             )
         except Exception as e:
-            return f"Error: {e} {getattr(e, 'message', str(e))}"
+            # nerdamer reports equations it reduces to a false constant (1/x = 0) this way
+            return "[]" if "does not equal" in str(e) else MathUtils._error_text(e)
         if raw_solutions is None:
             return MathUtils._took_too_long_message(f"the solutions of {equation} for {variable}")
-        return MathUtils._drop_invalid_roots(raw_solutions, equation, variable)
+        return MathUtils._checked_roots(raw_solutions, sides, variable)
 
     @staticmethod
-    def _drop_invalid_roots(raw_solutions: str, equation: str, variable: str) -> str:
-        """Remove roots that clearly fail the equation when substituted back numerically.
+    def _sympy_roots(solution: Dict[str, Any], sides: Sequence[str], variable: str) -> str:
+        """SymPy's solution set as solve() reports it, its roots checked like nerdamer's."""
+        if solution.get("identity"):
+            return f"Every value of {variable} satisfies the equation (it is an identity)."
+        roots = MathUtils._checked_roots("[" + ",".join(solution.get("roots") or []) + "]", sides, variable)
+        window = solution.get("window")
+        if not window:
+            return roots
+        listed = roots.split(" (only the roots")[0]
+        general = solution.get("general")
+        if not general:
+            return f"{listed} (the roots in [-{window}, {window}]; there are infinitely many)"
+        return f"{listed} (the roots in [-{window}, {window}]; all solutions: {', '.join(general)}, for any integer n)"
 
-        Roots that cannot be checked (e.g. symbolic parameters) are kept, and the
-        original text is returned unchanged when every root checks out.
-        """
+    @staticmethod
+    def _equation_difference(sides: Sequence[str]) -> str:
+        """lhs - rhs as one expression (lhs alone when there is no '=')."""
+        return f"({sides[0]})-({sides[1]})" if len(sides) == 2 else str(sides[0])
+
+    @staticmethod
+    def _identity_or_contradiction(sides: Sequence[str], variable: str) -> Optional[str]:
+        """The answer when lhs - rhs expands to a constant: every value (0) or none; else None."""
+        try:
+            # Guarded: expand((x+y+1)^20) alone takes seconds
+            text = MathUtils._guarded_nerdamer_text(f"expand({MathUtils._equation_difference(sides)})")
+            if text is None:
+                return None
+            names = [str(name) for name in window.nerdamer(text).variables()]
+        except Exception:
+            return None
+        if names:
+            return None
+        if text == "0":
+            return f"Every value of {variable} satisfies the equation (it is an identity)."
+        return "[]"
+
+    @staticmethod
+    def _checked_roots(raw_solutions: str, sides: Sequence[str], variable: str) -> str:
+        """nerdamer's root list checked and tidied (see solve()); other text is returned unchanged."""
+        from utils.cas_numeric import format_complex
+
         if not (raw_solutions.startswith("[") and raw_solutions.endswith("]")):
             return raw_solutions
-        roots = MathUtils._split_top_level_commas(raw_solutions[1:-1])
-        sides = equation.split("=")
-        if not roots or len(sides) > 2:
-            return raw_solutions
-        kept = []
-        for root in roots:
-            try:
-                scope = {variable: window.math.evaluate(root)}
-            except Exception:
-                kept.append(root)
+        roots: List[Tuple[str, Optional[complex]]] = []
+        numeric_roots = MathUtils._polynomial_root_values(sides, variable)
+        for text in MathUtils._split_top_level_commas(raw_solutions[1:-1]):
+            value = MathUtils._complex_value(text)
+            if value is not None:
+                if MathUtils._root_status(sides, variable, value) in ("fails", "undefined"):
+                    continue
+                if MathUtils._is_decimal_root(text) and numeric_roots:
+                    # nerdamer's decimals scatter around a repeated root ((x-3)^8 gives 2.9999998
+                    # and 3.0000002): use the root they approximate
+                    found = value
+                    nearest = min(numeric_roots, key=lambda root: abs(root - found))
+                    if abs(nearest - value) <= MathUtils._ROOT_SNAP * max(1.0, abs(nearest)):
+                        value = nearest
+                if MathUtils._has_close_value(roots, value):
+                    continue
+                if MathUtils._is_decimal_root(text):
+                    text = format_complex(value)
+                elif MathUtils._is_real_root_written_with_i(text, value):
+                    # Cardano's form of a real cubic root, (-0.5+0.5*i*sqrt(3))^(1/3)+...: give the number
+                    value = complex(value.real, 0.0)
+                    text = format_complex(value)
+            roots.append((text, value))
+        roots.extend(MathUtils._missing_polynomial_roots(sides, variable, roots, numeric_roots))
+        listed, note = MathUtils._roots_in_principal_window(roots, sides)
+        return "[" + ",".join(text for text, _ in listed) + "]" + note
+
+    @staticmethod
+    def _is_decimal_root(text: str) -> bool:
+        """True for a numeric root nerdamer printed in decimals, e.g. 2.7182818284589910, 0.18+1.08*i
+        or 0.1+4.47e-9*i."""
+        if "." not in text:
+            return False
+        for index, char in enumerate(text):
+            if char in "0123456789.+-*i ":
                 continue
-            if MathUtils._equation_holds(sides, scope) is not False:
-                kept.append(root)
-        if len(kept) == len(roots):
-            return raw_solutions
-        return "[" + ",".join(kept) + "]"
+            # an exponent (4.47e-9), not the constant e: a digit before it and one after its sign
+            after = text[index + 1 : index + 2] if text[index + 1 : index + 2] not in ("+", "-") else ""
+            after = after or text[index + 2 : index + 3]
+            if char not in "eE" or not text[index - 1 : index].isdigit() or not after.isdigit():
+                return False
+        return True
+
+    @staticmethod
+    def _is_real_root_written_with_i(text: str, value: complex) -> bool:
+        import re
+
+        return bool(re.search(r"(?<![A-Za-z0-9_])i(?![A-Za-z0-9_])", text)) and abs(value.imag) <= 1e-12 * max(
+            1.0, abs(value.real)
+        )
+
+    @staticmethod
+    def _complex_value(text: str) -> Optional[complex]:
+        """A root's value as a complex number, or None when math.js cannot evaluate it (a parameter)."""
+        try:
+            value = window.math.evaluate(text)
+        except Exception:
+            return None
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, (int, float)):
+            return complex(float(value), 0.0) if math.isfinite(value) else None
+        try:
+            result = complex(float(value.re), float(value.im))
+        except Exception:
+            return None
+        return result if math.isfinite(result.real) and math.isfinite(result.imag) else None
+
+    @staticmethod
+    def _has_close_value(roots: Sequence[Tuple[str, Optional[complex]]], value: complex) -> bool:
+        return any(other is not None and abs(other - value) <= 1e-9 * max(1.0, abs(value)) for _, other in roots)
+
+    @staticmethod
+    def _root_status(sides: Sequence[str], variable: str, value: complex) -> str:
+        """ "holds", "fails", "undefined" (the equation is not finite there) or "unknown" (not checkable)."""
+        point: Any = value.real if value.imag == 0 else window.math.complex(value.real, value.imag)
+        scope = {variable: point}
+        try:
+            residual = window.math.abs(
+                window.math.subtract(
+                    window.math.evaluate(sides[0], scope),
+                    window.math.evaluate(sides[1], scope) if len(sides) == 2 else 0,
+                )
+            )
+            residual = float(residual)
+        except Exception:
+            return "unknown"
+        if not math.isfinite(residual):
+            return "undefined"
+        holds = MathUtils._equation_holds(sides, scope)
+        if holds is None:
+            return "unknown"
+        return "holds" if holds else "fails"
+
+    # A polynomial's roots are completed numerically up to this degree.
+    _MAX_NUMERIC_POLYNOMIAL_DEGREE = 40
+
+    # A decimal root from nerdamer within this (relative) of a numerically found root is taken as it.
+    _ROOT_SNAP = 1e-3
+
+    @staticmethod
+    def _polynomial_root_values(sides: Sequence[str], variable: str) -> Optional[List[complex]]:
+        """The distinct roots of a polynomial equation with numeric coefficients, found numerically; else None."""
+        from utils.cas_numeric import polynomial_roots
+
+        coefficients = MathUtils._polynomial_coefficients(MathUtils._equation_difference(sides), variable)
+        if coefficients is None or not 1 <= len(coefficients) - 1 <= MathUtils._MAX_NUMERIC_POLYNOMIAL_DEGREE:
+            return None
+        distinct: List[complex] = []
+        for root in polynomial_roots(coefficients):
+            if not any(abs(root - other) <= 1e-9 * max(1.0, abs(root)) for other in distinct):
+                distinct.append(root)
+        return distinct
+
+    @staticmethod
+    def _missing_polynomial_roots(
+        sides: Sequence[str],
+        variable: str,
+        roots: Sequence[Tuple[str, Optional[complex]]],
+        numeric_roots: Optional[List[complex]],
+    ) -> List[Tuple[str, Optional[complex]]]:
+        """The numerically found roots of a polynomial equation that roots does not already hold."""
+        from utils.cas_numeric import format_complex
+
+        missing: List[Tuple[str, Optional[complex]]] = []
+        for root in numeric_roots or []:
+            known = list(roots) + missing
+            if any(other is not None and abs(other - root) <= 1e-6 * max(1.0, abs(root)) for _, other in known):
+                continue
+            if MathUtils._root_status(sides, variable, root) == "holds":
+                missing.append((format_complex(root), root))
+        return missing
+
+    @staticmethod
+    def _polynomial_coefficients(expression: str, variable: str) -> Optional[List[float]]:
+        """[c0, c1, ...] when the expression is a polynomial in variable with numeric coefficients, else None.
+
+        nerdamer.coeffs accepts some expressions that are not polynomials, so the coefficients
+        are confirmed by comparing the polynomial's values with the expression's.
+        """
+        from utils.symbolic_checks import SAMPLE_POINTS, SymbolicChecks
+
+        try:
+            # Guarded: a coeffs() that throws (on a non-polynomial) would leave nerdamer's settings changed
+            text = MathUtils._guarded_nerdamer_text(
+                f"coeffs(expand({expression}), {variable})", MathUtils.NERDAMER_MAX_MS
+            )
+        except Exception:
+            return None
+        if text is None or not (text.startswith("[") and text.endswith("]")):
+            return None
+        coefficients = [SymbolicChecks.numeric_value(part) for part in MathUtils._split_top_level_commas(text[1:-1])]
+        if not coefficients or any(c is None for c in coefficients):
+            return None
+        values = [float(c) for c in coefficients if c is not None]
+        function = SymbolicChecks.real_function(expression, variable)
+        if function is None:
+            return None
+        for point in SAMPLE_POINTS[:3]:
+            expected = function(point)
+            actual = sum(c * point**k for k, c in enumerate(values))
+            if (
+                expected is None
+                or not math.isfinite(expected)
+                or abs(expected - actual) > 1e-6 * max(1.0, abs(expected))
+            ):
+                return None
+        return values
+
+    # Many numeric roots of an equation with trig functions are listed only within this window.
+    _PERIODIC_ROOT_COUNT = 8
+    _PRINCIPAL_WINDOW = 2 * math.pi
+
+    @staticmethod
+    def _roots_in_principal_window(
+        roots: List[Tuple[str, Optional[complex]]], sides: Sequence[str]
+    ) -> Tuple[List[Tuple[str, Optional[complex]]], str]:
+        """For a trig equation with many real roots: those in [-2*pi, 2*pi], sorted, and a note."""
+        import re
+
+        real = [(text, value) for text, value in roots if value is not None and value.imag == 0]
+        if len(real) <= MathUtils._PERIODIC_ROOT_COUNT or not re.search(
+            r"\b(?:sin|cos|tan|sec|csc|cot)\s*\(", "=".join(sides)
+        ):
+            return roots, ""
+        limit = MathUtils._PRINCIPAL_WINDOW * (1 + 1e-9)
+        window_roots = sorted((item for item in real if abs(item[1].real) <= limit), key=lambda item: item[1].real)
+        if not window_roots:
+            return roots, ""
+        listed: List[Tuple[str, Optional[complex]]] = list(window_roots)
+        return listed, " (only the roots in [-2*pi, 2*pi] are listed; there are more outside it)"
 
     @staticmethod
     def _equation_holds(sides: Sequence[str], scope: Dict[str, Any]) -> Optional[bool]:
@@ -1978,7 +2461,66 @@ class MathUtils:
         except ValueError as ve:
             raise ve
         except Exception as e:
+            if "distinct solution" in str(e):
+                degenerate = MathUtils._degenerate_linear_system(equations)
+                if degenerate is not None:
+                    return degenerate
             return f"Error: {e}"
+
+    @staticmethod
+    def _all_hold(compiled_differences: Sequence[Any], solution: Dict[str, float]) -> bool:
+        """True when every compiled lhs - rhs is 0 (to rounding) at solution."""
+        scale = max([1.0] + [abs(value) for value in solution.values()])
+        try:
+            return all(abs(float(compiled.evaluate(solution))) <= 1e-9 * scale for compiled in compiled_differences)
+        except Exception:
+            return False
+
+    @staticmethod
+    def _degenerate_linear_system(equations: Sequence[str]) -> Optional[str]:
+        """The answer for a linear system nerdamer finds no distinct solution for.
+
+        Compares the rank of the coefficient matrix with that of the augmented matrix: no
+        solution, infinitely many, or (more equations than unknowns, all consistent) the
+        unique one. The coefficients are read from the values of lhs - rhs. None when an
+        equation cannot be evaluated.
+        """
+        from utils.cas_numeric import format_number
+        from utils.matrix_rref import matrix_rank, rref
+        from utils.symbolic_checks import SymbolicChecks
+
+        differences = [MathUtils._equation_difference(equation.split("=")) for equation in equations]
+        variables = sorted({name for difference in differences for name in SymbolicChecks.free_variables(difference)})
+        rows: List[List[float]] = []
+        compiled_differences = []
+        try:
+            for difference in differences:
+                compiled = window.math.compile(difference)
+                compiled_differences.append(compiled)
+                origin = {name: 0 for name in variables}
+                constant = float(compiled.evaluate(origin))
+                row = [float(compiled.evaluate({**origin, name: 1})) - constant for name in variables]
+                rows.append(row + [-constant])
+        except Exception:
+            return None
+        rank = matrix_rank([row[:-1] for row in rows])
+        if rank < matrix_rank(rows):
+            return "No solution: the equations are inconsistent (they contradict each other)."
+        unknowns = len(variables)
+        if unknowns == 0:
+            return None
+        if rank == unknowns:
+            # More equations than unknowns, but consistent: the unique solution, if every
+            # equation holds there (the coefficients assume the equations are linear)
+            reduced, _ = rref(rows)
+            solution = {name: reduced[k][-1] for k, name in enumerate(variables)}
+            if not MathUtils._all_hold(compiled_differences, solution):
+                return None
+            return ", ".join(f"{name} = {format_number(value)}" for name, value in solution.items())
+        return (
+            f"Infinitely many solutions: the equations are dependent ({rank} independent "
+            f"equation{'s' if rank != 1 else ''} for {unknowns} unknowns)."
+        )
 
     @staticmethod
     def solve_linear_quadratic_system(equations: Sequence[str]) -> str:
@@ -2249,7 +2791,17 @@ class MathUtils:
 
     @staticmethod
     def round(value: Number, ndigits: int = 0) -> float:
-        return round(value, ndigits)
+        """Round half away from zero, as math.js does (Python's round() rounds half to even:
+        round(2.5) is 2), so an expression rounds alike whichever evaluator runs it."""
+        if isinstance(value, int) and ndigits >= 0:
+            return value  # already exact (a float would lose digits of a large integer)
+        if 0 <= ndigits <= 15:
+            return float(window.math.round(value, ndigits))  # math.js corrects 1.005 -> 1.01
+        if ndigits < 0:
+            step = 10.0**-ndigits  # round to tens, hundreds, ...
+            return math.copysign(math.floor(abs(value) / step + 0.5) * step, value)
+        scale = 10.0**ndigits
+        return math.copysign(math.floor(abs(value) * scale + 0.5) / scale, value)
 
     @staticmethod
     def gcd(*values: Number) -> int:
@@ -2753,12 +3305,18 @@ class MathUtils:
 
     @staticmethod
     def _numeric_limit_value(limit_result: str) -> Optional[float]:
-        """Numerically evaluate a nerdamer limit result (e.g. "e^(-0.69...)", "Infinity").
+        """Numerically evaluate a limit() result (e.g. "e^(-0.69...)", "Infinity", "0 (numeric estimate; ...)").
 
-        Returns None for errors, unevaluated limits, and non-numeric results.
+        Returns None for errors, unevaluated limits, limits that do not exist, and non-numeric results.
         """
+        import re
+
         if "Error" in limit_result or "limit" in limit_result:
             return None
+        # limit() notes a numeric estimate or a one-sided limit after the value
+        annotated = re.match(r"^(\S+) \((?:numeric estimate|one-sided)", limit_result)
+        if annotated:
+            limit_result = annotated.group(1)
         try:
             evaluated: Any = window.nerdamer(limit_result).evaluate()
             numeric_text = str(evaluated.text("decimals")).strip()
@@ -3100,6 +3658,36 @@ class MathUtils:
 
         return evaluate
 
+    # Brython cannot bring a JavaScript number of magnitude 2^53 or more into Python (every such
+    # double is integer-valued and it raises "not a big int"), so such a value is computed again
+    # divided by 2^1000, which is exact, and scaled back.
+    _BIG_NUMBER_SCALE = 2.0**1000
+
+    @staticmethod
+    def _compiled_evaluator(expression: str) -> Callable[[Any], Any]:
+        """math.js compile(expression).evaluate as a function of the scope, safe for values >= 2^53.
+
+        Raises what math.js raises when compiling; the returned function raises what
+        evaluate raises, except Brython's "not a big int".
+        """
+        compiled = window.math.compile(expression)
+        scaled: List[Any] = []
+
+        def evaluate(scope: Any) -> Any:
+            try:
+                return compiled.evaluate(scope)
+            except Exception as error:
+                if "not a big int" not in str(error):
+                    raise
+            if not scaled:
+                scaled.append(window.math.compile(f"({expression}) / 2^1000"))
+            value = scaled[0].evaluate(scope)
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                return value
+            return float(value) * MathUtils._BIG_NUMBER_SCALE
+
+        return evaluate
+
     @staticmethod
     def _mathjs_probe_evaluator(expression: str, variable: str = "x") -> Optional[Callable[[float], Optional[float]]]:
         """Return f compiled by math.js as a probe: a float, or None where f fails or is not real.
@@ -3113,13 +3701,13 @@ class MathUtils:
         try:
             # math.js calls trunc() fix()
             fixed = ExpressionValidator.fix_math_expression(str(expression)).replace("trunc(", "fix(")
-            compiled = window.math.compile(fixed)
+            compiled = MathUtils._compiled_evaluator(fixed)
         except Exception:
             return None
 
         def evaluate(point: float) -> Optional[float]:
             try:
-                value = compiled.evaluate({variable: point})
+                value = compiled({variable: point})
             except Exception:
                 return None
             if isinstance(value, bool) or not isinstance(value, (int, float)):

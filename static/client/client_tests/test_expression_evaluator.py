@@ -47,4 +47,5 @@ class TestExpressionEvaluatorZeroResults(unittest.TestCase):
     def test_error_result_still_reported(self) -> None:
         result = ExpressionEvaluator.evaluate_expression("1/0")
         self.assertIsInstance(result, str)
-        self.assertIn("not a supported mathematical expression", result)
+        # Without a canvas the numeric error itself is reported
+        self.assertIn("Result is infinite", result)

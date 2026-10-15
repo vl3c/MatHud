@@ -12,6 +12,8 @@ from browser import window
 
 from utils.math_utils import MathUtils
 
+from .cas_engines import AnyEngine, WithoutSympy, sympy_available, value_of
+
 
 def _parse_point_pairs(result: str) -> List[Tuple[float, float]]:
     """Parse '(x = a, y = b), ...' strings into sorted (x, y) tuples."""
@@ -133,15 +135,19 @@ class TestMathUtilsSolving(unittest.TestCase):
         self.assertTrue(result.startswith("Error"), result)
 
     def test_integral_regular_cases_unchanged(self) -> None:
-        self.assertAlmostEqual(float(MathUtils.integral("x^2", "x", 0, 3)), 9.0, places=9)
-        self.assertAlmostEqual(float(MathUtils.integral("sin(x)", "x", 0, "pi")), 2.0, places=9)
-        self.assertAlmostEqual(float(MathUtils.integral("e^x", "x", 0, 1)), math.e - 1, places=9)
-        self.assertAlmostEqual(float(MathUtils.integral("1/x", "x", 1, 2)), math.log(2), places=9)
-        self.assertAlmostEqual(float(MathUtils.integral("tan(x)", "x", 0, 1)), -math.log(math.cos(1)), places=9)
+        for engines in (AnyEngine(), WithoutSympy()):
+            with engines:
+                self.assertAlmostEqual(value_of(MathUtils.integral("x^2", "x", 0, 3)), 9.0, places=9)
+                self.assertAlmostEqual(value_of(MathUtils.integral("sin(x)", "x", 0, "pi")), 2.0, places=9)
+                self.assertAlmostEqual(value_of(MathUtils.integral("e^x", "x", 0, 1)), math.e - 1, places=9)
+                self.assertAlmostEqual(value_of(MathUtils.integral("1/x", "x", 1, 2)), math.log(2), places=9)
+                self.assertAlmostEqual(
+                    value_of(MathUtils.integral("tan(x)", "x", 0, 1)), -math.log(math.cos(1)), places=9
+                )
 
     def test_integral_across_removable_discontinuity(self) -> None:
         # math.js yields NaN (0/0) at the removable point, which must not be reported as a pole
-        self.assertAlmostEqual(float(MathUtils.integral("(x^2-1)/(x-1)", "x", 0, 2)), 4.0, places=9)
+        self.assertAlmostEqual(value_of(MathUtils.integral("(x^2-1)/(x-1)", "x", 0, 2)), 4.0, places=9)
         for lower, upper in ((-1, 1), (-1, 2)):
             result = MathUtils.integral("sin(x)/x", "x", lower, upper)
             self.assertFalse(result.startswith("Error"), result)
@@ -216,11 +222,21 @@ class TestMathUtilsSolving(unittest.TestCase):
             self.assertAlmostEqual(roots[1] / coefficient, 1.0, places=6)
 
     def test_solve_keeps_valid_complex_roots(self) -> None:
-        self.assertEqual(MathUtils.solve("x^2+1=0", "x"), "[i,-i]")
+        if sympy_available():
+            self.assertEqual(MathUtils.solve("x^2+1=0", "x"), "[-i,i]")
+        with WithoutSympy():
+            self.assertEqual(MathUtils.solve("x^2+1=0", "x"), "[i,-i]")
 
     def test_solve_keeps_regular_output(self) -> None:
-        self.assertEqual(MathUtils.solve("x^2 - 4", "x"), "[2,-2]")
-        self.assertEqual(MathUtils.solve("x^2-2=0", "x"), "[sqrt(2),-sqrt(2)]")
+        if sympy_available():
+            self.assertEqual(MathUtils.solve("x^2 - 4", "x"), "[-2,2]")
+            self.assertEqual(MathUtils.solve("x^2-2=0", "x"), "[-sqrt(2),sqrt(2)]")
+        with WithoutSympy():
+            self.assertEqual(MathUtils.solve("x^2 - 4", "x"), "[2,-2]")
+            self.assertEqual(MathUtils.solve("x^2-2=0", "x"), "[sqrt(2),-sqrt(2)]")
 
     def test_solve_keeps_symbolic_roots_it_cannot_check(self) -> None:
-        self.assertEqual(MathUtils.solve("x + y = 3", "x"), "[-(-3+y)]")
+        if sympy_available():
+            self.assertEqual(MathUtils.solve("x + y = 3", "x"), "[3-y]")
+        with WithoutSympy():
+            self.assertEqual(MathUtils.solve("x + y = 3", "x"), "[-(-3+y)]")

@@ -18,6 +18,9 @@
  * (which its block() helper changes without restoring them on an exception) are restored
  * afterwards. The result is {text, exceeded, error, guarded, elapsedMs}, with error '' when
  * nerdamer raised nothing. Outside a guarded call every wrapper is a single flag test.
+ *
+ * window.MatHudResetNerdamerSettings() restores nerdamer's settings as they were when it loaded,
+ * undoing what a direct (unguarded) nerdamer call that threw left changed.
  */
 (function (root) {
     'use strict';
@@ -163,10 +166,22 @@
         return result;
     }
 
-    install(root.nerdamer);
+    // nerdamer's settings as loaded. A nerdamer call that throws inside its block() helper
+    // leaves a setting changed (PARSE2NUMBER stays true after coeffs() of a non-polynomial,
+    // and factor(x^2-y^2) then gives (-sqrt(x^2)+sqrt(y^2))*(sqrt(x^2)+sqrt(y^2))), so the CAS
+    // tools restore them before each computation.
+    var defaultSettings = install(root.nerdamer) ? snapshot(root.nerdamer.getCore().Settings) : null;
+
+    function resetSettings() {
+        if (defaultSettings) {
+            restore(root.nerdamer.getCore().Settings, defaultSettings);
+        }
+    }
+
     root.MatHudGuardedNerdamer = guardedEvaluate;
+    root.MatHudResetNerdamerSettings = resetSettings;
     root.MatHudNerdamerGuardBudgetMessage = BUDGET_MESSAGE;
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = { guardedEvaluate: guardedEvaluate, install: install };
+        module.exports = { guardedEvaluate: guardedEvaluate, install: install, resetSettings: resetSettings };
     }
 })(typeof window !== 'undefined' ? window : globalThis);

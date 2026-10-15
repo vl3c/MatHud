@@ -17,6 +17,8 @@ from process_function_calls import ProcessFunctionCalls
 from utils.math_utils import MathUtils
 from workspace_manager import WorkspaceManager
 
+from .cas_engines import WithoutSympy
+
 
 def _rounded(values: Optional[List[float]]) -> List[float]:
     return sorted(round(float(value), 6) for value in values or [])
@@ -605,23 +607,27 @@ class TestLimitsCannotHang(_FunctionToolTestCase):
         self.assertNotIn("vertical_asymptotes", args)
         self.assertEqual(_rounded(args.get("point_discontinuities")), [0.0])
 
-    def test_limit_tool_reports_an_abandoned_limit(self) -> None:
-        # (expression, value to approach, fragment of the numeric estimate)
+    def test_limit_tool_answers_an_abandoned_limit_numerically(self) -> None:
+        # (expression, value to approach, expected result)
         cases = [
-            ("abs(x)/x", "inf", "approaches 1 as x -> Infinity"),
-            ("abs(x)/x", "-inf", "approaches -1 as x -> -Infinity"),
-            ("sqrt(x^2)/x", "inf", "approaches 1 as x -> Infinity"),
-            ("x/(abs(x)+1)", "-inf", "approaches -1 as x -> -Infinity"),
-            ("abs(x)/x", "0", "-1 from the left and 1 from the right"),
+            ("abs(x)/x", "inf", "1 (numeric estimate; the symbolic engine gave no usable result)"),
+            ("abs(x)/x", "-inf", "-1 (numeric estimate; the symbolic engine gave no usable result)"),
+            ("sqrt(x^2)/x", "inf", "1 (numeric estimate; the symbolic engine gave no usable result)"),
+            ("x/(abs(x)+1)", "-inf", "-1 (numeric estimate; the symbolic engine gave no usable result)"),
+            (
+                "abs(x)/x",
+                "0",
+                "The limit does not exist: it approaches -1 from the left and approaches 1 from the right.",
+            ),
         ]
-        for expression, target, fragment in cases:
+        for expression, target, expected in cases:
             with self.subTest(expression=expression, target=target):
                 started = _now_seconds()
-                traced = self.run_call("limit", expression=expression, variable="x", value_to_approach=target)
+                with WithoutSympy():  # the nerdamer budget is what this pins
+                    traced = self.run_call("limit", expression=expression, variable="x", value_to_approach=target)
                 self.assert_quick(started, f"limit({expression}, {target})")
-                self.assertTrue(traced["is_error"], traced["result"])
-                self.assertIn("could not be computed symbolically", str(traced["result"]))
-                self.assertIn(fragment, str(traced["result"]))
+                self.assertFalse(traced["is_error"], traced["result"])
+                self.assertEqual(str(traced["result"]), expected)
 
     def test_limit_tool_still_computes_ordinary_limits(self) -> None:
         cases = [
@@ -645,11 +651,12 @@ class TestLimitsCannotHang(_FunctionToolTestCase):
         """This limit spent 37 s in expand/simplify between two derivative steps."""
         started = _now_seconds()
 
-        result = MathUtils.limit("x/(abs(x)/x+abs(sin(x))/sin(x))", "x", "0")
+        with WithoutSympy():
+            result = MathUtils.limit("x/(abs(x)/x+abs(sin(x))/sin(x))", "x", "0")
 
         elapsed = _now_seconds() - started
         self.assertLess(elapsed, MathUtils.NERDAMER_MAX_MS / 1000 + 2.0, f"took {elapsed:.1f} s")
-        self.assertIn("could not be computed symbolically", result)
+        self.assertEqual(result, "0 (numeric estimate; the symbolic engine gave no usable result)")
 
     def test_symbolic_tools_are_stopped_instead_of_freezing(self) -> None:
         started = _now_seconds()

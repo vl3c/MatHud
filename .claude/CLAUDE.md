@@ -119,7 +119,8 @@ Then navigate to `http://127.0.0.1:5004/` in the browser.
 7. `route_helpers.py` contains extracted route helper functions for provider management and tool lifecycle.
 8. `canvas_state_formatter.py` renders the canvas for the model: a compact text block in each user message, `[canvas changes]` after tool batches, and `get_current_canvas_state` results (see `documentation/development/canvas_prompt_summary_rollout.md`).
 9. `style.css` and other assets shared with the frontend live here for Flask to serve.
-10. `response_metrics.py` measures every model request (time to first token, latency, tokens/s, prompt/completion/cached tokens, llama-server `timings`); providers attach the record to the final stream event as `metrics` and `log_manager.py` logs it as a `response_metrics {...}` JSON line.
+10. `sympy_cas.py` and `sympy_engine.py` are the server's CAS engine (`POST /api/cas`): a safe `ast` parser and SymPy's limit, integrate, solve, simplify and derive, run in a worker process killed after 6 s. The client (`static/client/utils/sympy_client.py`) asks it first and uses nerdamer when SymPy is missing; every result is checked numerically in the browser (`utils/symbolic_checks.py`).
+11. `response_metrics.py` measures every model request (time to first token, latency, tokens/s, prompt/completion/cached tokens, llama-server `timings`); providers attach the record to the final stream event as `metrics` and `log_manager.py` logs it as a `response_metrics {...}` JSON line.
 
 ## Client Highlights (`static/client/`)
 1. `main.py` bootstraps Brython and registers managers.

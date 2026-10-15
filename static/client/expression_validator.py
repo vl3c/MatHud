@@ -520,18 +520,23 @@ class ExpressionValidator(ast.NodeVisitor):
         raise ValueError(f"Error validating expression '{expression}': {str(error)}") from error
 
     @staticmethod
-    def evaluate_expression(expression: str, x: float = 0) -> float:
+    def evaluate_expression(expression: str, x: float = 0, variables: Optional[Dict[str, Any]] = None) -> float:
         """
         Safely evaluate a mathematical expression with controlled variable scope.
 
         Args:
             expression (str): Mathematical expression to evaluate
             x (float, optional): Value for variable x. Defaults to 0.
+            variables (dict, optional): Values of other variables (numbers only; names
+                starting with "_" are ignored).
 
         Returns:
             float: Result of expression evaluation
         """
         variables_and_functions = ExpressionValidator._get_variables_and_functions(x)
+        for name, value in (variables or {}).items():
+            if isinstance(name, str) and not name.startswith("_") and isinstance(value, (int, float)):
+                variables_and_functions[name] = value
         # Parse the expression into an abstract syntax tree
         tree = ast.parse(expression, mode="eval")
         # Evaluate the expression using the abstract syntax tree and the variables dictionary
