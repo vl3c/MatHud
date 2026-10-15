@@ -1,0 +1,5124 @@
+{
+ "aliases": {
+  "1e3ln(x)": [
+   "'1e3*log(x)'",
+   "'1e3*log(x)'"
+  ],
+  "2.5ln(x)": [
+   "'2.5*log(x)'",
+   "'2.5*log(x)'"
+  ],
+  "2abs(x)": [
+   "'2*abs(x)'",
+   "'2*abs(x)'"
+  ],
+  "2absolute(x)": [
+   "'2*abs(x)'",
+   "'2*abs(x)'"
+  ],
+  "2acos(x)": [
+   "'2*acos(x)'",
+   "'2*acos(x)'"
+  ],
+  "2acosh(x)": [
+   "'2*acosh(x)'",
+   "'2*acosh(x)'"
+  ],
+  "2acot(x)": [
+   "'2*acot(x)'",
+   "'2*acot(x)'"
+  ],
+  "2acsc(x)": [
+   "'2*acsc(x)'",
+   "'2*acsc(x)'"
+  ],
+  "2arccosine(x)": [
+   "'2*acos(x)'",
+   "'2*acos(x)'"
+  ],
+  "2arcsine(x)": [
+   "'2*asin(x)'",
+   "'2*asin(x)'"
+  ],
+  "2arctangent(x)": [
+   "'2*atan(x)'",
+   "'2*atan(x)'"
+  ],
+  "2arithmetic_sum(x)": [
+   "'2*arithmetic_sum(x)'",
+   "'2*arithmetic_sum(x)'"
+  ],
+  "2arrangements(x)": [
+   "'2*arrangements(x)'",
+   "'2*arrangements(x)'"
+  ],
+  "2asec(x)": [
+   "'2*asec(x)'",
+   "'2*asec(x)'"
+  ],
+  "2asin(x)": [
+   "'2*asin(x)'",
+   "'2*asin(x)'"
+  ],
+  "2asinh(x)": [
+   "'2*asinh(x)'",
+   "'2*asinh(x)'"
+  ],
+  "2atan(x)": [
+   "'2*atan(x)'",
+   "'2*atan(x)'"
+  ],
+  "2atanh(x)": [
+   "'2*atanh(x)'",
+   "'2*atanh(x)'"
+  ],
+  "2bin(x)": [
+   "'2*bin(x)'",
+   "'2*bin(x)'"
+  ],
+  "2binary(x)": [
+   "'2*bin(x)'",
+   "'2*bin(x)'"
+  ],
+  "2ceil(x)": [
+   "'2*ceil(x)'",
+   "'2*ceil(x)'"
+  ],
+  "2combinations(x)": [
+   "'2*combinations(x)'",
+   "'2*combinations(x)'"
+  ],
+  "2cos(x)": [
+   "'2*cos(x)'",
+   "'2*cos(x)'"
+  ],
+  "2cosh(x)": [
+   "'2*cosh(x)'",
+   "'2*cosh(x)'"
+  ],
+  "2cosine(x)": [
+   "'2*cos(x)'",
+   "'2*cos(x)'"
+  ],
+  "2cot(x)": [
+   "'2*cot(x)'",
+   "'2*cot(x)'"
+  ],
+  "2csc(x)": [
+   "'2*csc(x)'",
+   "'2*csc(x)'"
+  ],
+  "2derivate(x)": [
+   "'2*derive(x)'",
+   "'2*derive(x)'"
+  ],
+  "2derivative(x)": [
+   "'2*derive(x)'",
+   "'2*derive(x)'"
+  ],
+  "2derive(x)": [
+   "'2*derive(x)'",
+   "'2*derive(x)'"
+  ],
+  "2det(x)": [
+   "'2*det(x)'",
+   "'2*det(x)'"
+  ],
+  "2determinant(x)": [
+   "'2*det(x)'",
+   "'2*det(x)'"
+  ],
+  "2divisors(x)": [
+   "'2*divisors(x)'",
+   "'2*divisors(x)'"
+  ],
+  "2e(x)": [
+   "'2*e(x)'",
+   "'2*e(x)'"
+  ],
+  "2exp(x)": [
+   "'2*exp(x)'",
+   "'2*exp(x)'"
+  ],
+  "2expand(x)": [
+   "'2*expand(x)'",
+   "'2*expand(x)'"
+  ],
+  "2exponential(x)": [
+   "'2*exp(x)'",
+   "'2*exp(x)'"
+  ],
+  "2fact(x)": [
+   "'2*factorial(x)'",
+   "'2*factorial(x)'"
+  ],
+  "2factor(x)": [
+   "'2*factor(x)'",
+   "'2*factor(x)'"
+  ],
+  "2factorial(x)": [
+   "'2*factorial(x)'",
+   "'2*factorial(x)'"
+  ],
+  "2floor(x)": [
+   "'2*floor(x)'",
+   "'2*floor(x)'"
+  ],
+  "2gcd(x)": [
+   "'2*gcd(x)'",
+   "'2*gcd(x)'"
+  ],
+  "2geometric_sum(x)": [
+   "'2*geometric_sum(x)'",
+   "'2*geometric_sum(x)'"
+  ],
+  "2geometric_sum_infinite(x)": [
+   "'2*geometric_sum_infinite(x)'",
+   "'2*geometric_sum_infinite(x)'"
+  ],
+  "2hyperbolic cosine(x)": [
+   "'2*cosh(x)'",
+   "'2*cosh(x)'"
+  ],
+  "2hyperbolic sine(x)": [
+   "'2*sinh(x)'",
+   "'2*sinh(x)'"
+  ],
+  "2hyperbolic tangent(x)": [
+   "'2*tanh(x)'",
+   "'2*tanh(x)'"
+  ],
+  "2integral(x)": [
+   "'2*integrate(x)'",
+   "'2integrate(x)'"
+  ],
+  "2integrate(x)": [
+   "'2*integrate(x)'",
+   "'2integrate(x)'"
+  ],
+  "2is_prime(x)": [
+   "'2*is_prime(x)'",
+   "'2is_prime(x)'"
+  ],
+  "2lcm(x)": [
+   "'2*lcm(x)'",
+   "'2*lcm(x)'"
+  ],
+  "2lim(x)": [
+   "'2*limit(x)'",
+   "'2*limit(x)'"
+  ],
+  "2limit(x)": [
+   "'2*limit(x)'",
+   "'2*limit(x)'"
+  ],
+  "2ln(x)": [
+   "'2*log(x)'",
+   "'2*log(x)'"
+  ],
+  "2ln(x) + sine(x)": [
+   "'2*log(x) + sin(x)'",
+   "'2*log(x) + sin(x)'"
+  ],
+  "2log(x)": [
+   "'2*log(x)'",
+   "'2*log(x)'"
+  ],
+  "2log10(x)": [
+   "'2*log10(x)'",
+   "'2*log10(x)'"
+  ],
+  "2log2(x)": [
+   "'2*log2(x)'",
+   "'2*log2(x)'"
+  ],
+  "2logarithm(x)": [
+   "'2*log(x)'",
+   "'2*log(x)'"
+  ],
+  "2logarithm10(x)": [
+   "'2*log10(x)'",
+   "'2*log10(x)'"
+  ],
+  "2logarithm2(x)": [
+   "'2*log2(x)'",
+   "'2*log2(x)'"
+  ],
+  "2max(x)": [
+   "'2*max(x)'",
+   "'2*max(x)'"
+  ],
+  "2mean(x)": [
+   "'2*mean(x)'",
+   "'2*mean(x)'"
+  ],
+  "2median(x)": [
+   "'2*median(x)'",
+   "'2*median(x)'"
+  ],
+  "2min(x)": [
+   "'2*min(x)'",
+   "'2*min(x)'"
+  ],
+  "2mod_inverse(x)": [
+   "'2*mod_inverse(x)'",
+   "'2*mod_inverse(x)'"
+  ],
+  "2mod_pow(x)": [
+   "'2*mod_pow(x)'",
+   "'2*mod_pow(x)'"
+  ],
+  "2mode(x)": [
+   "'2*mode(x)'",
+   "'2*mode(x)'"
+  ],
+  "2next_prime(x)": [
+   "'2*next_prime(x)'",
+   "'2*next_prime(x)'"
+  ],
+  "2p_series_test(x)": [
+   "'2*p_series_test(x)'",
+   "'2*p_series_test(x)'"
+  ],
+  "2permutations(x)": [
+   "'2*permutations(x)'",
+   "'2*permutations(x)'"
+  ],
+  "2pi(x)": [
+   "'2*pi(x)'",
+   "'2*pi(x)'"
+  ],
+  "2pow(x)": [
+   "'2*pow(x)'",
+   "'2*pow(x)'"
+  ],
+  "2power(x)": [
+   "'2*pow(x)'",
+   "'2*pow(x)'"
+  ],
+  "2prev_prime(x)": [
+   "'2*prev_prime(x)'",
+   "'2*prev_prime(x)'"
+  ],
+  "2prime_factors(x)": [
+   "'2*prime_factors(x)'",
+   "'2*prime_factors(x)'"
+  ],
+  "2product(x)": [
+   "'2*product(x)'",
+   "'2*product(x)'"
+  ],
+  "2rand(x)": [
+   "'2*random(x)'",
+   "'2*random(x)'"
+  ],
+  "2randint(x)": [
+   "'2*randint(x)'",
+   "'2*randint(x)'"
+  ],
+  "2random(x)": [
+   "'2*random(x)'",
+   "'2*random(x)'"
+  ],
+  "2ratio_test(x)": [
+   "'2*ratio_test(x)'",
+   "'2*ratio_test(x)'"
+  ],
+  "2root_test(x)": [
+   "'2*root_test(x)'",
+   "'2*root_test(x)'"
+  ],
+  "2round(x)": [
+   "'2*round(x)'",
+   "'2*round(x)'"
+  ],
+  "2sec(x)": [
+   "'2*sec(x)'",
+   "'2*sec(x)'"
+  ],
+  "2simplify(x)": [
+   "'2*simplify(x)'",
+   "'2*simplify(x)'"
+  ],
+  "2sin(x)": [
+   "'2*sin(x)'",
+   "'2*sin(x)'"
+  ],
+  "2sine(x)": [
+   "'2*sin(x)'",
+   "'2*sin(x)'"
+  ],
+  "2sinh(x)": [
+   "'2*sinh(x)'",
+   "'2*sinh(x)'"
+  ],
+  "2solve(x)": [
+   "'2*solve(x)'",
+   "'2*solve(x)'"
+  ],
+  "2sqrt(x)": [
+   "'2*sqrt(x)'",
+   "'2*sqrt(x)'"
+  ],
+  "2square root(x)": [
+   "'2*sqrt(x)'",
+   "'2*sqrt(x)'"
+  ],
+  "2std(x)": [
+   "'2*stdev(x)'",
+   "'2*stdev(x)'"
+  ],
+  "2stdev(x)": [
+   "'2*stdev(x)'",
+   "'2*stdev(x)'"
+  ],
+  "2sum(x)": [
+   "'2*sum(x)'",
+   "'2*sum(x)'"
+  ],
+  "2summation(x)": [
+   "'2*summation(x)'",
+   "'2*summation(x)'"
+  ],
+  "2tan(x)": [
+   "'2*tan(x)'",
+   "'2*tan(x)'"
+  ],
+  "2tangent(x)": [
+   "'2*tan(x)'",
+   "'2*tan(x)'"
+  ],
+  "2tanh(x)": [
+   "'2*tanh(x)'",
+   "'2*tanh(x)'"
+  ],
+  "2totient(x)": [
+   "'2*totient(x)'",
+   "'2*totient(x)'"
+  ],
+  "2trunc(x)": [
+   "'2*trunc(x)'",
+   "'2*trunc(x)'"
+  ],
+  "2var(x)": [
+   "'2*variance(x)'",
+   "'2*variance(x)'"
+  ],
+  "2variance(x)": [
+   "'2*variance(x)'",
+   "'2*variance(x)'"
+  ],
+  "_abs(x)": [
+   "'_abs(x)'",
+   "'_abs(x)'"
+  ],
+  "_absolute(x)": [
+   "'_abs(x)'",
+   "'_abs(x)'"
+  ],
+  "_acos(x)": [
+   "'_acos(x)'",
+   "'_acos(x)'"
+  ],
+  "_acosh(x)": [
+   "'_acosh(x)'",
+   "'_acosh(x)'"
+  ],
+  "_acot(x)": [
+   "'_acot(x)'",
+   "'_acot(x)'"
+  ],
+  "_acsc(x)": [
+   "'_acsc(x)'",
+   "'_acsc(x)'"
+  ],
+  "_arccosine(x)": [
+   "'_acos(x)'",
+   "'_acos(x)'"
+  ],
+  "_arcsine(x)": [
+   "'_asin(x)'",
+   "'_asin(x)'"
+  ],
+  "_arctangent(x)": [
+   "'_atan(x)'",
+   "'_atan(x)'"
+  ],
+  "_arithmetic_sum(x)": [
+   "'_arithmetic_sum(x)'",
+   "'_arithmetic_sum(x)'"
+  ],
+  "_arrangements(x)": [
+   "'_arrangements(x)'",
+   "'_arrangements(x)'"
+  ],
+  "_asec(x)": [
+   "'_asec(x)'",
+   "'_asec(x)'"
+  ],
+  "_asin(x)": [
+   "'_asin(x)'",
+   "'_asin(x)'"
+  ],
+  "_asinh(x)": [
+   "'_asinh(x)'",
+   "'_asinh(x)'"
+  ],
+  "_atan(x)": [
+   "'_atan(x)'",
+   "'_atan(x)'"
+  ],
+  "_atanh(x)": [
+   "'_atanh(x)'",
+   "'_atanh(x)'"
+  ],
+  "_bin(x)": [
+   "'_bin(x)'",
+   "'_bin(x)'"
+  ],
+  "_binary(x)": [
+   "'_bin(x)'",
+   "'_bin(x)'"
+  ],
+  "_ceil(x)": [
+   "'_ceil(x)'",
+   "'_ceil(x)'"
+  ],
+  "_combinations(x)": [
+   "'_combinations(x)'",
+   "'_combinations(x)'"
+  ],
+  "_cos(x)": [
+   "'_cos(x)'",
+   "'_cos(x)'"
+  ],
+  "_cosh(x)": [
+   "'_cosh(x)'",
+   "'_cosh(x)'"
+  ],
+  "_cosine(x)": [
+   "'_cos(x)'",
+   "'_cos(x)'"
+  ],
+  "_cot(x)": [
+   "'_cot(x)'",
+   "'_cot(x)'"
+  ],
+  "_csc(x)": [
+   "'_csc(x)'",
+   "'_csc(x)'"
+  ],
+  "_derivate(x)": [
+   "'_derive(x)'",
+   "'_derive(x)'"
+  ],
+  "_derivative(x)": [
+   "'_derive(x)'",
+   "'_derive(x)'"
+  ],
+  "_derive(x)": [
+   "'_derive(x)'",
+   "'_derive(x)'"
+  ],
+  "_det(x)": [
+   "'_det(x)'",
+   "'_det(x)'"
+  ],
+  "_determinant(x)": [
+   "'_det(x)'",
+   "'_det(x)'"
+  ],
+  "_divisors(x)": [
+   "'_divisors(x)'",
+   "'_divisors(x)'"
+  ],
+  "_e(x)": [
+   "'_e(x)'",
+   "'_e(x)'"
+  ],
+  "_exp(x)": [
+   "'_exp(x)'",
+   "'_exp(x)'"
+  ],
+  "_expand(x)": [
+   "'_expand(x)'",
+   "'_expand(x)'"
+  ],
+  "_exponential(x)": [
+   "'_exp(x)'",
+   "'_exp(x)'"
+  ],
+  "_fact(x)": [
+   "'_factorial(x)'",
+   "'_factorial(x)'"
+  ],
+  "_factor(x)": [
+   "'_factor(x)'",
+   "'_factor(x)'"
+  ],
+  "_factorial(x)": [
+   "'_factorial(x)'",
+   "'_factorial(x)'"
+  ],
+  "_floor(x)": [
+   "'_floor(x)'",
+   "'_floor(x)'"
+  ],
+  "_gcd(x)": [
+   "'_gcd(x)'",
+   "'_gcd(x)'"
+  ],
+  "_geometric_sum(x)": [
+   "'_geometric_sum(x)'",
+   "'_geometric_sum(x)'"
+  ],
+  "_geometric_sum_infinite(x)": [
+   "'_geometric_sum_infinite(x)'",
+   "'_geometric_sum_infinite(x)'"
+  ],
+  "_hyperbolic cosine(x)": [
+   "'_cosh(x)'",
+   "'_cosh(x)'"
+  ],
+  "_hyperbolic sine(x)": [
+   "'_sinh(x)'",
+   "'_sinh(x)'"
+  ],
+  "_hyperbolic tangent(x)": [
+   "'_tanh(x)'",
+   "'_tanh(x)'"
+  ],
+  "_integral(x)": [
+   "'_integrate(x)'",
+   "'_integrate(x)'"
+  ],
+  "_integrate(x)": [
+   "'_integrate(x)'",
+   "'_integrate(x)'"
+  ],
+  "_is_prime(x)": [
+   "'_is_prime(x)'",
+   "'_is_prime(x)'"
+  ],
+  "_lcm(x)": [
+   "'_lcm(x)'",
+   "'_lcm(x)'"
+  ],
+  "_lim(x)": [
+   "'_limit(x)'",
+   "'_limit(x)'"
+  ],
+  "_limit(x)": [
+   "'_limit(x)'",
+   "'_limit(x)'"
+  ],
+  "_ln(x)": [
+   "'_log(x)'",
+   "'_log(x)'"
+  ],
+  "_log(x)": [
+   "'_log(x)'",
+   "'_log(x)'"
+  ],
+  "_log10(x)": [
+   "'_log10(x)'",
+   "'_log10(x)'"
+  ],
+  "_log2(x)": [
+   "'_log2(x)'",
+   "'_log2(x)'"
+  ],
+  "_logarithm(x)": [
+   "'_log(x)'",
+   "'_log(x)'"
+  ],
+  "_logarithm10(x)": [
+   "'_log10(x)'",
+   "'_log10(x)'"
+  ],
+  "_logarithm2(x)": [
+   "'_log2(x)'",
+   "'_log2(x)'"
+  ],
+  "_max(x)": [
+   "'_max(x)'",
+   "'_max(x)'"
+  ],
+  "_mean(x)": [
+   "'_mean(x)'",
+   "'_mean(x)'"
+  ],
+  "_median(x)": [
+   "'_median(x)'",
+   "'_median(x)'"
+  ],
+  "_min(x)": [
+   "'_min(x)'",
+   "'_min(x)'"
+  ],
+  "_mod_inverse(x)": [
+   "'_mod_inverse(x)'",
+   "'_mod_inverse(x)'"
+  ],
+  "_mod_pow(x)": [
+   "'_mod_pow(x)'",
+   "'_mod_pow(x)'"
+  ],
+  "_mode(x)": [
+   "'_mode(x)'",
+   "'_mode(x)'"
+  ],
+  "_next_prime(x)": [
+   "'_next_prime(x)'",
+   "'_next_prime(x)'"
+  ],
+  "_p_series_test(x)": [
+   "'_p_series_test(x)'",
+   "'_p_series_test(x)'"
+  ],
+  "_permutations(x)": [
+   "'_permutations(x)'",
+   "'_permutations(x)'"
+  ],
+  "_pi(x)": [
+   "'_pi(x)'",
+   "'_pi(x)'"
+  ],
+  "_pow(x)": [
+   "'_pow(x)'",
+   "'_pow(x)'"
+  ],
+  "_power(x)": [
+   "'_pow(x)'",
+   "'_pow(x)'"
+  ],
+  "_prev_prime(x)": [
+   "'_prev_prime(x)'",
+   "'_prev_prime(x)'"
+  ],
+  "_prime_factors(x)": [
+   "'_prime_factors(x)'",
+   "'_prime_factors(x)'"
+  ],
+  "_product(x)": [
+   "'_product(x)'",
+   "'_product(x)'"
+  ],
+  "_rand(x)": [
+   "'_random(x)'",
+   "'_random(x)'"
+  ],
+  "_randint(x)": [
+   "'_randint(x)'",
+   "'_randint(x)'"
+  ],
+  "_random(x)": [
+   "'_random(x)'",
+   "'_random(x)'"
+  ],
+  "_ratio_test(x)": [
+   "'_ratio_test(x)'",
+   "'_ratio_test(x)'"
+  ],
+  "_root_test(x)": [
+   "'_root_test(x)'",
+   "'_root_test(x)'"
+  ],
+  "_round(x)": [
+   "'_round(x)'",
+   "'_round(x)'"
+  ],
+  "_sec(x)": [
+   "'_sec(x)'",
+   "'_sec(x)'"
+  ],
+  "_simplify(x)": [
+   "'_simplify(x)'",
+   "'_simplify(x)'"
+  ],
+  "_sin(x)": [
+   "'_sin(x)'",
+   "'_sin(x)'"
+  ],
+  "_sine(x)": [
+   "'_sin(x)'",
+   "'_sin(x)'"
+  ],
+  "_sinh(x)": [
+   "'_sinh(x)'",
+   "'_sinh(x)'"
+  ],
+  "_solve(x)": [
+   "'_solve(x)'",
+   "'_solve(x)'"
+  ],
+  "_sqrt(x)": [
+   "'_sqrt(x)'",
+   "'_sqrt(x)'"
+  ],
+  "_square root(x)": [
+   "'_sqrt(x)'",
+   "'_sqrt(x)'"
+  ],
+  "_std(x)": [
+   "'_stdev(x)'",
+   "'_stdev(x)'"
+  ],
+  "_stdev(x)": [
+   "'_stdev(x)'",
+   "'_stdev(x)'"
+  ],
+  "_sum(x)": [
+   "'_sum(x)'",
+   "'_sum(x)'"
+  ],
+  "_summation(x)": [
+   "'_summation(x)'",
+   "'_summation(x)'"
+  ],
+  "_tan(x)": [
+   "'_tan(x)'",
+   "'_tan(x)'"
+  ],
+  "_tangent(x)": [
+   "'_tan(x)'",
+   "'_tan(x)'"
+  ],
+  "_tanh(x)": [
+   "'_tanh(x)'",
+   "'_tanh(x)'"
+  ],
+  "_totient(x)": [
+   "'_totient(x)'",
+   "'_totient(x)'"
+  ],
+  "_trunc(x)": [
+   "'_trunc(x)'",
+   "'_trunc(x)'"
+  ],
+  "_var(x)": [
+   "'_variance(x)'",
+   "'_variance(x)'"
+  ],
+  "_variance(x)": [
+   "'_variance(x)'",
+   "'_variance(x)'"
+  ],
+  "a1sine(x)": [
+   "'a1sin(x)'",
+   "'a1sin(x)'"
+  ],
+  "abs": [
+   "'abs'",
+   "'abs'"
+  ],
+  "abs (x)": [
+   "'abs (x)'",
+   "'abs (x)'"
+  ],
+  "abs(x)": [
+   "'abs(x)'",
+   "'abs(x)'"
+  ],
+  "abs(x)+abs(y)": [
+   "'abs(x)+abs(y)'",
+   "'abs(x)+abs(y)'"
+  ],
+  "abs2(x)": [
+   "'abs2(x)'",
+   "'abs2(x)'"
+  ],
+  "absolute": [
+   "'absolute'",
+   "'absolute'"
+  ],
+  "absolute (x)": [
+   "'absolute (x)'",
+   "'absolute (x)'"
+  ],
+  "absolute(x)": [
+   "'abs(x)'",
+   "'abs(x)'"
+  ],
+  "absolute(x)+absolute(y)": [
+   "'abs(x)+abs(y)'",
+   "'abs(x)+abs(y)'"
+  ],
+  "absolute2(x)": [
+   "'absolute2(x)'",
+   "'absolute2(x)'"
+  ],
+  "absolutex": [
+   "'absolutex'",
+   "'absolutex'"
+  ],
+  "absx": [
+   "'absx'",
+   "'absx'"
+  ],
+  "acos": [
+   "'acos'",
+   "'acos'"
+  ],
+  "acos (x)": [
+   "'acos (x)'",
+   "'acos (x)'"
+  ],
+  "acos(x)": [
+   "'acos(x)'",
+   "'acos(x)'"
+  ],
+  "acos(x)+acos(y)": [
+   "'acos(x)+acos(y)'",
+   "'acos(x)+acos(y)'"
+  ],
+  "acos2(x)": [
+   "'acos2(x)'",
+   "'acos2(x)'"
+  ],
+  "acosh": [
+   "'acosh'",
+   "'acosh'"
+  ],
+  "acosh (x)": [
+   "'acosh (x)'",
+   "'acosh (x)'"
+  ],
+  "acosh(x)": [
+   "'acosh(x)'",
+   "'acosh(x)'"
+  ],
+  "acosh(x)+acosh(y)": [
+   "'acosh(x)+acosh(y)'",
+   "'acosh(x)+acosh(y)'"
+  ],
+  "acosh2(x)": [
+   "'acosh2(x)'",
+   "'acosh2(x)'"
+  ],
+  "acoshx": [
+   "'acoshx'",
+   "'acoshx'"
+  ],
+  "acosx": [
+   "'acosx'",
+   "'acosx'"
+  ],
+  "acot": [
+   "'acot'",
+   "'acot'"
+  ],
+  "acot (x)": [
+   "'acot (x)'",
+   "'acot (x)'"
+  ],
+  "acot(x)": [
+   "'acot(x)'",
+   "'acot(x)'"
+  ],
+  "acot(x)+acot(y)": [
+   "'acot(x)+acot(y)'",
+   "'acot(x)+acot(y)'"
+  ],
+  "acot2(x)": [
+   "'acot2(x)'",
+   "'acot2(x)'"
+  ],
+  "acotx": [
+   "'acotx'",
+   "'acotx'"
+  ],
+  "acsc": [
+   "'acsc'",
+   "'acsc'"
+  ],
+  "acsc (x)": [
+   "'acsc (x)'",
+   "'acsc (x)'"
+  ],
+  "acsc(x)": [
+   "'acsc(x)'",
+   "'acsc(x)'"
+  ],
+  "acsc(x)+acsc(y)": [
+   "'acsc(x)+acsc(y)'",
+   "'acsc(x)+acsc(y)'"
+  ],
+  "acsc2(x)": [
+   "'acsc2(x)'",
+   "'acsc2(x)'"
+  ],
+  "acscx": [
+   "'acscx'",
+   "'acscx'"
+  ],
+  "arccosine": [
+   "'arccosine'",
+   "'arccosine'"
+  ],
+  "arccosine (x)": [
+   "'arccosine (x)'",
+   "'arccosine (x)'"
+  ],
+  "arccosine(x)": [
+   "'acos(x)'",
+   "'acos(x)'"
+  ],
+  "arccosine(x)+arccosine(y)": [
+   "'acos(x)+acos(y)'",
+   "'acos(x)+acos(y)'"
+  ],
+  "arccosine2(x)": [
+   "'arccosine2(x)'",
+   "'arccosine2(x)'"
+  ],
+  "arccosinex": [
+   "'arccosinex'",
+   "'arccosinex'"
+  ],
+  "arcsine": [
+   "'arcsine'",
+   "'arcsine'"
+  ],
+  "arcsine (x)": [
+   "'arcsine (x)'",
+   "'arcsine (x)'"
+  ],
+  "arcsine(x)": [
+   "'asin(x)'",
+   "'asin(x)'"
+  ],
+  "arcsine(x)+arcsine(y)": [
+   "'asin(x)+asin(y)'",
+   "'asin(x)+asin(y)'"
+  ],
+  "arcsine2(x)": [
+   "'arcsine2(x)'",
+   "'arcsine2(x)'"
+  ],
+  "arcsinex": [
+   "'arcsinex'",
+   "'arcsinex'"
+  ],
+  "arctangent": [
+   "'arctangent'",
+   "'arctangent'"
+  ],
+  "arctangent (x)": [
+   "'arctangent (x)'",
+   "'arctangent (x)'"
+  ],
+  "arctangent(x)": [
+   "'atan(x)'",
+   "'atan(x)'"
+  ],
+  "arctangent(x)+arctangent(y)": [
+   "'atan(x)+atan(y)'",
+   "'atan(x)+atan(y)'"
+  ],
+  "arctangent2(x)": [
+   "'arctangent2(x)'",
+   "'arctangent2(x)'"
+  ],
+  "arctangentx": [
+   "'arctangentx'",
+   "'arctangentx'"
+  ],
+  "arithmetic_sum": [
+   "'arithmetic_sum'",
+   "'arithmetic_sum'"
+  ],
+  "arithmetic_sum (x)": [
+   "'arithmetic_sum (x)'",
+   "'arithmetic_sum (x)'"
+  ],
+  "arithmetic_sum(x)": [
+   "'arithmetic_sum(x)'",
+   "'arithmetic_sum(x)'"
+  ],
+  "arithmetic_sum(x)+arithmetic_sum(y)": [
+   "'arithmetic_sum(x)+arithmetic_sum(y)'",
+   "'arithmetic_sum(x)+arithmetic_sum(y)'"
+  ],
+  "arithmetic_sum2(x)": [
+   "'arithmetic_sum2(x)'",
+   "'arithmetic_sum2(x)'"
+  ],
+  "arithmetic_sumx": [
+   "'arithmetic_sumx'",
+   "'arithmetic_sumx'"
+  ],
+  "arrangements": [
+   "'arrangements'",
+   "'arrangements'"
+  ],
+  "arrangements (x)": [
+   "'arrangements (x)'",
+   "'arrangements (x)'"
+  ],
+  "arrangements(x)": [
+   "'arrangements(x)'",
+   "'arrangements(x)'"
+  ],
+  "arrangements(x)+arrangements(y)": [
+   "'arrangements(x)+arrangements(y)'",
+   "'arrangements(x)+arrangements(y)'"
+  ],
+  "arrangements2(x)": [
+   "'arrangements2(x)'",
+   "'arrangements2(x)'"
+  ],
+  "arrangementsx": [
+   "'arrangementsx'",
+   "'arrangementsx'"
+  ],
+  "artifact(3)": [
+   "'artifactorial(3)'",
+   "'artifactorial(3)'"
+  ],
+  "asec": [
+   "'asec'",
+   "'asec'"
+  ],
+  "asec (x)": [
+   "'asec (x)'",
+   "'asec (x)'"
+  ],
+  "asec(x)": [
+   "'asec(x)'",
+   "'asec(x)'"
+  ],
+  "asec(x)+asec(y)": [
+   "'asec(x)+asec(y)'",
+   "'asec(x)+asec(y)'"
+  ],
+  "asec2(x)": [
+   "'asec2(x)'",
+   "'asec2(x)'"
+  ],
+  "asecx": [
+   "'asecx'",
+   "'asecx'"
+  ],
+  "asin": [
+   "'asin'",
+   "'asin'"
+  ],
+  "asin (x)": [
+   "'asin (x)'",
+   "'asin (x)'"
+  ],
+  "asin(x)": [
+   "'asin(x)'",
+   "'asin(x)'"
+  ],
+  "asin(x)+asin(y)": [
+   "'asin(x)+asin(y)'",
+   "'asin(x)+asin(y)'"
+  ],
+  "asin2(x)": [
+   "'asin2(x)'",
+   "'asin2(x)'"
+  ],
+  "asinh": [
+   "'asinh'",
+   "'asinh'"
+  ],
+  "asinh (x)": [
+   "'asinh (x)'",
+   "'asinh (x)'"
+  ],
+  "asinh(x)": [
+   "'asinh(x)'",
+   "'asinh(x)'"
+  ],
+  "asinh(x)+asinh(y)": [
+   "'asinh(x)+asinh(y)'",
+   "'asinh(x)+asinh(y)'"
+  ],
+  "asinh2(x)": [
+   "'asinh2(x)'",
+   "'asinh2(x)'"
+  ],
+  "asinhx": [
+   "'asinhx'",
+   "'asinhx'"
+  ],
+  "asinx": [
+   "'asinx'",
+   "'asinx'"
+  ],
+  "atan": [
+   "'atan'",
+   "'atan'"
+  ],
+  "atan (x)": [
+   "'atan (x)'",
+   "'atan (x)'"
+  ],
+  "atan(x)": [
+   "'atan(x)'",
+   "'atan(x)'"
+  ],
+  "atan(x)+atan(y)": [
+   "'atan(x)+atan(y)'",
+   "'atan(x)+atan(y)'"
+  ],
+  "atan2(x)": [
+   "'atan2(x)'",
+   "'atan2(x)'"
+  ],
+  "atanh": [
+   "'atanh'",
+   "'atanh'"
+  ],
+  "atanh (x)": [
+   "'atanh (x)'",
+   "'atanh (x)'"
+  ],
+  "atanh(x)": [
+   "'atanh(x)'",
+   "'atanh(x)'"
+  ],
+  "atanh(x)+atanh(y)": [
+   "'atanh(x)+atanh(y)'",
+   "'atanh(x)+atanh(y)'"
+  ],
+  "atanh2(x)": [
+   "'atanh2(x)'",
+   "'atanh2(x)'"
+  ],
+  "atanhx": [
+   "'atanhx'",
+   "'atanhx'"
+  ],
+  "atanx": [
+   "'atanx'",
+   "'atanx'"
+  ],
+  "bin": [
+   "'bin'",
+   "'bin'"
+  ],
+  "bin (x)": [
+   "'bin (x)'",
+   "'bin (x)'"
+  ],
+  "bin(x)": [
+   "'bin(x)'",
+   "'bin(x)'"
+  ],
+  "bin(x)+bin(y)": [
+   "'bin(x)+bin(y)'",
+   "'bin(x)+bin(y)'"
+  ],
+  "bin2(x)": [
+   "'bin2(x)'",
+   "'bin2(x)'"
+  ],
+  "binary": [
+   "'binary'",
+   "'binary'"
+  ],
+  "binary (x)": [
+   "'binary (x)'",
+   "'binary (x)'"
+  ],
+  "binary(x)": [
+   "'bin(x)'",
+   "'bin(x)'"
+  ],
+  "binary(x)+binary(y)": [
+   "'bin(x)+bin(y)'",
+   "'bin(x)+bin(y)'"
+  ],
+  "binary2(x)": [
+   "'binary2(x)'",
+   "'binary2(x)'"
+  ],
+  "binaryx": [
+   "'binaryx'",
+   "'binaryx'"
+  ],
+  "binx": [
+   "'binx'",
+   "'binx'"
+  ],
+  "brand(1)": [
+   "'brandom(1)'",
+   "'brandom(1)'"
+  ],
+  "c2ln": [
+   "'c2log'",
+   "'c2log'"
+  ],
+  "ceil": [
+   "'ceil'",
+   "'ceil'"
+  ],
+  "ceil (x)": [
+   "'ceil (x)'",
+   "'ceil (x)'"
+  ],
+  "ceil(x)": [
+   "'ceil(x)'",
+   "'ceil(x)'"
+  ],
+  "ceil(x)+ceil(y)": [
+   "'ceil(x)+ceil(y)'",
+   "'ceil(x)+ceil(y)'"
+  ],
+  "ceil2(x)": [
+   "'ceil2(x)'",
+   "'ceil2(x)'"
+  ],
+  "ceilx": [
+   "'ceilx'",
+   "'ceilx'"
+  ],
+  "combinations": [
+   "'combinations'",
+   "'combinations'"
+  ],
+  "combinations (x)": [
+   "'combinations (x)'",
+   "'combinations (x)'"
+  ],
+  "combinations(x)": [
+   "'combinations(x)'",
+   "'combinations(x)'"
+  ],
+  "combinations(x)+combinations(y)": [
+   "'combinations(x)+combinations(y)'",
+   "'combinations(x)+combinations(y)'"
+  ],
+  "combinations2(x)": [
+   "'combinations2(x)'",
+   "'combinations2(x)'"
+  ],
+  "combinationsx": [
+   "'combinationsx'",
+   "'combinationsx'"
+  ],
+  "cos": [
+   "'cos'",
+   "'cos'"
+  ],
+  "cos (x)": [
+   "'cos (x)'",
+   "'cos (x)'"
+  ],
+  "cos(x)": [
+   "'cos(x)'",
+   "'cos(x)'"
+  ],
+  "cos(x)+cos(y)": [
+   "'cos(x)+cos(y)'",
+   "'cos(x)+cos(y)'"
+  ],
+  "cos2(x)": [
+   "'cos2(x)'",
+   "'cos2(x)'"
+  ],
+  "cosh": [
+   "'cosh'",
+   "'cosh'"
+  ],
+  "cosh (x)": [
+   "'cosh (x)'",
+   "'cosh (x)'"
+  ],
+  "cosh(x)": [
+   "'cosh(x)'",
+   "'cosh(x)'"
+  ],
+  "cosh(x)+cosh(y)": [
+   "'cosh(x)+cosh(y)'",
+   "'cosh(x)+cosh(y)'"
+  ],
+  "cosh2(x)": [
+   "'cosh2(x)'",
+   "'cosh2(x)'"
+  ],
+  "coshx": [
+   "'coshx'",
+   "'coshx'"
+  ],
+  "cosine": [
+   "'cosine'",
+   "'cosine'"
+  ],
+  "cosine (x)": [
+   "'cosine (x)'",
+   "'cosine (x)'"
+  ],
+  "cosine(x)": [
+   "'cos(x)'",
+   "'cos(x)'"
+  ],
+  "cosine(x)+cosine(y)": [
+   "'cos(x)+cos(y)'",
+   "'cos(x)+cos(y)'"
+  ],
+  "cosine2(x)": [
+   "'cosine2(x)'",
+   "'cosine2(x)'"
+  ],
+  "cosinex": [
+   "'cosinex'",
+   "'cosinex'"
+  ],
+  "cosx": [
+   "'cosx'",
+   "'cosx'"
+  ],
+  "cot": [
+   "'cot'",
+   "'cot'"
+  ],
+  "cot (x)": [
+   "'cot (x)'",
+   "'cot (x)'"
+  ],
+  "cot(x)": [
+   "'cot(x)'",
+   "'cot(x)'"
+  ],
+  "cot(x)+cot(y)": [
+   "'cot(x)+cot(y)'",
+   "'cot(x)+cot(y)'"
+  ],
+  "cot2(x)": [
+   "'cot2(x)'",
+   "'cot2(x)'"
+  ],
+  "cotx": [
+   "'cotx'",
+   "'cotx'"
+  ],
+  "csc": [
+   "'csc'",
+   "'csc'"
+  ],
+  "csc (x)": [
+   "'csc (x)'",
+   "'csc (x)'"
+  ],
+  "csc(x)": [
+   "'csc(x)'",
+   "'csc(x)'"
+  ],
+  "csc(x)+csc(y)": [
+   "'csc(x)+csc(y)'",
+   "'csc(x)+csc(y)'"
+  ],
+  "csc2(x)": [
+   "'csc2(x)'",
+   "'csc2(x)'"
+  ],
+  "cscx": [
+   "'cscx'",
+   "'cscx'"
+  ],
+  "derivate": [
+   "'derivate'",
+   "'derivate'"
+  ],
+  "derivate (x)": [
+   "'derivate (x)'",
+   "'derivate (x)'"
+  ],
+  "derivate(x)": [
+   "'derive(x)'",
+   "'derive(x)'"
+  ],
+  "derivate(x)+derivate(y)": [
+   "'derive(x)+derive(y)'",
+   "'derive(x)+derive(y)'"
+  ],
+  "derivate2(x)": [
+   "'derivate2(x)'",
+   "'derivate2(x)'"
+  ],
+  "derivatex": [
+   "'derivatex'",
+   "'derivatex'"
+  ],
+  "derivative": [
+   "'derivative'",
+   "'derivative'"
+  ],
+  "derivative (x)": [
+   "'derivative (x)'",
+   "'derivative (x)'"
+  ],
+  "derivative(x)": [
+   "'derive(x)'",
+   "'derive(x)'"
+  ],
+  "derivative(x)+derivative(y)": [
+   "'derive(x)+derive(y)'",
+   "'derive(x)+derive(y)'"
+  ],
+  "derivative2(x)": [
+   "'derivative2(x)'",
+   "'derivative2(x)'"
+  ],
+  "derivativex": [
+   "'derivativex'",
+   "'derivativex'"
+  ],
+  "derive": [
+   "'derive'",
+   "'derive'"
+  ],
+  "derive (x)": [
+   "'derive (x)'",
+   "'derive (x)'"
+  ],
+  "derive(x)": [
+   "'derive(x)'",
+   "'derive(x)'"
+  ],
+  "derive(x)+derive(y)": [
+   "'derive(x)+derive(y)'",
+   "'derive(x)+derive(y)'"
+  ],
+  "derive2(x)": [
+   "'derive2(x)'",
+   "'derive2(x)'"
+  ],
+  "derivex": [
+   "'derivex'",
+   "'derivex'"
+  ],
+  "det": [
+   "'det'",
+   "'det'"
+  ],
+  "det (x)": [
+   "'det (x)'",
+   "'det (x)'"
+  ],
+  "det(x)": [
+   "'det(x)'",
+   "'det(x)'"
+  ],
+  "det(x)+det(y)": [
+   "'det(x)+det(y)'",
+   "'det(x)+det(y)'"
+  ],
+  "det2(x)": [
+   "'det2(x)'",
+   "'det2(x)'"
+  ],
+  "determinant": [
+   "'determinant'",
+   "'determinant'"
+  ],
+  "determinant (x)": [
+   "'determinant (x)'",
+   "'determinant (x)'"
+  ],
+  "determinant(x)": [
+   "'det(x)'",
+   "'det(x)'"
+  ],
+  "determinant(x)+determinant(y)": [
+   "'det(x)+det(y)'",
+   "'det(x)+det(y)'"
+  ],
+  "determinant2(x)": [
+   "'determinant2(x)'",
+   "'determinant2(x)'"
+  ],
+  "determinantx": [
+   "'determinantx'",
+   "'determinantx'"
+  ],
+  "detx": [
+   "'detx'",
+   "'detx'"
+  ],
+  "divisors": [
+   "'divisors'",
+   "'divisors'"
+  ],
+  "divisors (x)": [
+   "'divisors (x)'",
+   "'divisors (x)'"
+  ],
+  "divisors(x)": [
+   "'divisors(x)'",
+   "'divisors(x)'"
+  ],
+  "divisors(x)+divisors(y)": [
+   "'divisors(x)+divisors(y)'",
+   "'divisors(x)+divisors(y)'"
+  ],
+  "divisors2(x)": [
+   "'divisors2(x)'",
+   "'divisors2(x)'"
+  ],
+  "divisorsx": [
+   "'divisorsx'",
+   "'divisorsx'"
+  ],
+  "e": [
+   "'e'",
+   "'e'"
+  ],
+  "e (x)": [
+   "'e (x)'",
+   "'e (x)'"
+  ],
+  "e(x)": [
+   "'e(x)'",
+   "'e(x)'"
+  ],
+  "e(x)+e(y)": [
+   "'e(x)+e(y)'",
+   "'e(x)+e(y)'"
+  ],
+  "e2(x)": [
+   "'e2(x)'",
+   "'e2(x)'"
+  ],
+  "ex": [
+   "'ex'",
+   "'ex'"
+  ],
+  "exp": [
+   "'exp'",
+   "'exp'"
+  ],
+  "exp (x)": [
+   "'exp (x)'",
+   "'exp (x)'"
+  ],
+  "exp(x)": [
+   "'exp(x)'",
+   "'exp(x)'"
+  ],
+  "exp(x)+exp(y)": [
+   "'exp(x)+exp(y)'",
+   "'exp(x)+exp(y)'"
+  ],
+  "exp2(x)": [
+   "'exp2(x)'",
+   "'exp2(x)'"
+  ],
+  "expand": [
+   "'expand'",
+   "'expand'"
+  ],
+  "expand (x)": [
+   "'expand (x)'",
+   "'expand (x)'"
+  ],
+  "expand(x)": [
+   "'expand(x)'",
+   "'expand(x)'"
+  ],
+  "expand(x)+expand(y)": [
+   "'expand(x)+expand(y)'",
+   "'expand(x)+expand(y)'"
+  ],
+  "expand2(x)": [
+   "'expand2(x)'",
+   "'expand2(x)'"
+  ],
+  "expandx": [
+   "'expandx'",
+   "'expandx'"
+  ],
+  "exponential": [
+   "'exponential'",
+   "'exponential'"
+  ],
+  "exponential (x)": [
+   "'exponential (x)'",
+   "'exponential (x)'"
+  ],
+  "exponential(x)": [
+   "'exp(x)'",
+   "'exp(x)'"
+  ],
+  "exponential(x)+exponential(y)": [
+   "'exp(x)+exp(y)'",
+   "'exp(x)+exp(y)'"
+  ],
+  "exponential2(x)": [
+   "'exponential2(x)'",
+   "'exponential2(x)'"
+  ],
+  "exponentialx": [
+   "'exponentialx'",
+   "'exponentialx'"
+  ],
+  "expx": [
+   "'expx'",
+   "'expx'"
+  ],
+  "fact": [
+   "'fact'",
+   "'fact'"
+  ],
+  "fact (x)": [
+   "'fact (x)'",
+   "'fact (x)'"
+  ],
+  "fact(x)": [
+   "'factorial(x)'",
+   "'factorial(x)'"
+  ],
+  "fact(x)+fact(y)": [
+   "'factorial(x)+factorial(y)'",
+   "'factorial(x)+factorial(y)'"
+  ],
+  "fact2(x)": [
+   "'fact2(x)'",
+   "'fact2(x)'"
+  ],
+  "factor": [
+   "'factor'",
+   "'factor'"
+  ],
+  "factor (x)": [
+   "'factor (x)'",
+   "'factor (x)'"
+  ],
+  "factor(x)": [
+   "'factor(x)'",
+   "'factor(x)'"
+  ],
+  "factor(x)+factor(y)": [
+   "'factor(x)+factor(y)'",
+   "'factor(x)+factor(y)'"
+  ],
+  "factor2(x)": [
+   "'factor2(x)'",
+   "'factor2(x)'"
+  ],
+  "factorial": [
+   "'factorial'",
+   "'factorial'"
+  ],
+  "factorial (x)": [
+   "'factorial (x)'",
+   "'factorial (x)'"
+  ],
+  "factorial(x)": [
+   "'factorial(x)'",
+   "'factorial(x)'"
+  ],
+  "factorial(x)+factorial(y)": [
+   "'factorial(x)+factorial(y)'",
+   "'factorial(x)+factorial(y)'"
+  ],
+  "factorial2(x)": [
+   "'factorial2(x)'",
+   "'factorial2(x)'"
+  ],
+  "factorialx": [
+   "'factorialx'",
+   "'factorialx'"
+  ],
+  "factorx": [
+   "'factorx'",
+   "'factorx'"
+  ],
+  "factx": [
+   "'factx'",
+   "'factx'"
+  ],
+  "floor": [
+   "'floor'",
+   "'floor'"
+  ],
+  "floor (x)": [
+   "'floor (x)'",
+   "'floor (x)'"
+  ],
+  "floor(x)": [
+   "'floor(x)'",
+   "'floor(x)'"
+  ],
+  "floor(x)+floor(y)": [
+   "'floor(x)+floor(y)'",
+   "'floor(x)+floor(y)'"
+  ],
+  "floor2(x)": [
+   "'floor2(x)'",
+   "'floor2(x)'"
+  ],
+  "floorx": [
+   "'floorx'",
+   "'floorx'"
+  ],
+  "gcd": [
+   "'gcd'",
+   "'gcd'"
+  ],
+  "gcd (x)": [
+   "'gcd (x)'",
+   "'gcd (x)'"
+  ],
+  "gcd(x)": [
+   "'gcd(x)'",
+   "'gcd(x)'"
+  ],
+  "gcd(x)+gcd(y)": [
+   "'gcd(x)+gcd(y)'",
+   "'gcd(x)+gcd(y)'"
+  ],
+  "gcd2(x)": [
+   "'gcd2(x)'",
+   "'gcd2(x)'"
+  ],
+  "gcdx": [
+   "'gcdx'",
+   "'gcdx'"
+  ],
+  "geometric_sum": [
+   "'geometric_sum'",
+   "'geometric_sum'"
+  ],
+  "geometric_sum (x)": [
+   "'geometric_sum (x)'",
+   "'geometric_sum (x)'"
+  ],
+  "geometric_sum(x)": [
+   "'geometric_sum(x)'",
+   "'geometric_sum(x)'"
+  ],
+  "geometric_sum(x)+geometric_sum(y)": [
+   "'geometric_sum(x)+geometric_sum(y)'",
+   "'geometric_sum(x)+geometric_sum(y)'"
+  ],
+  "geometric_sum2(x)": [
+   "'geometric_sum2(x)'",
+   "'geometric_sum2(x)'"
+  ],
+  "geometric_sum_infinite": [
+   "'geometric_sum_infinite'",
+   "'geometric_sum_infinite'"
+  ],
+  "geometric_sum_infinite (x)": [
+   "'geometric_sum_infinite (x)'",
+   "'geometric_sum_infinite (x)'"
+  ],
+  "geometric_sum_infinite(x)": [
+   "'geometric_sum_infinite(x)'",
+   "'geometric_sum_infinite(x)'"
+  ],
+  "geometric_sum_infinite(x)+geometric_sum_infinite(y)": [
+   "'geometric_sum_infinite(x)+geometric_sum_infinite(y)'",
+   "'geometric_sum_infinite(x)+geometric_sum_infinite(y)'"
+  ],
+  "geometric_sum_infinite2(x)": [
+   "'geometric_sum_infinite2(x)'",
+   "'geometric_sum_infinite2(x)'"
+  ],
+  "geometric_sum_infinitex": [
+   "'geometric_sum_infinitex'",
+   "'geometric_sum_infinitex'"
+  ],
+  "geometric_sumx": [
+   "'geometric_sumx'",
+   "'geometric_sumx'"
+  ],
+  "hyperbolic cosine": [
+   "'hyperbolic cosine'",
+   "'hyperbolic cosine'"
+  ],
+  "hyperbolic cosine (x)": [
+   "'hyperbolic cosine (x)'",
+   "'hyperbolic cosine (x)'"
+  ],
+  "hyperbolic cosine(x)": [
+   "'cosh(x)'",
+   "'cosh(x)'"
+  ],
+  "hyperbolic cosine(x)+hyperbolic cosine(y)": [
+   "'cosh(x)+cosh(y)'",
+   "'cosh(x)+cosh(y)'"
+  ],
+  "hyperbolic cosine2(x)": [
+   "'hyperbolic cosine2(x)'",
+   "'hyperbolic cosine2(x)'"
+  ],
+  "hyperbolic cosinex": [
+   "'hyperbolic cosinex'",
+   "'hyperbolic cosinex'"
+  ],
+  "hyperbolic sine": [
+   "'hyperbolic sine'",
+   "'hyperbolic sine'"
+  ],
+  "hyperbolic sine (x)": [
+   "'hyperbolic sine (x)'",
+   "'hyperbolic sine (x)'"
+  ],
+  "hyperbolic sine(x)": [
+   "'sinh(x)'",
+   "'sinh(x)'"
+  ],
+  "hyperbolic sine(x)+hyperbolic sine(y)": [
+   "'sinh(x)+sinh(y)'",
+   "'sinh(x)+sinh(y)'"
+  ],
+  "hyperbolic sine2(x)": [
+   "'hyperbolic sine2(x)'",
+   "'hyperbolic sine2(x)'"
+  ],
+  "hyperbolic sinex": [
+   "'hyperbolic sinex'",
+   "'hyperbolic sinex'"
+  ],
+  "hyperbolic tangent": [
+   "'hyperbolic tangent'",
+   "'hyperbolic tangent'"
+  ],
+  "hyperbolic tangent (x)": [
+   "'hyperbolic tangent (x)'",
+   "'hyperbolic tangent (x)'"
+  ],
+  "hyperbolic tangent(x)": [
+   "'tanh(x)'",
+   "'tanh(x)'"
+  ],
+  "hyperbolic tangent(x)+hyperbolic tangent(y)": [
+   "'tanh(x)+tanh(y)'",
+   "'tanh(x)+tanh(y)'"
+  ],
+  "hyperbolic tangent2(x)": [
+   "'hyperbolic tangent2(x)'",
+   "'hyperbolic tangent2(x)'"
+  ],
+  "hyperbolic tangentx": [
+   "'hyperbolic tangentx'",
+   "'hyperbolic tangentx'"
+  ],
+  "integral": [
+   "'integral'",
+   "'integral'"
+  ],
+  "integral (x)": [
+   "'integral (x)'",
+   "'integral (x)'"
+  ],
+  "integral(x)": [
+   "'integrate(x)'",
+   "'integrate(x)'"
+  ],
+  "integral(x)+integral(y)": [
+   "'integrate(x)+integrate(y)'",
+   "'integrate(x)+integrate(y)'"
+  ],
+  "integral2(x)": [
+   "'integral2(x)'",
+   "'integral2(x)'"
+  ],
+  "integralx": [
+   "'integralx'",
+   "'integralx'"
+  ],
+  "integrate": [
+   "'integrate'",
+   "'integrate'"
+  ],
+  "integrate (x)": [
+   "'integrate (x)'",
+   "'integrate (x)'"
+  ],
+  "integrate(x)": [
+   "'integrate(x)'",
+   "'integrate(x)'"
+  ],
+  "integrate(x)+integrate(y)": [
+   "'integrate(x)+integrate(y)'",
+   "'integrate(x)+integrate(y)'"
+  ],
+  "integrate2(x)": [
+   "'integrate2(x)'",
+   "'integrate2(x)'"
+  ],
+  "integratex": [
+   "'integratex'",
+   "'integratex'"
+  ],
+  "is_prime": [
+   "'is_prime'",
+   "'is_prime'"
+  ],
+  "is_prime (x)": [
+   "'is_prime (x)'",
+   "'is_prime (x)'"
+  ],
+  "is_prime(x)": [
+   "'is_prime(x)'",
+   "'is_prime(x)'"
+  ],
+  "is_prime(x)+is_prime(y)": [
+   "'is_prime(x)+is_prime(y)'",
+   "'is_prime(x)+is_prime(y)'"
+  ],
+  "is_prime2(x)": [
+   "'is_prime2(x)'",
+   "'is_prime2(x)'"
+  ],
+  "is_primex": [
+   "'is_primex'",
+   "'is_primex'"
+  ],
+  "kabs(x)": [
+   "'kabs(x)'",
+   "'kabs(x)'"
+  ],
+  "kabsolute(x)": [
+   "'kabs(x)'",
+   "'kabs(x)'"
+  ],
+  "kacos(x)": [
+   "'kacos(x)'",
+   "'kacos(x)'"
+  ],
+  "kacosh(x)": [
+   "'kacosh(x)'",
+   "'kacosh(x)'"
+  ],
+  "kacot(x)": [
+   "'kacot(x)'",
+   "'kacot(x)'"
+  ],
+  "kacsc(x)": [
+   "'kacsc(x)'",
+   "'kacsc(x)'"
+  ],
+  "karccosine(x)": [
+   "'kacos(x)'",
+   "'kacos(x)'"
+  ],
+  "karcsine(x)": [
+   "'kasin(x)'",
+   "'kasin(x)'"
+  ],
+  "karctangent(x)": [
+   "'katan(x)'",
+   "'katan(x)'"
+  ],
+  "karithmetic_sum(x)": [
+   "'karithmetic_sum(x)'",
+   "'karithmetic_sum(x)'"
+  ],
+  "karrangements(x)": [
+   "'karrangements(x)'",
+   "'karrangements(x)'"
+  ],
+  "kasec(x)": [
+   "'kasec(x)'",
+   "'kasec(x)'"
+  ],
+  "kasin(x)": [
+   "'kasin(x)'",
+   "'kasin(x)'"
+  ],
+  "kasinh(x)": [
+   "'kasinh(x)'",
+   "'kasinh(x)'"
+  ],
+  "katan(x)": [
+   "'katan(x)'",
+   "'katan(x)'"
+  ],
+  "katanh(x)": [
+   "'katanh(x)'",
+   "'katanh(x)'"
+  ],
+  "kbin(x)": [
+   "'kbin(x)'",
+   "'kbin(x)'"
+  ],
+  "kbinary(x)": [
+   "'kbin(x)'",
+   "'kbin(x)'"
+  ],
+  "kceil(x)": [
+   "'kceil(x)'",
+   "'kceil(x)'"
+  ],
+  "kcombinations(x)": [
+   "'kcombinations(x)'",
+   "'kcombinations(x)'"
+  ],
+  "kcos(x)": [
+   "'kcos(x)'",
+   "'kcos(x)'"
+  ],
+  "kcosh(x)": [
+   "'kcosh(x)'",
+   "'kcosh(x)'"
+  ],
+  "kcosine(x)": [
+   "'kcos(x)'",
+   "'kcos(x)'"
+  ],
+  "kcot(x)": [
+   "'kcot(x)'",
+   "'kcot(x)'"
+  ],
+  "kcsc(x)": [
+   "'kcsc(x)'",
+   "'kcsc(x)'"
+  ],
+  "kderivate(x)": [
+   "'kderive(x)'",
+   "'kderive(x)'"
+  ],
+  "kderivative(x)": [
+   "'kderive(x)'",
+   "'kderive(x)'"
+  ],
+  "kderive(x)": [
+   "'kderive(x)'",
+   "'kderive(x)'"
+  ],
+  "kdet(x)": [
+   "'kdet(x)'",
+   "'kdet(x)'"
+  ],
+  "kdeterminant(x)": [
+   "'kdet(x)'",
+   "'kdet(x)'"
+  ],
+  "kdivisors(x)": [
+   "'kdivisors(x)'",
+   "'kdivisors(x)'"
+  ],
+  "ke(x)": [
+   "'ke(x)'",
+   "'ke(x)'"
+  ],
+  "kexp(x)": [
+   "'kexp(x)'",
+   "'kexp(x)'"
+  ],
+  "kexpand(x)": [
+   "'kexpand(x)'",
+   "'kexpand(x)'"
+  ],
+  "kexponential(x)": [
+   "'kexp(x)'",
+   "'kexp(x)'"
+  ],
+  "kfact(x)": [
+   "'kfactorial(x)'",
+   "'kfactorial(x)'"
+  ],
+  "kfactor(x)": [
+   "'kfactor(x)'",
+   "'kfactor(x)'"
+  ],
+  "kfactorial(x)": [
+   "'kfactorial(x)'",
+   "'kfactorial(x)'"
+  ],
+  "kfloor(x)": [
+   "'kfloor(x)'",
+   "'kfloor(x)'"
+  ],
+  "kgcd(x)": [
+   "'kgcd(x)'",
+   "'kgcd(x)'"
+  ],
+  "kgeometric_sum(x)": [
+   "'kgeometric_sum(x)'",
+   "'kgeometric_sum(x)'"
+  ],
+  "kgeometric_sum_infinite(x)": [
+   "'kgeometric_sum_infinite(x)'",
+   "'kgeometric_sum_infinite(x)'"
+  ],
+  "khyperbolic cosine(x)": [
+   "'kcosh(x)'",
+   "'kcosh(x)'"
+  ],
+  "khyperbolic sine(x)": [
+   "'ksinh(x)'",
+   "'ksinh(x)'"
+  ],
+  "khyperbolic tangent(x)": [
+   "'ktanh(x)'",
+   "'ktanh(x)'"
+  ],
+  "kiln*2": [
+   "'kilog*2'",
+   "'kilog*2'"
+  ],
+  "kintegral(x)": [
+   "'kintegrate(x)'",
+   "'kintegrate(x)'"
+  ],
+  "kintegrate(x)": [
+   "'kintegrate(x)'",
+   "'kintegrate(x)'"
+  ],
+  "kis_prime(x)": [
+   "'kis_prime(x)'",
+   "'kis_prime(x)'"
+  ],
+  "klcm(x)": [
+   "'klcm(x)'",
+   "'klcm(x)'"
+  ],
+  "klim(x)": [
+   "'klimit(x)'",
+   "'klimit(x)'"
+  ],
+  "klimit(x)": [
+   "'klimit(x)'",
+   "'klimit(x)'"
+  ],
+  "kln(x)": [
+   "'klog(x)'",
+   "'klog(x)'"
+  ],
+  "klog(x)": [
+   "'klog(x)'",
+   "'klog(x)'"
+  ],
+  "klog10(x)": [
+   "'klog10(x)'",
+   "'klog10(x)'"
+  ],
+  "klog2(x)": [
+   "'klog2(x)'",
+   "'klog2(x)'"
+  ],
+  "klogarithm(x)": [
+   "'klog(x)'",
+   "'klog(x)'"
+  ],
+  "klogarithm10(x)": [
+   "'klog10(x)'",
+   "'klog10(x)'"
+  ],
+  "klogarithm2(x)": [
+   "'klog2(x)'",
+   "'klog2(x)'"
+  ],
+  "kmax(x)": [
+   "'kmax(x)'",
+   "'kmax(x)'"
+  ],
+  "kmean(x)": [
+   "'kmean(x)'",
+   "'kmean(x)'"
+  ],
+  "kmedian(x)": [
+   "'kmedian(x)'",
+   "'kmedian(x)'"
+  ],
+  "kmin(x)": [
+   "'kmin(x)'",
+   "'kmin(x)'"
+  ],
+  "kmod_inverse(x)": [
+   "'kmod_inverse(x)'",
+   "'kmod_inverse(x)'"
+  ],
+  "kmod_pow(x)": [
+   "'kmod_pow(x)'",
+   "'kmod_pow(x)'"
+  ],
+  "kmode(x)": [
+   "'kmode(x)'",
+   "'kmode(x)'"
+  ],
+  "knext_prime(x)": [
+   "'knext_prime(x)'",
+   "'knext_prime(x)'"
+  ],
+  "kp_series_test(x)": [
+   "'kp_series_test(x)'",
+   "'kp_series_test(x)'"
+  ],
+  "kpermutations(x)": [
+   "'kpermutations(x)'",
+   "'kpermutations(x)'"
+  ],
+  "kpi(x)": [
+   "'kpi(x)'",
+   "'kpi(x)'"
+  ],
+  "kpow(x)": [
+   "'kpow(x)'",
+   "'kpow(x)'"
+  ],
+  "kpower(x)": [
+   "'kpow(x)'",
+   "'kpow(x)'"
+  ],
+  "kprev_prime(x)": [
+   "'kprev_prime(x)'",
+   "'kprev_prime(x)'"
+  ],
+  "kprime_factors(x)": [
+   "'kprime_factors(x)'",
+   "'kprime_factors(x)'"
+  ],
+  "kproduct(x)": [
+   "'kproduct(x)'",
+   "'kproduct(x)'"
+  ],
+  "krand(x)": [
+   "'krandom(x)'",
+   "'krandom(x)'"
+  ],
+  "krandint(x)": [
+   "'krandint(x)'",
+   "'krandint(x)'"
+  ],
+  "krandom(x)": [
+   "'krandom(x)'",
+   "'krandom(x)'"
+  ],
+  "kratio_test(x)": [
+   "'kratio_test(x)'",
+   "'kratio_test(x)'"
+  ],
+  "kroot_test(x)": [
+   "'kroot_test(x)'",
+   "'kroot_test(x)'"
+  ],
+  "kround(x)": [
+   "'kround(x)'",
+   "'kround(x)'"
+  ],
+  "ksec(x)": [
+   "'ksec(x)'",
+   "'ksec(x)'"
+  ],
+  "ksimplify(x)": [
+   "'ksimplify(x)'",
+   "'ksimplify(x)'"
+  ],
+  "ksin(x)": [
+   "'ksin(x)'",
+   "'ksin(x)'"
+  ],
+  "ksine(x)": [
+   "'ksin(x)'",
+   "'ksin(x)'"
+  ],
+  "ksinh(x)": [
+   "'ksinh(x)'",
+   "'ksinh(x)'"
+  ],
+  "ksolve(x)": [
+   "'ksolve(x)'",
+   "'ksolve(x)'"
+  ],
+  "ksqrt(x)": [
+   "'ksqrt(x)'",
+   "'ksqrt(x)'"
+  ],
+  "ksquare root(x)": [
+   "'ksqrt(x)'",
+   "'ksqrt(x)'"
+  ],
+  "kstd(x)": [
+   "'kstdev(x)'",
+   "'kstdev(x)'"
+  ],
+  "kstdev(x)": [
+   "'kstdev(x)'",
+   "'kstdev(x)'"
+  ],
+  "ksum(x)": [
+   "'ksum(x)'",
+   "'ksum(x)'"
+  ],
+  "ksummation(x)": [
+   "'ksummation(x)'",
+   "'ksummation(x)'"
+  ],
+  "ktan(x)": [
+   "'ktan(x)'",
+   "'ktan(x)'"
+  ],
+  "ktangent(x)": [
+   "'ktan(x)'",
+   "'ktan(x)'"
+  ],
+  "ktanh(x)": [
+   "'ktanh(x)'",
+   "'ktanh(x)'"
+  ],
+  "ktotient(x)": [
+   "'ktotient(x)'",
+   "'ktotient(x)'"
+  ],
+  "ktrunc(x)": [
+   "'ktrunc(x)'",
+   "'ktrunc(x)'"
+  ],
+  "kvar(x)": [
+   "'kvariance(x)'",
+   "'kvariance(x)'"
+  ],
+  "kvariance(x)": [
+   "'kvariance(x)'",
+   "'kvariance(x)'"
+  ],
+  "lcm": [
+   "'lcm'",
+   "'lcm'"
+  ],
+  "lcm (x)": [
+   "'lcm (x)'",
+   "'lcm (x)'"
+  ],
+  "lcm(x)": [
+   "'lcm(x)'",
+   "'lcm(x)'"
+  ],
+  "lcm(x)+lcm(y)": [
+   "'lcm(x)+lcm(y)'",
+   "'lcm(x)+lcm(y)'"
+  ],
+  "lcm2(x)": [
+   "'lcm2(x)'",
+   "'lcm2(x)'"
+  ],
+  "lcmx": [
+   "'lcmx'",
+   "'lcmx'"
+  ],
+  "lim": [
+   "'lim'",
+   "'lim'"
+  ],
+  "lim (x)": [
+   "'lim (x)'",
+   "'lim (x)'"
+  ],
+  "lim(x)": [
+   "'limit(x)'",
+   "'limit(x)'"
+  ],
+  "lim(x)+lim(y)": [
+   "'limit(x)+limit(y)'",
+   "'limit(x)+limit(y)'"
+  ],
+  "lim2(x)": [
+   "'lim2(x)'",
+   "'lim2(x)'"
+  ],
+  "limit": [
+   "'limit'",
+   "'limit'"
+  ],
+  "limit (x)": [
+   "'limit (x)'",
+   "'limit (x)'"
+  ],
+  "limit(x)": [
+   "'limit(x)'",
+   "'limit(x)'"
+  ],
+  "limit(x)+limit(y)": [
+   "'limit(x)+limit(y)'",
+   "'limit(x)+limit(y)'"
+  ],
+  "limit2(x)": [
+   "'limit2(x)'",
+   "'limit2(x)'"
+  ],
+  "limitx": [
+   "'limitx'",
+   "'limitx'"
+  ],
+  "limx": [
+   "'limx'",
+   "'limx'"
+  ],
+  "ln": [
+   "'log'",
+   "'log'"
+  ],
+  "ln (x)": [
+   "'log (x)'",
+   "'log (x)'"
+  ],
+  "ln(ln(x))": [
+   "'log(log(x))'",
+   "'log(log(x))'"
+  ],
+  "ln(x)": [
+   "'log(x)'",
+   "'log(x)'"
+  ],
+  "ln(x)+ln(y)": [
+   "'log(x)+log(y)'",
+   "'log(x)+log(y)'"
+  ],
+  "ln2": [
+   "'log2'",
+   "'log2'"
+  ],
+  "ln2(x)": [
+   "'log2(x)'",
+   "'log2(x)'"
+  ],
+  "lnx": [
+   "'logx'",
+   "'logx'"
+  ],
+  "log": [
+   "'log'",
+   "'log'"
+  ],
+  "log (x)": [
+   "'log (x)'",
+   "'log (x)'"
+  ],
+  "log(ln(x))": [
+   "'log(log(x))'",
+   "'log(log(x))'"
+  ],
+  "log(x)": [
+   "'log(x)'",
+   "'log(x)'"
+  ],
+  "log(x)+log(y)": [
+   "'log(x)+log(y)'",
+   "'log(x)+log(y)'"
+  ],
+  "log10": [
+   "'log10'",
+   "'log10'"
+  ],
+  "log10 (x)": [
+   "'log10 (x)'",
+   "'log10 (x)'"
+  ],
+  "log10(x)": [
+   "'log10(x)'",
+   "'log10(x)'"
+  ],
+  "log10(x)+log10(y)": [
+   "'log10(x)+log10(y)'",
+   "'log10(x)+log10(y)'"
+  ],
+  "log102(x)": [
+   "'log102(x)'",
+   "'log102(x)'"
+  ],
+  "log10x": [
+   "'log10x'",
+   "'log10x'"
+  ],
+  "log2": [
+   "'log2'",
+   "'log2'"
+  ],
+  "log2 (x)": [
+   "'log2 (x)'",
+   "'log2 (x)'"
+  ],
+  "log2(x)": [
+   "'log2(x)'",
+   "'log2(x)'"
+  ],
+  "log2(x)+log2(y)": [
+   "'log2(x)+log2(y)'",
+   "'log2(x)+log2(y)'"
+  ],
+  "log22(x)": [
+   "'log22(x)'",
+   "'log22(x)'"
+  ],
+  "log2x": [
+   "'log2x'",
+   "'log2x'"
+  ],
+  "logarithm": [
+   "'logarithm'",
+   "'logarithm'"
+  ],
+  "logarithm (x)": [
+   "'logarithm (x)'",
+   "'logarithm (x)'"
+  ],
+  "logarithm(x)": [
+   "'log(x)'",
+   "'log(x)'"
+  ],
+  "logarithm(x)+logarithm(y)": [
+   "'log(x)+log(y)'",
+   "'log(x)+log(y)'"
+  ],
+  "logarithm10": [
+   "'logarithm10'",
+   "'logarithm10'"
+  ],
+  "logarithm10 (x)": [
+   "'logarithm10 (x)'",
+   "'logarithm10 (x)'"
+  ],
+  "logarithm10(x)": [
+   "'log10(x)'",
+   "'log10(x)'"
+  ],
+  "logarithm10(x)+logarithm10(y)": [
+   "'log10(x)+log10(y)'",
+   "'log10(x)+log10(y)'"
+  ],
+  "logarithm102(x)": [
+   "'logarithm102(x)'",
+   "'logarithm102(x)'"
+  ],
+  "logarithm10x": [
+   "'logarithm10x'",
+   "'logarithm10x'"
+  ],
+  "logarithm2": [
+   "'logarithm2'",
+   "'logarithm2'"
+  ],
+  "logarithm2 (x)": [
+   "'logarithm2 (x)'",
+   "'logarithm2 (x)'"
+  ],
+  "logarithm2(x)": [
+   "'log2(x)'",
+   "'log2(x)'"
+  ],
+  "logarithm2(x)+logarithm2(y)": [
+   "'log2(x)+log2(y)'",
+   "'log2(x)+log2(y)'"
+  ],
+  "logarithm22(x)": [
+   "'logarithm22(x)'",
+   "'logarithm22(x)'"
+  ],
+  "logarithm2x": [
+   "'logarithm2x'",
+   "'logarithm2x'"
+  ],
+  "logarithmx": [
+   "'logarithmx'",
+   "'logarithmx'"
+  ],
+  "logx": [
+   "'logx'",
+   "'logx'"
+  ],
+  "max": [
+   "'max'",
+   "'max'"
+  ],
+  "max (x)": [
+   "'max (x)'",
+   "'max (x)'"
+  ],
+  "max(x)": [
+   "'max(x)'",
+   "'max(x)'"
+  ],
+  "max(x)+max(y)": [
+   "'max(x)+max(y)'",
+   "'max(x)+max(y)'"
+  ],
+  "max2(x)": [
+   "'max2(x)'",
+   "'max2(x)'"
+  ],
+  "maxx": [
+   "'maxx'",
+   "'maxx'"
+  ],
+  "mean": [
+   "'mean'",
+   "'mean'"
+  ],
+  "mean (x)": [
+   "'mean (x)'",
+   "'mean (x)'"
+  ],
+  "mean(x)": [
+   "'mean(x)'",
+   "'mean(x)'"
+  ],
+  "mean(x)+mean(y)": [
+   "'mean(x)+mean(y)'",
+   "'mean(x)+mean(y)'"
+  ],
+  "mean2(x)": [
+   "'mean2(x)'",
+   "'mean2(x)'"
+  ],
+  "meanx": [
+   "'meanx'",
+   "'meanx'"
+  ],
+  "median": [
+   "'median'",
+   "'median'"
+  ],
+  "median (x)": [
+   "'median (x)'",
+   "'median (x)'"
+  ],
+  "median(x)": [
+   "'median(x)'",
+   "'median(x)'"
+  ],
+  "median(x)+median(y)": [
+   "'median(x)+median(y)'",
+   "'median(x)+median(y)'"
+  ],
+  "median2(x)": [
+   "'median2(x)'",
+   "'median2(x)'"
+  ],
+  "medianx": [
+   "'medianx'",
+   "'medianx'"
+  ],
+  "min": [
+   "'min'",
+   "'min'"
+  ],
+  "min (x)": [
+   "'min (x)'",
+   "'min (x)'"
+  ],
+  "min(x)": [
+   "'min(x)'",
+   "'min(x)'"
+  ],
+  "min(x)+min(y)": [
+   "'min(x)+min(y)'",
+   "'min(x)+min(y)'"
+  ],
+  "min2(x)": [
+   "'min2(x)'",
+   "'min2(x)'"
+  ],
+  "minx": [
+   "'minx'",
+   "'minx'"
+  ],
+  "mod_inverse": [
+   "'mod_inverse'",
+   "'mod_inverse'"
+  ],
+  "mod_inverse (x)": [
+   "'mod_inverse (x)'",
+   "'mod_inverse (x)'"
+  ],
+  "mod_inverse(x)": [
+   "'mod_inverse(x)'",
+   "'mod_inverse(x)'"
+  ],
+  "mod_inverse(x)+mod_inverse(y)": [
+   "'mod_inverse(x)+mod_inverse(y)'",
+   "'mod_inverse(x)+mod_inverse(y)'"
+  ],
+  "mod_inverse2(x)": [
+   "'mod_inverse2(x)'",
+   "'mod_inverse2(x)'"
+  ],
+  "mod_inversex": [
+   "'mod_inversex'",
+   "'mod_inversex'"
+  ],
+  "mod_pow": [
+   "'mod_pow'",
+   "'mod_pow'"
+  ],
+  "mod_pow (x)": [
+   "'mod_pow (x)'",
+   "'mod_pow (x)'"
+  ],
+  "mod_pow(x)": [
+   "'mod_pow(x)'",
+   "'mod_pow(x)'"
+  ],
+  "mod_pow(x)+mod_pow(y)": [
+   "'mod_pow(x)+mod_pow(y)'",
+   "'mod_pow(x)+mod_pow(y)'"
+  ],
+  "mod_pow2(x)": [
+   "'mod_pow2(x)'",
+   "'mod_pow2(x)'"
+  ],
+  "mod_powx": [
+   "'mod_powx'",
+   "'mod_powx'"
+  ],
+  "mode": [
+   "'mode'",
+   "'mode'"
+  ],
+  "mode (x)": [
+   "'mode (x)'",
+   "'mode (x)'"
+  ],
+  "mode(x)": [
+   "'mode(x)'",
+   "'mode(x)'"
+  ],
+  "mode(x)+mode(y)": [
+   "'mode(x)+mode(y)'",
+   "'mode(x)+mode(y)'"
+  ],
+  "mode2(x)": [
+   "'mode2(x)'",
+   "'mode2(x)'"
+  ],
+  "modex": [
+   "'modex'",
+   "'modex'"
+  ],
+  "myvar(2)": [
+   "'myvariance(2)'",
+   "'myvariance(2)'"
+  ],
+  "nderivative(x)": [
+   "'nderive(x)'",
+   "'nderive(x)'"
+  ],
+  "next_prime": [
+   "'next_prime'",
+   "'next_prime'"
+  ],
+  "next_prime (x)": [
+   "'next_prime (x)'",
+   "'next_prime (x)'"
+  ],
+  "next_prime(x)": [
+   "'next_prime(x)'",
+   "'next_prime(x)'"
+  ],
+  "next_prime(x)+next_prime(y)": [
+   "'next_prime(x)+next_prime(y)'",
+   "'next_prime(x)+next_prime(y)'"
+  ],
+  "next_prime2(x)": [
+   "'next_prime2(x)'",
+   "'next_prime2(x)'"
+  ],
+  "next_primex": [
+   "'next_primex'",
+   "'next_primex'"
+  ],
+  "p_series_test": [
+   "'p_series_test'",
+   "'p_series_test'"
+  ],
+  "p_series_test (x)": [
+   "'p_series_test (x)'",
+   "'p_series_test (x)'"
+  ],
+  "p_series_test(x)": [
+   "'p_series_test(x)'",
+   "'p_series_test(x)'"
+  ],
+  "p_series_test(x)+p_series_test(y)": [
+   "'p_series_test(x)+p_series_test(y)'",
+   "'p_series_test(x)+p_series_test(y)'"
+  ],
+  "p_series_test2(x)": [
+   "'p_series_test2(x)'",
+   "'p_series_test2(x)'"
+  ],
+  "p_series_testx": [
+   "'p_series_testx'",
+   "'p_series_testx'"
+  ],
+  "permutations": [
+   "'permutations'",
+   "'permutations'"
+  ],
+  "permutations (x)": [
+   "'permutations (x)'",
+   "'permutations (x)'"
+  ],
+  "permutations(x)": [
+   "'permutations(x)'",
+   "'permutations(x)'"
+  ],
+  "permutations(x)+permutations(y)": [
+   "'permutations(x)+permutations(y)'",
+   "'permutations(x)+permutations(y)'"
+  ],
+  "permutations2(x)": [
+   "'permutations2(x)'",
+   "'permutations2(x)'"
+  ],
+  "permutationsx": [
+   "'permutationsx'",
+   "'permutationsx'"
+  ],
+  "pi": [
+   "'pi'",
+   "'pi'"
+  ],
+  "pi (x)": [
+   "'pi (x)'",
+   "'pi (x)'"
+  ],
+  "pi(x)": [
+   "'pi(x)'",
+   "'pi(x)'"
+  ],
+  "pi(x)+pi(y)": [
+   "'pi(x)+pi(y)'",
+   "'pi(x)+pi(y)'"
+  ],
+  "pi2(x)": [
+   "'pi2(x)'",
+   "'pi2(x)'"
+  ],
+  "pix": [
+   "'pix'",
+   "'pix'"
+  ],
+  "pow": [
+   "'pow'",
+   "'pow'"
+  ],
+  "pow (x)": [
+   "'pow (x)'",
+   "'pow (x)'"
+  ],
+  "pow(x)": [
+   "'pow(x)'",
+   "'pow(x)'"
+  ],
+  "pow(x)+pow(y)": [
+   "'pow(x)+pow(y)'",
+   "'pow(x)+pow(y)'"
+  ],
+  "pow2(x)": [
+   "'pow2(x)'",
+   "'pow2(x)'"
+  ],
+  "power": [
+   "'power'",
+   "'power'"
+  ],
+  "power (x)": [
+   "'power (x)'",
+   "'power (x)'"
+  ],
+  "power(x)": [
+   "'pow(x)'",
+   "'pow(x)'"
+  ],
+  "power(x)+power(y)": [
+   "'pow(x)+pow(y)'",
+   "'pow(x)+pow(y)'"
+  ],
+  "power2(x)": [
+   "'power2(x)'",
+   "'power2(x)'"
+  ],
+  "powerx": [
+   "'powerx'",
+   "'powerx'"
+  ],
+  "powx": [
+   "'powx'",
+   "'powx'"
+  ],
+  "prev_prime": [
+   "'prev_prime'",
+   "'prev_prime'"
+  ],
+  "prev_prime (x)": [
+   "'prev_prime (x)'",
+   "'prev_prime (x)'"
+  ],
+  "prev_prime(x)": [
+   "'prev_prime(x)'",
+   "'prev_prime(x)'"
+  ],
+  "prev_prime(x)+prev_prime(y)": [
+   "'prev_prime(x)+prev_prime(y)'",
+   "'prev_prime(x)+prev_prime(y)'"
+  ],
+  "prev_prime2(x)": [
+   "'prev_prime2(x)'",
+   "'prev_prime2(x)'"
+  ],
+  "prev_primex": [
+   "'prev_primex'",
+   "'prev_primex'"
+  ],
+  "prime_factors": [
+   "'prime_factors'",
+   "'prime_factors'"
+  ],
+  "prime_factors (x)": [
+   "'prime_factors (x)'",
+   "'prime_factors (x)'"
+  ],
+  "prime_factors(x)": [
+   "'prime_factors(x)'",
+   "'prime_factors(x)'"
+  ],
+  "prime_factors(x)+prime_factors(y)": [
+   "'prime_factors(x)+prime_factors(y)'",
+   "'prime_factors(x)+prime_factors(y)'"
+  ],
+  "prime_factors2(x)": [
+   "'prime_factors2(x)'",
+   "'prime_factors2(x)'"
+  ],
+  "prime_factorsx": [
+   "'prime_factorsx'",
+   "'prime_factorsx'"
+  ],
+  "product": [
+   "'product'",
+   "'product'"
+  ],
+  "product (x)": [
+   "'product (x)'",
+   "'product (x)'"
+  ],
+  "product(x)": [
+   "'product(x)'",
+   "'product(x)'"
+  ],
+  "product(x)+product(y)": [
+   "'product(x)+product(y)'",
+   "'product(x)+product(y)'"
+  ],
+  "product2(x)": [
+   "'product2(x)'",
+   "'product2(x)'"
+  ],
+  "productx": [
+   "'productx'",
+   "'productx'"
+  ],
+  "rand": [
+   "'rand'",
+   "'rand'"
+  ],
+  "rand (x)": [
+   "'rand (x)'",
+   "'rand (x)'"
+  ],
+  "rand(x)": [
+   "'random(x)'",
+   "'random(x)'"
+  ],
+  "rand(x)+rand(y)": [
+   "'random(x)+random(y)'",
+   "'random(x)+random(y)'"
+  ],
+  "rand2(x)": [
+   "'rand2(x)'",
+   "'rand2(x)'"
+  ],
+  "randint": [
+   "'randint'",
+   "'randint'"
+  ],
+  "randint (x)": [
+   "'randint (x)'",
+   "'randint (x)'"
+  ],
+  "randint(x)": [
+   "'randint(x)'",
+   "'randint(x)'"
+  ],
+  "randint(x)+randint(y)": [
+   "'randint(x)+randint(y)'",
+   "'randint(x)+randint(y)'"
+  ],
+  "randint2(x)": [
+   "'randint2(x)'",
+   "'randint2(x)'"
+  ],
+  "randintx": [
+   "'randintx'",
+   "'randintx'"
+  ],
+  "random": [
+   "'random'",
+   "'random'"
+  ],
+  "random (x)": [
+   "'random (x)'",
+   "'random (x)'"
+  ],
+  "random(x)": [
+   "'random(x)'",
+   "'random(x)'"
+  ],
+  "random(x)+random(y)": [
+   "'random(x)+random(y)'",
+   "'random(x)+random(y)'"
+  ],
+  "random2(x)": [
+   "'random2(x)'",
+   "'random2(x)'"
+  ],
+  "randomx": [
+   "'randomx'",
+   "'randomx'"
+  ],
+  "randx": [
+   "'randx'",
+   "'randx'"
+  ],
+  "ratio_test": [
+   "'ratio_test'",
+   "'ratio_test'"
+  ],
+  "ratio_test (x)": [
+   "'ratio_test (x)'",
+   "'ratio_test (x)'"
+  ],
+  "ratio_test(x)": [
+   "'ratio_test(x)'",
+   "'ratio_test(x)'"
+  ],
+  "ratio_test(x)+ratio_test(y)": [
+   "'ratio_test(x)+ratio_test(y)'",
+   "'ratio_test(x)+ratio_test(y)'"
+  ],
+  "ratio_test2(x)": [
+   "'ratio_test2(x)'",
+   "'ratio_test2(x)'"
+  ],
+  "ratio_testx": [
+   "'ratio_testx'",
+   "'ratio_testx'"
+  ],
+  "root_test": [
+   "'root_test'",
+   "'root_test'"
+  ],
+  "root_test (x)": [
+   "'root_test (x)'",
+   "'root_test (x)'"
+  ],
+  "root_test(x)": [
+   "'root_test(x)'",
+   "'root_test(x)'"
+  ],
+  "root_test(x)+root_test(y)": [
+   "'root_test(x)+root_test(y)'",
+   "'root_test(x)+root_test(y)'"
+  ],
+  "root_test2(x)": [
+   "'root_test2(x)'",
+   "'root_test2(x)'"
+  ],
+  "root_testx": [
+   "'root_testx'",
+   "'root_testx'"
+  ],
+  "round": [
+   "'round'",
+   "'round'"
+  ],
+  "round (x)": [
+   "'round (x)'",
+   "'round (x)'"
+  ],
+  "round(x)": [
+   "'round(x)'",
+   "'round(x)'"
+  ],
+  "round(x)+round(y)": [
+   "'round(x)+round(y)'",
+   "'round(x)+round(y)'"
+  ],
+  "round2(x)": [
+   "'round2(x)'",
+   "'round2(x)'"
+  ],
+  "roundx": [
+   "'roundx'",
+   "'roundx'"
+  ],
+  "sec": [
+   "'sec'",
+   "'sec'"
+  ],
+  "sec (x)": [
+   "'sec (x)'",
+   "'sec (x)'"
+  ],
+  "sec(x)": [
+   "'sec(x)'",
+   "'sec(x)'"
+  ],
+  "sec(x)+sec(y)": [
+   "'sec(x)+sec(y)'",
+   "'sec(x)+sec(y)'"
+  ],
+  "sec2(x)": [
+   "'sec2(x)'",
+   "'sec2(x)'"
+  ],
+  "secx": [
+   "'secx'",
+   "'secx'"
+  ],
+  "simplify": [
+   "'simplify'",
+   "'simplify'"
+  ],
+  "simplify (x)": [
+   "'simplify (x)'",
+   "'simplify (x)'"
+  ],
+  "simplify(x)": [
+   "'simplify(x)'",
+   "'simplify(x)'"
+  ],
+  "simplify(x)+simplify(y)": [
+   "'simplify(x)+simplify(y)'",
+   "'simplify(x)+simplify(y)'"
+  ],
+  "simplify2(x)": [
+   "'simplify2(x)'",
+   "'simplify2(x)'"
+  ],
+  "simplifyx": [
+   "'simplifyx'",
+   "'simplifyx'"
+  ],
+  "sin": [
+   "'sin'",
+   "'sin'"
+  ],
+  "sin (x)": [
+   "'sin (x)'",
+   "'sin (x)'"
+  ],
+  "sin(x)": [
+   "'sin(x)'",
+   "'sin(x)'"
+  ],
+  "sin(x)+sin(y)": [
+   "'sin(x)+sin(y)'",
+   "'sin(x)+sin(y)'"
+  ],
+  "sin2(x)": [
+   "'sin2(x)'",
+   "'sin2(x)'"
+  ],
+  "sine": [
+   "'sine'",
+   "'sine'"
+  ],
+  "sine (x)": [
+   "'sine (x)'",
+   "'sine (x)'"
+  ],
+  "sine(x)": [
+   "'sin(x)'",
+   "'sin(x)'"
+  ],
+  "sine(x)+sine(y)": [
+   "'sin(x)+sin(y)'",
+   "'sin(x)+sin(y)'"
+  ],
+  "sine2(x)": [
+   "'sine2(x)'",
+   "'sine2(x)'"
+  ],
+  "sinex": [
+   "'sinex'",
+   "'sinex'"
+  ],
+  "sinh": [
+   "'sinh'",
+   "'sinh'"
+  ],
+  "sinh (x)": [
+   "'sinh (x)'",
+   "'sinh (x)'"
+  ],
+  "sinh(x)": [
+   "'sinh(x)'",
+   "'sinh(x)'"
+  ],
+  "sinh(x)+sinh(y)": [
+   "'sinh(x)+sinh(y)'",
+   "'sinh(x)+sinh(y)'"
+  ],
+  "sinh2(x)": [
+   "'sinh2(x)'",
+   "'sinh2(x)'"
+  ],
+  "sinhx": [
+   "'sinhx'",
+   "'sinhx'"
+  ],
+  "sinx": [
+   "'sinx'",
+   "'sinx'"
+  ],
+  "solve": [
+   "'solve'",
+   "'solve'"
+  ],
+  "solve (x)": [
+   "'solve (x)'",
+   "'solve (x)'"
+  ],
+  "solve(x)": [
+   "'solve(x)'",
+   "'solve(x)'"
+  ],
+  "solve(x)+solve(y)": [
+   "'solve(x)+solve(y)'",
+   "'solve(x)+solve(y)'"
+  ],
+  "solve2(x)": [
+   "'solve2(x)'",
+   "'solve2(x)'"
+  ],
+  "solvex": [
+   "'solvex'",
+   "'solvex'"
+  ],
+  "sqrt": [
+   "'sqrt'",
+   "'sqrt'"
+  ],
+  "sqrt (x)": [
+   "'sqrt (x)'",
+   "'sqrt (x)'"
+  ],
+  "sqrt(x)": [
+   "'sqrt(x)'",
+   "'sqrt(x)'"
+  ],
+  "sqrt(x)+sqrt(y)": [
+   "'sqrt(x)+sqrt(y)'",
+   "'sqrt(x)+sqrt(y)'"
+  ],
+  "sqrt2(x)": [
+   "'sqrt2(x)'",
+   "'sqrt2(x)'"
+  ],
+  "sqrtx": [
+   "'sqrtx'",
+   "'sqrtx'"
+  ],
+  "square root": [
+   "'square root'",
+   "'square root'"
+  ],
+  "square root (x)": [
+   "'square root (x)'",
+   "'square root (x)'"
+  ],
+  "square root(x)": [
+   "'sqrt(x)'",
+   "'sqrt(x)'"
+  ],
+  "square root(x)+square root(y)": [
+   "'sqrt(x)+sqrt(y)'",
+   "'sqrt(x)+sqrt(y)'"
+  ],
+  "square root2(x)": [
+   "'square root2(x)'",
+   "'square root2(x)'"
+  ],
+  "square rootx": [
+   "'square rootx'",
+   "'square rootx'"
+  ],
+  "std": [
+   "'std'",
+   "'std'"
+  ],
+  "std (x)": [
+   "'std (x)'",
+   "'std (x)'"
+  ],
+  "std(x)": [
+   "'stdev(x)'",
+   "'stdev(x)'"
+  ],
+  "std(x)+std(y)": [
+   "'stdev(x)+stdev(y)'",
+   "'stdev(x)+stdev(y)'"
+  ],
+  "std2(x)": [
+   "'std2(x)'",
+   "'std2(x)'"
+  ],
+  "stdev": [
+   "'stdev'",
+   "'stdev'"
+  ],
+  "stdev (x)": [
+   "'stdev (x)'",
+   "'stdev (x)'"
+  ],
+  "stdev(x)": [
+   "'stdev(x)'",
+   "'stdev(x)'"
+  ],
+  "stdev(x)+stdev(y)": [
+   "'stdev(x)+stdev(y)'",
+   "'stdev(x)+stdev(y)'"
+  ],
+  "stdev2(x)": [
+   "'stdev2(x)'",
+   "'stdev2(x)'"
+  ],
+  "stdevx": [
+   "'stdevx'",
+   "'stdevx'"
+  ],
+  "stdx": [
+   "'stdx'",
+   "'stdx'"
+  ],
+  "sum": [
+   "'sum'",
+   "'sum'"
+  ],
+  "sum (x)": [
+   "'sum (x)'",
+   "'sum (x)'"
+  ],
+  "sum(x)": [
+   "'sum(x)'",
+   "'sum(x)'"
+  ],
+  "sum(x)+sum(y)": [
+   "'sum(x)+sum(y)'",
+   "'sum(x)+sum(y)'"
+  ],
+  "sum2(x)": [
+   "'sum2(x)'",
+   "'sum2(x)'"
+  ],
+  "summation": [
+   "'summation'",
+   "'summation'"
+  ],
+  "summation (x)": [
+   "'summation (x)'",
+   "'summation (x)'"
+  ],
+  "summation(x)": [
+   "'summation(x)'",
+   "'summation(x)'"
+  ],
+  "summation(x)+summation(y)": [
+   "'summation(x)+summation(y)'",
+   "'summation(x)+summation(y)'"
+  ],
+  "summation2(x)": [
+   "'summation2(x)'",
+   "'summation2(x)'"
+  ],
+  "summationx": [
+   "'summationx'",
+   "'summationx'"
+  ],
+  "sumx": [
+   "'sumx'",
+   "'sumx'"
+  ],
+  "tan": [
+   "'tan'",
+   "'tan'"
+  ],
+  "tan (x)": [
+   "'tan (x)'",
+   "'tan (x)'"
+  ],
+  "tan(x)": [
+   "'tan(x)'",
+   "'tan(x)'"
+  ],
+  "tan(x)+tan(y)": [
+   "'tan(x)+tan(y)'",
+   "'tan(x)+tan(y)'"
+  ],
+  "tan2(x)": [
+   "'tan2(x)'",
+   "'tan2(x)'"
+  ],
+  "tangent": [
+   "'tangent'",
+   "'tangent'"
+  ],
+  "tangent (x)": [
+   "'tangent (x)'",
+   "'tangent (x)'"
+  ],
+  "tangent(x)": [
+   "'tan(x)'",
+   "'tan(x)'"
+  ],
+  "tangent(x)+tangent(y)": [
+   "'tan(x)+tan(y)'",
+   "'tan(x)+tan(y)'"
+  ],
+  "tangent2(x)": [
+   "'tangent2(x)'",
+   "'tangent2(x)'"
+  ],
+  "tangentx": [
+   "'tangentx'",
+   "'tangentx'"
+  ],
+  "tanh": [
+   "'tanh'",
+   "'tanh'"
+  ],
+  "tanh (x)": [
+   "'tanh (x)'",
+   "'tanh (x)'"
+  ],
+  "tanh(x)": [
+   "'tanh(x)'",
+   "'tanh(x)'"
+  ],
+  "tanh(x)+tanh(y)": [
+   "'tanh(x)+tanh(y)'",
+   "'tanh(x)+tanh(y)'"
+  ],
+  "tanh2(x)": [
+   "'tanh2(x)'",
+   "'tanh2(x)'"
+  ],
+  "tanhx": [
+   "'tanhx'",
+   "'tanhx'"
+  ],
+  "tanx": [
+   "'tanx'",
+   "'tanx'"
+  ],
+  "totient": [
+   "'totient'",
+   "'totient'"
+  ],
+  "totient (x)": [
+   "'totient (x)'",
+   "'totient (x)'"
+  ],
+  "totient(x)": [
+   "'totient(x)'",
+   "'totient(x)'"
+  ],
+  "totient(x)+totient(y)": [
+   "'totient(x)+totient(y)'",
+   "'totient(x)+totient(y)'"
+  ],
+  "totient2(x)": [
+   "'totient2(x)'",
+   "'totient2(x)'"
+  ],
+  "totientx": [
+   "'totientx'",
+   "'totientx'"
+  ],
+  "trunc": [
+   "'trunc'",
+   "'trunc'"
+  ],
+  "trunc (x)": [
+   "'trunc (x)'",
+   "'trunc (x)'"
+  ],
+  "trunc(x)": [
+   "'trunc(x)'",
+   "'trunc(x)'"
+  ],
+  "trunc(x)+trunc(y)": [
+   "'trunc(x)+trunc(y)'",
+   "'trunc(x)+trunc(y)'"
+  ],
+  "trunc2(x)": [
+   "'trunc2(x)'",
+   "'trunc2(x)'"
+  ],
+  "truncx": [
+   "'truncx'",
+   "'truncx'"
+  ],
+  "var": [
+   "'var'",
+   "'var'"
+  ],
+  "var (x)": [
+   "'var (x)'",
+   "'var (x)'"
+  ],
+  "var(x)": [
+   "'variance(x)'",
+   "'variance(x)'"
+  ],
+  "var(x)+var(y)": [
+   "'variance(x)+variance(y)'",
+   "'variance(x)+variance(y)'"
+  ],
+  "var2(x)": [
+   "'var2(x)'",
+   "'var2(x)'"
+  ],
+  "variance": [
+   "'variance'",
+   "'variance'"
+  ],
+  "variance (x)": [
+   "'variance (x)'",
+   "'variance (x)'"
+  ],
+  "variance(x)": [
+   "'variance(x)'",
+   "'variance(x)'"
+  ],
+  "variance(x)+variance(y)": [
+   "'variance(x)+variance(y)'",
+   "'variance(x)+variance(y)'"
+  ],
+  "variance2(x)": [
+   "'variance2(x)'",
+   "'variance2(x)'"
+  ],
+  "variancex": [
+   "'variancex'",
+   "'variancex'"
+  ],
+  "varx": [
+   "'varx'",
+   "'varx'"
+  ],
+  "x*abs": [
+   "'x*abs'",
+   "'x*abs'"
+  ],
+  "x*absolute": [
+   "'x*absolute'",
+   "'x*absolute'"
+  ],
+  "x*acos": [
+   "'x*acos'",
+   "'x*acos'"
+  ],
+  "x*acosh": [
+   "'x*acosh'",
+   "'x*acosh'"
+  ],
+  "x*acot": [
+   "'x*acot'",
+   "'x*acot'"
+  ],
+  "x*acsc": [
+   "'x*acsc'",
+   "'x*acsc'"
+  ],
+  "x*arccosine": [
+   "'x*arccosine'",
+   "'x*arccosine'"
+  ],
+  "x*arcsine": [
+   "'x*arcsine'",
+   "'x*arcsine'"
+  ],
+  "x*arctangent": [
+   "'x*arctangent'",
+   "'x*arctangent'"
+  ],
+  "x*arithmetic_sum": [
+   "'x*arithmetic_sum'",
+   "'x*arithmetic_sum'"
+  ],
+  "x*arrangements": [
+   "'x*arrangements'",
+   "'x*arrangements'"
+  ],
+  "x*asec": [
+   "'x*asec'",
+   "'x*asec'"
+  ],
+  "x*asin": [
+   "'x*asin'",
+   "'x*asin'"
+  ],
+  "x*asinh": [
+   "'x*asinh'",
+   "'x*asinh'"
+  ],
+  "x*atan": [
+   "'x*atan'",
+   "'x*atan'"
+  ],
+  "x*atanh": [
+   "'x*atanh'",
+   "'x*atanh'"
+  ],
+  "x*bin": [
+   "'x*bin'",
+   "'x*bin'"
+  ],
+  "x*binary": [
+   "'x*binary'",
+   "'x*binary'"
+  ],
+  "x*ceil": [
+   "'x*ceil'",
+   "'x*ceil'"
+  ],
+  "x*combinations": [
+   "'x*combinations'",
+   "'x*combinations'"
+  ],
+  "x*cos": [
+   "'x*cos'",
+   "'x*cos'"
+  ],
+  "x*cosh": [
+   "'x*cosh'",
+   "'x*cosh'"
+  ],
+  "x*cosine": [
+   "'x*cosine'",
+   "'x*cosine'"
+  ],
+  "x*cot": [
+   "'x*cot'",
+   "'x*cot'"
+  ],
+  "x*csc": [
+   "'x*csc'",
+   "'x*csc'"
+  ],
+  "x*derivate": [
+   "'x*derivate'",
+   "'x*derivate'"
+  ],
+  "x*derivative": [
+   "'x*derivative'",
+   "'x*derivative'"
+  ],
+  "x*derive": [
+   "'x*derive'",
+   "'x*derive'"
+  ],
+  "x*det": [
+   "'x*det'",
+   "'x*det'"
+  ],
+  "x*determinant": [
+   "'x*determinant'",
+   "'x*determinant'"
+  ],
+  "x*divisors": [
+   "'x*divisors'",
+   "'x*divisors'"
+  ],
+  "x*e": [
+   "'x*e'",
+   "'x*e'"
+  ],
+  "x*exp": [
+   "'x*exp'",
+   "'x*exp'"
+  ],
+  "x*expand": [
+   "'x*expand'",
+   "'x*expand'"
+  ],
+  "x*exponential": [
+   "'x*exponential'",
+   "'x*exponential'"
+  ],
+  "x*fact": [
+   "'x*fact'",
+   "'x*fact'"
+  ],
+  "x*factor": [
+   "'x*factor'",
+   "'x*factor'"
+  ],
+  "x*factorial": [
+   "'x*factorial'",
+   "'x*factorial'"
+  ],
+  "x*floor": [
+   "'x*floor'",
+   "'x*floor'"
+  ],
+  "x*gcd": [
+   "'x*gcd'",
+   "'x*gcd'"
+  ],
+  "x*geometric_sum": [
+   "'x*geometric_sum'",
+   "'x*geometric_sum'"
+  ],
+  "x*geometric_sum_infinite": [
+   "'x*geometric_sum_infinite'",
+   "'x*geometric_sum_infinite'"
+  ],
+  "x*hyperbolic cosine": [
+   "'x*hyperbolic cosine'",
+   "'x*hyperbolic cosine'"
+  ],
+  "x*hyperbolic sine": [
+   "'x*hyperbolic sine'",
+   "'x*hyperbolic sine'"
+  ],
+  "x*hyperbolic tangent": [
+   "'x*hyperbolic tangent'",
+   "'x*hyperbolic tangent'"
+  ],
+  "x*integral": [
+   "'x*integral'",
+   "'x*integral'"
+  ],
+  "x*integrate": [
+   "'x*integrate'",
+   "'x*integrate'"
+  ],
+  "x*is_prime": [
+   "'x*is_prime'",
+   "'x*is_prime'"
+  ],
+  "x*lcm": [
+   "'x*lcm'",
+   "'x*lcm'"
+  ],
+  "x*lim": [
+   "'x*lim'",
+   "'x*lim'"
+  ],
+  "x*limit": [
+   "'x*limit'",
+   "'x*limit'"
+  ],
+  "x*ln": [
+   "'x*log'",
+   "'x*log'"
+  ],
+  "x*log": [
+   "'x*log'",
+   "'x*log'"
+  ],
+  "x*log10": [
+   "'x*log10'",
+   "'x*log10'"
+  ],
+  "x*log2": [
+   "'x*log2'",
+   "'x*log2'"
+  ],
+  "x*logarithm": [
+   "'x*logarithm'",
+   "'x*logarithm'"
+  ],
+  "x*logarithm10": [
+   "'x*logarithm10'",
+   "'x*logarithm10'"
+  ],
+  "x*logarithm2": [
+   "'x*logarithm2'",
+   "'x*logarithm2'"
+  ],
+  "x*max": [
+   "'x*max'",
+   "'x*max'"
+  ],
+  "x*mean": [
+   "'x*mean'",
+   "'x*mean'"
+  ],
+  "x*median": [
+   "'x*median'",
+   "'x*median'"
+  ],
+  "x*min": [
+   "'x*min'",
+   "'x*min'"
+  ],
+  "x*mod_inverse": [
+   "'x*mod_inverse'",
+   "'x*mod_inverse'"
+  ],
+  "x*mod_pow": [
+   "'x*mod_pow'",
+   "'x*mod_pow'"
+  ],
+  "x*mode": [
+   "'x*mode'",
+   "'x*mode'"
+  ],
+  "x*next_prime": [
+   "'x*next_prime'",
+   "'x*next_prime'"
+  ],
+  "x*p_series_test": [
+   "'x*p_series_test'",
+   "'x*p_series_test'"
+  ],
+  "x*permutations": [
+   "'x*permutations'",
+   "'x*permutations'"
+  ],
+  "x*pi": [
+   "'x*pi'",
+   "'x*pi'"
+  ],
+  "x*pow": [
+   "'x*pow'",
+   "'x*pow'"
+  ],
+  "x*power": [
+   "'x*power'",
+   "'x*power'"
+  ],
+  "x*prev_prime": [
+   "'x*prev_prime'",
+   "'x*prev_prime'"
+  ],
+  "x*prime_factors": [
+   "'x*prime_factors'",
+   "'x*prime_factors'"
+  ],
+  "x*product": [
+   "'x*product'",
+   "'x*product'"
+  ],
+  "x*rand": [
+   "'x*rand'",
+   "'x*rand'"
+  ],
+  "x*randint": [
+   "'x*randint'",
+   "'x*randint'"
+  ],
+  "x*random": [
+   "'x*random'",
+   "'x*random'"
+  ],
+  "x*ratio_test": [
+   "'x*ratio_test'",
+   "'x*ratio_test'"
+  ],
+  "x*root_test": [
+   "'x*root_test'",
+   "'x*root_test'"
+  ],
+  "x*round": [
+   "'x*round'",
+   "'x*round'"
+  ],
+  "x*sec": [
+   "'x*sec'",
+   "'x*sec'"
+  ],
+  "x*simplify": [
+   "'x*simplify'",
+   "'x*simplify'"
+  ],
+  "x*sin": [
+   "'x*sin'",
+   "'x*sin'"
+  ],
+  "x*sine": [
+   "'x*sine'",
+   "'x*sine'"
+  ],
+  "x*sinh": [
+   "'x*sinh'",
+   "'x*sinh'"
+  ],
+  "x*solve": [
+   "'x*solve'",
+   "'x*solve'"
+  ],
+  "x*sqrt": [
+   "'x*sqrt'",
+   "'x*sqrt'"
+  ],
+  "x*square root": [
+   "'x*square root'",
+   "'x*square root'"
+  ],
+  "x*std": [
+   "'x*std'",
+   "'x*std'"
+  ],
+  "x*stdev": [
+   "'x*stdev'",
+   "'x*stdev'"
+  ],
+  "x*sum": [
+   "'x*sum'",
+   "'x*sum'"
+  ],
+  "x*summation": [
+   "'x*summation'",
+   "'x*summation'"
+  ],
+  "x*tan": [
+   "'x*tan'",
+   "'x*tan'"
+  ],
+  "x*tangent": [
+   "'x*tangent'",
+   "'x*tangent'"
+  ],
+  "x*tanh": [
+   "'x*tanh'",
+   "'x*tanh'"
+  ],
+  "x*totient": [
+   "'x*totient'",
+   "'x*totient'"
+  ],
+  "x*trunc": [
+   "'x*trunc'",
+   "'x*trunc'"
+  ],
+  "x*var": [
+   "'x*var'",
+   "'x*var'"
+  ],
+  "x*variance": [
+   "'x*variance'",
+   "'x*variance'"
+  ],
+  "x2ln(x)": [
+   "'x2log(x)'",
+   "'x2log(x)'"
+  ],
+  "x_ln(x)": [
+   "'x_log(x)'",
+   "'x_log(x)'"
+  ],
+  "xhyperbolic sine(1)": [
+   "'xsinh(1)'",
+   "'xsinh(1)'"
+  ],
+  "xstd(1)": [
+   "'xstdev(1)'",
+   "'xstdev(1)'"
+  ],
+  "θ2ln(x)": [
+   "'θ2*log(x)'",
+   "'θ2*log(x)'"
+  ]
+ },
+ "curve_values": {
+  "abs": [
+   "0.25",
+   "0.5",
+   "2"
+  ],
+  "abs/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "acos": [
+   "1.318116071652818",
+   "1.0471975511965979",
+   "EXCEPTION ValueError"
+  ],
+  "acos/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "acosh": [
+   "EXCEPTION ValueError",
+   "EXCEPTION ValueError",
+   "1.3169578969248166"
+  ],
+  "acosh/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "acot": [
+   "1.3258176636680326",
+   "1.1071487177940904",
+   "0.4636476090008061"
+  ],
+  "acot/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "acsc": [
+   "EXCEPTION ValueError",
+   "EXCEPTION ValueError",
+   "0.5235987755982989"
+  ],
+  "acsc/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "asec": [
+   "EXCEPTION ValueError",
+   "EXCEPTION ValueError",
+   "1.0471975511965979"
+  ],
+  "asec/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "asin": [
+   "0.25268025514207865",
+   "0.5235987755982989",
+   "EXCEPTION ValueError"
+  ],
+  "asin/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "asinh": [
+   "0.24746646154726346",
+   "0.48121182505960347",
+   "1.4436354751788103"
+  ],
+  "asinh/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "atan": [
+   "0.24497866312686414",
+   "0.4636476090008061",
+   "1.1071487177940904"
+  ],
+  "atan/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "atanh": [
+   "0.25541281188299536",
+   "0.5493061443340548",
+   "EXCEPTION ValueError"
+  ],
+  "atanh/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "ceil": [
+   "1",
+   "1",
+   "2"
+  ],
+  "ceil/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "cos": [
+   "0.9689124217106447",
+   "0.8775825618903728",
+   "-0.4161468365471424"
+  ],
+  "cos/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "cosh": [
+   "1.0314130998795732",
+   "1.1276259652063807",
+   "3.7621956910836314"
+  ],
+  "cosh/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "cot": [
+   "3.91631736464594",
+   "1.830487721712452",
+   "-0.45765755436028577"
+  ],
+  "cot/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "csc": [
+   "4.041972501221071",
+   "2.085829642933488",
+   "1.0997501702946164"
+  ],
+  "csc/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "exp": [
+   "1.2840254166877414",
+   "1.6487212707001282",
+   "7.38905609893065"
+  ],
+  "exp/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "factorial": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "2"
+  ],
+  "factorial/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "floor": [
+   "0",
+   "0",
+   "2"
+  ],
+  "floor/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "log": [
+   "-1.3862943611198906",
+   "-0.6931471805599453",
+   "0.6931471805599453"
+  ],
+  "log/2": [
+   "-2.0",
+   "-1.0",
+   "1.0"
+  ],
+  "log10": [
+   "-0.6020599913279624",
+   "-0.3010299956639812",
+   "0.3010299956639812"
+  ],
+  "log10/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "log2": [
+   "-2.0",
+   "-1.0",
+   "1.0"
+  ],
+  "log2/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "max": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "max/2": [
+   "2",
+   "2",
+   "2"
+  ],
+  "min": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "min/2": [
+   "0.25",
+   "0.5",
+   "2"
+  ],
+  "pow": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "pow/2": [
+   "0.0625",
+   "0.25",
+   "4.0"
+  ],
+  "round": [
+   "EXCEPTION AttributeError",
+   "EXCEPTION AttributeError",
+   "2"
+  ],
+  "round/2": [
+   "EXCEPTION AttributeError",
+   "EXCEPTION AttributeError",
+   "2"
+  ],
+  "sec": [
+   "1.0320850239843857",
+   "1.139493927324549",
+   "-2.402997961722381"
+  ],
+  "sec/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "sin": [
+   "0.24740395925452294",
+   "0.479425538604203",
+   "0.9092974268256817"
+  ],
+  "sin/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "sinh": [
+   "0.2526123168081683",
+   "0.5210953054937474",
+   "3.626860407847019"
+  ],
+  "sinh/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "sqrt": [
+   "0.5",
+   "0.7071067811865476",
+   "1.4142135623730951"
+  ],
+  "sqrt/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "tan": [
+   "0.25534192122103627",
+   "0.5463024898437905",
+   "-2.185039863261519"
+  ],
+  "tan/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "tanh": [
+   "0.24491866240370913",
+   "0.46211715726000974",
+   "0.9640275800758169"
+  ],
+  "tanh/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "trunc": [
+   "0",
+   "0",
+   "2"
+  ],
+  "trunc/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ]
+ },
+ "mathjs_bridge": {
+  "evaluate": {
+   "2*product": {
+    "mathjs": [],
+    "path": "python",
+    "raised": null,
+    "returned_error": false
+   },
+   "arrangements(5,2)": {
+    "mathjs": [
+     "evaluate permutations(5,2)"
+    ],
+    "path": "mathjs",
+    "raised": null,
+    "returned_error": false
+   },
+   "is_prime(7)": {
+    "mathjs": [],
+    "path": "python",
+    "raised": null,
+    "returned_error": false
+   },
+   "randint(1,2)": {
+    "mathjs": [],
+    "path": "python",
+    "raised": null,
+    "returned_error": false
+   },
+   "sin(x)": {
+    "mathjs": [
+     "evaluate sin(x)"
+    ],
+    "path": "mathjs",
+    "raised": null,
+    "returned_error": false
+   },
+   "std([1,2]) + var([1,2])": {
+    "mathjs": [
+     "evaluate std([1,2]) + variance([1,2])"
+    ],
+    "path": "mathjs",
+    "raised": null,
+    "returned_error": false
+   },
+   "stdev([1,2])": {
+    "mathjs": [
+     "evaluate std([1,2])"
+    ],
+    "path": "mathjs",
+    "raised": null,
+    "returned_error": false
+   },
+   "summation('n','n',0,3)": {
+    "mathjs": [],
+    "path": "none",
+    "raised": null,
+    "returned_error": true
+   },
+   "trunc(2.5)": {
+    "mathjs": [
+     "evaluate fix(2.5)"
+    ],
+    "path": "mathjs",
+    "raised": null,
+    "returned_error": false
+   },
+   "xtrunc(1)": {
+    "mathjs": [],
+    "path": "none",
+    "raised": null,
+    "returned_error": true
+   }
+  },
+  "sites": {
+   "degenerate_linear_system": {
+    "arrangements(x, 2)": {
+     "mathjs": [
+      "compile (arrangements(x, 2) )-( 1)"
+     ],
+     "raised": "ValueError",
+     "returned_error": false
+    },
+    "sin(x)": {
+     "mathjs": [
+      "compile (sin(x) )-( 1)"
+     ],
+     "raised": "ValueError",
+     "returned_error": false
+    },
+    "stdev([x, 1])": {
+     "mathjs": [
+      "compile (stdev([x, 1]) )-( 1)"
+     ],
+     "raised": "ValueError",
+     "returned_error": false
+    },
+    "trunc(x)": {
+     "mathjs": [
+      "compile (trunc(x) )-( 1)"
+     ],
+     "raised": "ValueError",
+     "returned_error": false
+    },
+    "xtrunc(x)": {
+     "mathjs": [
+      "compile (xtrunc(x) )-( 1)"
+     ],
+     "raised": "ValueError",
+     "returned_error": false
+    }
+   },
+   "equation_holds": {
+    "arrangements(x, 2)": {
+     "mathjs": [
+      "evaluate arrangements(x, 2)",
+      "evaluate 1",
+      "evaluate arrangements(x, 2)",
+      "evaluate 1",
+      "evaluate arrangements(x, 2)",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "sin(x)": {
+     "mathjs": [
+      "evaluate sin(x)",
+      "evaluate 1",
+      "evaluate sin(x)",
+      "evaluate 1",
+      "evaluate sin(x)",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "stdev([x, 1])": {
+     "mathjs": [
+      "evaluate stdev([x, 1])",
+      "evaluate 1",
+      "evaluate stdev([x, 1])",
+      "evaluate 1",
+      "evaluate stdev([x, 1])",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "trunc(x)": {
+     "mathjs": [
+      "evaluate trunc(x)",
+      "evaluate 1",
+      "evaluate trunc(x)",
+      "evaluate 1",
+      "evaluate trunc(x)",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "xtrunc(x)": {
+     "mathjs": [
+      "evaluate xtrunc(x)",
+      "evaluate 1",
+      "evaluate xtrunc(x)",
+      "evaluate 1",
+      "evaluate xtrunc(x)",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    }
+   },
+   "evaluate_residuals": {
+    "arrangements(x, 2)": {
+     "mathjs": [
+      "evaluate arrangements(x, 2)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "sin(x)": {
+     "mathjs": [
+      "evaluate sin(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "stdev([x, 1])": {
+     "mathjs": [
+      "evaluate stdev([x, 1])"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "trunc(x)": {
+     "mathjs": [
+      "evaluate trunc(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "xtrunc(x)": {
+     "mathjs": [
+      "evaluate xtrunc(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    }
+   },
+   "interior_singularity": {
+    "arrangements(x, 2)": {
+     "mathjs": [
+      "compile arrangements(x, 2)",
+      "evaluate 0",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "sin(x)": {
+     "mathjs": [
+      "compile sin(x)",
+      "evaluate 0",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "stdev([x, 1])": {
+     "mathjs": [
+      "compile stdev([x, 1])",
+      "evaluate 0",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "trunc(x)": {
+     "mathjs": [
+      "compile trunc(x)",
+      "evaluate 0",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "xtrunc(x)": {
+     "mathjs": [
+      "compile xtrunc(x)",
+      "evaluate 0",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    }
+   },
+   "numeric_value": {
+    "arrangements(x, 2)": {
+     "mathjs": [
+      "compile arrangements(x, 2)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "sin(x)": {
+     "mathjs": [
+      "compile sin(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "stdev([x, 1])": {
+     "mathjs": [
+      "compile stdev([x, 1])"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "trunc(x)": {
+     "mathjs": [
+      "compile trunc(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "xtrunc(x)": {
+     "mathjs": [
+      "compile xtrunc(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    }
+   },
+   "probe": {
+    "arrangements(x, 2)": {
+     "mathjs": [
+      "compile arrangements(x, 2)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "sin(x)": {
+     "mathjs": [
+      "compile sin(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "stdev([x, 1])": {
+     "mathjs": [
+      "compile stdev([x, 1])"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "trunc(x)": {
+     "mathjs": [
+      "compile fix(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "xtrunc(x)": {
+     "mathjs": [
+      "compile xfix(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    }
+   },
+   "real_function": {
+    "arrangements(x, 2)": {
+     "mathjs": [
+      "compile arrangements(x, 2)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "sin(x)": {
+     "mathjs": [
+      "compile sin(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "stdev([x, 1])": {
+     "mathjs": [
+      "compile stdev([x, 1])"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "trunc(x)": {
+     "mathjs": [
+      "compile trunc(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "xtrunc(x)": {
+     "mathjs": [
+      "compile xtrunc(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    }
+   },
+   "root_status": {
+    "arrangements(x, 2)": {
+     "mathjs": [
+      "evaluate arrangements(x, 2)",
+      "evaluate 1",
+      "evaluate arrangements(x, 2)",
+      "evaluate 1",
+      "evaluate arrangements(x, 2)",
+      "evaluate 1",
+      "evaluate arrangements(x, 2)",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "sin(x)": {
+     "mathjs": [
+      "evaluate sin(x)",
+      "evaluate 1",
+      "evaluate sin(x)",
+      "evaluate 1",
+      "evaluate sin(x)",
+      "evaluate 1",
+      "evaluate sin(x)",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "stdev([x, 1])": {
+     "mathjs": [
+      "evaluate stdev([x, 1])",
+      "evaluate 1",
+      "evaluate stdev([x, 1])",
+      "evaluate 1",
+      "evaluate stdev([x, 1])",
+      "evaluate 1",
+      "evaluate stdev([x, 1])",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "trunc(x)": {
+     "mathjs": [
+      "evaluate trunc(x)",
+      "evaluate 1",
+      "evaluate trunc(x)",
+      "evaluate 1",
+      "evaluate trunc(x)",
+      "evaluate 1",
+      "evaluate trunc(x)",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "xtrunc(x)": {
+     "mathjs": [
+      "evaluate xtrunc(x)",
+      "evaluate 1",
+      "evaluate xtrunc(x)",
+      "evaluate 1",
+      "evaluate xtrunc(x)",
+      "evaluate 1",
+      "evaluate xtrunc(x)",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    }
+   },
+   "tangent_asymptotes": {
+    "arrangements(x, 2)": {
+     "mathjs": [
+      "compile arrangements(x, 2)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "sin(x)": {
+     "mathjs": [
+      "compile sin(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "stdev([x, 1])": {
+     "mathjs": [
+      "compile stdev([x, 1])"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "trunc(x)": {
+     "mathjs": [
+      "compile trunc(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "xtrunc(x)": {
+     "mathjs": [
+      "compile xtrunc(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    }
+   }
+  }
+ },
+ "namespaces": {
+  "t": {
+   "Infinity": "const:inf",
+   "abs": "builtins.abs",
+   "acos": "math.acos",
+   "acosh": "math.acosh",
+   "acot": "local:acot",
+   "acsc": "local:acsc",
+   "asec": "local:asec",
+   "asin": "math.asin",
+   "asinh": "math.asinh",
+   "atan": "math.atan",
+   "atanh": "math.atanh",
+   "ceil": "math.ceil",
+   "cos": "math.cos",
+   "cosh": "math.cosh",
+   "cot": "local:cot",
+   "csc": "local:csc",
+   "e": "const:2.718281828459045",
+   "exp": "math.exp",
+   "factorial": "math.factorial",
+   "floor": "math.floor",
+   "inf": "const:inf",
+   "log": "math.log",
+   "log10": "math.log10",
+   "log2": "math.log2",
+   "max": "builtins.max",
+   "min": "builtins.min",
+   "pi": "const:3.141592653589793",
+   "pow": "MathUtils.pow",
+   "round": "MathUtils.round",
+   "sec": "local:sec",
+   "sin": "math.sin",
+   "sinh": "math.sinh",
+   "sqrt": "MathUtils.sqrt",
+   "t": "const:0",
+   "tan": "math.tan",
+   "tanh": "math.tanh",
+   "trunc": "math.trunc"
+  },
+  "x": {
+   "Infinity": "const:inf",
+   "abs": "builtins.abs",
+   "acos": "math.acos",
+   "acosh": "math.acosh",
+   "acot": "local:acot",
+   "acsc": "local:acsc",
+   "arithmetic_sum": "MathUtils.arithmetic_sum",
+   "arrangements": "MathUtils.arrangements",
+   "asec": "local:asec",
+   "asin": "math.asin",
+   "asinh": "math.asinh",
+   "atan": "math.atan",
+   "atanh": "math.atanh",
+   "bin": "builtins.bin",
+   "ceil": "math.ceil",
+   "combinations": "MathUtils.combinations",
+   "cos": "math.cos",
+   "cosh": "math.cosh",
+   "cot": "local:cot",
+   "csc": "local:csc",
+   "derive": "MathUtils.derivative",
+   "det": "MathUtils.det",
+   "divisors": "MathUtils.divisors",
+   "e": "const:2.718281828459045",
+   "exp": "math.exp",
+   "expand": "MathUtils.expand",
+   "factor": "MathUtils.factor",
+   "factorial": "math.factorial",
+   "floor": "math.floor",
+   "gcd": "MathUtils.gcd",
+   "geometric_sum": "MathUtils.geometric_sum",
+   "geometric_sum_infinite": "MathUtils.geometric_sum_infinite",
+   "inf": "const:inf",
+   "integrate": "MathUtils.integral",
+   "is_prime": "MathUtils.is_prime",
+   "lcm": "MathUtils.lcm",
+   "limit": "MathUtils.limit",
+   "log": "math.log",
+   "log10": "math.log10",
+   "log2": "math.log2",
+   "max": "builtins.max",
+   "mean": "MathUtils.mean",
+   "median": "MathUtils.median",
+   "min": "builtins.min",
+   "mod_inverse": "MathUtils.mod_inverse",
+   "mod_pow": "MathUtils.mod_pow",
+   "mode": "MathUtils.mode",
+   "next_prime": "MathUtils.next_prime",
+   "p_series_test": "MathUtils.p_series_test",
+   "permutations": "MathUtils.permutations",
+   "pi": "const:3.141592653589793",
+   "pow": "MathUtils.pow",
+   "prev_prime": "MathUtils.prev_prime",
+   "prime_factors": "MathUtils.prime_factors",
+   "product": "MathUtils.product",
+   "randint": "local:randint",
+   "random": "MathUtils.random",
+   "ratio_test": "MathUtils.ratio_test",
+   "root_test": "MathUtils.root_test",
+   "round": "MathUtils.round",
+   "sec": "local:sec",
+   "simplify": "MathUtils.simplify",
+   "sin": "math.sin",
+   "sinh": "math.sinh",
+   "solve": "MathUtils.solve",
+   "sqrt": "MathUtils.sqrt",
+   "stdev": "MathUtils.stdev",
+   "sum": "builtins.sum",
+   "summation": "MathUtils.summation",
+   "tan": "math.tan",
+   "tanh": "math.tanh",
+   "totient": "MathUtils.totient",
+   "trunc": "math.trunc",
+   "variance": "MathUtils.variance"
+  }
+ },
+ "tables": {
+  "allowed_functions": [
+   "abs",
+   "acos",
+   "acosh",
+   "acot",
+   "acsc",
+   "arithmetic_sum",
+   "arrangements",
+   "asec",
+   "asin",
+   "asinh",
+   "atan",
+   "atanh",
+   "bin",
+   "ceil",
+   "combinations",
+   "cos",
+   "cosh",
+   "cot",
+   "csc",
+   "derive",
+   "det",
+   "divisors",
+   "e",
+   "exp",
+   "expand",
+   "factor",
+   "factorial",
+   "floor",
+   "gcd",
+   "geometric_sum",
+   "geometric_sum_infinite",
+   "integrate",
+   "is_prime",
+   "lcm",
+   "limit",
+   "log",
+   "log10",
+   "log2",
+   "max",
+   "mean",
+   "median",
+   "min",
+   "mod_inverse",
+   "mod_pow",
+   "mode",
+   "next_prime",
+   "p_series_test",
+   "permutations",
+   "pi",
+   "pow",
+   "prev_prime",
+   "prime_factors",
+   "product",
+   "randint",
+   "random",
+   "ratio_test",
+   "root_test",
+   "round",
+   "sec",
+   "simplify",
+   "sin",
+   "sinh",
+   "solve",
+   "sqrt",
+   "stdev",
+   "sum",
+   "summation",
+   "tan",
+   "tanh",
+   "totient",
+   "trunc",
+   "variance"
+  ],
+  "allowed_nodes": [
+   "Add",
+   "BinOp",
+   "Call",
+   "Constant",
+   "Div",
+   "Expression",
+   "List",
+   "Mult",
+   "Name",
+   "Pow",
+   "Sub",
+   "UAdd",
+   "USub",
+   "UnaryOp"
+  ],
+  "function_replacements": {
+   "absolute(": "abs(",
+   "arccosine(": "acos(",
+   "arcsine(": "asin(",
+   "arctangent(": "atan(",
+   "binary(": "bin(",
+   "cosine(": "cos(",
+   "derivate(": "derive(",
+   "derivative(": "derive(",
+   "determinant(": "det(",
+   "exponential(": "exp(",
+   "fact(": "factorial(",
+   "hyperbolic cosine(": "cosh(",
+   "hyperbolic sine(": "sinh(",
+   "hyperbolic tangent(": "tanh(",
+   "integral(": "integrate(",
+   "lim(": "limit(",
+   "ln": "log",
+   "logarithm(": "log(",
+   "logarithm10(": "log10(",
+   "logarithm2(": "log2(",
+   "power(": "pow(",
+   "rand(": "random(",
+   "sine(": "sin(",
+   "square root(": "sqrt(",
+   "std(": "stdev(",
+   "tangent(": "tan(",
+   "var(": "variance(",
+   "π": "pi"
+  },
+  "inverse_functions": {
+   "cos": "acos",
+   "cosh": "acosh",
+   "cot": "acot",
+   "csc": "acsc",
+   "sec": "asec",
+   "sin": "asin",
+   "sinh": "asinh",
+   "tan": "atan",
+   "tanh": "atanh"
+  },
+  "python_only_functions": [
+   "arithmetic_sum",
+   "divisors",
+   "geometric_sum",
+   "geometric_sum_infinite",
+   "is_prime",
+   "mod_inverse",
+   "mod_pow",
+   "next_prime",
+   "p_series_test",
+   "prev_prime",
+   "prime_factors",
+   "product",
+   "ratio_test",
+   "root_test",
+   "summation",
+   "totient"
+  ],
+  "superscript_functions": [
+   "abs",
+   "acos",
+   "acosh",
+   "acot",
+   "acsc",
+   "asec",
+   "asin",
+   "asinh",
+   "atan",
+   "atanh",
+   "cos",
+   "cosh",
+   "cot",
+   "csc",
+   "exp",
+   "ln",
+   "log",
+   "log10",
+   "log2",
+   "sec",
+   "sin",
+   "sinh",
+   "sqrt",
+   "tan",
+   "tanh"
+  ]
+ }
+}
