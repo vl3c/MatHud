@@ -120,3 +120,12 @@ class TestExpressionFunctions(unittest.TestCase):
         for text, expected in ALIAS_CASES.items():
             with self.subTest(text=text):
                 self.assertEqual(ef.replace_aliases(text), expected)
+
+    def test_mathjs_renames_reach_every_call_site(self) -> None:
+        from utils.symbolic_checks import SymbolicChecks
+
+        self.assertEqual(ef.rename_for_mathjs("trunc(x) + xtrunc(x)"), "fix(x) + xtrunc(x)")
+        self.assertAlmostEqual(SymbolicChecks.numeric_value("trunc(2.5) + stdev([1, 3])"), 2 + 2**0.5)
+        probe = MathUtils._mathjs_probe_evaluator("arrangements(5, 2) + trunc(x)")
+        self.assertIsNotNone(probe)
+        self.assertEqual(probe(1.5), 21.0)

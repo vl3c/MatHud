@@ -11,6 +11,8 @@ from typing import List, Optional, Sequence
 
 from browser import window
 
+from expression_functions import rename_for_mathjs
+
 
 # Math function names to exclude from variable detection
 MATH_FUNCTIONS = frozenset(
@@ -122,7 +124,7 @@ def evaluate_residuals(
         scope[var] = val
 
     residuals: List[float] = []
-    for expr in residual_exprs:
+    for expr in [rename_for_mathjs(text) for text in residual_exprs]:
         try:
             try:
                 result = window.math.evaluate(expr, scope)

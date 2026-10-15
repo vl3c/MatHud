@@ -187,6 +187,21 @@ class TestAliases(unittest.TestCase):
                 self.assertNotEqual(ef.replace_aliases(text), text)
 
 
+class TestMathJsRenames(unittest.TestCase):
+    def test_renames_are_matched_as_whole_tokens(self) -> None:
+        cases = {
+            "trunc(x) + xtrunc(x)": "fix(x) + xtrunc(x)",
+            "2trunc(x)": "2fix(x)",
+            "arrangements(5, 2)/stdev([1, 2])": "permutations(5, 2)/std([1, 2])",
+            "xstdev(1) + stdev_2(1)": "xstdev(1) + stdev_2(1)",
+            "trunc": "trunc",
+            "sin(x)": "sin(x)",
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(ef.rename_for_mathjs(text), expected)
+
+
 class TestBrowserFreeImport(unittest.TestCase):
     def test_module_imports_without_browser(self) -> None:
         code = (

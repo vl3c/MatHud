@@ -291,13 +291,6 @@ def build_curve_namespace() -> Dict[str, Any]:
     return _namespace(tuple(row for row in FUNCTIONS if row.curve_safe))
 
 
-def rename_for_mathjs(text: str) -> str:
-    """Rewrite calls of functions math.js knows under another name: trunc( -> fix(."""
-    for name, mathjs in MATHJS_RENAMES.items():
-        text = text.replace(name + "(", mathjs + "(")
-    return text
-
-
 # ----- Rewrites by whole tokens -----
 # Identifiers and number literals (with an optional exponent), matched whole from left to
 # right, so a name inside a longer identifier (kiln, x2ln, artifact) is never a match while
@@ -342,3 +335,27 @@ def replace_aliases(text: str) -> str:
     if not any(hint in text for hint in _ALIAS_HINTS):
         return text
     return _ALIAS_PATTERN.sub(_replace_alias, text)
+
+
+_TOKEN_PATTERN = re.compile(_TOKEN)
+# Text that must occur for rename_for_mathjs to change anything
+_RENAME_HINTS = tuple(sorted(name + "(" for name in MATHJS_RENAMES))
+
+
+def _rename_call(match: re.Match[str]) -> str:
+    token = match.group(0)
+    target = MATHJS_RENAMES.get(token)
+    if target is not None and match.string[match.end() : match.end() + 1] == "(":
+        return target
+    return token
+
+
+def rename_for_mathjs(text: str) -> str:
+    """Rewrite calls of functions math.js knows under another name: trunc(x) -> fix(x).
+
+    Every place that hands expression text to math.js calls this. Names are matched as whole
+    tokens followed by "(", like the aliases, so xtrunc(x) stays.
+    """
+    if not any(hint in text for hint in _RENAME_HINTS):
+        return text
+    return _TOKEN_PATTERN.sub(_rename_call, text)

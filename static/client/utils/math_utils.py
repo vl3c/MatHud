@@ -42,7 +42,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Un
 
 from browser import window
 
-import expression_functions
+from expression_functions import PYTHON_ONLY_NAMES, rename_for_mathjs
 
 Number = Union[int, float]
 PointLike = Any
@@ -1101,7 +1101,7 @@ class MathUtils:
 
     # Functions that require Python evaluation (not available in Math.js); randint has its own
     # "randint(" check in evaluate
-    _PYTHON_ONLY_FUNCTIONS: Set[str] = set(expression_functions.PYTHON_ONLY_NAMES - {"randint"})
+    _PYTHON_ONLY_FUNCTIONS: Set[str] = set(PYTHON_ONLY_NAMES - {"randint"})
 
     @staticmethod
     def evaluate(expression: str, variables: Optional[Dict[str, Number]] = None) -> Any:
@@ -1145,7 +1145,7 @@ class MathUtils:
                 return result
 
             # Map advertised names onto their math.js equivalents (trunc -> fix)
-            js_expression = expression_functions.rename_for_mathjs(js_expression)
+            js_expression = rename_for_mathjs(js_expression)
 
             try:
                 if not variables:
@@ -1639,7 +1639,7 @@ class MathUtils:
     def _mathjs_fails(text: str) -> bool:
         """True when math.js raises on text (an unknown function such as Si), not when it gives a value."""
         try:
-            window.math.evaluate(text)
+            window.math.evaluate(rename_for_mathjs(text))
         except Exception:
             return True
         return False
@@ -1678,9 +1678,9 @@ class MathUtils:
         try:
             from expression_validator import ExpressionValidator
 
-            compiled = window.math.compile(ExpressionValidator.fix_math_expression(str(expression)))
-            a = float(window.math.evaluate(str(lower_bound)))
-            b = float(window.math.evaluate(str(upper_bound)))
+            compiled = window.math.compile(rename_for_mathjs(ExpressionValidator.fix_math_expression(str(expression))))
+            a = float(window.math.evaluate(rename_for_mathjs(str(lower_bound))))
+            b = float(window.math.evaluate(rename_for_mathjs(str(upper_bound))))
             if not (math.isfinite(a) and math.isfinite(b)) or a == b:
                 return None
 
@@ -2195,7 +2195,7 @@ class MathUtils:
     def _complex_value(text: str) -> Optional[complex]:
         """A root's value as a complex number, or None when math.js cannot evaluate it (a parameter)."""
         try:
-            value = window.math.evaluate(text)
+            value = window.math.evaluate(rename_for_mathjs(text))
         except Exception:
             return None
         if isinstance(value, bool):
@@ -2215,6 +2215,7 @@ class MathUtils:
     @staticmethod
     def _root_status(sides: Sequence[str], variable: str, value: complex) -> str:
         """ "holds", "fails", "undefined" (the equation is not finite there) or "unknown" (not checkable)."""
+        sides = [rename_for_mathjs(side) for side in sides]
         point: Any = value.real if value.imag == 0 else window.math.complex(value.real, value.imag)
         scope = {variable: point}
         try:
@@ -2341,6 +2342,7 @@ class MathUtils:
         coefficients (e.g. the small root of x^2 - 2000000*x + 1 = 0).
         Returns None when the equation cannot be evaluated for the given scope.
         """
+        sides = [rename_for_mathjs(side) for side in sides]
 
         def residual_at(values: Dict[str, Any]) -> Any:
             lhs = window.math.evaluate(sides[0], values)
@@ -2395,7 +2397,7 @@ class MathUtils:
             value = float(value_text)
         except Exception:
             try:
-                result = window.math.evaluate(value_text)
+                result = window.math.evaluate(rename_for_mathjs(value_text))
                 if isinstance(result, (int, float)):
                     value = float(result)
                 else:
@@ -2479,7 +2481,7 @@ class MathUtils:
         compiled_differences = []
         try:
             for difference in differences:
-                compiled = window.math.compile(difference)
+                compiled = window.math.compile(rename_for_mathjs(difference))
                 compiled_differences.append(compiled)
                 origin = {name: 0 for name in variables}
                 constant = float(compiled.evaluate(origin))
@@ -2660,7 +2662,7 @@ class MathUtils:
         solutions: List[Tuple[float, float]] = []
         for x_value in x_roots:
             try:
-                y_value = window.math.evaluate(y_expression, {"x": x_value})
+                y_value = window.math.evaluate(rename_for_mathjs(y_expression), {"x": x_value})
             except Exception:
                 continue
             if not isinstance(y_value, (int, float)) or not math.isfinite(y_value):
@@ -3652,8 +3654,10 @@ class MathUtils:
         """math.js compile(expression).evaluate as a function of the scope, safe for values >= 2^53.
 
         Raises what math.js raises when compiling; the returned function raises what
-        evaluate raises, except Brython's "not a big int".
+        evaluate raises, except Brython's "not a big int". Functions math.js knows under another
+        name are renamed first (trunc -> fix).
         """
+        expression = rename_for_mathjs(expression)
         compiled = window.math.compile(expression)
         scaled: List[Any] = []
 
@@ -3683,9 +3687,8 @@ class MathUtils:
         from expression_validator import ExpressionValidator
 
         try:
-            # math.js calls trunc() fix()
-            fixed = ExpressionValidator.fix_math_expression(str(expression)).replace("trunc(", "fix(")
-            compiled = MathUtils._compiled_evaluator(fixed)
+            # _compiled_evaluator renames trunc() to math.js's fix() and the like
+            compiled = MathUtils._compiled_evaluator(ExpressionValidator.fix_math_expression(str(expression)))
         except Exception:
             return None
 
@@ -3854,7 +3857,7 @@ class MathUtils:
     def _tangent_asymptotes(argument: str, left: Number, right: Number) -> List[float]:
         """Return the asymptotes of tan(argument) within [left, right] for a linear argument a*x + b."""
         try:
-            compiled = window.math.compile(argument)
+            compiled = window.math.compile(rename_for_mathjs(argument))
             offset = float(compiled.evaluate({"x": 0}))
             slope = float(compiled.evaluate({"x": 1})) - offset
             for probe in (-2.5, 3.7):

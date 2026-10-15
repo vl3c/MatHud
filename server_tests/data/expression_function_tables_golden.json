@@ -4424,7 +4424,7 @@
    "degenerate_linear_system": {
     "arrangements(x, 2)": {
      "mathjs": [
-      "compile (arrangements(x, 2) )-( 1)"
+      "compile (permutations(x, 2) )-( 1)"
      ],
      "raised": "ValueError",
      "returned_error": false
@@ -4438,14 +4438,14 @@
     },
     "stdev([x, 1])": {
      "mathjs": [
-      "compile (stdev([x, 1]) )-( 1)"
+      "compile (std([x, 1]) )-( 1)"
      ],
      "raised": "ValueError",
      "returned_error": false
     },
     "trunc(x)": {
      "mathjs": [
-      "compile (trunc(x) )-( 1)"
+      "compile (fix(x) )-( 1)"
      ],
      "raised": "ValueError",
      "returned_error": false
@@ -4461,11 +4461,11 @@
    "equation_holds": {
     "arrangements(x, 2)": {
      "mathjs": [
-      "evaluate arrangements(x, 2)",
+      "evaluate permutations(x, 2)",
       "evaluate 1",
-      "evaluate arrangements(x, 2)",
+      "evaluate permutations(x, 2)",
       "evaluate 1",
-      "evaluate arrangements(x, 2)",
+      "evaluate permutations(x, 2)",
       "evaluate 1"
      ],
      "raised": null,
@@ -4485,11 +4485,11 @@
     },
     "stdev([x, 1])": {
      "mathjs": [
-      "evaluate stdev([x, 1])",
+      "evaluate std([x, 1])",
       "evaluate 1",
-      "evaluate stdev([x, 1])",
+      "evaluate std([x, 1])",
       "evaluate 1",
-      "evaluate stdev([x, 1])",
+      "evaluate std([x, 1])",
       "evaluate 1"
      ],
      "raised": null,
@@ -4497,11 +4497,11 @@
     },
     "trunc(x)": {
      "mathjs": [
-      "evaluate trunc(x)",
+      "evaluate fix(x)",
       "evaluate 1",
-      "evaluate trunc(x)",
+      "evaluate fix(x)",
       "evaluate 1",
-      "evaluate trunc(x)",
+      "evaluate fix(x)",
       "evaluate 1"
      ],
      "raised": null,
@@ -4523,7 +4523,7 @@
    "evaluate_residuals": {
     "arrangements(x, 2)": {
      "mathjs": [
-      "evaluate arrangements(x, 2)"
+      "evaluate permutations(x, 2)"
      ],
      "raised": null,
      "returned_error": false
@@ -4537,14 +4537,14 @@
     },
     "stdev([x, 1])": {
      "mathjs": [
-      "evaluate stdev([x, 1])"
+      "evaluate std([x, 1])"
      ],
      "raised": null,
      "returned_error": false
     },
     "trunc(x)": {
      "mathjs": [
-      "evaluate trunc(x)"
+      "evaluate fix(x)"
      ],
      "raised": null,
      "returned_error": false
@@ -4560,7 +4560,7 @@
    "interior_singularity": {
     "arrangements(x, 2)": {
      "mathjs": [
-      "compile arrangements(x, 2)",
+      "compile permutations(x, 2)",
       "evaluate 0",
       "evaluate 1"
      ],
@@ -4578,7 +4578,7 @@
     },
     "stdev([x, 1])": {
      "mathjs": [
-      "compile stdev([x, 1])",
+      "compile std([x, 1])",
       "evaluate 0",
       "evaluate 1"
      ],
@@ -4587,7 +4587,7 @@
     },
     "trunc(x)": {
      "mathjs": [
-      "compile trunc(x)",
+      "compile fix(x)",
       "evaluate 0",
       "evaluate 1"
      ],
@@ -4607,7 +4607,7 @@
    "numeric_value": {
     "arrangements(x, 2)": {
      "mathjs": [
-      "compile arrangements(x, 2)"
+      "compile permutations(x, 2)"
      ],
      "raised": null,
      "returned_error": false
@@ -4621,14 +4621,14 @@
     },
     "stdev([x, 1])": {
      "mathjs": [
-      "compile stdev([x, 1])"
+      "compile std([x, 1])"
      ],
      "raised": null,
      "returned_error": false
     },
     "trunc(x)": {
      "mathjs": [
-      "compile trunc(x)"
+      "compile fix(x)"
      ],
      "raised": null,
      "returned_error": false
@@ -4644,7 +4644,7 @@
    "probe": {
     "arrangements(x, 2)": {
      "mathjs": [
-      "compile arrangements(x, 2)"
+      "compile permutations(x, 2)"
      ],
      "raised": null,
      "returned_error": false
@@ -4658,7 +4658,7 @@
     },
     "stdev([x, 1])": {
      "mathjs": [
-      "compile stdev([x, 1])"
+      "compile std([x, 1])"
      ],
      "raised": null,
      "returned_error": false
@@ -4672,7 +4672,7 @@
     },
     "xtrunc(x)": {
      "mathjs": [
-      "compile xfix(x)"
+      "compile xtrunc(x)"
      ],
      "raised": null,
      "returned_error": false
@@ -4681,7 +4681,7 @@
    "real_function": {
     "arrangements(x, 2)": {
      "mathjs": [
-      "compile arrangements(x, 2)"
+      "compile permutations(x, 2)"
      ],
      "raised": null,
      "returned_error": false
@@ -4695,14 +4695,14 @@
     },
     "stdev([x, 1])": {
      "mathjs": [
-      "compile stdev([x, 1])"
+      "compile std([x, 1])"
      ],
      "raised": null,
      "returned_error": false
     },
     "trunc(x)": {
      "mathjs": [
-      "compile trunc(x)"
+      "compile fix(x)"
      ],
      "raised": null,
      "returned_error": false
@@ -4718,13 +4718,13 @@
    "root_status": {
     "arrangements(x, 2)": {
      "mathjs": [
-      "evaluate arrangements(x, 2)",
+      "evaluate permutations(x, 2)",
       "evaluate 1",
-      "evaluate arrangements(x, 2)",
+      "evaluate permutations(x, 2)",
       "evaluate 1",
-      "evaluate arrangements(x, 2)",
+      "evaluate permutations(x, 2)",
       "evaluate 1",
-      "evaluate arrangements(x, 2)",
+      "evaluate permutations(x, 2)",
       "evaluate 1"
      ],
      "raised": null,
@@ -4746,13 +4746,13 @@
     },
     "stdev([x, 1])": {
      "mathjs": [
-      "evaluate stdev([x, 1])",
+      "evaluate std([x, 1])",
       "evaluate 1",
-      "evaluate stdev([x, 1])",
+      "evaluate std([x, 1])",
       "evaluate 1",
-      "evaluate stdev([x, 1])",
+      "evaluate std([x, 1])",
       "evaluate 1",
-      "evaluate stdev([x, 1])",
+      "evaluate std([x, 1])",
       "evaluate 1"
      ],
      "raised": null,
@@ -4760,13 +4760,13 @@
     },
     "trunc(x)": {
      "mathjs": [
-      "evaluate trunc(x)",
+      "evaluate fix(x)",
       "evaluate 1",
-      "evaluate trunc(x)",
+      "evaluate fix(x)",
       "evaluate 1",
-      "evaluate trunc(x)",
+      "evaluate fix(x)",
       "evaluate 1",
-      "evaluate trunc(x)",
+      "evaluate fix(x)",
       "evaluate 1"
      ],
      "raised": null,
@@ -4790,7 +4790,7 @@
    "tangent_asymptotes": {
     "arrangements(x, 2)": {
      "mathjs": [
-      "compile arrangements(x, 2)"
+      "compile permutations(x, 2)"
      ],
      "raised": null,
      "returned_error": false
@@ -4804,14 +4804,14 @@
     },
     "stdev([x, 1])": {
      "mathjs": [
-      "compile stdev([x, 1])"
+      "compile std([x, 1])"
      ],
      "raised": null,
      "returned_error": false
     },
     "trunc(x)": {
      "mathjs": [
-      "compile trunc(x)"
+      "compile fix(x)"
      ],
      "raised": null,
      "returned_error": false
