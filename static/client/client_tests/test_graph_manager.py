@@ -506,8 +506,26 @@ class TestGraphManager(unittest.TestCase):
     def test_directed_matrix_gives_one_edge_per_entry(self) -> None:
         matrix = [[0, 1], [5, 0]]
         self.assertEqual(
-            self._matrix_edges("dag", None, matrix),
+            self._matrix_edges("graph", True, matrix),
             [("v0", "v1", 1.0, None), ("v1", "v0", 5.0, None)],
+        )
+
+    def test_dag_matrix_reads_one_edge_per_entry(self) -> None:
+        matrix = [[0, 1, 2], [0, 0, 3], [0, 0, 0]]
+        self.assertEqual(
+            self._matrix_edges("dag", None, matrix),
+            [("v0", "v1", 1.0, None), ("v0", "v2", 2.0, None), ("v1", "v2", 3.0, None)],
+        )
+
+    def test_undirected_matrix_diagonal_gives_self_loop(self) -> None:
+        matrix = [[4, 2], [2, 0]]
+        self.assertEqual(
+            self._matrix_edges("graph", False, matrix),
+            [("v0", "v0", 4.0, None), ("v0", "v1", 2.0, None)],
+        )
+        self.assertEqual(
+            self._matrix_edges("graph", True, matrix),
+            [("v0", "v0", 4.0, None), ("v0", "v1", 2.0, None), ("v1", "v0", 2.0, None)],
         )
 
     def test_tree_matrix_is_read_as_undirected(self) -> None:

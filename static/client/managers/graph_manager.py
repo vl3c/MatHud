@@ -48,6 +48,9 @@ if TYPE_CHECKING:
 # See drawables.graph.EdgeLabelRecord.
 LabelRecord = Tuple[Any, str, bool, Optional[str], Optional[int], bool]
 
+# Two vertex positions closer than this on both axes are the same point.
+_SAME_POSITION_TOLERANCE = 1e-9
+
 
 class GraphManager:
     def __init__(
@@ -97,17 +100,26 @@ class GraphManager:
         original_labels: List[LabelRecord] = []
         label_seq = self._next_label_seq()
         is_tree = isinstance(state, TreeState)
+        # Parallel edges share one segment or vector, which carries their cheapest weight.
+        weights_written: Dict[int, Any] = {}
         for edge in state.edges:
-            edge_directed = state.directed if is_tree else None
-            segment_obj, vector_obj = self._create_edge(edge, state.directed, id_to_point, force_directed=edge_directed)
+            # Every edge takes the graph's direction, so the graph keeps all of them.
+            segment_obj, vector_obj = self._create_edge(edge, bool(state.directed), id_to_point)
             if segment_obj:
                 segments_created.append(segment_obj)
             if vector_obj:
                 vectors_created.append(vector_obj)
             edge_obj = segment_obj or vector_obj
-            if edge_obj is not None and edge.weight is not None:
-                preexisting = id(edge_obj) in existing_ids
-                self._apply_weight_label(edge_obj, str(edge.weight), preexisting, original_labels, label_seq)
+            if edge_obj is None:
+                continue
+            seen = id(edge_obj) in weights_written
+            weight = self._cheaper_weight(weights_written[id(edge_obj)], edge.weight) if seen else edge.weight
+            if weight is None or (seen and weight == weights_written[id(edge_obj)]):
+                weights_written.setdefault(id(edge_obj), weight)
+                continue
+            weights_written[id(edge_obj)] = weight
+            preexisting = id(edge_obj) in existing_ids
+            self._apply_weight_label(edge_obj, str(weight), preexisting, original_labels, label_seq, rewrite=seen)
 
         graph_name = self.drawables.unique_name(state.name)
         if is_tree:
@@ -145,6 +157,15 @@ class GraphManager:
         return graph
 
     @staticmethod
+    def _cheaper_weight(current: Any, new: Any) -> Any:
+        """Weight a shared parallel edge shows: the cheaper one, an unweighted edge counting as 1."""
+        if current is None and new is None:
+            return None
+        current_value = 1 if current is None else current
+        new_value = 1 if new is None else new
+        return new_value if float(new_value) < float(current_value) else current_value
+
+    @staticmethod
     def _unique_preexisting(drawables: List[Any], existing_ids: set[int]) -> List[Any]:
         """Return the drawables whose ids were on the canvas before, without duplicates."""
         result: List[Any] = []
@@ -167,6 +188,13 @@ class GraphManager:
         placement_box: Optional[Dict[str, float]],
         metadata: Optional[Dict[str, Any]],
     ) -> GraphState:
+        """Validate a generate_graph request and turn it into a graph state.
+
+        Raises:
+            ValueError: for edge indices that name no vertex, an unknown root, two vertices
+                given the same coordinates, a tree whose edges do not form a tree, or a dag
+                with a cycle.
+        """
         vertex_descriptors: List[GraphVertexDescriptor] = []
         for idx, vertex in enumerate(vertices):
             vertex_id = f"v{idx}"
@@ -186,21 +214,18 @@ class GraphManager:
             for i in range(size):
                 vertex_descriptors.append(GraphVertexDescriptor(f"v{i}", name=None))
 
+        self._check_distinct_coordinates(vertex_descriptors)
         id_list = [vd.id for vd in vertex_descriptors]
 
         edge_descriptors: List[GraphEdgeDescriptor] = []
         for idx, edge in enumerate(edges):
-            src_idx = int(edge.get("source", 0))
-            tgt_idx = int(edge.get("target", 0))
-            if src_idx < 0 or src_idx >= len(id_list) or tgt_idx < 0 or tgt_idx >= len(id_list):
-                continue
-            src_id = id_list[src_idx]
-            tgt_id = id_list[tgt_idx]
+            src_idx = self._edge_vertex_index(edge.get("source"), "source", idx, len(id_list))
+            tgt_idx = self._edge_vertex_index(edge.get("target"), "target", idx, len(id_list))
             edge_descriptors.append(
                 GraphEdgeDescriptor(
                     f"e{idx}",
-                    src_id,
-                    tgt_id,
+                    id_list[src_idx],
+                    id_list[tgt_idx],
                     weight=edge.get("weight"),
                     name=edge.get("name"),
                     color=edge.get("color"),
@@ -208,42 +233,35 @@ class GraphManager:
                 )
             )
 
-        resolved_directed = directed if directed is not None else graph_type in ("dag", "directed")
+        # A dag is always directed and a tree never is; edges take the graph's direction.
+        if graph_type == "dag":
+            resolved_directed = True
+        elif graph_type == "tree":
+            resolved_directed = False
+        else:
+            resolved_directed = bool(directed) if directed is not None else graph_type == "directed"
 
         if adjacency_matrix and not edges:
-            # Trees are always undirected, so their matrix is read like an undirected graph's.
-            matrix_directed = resolved_directed and graph_type != "tree"
-            edge_descriptors.extend(self._edges_from_adjacency_matrix(adjacency_matrix, id_list, matrix_directed))
+            edge_descriptors.extend(self._edges_from_adjacency_matrix(adjacency_matrix, id_list, resolved_directed))
 
-        resolved_root: Optional[str] = None
-        if root is not None:
-            try:
-                root_idx = int(root)
-                if 0 <= root_idx < len(id_list):
-                    resolved_root = id_list[root_idx]
-            except (ValueError, TypeError):
-                pass
-            if resolved_root is None:
-                for vd in vertex_descriptors:
-                    if vd.name == root or vd.id == root:
-                        resolved_root = vd.id
-                        break
-            if resolved_root is None and id_list:
-                resolved_root = id_list[0]
+        resolved_root = self._resolve_requested_root(root, vertex_descriptors)
 
         if graph_type == "tree":
-            # Default to hierarchical tree layout for trees unless explicitly overridden
-            # "radial" is only used if explicitly requested AND user clearly wants radial
-            tree_layout = layout if layout in ("radial", "hierarchical", "tree") else "tree"
+            self._check_tree(name, id_list, edge_descriptors)
+            if resolved_root is None:
+                resolved_root = self._inferred_tree_root(id_list, edge_descriptors)
             return TreeState(
                 name=name,
                 vertices=vertex_descriptors,
                 edges=edge_descriptors,
                 root=resolved_root,
-                layout=tree_layout,
+                layout=layout or "tree",
                 placement_box=placement_box,
                 metadata=metadata,
             )
+
+        if graph_type == "dag":
+            self._check_acyclic(name, id_list, edge_descriptors, vertex_descriptors)
 
         return GraphState(
             name=name,
@@ -255,6 +273,102 @@ class GraphManager:
             placement_box=placement_box,
             metadata=metadata,
         )
+
+    @staticmethod
+    def _vertex_label(vertex: GraphVertexDescriptor, index: int) -> str:
+        return f"{vertex.name!r} (index {index})" if vertex.name else f"index {index}"
+
+    @staticmethod
+    def _check_distinct_coordinates(vertices: List[GraphVertexDescriptor]) -> None:
+        """Reject two vertices given the same explicit position: they would become one point."""
+        placed: List[Tuple[int, float, float]] = []
+        for index, vertex in enumerate(vertices):
+            if vertex.x is None or vertex.y is None:
+                continue
+            x, y = float(vertex.x), float(vertex.y)
+            for other_index, ox, oy in placed:
+                if abs(ox - x) <= _SAME_POSITION_TOLERANCE and abs(oy - y) <= _SAME_POSITION_TOLERANCE:
+                    first = GraphManager._vertex_label(vertices[other_index], other_index)
+                    second = GraphManager._vertex_label(vertex, index)
+                    raise ValueError(
+                        f"Vertices {first} and {second} have the same coordinates ({x:g}, {y:g}); "
+                        "give each vertex its own position."
+                    )
+            placed.append((index, x, y))
+
+    @staticmethod
+    def _edge_vertex_index(value: Any, field: str, edge_index: int, vertex_count: int) -> int:
+        """Return an edge endpoint as a vertex index, or raise if it is not one."""
+        index: Optional[int] = None
+        if isinstance(value, bool) or value is None:
+            index = None
+        elif isinstance(value, int):
+            index = value
+        elif isinstance(value, float) and value.is_integer():
+            index = int(value)
+        elif isinstance(value, str) and value.strip().lstrip("-").isdigit():
+            index = int(value.strip())
+        if index is None:
+            raise ValueError(f"Edge {edge_index}: {field} {value!r} is not a vertex index (an integer).")
+        if not 0 <= index < vertex_count:
+            valid = f"0-{vertex_count - 1}" if vertex_count else "none: the graph has no vertices"
+            raise ValueError(f"Edge {edge_index}: {field} {index} is out of range (vertex indices: {valid}).")
+        return index
+
+    @staticmethod
+    def _resolve_requested_root(root: Optional[str], vertices: List[GraphVertexDescriptor]) -> Optional[str]:
+        """Vertex id of the requested root, matched by vertex name first, then by index."""
+        if root is None:
+            return None
+        text = str(root).strip()
+        for vd in vertices:
+            if vd.name == text or vd.id == text:
+                return vd.id
+        if text.isdigit() and int(text) < len(vertices):
+            return vertices[int(text)].id
+        names = [vd.name or vd.id for vd in vertices]
+        raise ValueError(
+            f"Unknown root {root!r}: give a vertex name or index (vertices: {', '.join(names) or 'none'})."
+        )
+
+    @staticmethod
+    def _inferred_tree_root(id_list: List[str], edges: List[GraphEdgeDescriptor]) -> Optional[str]:
+        """Root of a tree given without one: the first vertex no edge points to (as the layout picks it)."""
+        targets = {edge.target for edge in edges}
+        for vertex_id in id_list:
+            if vertex_id not in targets:
+                return vertex_id
+        return id_list[0] if id_list else None
+
+    @staticmethod
+    def _check_tree(name: str, id_list: List[str], edges: List[GraphEdgeDescriptor]) -> None:
+        if not id_list:
+            raise ValueError(f"Tree '{name}' needs at least one vertex.")
+        graph_edges = [Edge(edge.source, edge.target) for edge in edges]
+        if GraphUtils.is_tree_edges(id_list, graph_edges):
+            return
+        expected = len(id_list) - 1
+        raise ValueError(
+            f"Tree '{name}' is not a tree: {len(id_list)} vertices need exactly {expected} edges forming one "
+            f"connected piece with no cycle (got {len(edges)} edges). Use graph_type 'graph' for other graphs."
+        )
+
+    @staticmethod
+    def _check_acyclic(
+        name: str,
+        id_list: List[str],
+        edges: List[GraphEdgeDescriptor],
+        vertices: List[GraphVertexDescriptor],
+    ) -> None:
+        adjacency: Dict[str, set[str]] = {vertex_id: set() for vertex_id in id_list}
+        for edge in edges:
+            adjacency[edge.source].add(edge.target)
+        cycle = GraphUtils.find_directed_cycle(adjacency)
+        if cycle is None:
+            return
+        labels = {vd.id: vd.name or vd.id for vd in vertices}
+        shown = " -> ".join(labels.get(vertex_id, vertex_id) for vertex_id in cycle)
+        raise ValueError(f"DAG '{name}' has a cycle ({shown}); a dag must be acyclic. Use graph_type 'graph'.")
 
     def delete_graph(self, name: str) -> bool:
         existing = self.get_graph(name)
@@ -343,16 +457,18 @@ class GraphManager:
         preexisting: bool,
         original_labels: List[LabelRecord],
         label_seq: int,
+        rewrite: bool = False,
     ) -> None:
         """Show the edge weight as a label and record what it replaced.
 
-        New segments already got their label on creation; new vectors and reused edges
-        get it here. A created edge records an empty original and is never restored.
+        New segments already got their label on creation; new vectors, reused edges and
+        edges a cheaper parallel edge relabels (``rewrite``) get it here. A created edge
+        records an empty original and is never restored.
         """
         holder = self._label_holder(edge)
         label = getattr(holder, "label", None)
         original = (str(getattr(label, "text", "") or ""), bool(getattr(label, "visible", False)))
-        if preexisting or edge.get_class_name() == "Vector":
+        if preexisting or rewrite or edge.get_class_name() == "Vector":
             try:
                 holder.update_label_text(label_text)
                 holder.set_label_visibility(True)
@@ -510,7 +626,8 @@ class GraphManager:
 
         Directed graphs get one edge per nonzero entry. Undirected graphs get one edge per
         vertex pair, read from the upper triangle (or the lower one where the upper is zero).
-        Edges take their direction from the graph.
+        A nonzero diagonal entry is a self-loop in both. 0 means no edge, so a weight-0 edge
+        cannot be given in a matrix. Edges take their direction from the graph.
         """
         descriptors: List[GraphEdgeDescriptor] = []
         n = min(len(adjacency_matrix), len(id_list))
@@ -518,7 +635,7 @@ class GraphManager:
             for j in range(n):
                 if directed:
                     weight = GraphManager._matrix_entry(adjacency_matrix, i, j)
-                elif j > i:
+                elif j >= i:
                     weight = GraphManager._matrix_entry(adjacency_matrix, i, j) or GraphManager._matrix_entry(
                         adjacency_matrix, j, i
                     )
@@ -604,27 +721,78 @@ class GraphManager:
             root_id=getattr(state, "root", None),
         )
 
-        for vid in missing:
-            if vid in layout_positions:
-                provided[vid] = layout_positions[vid]
-        for vid, coords in provided.items():
-            if vid not in layout_positions:
-                layout_positions[vid] = coords
-        return layout_positions
+        generated = {vid: layout_positions[vid] for vid in missing if vid in layout_positions}
+        occupied = list(provided.values()) + [(float(p.x), float(p.y)) for p in self.drawables.Points]
+        provided.update(self._clear_of_occupied(generated, occupied, placement_box))
+        return provided
+
+    @staticmethod
+    def _clear_of_occupied(
+        generated: Dict[str, Tuple[float, float]],
+        occupied: List[Tuple[float, float]],
+        placement_box: Optional[Dict[str, float]],
+    ) -> Dict[str, Tuple[float, float]]:
+        """Move layout positions off points that already exist, so they get their own points.
+
+        A point at a vertex position would otherwise be reused as the vertex, merging a second
+        graph laid out in the same place into the first. Only positions given explicitly reuse
+        existing points. The whole layout shifts together (keeping its shape) by the smallest
+        step that clears every occupied position; vertices are nudged one by one if none does.
+        """
+
+        def clashes(position: Tuple[float, float], others: List[Tuple[float, float]]) -> bool:
+            return any(
+                abs(position[0] - ox) <= _SAME_POSITION_TOLERANCE and abs(position[1] - oy) <= _SAME_POSITION_TOLERANCE
+                for ox, oy in others
+            )
+
+        if not any(clashes(pos, occupied) for pos in generated.values()):
+            return generated
+
+        step = GraphManager._clearance_step(generated, placement_box)
+        directions = [(1, 0), (0, -1), (-1, 0), (0, 1), (1, -1), (-1, -1), (-1, 1), (1, 1)]
+        for ring in range(1, 9):
+            for dx, dy in directions:
+                shifted = {
+                    vid: (pos[0] + dx * ring * step, pos[1] + dy * ring * step) for vid, pos in generated.items()
+                }
+                if not any(clashes(pos, occupied) for pos in shifted.values()):
+                    return shifted
+
+        placed: Dict[str, Tuple[float, float]] = {}
+        taken = list(occupied)
+        for vid in sorted(generated):
+            pos = generated[vid]
+            ring = 1
+            while clashes(pos, taken):
+                dx, dy = directions[(ring - 1) % len(directions)]
+                scale = (ring + len(directions) - 1) // len(directions)
+                pos = (generated[vid][0] + dx * scale * step, generated[vid][1] + dy * scale * step)
+                ring += 1
+            placed[vid] = pos
+            taken.append(pos)
+        return placed
+
+    @staticmethod
+    def _clearance_step(generated: Dict[str, Tuple[float, float]], placement_box: Optional[Dict[str, float]]) -> float:
+        """Shift step for clearing occupied positions: 5% of the placement box (or of the layout's spread)."""
+        size = 0.0
+        if placement_box:
+            size = min(float(placement_box.get("width", 0.0)), float(placement_box.get("height", 0.0)))
+        if size <= 0.0 and generated:
+            xs = [pos[0] for pos in generated.values()]
+            ys = [pos[1] for pos in generated.values()]
+            size = max(max(xs) - min(xs), max(ys) - min(ys))
+        return 0.05 * size if size > 0.0 else 1.0
 
     def _create_edge(
         self,
         edge: GraphEdgeDescriptor,
-        default_directed: bool,
+        directed: bool,
         id_to_point: Dict[str, "Point"],
-        force_directed: Optional[bool] = None,
     ) -> Tuple[Optional["Segment"], Optional["Vector"]]:
         source_point = id_to_point[edge.source]
         target_point = id_to_point[edge.target]
-        if force_directed is not None:
-            directed = force_directed
-        else:
-            directed = edge.directed if edge.directed is not None else default_directed
         color_value = edge.color
 
         label_text: Optional[str] = None
