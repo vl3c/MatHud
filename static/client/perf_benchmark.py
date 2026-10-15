@@ -178,11 +178,11 @@ def run_benchmark(scene_names: Optional[List[str]] = None, iterations: int = 3, 
     """Run the scene and expression benchmarks; return plain data for JSON."""
     perf_api = window.performance
     names = scene_names or list(SCENES)
-    # One small run first, so first-use imports and caches don't land in the timings.
-    run_renderer_performance(scene_spec=_WARMUP_SCENE, iterations=1)
     unknown = [name for name in names if name not in SCENES]
     if unknown:
         raise ValueError(f"Unknown scene(s): {', '.join(unknown)}; known: {', '.join(SCENES)}")
+    # One small run first, so first-use imports and caches don't land in the timings.
+    run_renderer_performance(scene_spec=_WARMUP_SCENE, iterations=1)
 
     scenes: Dict[str, Any] = {}
     for name in names:

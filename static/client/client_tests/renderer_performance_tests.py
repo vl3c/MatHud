@@ -223,7 +223,7 @@ def run_renderer_performance(
     spec: Dict[str, Any] = {**WORKLOAD_SCENE, **(scene_spec or {})}
 
     # Build the scene without a redraw or an undo snapshot per drawable (both grow with the
-    # scene, so populating took far longer than the measured draws); then draw it once.
+    # scene, so populating took far longer than the measured draws).
     canvas.draw_enabled = False
     canvas.undo_redo_manager.begin_batch()
     build_ms: Dict[str, float] = {}
@@ -245,6 +245,15 @@ def run_renderer_performance(
                 "dom_nodes": float(len(document["math-svg"].children)),
             }
         )
+
+    # The first frame builds every plan; time it on its own, then drop its telemetry so
+    # the phase timings below describe warm frames, as the per-drawable redraws used to.
+    start = perf_api.now()
+    canvas.draw()
+    collect("first_draw", perf_api.now() - start, 1)
+    drain_first = getattr(canvas.renderer, "drain_telemetry", None)
+    if callable(drain_first):
+        drain_first()
 
     start = perf_api.now()
     for _ in range(iterations):

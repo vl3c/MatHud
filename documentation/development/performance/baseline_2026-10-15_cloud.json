@@ -1,63 +1,69 @@
 {
+  "commit": "5149214",
   "options": {
     "iterations": 3,
     "scale": 1
   },
   "repeats": 3,
   "medians_ms": {
-    "areas.build.colored_areas": 1.4666666666356225,
-    "areas.build.functions": 17.066666666728754,
-    "areas.cartesian_plan_apply": 18.892307692386495,
-    "areas.cartesian_plan_build": 16.061538461380852,
-    "areas.draw": 70.83333333333333,
-    "areas.pan": 86.54999999996896,
-    "areas.plan_apply": 2.9745283019070006,
-    "areas.plan_build": 12.882191780814264,
-    "areas.zoom": 142.4833333333178,
-    "expr.fix_math_expression": 0.8514999999990687,
-    "expr.function_create": 77.82499999995343,
-    "expr.function_eval": 0.022050000000046567,
-    "expr.mathutils_evaluate": 6.703333333336437,
-    "expr.parametric_eval": 0.023199999999953435,
-    "functions.build.functions": 21.199999999953434,
-    "functions.cartesian_plan_apply": 17.81538461546342,
-    "functions.cartesian_plan_build": 15.961538461610102,
-    "functions.draw": 82.26666666660458,
-    "functions.pan": 55.88333333330229,
-    "functions.plan_apply": 2.9952830188986757,
-    "functions.plan_build": 18.23636363635517,
-    "functions.zoom": 161.0,
-    "geometry.build.circles": 467.8333333333333,
-    "geometry.build.ellipses": 490.75,
-    "geometry.build.points": 1.4833333333333334,
-    "geometry.build.rectangles": 470.80000000004657,
-    "geometry.build.segments": 7.625,
-    "geometry.build.triangles": 142.92499999993015,
-    "geometry.build.vectors": 21.083333333333332,
-    "geometry.cartesian_plan_apply": 18.807692307656488,
-    "geometry.cartesian_plan_build": 16.76923076923077,
-    "geometry.draw": 237.89999999990687,
-    "geometry.pan": 244.8666666666201,
-    "geometry.plan_apply": 0.6974048442859847,
-    "geometry.plan_build": 3.483146067394802,
-    "geometry.zoom": 269.5833333333333,
-    "parametric.build.parametric": 3.1000000000931323,
-    "parametric.cartesian_plan_apply": 17.892307692314855,
-    "parametric.cartesian_plan_build": 16.753846153796005,
-    "parametric.draw": 99.06666666672875,
-    "parametric.pan": 49.216666666635625,
-    "parametric.plan_apply": 4.094736842070951,
-    "parametric.plan_build": 43.7000000000159,
-    "parametric.zoom": 277.51666666668217,
-    "statistics.build.bars": 7.400000000372529,
-    "statistics.build.distributions": 26.449999999953434,
-    "statistics.cartesian_plan_apply": 17.946153846032058,
-    "statistics.cartesian_plan_build": 15.215384615406107,
-    "statistics.draw": 111.29999999996896,
-    "statistics.pan": 124.06666666665114,
-    "statistics.plan_apply": 0.8977186311737496,
-    "statistics.plan_build": 6.640000000008597,
-    "statistics.zoom": 140.3833333333023
+    "areas.build.colored_areas": 1.3666666666977108,
+    "areas.build.functions": 15.766666666759798,
+    "areas.cartesian_plan_apply": 19.55833333331005,
+    "areas.cartesian_plan_build": 15.591666666674428,
+    "areas.draw": 38.76666666660458,
+    "areas.first_draw": 119.1999999997206,
+    "areas.pan": 89.31666666665114,
+    "areas.plan_apply": 2.82571428570719,
+    "areas.plan_build": 11.892424242422832,
+    "areas.zoom": 135.1166666666201,
+    "expr.fix_math_expression": 0.8675,
+    "expr.function_create": 67.72499999997672,
+    "expr.function_eval": 0.01875,
+    "expr.mathutils_evaluate": 6.003333333336438,
+    "expr.parametric_eval": 0.020550000000046566,
+    "functions.build.functions": 20.03333333336438,
+    "functions.cartesian_plan_apply": 18.741666666736517,
+    "functions.cartesian_plan_build": 16.41666666670547,
+    "functions.draw": 35.7333333332402,
+    "functions.first_draw": 163.20000000018626,
+    "functions.pan": 53.95000000003105,
+    "functions.plan_apply": 2.9695238095220358,
+    "functions.plan_build": 20.26250000000194,
+    "functions.zoom": 181.1166666666977,
+    "geometry.build.circles": 469.6666666666667,
+    "geometry.build.ellipses": 518.3500000000931,
+    "geometry.build.points": 1.590000000006209,
+    "geometry.build.rectangles": 436.64999999990687,
+    "geometry.build.segments": 7.633333333341095,
+    "geometry.build.triangles": 126.97499999997672,
+    "geometry.build.vectors": 21.100000000015523,
+    "geometry.cartesian_plan_apply": 18.84166666663562,
+    "geometry.cartesian_plan_build": 17.024999999945674,
+    "geometry.draw": 188.29999999996895,
+    "geometry.first_draw": 297.8000000002794,
+    "geometry.pan": 242.09999999993792,
+    "geometry.plan_apply": 0.6751515151481285,
+    "geometry.plan_build": 17.024999999945674,
+    "geometry.zoom": 271.69999999995343,
+    "parametric.build.parametric": 3.075000000069849,
+    "parametric.cartesian_plan_apply": 18.041666666666668,
+    "parametric.cartesian_plan_build": 15.541666666627862,
+    "parametric.draw": 29.13333333330229,
+    "parametric.first_draw": 256.89999999990687,
+    "parametric.pan": 50.716666666635625,
+    "parametric.plan_apply": 3.9546666666306556,
+    "parametric.plan_build": 41.69166666668995,
+    "parametric.zoom": 272.75,
+    "statistics.build.bars": 7.2000000001862645,
+    "statistics.build.distributions": 23.5,
+    "statistics.cartesian_plan_apply": 20.34166666659682,
+    "statistics.cartesian_plan_build": 15.941666666651145,
+    "statistics.draw": 91.33333333333333,
+    "statistics.first_draw": 129.10000000009313,
+    "statistics.pan": 132.20000000003105,
+    "statistics.plan_apply": 0.9662857142844725,
+    "statistics.plan_build": 12.806666666641831,
+    "statistics.zoom": 146.16666666666666
   },
   "runs": [
     {
@@ -83,24 +89,25 @@
             "bars": 0
           },
           "build_ms_per_drawable": {
-            "points": 1.4833333333333334,
-            "segments": 7.825000000031044,
+            "points": 1.7933333333426467,
+            "segments": 8.441666666651145,
             "vectors": 21.083333333333332,
-            "triangles": 135.04999999993015,
-            "rectangles": 365.44999999995343,
-            "circles": 370.2333333333954,
-            "ellipses": 429.39999999990687
+            "triangles": 124.92500000004657,
+            "rectangles": 369.04999999981374,
+            "circles": 390.1666666666667,
+            "ellipses": 371.60000000009313
           },
           "metrics": {
-            "draw": 236.6333333333023,
-            "pan": 244.8666666666201,
-            "zoom": 258.6666666666667
+            "first_draw": 253.39999999990687,
+            "draw": 185.56666666657352,
+            "pan": 249.70000000003105,
+            "zoom": 247.43333333334886
           },
           "phases": {
-            "plan_build": 3.635955056180822,
-            "plan_apply": 0.6914359861565915,
-            "cartesian_plan_build": 17.930769230740573,
-            "cartesian_plan_apply": 17.49230769237217
+            "plan_build": 17.108333333434228,
+            "plan_apply": 0.6584415584371236,
+            "cartesian_plan_build": 17.108333333434228,
+            "cartesian_plan_apply": 17.833333333410945
           }
         },
         "functions": {
@@ -120,18 +127,19 @@
             "bars": 0
           },
           "build_ms_per_drawable": {
-            "functions": 26.916666666666668
+            "functions": 25.100000000015523
           },
           "metrics": {
-            "draw": 88.46666666679084,
-            "pan": 51.45000000003105,
-            "zoom": 161
+            "first_draw": 163.20000000018626,
+            "draw": 30.166666666666668,
+            "pan": 49.933333333348855,
+            "zoom": 159.56666666672876
           },
           "phases": {
-            "plan_build": 18.23636363635517,
-            "plan_apply": 2.9952830188986757,
-            "cartesian_plan_build": 13.13846153855467,
-            "cartesian_plan_apply": 17.81538461546342
+            "plan_build": 17.44166666668995,
+            "plan_apply": 2.6019047618799265,
+            "cartesian_plan_build": 14.649999999984479,
+            "cartesian_plan_apply": 16.59166666659682
           }
         },
         "parametric": {
@@ -151,18 +159,19 @@
             "bars": 0
           },
           "build_ms_per_drawable": {
-            "parametric": 8.849999999976717
+            "parametric": 10.025000000023283
           },
           "metrics": {
-            "draw": 93.73333333339542,
-            "pan": 43.349999999937914,
-            "zoom": 270.1666666666667
+            "first_draw": 270.39999999990687,
+            "draw": 29.13333333330229,
+            "pan": 47.300000000046566,
+            "zoom": 290.1666666666667
           },
           "phases": {
-            "plan_build": 42.30243902442204,
-            "plan_apply": 3.610526315825011,
-            "cartesian_plan_build": 13.54615384612519,
-            "cartesian_plan_apply": 15.523076923062595
+            "plan_build": 44.9888888888656,
+            "plan_apply": 3.941333333315949,
+            "cartesian_plan_build": 13.525000000062088,
+            "cartesian_plan_apply": 17.86666666669771
           }
         },
         "areas": {
@@ -182,19 +191,20 @@
             "bars": 0
           },
           "build_ms_per_drawable": {
-            "functions": 18.26666666660458,
-            "colored_areas": 1.4666666666356225
+            "functions": 28.100000000093132,
+            "colored_areas": 1.3333333333333333
           },
           "metrics": {
-            "draw": 70.83333333333333,
-            "pan": 86.54999999996896,
-            "zoom": 150.79999999996895
+            "first_draw": 118.39999999990687,
+            "draw": 38.76666666660458,
+            "pan": 92.58333333333333,
+            "zoom": 137.58333333333334
           },
           "phases": {
-            "plan_build": 13.039726027427879,
-            "plan_apply": 2.9745283019070006,
-            "cartesian_plan_build": 15.976923076973225,
-            "cartesian_plan_apply": 18.892307692386495
+            "plan_build": 12.493939393926695,
+            "plan_apply": 2.82571428570719,
+            "cartesian_plan_build": 17.099999999899108,
+            "cartesian_plan_apply": 19.55833333331005
           }
         },
         "statistics": {
@@ -214,47 +224,48 @@
             "bars": 1
           },
           "build_ms_per_drawable": {
-            "distributions": 29.300000000046566,
-            "bars": 7.599999999627471
+            "distributions": 23.5,
+            "bars": 7.2000000001862645
           },
           "metrics": {
-            "draw": 119.56666666672875,
-            "pan": 124.06666666665114,
-            "zoom": 127.76666666668218
+            "first_draw": 129.10000000009313,
+            "draw": 91.33333333333333,
+            "pan": 132.20000000003105,
+            "zoom": 158.18333333334886
           },
           "phases": {
-            "plan_build": 6.640000000008597,
-            "plan_apply": 0.9003802281317475,
-            "cartesian_plan_build": 15.207692307670815,
-            "cartesian_plan_apply": 17.946153846032058
+            "plan_build": 13.096666666679084,
+            "plan_apply": 0.9691428571460502,
+            "cartesian_plan_build": 16.81666666668995,
+            "cartesian_plan_apply": 21.15833333336438
           }
         }
       },
       "expressions": {
         "fix_math_expression": {
-          "total_ms": 172.70000000018626,
+          "total_ms": 194,
           "count": 200,
-          "avg_ms": 0.8635000000009313
+          "avg_ms": 0.97
         },
         "function_create": {
-          "total_ms": 306.3000000002794,
+          "total_ms": 363.1999999997206,
           "count": 4,
-          "avg_ms": 76.57500000006985
+          "avg_ms": 90.79999999993015
         },
         "function_eval": {
-          "total_ms": 44.10000000009313,
+          "total_ms": 38.8000000002794,
           "count": 2000,
-          "avg_ms": 0.022050000000046567
+          "avg_ms": 0.019400000000139698
         },
         "parametric_eval": {
-          "total_ms": 50.3000000002794,
+          "total_ms": 43.8000000002794,
           "count": 2000,
-          "avg_ms": 0.0251500000001397
+          "avg_ms": 0.0219000000001397
         },
         "mathutils_evaluate": {
-          "total_ms": 231.59999999962747,
+          "total_ms": 189.39999999990687,
           "count": 30,
-          "avg_ms": 7.719999999987582
+          "avg_ms": 6.313333333330229
         }
       }
     },
@@ -281,24 +292,25 @@
             "bars": 0
           },
           "build_ms_per_drawable": {
-            "points": 1.2533333333209158,
-            "segments": 6.275000000023283,
-            "vectors": 17.416666666666668,
-            "triangles": 142.92499999993015,
-            "rectangles": 470.80000000004657,
-            "circles": 467.8333333333333,
-            "ellipses": 490.75
+            "points": 1.590000000006209,
+            "segments": 7.449999999992239,
+            "vectors": 24.850000000015523,
+            "triangles": 128.84999999997672,
+            "rectangles": 507.4000000001397,
+            "circles": 476.2666666666046,
+            "ellipses": 518.3500000000931
           },
           "metrics": {
-            "draw": 237.89999999990687,
-            "pan": 241.7666666666822,
-            "zoom": 269.5833333333333
+            "first_draw": 297.8000000002794,
+            "draw": 204.2666666667598,
+            "pan": 242.09999999993792,
+            "zoom": 287.31666666665114
           },
           "phases": {
-            "plan_build": 3.32247191010922,
-            "plan_apply": 0.6974048442859847,
-            "cartesian_plan_build": 16.3153846154276,
-            "cartesian_plan_apply": 19.35384615392496
+            "plan_build": 17.024999999945674,
+            "plan_apply": 0.720259740260466,
+            "cartesian_plan_build": 17.024999999945674,
+            "cartesian_plan_apply": 20.858333333317812
           }
         },
         "functions": {
@@ -318,18 +330,19 @@
             "bars": 0
           },
           "build_ms_per_drawable": {
-            "functions": 20.700000000031043
+            "functions": 19.683333333271246
           },
           "metrics": {
-            "draw": 82.26666666660458,
-            "pan": 61.45000000003105,
-            "zoom": 174.0166666666822
+            "first_draw": 153.39999999990687,
+            "draw": 37.56666666657353,
+            "pan": 58.416666666666664,
+            "zoom": 181.1166666666977
           },
           "phases": {
-            "plan_build": 19.361818181850357,
-            "plan_apply": 3.2179245283027655,
-            "cartesian_plan_build": 15.961538461610102,
-            "cartesian_plan_apply": 18.453846153838988
+            "plan_build": 20.26250000000194,
+            "plan_apply": 2.9695238095220358,
+            "cartesian_plan_build": 16.79166666662786,
+            "cartesian_plan_apply": 18.741666666736517
           }
         },
         "parametric": {
@@ -349,18 +362,19 @@
             "bars": 0
           },
           "build_ms_per_drawable": {
-            "parametric": 3.1000000000931323
+            "parametric": 3.075000000069849
           },
           "metrics": {
-            "draw": 108,
-            "pan": 49.216666666635625,
-            "zoom": 288.89999999998446
+            "first_draw": 254.6999999997206,
+            "draw": 29.2666666667598,
+            "pan": 50.716666666635625,
+            "zoom": 261.5
           },
           "phases": {
-            "plan_build": 45.546341463355574,
-            "plan_apply": 4.289473684222781,
-            "cartesian_plan_build": 16.753846153796005,
-            "cartesian_plan_apply": 18.830769230862362
+            "plan_build": 40.60000000000259,
+            "plan_apply": 3.9546666666306556,
+            "cartesian_plan_build": 15.541666666627862,
+            "cartesian_plan_apply": 18.041666666666668
           }
         },
         "areas": {
@@ -380,19 +394,20 @@
             "bars": 0
           },
           "build_ms_per_drawable": {
-            "functions": 16.666666666666668,
-            "colored_areas": 1.6000000000931323
+            "functions": 14.566666666573534,
+            "colored_areas": 1.3999999999068677
           },
           "metrics": {
-            "draw": 75.2666666667598,
-            "pan": 88.3833333333799,
-            "zoom": 142.4833333333178
+            "first_draw": 120,
+            "draw": 34.06666666672876,
+            "pan": 86.68333333334886,
+            "zoom": 135.1166666666201
           },
           "phases": {
-            "plan_build": 12.882191780814264,
-            "plan_apply": 2.988679245281262,
-            "cartesian_plan_build": 16.246153846096533,
-            "cartesian_plan_apply": 19.1846153845724
+            "plan_build": 11.878787878794935,
+            "plan_apply": 2.7019047618710568,
+            "cartesian_plan_build": 15.591666666674428,
+            "cartesian_plan_apply": 18.533333333286766
           }
         },
         "statistics": {
@@ -412,47 +427,48 @@
             "bars": 1
           },
           "build_ms_per_drawable": {
-            "distributions": 26.449999999953434,
-            "bars": 7.400000000372529
+            "distributions": 21.199999999953434,
+            "bars": 7.199999999720603
           },
           "metrics": {
-            "draw": 111.29999999996896,
-            "pan": 120.53333333336438,
-            "zoom": 144.25
+            "first_draw": 125.59999999962747,
+            "draw": 76.2666666667598,
+            "pan": 118.18333333334886,
+            "zoom": 135.68333333334886
           },
           "phases": {
-            "plan_build": 6.987692307702337,
-            "plan_apply": 0.8600760456271994,
-            "cartesian_plan_build": 15.215384615406107,
-            "cartesian_plan_apply": 17.41538461537745
+            "plan_build": 11.733333333348856,
+            "plan_apply": 0.791238095229935,
+            "cartesian_plan_build": 14.800000000007762,
+            "cartesian_plan_apply": 16.55833333338766
           }
         }
       },
       "expressions": {
         "fix_math_expression": {
-          "total_ms": 170.29999999981374,
+          "total_ms": 164.20000000018626,
           "count": 200,
-          "avg_ms": 0.8514999999990687
+          "avg_ms": 0.8210000000009313
         },
         "function_create": {
-          "total_ms": 311.29999999981374,
+          "total_ms": 270.89999999990687,
           "count": 4,
-          "avg_ms": 77.82499999995343
+          "avg_ms": 67.72499999997672
         },
         "function_eval": {
-          "total_ms": 87,
+          "total_ms": 37.5,
           "count": 2000,
-          "avg_ms": 0.0435
+          "avg_ms": 0.01875
         },
         "parametric_eval": {
-          "total_ms": 46.39999999990687,
+          "total_ms": 41.10000000009313,
           "count": 2000,
-          "avg_ms": 0.023199999999953435
+          "avg_ms": 0.020550000000046566
         },
         "mathutils_evaluate": {
-          "total_ms": 201.10000000009313,
+          "total_ms": 176.8000000002794,
           "count": 30,
-          "avg_ms": 6.703333333336437
+          "avg_ms": 5.893333333342647
         }
       }
     },
@@ -479,24 +495,25 @@
             "bars": 0
           },
           "build_ms_per_drawable": {
-            "points": 1.6966666666635624,
-            "segments": 7.625,
-            "vectors": 22.449999999953434,
-            "triangles": 147.55000000004657,
-            "rectangles": 474.75,
-            "circles": 571.8333333333334,
-            "ellipses": 561.9499999999534
+            "points": 1.4566666666728756,
+            "segments": 7.633333333341095,
+            "vectors": 21.100000000015523,
+            "triangles": 126.97499999997672,
+            "rectangles": 436.64999999990687,
+            "circles": 469.6666666666667,
+            "ellipses": 573.1000000000931
           },
           "metrics": {
-            "draw": 239.96666666679084,
-            "pan": 278.80000000004657,
-            "zoom": 276.53333333328675
+            "first_draw": 316.89999999990687,
+            "draw": 188.29999999996895,
+            "pan": 238.46666666663563,
+            "zoom": 271.69999999995343
           },
           "phases": {
-            "plan_build": 3.483146067394802,
-            "plan_apply": 0.7487024221453287,
-            "cartesian_plan_build": 16.76923076923077,
-            "cartesian_plan_apply": 18.807692307656488
+            "plan_build": 15.791666666705472,
+            "plan_apply": 0.6751515151481285,
+            "cartesian_plan_build": 15.791666666705472,
+            "cartesian_plan_apply": 18.84166666663562
           }
         },
         "functions": {
@@ -516,18 +533,19 @@
             "bars": 0
           },
           "build_ms_per_drawable": {
-            "functions": 21.199999999953434
+            "functions": 20.03333333336438
           },
           "metrics": {
-            "draw": 76.26666666660458,
-            "pan": 55.88333333330229,
-            "zoom": 158.6166666666977
+            "first_draw": 173.8000000002794,
+            "draw": 35.7333333332402,
+            "pan": 53.95000000003105,
+            "zoom": 195.33333333333334
           },
           "phases": {
-            "plan_build": 17.87272727271034,
-            "plan_apply": 2.919811320750324,
-            "cartesian_plan_build": 16.199999999971343,
-            "cartesian_plan_apply": 17.453846153838988
+            "plan_build": 20.55625000000388,
+            "plan_apply": 3.225714285702755,
+            "cartesian_plan_build": 16.41666666670547,
+            "cartesian_plan_apply": 20.7583333333799
           }
         },
         "parametric": {
@@ -547,18 +565,19 @@
             "bars": 0
           },
           "build_ms_per_drawable": {
-            "parametric": 2.625
+            "parametric": 2.724999999976717
           },
           "metrics": {
-            "draw": 99.06666666672875,
-            "pan": 49.63333333330229,
-            "zoom": 277.51666666668217
+            "first_draw": 256.89999999990687,
+            "draw": 28.799999999968957,
+            "pan": 51.63333333330229,
+            "zoom": 272.75
           },
           "phases": {
-            "plan_build": 43.7000000000159,
-            "plan_apply": 4.094736842070951,
-            "cartesian_plan_build": 17.792307692365004,
-            "cartesian_plan_apply": 17.892307692314855
+            "plan_build": 41.69166666668995,
+            "plan_apply": 4.530666666695227,
+            "cartesian_plan_build": 15.741666666736515,
+            "cartesian_plan_apply": 20.966666666674428
           }
         },
         "areas": {
@@ -578,19 +597,20 @@
             "bars": 0
           },
           "build_ms_per_drawable": {
-            "functions": 17.066666666728754,
-            "colored_areas": 1.4333333334264655
+            "functions": 15.766666666759798,
+            "colored_areas": 1.3666666666977108
           },
           "metrics": {
-            "draw": 66.20000000003104,
-            "pan": 81,
-            "zoom": 130.43333333334886
+            "first_draw": 119.1999999997206,
+            "draw": 41.533333333364375,
+            "pan": 89.31666666665114,
+            "zoom": 132.3999999999845
           },
           "phases": {
-            "plan_build": 11.738356164363148,
-            "plan_apply": 2.7066037735884203,
-            "cartesian_plan_build": 16.061538461380852,
-            "cartesian_plan_apply": 17.2615384615313
+            "plan_build": 11.892424242422832,
+            "plan_apply": 2.8380952380952382,
+            "cartesian_plan_build": 15.18333333331005,
+            "cartesian_plan_apply": 19.72499999993791
           }
         },
         "statistics": {
@@ -610,47 +630,48 @@
             "bars": 1
           },
           "build_ms_per_drawable": {
-            "distributions": 21.149999999906868,
-            "bars": 7.400000000372529
+            "distributions": 33.75,
+            "bars": 13.899999999906868
           },
           "metrics": {
-            "draw": 103.86666666669771,
-            "pan": 127.60000000001553,
-            "zoom": 140.3833333333023
+            "first_draw": 174.29999999981374,
+            "draw": 93.10000000009313,
+            "pan": 138.5,
+            "zoom": 146.16666666666666
           },
           "phases": {
-            "plan_build": 6.633846153834692,
-            "plan_apply": 0.8977186311737496,
-            "cartesian_plan_build": 16.023076923026775,
-            "cartesian_plan_apply": 18.569230769151964
+            "plan_build": 12.806666666641831,
+            "plan_apply": 0.9662857142844725,
+            "cartesian_plan_build": 15.941666666651145,
+            "cartesian_plan_apply": 20.34166666659682
           }
         }
       },
       "expressions": {
         "fix_math_expression": {
-          "total_ms": 164.79999999981374,
+          "total_ms": 173.5,
           "count": 200,
-          "avg_ms": 0.8239999999990687
+          "avg_ms": 0.8675
         },
         "function_create": {
-          "total_ms": 381.39999999990687,
+          "total_ms": 270.8000000002794,
           "count": 4,
-          "avg_ms": 95.34999999997672
+          "avg_ms": 67.70000000006985
         },
         "function_eval": {
-          "total_ms": 42.200000000186265,
+          "total_ms": 31.899999999906868,
           "count": 2000,
-          "avg_ms": 0.02110000000009313
+          "avg_ms": 0.015949999999953435
         },
         "parametric_eval": {
-          "total_ms": 44.6999999997206,
+          "total_ms": 36,
           "count": 2000,
-          "avg_ms": 0.0223499999998603
+          "avg_ms": 0.018
         },
         "mathutils_evaluate": {
-          "total_ms": 198.5,
+          "total_ms": 180.10000000009313,
           "count": 30,
-          "avg_ms": 6.616666666666666
+          "avg_ms": 6.003333333336438
         }
       }
     }
