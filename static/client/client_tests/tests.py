@@ -176,6 +176,7 @@ from .test_workspace_manager import (
 )
 from .test_workspace_plots import TestWorkspacePlotsRestore
 from .test_workspace_round_trip import TestWorkspaceRoundTrip
+from .test_saved_workspace_fixtures import TestSavedWorkspaceFixtures
 from .test_auto_triangles import TestAutoTriangles
 from .test_zoom import (
     TestZoomXAxisRange,
@@ -541,6 +542,7 @@ class Tests:
             TestWorkspaceManagerOrchestration,
             TestWorkspacePlotsRestore,
             TestWorkspaceRoundTrip,
+            TestSavedWorkspaceFixtures,
             TestAutoTriangles,
             TestDeleteCascades,
             TestStaleGeometry,

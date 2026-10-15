@@ -1,0 +1,313 @@
+{
+  "metadata": {
+    "name": "generic_polygon",
+    "last_modified": "2026-10-15T22:07:32.252249",
+    "schema_version": 2
+  },
+  "state": {
+    "Points": [
+      {
+        "name": "A",
+        "args": {
+          "position": {
+            "x": 3,
+            "y": 0
+          }
+        }
+      },
+      {
+        "name": "B",
+        "args": {
+          "position": {
+            "x": 2.524,
+            "y": 1.622
+          }
+        }
+      },
+      {
+        "name": "C",
+        "args": {
+          "position": {
+            "x": 1.246,
+            "y": 2.729
+          }
+        }
+      },
+      {
+        "name": "D",
+        "args": {
+          "position": {
+            "x": -0.427,
+            "y": 2.969
+          }
+        }
+      },
+      {
+        "name": "E",
+        "args": {
+          "position": {
+            "x": -1.965,
+            "y": 2.267
+          }
+        }
+      },
+      {
+        "name": "F",
+        "args": {
+          "position": {
+            "x": -2.878,
+            "y": 0.845
+          }
+        }
+      },
+      {
+        "name": "G",
+        "args": {
+          "position": {
+            "x": -2.878,
+            "y": -0.845
+          }
+        }
+      },
+      {
+        "name": "H",
+        "args": {
+          "position": {
+            "x": -1.965,
+            "y": -2.267
+          }
+        }
+      },
+      {
+        "name": "I",
+        "args": {
+          "position": {
+            "x": -0.427,
+            "y": -2.969
+          }
+        }
+      },
+      {
+        "name": "J",
+        "args": {
+          "position": {
+            "x": 1.246,
+            "y": -2.729
+          }
+        }
+      },
+      {
+        "name": "K",
+        "args": {
+          "position": {
+            "x": 2.524,
+            "y": -1.622
+          }
+        }
+      }
+    ],
+    "Segments": [
+      {
+        "name": "AB",
+        "args": {
+          "p1": "A",
+          "p2": "B"
+        },
+        "_p1_coords": [
+          3,
+          0
+        ],
+        "_p2_coords": [
+          2.524,
+          1.622
+        ]
+      },
+      {
+        "name": "BC",
+        "args": {
+          "p1": "B",
+          "p2": "C"
+        },
+        "_p1_coords": [
+          2.524,
+          1.622
+        ],
+        "_p2_coords": [
+          1.246,
+          2.729
+        ]
+      },
+      {
+        "name": "CD",
+        "args": {
+          "p1": "C",
+          "p2": "D"
+        },
+        "_p1_coords": [
+          1.246,
+          2.729
+        ],
+        "_p2_coords": [
+          -0.427,
+          2.969
+        ]
+      },
+      {
+        "name": "DE",
+        "args": {
+          "p1": "D",
+          "p2": "E"
+        },
+        "_p1_coords": [
+          -0.427,
+          2.969
+        ],
+        "_p2_coords": [
+          -1.965,
+          2.267
+        ]
+      },
+      {
+        "name": "EF",
+        "args": {
+          "p1": "E",
+          "p2": "F"
+        },
+        "_p1_coords": [
+          -1.965,
+          2.267
+        ],
+        "_p2_coords": [
+          -2.878,
+          0.845
+        ]
+      },
+      {
+        "name": "FG",
+        "args": {
+          "p1": "F",
+          "p2": "G"
+        },
+        "_p1_coords": [
+          -2.878,
+          0.845
+        ],
+        "_p2_coords": [
+          -2.878,
+          -0.845
+        ]
+      },
+      {
+        "name": "GH",
+        "args": {
+          "p1": "G",
+          "p2": "H"
+        },
+        "_p1_coords": [
+          -2.878,
+          -0.845
+        ],
+        "_p2_coords": [
+          -1.965,
+          -2.267
+        ]
+      },
+      {
+        "name": "HI",
+        "args": {
+          "p1": "H",
+          "p2": "I"
+        },
+        "_p1_coords": [
+          -1.965,
+          -2.267
+        ],
+        "_p2_coords": [
+          -0.427,
+          -2.969
+        ]
+      },
+      {
+        "name": "IJ",
+        "args": {
+          "p1": "I",
+          "p2": "J"
+        },
+        "_p1_coords": [
+          -0.427,
+          -2.969
+        ],
+        "_p2_coords": [
+          1.246,
+          -2.729
+        ]
+      },
+      {
+        "name": "JK",
+        "args": {
+          "p1": "J",
+          "p2": "K"
+        },
+        "_p1_coords": [
+          1.246,
+          -2.729
+        ],
+        "_p2_coords": [
+          2.524,
+          -1.622
+        ]
+      },
+      {
+        "name": "KA",
+        "args": {
+          "p1": "K",
+          "p2": "A"
+        },
+        "_p1_coords": [
+          2.524,
+          -1.622
+        ],
+        "_p2_coords": [
+          3,
+          0
+        ]
+      }
+    ],
+    "GenericPolygons": [
+      {
+        "name": "ABCDEFGHIJK",
+        "args": {
+          "p1": "A",
+          "p2": "B",
+          "p3": "C",
+          "p4": "D",
+          "p5": "E",
+          "p6": "F",
+          "p7": "G",
+          "p8": "H",
+          "p9": "I",
+          "p10": "J",
+          "p11": "K"
+        },
+        "types": [
+          "polygon",
+          "irregular"
+        ]
+      }
+    ],
+    "Cartesian_System_Visibility": {
+      "left_bound": -250,
+      "right_bound": 250,
+      "top_bound": 250,
+      "bottom_bound": -250
+    },
+    "current_tick_spacing": 100,
+    "default_tick_spacing": 100,
+    "current_tick_spacing_repr": "100",
+    "min_tick_spacing": 1e-06,
+    "visible": true,
+    "coordinate_system": {
+      "mode": "cartesian"
+    }
+  }
+}

@@ -1,0 +1,122 @@
+{
+  "metadata": {
+    "name": "plots",
+    "last_modified": "2026-10-15T22:07:32.255345",
+    "schema_version": 2
+  },
+  "state": {
+    "Functions": [
+      {
+        "name": "Cont_pdf",
+        "args": {
+          "function_string": "(1/((1.0)*sqrt(2*pi)))*exp(-(((x-(0.0))^2)/(2*(1.0)^2)))",
+          "left_bound": -2,
+          "right_bound": 2,
+          "horizontal_asymptotes": [
+            0,
+            0
+          ]
+        }
+      }
+    ],
+    "FunctionsBoundedColoredAreas": [
+      {
+        "name": "Cont_fill",
+        "args": {
+          "color": "lightblue",
+          "opacity": 0.3,
+          "func1": "Cont_pdf",
+          "func2": "x_axis",
+          "left_bound": -2,
+          "right_bound": 2,
+          "num_sample_points": 100
+        }
+      }
+    ],
+    "ContinuousPlots": [
+      {
+        "name": "Cont",
+        "args": {
+          "plot_type": "distribution",
+          "distribution_type": "normal",
+          "distribution_params": {
+            "mean": 0,
+            "sigma": 1
+          },
+          "bounds": {
+            "left": -2,
+            "right": 2
+          },
+          "metadata": {},
+          "function_name": "Cont_pdf",
+          "fill_area_name": "Cont_fill"
+        }
+      }
+    ],
+    "DiscretePlots": [
+      {
+        "name": "Disc",
+        "args": {
+          "plot_type": "distribution",
+          "distribution_type": "normal",
+          "distribution_params": {
+            "mean": 0,
+            "sigma": 1
+          },
+          "bounds": {
+            "left": -2,
+            "right": 2
+          },
+          "metadata": {
+            "bar_count": 4
+          },
+          "bar_count": 4,
+          "bar_labels": null,
+          "curve_color": null,
+          "fill_color": "lightblue",
+          "fill_opacity": 0.3,
+          "rectangle_names": [],
+          "fill_area_names": []
+        }
+      }
+    ],
+    "BarsPlots": [
+      {
+        "name": "Poll",
+        "args": {
+          "plot_type": "bars",
+          "values": [
+            1,
+            2
+          ],
+          "labels_below": [
+            "a",
+            "b"
+          ],
+          "labels_above": null,
+          "bar_spacing": 0.2,
+          "bar_width": 1,
+          "x_start": 60,
+          "y_base": 60,
+          "stroke_color": null,
+          "fill_color": "lightblue",
+          "fill_opacity": 0.3
+        }
+      }
+    ],
+    "Cartesian_System_Visibility": {
+      "left_bound": -250,
+      "right_bound": 250,
+      "top_bound": 250,
+      "bottom_bound": -250
+    },
+    "current_tick_spacing": 100,
+    "default_tick_spacing": 100,
+    "current_tick_spacing_repr": "100",
+    "min_tick_spacing": 1e-06,
+    "visible": true,
+    "coordinate_system": {
+      "mode": "cartesian"
+    }
+  }
+}
