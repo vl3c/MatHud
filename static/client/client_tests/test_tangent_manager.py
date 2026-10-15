@@ -239,6 +239,39 @@ class TestTangentToParametricFunction(TestTangentManager):
             actual_slope = dy / dx
             self.assertAlmostEqual(actual_slope, 2.0, places=3)
 
+    def _direction(self, segment: object) -> tuple:
+        dx = segment.point2.x - segment.point1.x  # type: ignore[attr-defined]
+        dy = segment.point2.y - segment.point1.y  # type: ignore[attr-defined]
+        length = math.hypot(dx, dy)
+        return dx / length, dy / length
+
+    def test_tangent_where_velocity_vanishes_follows_the_limit_direction(self) -> None:
+        """(t^3, 2t^3) at t=0 has both derivatives zero, but its tangent has slope 2."""
+        self.canvas.draw_parametric_function("t^3", "2*t^3", "p1", t_min=-1, t_max=1)
+        ux, uy = self._direction(self.canvas.create_tangent_line("p1", 0))
+        self.assertAlmostEqual(uy / ux, 2.0, places=3)
+
+    def test_tangent_at_a_cusp_is_horizontal(self) -> None:
+        """(t^2, t^3) has a cusp at t=0 whose tangent is the x-axis."""
+        self.canvas.draw_parametric_function("t^2", "t^3", "p1", t_min=-1, t_max=1)
+        ux, uy = self._direction(self.canvas.create_tangent_line("p1", 0))
+        self.assertAlmostEqual(abs(ux), 1.0, places=4)
+        normal_ux, normal_uy = self._direction(self.canvas.create_normal_line("p1", 0))
+        self.assertAlmostEqual(abs(normal_uy), 1.0, places=4)
+
+    def test_tangent_of_a_tiny_curve_keeps_its_slope(self) -> None:
+        """(1e-10 t, 1e-10 t) moves slowly, but its tangent still has slope 1."""
+        self.canvas.draw_parametric_function("1e-10*t", "1e-10*t", "p1", t_min=-1, t_max=1)
+        ux, uy = self._direction(self.canvas.create_tangent_line("p1", 0))
+        self.assertAlmostEqual(uy / ux, 1.0, places=6)
+
+    def test_zero_length_raises(self) -> None:
+        self.canvas.draw_parametric_function("t", "2*t", "p1", t_min=0, t_max=10)
+        with self.assertRaises(ValueError):
+            self.canvas.create_tangent_line("p1", 1, length=0)
+        with self.assertRaises(ValueError):
+            self.canvas.create_normal_line("p1", 1, length=0)
+
 
 class TestMathUtilsTangentFunctions(unittest.TestCase):
     """Tests for MathUtils tangent/normal helper functions."""
