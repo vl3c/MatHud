@@ -1970,7 +1970,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "properties": {
                     "expression": {
                         "type": ["string", "null"],
-                        "description": "Boolean region expression using shape names and operators. Examples: 'ArcMaj_AB & CD' (arc intersected with segment), 'circle_A - triangle_ABC' (difference). Takes precedence over other parameters.",
+                        "description": "Boolean region expression using shape names and operators. Examples: 'ArcMaj_AB & CD' (arc intersected with segment), 'A(5) - BCD' (circle A(5) minus triangle BCD). Takes precedence over other parameters.",
                     },
                     "triangle_name": {
                         "type": ["string", "null"],
