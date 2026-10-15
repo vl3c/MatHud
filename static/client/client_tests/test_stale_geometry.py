@@ -702,3 +702,43 @@ class TestStaleGeometry(unittest.TestCase):
 
         self.assertEqual(self._coords(copied.point1), (9.0, 9.0))
         self.assertEqual(copied.name, arc.name)
+
+    # ------------------------------------------------------------------
+    # Transform tools name the type they cannot transform
+    # ------------------------------------------------------------------
+    def test_transform_tools_name_unsupported_types(self) -> None:
+        _circle, arc = self._circle_with_arc()
+        self.canvas.draw_function("x^2", name="f")
+        undo_depth = len(self.canvas.undo_redo_manager.undo_stack)
+
+        cases = [
+            ("translate_object", arc.name, {"x_offset": 1, "y_offset": 1}, "is a CircleArc; translate_object supports"),
+            (
+                "rotate_object",
+                "f",
+                {"angle": 30, "center_x": 0, "center_y": 0},
+                "is a Function; rotate_object supports",
+            ),
+            ("reflect_object", arc.name, {"axis": "x_axis"}, "is a CircleArc; reflect_object supports"),
+            ("scale_object", "f", {"sx": 2, "sy": 2, "cx": 0, "cy": 0}, "is a Function; scale_object supports"),
+        ]
+        for tool, name, args, expected in cases:
+            with self.subTest(tool=tool, name=name):
+                error = self._call_error(tool, name=name, **args)
+                self.assertIn(expected, error)
+                self.assertNotIn("No drawable found", error)
+                self.assertNotIn("has no attribute", error)
+        self.assertEqual(len(self.canvas.undo_redo_manager.undo_stack), undo_depth)
+
+    def test_rotating_a_point_about_itself_asks_for_a_center(self) -> None:
+        self._call("create_point", x=1, y=2, name="K")
+
+        error = self._call_error("rotate_object", name="K", angle=30, center_x=None, center_y=None)
+
+        self.assertIn("'K' is a Point", error)
+        self.assertIn("center_x and center_y", error)
+
+    def test_unknown_name_still_says_not_found(self) -> None:
+        error = self._call_error("rotate_object", name="nothing", angle=30, center_x=None, center_y=None)
+
+        self.assertIn("No drawable found with name 'nothing'", error)

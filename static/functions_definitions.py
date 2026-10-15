@@ -1734,7 +1734,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "rotate_object",
-            "description": "Rotates a drawable object by the specified angle. By default rotates around the object's own center. When center_x and center_y are provided, rotates around that arbitrary point (works for all types including points and circles). Plots cannot be rotated.",
+            "description": "Rotates a segment, vector, polygon, ellipse, circle or point by the specified angle. By default rotates around the object's own center (segments, vectors, polygons and ellipses). When center_x and center_y are provided, rotates around that point (also points and circles). Functions, labels, angles, arcs, colored areas, graphs and plots cannot be rotated.",
             "strict": True,
             "parameters": {
                 "type": "object",

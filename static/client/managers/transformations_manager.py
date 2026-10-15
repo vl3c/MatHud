@@ -35,6 +35,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Callable, Iterable, List, Optional, Set, Tuple
 
+from drawables.colored_area import ColoredArea
 from drawables.segment import Segment
 
 if TYPE_CHECKING:
@@ -56,6 +57,20 @@ _EXCLUDE_TRANSFORM: Tuple[str, ...] = (
     "Bar",
     "Plot",
 )
+
+_SHAPES = "points, segments, vectors, polygons, circles and ellipses"
+
+# What each tool can transform, for the error naming an unsupported drawable.
+_TOOL_SUPPORT = {
+    "translate_object": f"{_SHAPES}, functions (plain, parametric and piecewise) and labels",
+    "rotate_object": (
+        "segments, vectors, polygons and ellipses about their own center, and "
+        f"{_SHAPES} about a point given by center_x and center_y"
+    ),
+    "reflect_object": _SHAPES,
+    "scale_object": _SHAPES,
+    "shear_object": "points, segments, vectors and polygons",
+}
 
 
 class TransformationsManager:
@@ -100,6 +115,44 @@ class TransformationsManager:
             if d.name == name:
                 return d
         raise ValueError(f"No drawable found with name '{name}'")
+
+    def _find_transform_target(
+        self,
+        name: str,
+        tool: str,
+        method: str,
+        exclude_types: Tuple[str, ...] = _EXCLUDE_TRANSFORM,
+    ) -> Any:
+        """The drawable named ``name`` that the tool can transform (one with ``method``).
+
+        Raises:
+            ValueError: If nothing has that name, or what has it is a type the tool does not
+                transform ("'f' is a Function; rotate_object supports ...").
+        """
+        candidates = [d for d in self.canvas.drawable_manager.get_drawables() if d.name == name]
+        if not candidates:
+            raise ValueError(f"No drawable found with name '{name}'")
+        for drawable in candidates:
+            if self._supports(drawable, method, exclude_types):
+                return drawable
+        drawable = candidates[0]
+        class_name = self._get_class_name(drawable)
+        if tool == "rotate_object" and class_name in ("Point", "Circle"):
+            raise ValueError(
+                f"'{name}' is a {class_name}; rotating it about itself changes nothing. "
+                "Give center_x and center_y to rotate it about a point."
+            )
+        raise ValueError(f"'{name}' is {self._with_article(class_name)}; {tool} supports {_TOOL_SUPPORT[tool]}.")
+
+    def _supports(self, drawable: Any, method: str, exclude_types: Tuple[str, ...]) -> bool:
+        if isinstance(drawable, ColoredArea) or self._get_class_name(drawable) in exclude_types:
+            return False
+        return callable(getattr(drawable, method, None))
+
+    @staticmethod
+    def _with_article(class_name: str) -> str:
+        article = "an" if class_name[:1].lower() in "aeiou" else "a"
+        return f"{article} {class_name}"
 
     def _names_in_use_except(self, drawable: Any) -> Set[str]:
         """Names the lookup above can find, apart from drawable's own."""
@@ -268,16 +321,9 @@ class TransformationsManager:
             bool: True if the translation was successful
 
         Raises:
-            ValueError: If no drawable with the given name is found
+            ValueError: If no drawable with the given name is found, or it cannot be translated
         """
-        # Find the drawable first to validate it exists
-        drawable = None
-        for drawable in self.canvas.drawable_manager.get_drawables():
-            if drawable.name == name:
-                break
-
-        if not drawable or drawable.name != name:
-            raise ValueError(f"No drawable found with name '{name}'")
+        drawable = self._find_transform_target(name, "translate_object", "translate", exclude_types=())
         self._refuse_plot(drawable, "translate_object", "move")
 
         # Archive current state for undo/redo AFTER finding the object but BEFORE modifying it
@@ -316,8 +362,8 @@ class TransformationsManager:
         Rotates a drawable object by the specified angle.
 
         When *center_x* and *center_y* are both provided the rotation is
-        performed around that arbitrary point (all drawable types with a
-        ``rotate_around`` method are eligible, including Point and Circle).
+        performed around that arbitrary point (points, segments, vectors,
+        polygons, circles and ellipses: the types with a ``rotate_around`` method).
 
         When both are ``None`` the existing center-of-object rotation is used
         (Points and Circles are excluded since they are rotationally invariant
@@ -340,12 +386,11 @@ class TransformationsManager:
             raise ValueError("Both center_x and center_y must be provided for rotation around an arbitrary center")
 
         if arbitrary_center:
-            drawable = self._find_drawable_by_name(name, exclude_types=_EXCLUDE_TRANSFORM)
+            drawable = self._find_transform_target(name, "rotate_object", "rotate_around")
         else:
-            # Original behaviour: skip Point/Circle which are no-ops
-            drawable = self._find_drawable_by_name(
-                name,
-                exclude_types=_EXCLUDE_TRANSFORM + ("Point", "Circle"),
+            # Points and circles are unchanged by a rotation about their own center
+            drawable = self._find_transform_target(
+                name, "rotate_object", "rotate", exclude_types=_EXCLUDE_TRANSFORM + ("Point", "Circle")
             )
 
         self._refuse_plot(drawable, "rotate_object", "rotate")
@@ -405,7 +450,7 @@ class TransformationsManager:
             if a * a + b * b < 1e-18:
                 raise ValueError("Line coefficients a and b must not both be zero")
 
-        drawable = self._find_drawable_by_name(name, exclude_types=_EXCLUDE_TRANSFORM)
+        drawable = self._find_transform_target(name, "reflect_object", "reflect")
         self.canvas.undo_redo_manager.archive()
         moved_points = self._gather_moved_points(drawable)
         arcs = self._snapshot_arcs()
@@ -442,7 +487,7 @@ class TransformationsManager:
         if abs(sx) < 1e-18 or abs(sy) < 1e-18:
             raise ValueError("Scale factors must not be zero")
 
-        drawable = self._find_drawable_by_name(name, exclude_types=_EXCLUDE_TRANSFORM)
+        drawable = self._find_transform_target(name, "scale_object", "scale")
         self._validate_scale_support(drawable, sx, sy)
         self.canvas.undo_redo_manager.archive()
         moved_points = self._gather_moved_points(drawable)
@@ -480,7 +525,7 @@ class TransformationsManager:
         if axis not in ("horizontal", "vertical"):
             raise ValueError(f"Invalid shear axis '{axis}'; use 'horizontal' or 'vertical'")
 
-        drawable = self._find_drawable_by_name(name, exclude_types=_EXCLUDE_TRANSFORM)
+        drawable = self._find_transform_target(name, "shear_object", "shear")
         self._validate_shear_support(drawable)
         self.canvas.undo_redo_manager.archive()
         moved_points = self._gather_moved_points(drawable)
