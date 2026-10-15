@@ -1109,7 +1109,8 @@ class TestMathFunctions(unittest.TestCase):
     def test_numeric_integrate_error_leaves_exact_cas_output(self) -> None:
         # nerdamer leaves its decimal mode on after log(0) fails; that must not leak out
         MathUtils.numeric_integrate("log(x)", "x", 0, 1, "simpson", 200)
-        self.assertEqual(MathUtils.solve("x^2-2=0", "x"), "[sqrt(2),-sqrt(2)]")
+        with WithoutSympy():  # the leak is nerdamer's, so solve with nerdamer
+            self.assertEqual(MathUtils.solve("x^2-2=0", "x"), "[sqrt(2),-sqrt(2)]")
         self.assertEqual(MathUtils.summation("1/n", "n", 1, 2), "1.5")
 
     def test_numeric_integrate_rejects_too_many_steps(self) -> None:
