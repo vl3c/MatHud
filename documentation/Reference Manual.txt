@@ -159,7 +159,7 @@ Note: All drawables are math-only. They do not hold screen-space coordinates and
 1. Client-Side Testing (`client_tests/` and `test_runner.py`)
 2. Server-Side Testing (`server_tests/` and `run_server_tests.py`)
 3. Scenario Tests (`cli/scenarios/`, `scenarios/`): replayed tool-call chains in the real app, checked by geometry and invariants
-4. Renderer Performance Harness (`static/client/performance/renderer_performance.py`): deterministic workload runner invoked from the browser console to record draw/pan/zoom timings, DOM node counts, and telemetry. Baseline captures from 2025-11-08/09 report Canvas2D averages (draw 71 ms, pan 155.5 ms, zoom 160 ms) and SVG averages (draw 78 ms, pan 84 ms, zoom 90 ms) using `run_renderer_performance(iterations=2)`.
+4. Renderer Performance Harness (`static/client/client_tests/renderer_performance_tests.py`, `static/client/perf_benchmark.py`): deterministic workloads that record the first frame, draw/pan/zoom timings, renderer telemetry, per-drawable creation time and expression micro-benchmarks. Run with `python -m cli.main test perf` (medians of repeated runs, `--compare` against a saved run); a reference run is in `documentation/development/performance/`.
 
 ### Graph and Tree Tools
 1. Graph and tree tools overview (generate, delete, analyze)

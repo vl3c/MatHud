@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from cli.perf import compare_metrics, flatten_run, is_slower, median_metrics
+from cli.perf import compare_metrics, flatten_run, is_noisy, is_slower, median_metrics
 
 
 def _run(draw: float, plan_build: float, function_eval: float) -> Dict[str, Any]:
@@ -49,3 +49,10 @@ def test_is_slower_needs_both_the_ratio_and_the_absolute_floor() -> None:
     assert not is_slower(0.02, 0.05, 1.25, 1.0)  # 2.5x but only 0.03 ms
     assert not is_slower(None, 5.0, 1.25, 1.0)
     assert not is_slower(0.0, 5.0, 1.25, 1.0)
+
+
+def test_single_event_metrics_are_noisy() -> None:
+    assert is_noisy("geometry.build.circles")
+    assert is_noisy("functions.first_draw")
+    assert not is_noisy("functions.draw")
+    assert not is_noisy("expr.function_eval")

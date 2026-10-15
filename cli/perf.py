@@ -28,6 +28,13 @@ BENCHMARK_TIMEOUT = 900
 POLL_INTERVAL = 2
 # Polls that may fail in a row for a reason other than a busy page before the run is abandoned.
 MAX_POLL_ERRORS = 3
+# Metrics taken from one event per run (the first frame, creating a few drawables), so they
+# vary by about 25% between runs: marked when slower, but never fail --fail-on-slower.
+NOISY_METRIC_PARTS = (".build.", ".first_draw")
+
+
+def is_noisy(key: str) -> bool:
+    return any(part in key for part in NOISY_METRIC_PARTS)
 
 
 def flatten_run(run: Dict[str, Any]) -> Dict[str, float]:
@@ -85,7 +92,7 @@ def is_slower(before: Optional[float], after: Optional[float], flag_ratio: float
 def _git_commit() -> Optional[str]:
     try:
         completed = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"], cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=10
+            ["git", "describe", "--always", "--dirty"], cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=10
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -123,16 +130,17 @@ def _run_once(browser: BrowserAutomation, options: Dict[str, Any]) -> Dict[str, 
 
 def _run_in_browser(
     port: int, start_server: bool, repeats: int, options: Dict[str, Any]
-) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+) -> Tuple[List[Dict[str, Any]], Optional[str], bool]:
+    """The runs, an error message or None, and whether an already running server was used."""
     manager = ServerManager(port=port)
     started = False
     if not manager.is_server_running():
         if not start_server:
-            return [], f"Server is not running on port {port}. Start it or use --start-server."
+            return [], f"Server is not running on port {port}. Start it or use --start-server.", False
         click.echo("Starting server...")
         success, message = manager.start(wait=True, auto_increment_port=True, max_port_tries=25)
         if not success:
-            return [], f"Failed to start server: {message}"
+            return [], f"Failed to start server: {message}", False
         started = True
         port = manager.port
     else:
@@ -143,15 +151,16 @@ def _run_in_browser(
     try:
         with BrowserAutomation(port=port, headless=True) as browser:
             if not browser.navigate_to_app() or not browser.wait_for_app_ready():
-                return [], "The application did not load"
+                return [], "The application did not load", not started
             runs: List[Dict[str, Any]] = []
             for index in range(repeats):
                 click.echo(f"Benchmark run {index + 1}/{repeats}...")
                 run = _run_once(browser, options)
                 if run.get("status") != "done":
-                    return runs, str(run.get("error", run)) + ("\n" + run["traceback"] if run.get("traceback") else "")
+                    detail = "\n" + run["traceback"] if run.get("traceback") else ""
+                    return runs, str(run.get("error", run)) + detail, not started
                 runs.append(run)
-            return runs, None
+            return runs, None, not started
     finally:
         if started:
             manager.stop()
@@ -160,7 +169,10 @@ def _run_in_browser(
 def _echo_table(
     current: Dict[str, float], baseline: Optional[Dict[str, float]], flag_ratio: float, min_delta_ms: float
 ) -> List[str]:
-    """Print the metrics (and the comparison); return the keys marked slower (see ``is_slower``)."""
+    """Print the metrics (and the comparison); return the keys marked slower (see ``is_slower``).
+
+    Noisy metrics (see ``NOISY_METRIC_PARTS``) are marked in yellow and left out of the result.
+    """
     slower: List[str] = []
     if baseline is None:
         for key, value in current.items():
@@ -173,8 +185,11 @@ def _echo_table(
         ratio_text = f"{ratio:.2f}" if ratio is not None else "-"
         line = f"{key:<40} {before_text:>10} {after_text:>10} {ratio_text:>7}"
         if is_slower(before, after, flag_ratio, min_delta_ms):
-            slower.append(key)
-            line = click.style(line, fg="red")
+            if is_noisy(key):
+                line = click.style(line + "  (noisy)", fg="yellow")
+            else:
+                slower.append(key)
+                line = click.style(line, fg="red")
         click.echo(line)
     return slower
 
@@ -192,7 +207,9 @@ def _echo_table(
 @click.option(
     "--min-delta-ms", default=1.0, type=float, help="Ignore slowdowns smaller than this many ms (default: 1.0)"
 )
-@click.option("--fail-on-slower", is_flag=True, help="Exit with status 1 when any metric is marked slower")
+@click.option(
+    "--fail-on-slower", is_flag=True, help="Exit with status 1 when a metric other than a noisy one is marked slower"
+)
 def perf_cmd(
     port: int,
     start_server: bool,
@@ -210,7 +227,7 @@ def perf_cmd(
     options: Dict[str, Any] = {"iterations": iterations, "scale": scale}
     if scenes:
         options["scenes"] = list(scenes)
-    runs, error = _run_in_browser(port, start_server, max(1, repeats), options)
+    runs, error, reused_server = _run_in_browser(port, start_server, max(1, repeats), options)
     if error:
         click.echo(click.style(f"Error: {error}", fg="red"), err=True)
         raise SystemExit(1)
@@ -231,6 +248,7 @@ def perf_cmd(
     if output:
         payload = {
             "commit": _git_commit(),
+            "reused_server": reused_server,
             "options": options,
             "repeats": len(runs),
             "medians_ms": medians,
