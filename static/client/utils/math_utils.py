@@ -42,6 +42,8 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Un
 
 from browser import window
 
+import expression_functions
+
 Number = Union[int, float]
 PointLike = Any
 SegmentLike = Any
@@ -1097,25 +1099,9 @@ class MathUtils:
 
         return ExpressionValidator.normalize_unicode_name(value)
 
-    # Number theory functions that require Python evaluation (not available in Math.js)
-    _PYTHON_ONLY_FUNCTIONS = {
-        "is_prime",
-        "prime_factors",
-        "mod_pow",
-        "mod_inverse",
-        "next_prime",
-        "prev_prime",
-        "totient",
-        "divisors",
-        "summation",
-        "product",
-        "arithmetic_sum",
-        "geometric_sum",
-        "geometric_sum_infinite",
-        "ratio_test",
-        "root_test",
-        "p_series_test",
-    }
+    # Functions that require Python evaluation (not available in Math.js); randint has its own
+    # "randint(" check in evaluate
+    _PYTHON_ONLY_FUNCTIONS: Set[str] = set(expression_functions.PYTHON_ONLY_NAMES - {"randint"})
 
     @staticmethod
     def evaluate(expression: str, variables: Optional[Dict[str, Number]] = None) -> Any:
@@ -1158,10 +1144,8 @@ class MathUtils:
                     return str(result)
                 return result
 
-            # Map advertised names onto their math.js equivalents
-            js_expression = js_expression.replace("arrangements(", "permutations(")
-            js_expression = js_expression.replace("stdev(", "std(")
-            js_expression = js_expression.replace("trunc(", "fix(")
+            # Map advertised names onto their math.js equivalents (trunc -> fix)
+            js_expression = expression_functions.rename_for_mathjs(js_expression)
 
             try:
                 if not variables:
