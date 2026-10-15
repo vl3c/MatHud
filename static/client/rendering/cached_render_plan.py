@@ -20,7 +20,8 @@ Architecture:
     1. _RecordingPrimitives captures drawing calls during plan building
     2. PrimitiveCommand stores individual operations (op, args, kwargs)
     3. OptimizedPrimitivePlan manages command lists and handles reprojection
-    4. Helper functions in _HELPERS map drawable types to rendering functions
+    4. _HELPERS maps drawable class names to their helper and ViewMode; renderers
+       draw every class listed there
 
 Usage:
     plan = build_plan_for_drawable(drawable, mapper, style)
@@ -1202,25 +1203,73 @@ class _RecordingPrimitives(shared.RendererPrimitives):
         self._record("end_shape", (), {})
 
 
-# Registry mapping drawable class names to their rendering helper functions
-_HELPERS: Dict[str, Any] = {
-    "Point": shared.render_point_helper,
-    "Segment": shared.render_segment_helper,
-    "Circle": shared.render_circle_helper,
-    "CircleArc": shared.render_circle_arc_helper,
-    "Ellipse": shared.render_ellipse_helper,
-    "Vector": shared.render_vector_helper,
-    "Angle": shared.render_angle_helper,
-    "Function": shared.render_function_helper,
-    "PiecewiseFunction": shared.render_function_helper,
-    "ParametricFunction": shared.render_parametric_function_helper,
-    "Bar": shared.render_bar_helper,
-    "FunctionsBoundedColoredArea": shared.render_functions_bounded_area_helper,
-    "FunctionSegmentBoundedColoredArea": shared.render_function_segment_area_helper,
-    "SegmentsBoundedColoredArea": shared.render_segments_bounded_area_helper,
-    "ClosedShapeColoredArea": shared.render_closed_shape_area_helper,
-    "Label": shared.render_label_helper,
+class ViewMode:
+    """How a drawable's plan depends on the view; renderers add that part of the view to its cache signature.
+
+    A plan built at one view is reprojected to others; these modes say when it must be
+    rebuilt instead.
+    """
+
+    # Reprojection is exact on zoom and pan.
+    FIXED = "fixed"
+    # Rebuilt when the zoom or canvas size changes; pans reproject. Parametric curves
+    # sample t, not the screen, so a pan never changes their samples.
+    SCALE = "scale"
+    # Also rebuilt when a pan leaves its half-screen bucket. Function plots sample a
+    # margin beyond each edge (FUNCTION_VIEW_MARGIN in canvas2d_renderer.py).
+    SCALE_BUCKETED_OFFSET = "scale_bucketed_offset"
+    # Also rebuilt on every pan: areas bounded by function plots are clipped to the view.
+    SCALE_OFFSET = "scale_offset"
+
+
+class _HelperEntry:
+    """A drawable class's plan helper and how its plans depend on the view."""
+
+    __slots__ = ("helper", "view_mode")
+
+    def __init__(self, helper: Any, view_mode: str = ViewMode.FIXED) -> None:
+        self.helper = helper
+        self.view_mode = view_mode
+
+
+# Drawable class names (get_class_name) with a plan helper. Renderers draw every class
+# listed here and skip the others (polygons and graphs are drawn by their segments).
+_HELPERS: Dict[str, _HelperEntry] = {
+    "Point": _HelperEntry(shared.render_point_helper),
+    "Segment": _HelperEntry(shared.render_segment_helper),
+    "Circle": _HelperEntry(shared.render_circle_helper),
+    "CircleArc": _HelperEntry(shared.render_circle_arc_helper),
+    "Ellipse": _HelperEntry(shared.render_ellipse_helper),
+    "Vector": _HelperEntry(shared.render_vector_helper),
+    "Angle": _HelperEntry(shared.render_angle_helper),
+    "Function": _HelperEntry(shared.render_function_helper, ViewMode.SCALE_BUCKETED_OFFSET),
+    "PiecewiseFunction": _HelperEntry(shared.render_function_helper, ViewMode.SCALE_BUCKETED_OFFSET),
+    "ParametricFunction": _HelperEntry(shared.render_parametric_function_helper, ViewMode.SCALE),
+    "Bar": _HelperEntry(shared.render_bar_helper),
+    "FunctionsBoundedColoredArea": _HelperEntry(shared.render_functions_bounded_area_helper, ViewMode.SCALE_OFFSET),
+    "FunctionSegmentBoundedColoredArea": _HelperEntry(
+        shared.render_function_segment_area_helper, ViewMode.SCALE_OFFSET
+    ),
+    "SegmentsBoundedColoredArea": _HelperEntry(shared.render_segments_bounded_area_helper),
+    "ClosedShapeColoredArea": _HelperEntry(shared.render_closed_shape_area_helper),
+    "Label": _HelperEntry(shared.render_label_helper),
 }
+
+# Grids are planned by build_plan_for_cartesian and build_plan_for_polar, not through _HELPERS.
+_GRID_VIEW_MODES: Dict[str, str] = {"PolarGrid": ViewMode.SCALE_OFFSET}
+
+
+def has_plan_helper(class_name: str) -> bool:
+    """Whether drawables of this class (``get_class_name``) are drawn from a plan."""
+    return class_name in _HELPERS
+
+
+def view_mode_for(class_name: str) -> str:
+    """The ViewMode of a drawable or grid class; FIXED for classes without one."""
+    entry = _HELPERS.get(class_name)
+    if entry is not None:
+        return entry.view_mode
+    return _GRID_VIEW_MODES.get(class_name, ViewMode.FIXED)
 
 
 def _finish_plan(
@@ -1280,13 +1329,13 @@ def build_plan_for_drawable(
     elif class_name is None:
         class_name = drawable.__class__.__name__
 
-    helper = _HELPERS.get(class_name)
-    if helper is None:
+    entry = _HELPERS.get(class_name)
+    if entry is None:
         return None
 
     drawable_key = _drawable_key(drawable, class_name.lower())
     recorder = _RecordingPrimitives(drawable_key)
-    helper(recorder, drawable, _CachedCoordinateMapper(coordinate_mapper), style)
+    entry.helper(recorder, drawable, _CachedCoordinateMapper(coordinate_mapper), style)
     return _finish_plan(drawable, recorder, coordinate_mapper, drawable_key, class_name)
 
 

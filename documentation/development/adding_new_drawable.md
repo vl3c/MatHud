@@ -25,12 +25,11 @@ Before implementation, define how the drawable is created/updated/deleted throug
 3. Register the manager within `DrawableManager` and expose delegating methods.
 4. Add undo/redo archiving in manager methods before mutating state.
 5. When a drawable depends optionally on a parent (for example, circle arcs that can reference an existing circle or stand alone), update dependency cleanup paths so removing either the parent shape or a shared point also removes the child drawable.
-6. Update `workspace_manager.py` to handle serialization/deserialization of the new drawable type, including any nested sub-components that need reconstruction.
+6. Update `workspace_manager.py` to handle serialization/deserialization of the new drawable type, including any nested sub-components that need reconstruction, and add its saved bucket to `WorkspaceManager.RESTORED_BUCKETS`.
 
 ## 4. Wire the Canvas API
-1. Register the drawable when the canvas configures renderers (`Canvas._register_renderer_handlers`).
-2. Add convenience methods on `Canvas` (create/get/delete) that delegate to the manager.
-3. Expose the new methods in `FunctionRegistry`.
+1. Add convenience methods on `Canvas` (create/get/delete) that delegate to the manager.
+2. Expose the new methods in `FunctionRegistry`.
 
 ## 5. Update AI Function Definitions
 1. Extend `static/functions_definitions.py` with JSON schema entries for create/delete commands.
@@ -41,20 +40,14 @@ Before implementation, define how the drawable is created/updated/deleted throug
 
 ### New Rendering Logic
 1. Create a helper in `rendering/shared_drawable_renderers.py` that transforms math-space values to screen-space primitives.
-2. Register the helper in `_HELPERS` inside `rendering/cached_render_plan.py`.
-3. Register the new drawable class in each renderer and delegate to `_render_drawable`.
-4. Add constants to style manager or adapters if special handling is required.
+2. Add it to `_HELPERS` in `rendering/cached_render_plan.py` under the class name `get_class_name` returns. Its `ViewMode` says when a cached plan must be rebuilt instead of reprojected: `FIXED` (never), `SCALE` (on zoom), `SCALE_BUCKETED_OFFSET` (also on pans past half a screen) or `SCALE_OFFSET` (also on every pan). Both renderers draw every class listed in `_HELPERS`; nothing else needs registering.
+3. Add constants to style manager or adapters if special handling is required.
 
 ### Reusing Existing Rendering Logic
-If the new drawable shares rendering behavior with an existing type:
-1. Implement the same interface (methods and properties) that the existing renderer expects.
-2. Register the new drawable with the existing handler in each renderer's `register_default_drawables()`.
-3. Verify all required properties are populated correctly for the renderer to consume.
+If the new drawable shares rendering behavior with an existing type, give its class name the existing helper in `_HELPERS` and populate the properties that helper reads.
 
-### Registration Checklist
-Missing renderer registration causes silent rendering failures. Verify the drawable is registered in:
-- `canvas2d_renderer.py` - `register_default_drawables()`
-- `svg_renderer.py` - `register_default_drawables()`
+### Drawables Drawn by Their Parts
+Polygons, graphs and plots have no helper: their segments, points, functions and bars are drawn instead. A new drawable like that goes on `DRAWN_BY_PARTS` in `server_tests/test_drawable_wiring.py`, which fails for a drawable class that is on neither list.
 
 ## 7. Add Tests
 1. Introduce unit tests in `static/client/client_tests/` covering:

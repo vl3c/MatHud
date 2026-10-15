@@ -26,9 +26,12 @@ from browser import document, svg, window
 
 from rendering.cached_render_plan import (
     OptimizedPrimitivePlan,
+    ViewMode,
     build_plan_for_cartesian,
     build_plan_for_polar,
     build_plan_for_drawable,
+    has_plan_helper,
+    view_mode_for,
 )
 from rendering.interfaces import RendererProtocol
 from rendering.style_manager import get_renderer_style
@@ -101,52 +104,8 @@ class SvgRenderer(RendererProtocol):
             return
         self._telemetry.record_plan_apply(name, 0.0, cartesian=cartesian, count=total)
 
-    def register_default_drawables(self) -> None:
-        self._register_shape("drawables.point", "Point", self._render_point)
-        self._register_shape("drawables.segment", "Segment", self._render_segment)
-        self._register_shape("drawables.circle", "Circle", self._render_circle)
-        self._register_shape("drawables.circle_arc", "CircleArc", self._render_circle_arc)
-        self._register_shape("drawables.ellipse", "Ellipse", self._render_ellipse)
-        self._register_shape("drawables.vector", "Vector", self._render_vector)
-        self._register_shape("drawables.angle", "Angle", self._render_angle)
-        self._register_shape("drawables.function", "Function", self._render_function)
-        self._register_shape("drawables.piecewise_function", "PiecewiseFunction", self._render_function)
-        self._register_shape("drawables.parametric_function", "ParametricFunction", self._render_function)
-        self._register_shape("drawables.triangle", "Triangle", self._render_triangle)
-        self._register_shape("drawables.rectangle", "Rectangle", self._render_rectangle)
-        self._register_shape("drawables.bar", "Bar", self._render_drawable)
-        self._register_shape(
-            "drawables.functions_bounded_colored_area",
-            "FunctionsBoundedColoredArea",
-            self._render_functions_bounded_colored_area,
-        )
-        self._register_shape(
-            "drawables.function_segment_bounded_colored_area",
-            "FunctionSegmentBoundedColoredArea",
-            self._render_function_segment_bounded_colored_area,
-        )
-        self._register_shape(
-            "drawables.segments_bounded_colored_area",
-            "SegmentsBoundedColoredArea",
-            self._render_segments_bounded_colored_area,
-        )
-        self._register_shape(
-            "drawables.closed_shape_colored_area",
-            "ClosedShapeColoredArea",
-            self._render_closed_shape_colored_area,
-        )
-        self._register_shape("drawables.label", "Label", self._render_label)
-
-    def _register_shape(self, module_path: str, class_name: str, handler: Callable[[Any, Any], None]) -> None:
-        try:
-            module = __import__(module_path, fromlist=[class_name])
-            drawable_cls = getattr(module, class_name)
-            self.register(drawable_cls, handler)
-        except Exception:
-            pass
-
     def register(self, cls: type, handler: Callable[[Any, Any], None]) -> None:
-        """Register a handler for a given drawable class."""
+        """Draw drawables of one type with ``handler`` instead of their plan."""
         self._handlers_by_type[cls] = handler
 
     def clear(self) -> None:
@@ -180,81 +139,16 @@ class SvgRenderer(RendererProtocol):
         self._telemetry.end_frame()
 
     def render(self, drawable: Any, coordinate_mapper: Any) -> bool:
-        # Handlers perform the actual drawing; this method only dispatches.
+        """Render a drawable from its cached plan, or with a handler registered for its type."""
         handler: Optional[Callable[[Any, Any], None]] = self._handlers_by_type.get(type(drawable))
-        if handler is None:
+        if handler is not None:
+            handler(drawable, coordinate_mapper)
+            return True
+        drawable_name = self._resolve_drawable_name(drawable)
+        if not has_plan_helper(drawable_name):
             return False
-        handler(drawable, coordinate_mapper)
+        self._render_drawable(drawable, coordinate_mapper, drawable_name)
         return True
-
-    # ----------------------- Point -----------------------
-    def register_point(self, point_cls: type) -> None:
-        self.register(point_cls, self._render_point)
-
-    def _render_point(self, point: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(point, coordinate_mapper)
-
-    # ----------------------- Segment -----------------------
-    def register_segment(self, segment_cls: type) -> None:
-        self.register(segment_cls, self._render_segment)
-
-    def _render_segment(self, segment: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(segment, coordinate_mapper)
-
-    # ----------------------- Circle -----------------------
-    def register_circle(self, circle_cls: type) -> None:
-        self.register(circle_cls, self._render_circle)
-
-    def _render_circle(self, circle: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(circle, coordinate_mapper)
-
-    def register_circle_arc(self, arc_cls: type) -> None:
-        self.register(arc_cls, self._render_circle_arc)
-
-    def _render_circle_arc(self, arc: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(arc, coordinate_mapper)
-
-    # ----------------------- Ellipse -----------------------
-    def register_ellipse(self, ellipse_cls: type) -> None:
-        self.register(ellipse_cls, self._render_ellipse)
-
-    def _render_ellipse(self, ellipse: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(ellipse, coordinate_mapper)
-
-    # ----------------------- Vector -----------------------
-    def register_vector(self, vector_cls: type) -> None:
-        self.register(vector_cls, self._render_vector)
-
-    def _render_vector(self, vector: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(vector, coordinate_mapper)
-
-    # ----------------------- Angle -----------------------
-    def register_angle(self, angle_cls: type) -> None:
-        self.register(angle_cls, self._render_angle)
-
-    def _render_angle(self, angle: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(angle, coordinate_mapper)
-
-    # ----------------------- Triangle -----------------------
-    def register_triangle(self, triangle_cls: type) -> None:
-        self.register(triangle_cls, self._render_triangle)
-
-    def _render_triangle(self, triangle: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(triangle, coordinate_mapper)
-
-    # ----------------------- Rectangle -----------------------
-    def register_rectangle(self, rectangle_cls: type) -> None:
-        self.register(rectangle_cls, self._render_rectangle)
-
-    def _render_rectangle(self, rectangle: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(rectangle, coordinate_mapper)
-
-    # ----------------------- Function -----------------------
-    def register_function(self, function_cls: type) -> None:
-        self.register(function_cls, self._render_function)
-
-    def _render_function(self, func: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(func, coordinate_mapper)
 
     # ----------------------- Cartesian Grid -----------------------
     def render_cartesian(self, cartesian: Any, coordinate_mapper: Any) -> None:
@@ -334,51 +228,18 @@ class SvgRenderer(RendererProtocol):
         self._mark_screen_space_plan_dirty(plan)
         return plan
 
-    # ----------------------- Colored Areas: FunctionsBoundedColoredArea -----------------------
-    def register_functions_bounded_colored_area(self, cls: type) -> None:
-        self.register(cls, self._render_functions_bounded_colored_area)
-
-    def _render_functions_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(area, coordinate_mapper)
-
-    # ----------------------- Colored Areas: FunctionSegmentBoundedColoredArea -----------------
-    def register_function_segment_bounded_colored_area(self, cls: type) -> None:
-        self.register(cls, self._render_function_segment_bounded_colored_area)
-
-    def _render_function_segment_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(area, coordinate_mapper)
-
-    # ----------------------- Colored Areas: SegmentsBoundedColoredArea -----------------------
-    def register_segments_bounded_colored_area(self, cls: type) -> None:
-        self.register(cls, self._render_segments_bounded_colored_area)
-
-    def _render_segments_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(area, coordinate_mapper)
-
-    # ----------------------- Colored Areas: ClosedShapeColoredArea -----------------------
-    def register_closed_shape_colored_area(self, cls: type) -> None:
-        self.register(cls, self._render_closed_shape_colored_area)
-
-    def _render_closed_shape_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(area, coordinate_mapper)
-
-    # ----------------------- Label -----------------------
-    def register_label(self, label_cls: type) -> None:
-        self.register(label_cls, self._render_label)
-
-    def _render_label(self, label: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(label, coordinate_mapper)
-
-    def _render_drawable(self, drawable: Any, coordinate_mapper: Any) -> None:
+    # ----------------------- Drawables -----------------------
+    def _render_drawable(self, drawable: Any, coordinate_mapper: Any, drawable_name: Optional[str] = None) -> None:
         renderable_attr = getattr(drawable, "is_renderable", True)
         try:
             if not bool(renderable_attr):
                 return
         except Exception:
             return
-        drawable_name = self._resolve_drawable_name(drawable)
+        if drawable_name is None:
+            drawable_name = self._resolve_drawable_name(drawable)
         map_state = self._capture_map_state(coordinate_mapper)
-        signature = self._compute_drawable_signature(drawable, coordinate_mapper)
+        signature = self._compute_drawable_signature(drawable, coordinate_mapper, drawable_name)
         cache_key = self._plan_cache_key(drawable, drawable_name)
         plan_context = self._resolve_drawable_plan_context(
             drawable, coordinate_mapper, map_state, signature, drawable_name, cache_key
@@ -457,7 +318,11 @@ class SvgRenderer(RendererProtocol):
             return f"{drawable_name}:{identifier}"
         return f"{drawable_name}:{id(drawable)}"
 
-    def _compute_drawable_signature(self, drawable: Any, coordinate_mapper: Any = None) -> Tuple[Any, ...]:
+    def _compute_drawable_signature(
+        self, drawable: Any, coordinate_mapper: Any = None, drawable_name: Optional[str] = None
+    ) -> Tuple[Any, ...]:
+        if drawable_name is None:
+            drawable_name = self._resolve_drawable_name(drawable)
         state_func = getattr(drawable, "get_state", None)
         state: Any = None
         if callable(state_func):
@@ -473,7 +338,9 @@ class SvgRenderer(RendererProtocol):
             snapshot = fallback
         else:
             snapshot = {**fallback, "__state__": state}
-        if self._needs_scale_in_signature(drawable) and coordinate_mapper is not None:
+        # Every view-dependent mode adds the scale and the exact offset here: this renderer
+        # is frozen and does not bucket pans like Canvas2DRenderer.
+        if view_mode_for(drawable_name) != ViewMode.FIXED and coordinate_mapper is not None:
             scale = getattr(coordinate_mapper, "scale_factor", None)
             if scale is not None:
                 snapshot["_view_scale"] = round(float(scale), 4)
@@ -481,17 +348,6 @@ class SvgRenderer(RendererProtocol):
             if offset is not None:
                 snapshot["_view_offset"] = (round(float(offset.x), 2), round(float(offset.y), 2))
         return self._freeze_signature(snapshot)
-
-    def _needs_scale_in_signature(self, drawable: Any) -> bool:
-        class_name = getattr(drawable, "get_class_name", lambda: "")()
-        return class_name in (
-            "Function",
-            "PiecewiseFunction",
-            "ParametricFunction",
-            "FunctionsBoundedColoredArea",
-            "FunctionSegmentBoundedColoredArea",
-            "PolarGrid",
-        )
 
     def _freeze_signature(self, value: Any) -> Tuple[Any, ...]:
         if isinstance(value, dict):

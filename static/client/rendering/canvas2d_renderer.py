@@ -32,9 +32,12 @@ from rendering.interfaces import RendererProtocol
 from rendering.canvas2d_primitive_adapter import Canvas2DPrimitiveAdapter
 from rendering.cached_render_plan import (
     OptimizedPrimitivePlan,
+    ViewMode,
     build_plan_for_cartesian,
     build_plan_for_polar,
     build_plan_for_drawable,
+    has_plan_helper,
+    view_mode_for,
 )
 
 # Fraction of the viewport that function plots also sample beyond each edge.
@@ -131,7 +134,6 @@ class Canvas2DRenderer(RendererProtocol):
         )
         self._apply_device_transform()
         self._apply_background()
-        self.register_default_drawables()
         self._initialize_plan_caches()
 
     def clear(self) -> None:
@@ -144,19 +146,23 @@ class Canvas2DRenderer(RendererProtocol):
         self._apply_background()
 
     def render(self, drawable: Any, coordinate_mapper: Any) -> bool:
-        """Render a drawable object using its registered handler.
+        """Render a drawable from its cached plan, or with a handler registered for its type.
 
         Args:
             drawable: The drawable object to render.
             coordinate_mapper: Mapper for coordinate transformations.
 
         Returns:
-            True if a handler was found and invoked, False otherwise.
+            True if the drawable was dispatched, False when its class has no plan helper.
         """
         handler = self._handlers_by_type.get(type(drawable))
-        if handler is None:
+        if handler is not None:
+            handler(drawable, coordinate_mapper)
+            return True
+        drawable_name = self._resolve_drawable_name(drawable)
+        if not has_plan_helper(drawable_name):
             return False
-        handler(drawable, coordinate_mapper)
+        self._render_drawable(drawable, coordinate_mapper, drawable_name)
         return True
 
     def render_cartesian(self, cartesian: Any, coordinate_mapper: Any) -> None:
@@ -288,156 +294,13 @@ class Canvas2DRenderer(RendererProtocol):
         self._frame_seen_plan_keys.clear()
 
     def register(self, cls: type, handler: Callable[[Any, Any], None]) -> None:
-        """Register a handler function for a drawable type.
+        """Draw drawables of one type with ``handler`` instead of their plan.
 
         Args:
             cls: The drawable class to handle.
             handler: Function taking (drawable, coordinate_mapper) to render it.
         """
         self._handlers_by_type[cls] = handler
-
-    def register_default_drawables(self) -> None:
-        """Register handlers for all standard drawable types."""
-        try:
-            from drawables.point import Point as PointDrawable
-
-            self.register(PointDrawable, self._render_point)
-        except Exception:
-            pass
-        try:
-            from drawables.segment import Segment as SegmentDrawable
-
-            self.register(SegmentDrawable, self._render_segment)
-        except Exception:
-            pass
-        try:
-            from drawables.circle import Circle as CircleDrawable
-
-            self.register(CircleDrawable, self._render_circle)
-        except Exception:
-            pass
-        try:
-            from drawables.ellipse import Ellipse as EllipseDrawable
-
-            self.register(EllipseDrawable, self._render_ellipse)
-        except Exception:
-            pass
-        try:
-            from drawables.circle_arc import CircleArc as CircleArcDrawable
-
-            self.register(CircleArcDrawable, self._render_circle_arc)
-        except Exception:
-            pass
-        try:
-            from drawables.vector import Vector as VectorDrawable
-
-            self.register(VectorDrawable, self._render_vector)
-        except Exception:
-            pass
-        try:
-            from drawables.angle import Angle as AngleDrawable
-
-            self.register(AngleDrawable, self._render_angle)
-        except Exception:
-            pass
-        try:
-            from drawables.function import Function as FunctionDrawable
-
-            self.register(FunctionDrawable, self._render_function)
-        except Exception:
-            pass
-        try:
-            from drawables.piecewise_function import PiecewiseFunction as PiecewiseFunctionDrawable
-
-            self.register(PiecewiseFunctionDrawable, self._render_function)
-        except Exception:
-            pass
-        try:
-            from drawables.parametric_function import ParametricFunction as ParametricFunctionDrawable
-
-            self.register(ParametricFunctionDrawable, self._render_function)
-        except Exception:
-            pass
-        try:
-            from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea as FunctionsAreaDrawable
-
-            self.register(FunctionsAreaDrawable, self._render_functions_bounded_colored_area)
-        except Exception:
-            pass
-        try:
-            from drawables.function_segment_bounded_colored_area import (
-                FunctionSegmentBoundedColoredArea as FunctionSegmentAreaDrawable,
-            )
-
-            self.register(FunctionSegmentAreaDrawable, self._render_function_segment_bounded_colored_area)
-        except Exception:
-            pass
-        try:
-            from drawables.segments_bounded_colored_area import SegmentsBoundedColoredArea as SegmentsAreaDrawable
-
-            self.register(SegmentsAreaDrawable, self._render_segments_bounded_colored_area)
-        except Exception:
-            pass
-        try:
-            from drawables.closed_shape_colored_area import ClosedShapeColoredArea as ClosedShapeAreaDrawable
-
-            self.register(ClosedShapeAreaDrawable, self._render_closed_shape_colored_area)
-        except Exception:
-            pass
-        try:
-            from drawables.label import Label as LabelDrawable
-
-            self.register(LabelDrawable, self._render_label)
-        except Exception:
-            pass
-        try:
-            from drawables.bar import Bar as BarDrawable
-
-            self.register(BarDrawable, self._render_drawable)
-        except Exception:
-            pass
-
-    # ------------------------------------------------------------------
-    # Handlers
-
-    def _render_point(self, point: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(point, coordinate_mapper)
-
-    def _render_segment(self, segment: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(segment, coordinate_mapper)
-
-    def _render_circle(self, circle: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(circle, coordinate_mapper)
-
-    def _render_ellipse(self, ellipse: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(ellipse, coordinate_mapper)
-
-    def _render_circle_arc(self, circle_arc: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(circle_arc, coordinate_mapper)
-
-    def _render_vector(self, vector: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(vector, coordinate_mapper)
-
-    def _render_angle(self, angle: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(angle, coordinate_mapper)
-
-    def _render_function(self, func: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(func, coordinate_mapper)
-
-    def _render_functions_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(area, coordinate_mapper)
-
-    def _render_function_segment_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(area, coordinate_mapper)
-
-    def _render_segments_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(area, coordinate_mapper)
-
-    def _render_closed_shape_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(area, coordinate_mapper)
-
-    def _render_label(self, label: Any, coordinate_mapper: Any) -> None:
-        self._render_drawable(label, coordinate_mapper)
 
     def _ensure_canvas(self, canvas_id: str):
         canvas_el = document.getElementById(canvas_id)
@@ -569,16 +432,17 @@ class Canvas2DRenderer(RendererProtocol):
         except Exception:
             pass
 
-    def _render_drawable(self, drawable: Any, coordinate_mapper: Any) -> None:
+    def _render_drawable(self, drawable: Any, coordinate_mapper: Any, drawable_name: Optional[str] = None) -> None:
         renderable_attr = getattr(drawable, "is_renderable", True)
         try:
             if not bool(renderable_attr):
                 return
         except Exception:
             return
-        drawable_name = self._resolve_drawable_name(drawable)
+        if drawable_name is None:
+            drawable_name = self._resolve_drawable_name(drawable)
         map_state = self._capture_map_state(coordinate_mapper)
-        signature = self._compute_drawable_signature(drawable, coordinate_mapper)
+        signature = self._compute_drawable_signature(drawable, coordinate_mapper, drawable_name)
         cache_key = self._plan_cache_key(drawable, drawable_name)
         plan = self._resolve_drawable_plan(drawable, coordinate_mapper, map_state, signature, drawable_name, cache_key)
         if plan is None:
@@ -613,7 +477,11 @@ class Canvas2DRenderer(RendererProtocol):
             return f"{drawable_name}:{identifier}"
         return f"{drawable_name}:{id(drawable)}"
 
-    def _compute_drawable_signature(self, drawable: Any, coordinate_mapper: Any = None) -> Tuple[Any, ...]:
+    def _compute_drawable_signature(
+        self, drawable: Any, coordinate_mapper: Any = None, drawable_name: Optional[str] = None
+    ) -> Tuple[Any, ...]:
+        if drawable_name is None:
+            drawable_name = self._resolve_drawable_name(drawable)
         state_func = getattr(drawable, "get_state", None)
         state: Any = None
         if callable(state_func):
@@ -632,26 +500,24 @@ class Canvas2DRenderer(RendererProtocol):
         dependent_coords = self._collect_dependent_coordinates(drawable)
         if dependent_coords:
             snapshot["_dependent_coords"] = dependent_coords
-        area_dependencies = self._collect_area_dependencies(drawable)
+        area_dependencies = self._collect_area_dependencies(drawable, drawable_name)
         if area_dependencies:
             snapshot["_area_dependencies"] = area_dependencies
-        if self._needs_scale_in_signature(drawable) and coordinate_mapper is not None:
+        view_mode = view_mode_for(drawable_name)
+        if view_mode != ViewMode.FIXED and coordinate_mapper is not None:
             scale = getattr(coordinate_mapper, "scale_factor", None)
             if scale is not None:
                 snapshot["_view_scale"] = round(float(scale), 4)
             offset = getattr(coordinate_mapper, "offset", None)
             canvas_width = getattr(coordinate_mapper, "canvas_width", None)
             canvas_height = getattr(coordinate_mapper, "canvas_height", None)
-            drawable_name = self._resolve_drawable_name(drawable)
-            # Parametric samples do not depend on the viewport, so a pan only
-            # reprojects the cached plan instead of resampling the curve.
-            if offset is not None and drawable_name != "ParametricFunction":
-                snapshot["_view_offset"] = self._offset_signature(drawable_name, offset, canvas_width, canvas_height)
+            if offset is not None and view_mode != ViewMode.SCALE:
+                snapshot["_view_offset"] = self._offset_signature(view_mode, offset, canvas_width, canvas_height)
             if canvas_width is not None and canvas_height is not None:
                 snapshot["_view_size"] = (round(float(canvas_width), 2), round(float(canvas_height), 2))
         return self._freeze_signature(snapshot)
 
-    def _offset_signature(self, drawable_name: str, offset: Any, canvas_width: Any, canvas_height: Any) -> Tuple:
+    def _offset_signature(self, view_mode: str, offset: Any, canvas_width: Any, canvas_height: Any) -> Tuple:
         """Pan offset as it affects a view-dependent plan.
 
         Function plots are sampled FUNCTION_VIEW_MARGIN of a screen beyond each
@@ -661,7 +527,7 @@ class Canvas2DRenderer(RendererProtocol):
         offset_x = float(offset.x)
         offset_y = float(offset.y)
         margin = float(self.style.get("function_view_margin", 0.0) or 0.0) if hasattr(self, "style") else 0.0
-        if drawable_name in ("Function", "PiecewiseFunction") and margin > 0 and canvas_width and canvas_height:
+        if view_mode == ViewMode.SCALE_BUCKETED_OFFSET and margin > 0 and canvas_width and canvas_height:
             bucket_x = float(canvas_width) * margin
             bucket_y = float(canvas_height) * margin
             return ("bucket", math.floor(offset_x / bucket_x), math.floor(offset_y / bucket_y))
@@ -681,9 +547,9 @@ class Canvas2DRenderer(RendererProtocol):
                 coords.append((attr, x, y))
         return coords
 
-    def _collect_area_dependencies(self, drawable: Any) -> list:
+    def _collect_area_dependencies(self, drawable: Any, drawable_name: str) -> list:
         """Collect the state of the drawables bounding a colored area so editing them invalidates its plan."""
-        if self._resolve_drawable_name(drawable) not in _COLORED_AREA_CLASSES:
+        if drawable_name not in _COLORED_AREA_CLASSES:
             return []
         dependencies: list = []
         for attr in _AREA_DEPENDENCY_ATTRS:
@@ -707,17 +573,6 @@ class Canvas2DRenderer(RendererProtocol):
             except Exception:
                 state = None
         return (state, self._collect_dependent_coordinates(dependency))
-
-    def _needs_scale_in_signature(self, drawable: Any) -> bool:
-        class_name = getattr(drawable, "get_class_name", lambda: "")()
-        return class_name in (
-            "Function",
-            "PiecewiseFunction",
-            "ParametricFunction",
-            "FunctionsBoundedColoredArea",
-            "FunctionSegmentBoundedColoredArea",
-            "PolarGrid",
-        )
 
     def _freeze_signature(self, value: Any) -> Tuple[Any, ...]:
         if isinstance(value, dict):

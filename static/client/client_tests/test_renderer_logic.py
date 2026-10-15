@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import unittest
 from types import SimpleNamespace
+from typing import Any, List, Tuple
 
-from drawables.bar import Bar
 from rendering import cached_render_plan as optimized
 from rendering import shared_drawable_renderers as shared
 from rendering import style_manager
@@ -47,16 +47,67 @@ class PrimitiveRecorder(shared.RendererPrimitives):
 
 
 class TestRendererLogic(unittest.TestCase):
-    def test_renderers_register_bar_drawable(self) -> None:
-        canvas2d = Canvas2DRenderer.__new__(Canvas2DRenderer)
-        canvas2d._handlers_by_type = {}
-        canvas2d.register_default_drawables()
-        self.assertIn(Bar, canvas2d._handlers_by_type)
+    def _view_changes(self, renderer: Any, class_name: str) -> Tuple[bool, bool, bool]:
+        """Whether a small pan, a pan of a large part of the screen and a zoom change the plan signature."""
+        drawable = SimpleNamespace(name="d", color="red", get_class_name=lambda: class_name, get_state=lambda: {})
 
-        svg = SvgRenderer.__new__(SvgRenderer)
-        svg._handlers_by_type = {}
-        svg.register_default_drawables()
-        self.assertIn(Bar, svg._handlers_by_type)
+        def mapper(offset_x: float, scale: float = 1.0) -> Any:
+            return SimpleNamespace(
+                scale_factor=scale, offset=SimpleNamespace(x=offset_x, y=0.0), canvas_width=800, canvas_height=600
+            )
+
+        def changes(before: Any, after: Any) -> bool:
+            return renderer._compute_drawable_signature(drawable, before) != renderer._compute_drawable_signature(
+                drawable, after
+            )
+
+        return (
+            changes(mapper(0.0), mapper(10.0)),
+            changes(mapper(0.0), mapper(500.0)),
+            changes(mapper(0.0), mapper(0.0, 2.0)),
+        )
+
+    def test_canvas2d_plan_signatures_follow_the_view_mode(self) -> None:
+        renderer = Canvas2DRenderer.__new__(Canvas2DRenderer)
+        renderer.style = {"function_view_margin": 0.5}  # half-screen buckets: 400 px wide here
+        expected = {
+            "Point": (False, False, False),
+            "ParametricFunction": (False, False, True),
+            "Function": (False, True, True),
+            "PiecewiseFunction": (False, True, True),
+            "FunctionsBoundedColoredArea": (True, True, True),
+            "PolarGrid": (True, True, True),
+        }
+        for class_name, changes in expected.items():
+            self.assertEqual(self._view_changes(renderer, class_name), changes, class_name)
+
+    def test_svg_plan_signatures_change_with_any_view_change_when_view_dependent(self) -> None:
+        renderer = SvgRenderer.__new__(SvgRenderer)
+        self.assertEqual(self._view_changes(renderer, "Point"), (False, False, False))
+        for class_name in ("ParametricFunction", "Function", "FunctionSegmentBoundedColoredArea", "PolarGrid"):
+            self.assertEqual(self._view_changes(renderer, class_name), (True, True, True), class_name)
+
+    def test_both_renderers_draw_every_class_with_a_plan_helper_by_class_name(self) -> None:
+        for renderer_class in (Canvas2DRenderer, SvgRenderer):
+            renderer = renderer_class.__new__(renderer_class)
+            renderer._handlers_by_type = {}
+            drawn: List[str] = []
+            renderer._render_drawable = lambda drawable, mapper, name=None, drawn=drawn: drawn.append(name)
+            for class_name in optimized._HELPERS:
+                drawable = SimpleNamespace(get_class_name=lambda name=class_name: name)
+                self.assertTrue(renderer.render(drawable, CoordinateMapperStub()), class_name)
+            self.assertFalse(renderer.render(SimpleNamespace(get_class_name=lambda: "Triangle"), CoordinateMapperStub()))
+            self.assertEqual(drawn, list(optimized._HELPERS))
+
+    def test_a_handler_registered_for_a_type_runs_before_the_plan_helper(self) -> None:
+        for renderer_class in (Canvas2DRenderer, SvgRenderer):
+            renderer = renderer_class.__new__(renderer_class)
+            handled: List[Any] = []
+            renderer._handlers_by_type = {SimpleNamespace: lambda drawable, mapper: handled.append(drawable)}
+            renderer._render_drawable = lambda drawable, mapper, name=None: self.fail("plan helper used")
+            drawable = SimpleNamespace(get_class_name=lambda: "Point")
+            self.assertTrue(renderer.render(drawable, CoordinateMapperStub()))
+            self.assertEqual(handled, [drawable])
 
     def test_style_manager_returns_independent_copy(self) -> None:
         style_a = style_manager.get_renderer_style()

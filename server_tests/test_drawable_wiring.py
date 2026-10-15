@@ -26,6 +26,27 @@ BASE_CLASSES = {"ColoredArea", "Graph"}
 # Buckets the round-trip scenes cannot produce: Bars are rebuilt from their plots and not
 # saved, and Plots only come from workspaces saved before the plot classes were split.
 NOT_ROUND_TRIPPED = {"Bars", "Plots"}
+# Drawables with no plan helper of their own: polygons and graphs are drawn by their
+# segments and points, plots by their functions, areas and bars.
+DRAWN_BY_PARTS = {
+    "Triangles",
+    "Rectangles",
+    "Quadrilaterals",
+    "Pentagons",
+    "Hexagons",
+    "Heptagons",
+    "Octagons",
+    "Nonagons",
+    "Decagons",
+    "GenericPolygons",
+    "UndirectedGraphs",
+    "DirectedGraphs",
+    "Trees",
+    "Plots",
+    "ContinuousPlots",
+    "DiscretePlots",
+    "BarsPlots",
+}
 
 
 def _drawable_buckets() -> Set[str]:
@@ -39,6 +60,16 @@ def _drawable_buckets() -> Set[str]:
                     if isinstance(statement, ast.Return) and isinstance(statement.value, ast.Constant):
                         names.add(statement.value.value)
     return {name + "s" for name in names - BASE_CLASSES}
+
+
+def _plan_helper_classes() -> Set[str]:
+    """Keys of ``_HELPERS`` in rendering/cached_render_plan.py, which renderers draw by class name."""
+    tree = ast.parse(open(os.path.join(CLIENT_DIR, "rendering", "cached_render_plan.py"), encoding="utf-8").read())
+    for node in ast.walk(tree):
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.target.id == "_HELPERS":
+            assert isinstance(node.value, ast.Dict)
+            return {key.value for key in node.value.keys if isinstance(key, ast.Constant)}
+    raise AssertionError("_HELPERS not found in cached_render_plan.py")
 
 
 def _literal(relative_path: str, name: str) -> Any:
@@ -70,6 +101,12 @@ class TestDrawableWiring(unittest.TestCase):
     def test_every_drawable_is_restored_from_saved_workspaces(self) -> None:
         restored = set(_literal("workspace_manager.py", "RESTORED_BUCKETS"))
         self.assertEqual(sorted(self.buckets - restored), [])
+
+    def test_every_drawable_has_a_plan_helper_or_is_drawn_by_its_parts(self) -> None:
+        planned = {name + "s" for name in _plan_helper_classes()}
+        self.assertEqual(sorted(self.buckets - planned - DRAWN_BY_PARTS), [])
+        self.assertEqual(sorted(planned & DRAWN_BY_PARTS), [])
+        self.assertEqual(sorted(planned - self.buckets), [])
 
     def test_every_saved_drawable_is_in_the_round_trip_test(self) -> None:
         round_tripped = set(
