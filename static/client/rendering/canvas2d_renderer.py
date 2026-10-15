@@ -159,9 +159,10 @@ class Canvas2DRenderer(RendererProtocol):
         if handler is not None:
             handler(drawable, coordinate_mapper)
             return True
-        if not has_plan_helper(self._resolve_drawable_name(drawable)):
+        drawable_name = self._resolve_drawable_name(drawable)
+        if not has_plan_helper(drawable_name):
             return False
-        self._render_drawable(drawable, coordinate_mapper)
+        self._render_drawable(drawable, coordinate_mapper, drawable_name)
         return True
 
     def render_cartesian(self, cartesian: Any, coordinate_mapper: Any) -> None:
@@ -431,16 +432,17 @@ class Canvas2DRenderer(RendererProtocol):
         except Exception:
             pass
 
-    def _render_drawable(self, drawable: Any, coordinate_mapper: Any) -> None:
+    def _render_drawable(self, drawable: Any, coordinate_mapper: Any, drawable_name: Optional[str] = None) -> None:
         renderable_attr = getattr(drawable, "is_renderable", True)
         try:
             if not bool(renderable_attr):
                 return
         except Exception:
             return
-        drawable_name = self._resolve_drawable_name(drawable)
+        if drawable_name is None:
+            drawable_name = self._resolve_drawable_name(drawable)
         map_state = self._capture_map_state(coordinate_mapper)
-        signature = self._compute_drawable_signature(drawable, coordinate_mapper)
+        signature = self._compute_drawable_signature(drawable, coordinate_mapper, drawable_name)
         cache_key = self._plan_cache_key(drawable, drawable_name)
         plan = self._resolve_drawable_plan(drawable, coordinate_mapper, map_state, signature, drawable_name, cache_key)
         if plan is None:
@@ -475,7 +477,11 @@ class Canvas2DRenderer(RendererProtocol):
             return f"{drawable_name}:{identifier}"
         return f"{drawable_name}:{id(drawable)}"
 
-    def _compute_drawable_signature(self, drawable: Any, coordinate_mapper: Any = None) -> Tuple[Any, ...]:
+    def _compute_drawable_signature(
+        self, drawable: Any, coordinate_mapper: Any = None, drawable_name: Optional[str] = None
+    ) -> Tuple[Any, ...]:
+        if drawable_name is None:
+            drawable_name = self._resolve_drawable_name(drawable)
         state_func = getattr(drawable, "get_state", None)
         state: Any = None
         if callable(state_func):
@@ -494,10 +500,10 @@ class Canvas2DRenderer(RendererProtocol):
         dependent_coords = self._collect_dependent_coordinates(drawable)
         if dependent_coords:
             snapshot["_dependent_coords"] = dependent_coords
-        area_dependencies = self._collect_area_dependencies(drawable)
+        area_dependencies = self._collect_area_dependencies(drawable, drawable_name)
         if area_dependencies:
             snapshot["_area_dependencies"] = area_dependencies
-        view_mode = view_mode_for(self._resolve_drawable_name(drawable))
+        view_mode = view_mode_for(drawable_name)
         if view_mode != ViewMode.FIXED and coordinate_mapper is not None:
             scale = getattr(coordinate_mapper, "scale_factor", None)
             if scale is not None:
@@ -541,9 +547,9 @@ class Canvas2DRenderer(RendererProtocol):
                 coords.append((attr, x, y))
         return coords
 
-    def _collect_area_dependencies(self, drawable: Any) -> list:
+    def _collect_area_dependencies(self, drawable: Any, drawable_name: str) -> list:
         """Collect the state of the drawables bounding a colored area so editing them invalidates its plan."""
-        if self._resolve_drawable_name(drawable) not in _COLORED_AREA_CLASSES:
+        if drawable_name not in _COLORED_AREA_CLASSES:
             return []
         dependencies: list = []
         for attr in _AREA_DEPENDENCY_ATTRS:

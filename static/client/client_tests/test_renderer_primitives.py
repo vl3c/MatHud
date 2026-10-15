@@ -470,7 +470,7 @@ class TestRendererPrimitives(unittest.TestCase):
     def test_both_renderers_draw_every_class_with_a_plan_helper(self) -> None:
         for renderer in (Canvas2DRenderer(), SvgRenderer()):
             drawn: List[str] = []
-            renderer._render_drawable = lambda drawable, mapper, drawn=drawn: drawn.append(drawable.get_class_name())
+            renderer._render_drawable = lambda drawable, mapper, name=None, drawn=drawn: drawn.append(name)
             for class_name in optimized_plans._HELPERS:
                 self.assertTrue(renderer.render(SimpleMock(get_class_name=lambda name=class_name: name), self.mapper))
             self.assertFalse(renderer.render(SimpleMock(get_class_name=lambda: "Triangle"), self.mapper))

@@ -144,9 +144,10 @@ class SvgRenderer(RendererProtocol):
         if handler is not None:
             handler(drawable, coordinate_mapper)
             return True
-        if not has_plan_helper(self._resolve_drawable_name(drawable)):
+        drawable_name = self._resolve_drawable_name(drawable)
+        if not has_plan_helper(drawable_name):
             return False
-        self._render_drawable(drawable, coordinate_mapper)
+        self._render_drawable(drawable, coordinate_mapper, drawable_name)
         return True
 
     # ----------------------- Cartesian Grid -----------------------
@@ -228,16 +229,17 @@ class SvgRenderer(RendererProtocol):
         return plan
 
     # ----------------------- Drawables -----------------------
-    def _render_drawable(self, drawable: Any, coordinate_mapper: Any) -> None:
+    def _render_drawable(self, drawable: Any, coordinate_mapper: Any, drawable_name: Optional[str] = None) -> None:
         renderable_attr = getattr(drawable, "is_renderable", True)
         try:
             if not bool(renderable_attr):
                 return
         except Exception:
             return
-        drawable_name = self._resolve_drawable_name(drawable)
+        if drawable_name is None:
+            drawable_name = self._resolve_drawable_name(drawable)
         map_state = self._capture_map_state(coordinate_mapper)
-        signature = self._compute_drawable_signature(drawable, coordinate_mapper)
+        signature = self._compute_drawable_signature(drawable, coordinate_mapper, drawable_name)
         cache_key = self._plan_cache_key(drawable, drawable_name)
         plan_context = self._resolve_drawable_plan_context(
             drawable, coordinate_mapper, map_state, signature, drawable_name, cache_key
@@ -316,7 +318,11 @@ class SvgRenderer(RendererProtocol):
             return f"{drawable_name}:{identifier}"
         return f"{drawable_name}:{id(drawable)}"
 
-    def _compute_drawable_signature(self, drawable: Any, coordinate_mapper: Any = None) -> Tuple[Any, ...]:
+    def _compute_drawable_signature(
+        self, drawable: Any, coordinate_mapper: Any = None, drawable_name: Optional[str] = None
+    ) -> Tuple[Any, ...]:
+        if drawable_name is None:
+            drawable_name = self._resolve_drawable_name(drawable)
         state_func = getattr(drawable, "get_state", None)
         state: Any = None
         if callable(state_func):
@@ -334,7 +340,7 @@ class SvgRenderer(RendererProtocol):
             snapshot = {**fallback, "__state__": state}
         # Every view-dependent mode adds the scale and the exact offset here: this renderer
         # is frozen and does not bucket pans like Canvas2DRenderer.
-        if view_mode_for(self._resolve_drawable_name(drawable)) != ViewMode.FIXED and coordinate_mapper is not None:
+        if view_mode_for(drawable_name) != ViewMode.FIXED and coordinate_mapper is not None:
             scale = getattr(coordinate_mapper, "scale_factor", None)
             if scale is not None:
                 snapshot["_view_scale"] = round(float(scale), 4)
