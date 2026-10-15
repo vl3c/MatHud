@@ -4912,12 +4912,14 @@ Key Features:
 
 **Supported Regression Model Types:**
 - `linear`: Linear regression (y = mx + b)
-- `polynomial`: Polynomial regression (requires `degree` parameter)
+- `polynomial`: Polynomial regression (requires `degree` parameter). Fitted by Householder QR least squares on the centered and scaled x (not the normal equations), so high degrees stay well conditioned; a rank-deficient design (fewer distinct x values than coefficients) raises ValueError. `coefficients` holds the raw a0..an; the expression uses raw powers of x unless they cannot reproduce the fit (large x offsets), in which case it is written in powers of (x - mean of x)
 - `exponential`: Exponential regression (y = a*e^(bx))
 - `logarithmic`: Logarithmic regression (y = a + b*ln(x))
 - `power`: Power regression (y = a*x^b)
-- `logistic`: Logistic growth (y = L/(1+e^(-k(x-x0))))
+- `logistic`: Logistic growth (y = L/(1+e^(-k(x-x0)))); L takes the sign of the data, so curves below zero fit a negative L
 - `sinusoidal`: Sinusoidal regression (y = a*sin(bx+c)+d)
+
+`r_squared` is at most 1 and is negative when the model fits worse than the mean of y (it is not clamped at 0).
 
 #### Construction Manager (`managers/construction_manager.py`)
 

@@ -57,96 +57,61 @@ def _validate_positive(values: List[float], name: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Pure Python matrix operations (no numpy dependency)
+# Least squares (pure Python, no numpy dependency)
 # ---------------------------------------------------------------------------
 
-
-def _matrix_multiply(A: List[List[float]], B: List[List[float]]) -> List[List[float]]:
-    """Multiply two matrices."""
-    rows_A = len(A)
-    cols_A = len(A[0]) if A else 0
-    rows_B = len(B)
-    cols_B = len(B[0]) if B else 0
-
-    if cols_A != rows_B:
-        raise ValueError("Matrix dimensions incompatible for multiplication")
-
-    result: List[List[float]] = [[0.0] * cols_B for _ in range(rows_A)]
-    for i in range(rows_A):
-        for j in range(cols_B):
-            for k in range(cols_A):
-                result[i][j] += A[i][k] * B[k][j]
-    return result
-
-
-def _matrix_transpose(A: List[List[float]]) -> List[List[float]]:
-    """Transpose a matrix."""
-    if not A:
-        return []
-    rows = len(A)
-    cols = len(A[0])
-    return [[A[i][j] for i in range(rows)] for j in range(cols)]
-
-
-def _matrix_inverse(A: List[List[float]]) -> List[List[float]]:
-    """Compute matrix inverse using Gauss-Jordan elimination."""
-    n = len(A)
-    if n == 0 or len(A[0]) != n:
-        raise ValueError("Matrix must be square")
-
-    # Create augmented matrix [A | I]
-    aug: List[List[float]] = [row[:] + [1.0 if i == j else 0.0 for j in range(n)] for i, row in enumerate(A)]
-
-    # Pivots are judged relative to the matrix magnitude, not an absolute value
-    singular_tol = 1e-12 * max(abs(value) for row in A for value in row)
-
-    # Forward elimination with partial pivoting
-    for col in range(n):
-        # Find pivot
-        max_row = col
-        max_val = abs(aug[col][col])
-        for row in range(col + 1, n):
-            if abs(aug[row][col]) > max_val:
-                max_val = abs(aug[row][col])
-                max_row = row
-
-        if max_val <= singular_tol:
-            raise ValueError("Matrix is singular or nearly singular")
-
-        # Swap rows
-        aug[col], aug[max_row] = aug[max_row], aug[col]
-
-        # Eliminate column
-        pivot = aug[col][col]
-        for j in range(2 * n):
-            aug[col][j] /= pivot
-
-        for row in range(n):
-            if row != col:
-                factor = aug[row][col]
-                for j in range(2 * n):
-                    aug[row][j] -= factor * aug[col][j]
-
-    # Extract inverse
-    return [row[n:] for row in aug]
+# A column whose R diagonal is below this fraction of the largest one is treated
+# as linearly dependent on the others
+RANK_TOLERANCE = 1e-12
 
 
 def _solve_least_squares(X: List[List[float]], y: List[float]) -> List[float]:
-    """
-    Solve least squares problem: find coefficients c such that X @ c ≈ y.
-    Uses normal equations: c = (X^T X)^(-1) X^T y
-    """
-    Xt = _matrix_transpose(X)
-    XtX = _matrix_multiply(Xt, X)
-    XtX_inv = _matrix_inverse(XtX)
+    """Solve the least squares problem X @ c ~= y by Householder QR.
 
-    # Convert y to column vector
-    y_col = [[yi] for yi in y]
-    Xty = _matrix_multiply(Xt, y_col)
+    Works on X itself rather than the normal equations X^T X, whose condition
+    number is the square of X's; that matters for high-degree polynomial fits.
+    Raises ValueError when X is rank-deficient (e.g. fewer distinct x values
+    than coefficients).
+    """
+    m = len(X)
+    n = len(X[0]) if X else 0
+    if n == 0 or m < n:
+        raise ValueError("Need at least as many data points as coefficients")
 
-    # Compute coefficients
-    c_col = _matrix_multiply(XtX_inv, Xty)
-    return [c[0] for c in c_col]
+    A = [[float(v) for v in row] for row in X]
+    b = [float(v) for v in y]
+
+    for j in range(n):
+        norm = math.sqrt(math.fsum(A[i][j] ** 2 for i in range(j, m)))
+        if norm == 0.0:
+            continue
+        # Reflect column j onto -sign(A[j][j]) * norm * e_j (avoids cancellation)
+        alpha = -norm if A[j][j] >= 0.0 else norm
+        v = [A[i][j] for i in range(j, m)]
+        v[0] -= alpha
+        v_norm_sq = math.fsum(vi * vi for vi in v)
+        if v_norm_sq == 0.0:
+            continue
+        for k in range(j, n):
+            factor = 2.0 * math.fsum(v[i - j] * A[i][k] for i in range(j, m)) / v_norm_sq
+            for i in range(j, m):
+                A[i][k] -= factor * v[i - j]
+        factor = 2.0 * math.fsum(v[i - j] * b[i] for i in range(j, m)) / v_norm_sq
+        for i in range(j, m):
+            b[i] -= factor * v[i - j]
+
+    largest_pivot = max(abs(A[j][j]) for j in range(n))
+    if largest_pivot == 0.0 or any(abs(A[j][j]) <= RANK_TOLERANCE * largest_pivot for j in range(n)):
+        raise ValueError(
+            "The data cannot determine every coefficient (rank-deficient design matrix); "
+            "use more distinct x values or a lower polynomial degree"
+        )
+
+    # Back substitution with the upper triangular R
+    c = [0.0] * n
+    for j in range(n - 1, -1, -1):
+        c[j] = (b[j] - math.fsum(A[j][k] * c[k] for k in range(j + 1, n))) / A[j][j]
+    return c
 
 
 # ---------------------------------------------------------------------------
@@ -161,6 +126,8 @@ def calculate_r_squared(y_actual: List[float], y_predicted: List[float]) -> floa
     R² = 1 - SS_res / SS_tot
     where SS_res = sum((y_actual - y_predicted)^2)
           SS_tot = sum((y_actual - mean(y_actual))^2)
+
+    At most 1; negative when the predictions are worse than the mean of y_actual.
     """
     if len(y_actual) != len(y_predicted):
         raise ValueError("y_actual and y_predicted must have same length")
@@ -180,9 +147,10 @@ def calculate_r_squared(y_actual: List[float], y_predicted: List[float]) -> floa
         # All y values are essentially the same
         return 1.0 if ss_res <= negligible else 0.0
 
+    # Negative when the model fits worse than the mean (real information, not clamped);
+    # only round-off above 1 is clamped
     r_squared = 1.0 - (ss_res / ss_tot)
-    # Clamp to [0, 1] to handle numerical errors
-    return max(0.0, min(1.0, r_squared))
+    return min(1.0, r_squared)
 
 
 # ---------------------------------------------------------------------------
@@ -380,11 +348,52 @@ def _drop_round_off_coefficients(coeffs: List[float], x_data: List[float], y_dat
             coeffs[k] = 0.0
 
 
+# The raw-power expression is used only while it reproduces the fitted values at the
+# data to within this fraction of the y range
+RAW_POLYNOMIAL_TOLERANCE = 1e-9
+
+
+def _evaluate_polynomial(coeffs: List[float], x: float) -> float:
+    """Evaluate a0 + a1*x + ... + an*x^n by Horner's scheme."""
+    total = 0.0
+    for coef in reversed(coeffs):
+        total = total * x + coef
+    return total
+
+
+def _shifted_polynomial_expression(
+    t_coeffs: List[float], shift: float, scale: float, x_data: List[float], y_data: List[float]
+) -> str:
+    """Build sum d_j * (x - shift)^j with d_j = c_j / scale^j, for fits whose raw powers lose accuracy."""
+    d_coeffs = [c / scale**j for j, c in enumerate(t_coeffs)]
+    reach = max(abs(x - shift) for x in x_data)
+    y_max = max(abs(y) for y in y_data)
+    shift_str = _format_coefficient(abs(shift))
+    base = "x" if shift_str == "0" else f"(x {'-' if shift >= 0 else '+'} {shift_str})"
+    terms = []
+    for j, coef in enumerate(d_coeffs):
+        if coef == 0 or abs(coef) * reach**j <= 1e-12 * y_max:
+            continue
+        coef_str = _format_coefficient(coef)
+        if j == 0:
+            terms.append(coef_str)
+        elif j == 1:
+            terms.append(f"({coef_str})*{base}")
+        else:
+            terms.append(f"({coef_str})*{base}^{j}")
+    if not terms:
+        return "0"
+    return " + ".join(terms).replace("+ -", "- ")
+
+
 def fit_polynomial(x_data: List[float], y_data: List[float], degree: int) -> RegressionResult:
     """
     Fit polynomial model: y = a0 + a1*x + a2*x^2 + ... + an*x^n
 
-    Returns coefficients {a0, a1, ..., an} and R-squared.
+    Returns coefficients {a0, a1, ..., an} and R-squared. The expression uses
+    these raw powers of x unless they cannot reproduce the fit accurately (large
+    x offsets or high degrees); it is then written in powers of (x - s), s being
+    the mean of x, so the plotted curve is the fitted one.
     """
     if not isinstance(degree, int) or degree < 1:
         raise ValueError("Polynomial degree must be a positive integer")
@@ -418,7 +427,12 @@ def fit_polynomial(x_data: List[float], y_data: List[float], degree: int) -> Reg
     _drop_round_off_coefficients(coeffs, x_data, y_data)
 
     coefficients = {f"a{i}": coeffs[i] for i in range(degree + 1)}
-    expression = build_expression("polynomial", coefficients)
+    y_extent = (max(y_data) - min(y_data)) or max(abs(y) for y in y_data) or 1.0
+    raw_deviation = max(abs(_evaluate_polynomial(coeffs, x) - p) for x, p in zip(x_data, y_predicted))
+    if raw_deviation <= RAW_POLYNOMIAL_TOLERANCE * y_extent:
+        expression = build_expression("polynomial", coefficients)
+    else:
+        expression = _shifted_polynomial_expression(t_coeffs, shift, scale, x_data, y_data)
 
     return {
         "expression": expression,
@@ -559,7 +573,9 @@ def fit_logistic(
     Parameters:
         x_data: List of x values
         y_data: List of y values
-        L_init: Initial estimate for carrying capacity (default: max(y) * 1.1)
+        L_init: Initial estimate for carrying capacity (default: 1.1 times the
+            y value of largest magnitude, keeping its sign, so data below zero
+            fits a negative L)
         k_init: Initial estimate for growth rate (default: 1.0 per half x-range;
             negative values describe decreasing curves)
         x0_init: Initial estimate for midpoint (default: mean of x range)
@@ -570,7 +586,6 @@ def fit_logistic(
     """
     _validate_data(x_data, y_data)
 
-    y_max = max(y_data)
     x_min = min(x_data)
     x_max = max(x_data)
 
@@ -581,10 +596,11 @@ def fit_logistic(
     y_scale = max(abs(y) for y in y_data) or 1.0
     u_data = [(x - x_center) / x_scale for x in x_data]
     v_data = [y / y_scale for y in y_data]
-    v_max = y_max / y_scale
+    # The value of largest magnitude, with its sign: L has the sign of the data
+    v_peak = max(v_data, key=abs)
 
     # Initial estimates (normalized)
-    L_init = L_init / y_scale if L_init is not None else (v_max * 1.1 if v_max > 0 else 1.0)
+    L_init = L_init / y_scale if L_init is not None else (v_peak * 1.1 if v_peak != 0 else 1.0)
     x0_init = (x0_init - x_center) / x_scale if x0_init is not None else 0.0
     k_init = k_init * x_scale if k_init is not None else 1.0
 
@@ -608,7 +624,7 @@ def fit_logistic(
     best_L, best_k, best_x0 = L_init, k_init, x0_init
     best_sse = compute_sse(best_L, best_k, best_x0)
 
-    L_range = [v_max * f for f in [0.9, 1.0, 1.1, 1.2, 1.5]]
+    L_range = [v_peak * f for f in [0.9, 1.0, 1.1, 1.2, 1.5]] if v_peak != 0 else [1.0]
     k_range = [sign * k for sign in (1.0, -1.0) for k in [0.5, 1.0, 2.0, 5.0, 10.0, 20.0]]
     x0_range = [-0.5, 0.0, 0.5]
 
@@ -636,7 +652,7 @@ def fit_logistic(
                     new_L = best_L + delta_L
                     new_k = best_k + delta_k
                     new_x0 = best_x0 + delta_x0
-                    if new_L <= 0 or new_k == 0:
+                    if new_L == 0 or new_k == 0:
                         continue
                     sse = compute_sse(new_L, new_k, new_x0)
                     if sse < best_sse:
