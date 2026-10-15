@@ -337,7 +337,9 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
         state = area.get_state()
         self.assertEqual(state["args"]["left_bound"], -2)
         self.assertEqual(state["args"]["right_bound"], 3)
-        area_copy = copy.deepcopy(area)
+        # The memo keeps the (slow to copy) mocks shared; only the area itself is copied
+        area_copy = copy.deepcopy(area, {id(self.func): self.func, id(self.segment): self.segment})
+        self.assertIsNot(area_copy, area)
         self.assertEqual((area_copy.left_bound, area_copy.right_bound), (-2, 3))
         self.assertNotIn("left_bound", FunctionSegmentBoundedColoredArea(self.func, self.segment).get_state()["args"])
 
