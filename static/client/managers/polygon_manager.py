@@ -62,6 +62,13 @@ Coordinate = Tuple[float, float]
 SegmentList = List["Segment"]
 
 
+_NAME_SEPARATOR = "\x00"
+
+
+def _pair_key(first: str, second: str) -> str:
+    return f"{first}{_NAME_SEPARATOR}{second}"
+
+
 class PolygonManager(BaseDrawableManager):
     """Manages polygonal drawables with shared create/update/delete flows."""
 
@@ -649,15 +656,17 @@ class PolygonManager(BaseDrawableManager):
 
     def _segment_triangle_point_names(self) -> List[List[str]]:
         """Sorted point names of each triangle the segments close, earliest segments first."""
-        # Keyed by "a|b" strings and kept in lists: Brython mangles tuple dictionary keys.
+        # Keyed by joined strings and kept in lists: Brython mangles tuple dictionary keys.
+        # The separator can't appear in a point name. A segment whose two ends share a name
+        # (not possible with generated names) never closes a triangle and is skipped.
         first_segment: Dict[str, int] = {}
         pairs: List[List[str]] = []
         neighbours: Dict[str, Set[str]] = {}
         for index, segment in enumerate(self.drawables.Segments):
             a, b = sorted([segment.point1.name, segment.point2.name])
-            if a == b or f"{a}|{b}" in first_segment:
+            if a == b or _pair_key(a, b) in first_segment:
                 continue
-            first_segment[f"{a}|{b}"] = index
+            first_segment[_pair_key(a, b)] = index
             pairs.append([a, b])
             neighbours.setdefault(a, set()).add(b)
             neighbours.setdefault(b, set()).add(a)
@@ -667,10 +676,11 @@ class PolygonManager(BaseDrawableManager):
         for a, b in pairs:
             for c in neighbours[a] & neighbours[b]:
                 names = sorted([a, b, c])
-                if "|".join(names) in seen:
+                key = _NAME_SEPARATOR.join(names)
+                if key in seen:
                     continue
-                seen.add("|".join(names))
-                order = sorted(first_segment[f"{p}|{q}"] for p, q in combinations(names, 2))
+                seen.add(key)
+                order = sorted(first_segment[_pair_key(p, q)] for p, q in combinations(names, 2))
                 triangles.append((order, names))
         triangles.sort(key=lambda triangle: triangle[0])
         return [names for _, names in triangles]

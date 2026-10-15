@@ -61,6 +61,16 @@ class TestAutoTriangles(unittest.TestCase):
         self.assertGreater(len(expected), 3)
         self.assertEqual(self._connect(), expected)
 
+    def test_order_follows_the_closing_segments_not_the_point_names(self) -> None:
+        # ABD's segments come first (AB, AD, BD are segments 0, 1, 2; AB, AC, BC are 0, 3, 4),
+        # so ABD comes before ABC although ABC sorts first by name.
+        points = {"A": (0, 0), "B": (4, 0), "C": (2, -3), "D": (2, 3)}
+        for name, (x, y) in points.items():
+            self.canvas.create_point(x, y, name, extra_graphics=False)
+        for start, end in ("AB", "AD", "BD", "AC", "BC"):
+            self._segment(points[start], points[end])
+        self.assertEqual(self._connect(), [["A", "B", "D"], ["A", "B", "C"]])
+
     def _coords(self, names: List[str]) -> Tuple[float, ...]:
         coords: List[float] = []
         for name in names:
