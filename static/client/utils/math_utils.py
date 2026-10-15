@@ -421,36 +421,25 @@ class MathUtils:
     ) -> List[Dict[str, float]]:
         """
         Compute intersection points (if any) between a circle and a segment.
-        Returns a list of dicts with x, y, and angle (radians from positive x-axis).
+        Returns a list of dicts with x, y, and angle (radians from positive x-axis),
+        ordered along the segment: two points, one where the segment touches the circle,
+        or none.
+
+        Delegates to ``object_intersections.segment_circle_points`` (the closed form of
+        find_intersections), which works relative to the circle's centre and size, so
+        tiny circles and tangent segments at any scale are handled. ``epsilon`` is
+        kept for compatibility and unused.
         """
+        from utils.object_intersections import segment_circle_points
+
         r = float(radius)
         if r <= 0:
             return []
         x1, y1, x2, y2 = MathUtils._segment_endpoints(segment)
-        dx = x2 - x1
-        dy = y2 - y1
-        fx = x1 - float(cx)
-        fy = y1 - float(cy)
-        a = dx * dx + dy * dy
-        if abs(a) < epsilon:
-            return []
-        b = 2 * (fx * dx + fy * dy)
-        c = fx * fx + fy * fy - r * r
-        discriminant = b * b - 4 * a * c
-        if discriminant < -epsilon:
-            return []
-        discriminant = max(discriminant, 0.0)
-        sqrt_disc = math.sqrt(discriminant)
+        center_x, center_y = float(cx), float(cy)
         intersections: List[Dict[str, float]] = []
-        signs = [-1.0, 1.0] if sqrt_disc > epsilon else [0.0]
-        for sign in signs:
-            t = (-b + sign * sqrt_disc) / (2 * a)
-            if t < -epsilon or t > 1 + epsilon:
-                continue
-            t = min(max(t, 0.0), 1.0)
-            ix = x1 + t * dx
-            iy = y1 + t * dy
-            angle = math.atan2(iy - float(cy), ix - float(cx))
+        for ix, iy in segment_circle_points((x1, y1), (x2, y2), (center_x, center_y), r):
+            angle = math.atan2(iy - center_y, ix - center_x)
             intersections.append({"x": ix, "y": iy, "angle": MathUtils._normalize_angle(angle)})
         return intersections
 
@@ -4071,12 +4060,14 @@ class MathUtils:
         c = math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)  # opposite vertex 3
 
         perimeter = a + b + c
-        if perimeter < MathUtils.EPSILON:
+        if perimeter == 0:
             raise ValueError("Degenerate triangle: zero perimeter")
 
         # Area via cross product: 2A = |(x2-x1)(y3-y1) - (x3-x1)(y2-y1)|
         area = abs((x2 - x1) * (y3 - y1) - (x3 - x1) * (y2 - y1)) / 2.0
-        if area < MathUtils.EPSILON:
+        # Relative collinearity test, the one circumcenter uses: 4A against the longest squared side
+        longest = max(a, b, c)
+        if 4.0 * area <= MathUtils.EPSILON * longest * longest:
             raise ValueError("Degenerate triangle: zero area")
 
         # Incenter: weighted average by opposite side lengths

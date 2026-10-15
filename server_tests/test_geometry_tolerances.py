@@ -8,11 +8,13 @@ incircle, each checked away from unit scale where absolute tolerances used to de
 from __future__ import annotations
 
 import math
+import random
 import unittest
 from types import SimpleNamespace
 
 from server_tests import client_renderer  # noqa: F401  (browser stub, so the client modules import)
 from utils.geometry_utils import GeometryUtils
+from utils.math_utils import MathUtils
 from utils.relation_inspector import RelationInspector
 
 
@@ -175,6 +177,56 @@ class TestRelationTolerances(unittest.TestCase):
         self.assertFalse(check("similar", r1, square))
         mixed = RelationInspector.inspect("similar", [r1, _Shape([(0, 0), (1, 0), (0, 1)])], ["rectangle", "triangle"])
         self.assertIn("error", mixed)
+
+
+class TestCircleSegmentIntersections(unittest.TestCase):
+    def test_tangent_segments_give_one_point_at_every_scale(self) -> None:
+        rng = random.Random(5)
+        for scale in (1.0, 100.0, 1e4):
+            for _ in range(300):
+                cx, cy = rng.uniform(-scale, scale), rng.uniform(-scale, scale)
+                r = rng.uniform(0.1, 1) * scale
+                angle = rng.uniform(0, 2 * math.pi)
+                px, py = cx + r * math.cos(angle), cy + r * math.sin(angle)
+                dx, dy = -math.sin(angle), math.cos(angle)
+                segment = ((px - r * dx, py - r * dy), (px + r * dx, py + r * dy))
+
+                hits = MathUtils.circle_segment_intersections(cx, cy, r, segment)
+
+                self.assertEqual(len(hits), 1, (scale, cx, cy, r, angle))
+                self.assertAlmostEqual(hits[0]["x"], px, delta=1e-9 * scale)
+                self.assertAlmostEqual(hits[0]["y"], py, delta=1e-9 * scale)
+
+    def test_chords_of_tiny_circles_land_on_the_circle(self) -> None:
+        for r in (1e-3, 1e-5, 1e-6):
+            hits = MathUtils.circle_segment_intersections(0, 0, r, ((-2 * r, 0.3 * r), (2 * r, 0.3 * r)))
+            self.assertEqual(len(hits), 2)
+            for hit in hits:
+                self.assertAlmostEqual(math.hypot(hit["x"], hit["y"]) / r, 1.0, places=12)
+            self.assertLess(hits[0]["x"], hits[1]["x"])
+
+    def test_misses_and_degenerate_inputs_give_nothing(self) -> None:
+        self.assertEqual(MathUtils.circle_segment_intersections(0, 0, 1, ((2, 2), (3, 3))), [])
+        self.assertEqual(MathUtils.circle_segment_intersections(0, 0, 0, ((-1, 0), (1, 0))), [])
+        self.assertEqual(MathUtils.circle_segment_intersections(0, 0, 1, ((1, 0), (1, 0))), [])
+        inside = MathUtils.circle_segment_intersections(0, 0, 5, ((0, 0), (1, 1)))
+        self.assertEqual(inside, [])
+
+
+class TestIncircleScale(unittest.TestCase):
+    def test_small_triangles_have_an_incircle_like_their_circumcircle(self) -> None:
+        for scale in (1.0, 1e-4, 1e-6):
+            vertices = (0.0, 0.0, 3 * scale, 0.0, 0.0, 4 * scale)
+            MathUtils.circumcenter(*vertices)
+            cx, cy, r = MathUtils.incenter_and_inradius(*vertices)
+            self.assertAlmostEqual(r / scale, 1.0, places=9)
+            self.assertAlmostEqual(cx / scale, 1.0, places=9)
+
+    def test_collinear_points_have_no_incircle(self) -> None:
+        with self.assertRaises(ValueError):
+            MathUtils.incenter_and_inradius(0, 0, 1e-6, 0, 2e-6, 0)
+        with self.assertRaises(ValueError):
+            MathUtils.incenter_and_inradius(0, 0, 1e6, 1e6, 3e6, 3e6)
 
 
 if __name__ == "__main__":
