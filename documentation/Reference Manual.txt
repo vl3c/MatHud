@@ -4582,20 +4582,24 @@ Agentic scenario tests check whole tool-call chains in the real app (design and 
 - `generate_graph(name?, graph_type, vertices, edges, adjacency_matrix?, directed?, root?, layout?, placement_box?)`: Programmatically place a graph, tree, or DAG on the canvas.
 - `delete_graph(name)`: Remove a graph/tree with the points, edges, and weight labels it created. Points and edges that existed before the graph and were reused as its vertices or edges stay, along with anything built on them. A reused edge gets back the label it had before the graph wrote its weight there, unless the label changed since: if the user edited it, the edit stays, and if a later graph wrote its own weight, that weight stays (the later graph inherits the original label to restore when it is deleted). Graph-created vertices and edges that another object now uses (for example a triangle built on a vertex) stay too; when only other graphs use them, those graphs take them over. Graphs saved before this ownership tracking have no record of reused drawables, so they apply only the usage rule.
 - `analyze_graph(operation, graph_name, params?)`: Analyze an existing graph by name (must already exist on canvas).
+- `translate_object(name, x_offset, y_offset)` also moves a graph or tree: every vertex point moves by the offset and the edges and weight labels follow (`Graph.translate`, with `Graph.get_vertices` giving the points the transform refreshes).
 
 Notes:
 1. In this section, "graph" means graph theory vertices and edges (not function plotting and not dependency graphs).
 2. Vertices are created as points on the canvas. Undirected edges render as segments; directed edges render as vectors.
 3. If an edge has a numeric weight, it is rendered as a midpoint label on the segment/vector.
+4. Every edge takes the graph's direction (the per-edge `directed` field is ignored): a `dag` is always directed and a `tree` never is, so no edge is drawn without being part of the graph.
+5. Parallel edges between the same two vertices share one segment (or, in a directed graph, one vector per direction). The shared edge shows the cheapest of their weights, an unweighted edge counting as 1, and analysis uses that weight.
 
 #### Creation (`generate_graph`)
 Key behaviors:
-1. **Graph types**: `graph` (general), `tree` (rooted), `dag` (directed acyclic graph).
-2. **Vertices**: You can provide explicit coordinates per vertex, or omit them and let the layout engine place vertices automatically.
-3. **Edges**: Edges reference vertices by index (0-based) in the provided vertices list. If you provide an adjacency matrix instead, row/column order follows that same vertex order. Matrix edges follow the graph's direction: an undirected graph (or tree) gets one segment per nonzero vertex pair, a directed graph one vector per nonzero entry.
+1. **Graph types**: `graph` (general), `tree` (rooted), `dag` (directed acyclic graph). `build_graph_state` validates them: a tree must be connected with exactly |V| - 1 edges (direction ignored, parallel edges and loops count), a dag must have no directed cycle (the error names the cycle).
+2. **Vertices**: You can provide explicit coordinates per vertex, or omit them and let the layout engine place vertices automatically; explicit coordinates are kept even when other vertices are laid out. A vertex with explicit coordinates reuses a point already at that spot (it becomes a preexisting vertex of the graph); two vertices of one graph given the same coordinates are an error. Laid-out positions never reuse a point: when a layout position lands on an existing point (for example a second graph laid out where the first one is), `GraphManager._clear_of_occupied` shifts the whole generated layout by 5% steps of the placement box until it is clear, so the second graph gets its own points.
+3. **Edges**: Edges reference vertices by integer index (0-based) in the provided vertices list; an index that is out of range or not an integer is an error (it used to be dropped or truncated). If you provide an adjacency matrix instead, row/column order follows that same vertex order. Matrix edges follow the graph's direction: an undirected graph (or tree) gets one segment per nonzero vertex pair, a directed graph one vector per nonzero entry; a nonzero diagonal entry is a self-loop in both. 0 means "no edge", so a weight-0 edge can only be given in `edges` (the captured adjacency matrix also shows such an edge as 0).
 4. **Vertex names**: A requested vertex `name` (e.g. `GA`) is used as given when it is not already taken by another point; otherwise a name is generated.
-5. **Placement box**: `placement_box` is in math coordinates (y increases upward). It constrains the layout so the graph lands in a predictable region.
-6. **Layout**: `layout` is a hint. Supported modes include `tree`/`hierarchical`, `radial`, `circular`, `grid`, and `force`. Trees default to a top-down tree layout unless you explicitly request `radial`.
+5. **Root**: `root` names a vertex by name (matched first) or 0-based index; an unknown root is an error. A tree without a root gets the first vertex no edge points to, the vertex the tree layout puts on top.
+6. **Placement box**: `placement_box` is in math coordinates (y increases upward). It constrains the layout so the graph lands in a predictable region; a layout that spills over the box is scaled into it.
+7. **Layout**: Supported modes are `tree`/`hierarchical`, `radial`, `circular`, `grid`, and `force`, and an explicit layout is always used. Without one, trees get the top-down tree layout, and a graph whose edges form a tree gets it too. The grid layout places each connected component in its own strip of the box (isolated vertices share one), and every layout ends with a pass that moves a vertex off any position another vertex already has, so two vertices never become one point.
 
 #### Analysis (`analyze_graph`)
 Supported `operation` values:
@@ -4605,17 +4609,25 @@ Supported `operation` values:
 4. Geometry on graph vertices: `convex_hull`, `point_in_hull`
 
 Common `params` usage (high-level):
-1. `shortest_path`: requires `start` and `goal` (use the vertex names you see on the canvas, like `A` and `D`). If any weights exist, the shortest path uses weighted cost. Negative weights are supported on directed graphs (Bellman-Ford); negative weights on an undirected graph, or a negative cycle that is reachable from `start` and can reach `goal`, return `{"error": ...}`.
-2. `bfs` / `dfs`: use `start`.
+1. `shortest_path`: requires `start` and `goal` (use the vertex names you see on the canvas, like `A` and `D`). If any weights exist, the shortest path uses weighted cost, with unweighted edges counting 1; otherwise `cost` is the number of edges. Negative weights are supported on directed graphs (Bellman-Ford); negative weights on an undirected graph, or a negative cycle that is reachable from `start` and can reach `goal`, return `{"error": ...}`. A path from a vertex to itself is `[start]` with cost 0, also for an isolated vertex; no path gives `path: null` and a note.
+2. `bfs` / `dfs`: require `start`.
 3. `levels`: uses `root` (or the stored tree root).
 4. `lca`: uses `root`, `a`, `b`.
 5. `reroot`: uses `new_root` (and optionally `root`).
 6. `point_in_hull`: uses numeric `x` and `y`.
 
+Vertex names are checked once, before the operation runs: a missing `start`, `goal`, `a`, `b` or `new_root` the operation needs, or a name that is not a vertex of the graph, returns `{"error": ...}` listing the graph's vertices (it used to return an empty result the model reported as "no path"). An unknown `root` is an error too.
+
+Tree operations (`levels`, `lca`, `balance_children`, `invert_children`, `reroot`) first check that the graph is a tree with its edges read as undirected (connected, |E| = |V| - 1), and return an error saying whether it is disconnected or has a cycle. They root the tree with one helper (`GraphAnalyzer._rooted_tree`), which takes depths from the same parent map it returns, so `lca` is consistent with the parents. The root is `params.root`, else the stored tree root, else on a directed graph the only vertex without incoming edges (an error asks for a root when there is not exactly one), else the first vertex. Tree results include the `root` used.
+
+Determinism: traversals visit neighbours in sorted order (BFS, DFS, levels, rooting, bridges, articulation points, bipartite coloring, components), topological sort returns the lexicographically smallest order (Kahn with a heap), and parallel edges resolve to the first cheapest edge (`GraphUtils.cheapest_parallel_edges`, shared by the weight lookup, edge naming, the MST and the adjacency matrix). Results do not depend on `PYTHONHASHSEED` or set order.
+
 Directed and disconnected graphs:
-1. `mst` on a disconnected graph returns a minimum spanning forest with `connected: false` and a note.
+1. `mst` on a disconnected graph returns a minimum spanning forest with `connected: false` and a note. On a directed graph it is the MST of the underlying undirected graph (antiparallel edges count as parallel edges, the cheaper one is used).
 2. `bridges`, `articulation_points`, and `bipartite` on directed graphs use the underlying undirected graph.
 3. `euler_status` on directed graphs uses in/out-degree balance.
+4. `topological_sort` on an undirected graph returns an error saying it needs a directed graph; on a graph with a cycle, an error naming one cycle (`A -> B -> C -> A`).
+5. `diameter` is exact on any graph: the largest eccentricity over the underlying undirected graph, by a BFS from every vertex (`GraphUtils.graph_diameter`). It counts edges and ignores weights. It returns `path`, `length` and `connected`; on a disconnected graph (whose diameter is infinite) `connected` is false, `path` and `length` give the largest diameter of one component, and a note says so. It used to be a two-pass BFS that is exact only on trees, followed edge direction, and measured only the first component.
 
 Return data:
 1. Operations return structured data like `path`, `cost`, `edges`, `order`, `levels`, etc.

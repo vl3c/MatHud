@@ -2076,7 +2076,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "generate_graph",
-            "description": "Generates a graph, tree or DAG (vertices joined by edges, optionally weighted or directed) on the canvas from vertices/edges or an adjacency matrix. Use it for any graph of vertices and edges, instead of building one from points and segments; not for plotting functions. Returns the created graph state and drawable names for follow-up highlighting.",
+            "description": "Generates a graph, tree or DAG (vertices joined by edges, optionally weighted or directed) on the canvas from vertices/edges or an adjacency matrix. Use it for any graph of vertices and edges, instead of building one from points and segments; not for plotting functions. Every edge takes the graph's direction. Parallel edges between the same two vertices share one segment or vector, which shows their cheapest weight (an unweighted edge counts as 1). Returns the created graph state and drawable names for follow-up highlighting; invalid input (an edge index that is not a vertex index, an unknown root, two vertices at the same coordinates, a tree that is not a tree, a dag with a cycle) returns an error.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2085,13 +2085,19 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "graph_type": {
                         "type": "string",
                         "enum": ["graph", "tree", "dag"],
-                        "description": "Type of graph to create.",
+                        "description": "Type of graph to create. A tree must be connected with exactly one edge fewer than vertices and is undirected; a dag must have no directed cycle and is always directed.",
                     },
-                    "directed": {"type": ["boolean", "null"]},
-                    "root": {"type": ["string", "null"], "description": "Root id for trees."},
+                    "directed": {
+                        "type": ["boolean", "null"],
+                        "description": "Whether a 'graph' is directed (default false). Ignored for trees (undirected) and dags (directed).",
+                    },
+                    "root": {
+                        "type": ["string", "null"],
+                        "description": "Root vertex for trees: a vertex name or 0-based index. Defaults to the first vertex no edge points to.",
+                    },
                     "layout": {
                         "type": ["string", "null"],
-                        "description": "Layout hint: 'tree' or 'hierarchical' for top-down tree display (default for trees), 'radial' for concentric rings from root, 'circular' for nodes on a circle, 'grid' for rectangular grid, 'force' for force-directed.",
+                        "description": "Layout, used as given: 'tree' or 'hierarchical' for top-down tree display (default for trees), 'radial' for concentric rings from root, 'circular' for nodes on a circle, 'grid' for rectangular grid (each connected component side by side), 'force' for force-directed. When null, a graph whose edges form a tree gets the tree layout.",
                     },
                     "placement_box": {
                         "type": ["object", "null"],
@@ -2131,7 +2137,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             "required": ["name", "x", "y", "color", "label"],
                             "additionalProperties": False,
                         },
-                        "description": "List of vertex descriptors. Vertex id is implied by array index starting at 0.",
+                        "description": "List of vertex descriptors. Vertex id is implied by array index starting at 0. A vertex with explicit x and y reuses a point already there; no two vertices may share coordinates. Vertices without coordinates are laid out, clear of existing points.",
                     },
                     "edges": {
                         "type": "array",
@@ -2140,16 +2146,19 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             "properties": {
                                 "source": {
                                     "type": "number",
-                                    "description": "Source vertex index (0-based, matches vertices array order)",
+                                    "description": "Source vertex index (integer, 0-based, matches vertices array order)",
                                 },
                                 "target": {
                                     "type": "number",
-                                    "description": "Target vertex index (0-based, matches vertices array order)",
+                                    "description": "Target vertex index (integer, 0-based, matches vertices array order)",
                                 },
                                 "weight": {"type": ["number", "null"]},
                                 "name": {"type": ["string", "null"]},
                                 "color": {"type": ["string", "null"]},
-                                "directed": {"type": ["boolean", "null"]},
+                                "directed": {
+                                    "type": ["boolean", "null"],
+                                    "description": "Ignored: every edge takes the graph's direction.",
+                                },
                             },
                             "required": ["source", "target", "weight", "name", "color", "directed"],
                             "additionalProperties": False,
@@ -2159,7 +2168,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "adjacency_matrix": {
                         "type": ["array", "null"],
                         "items": {"type": "array", "items": {"type": "number"}},
-                        "description": "Optional adjacency matrix (weights allowed). Rows/columns follow the order of the provided vertices array (0-based). Edges follow the graph's direction: for an undirected graph each nonzero pair gives one edge.",
+                        "description": "Optional adjacency matrix (weights allowed). Rows/columns follow the order of the provided vertices array (0-based). Edges follow the graph's direction: for an undirected graph each nonzero pair gives one edge. A nonzero diagonal entry is a self-loop. 0 means no edge, so give a weight-0 edge in edges instead.",
                     },
                 },
                 "required": [
@@ -2195,7 +2204,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "analyze_graph",
-            "description": 'Analyzes an existing graph/tree for connectivity and structural queries (connectedness, shortest path, BFS/DFS, bipartite, bridges, articulation points, diameter, etc.). Use generate_graph first if the graph does not exist yet. Notes: shortest_path supports negative weights on directed graphs (Bellman-Ford) and returns {"error": ...} for negative weights on undirected graphs or a reachable negative cycle; mst on a disconnected graph returns a minimum spanning forest with connected: false and a note; bridges, articulation_points and bipartite on directed graphs use the underlying undirected graph; euler_status on directed graphs uses in/out-degree balance.',
+            "description": 'Analyzes an existing graph/tree: shortest path, minimum spanning tree, topological sort, BFS/DFS, bipartite, bridges, articulation points, Euler path/circuit, diameter, tree operations and convex hull. Use generate_graph first if the graph does not exist yet. Notes: a vertex name that is not in the graph returns {"error": ...} listing the vertices; unweighted edges count as weight 1 and parallel edges use the cheapest one; shortest_path supports negative weights on directed graphs (Bellman-Ford) and returns {"error": ...} for negative weights on undirected graphs or a reachable negative cycle; mst on a directed graph is the MST of the underlying undirected graph, and on a disconnected graph a minimum spanning forest with connected: false and a note; topological_sort needs a directed graph without cycles (errors name the cycle); diameter counts edges (weights are ignored) on the underlying undirected graph and returns path, length and connected (on a disconnected graph: connected: false, the largest component diameter and a note); bridges, articulation_points and bipartite on directed graphs use the underlying undirected graph; euler_status on directed graphs uses in/out-degree balance; levels, lca, balance_children, invert_children and reroot need a tree (edges read as undirected) and default the root to the stored tree root, else on a directed graph the only vertex without incoming edges, else the first vertex.',
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2235,7 +2244,10 @@ FUNCTIONS: List[Dict[str, Any]] = [
                                 "description": "Start vertex for shortest_path, bfs, dfs.",
                             },
                             "goal": {"type": ["string", "null"], "description": "Goal vertex for shortest_path."},
-                            "root": {"type": ["string", "null"], "description": "Root vertex for tree operations."},
+                            "root": {
+                                "type": ["string", "null"],
+                                "description": "Root vertex for tree operations (an unknown name is an error).",
+                            },
                             "a": {"type": ["string", "null"], "description": "First vertex for LCA."},
                             "b": {"type": ["string", "null"], "description": "Second vertex for LCA."},
                             "new_root": {
