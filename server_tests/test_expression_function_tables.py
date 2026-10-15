@@ -113,7 +113,7 @@ def _tables() -> Dict[str, Any]:
         "inverse_functions": dict(sorted(ExpressionValidator._INVERSE_FUNCTIONS.items())),
         "call_aliases": dict(sorted(ef.CALL_ALIASES.items())),
         "word_aliases": dict(sorted(ef.WORD_ALIASES.items())),
-        "python_only_functions": sorted(MathUtils._PYTHON_ONLY_FUNCTIONS),
+        "python_only_functions": sorted(ef.PYTHON_ONLY_NAMES),
     }
 
 

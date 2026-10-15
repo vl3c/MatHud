@@ -4350,8 +4350,10 @@
  "mathjs_bridge": {
   "evaluate": {
    "2*product": {
-    "mathjs": [],
-    "path": "python",
+    "mathjs": [
+     "evaluate 2*product"
+    ],
+    "path": "mathjs",
     "raised": null,
     "returned_error": false
    },
@@ -5086,6 +5088,7 @@
    "prev_prime",
    "prime_factors",
    "product",
+   "randint",
    "ratio_test",
    "root_test",
    "summation",

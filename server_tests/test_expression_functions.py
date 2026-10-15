@@ -91,8 +91,7 @@ class TestDerivedTables(unittest.TestCase):
         self.assertEqual(ef.WORD_ALIASES, tables["word_aliases"])
 
     def test_python_only_names(self) -> None:
-        # randint has its own "randint(" check in MathUtils.evaluate
-        self.assertEqual(sorted(ef.PYTHON_ONLY_NAMES - {"randint"}), self.golden["tables"]["python_only_functions"])
+        self.assertEqual(sorted(ef.PYTHON_ONLY_NAMES), self.golden["tables"]["python_only_functions"])
 
     def test_mathjs_renames(self) -> None:
         self.assertEqual(ef.MATHJS_RENAMES, {"arrangements": "permutations", "stdev": "std", "trunc": "fix"})
@@ -200,6 +199,23 @@ class TestMathJsRenames(unittest.TestCase):
         for text, expected in cases.items():
             with self.subTest(text=text):
                 self.assertEqual(ef.rename_for_mathjs(text), expected)
+
+
+class TestPythonOnlyRouting(unittest.TestCase):
+    def test_python_only_functions_are_found_by_call(self) -> None:
+        cases = {
+            "is_prime(7)": True,
+            "2 + randint (1, 2)": True,
+            "summation('n^2', 'n', 0, 3)": True,
+            "sin(next_prime(4))": True,
+            "2*product": False,
+            "cross_product(a, b)": False,
+            "summation + 1": False,
+            "sin(x)": False,
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(ef.calls_python_only(text), expected)
 
 
 class TestBrowserFreeImport(unittest.TestCase):

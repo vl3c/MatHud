@@ -338,8 +338,9 @@ def replace_aliases(text: str) -> str:
 
 
 _TOKEN_PATTERN = re.compile(_TOKEN)
-# Text that must occur for rename_for_mathjs to change anything
+# Text that must occur for rename_for_mathjs or calls_python_only to find anything
 _RENAME_HINTS = tuple(sorted(name + "(" for name in MATHJS_RENAMES))
+_PYTHON_ONLY_HINTS = _minimal_substrings(sorted(PYTHON_ONLY_NAMES))
 
 
 def _rename_call(match: re.Match[str]) -> str:
@@ -359,3 +360,17 @@ def rename_for_mathjs(text: str) -> str:
     if not any(hint in text for hint in _RENAME_HINTS):
         return text
     return _TOKEN_PATTERN.sub(_rename_call, text)
+
+
+def calls_python_only(text: str) -> bool:
+    """True when text calls a function MathUtils.evaluate must compute in Python.
+
+    The name must be a whole token followed by "(" (spaces allowed): is_prime(7) and
+    randint (1, 2) do; cross_product(a, b) and a variable named product do not.
+    """
+    if not any(name in text for name in _PYTHON_ONLY_HINTS):
+        return False
+    for match in _TOKEN_PATTERN.finditer(text):
+        if match.group(0) in PYTHON_ONLY_NAMES and text[match.end() :].lstrip()[:1] == "(":
+            return True
+    return False

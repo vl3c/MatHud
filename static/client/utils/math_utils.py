@@ -42,7 +42,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Un
 
 from browser import window
 
-from expression_functions import PYTHON_ONLY_NAMES, rename_for_mathjs
+from expression_functions import calls_python_only, rename_for_mathjs
 
 Number = Union[int, float]
 PointLike = Any
@@ -1099,10 +1099,6 @@ class MathUtils:
 
         return ExpressionValidator.normalize_unicode_name(value)
 
-    # Functions that require Python evaluation (not available in Math.js); randint has its own
-    # "randint(" check in evaluate
-    _PYTHON_ONLY_FUNCTIONS: Set[str] = set(PYTHON_ONLY_NAMES - {"randint"})
-
     @staticmethod
     def evaluate(expression: str, variables: Optional[Dict[str, Number]] = None) -> Any:
         """Evaluate a mathematical expression numerically with optional variables.
@@ -1132,7 +1128,7 @@ class MathUtils:
 
             # Check if expression contains Python-only functions (number theory; randint has no
             # inclusive math.js equivalent)
-            if "randint(" in expression or any(func in expression for func in MathUtils._PYTHON_ONLY_FUNCTIONS):
+            if calls_python_only(expression):
                 # Use Python evaluation for number theory functions
                 result = ExpressionValidator.evaluate_expression(
                     python_expression, variables.get("x", 0) if variables else 0, variables
