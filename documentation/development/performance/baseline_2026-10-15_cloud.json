@@ -1,0 +1,658 @@
+{
+  "options": {
+    "iterations": 3,
+    "scale": 1
+  },
+  "repeats": 3,
+  "medians_ms": {
+    "areas.build.colored_areas": 1.4666666666356225,
+    "areas.build.functions": 17.066666666728754,
+    "areas.cartesian_plan_apply": 18.892307692386495,
+    "areas.cartesian_plan_build": 16.061538461380852,
+    "areas.draw": 70.83333333333333,
+    "areas.pan": 86.54999999996896,
+    "areas.plan_apply": 2.9745283019070006,
+    "areas.plan_build": 12.882191780814264,
+    "areas.zoom": 142.4833333333178,
+    "expr.fix_math_expression": 0.8514999999990687,
+    "expr.function_create": 77.82499999995343,
+    "expr.function_eval": 0.022050000000046567,
+    "expr.mathutils_evaluate": 6.703333333336437,
+    "expr.parametric_eval": 0.023199999999953435,
+    "functions.build.functions": 21.199999999953434,
+    "functions.cartesian_plan_apply": 17.81538461546342,
+    "functions.cartesian_plan_build": 15.961538461610102,
+    "functions.draw": 82.26666666660458,
+    "functions.pan": 55.88333333330229,
+    "functions.plan_apply": 2.9952830188986757,
+    "functions.plan_build": 18.23636363635517,
+    "functions.zoom": 161.0,
+    "geometry.build.circles": 467.8333333333333,
+    "geometry.build.ellipses": 490.75,
+    "geometry.build.points": 1.4833333333333334,
+    "geometry.build.rectangles": 470.80000000004657,
+    "geometry.build.segments": 7.625,
+    "geometry.build.triangles": 142.92499999993015,
+    "geometry.build.vectors": 21.083333333333332,
+    "geometry.cartesian_plan_apply": 18.807692307656488,
+    "geometry.cartesian_plan_build": 16.76923076923077,
+    "geometry.draw": 237.89999999990687,
+    "geometry.pan": 244.8666666666201,
+    "geometry.plan_apply": 0.6974048442859847,
+    "geometry.plan_build": 3.483146067394802,
+    "geometry.zoom": 269.5833333333333,
+    "parametric.build.parametric": 3.1000000000931323,
+    "parametric.cartesian_plan_apply": 17.892307692314855,
+    "parametric.cartesian_plan_build": 16.753846153796005,
+    "parametric.draw": 99.06666666672875,
+    "parametric.pan": 49.216666666635625,
+    "parametric.plan_apply": 4.094736842070951,
+    "parametric.plan_build": 43.7000000000159,
+    "parametric.zoom": 277.51666666668217,
+    "statistics.build.bars": 7.400000000372529,
+    "statistics.build.distributions": 26.449999999953434,
+    "statistics.cartesian_plan_apply": 17.946153846032058,
+    "statistics.cartesian_plan_build": 15.215384615406107,
+    "statistics.draw": 111.29999999996896,
+    "statistics.pan": 124.06666666665114,
+    "statistics.plan_apply": 0.8977186311737496,
+    "statistics.plan_build": 6.640000000008597,
+    "statistics.zoom": 140.3833333333023
+  },
+  "runs": [
+    {
+      "status": "done",
+      "iterations": 3,
+      "scale": 1,
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+      "scenes": {
+        "geometry": {
+          "renderer": "Canvas2DRenderer",
+          "drawables_created": {
+            "points": 30,
+            "segments": 12,
+            "vectors": 6,
+            "triangles": 4,
+            "rectangles": 2,
+            "circles": 3,
+            "ellipses": 2,
+            "functions": 0,
+            "parametric": 0,
+            "colored_areas": 0,
+            "distributions": 0,
+            "bars": 0
+          },
+          "build_ms_per_drawable": {
+            "points": 1.4833333333333334,
+            "segments": 7.825000000031044,
+            "vectors": 21.083333333333332,
+            "triangles": 135.04999999993015,
+            "rectangles": 365.44999999995343,
+            "circles": 370.2333333333954,
+            "ellipses": 429.39999999990687
+          },
+          "metrics": {
+            "draw": 236.6333333333023,
+            "pan": 244.8666666666201,
+            "zoom": 258.6666666666667
+          },
+          "phases": {
+            "plan_build": 3.635955056180822,
+            "plan_apply": 0.6914359861565915,
+            "cartesian_plan_build": 17.930769230740573,
+            "cartesian_plan_apply": 17.49230769237217
+          }
+        },
+        "functions": {
+          "renderer": "Canvas2DRenderer",
+          "drawables_created": {
+            "points": 0,
+            "segments": 0,
+            "vectors": 0,
+            "triangles": 0,
+            "rectangles": 0,
+            "circles": 0,
+            "ellipses": 0,
+            "functions": 6,
+            "parametric": 0,
+            "colored_areas": 0,
+            "distributions": 0,
+            "bars": 0
+          },
+          "build_ms_per_drawable": {
+            "functions": 26.916666666666668
+          },
+          "metrics": {
+            "draw": 88.46666666679084,
+            "pan": 51.45000000003105,
+            "zoom": 161
+          },
+          "phases": {
+            "plan_build": 18.23636363635517,
+            "plan_apply": 2.9952830188986757,
+            "cartesian_plan_build": 13.13846153855467,
+            "cartesian_plan_apply": 17.81538461546342
+          }
+        },
+        "parametric": {
+          "renderer": "Canvas2DRenderer",
+          "drawables_created": {
+            "points": 0,
+            "segments": 0,
+            "vectors": 0,
+            "triangles": 0,
+            "rectangles": 0,
+            "circles": 0,
+            "ellipses": 0,
+            "functions": 0,
+            "parametric": 4,
+            "colored_areas": 0,
+            "distributions": 0,
+            "bars": 0
+          },
+          "build_ms_per_drawable": {
+            "parametric": 8.849999999976717
+          },
+          "metrics": {
+            "draw": 93.73333333339542,
+            "pan": 43.349999999937914,
+            "zoom": 270.1666666666667
+          },
+          "phases": {
+            "plan_build": 42.30243902442204,
+            "plan_apply": 3.610526315825011,
+            "cartesian_plan_build": 13.54615384612519,
+            "cartesian_plan_apply": 15.523076923062595
+          }
+        },
+        "areas": {
+          "renderer": "Canvas2DRenderer",
+          "drawables_created": {
+            "points": 0,
+            "segments": 0,
+            "vectors": 0,
+            "triangles": 0,
+            "rectangles": 0,
+            "circles": 0,
+            "ellipses": 0,
+            "functions": 3,
+            "parametric": 0,
+            "colored_areas": 3,
+            "distributions": 0,
+            "bars": 0
+          },
+          "build_ms_per_drawable": {
+            "functions": 18.26666666660458,
+            "colored_areas": 1.4666666666356225
+          },
+          "metrics": {
+            "draw": 70.83333333333333,
+            "pan": 86.54999999996896,
+            "zoom": 150.79999999996895
+          },
+          "phases": {
+            "plan_build": 13.039726027427879,
+            "plan_apply": 2.9745283019070006,
+            "cartesian_plan_build": 15.976923076973225,
+            "cartesian_plan_apply": 18.892307692386495
+          }
+        },
+        "statistics": {
+          "renderer": "Canvas2DRenderer",
+          "drawables_created": {
+            "points": 0,
+            "segments": 0,
+            "vectors": 0,
+            "triangles": 0,
+            "rectangles": 0,
+            "circles": 0,
+            "ellipses": 0,
+            "functions": 0,
+            "parametric": 0,
+            "colored_areas": 0,
+            "distributions": 2,
+            "bars": 1
+          },
+          "build_ms_per_drawable": {
+            "distributions": 29.300000000046566,
+            "bars": 7.599999999627471
+          },
+          "metrics": {
+            "draw": 119.56666666672875,
+            "pan": 124.06666666665114,
+            "zoom": 127.76666666668218
+          },
+          "phases": {
+            "plan_build": 6.640000000008597,
+            "plan_apply": 0.9003802281317475,
+            "cartesian_plan_build": 15.207692307670815,
+            "cartesian_plan_apply": 17.946153846032058
+          }
+        }
+      },
+      "expressions": {
+        "fix_math_expression": {
+          "total_ms": 172.70000000018626,
+          "count": 200,
+          "avg_ms": 0.8635000000009313
+        },
+        "function_create": {
+          "total_ms": 306.3000000002794,
+          "count": 4,
+          "avg_ms": 76.57500000006985
+        },
+        "function_eval": {
+          "total_ms": 44.10000000009313,
+          "count": 2000,
+          "avg_ms": 0.022050000000046567
+        },
+        "parametric_eval": {
+          "total_ms": 50.3000000002794,
+          "count": 2000,
+          "avg_ms": 0.0251500000001397
+        },
+        "mathutils_evaluate": {
+          "total_ms": 231.59999999962747,
+          "count": 30,
+          "avg_ms": 7.719999999987582
+        }
+      }
+    },
+    {
+      "status": "done",
+      "iterations": 3,
+      "scale": 1,
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+      "scenes": {
+        "geometry": {
+          "renderer": "Canvas2DRenderer",
+          "drawables_created": {
+            "points": 30,
+            "segments": 12,
+            "vectors": 6,
+            "triangles": 4,
+            "rectangles": 2,
+            "circles": 3,
+            "ellipses": 2,
+            "functions": 0,
+            "parametric": 0,
+            "colored_areas": 0,
+            "distributions": 0,
+            "bars": 0
+          },
+          "build_ms_per_drawable": {
+            "points": 1.2533333333209158,
+            "segments": 6.275000000023283,
+            "vectors": 17.416666666666668,
+            "triangles": 142.92499999993015,
+            "rectangles": 470.80000000004657,
+            "circles": 467.8333333333333,
+            "ellipses": 490.75
+          },
+          "metrics": {
+            "draw": 237.89999999990687,
+            "pan": 241.7666666666822,
+            "zoom": 269.5833333333333
+          },
+          "phases": {
+            "plan_build": 3.32247191010922,
+            "plan_apply": 0.6974048442859847,
+            "cartesian_plan_build": 16.3153846154276,
+            "cartesian_plan_apply": 19.35384615392496
+          }
+        },
+        "functions": {
+          "renderer": "Canvas2DRenderer",
+          "drawables_created": {
+            "points": 0,
+            "segments": 0,
+            "vectors": 0,
+            "triangles": 0,
+            "rectangles": 0,
+            "circles": 0,
+            "ellipses": 0,
+            "functions": 6,
+            "parametric": 0,
+            "colored_areas": 0,
+            "distributions": 0,
+            "bars": 0
+          },
+          "build_ms_per_drawable": {
+            "functions": 20.700000000031043
+          },
+          "metrics": {
+            "draw": 82.26666666660458,
+            "pan": 61.45000000003105,
+            "zoom": 174.0166666666822
+          },
+          "phases": {
+            "plan_build": 19.361818181850357,
+            "plan_apply": 3.2179245283027655,
+            "cartesian_plan_build": 15.961538461610102,
+            "cartesian_plan_apply": 18.453846153838988
+          }
+        },
+        "parametric": {
+          "renderer": "Canvas2DRenderer",
+          "drawables_created": {
+            "points": 0,
+            "segments": 0,
+            "vectors": 0,
+            "triangles": 0,
+            "rectangles": 0,
+            "circles": 0,
+            "ellipses": 0,
+            "functions": 0,
+            "parametric": 4,
+            "colored_areas": 0,
+            "distributions": 0,
+            "bars": 0
+          },
+          "build_ms_per_drawable": {
+            "parametric": 3.1000000000931323
+          },
+          "metrics": {
+            "draw": 108,
+            "pan": 49.216666666635625,
+            "zoom": 288.89999999998446
+          },
+          "phases": {
+            "plan_build": 45.546341463355574,
+            "plan_apply": 4.289473684222781,
+            "cartesian_plan_build": 16.753846153796005,
+            "cartesian_plan_apply": 18.830769230862362
+          }
+        },
+        "areas": {
+          "renderer": "Canvas2DRenderer",
+          "drawables_created": {
+            "points": 0,
+            "segments": 0,
+            "vectors": 0,
+            "triangles": 0,
+            "rectangles": 0,
+            "circles": 0,
+            "ellipses": 0,
+            "functions": 3,
+            "parametric": 0,
+            "colored_areas": 3,
+            "distributions": 0,
+            "bars": 0
+          },
+          "build_ms_per_drawable": {
+            "functions": 16.666666666666668,
+            "colored_areas": 1.6000000000931323
+          },
+          "metrics": {
+            "draw": 75.2666666667598,
+            "pan": 88.3833333333799,
+            "zoom": 142.4833333333178
+          },
+          "phases": {
+            "plan_build": 12.882191780814264,
+            "plan_apply": 2.988679245281262,
+            "cartesian_plan_build": 16.246153846096533,
+            "cartesian_plan_apply": 19.1846153845724
+          }
+        },
+        "statistics": {
+          "renderer": "Canvas2DRenderer",
+          "drawables_created": {
+            "points": 0,
+            "segments": 0,
+            "vectors": 0,
+            "triangles": 0,
+            "rectangles": 0,
+            "circles": 0,
+            "ellipses": 0,
+            "functions": 0,
+            "parametric": 0,
+            "colored_areas": 0,
+            "distributions": 2,
+            "bars": 1
+          },
+          "build_ms_per_drawable": {
+            "distributions": 26.449999999953434,
+            "bars": 7.400000000372529
+          },
+          "metrics": {
+            "draw": 111.29999999996896,
+            "pan": 120.53333333336438,
+            "zoom": 144.25
+          },
+          "phases": {
+            "plan_build": 6.987692307702337,
+            "plan_apply": 0.8600760456271994,
+            "cartesian_plan_build": 15.215384615406107,
+            "cartesian_plan_apply": 17.41538461537745
+          }
+        }
+      },
+      "expressions": {
+        "fix_math_expression": {
+          "total_ms": 170.29999999981374,
+          "count": 200,
+          "avg_ms": 0.8514999999990687
+        },
+        "function_create": {
+          "total_ms": 311.29999999981374,
+          "count": 4,
+          "avg_ms": 77.82499999995343
+        },
+        "function_eval": {
+          "total_ms": 87,
+          "count": 2000,
+          "avg_ms": 0.0435
+        },
+        "parametric_eval": {
+          "total_ms": 46.39999999990687,
+          "count": 2000,
+          "avg_ms": 0.023199999999953435
+        },
+        "mathutils_evaluate": {
+          "total_ms": 201.10000000009313,
+          "count": 30,
+          "avg_ms": 6.703333333336437
+        }
+      }
+    },
+    {
+      "status": "done",
+      "iterations": 3,
+      "scale": 1,
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+      "scenes": {
+        "geometry": {
+          "renderer": "Canvas2DRenderer",
+          "drawables_created": {
+            "points": 30,
+            "segments": 12,
+            "vectors": 6,
+            "triangles": 4,
+            "rectangles": 2,
+            "circles": 3,
+            "ellipses": 2,
+            "functions": 0,
+            "parametric": 0,
+            "colored_areas": 0,
+            "distributions": 0,
+            "bars": 0
+          },
+          "build_ms_per_drawable": {
+            "points": 1.6966666666635624,
+            "segments": 7.625,
+            "vectors": 22.449999999953434,
+            "triangles": 147.55000000004657,
+            "rectangles": 474.75,
+            "circles": 571.8333333333334,
+            "ellipses": 561.9499999999534
+          },
+          "metrics": {
+            "draw": 239.96666666679084,
+            "pan": 278.80000000004657,
+            "zoom": 276.53333333328675
+          },
+          "phases": {
+            "plan_build": 3.483146067394802,
+            "plan_apply": 0.7487024221453287,
+            "cartesian_plan_build": 16.76923076923077,
+            "cartesian_plan_apply": 18.807692307656488
+          }
+        },
+        "functions": {
+          "renderer": "Canvas2DRenderer",
+          "drawables_created": {
+            "points": 0,
+            "segments": 0,
+            "vectors": 0,
+            "triangles": 0,
+            "rectangles": 0,
+            "circles": 0,
+            "ellipses": 0,
+            "functions": 6,
+            "parametric": 0,
+            "colored_areas": 0,
+            "distributions": 0,
+            "bars": 0
+          },
+          "build_ms_per_drawable": {
+            "functions": 21.199999999953434
+          },
+          "metrics": {
+            "draw": 76.26666666660458,
+            "pan": 55.88333333330229,
+            "zoom": 158.6166666666977
+          },
+          "phases": {
+            "plan_build": 17.87272727271034,
+            "plan_apply": 2.919811320750324,
+            "cartesian_plan_build": 16.199999999971343,
+            "cartesian_plan_apply": 17.453846153838988
+          }
+        },
+        "parametric": {
+          "renderer": "Canvas2DRenderer",
+          "drawables_created": {
+            "points": 0,
+            "segments": 0,
+            "vectors": 0,
+            "triangles": 0,
+            "rectangles": 0,
+            "circles": 0,
+            "ellipses": 0,
+            "functions": 0,
+            "parametric": 4,
+            "colored_areas": 0,
+            "distributions": 0,
+            "bars": 0
+          },
+          "build_ms_per_drawable": {
+            "parametric": 2.625
+          },
+          "metrics": {
+            "draw": 99.06666666672875,
+            "pan": 49.63333333330229,
+            "zoom": 277.51666666668217
+          },
+          "phases": {
+            "plan_build": 43.7000000000159,
+            "plan_apply": 4.094736842070951,
+            "cartesian_plan_build": 17.792307692365004,
+            "cartesian_plan_apply": 17.892307692314855
+          }
+        },
+        "areas": {
+          "renderer": "Canvas2DRenderer",
+          "drawables_created": {
+            "points": 0,
+            "segments": 0,
+            "vectors": 0,
+            "triangles": 0,
+            "rectangles": 0,
+            "circles": 0,
+            "ellipses": 0,
+            "functions": 3,
+            "parametric": 0,
+            "colored_areas": 3,
+            "distributions": 0,
+            "bars": 0
+          },
+          "build_ms_per_drawable": {
+            "functions": 17.066666666728754,
+            "colored_areas": 1.4333333334264655
+          },
+          "metrics": {
+            "draw": 66.20000000003104,
+            "pan": 81,
+            "zoom": 130.43333333334886
+          },
+          "phases": {
+            "plan_build": 11.738356164363148,
+            "plan_apply": 2.7066037735884203,
+            "cartesian_plan_build": 16.061538461380852,
+            "cartesian_plan_apply": 17.2615384615313
+          }
+        },
+        "statistics": {
+          "renderer": "Canvas2DRenderer",
+          "drawables_created": {
+            "points": 0,
+            "segments": 0,
+            "vectors": 0,
+            "triangles": 0,
+            "rectangles": 0,
+            "circles": 0,
+            "ellipses": 0,
+            "functions": 0,
+            "parametric": 0,
+            "colored_areas": 0,
+            "distributions": 2,
+            "bars": 1
+          },
+          "build_ms_per_drawable": {
+            "distributions": 21.149999999906868,
+            "bars": 7.400000000372529
+          },
+          "metrics": {
+            "draw": 103.86666666669771,
+            "pan": 127.60000000001553,
+            "zoom": 140.3833333333023
+          },
+          "phases": {
+            "plan_build": 6.633846153834692,
+            "plan_apply": 0.8977186311737496,
+            "cartesian_plan_build": 16.023076923026775,
+            "cartesian_plan_apply": 18.569230769151964
+          }
+        }
+      },
+      "expressions": {
+        "fix_math_expression": {
+          "total_ms": 164.79999999981374,
+          "count": 200,
+          "avg_ms": 0.8239999999990687
+        },
+        "function_create": {
+          "total_ms": 381.39999999990687,
+          "count": 4,
+          "avg_ms": 95.34999999997672
+        },
+        "function_eval": {
+          "total_ms": 42.200000000186265,
+          "count": 2000,
+          "avg_ms": 0.02110000000009313
+        },
+        "parametric_eval": {
+          "total_ms": 44.6999999997206,
+          "count": 2000,
+          "avg_ms": 0.0223499999998603
+        },
+        "mathutils_evaluate": {
+          "total_ms": 198.5,
+          "count": 30,
+          "avg_ms": 6.616666666666666
+        }
+      }
+    }
+  ]
+}

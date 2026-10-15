@@ -149,6 +149,25 @@ def get_test_results() -> str:
     return _test_results
 
 
+def start_perf_benchmark(options_json: str = "{}") -> str:
+    """Start the rendering and expression benchmark (see perf_benchmark.py); JSON in, JSON out.
+
+    Exposed on window as: window.startMatHudPerfBenchmark(optionsJson); poll
+    window.getMatHudPerfBenchmarkResult(). Imported on first use so normal page loads
+    don't load the benchmark or its test scenes.
+    """
+    from perf_benchmark import start_benchmark_json
+
+    return str(start_benchmark_json(options_json))
+
+
+def get_perf_benchmark_result() -> str:
+    """Exposed on window as: window.getMatHudPerfBenchmarkResult()"""
+    from perf_benchmark import get_benchmark_result_json
+
+    return str(get_benchmark_result_json())
+
+
 _canvas: Optional[Canvas] = None
 
 
@@ -240,6 +259,9 @@ def main() -> None:
     # Usage: window.startMatHudTests() to begin, window.getMatHudTestResults() to poll
     window.startMatHudTests = start_tests
     window.getMatHudTestResults = get_test_results
+    # Performance benchmark used by `python -m cli.main test perf`
+    window.startMatHudPerfBenchmark = start_perf_benchmark
+    window.getMatHudPerfBenchmarkResult = get_perf_benchmark_result
 
     # Expose canvas redraw for resize handling
     window.redrawMatHudCanvas = redraw_canvas

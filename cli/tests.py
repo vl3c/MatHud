@@ -525,3 +525,8 @@ def all_cmd(port: int, with_auth: bool, start_server: bool, skip_lint: bool) -> 
 from cli.scenarios.command import scenarios_cmd  # noqa: E402
 
 test.add_command(scenarios_cmd)
+
+# The performance benchmark (cli/perf.py), registered here so it runs as `test perf`.
+from cli.perf import perf_cmd  # noqa: E402
+
+test.add_command(perf_cmd)
