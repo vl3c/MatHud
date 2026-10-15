@@ -24,7 +24,21 @@ Use Cases:
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Callable, Dict, FrozenSet, Generic, List, Optional, Sequence, Set, Tuple, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    FrozenSet,
+    Generic,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    TypeVar,
+)
 
 from geometry.graph_state import GraphEdgeDescriptor, GraphVertexDescriptor
 
@@ -35,6 +49,19 @@ if TYPE_CHECKING:
     from drawables.vector import Vector
 
 V = TypeVar("V")
+E = TypeVar("E")
+
+
+def _ordered(items: Iterable[V]) -> List[V]:
+    """Return items sorted, so traversals do not depend on set iteration order.
+
+    Vertices of mixed types that cannot be compared fall back to sorting by their text.
+    """
+    values = list(items)
+    try:
+        return sorted(values)  # type: ignore[type-var]
+    except TypeError:
+        return sorted(values, key=str)
 
 
 class Edge(Generic[V]):
@@ -201,15 +228,20 @@ class GraphUtils:
         *,
         directed: bool = False,
     ) -> List[List[float]]:
-        """Build an adjacency matrix from descriptors (weight default = 1.0)."""
+        """Build an adjacency matrix from descriptors.
+
+        An unweighted edge counts as weight 1. Parallel edges write the cheapest weight.
+        A self-loop sits on the diagonal. 0 means "no edge", so a weight-0 edge cannot be
+        told apart from a missing one in the matrix (the edge list keeps it).
+        """
         index: Dict[str, int] = {v.id: idx for idx, v in enumerate(vertices)}
         size = len(vertices)
         matrix: List[List[float]] = [[0.0 for _ in range(size)] for _ in range(size)]
 
-        for edge in edges:
+        cheapest = GraphUtils.cheapest_parallel_edges(edges, GraphUtils.descriptor_weight, directed)
+        for edge, w in cheapest.values():
             if edge.source not in index or edge.target not in index:
                 continue
-            w = float(edge.weight) if edge.weight is not None else 1.0
             i = index[edge.source]
             j = index[edge.target]
             matrix[i][j] = w
@@ -217,6 +249,37 @@ class GraphUtils:
                 matrix[j][i] = w
 
         return matrix
+
+    @staticmethod
+    def descriptor_weight(edge: GraphEdgeDescriptor) -> float:
+        """Weight an edge descriptor counts with: its weight, or 1 when it is unweighted."""
+        return 1.0 if edge.weight is None else float(edge.weight)
+
+    @staticmethod
+    def pair_key(source: Any, target: Any, directed: bool) -> Any:
+        """Key identifying the vertex pair of an edge: ordered when directed, unordered otherwise."""
+        return (source, target) if directed else frozenset((source, target))
+
+    @staticmethod
+    def cheapest_parallel_edges(
+        edges: Iterable[E],
+        weight_of: Callable[[E], float],
+        directed: bool,
+    ) -> Dict[Any, Tuple[E, float]]:
+        """Map each vertex pair to its cheapest edge and that edge's weight.
+
+        Edges need ``source`` and ``target`` attributes. Pairs are keyed with ``pair_key``,
+        in the order their first edge appears; among parallel edges of equal weight the
+        first one wins. Shortest paths, spanning trees and the adjacency matrix only ever
+        use this cheapest edge between two vertices.
+        """
+        cheapest: Dict[Any, Tuple[E, float]] = {}
+        for edge in edges:
+            key = GraphUtils.pair_key(getattr(edge, "source"), getattr(edge, "target"), directed)
+            weight = weight_of(edge)
+            if key not in cheapest or weight < cheapest[key][1]:
+                cheapest[key] = (edge, weight)
+        return cheapest
 
     @staticmethod
     def build_adjacency_map(edges: Sequence[Edge[V]]) -> Dict[V, Set[V]]:
@@ -375,7 +438,7 @@ class GraphUtils:
         components: List[Set[V]] = []
 
         while remaining:
-            start = next(iter(remaining))
+            start = _ordered(remaining)[0]
             component: Set[V] = set()
             stack: List[V] = [start]
 
@@ -573,7 +636,7 @@ class GraphUtils:
             current = queue.popleft()
             if current == goal:
                 break
-            for neighbor in adjacency[current]:
+            for neighbor in _ordered(adjacency[current]):
                 if neighbor in visited:
                     continue
                 visited.add(neighbor)
@@ -763,16 +826,15 @@ class GraphUtils:
         Returns:
             (forest_edges, component_count)
         """
-        cheapest: Dict[FrozenSet[V], Tuple[V, V, float]] = {}
-        for edge in edges:
-            key = edge.as_frozenset()
-            weight = GraphUtils._resolve_weight(edge, weight_lookup, weight_fn, default_weight, True)
-            if key not in cheapest or weight < cheapest[key][2]:
-                cheapest[key] = (edge.source, edge.target, weight)
+        cheapest = GraphUtils.cheapest_parallel_edges(
+            edges,
+            lambda edge: GraphUtils._resolve_weight(edge, weight_lookup, weight_fn, default_weight, True),
+            directed=False,
+        )
         adjacency: Dict[V, List[Tuple[V, float]]] = {}
-        for source, target, weight in cheapest.values():
-            adjacency.setdefault(source, []).append((target, weight))
-            adjacency.setdefault(target, []).append((source, weight))
+        for edge, weight in cheapest.values():
+            adjacency.setdefault(edge.source, []).append((edge.target, weight))
+            adjacency.setdefault(edge.target, []).append((edge.source, weight))
         for vertex in vertices or ():
             adjacency.setdefault(vertex, [])
 
@@ -781,7 +843,7 @@ class GraphUtils:
         visited: Set[V] = set()
         result: List[Edge[V]] = []
         components = 0
-        for start in adjacency:
+        for start in _ordered(adjacency):
             if start in visited:
                 continue
             components += 1
@@ -804,28 +866,73 @@ class GraphUtils:
 
     @staticmethod
     def topological_sort(adjacency: Dict[V, Set[V]]) -> Optional[List[V]]:
+        """Kahn's algorithm; returns None when the graph has a cycle.
+
+        Among the vertices ready at each step the smallest comes first, so the order
+        is the lexicographically smallest topological order.
+        """
+        import heapq
+
         adj = {k: set(v) for k, v in adjacency.items()}
         in_deg: Dict[V, int] = {v: 0 for v in adj}
-        for targets in adj.values():
+        for targets in list(adj.values()):
             for t in targets:
                 in_deg[t] = in_deg.get(t, 0) + 1
                 if t not in adj:
                     adj[t] = set()
 
-        queue: List[V] = [v for v, d in in_deg.items() if d == 0]
+        rank = {vertex: index for index, vertex in enumerate(_ordered(adj))}
+        queue: List[Tuple[int, V]] = [(rank[v], v) for v, d in in_deg.items() if d == 0]
+        heapq.heapify(queue)
         order: List[V] = []
 
         while queue:
-            current = queue.pop()
+            _, current = heapq.heappop(queue)
             order.append(current)
             for neighbor in adj[current]:
                 in_deg[neighbor] -= 1
                 if in_deg[neighbor] == 0:
-                    queue.append(neighbor)
+                    heapq.heappush(queue, (rank[neighbor], neighbor))
 
         if len(order) != len(adj):
             return None
         return order
+
+    @staticmethod
+    def find_directed_cycle(adjacency: Dict[V, Set[V]]) -> Optional[List[V]]:
+        """Return one directed cycle as [v0, v1, ..., v0], or None when the graph is acyclic.
+
+        A self-loop is the cycle [v, v].
+        """
+        white, grey, black = 0, 1, 2
+        color: Dict[V, int] = {}
+        for targets in adjacency.values():
+            for target in targets:
+                color.setdefault(target, white)
+        for vertex in adjacency:
+            color[vertex] = white
+
+        for root in _ordered(color):
+            if color[root] != white:
+                continue
+            stack: List[Tuple[V, List[V]]] = [(root, _ordered(adjacency.get(root, ())))]
+            path: List[V] = [root]
+            color[root] = grey
+            while stack:
+                node, pending = stack[-1]
+                if not pending:
+                    color[node] = black
+                    stack.pop()
+                    path.pop()
+                    continue
+                nxt = pending.pop(0)
+                if color[nxt] == grey:
+                    return path[path.index(nxt) :] + [nxt]
+                if color[nxt] == white:
+                    color[nxt] = grey
+                    path.append(nxt)
+                    stack.append((nxt, _ordered(adjacency.get(nxt, ()))))
+        return None
 
     # ------------------------------------------------------------------
     # Connectivity analysis
@@ -843,7 +950,7 @@ class GraphUtils:
             visited.add(u)
             time += 1
             disc[u] = low[u] = time
-            for v in adjacency[u]:
+            for v in _ordered(adjacency[u]):
                 if v == parent:
                     continue
                 if v not in visited:
@@ -854,7 +961,7 @@ class GraphUtils:
                 else:
                     low[u] = min(low[u], disc[v])
 
-        for vertex in adjacency:
+        for vertex in _ordered(adjacency):
             if vertex not in visited:
                 dfs(vertex, None)
         return bridges
@@ -903,7 +1010,7 @@ class GraphUtils:
             children = 0
             time += 1
             disc[u] = low[u] = time
-            for v in adjacency[u]:
+            for v in _ordered(adjacency[u]):
                 if v not in visited:
                     parent[v] = u
                     children += 1
@@ -916,7 +1023,7 @@ class GraphUtils:
                 elif v != parent.get(u):
                     low[u] = min(low[u], disc[v])
 
-        for vertex in adjacency:
+        for vertex in _ordered(adjacency):
             if vertex not in visited:
                 parent[vertex] = None
                 dfs(vertex)
@@ -978,14 +1085,14 @@ class GraphUtils:
         color: Dict[V, int] = {}
         from collections import deque
 
-        for start in adjacency:
+        for start in _ordered(adjacency):
             if start in color:
                 continue
             queue: deque[V] = deque([start])
             color[start] = 0
             while queue:
                 u = queue.popleft()
-                for v in adjacency[u]:
+                for v in _ordered(adjacency[u]):
                     if v not in color:
                         color[v] = 1 - color[u]
                         queue.append(v)
@@ -1014,7 +1121,7 @@ class GraphUtils:
         stack: List[V] = [root]
         while stack:
             current = stack.pop()
-            for neighbor in adjacency[current]:
+            for neighbor in _ordered(adjacency[current]):
                 if neighbor in parent:
                     continue
                 parent[neighbor] = current
@@ -1024,6 +1131,79 @@ class GraphUtils:
         if len(parent) != len(adjacency):
             return None
         return parent, children
+
+    @staticmethod
+    def depths_from_parents(parent: Dict[V, Optional[V]]) -> Dict[V, int]:
+        """Depth of every vertex in a rooted tree given by its parent map (the root has depth 0)."""
+        depths: Dict[V, int] = {}
+        for vertex in parent:
+            chain: List[V] = []
+            node: Optional[V] = vertex
+            while node is not None and node not in depths:
+                chain.append(node)
+                if len(chain) > len(parent):
+                    raise ValueError("parent map has a cycle")
+                node = parent.get(node)
+            base = -1 if node is None else depths[node]
+            for offset, item in enumerate(reversed(chain), start=1):
+                depths[item] = base + offset
+        return depths
+
+    @staticmethod
+    def is_tree_edges(vertices: Iterable[V], edges: Sequence[Edge[V]]) -> bool:
+        """True when the edges, read as undirected, form a tree on the vertices.
+
+        A tree is connected with exactly |V| - 1 edges; parallel edges and loops count,
+        so a multigraph with them is not a tree.
+        """
+        vertex_set = set(vertices)
+        for edge in edges:
+            vertex_set.add(edge.source)
+            vertex_set.add(edge.target)
+        if not vertex_set or len(edges) != len(vertex_set) - 1:
+            return False
+        adjacency: Dict[V, Set[V]] = {vertex: set() for vertex in vertex_set}
+        for edge in edges:
+            adjacency[edge.source].add(edge.target)
+            adjacency[edge.target].add(edge.source)
+        return GraphUtils.is_connected(adjacency)
+
+    @staticmethod
+    def graph_diameter(adjacency: Dict[V, Set[V]]) -> Tuple[Optional[List[V]], int]:
+        """Longest shortest path, counted in edges, over an undirected adjacency map.
+
+        Runs a BFS from every vertex (exact on any graph, not only trees). Vertices and
+        neighbours are visited in sorted order, so ties resolve the same way every time.
+
+        Returns:
+            (path, component_count). On a disconnected graph the path is the longest
+            shortest path inside any one component. The path is None for an empty graph.
+        """
+        if not adjacency:
+            return None, 0
+        from collections import deque
+
+        best: Optional[List[V]] = None
+        for start in _ordered(adjacency):
+            parent: Dict[V, Optional[V]] = {start: None}
+            queue: deque[V] = deque([start])
+            last = start
+            while queue:
+                node = queue.popleft()
+                last = node
+                for neighbor in _ordered(adjacency.get(node, ())):
+                    if neighbor not in parent:
+                        parent[neighbor] = node
+                        queue.append(neighbor)
+            path: List[V] = []
+            walk: Optional[V] = last
+            while walk is not None:
+                path.append(walk)
+                walk = parent[walk]
+            path.reverse()
+            if best is None or len(path) > len(best):
+                best = path
+        return best, len(GraphUtils.get_connected_components(adjacency))
 
     @staticmethod
     def bfs_order(root: V, adjacency: Dict[V, Set[V]]) -> Optional[List[V]]:
@@ -1037,7 +1217,7 @@ class GraphUtils:
         while queue:
             current = queue.popleft()
             order.append(current)
-            for neighbor in adjacency[current]:
+            for neighbor in _ordered(adjacency[current]):
                 if neighbor in visited:
                     continue
                 visited.add(neighbor)
@@ -1057,7 +1237,7 @@ class GraphUtils:
                 continue
             visited.add(current)
             order.append(current)
-            for neighbor in sorted(adjacency[current], reverse=True):
+            for neighbor in reversed(_ordered(adjacency[current])):
                 if neighbor not in visited:
                     stack.append(neighbor)
         return order
@@ -1072,7 +1252,7 @@ class GraphUtils:
         queue: deque[V] = deque([root])
         while queue:
             current = queue.popleft()
-            for neighbor in adjacency[current]:
+            for neighbor in _ordered(adjacency[current]):
                 if neighbor in depths:
                     continue
                 depths[neighbor] = depths[current] + 1
@@ -1093,7 +1273,7 @@ class GraphUtils:
             if depth == len(levels):
                 levels.append([])
             levels[depth].append(node)
-            for neighbor in adjacency[node]:
+            for neighbor in _ordered(adjacency[node]):
                 if neighbor in seen:
                     continue
                 seen.add(neighbor)
@@ -1102,40 +1282,8 @@ class GraphUtils:
 
     @staticmethod
     def tree_diameter(adjacency: Dict[V, Set[V]]) -> Optional[List[V]]:
-        if not adjacency:
-            return None
-
-        def farthest(start: V) -> Tuple[V, Dict[V, V]]:
-            from collections import deque
-
-            queue: deque[V] = deque([start])
-            visited: Set[V] = {start}
-            parent: Dict[V, V] = {start: start}
-            last = start
-            while queue:
-                node = queue.popleft()
-                last = node
-                for neighbor in adjacency[node]:
-                    if neighbor in visited:
-                        continue
-                    visited.add(neighbor)
-                    parent[neighbor] = node
-                    queue.append(neighbor)
-            return last, parent
-
-        start = next(iter(adjacency))
-        far_node, _ = farthest(start)
-        end_node, parent = farthest(far_node)
-
-        path: List[V] = []
-        node = end_node
-        while True:
-            path.append(node)
-            if node == far_node:
-                break
-            node = parent[node]
-        path.reverse()
-        return path
+        """Diameter path of an undirected graph (see ``graph_diameter``), kept for callers of the old name."""
+        return GraphUtils.graph_diameter(adjacency)[0]
 
     @staticmethod
     def lowest_common_ancestor(
