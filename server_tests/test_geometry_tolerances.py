@@ -13,6 +13,7 @@ import unittest
 from types import SimpleNamespace
 
 from server_tests import client_renderer  # noqa: F401  (browser stub, so the client modules import)
+from drawables.circle_arc import arc_start_and_sweep
 from utils.geometry_utils import GeometryUtils
 from utils.math_utils import MathUtils
 from utils.relation_inspector import RelationInspector
@@ -211,6 +212,25 @@ class TestCircleSegmentIntersections(unittest.TestCase):
         self.assertEqual(MathUtils.circle_segment_intersections(0, 0, 1, ((1, 0), (1, 0))), [])
         inside = MathUtils.circle_segment_intersections(0, 0, 5, ((0, 0), (1, 1)))
         self.assertEqual(inside, [])
+
+
+class TestArcStartAndSweep(unittest.TestCase):
+    def test_minor_and_major_arcs_turn_opposite_ways(self) -> None:
+        start, sweep = arc_start_and_sweep((0, 0), (1, 0), (0, 1), False)
+        self.assertAlmostEqual(start, 0.0)
+        self.assertAlmostEqual(sweep, math.pi / 2)
+        _, major = arc_start_and_sweep((0, 0), (1, 0), (0, 1), True)
+        self.assertAlmostEqual(major, -3 * math.pi / 2)
+
+    def test_clockwise_minor_arc(self) -> None:
+        start, sweep = arc_start_and_sweep((2, 2), (2, 3), (3, 2), False)
+        self.assertAlmostEqual(start, math.pi / 2)
+        self.assertAlmostEqual(sweep, -math.pi / 2)
+        _, major = arc_start_and_sweep((2, 2), (2, 3), (3, 2), True)
+        self.assertAlmostEqual(major, 3 * math.pi / 2)
+
+    def test_same_direction_has_no_sweep(self) -> None:
+        self.assertEqual(arc_start_and_sweep((0, 0), (1, 1), (2, 2), True)[1], 0.0)
 
 
 class TestIncircleScale(unittest.TestCase):
