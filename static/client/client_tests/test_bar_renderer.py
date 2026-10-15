@@ -155,7 +155,22 @@ class TestBarRenderer(unittest.TestCase):
         shared.render_bar_helper(self.primitives, bar, self.mapper, self.style)
         self.assertEqual(self.primitives.calls, [])
 
-        self.primitives.calls.clear()
+    def test_zero_height_bar_draws_labels_without_fill(self) -> None:
+        bar = Bar(
+            name="Z",
+            x_left=0.0,
+            x_right=2.0,
+            y_bottom=0.0,
+            y_top=0.0,
+            label_above_text="0",
+            label_below_text="C",
+        )
+        shared.render_bar_helper(self.primitives, bar, self.mapper, self.style)
+        self.assertEqual([c for c in self.primitives.calls if c[0] == "fill_polygon"], [])
+        texts = [c[1][0] for c in self.primitives.calls if c[0] == "draw_text"]
+        self.assertEqual(texts, ["0", "C"])
+
+    def test_zero_height_bar_without_labels_draws_nothing(self) -> None:
         bar2 = Bar(name="B2", x_left=0.0, x_right=1.0, y_bottom=2.0, y_top=2.0)
         shared.render_bar_helper(self.primitives, bar2, self.mapper, self.style)
         self.assertEqual(self.primitives.calls, [])

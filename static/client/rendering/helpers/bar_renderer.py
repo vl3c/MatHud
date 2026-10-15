@@ -34,6 +34,8 @@ def _resolve_label_font(style):
 def render_bar_helper(primitives, bar, coordinate_mapper, style):
     """Render a bar drawable with optional labels.
 
+    A zero-height bar draws only its labels.
+
     Args:
         primitives: The renderer primitives interface.
         bar: Bar drawable with x_left, x_right, y_bottom, y_top bounds.
@@ -49,8 +51,6 @@ def render_bar_helper(primitives, bar, coordinate_mapper, style):
         return
 
     if x_left == x_right:
-        return
-    if y_bottom == y_top:
         return
 
     try:
@@ -78,7 +78,9 @@ def render_bar_helper(primitives, bar, coordinate_mapper, style):
     else:
         stroke = StrokeStyle(color=str(stroke_color), width=stroke_width)
 
-    primitives.fill_polygon((p1, p2, p3, p4), fill, stroke, screen_space=True)
+    # A zero-height bar (a zero value) has no area to fill but keeps its labels
+    if y_bottom != y_top:
+        primitives.fill_polygon((p1, p2, p3, p4), fill, stroke, screen_space=True)
 
     label_above_text = getattr(bar, "label_above_text", None)
     if label_above_text is None:

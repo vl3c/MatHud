@@ -2407,7 +2407,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     },
                     "bar_count": {
                         "type": ["number", "null"],
-                        "description": "Discrete only. Number of bars to draw across the bounds. If null, a default is used.",
+                        "description": "Discrete only. Number of bars to draw across the bounds: a whole number from 1 to 500. If null, 24 is used.",
                     },
                 },
                 "required": [
@@ -2442,7 +2442,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "values": {
                         "type": "array",
                         "items": {"type": "number"},
-                        "description": "Bar heights (math-space units). Must have at least one entry.",
+                        "description": "Bar heights (math-space units), finite numbers; a zero value draws a zero-height bar that keeps its labels. Must have at least one entry.",
                     },
                     "labels_below": {
                         "type": "array",
