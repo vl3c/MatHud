@@ -16,7 +16,7 @@ Key Features:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union, cast
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple, Union, cast
 
 from drawables.decagon import Decagon
 from drawables.generic_polygon import GenericPolygon
@@ -60,6 +60,13 @@ if TYPE_CHECKING:
 
 Coordinate = Tuple[float, float]
 SegmentList = List["Segment"]
+
+
+_NAME_SEPARATOR = "\x00"
+
+
+def _pair_key(first: str, second: str) -> str:
+    return f"{first}{_NAME_SEPARATOR}{second}"
 
 
 class PolygonManager(BaseDrawableManager):
@@ -625,14 +632,13 @@ class PolygonManager(BaseDrawableManager):
         raise ValueError("Polygon subtype hints are only supported for triangle or quadrilateral polygons.")
 
     def create_triangles_from_segments(self) -> None:
-        segments: List[Any] = cast(List[Any], list(self.drawables.Segments))
-        for s1, s2, s3 in combinations(segments, 3):
-            unique_points = GeometryUtils.get_unique_point_names_from_segments([s1, s2, s3])
-            if len(unique_points) != 3:
-                continue
-            if not GeometryUtils.is_fully_connected_graph(unique_points, self.drawables.Segments):
-                continue
+        """Create a triangle for every three points joined pairwise by segments.
 
+        Triangles come in the order a scan of every triple of segments, in canvas
+        order, would meet them, but are found through each point's neighbours, so the
+        cost grows with the segments and their shared points, not with every triple.
+        """
+        for unique_points in self._segment_triangle_point_names():
             p1 = self.point_manager.get_point_by_name(unique_points[0])
             p2 = self.point_manager.get_point_by_name(unique_points[1])
             p3 = self.point_manager.get_point_by_name(unique_points[2])
@@ -647,6 +653,37 @@ class PolygonManager(BaseDrawableManager):
                 polygon_type=PolygonType.TRIANGLE,
                 extra_graphics=False,
             )
+
+    def _segment_triangle_point_names(self) -> List[List[str]]:
+        """Sorted point names of each triangle the segments close, earliest segments first."""
+        # Keyed by joined strings and kept in lists: Brython mangles tuple dictionary keys.
+        # The separator can't appear in a point name. A segment whose two ends share a name
+        # (not possible with generated names) never closes a triangle and is skipped.
+        first_segment: Dict[str, int] = {}
+        pairs: List[List[str]] = []
+        neighbours: Dict[str, Set[str]] = {}
+        for index, segment in enumerate(self.drawables.Segments):
+            a, b = sorted([segment.point1.name, segment.point2.name])
+            if a == b or _pair_key(a, b) in first_segment:
+                continue
+            first_segment[_pair_key(a, b)] = index
+            pairs.append([a, b])
+            neighbours.setdefault(a, set()).add(b)
+            neighbours.setdefault(b, set()).add(a)
+
+        seen: Set[str] = set()
+        triangles: List[Tuple[List[int], List[str]]] = []
+        for a, b in pairs:
+            for c in neighbours[a] & neighbours[b]:
+                names = sorted([a, b, c])
+                key = _NAME_SEPARATOR.join(names)
+                if key in seen:
+                    continue
+                seen.add(key)
+                order = sorted(first_segment[_pair_key(p, q)] for p, q in combinations(names, 2))
+                triangles.append((order, names))
+        triangles.sort(key=lambda triangle: triangle[0])
+        return [names for _, names in triangles]
 
     def _iter_polygon_segments(self, polygon: "Drawable") -> Iterable["Segment"]:
         if hasattr(polygon, "get_segments") and callable(getattr(polygon, "get_segments")):
