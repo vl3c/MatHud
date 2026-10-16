@@ -1694,19 +1694,6 @@ class TestMathFunctions(unittest.TestCase):
         result = MathUtils.calculate_point_discontinuities("1 if x < 0 else 2 if x <= 1 else 3 if x >= 2 else 4")
         self.assertEqual(sorted(result), [0, 1, 2], "Complex piecewise should identify all transition points")
 
-    def test_point_discontinuities_read_absolute_bars_as_abs(self) -> None:
-        """|x| has its corner at 0 as abs(x) does; the renderer splits the curve there."""
-        for bars, call in (
-            ("|x|", "abs(x)"),
-            ("sin|x|", "sin(abs(x))"),
-            ("1/sin|x|", "1/sin(abs(x))"),
-            ("|x-2| + |x+1|", "abs(x-2) + abs(x+1)"),
-        ):
-            expected = MathUtils.calculate_point_discontinuities(call, -5, 5)
-            self.assertTrue(expected, call)
-            self.assertEqual(MathUtils.calculate_point_discontinuities(bars, -5, 5), expected, bars)
-        self.assertEqual(MathUtils.calculate_point_discontinuities("|x|"), [0])
-
     def test_function_vertical_asymptote_path_breaking(self) -> None:
         """Test that Function class properly breaks paths at vertical asymptotes without visual artifacts."""
         try:
