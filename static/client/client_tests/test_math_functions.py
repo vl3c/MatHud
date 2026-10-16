@@ -1367,6 +1367,13 @@ class TestMathFunctions(unittest.TestCase):
         self.assertEqual(MathUtils.derivative("sin⁻¹x", "x"), MathUtils.derivative("asin(x)", "x"))
         self.assertAlmostEqual(MathUtils.evaluate("cos⁻¹0.5"), math.pi / 3)
 
+    def test_superscripts_on_spelled_out_function_names(self) -> None:
+        # Regression: sine²(1) became sin(e^2)*(1)
+        self.assertAlmostEqual(float(MathUtils.evaluate("sine²(1)")), math.sin(1) ** 2)
+        self.assertAlmostEqual(float(MathUtils.evaluate("hyperbolic sine²(1)")), math.sinh(1) ** 2)
+        self.assertAlmostEqual(float(MathUtils.evaluate("sine⁻¹(0.5)")), math.pi / 6)
+        self.assertAlmostEqual(value_of(MathUtils.simplify("sine²(x) + cosine²(x)")), 1.0)
+
     def test_degrees_reach_nerdamer_as_radians(self) -> None:
         # Regression: nerdamer received the ° sign itself
         for engines in (WithoutSympy(), AnyEngine()):

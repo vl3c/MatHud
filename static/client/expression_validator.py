@@ -176,8 +176,11 @@ class ExpressionValidator(ast.NodeVisitor):
     _INVERSE_FUNCTIONS: Dict[str, str] = dict(ef.INVERSE_NAMES)
     # Those names as a regex alternation, longest first so sinh is not read as sin
     _FUNCTION_NAMES = "(?:" + "|".join(sorted(_SUPERSCRIPT_FUNCTIONS, key=lambda name: (-len(name), name))) + ")"
-    # A known function name, an optional superscript and spaces: sin²(x), sin⁻¹ (x), sin²x, sinθ
-    _FUNCTION_NOTATION = re.compile(f"(?<![A-Za-z_])({_FUNCTION_NAMES})({_SUPERSCRIPT_RUN})?([ \\t]*)")
+    # Their spellings, aliases included, longest first so sine is not read as sin and
+    # hyperbolic sine not as sine
+    _FUNCTION_SPELLINGS = "(?:" + "|".join(sorted(ef.SUPERSCRIPT_SPELLINGS, key=lambda name: (-len(name), name))) + ")"
+    # A known function spelling, an optional superscript and spaces: sin²(x), sine⁻¹ (x), sin²x, sinθ
+    _FUNCTION_NOTATION = re.compile(f"(?<![A-Za-z_])({_FUNCTION_SPELLINGS})({_SUPERSCRIPT_RUN})?([ \\t]*)")
     # The operand of a function written without parentheses (group 1): an optional number and
     # factors (x, θ1, Δx, π, ωt) that stop before another function name (sin²x cos²x), then an
     # optional superscript (sin x² is sin(x²)) and degree sign (sin 30°)
@@ -544,7 +547,7 @@ class ExpressionValidator(ast.NodeVisitor):
         """Rewrite known functions written with a superscript or without parentheses.
 
         A superscript moves after the call and ⁻¹ names the inverse: sin²(x) -> sin(x)^2,
-        sin⁻¹ (x) -> asin(x). A single operand without parentheses is wrapped when the
+        sin⁻¹ (x) -> asin(x). Aliases are spellings of the name: sine²(x) -> sin(x)^2. A single operand without parentheses is wrapped when the
         function has a superscript or the operand is Unicode: sin²x -> sin(x)^2,
         sin⁻¹x -> asin(x), sinθ -> sin(θ), sinπ -> sin(π), sin 30° -> sin(30°). ASCII such as
         sinx or sin (x) is left for the later steps, as before.
@@ -554,7 +557,7 @@ class ExpressionValidator(ast.NodeVisitor):
             match = ExpressionValidator._FUNCTION_NOTATION.search(expression, search_start)
             if match is None:
                 return expression
-            name, superscript = match.group(1), match.group(2) or ""
+            name, superscript = ef.SUPERSCRIPT_SPELLINGS[match.group(1)], match.group(2) or ""
             exponent = ExpressionValidator._superscript_exponent(superscript) if superscript else ""
             if superscript and not any(char.isalnum() for char in exponent):
                 exponent = ""  # signs alone (sin⁻x) are not an exponent

@@ -312,6 +312,15 @@ SUPERSCRIPT_NAMES: FrozenSet[str] = frozenset(
     name for row in FUNCTIONS if row.superscript for name in (row.name,) + row.word_aliases
 )
 
+# Every spelling of those functions (names, word and call aliases, "hyperbolic sine" too) and
+# the name it stands for, so sine²(x) is sin(x)^2 rather than sin(e^2)*(x)
+SUPERSCRIPT_SPELLINGS: Dict[str, str] = {
+    spelling: row.name
+    for row in FUNCTIONS
+    if row.superscript
+    for spelling in (row.name,) + row.word_aliases + row.aliases
+}
+
 # A superscript ⁻¹ on these names the inverse function: sin⁻¹(x) = asin(x)
 INVERSE_NAMES: Dict[str, str] = {row.name: row.inverse for row in FUNCTIONS if row.inverse is not None}
 
