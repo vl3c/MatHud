@@ -685,9 +685,10 @@ class ExpressionValidator(ast.NodeVisitor):
         """Handle square roots, absolute values, and factorials"""
         expression = ExpressionValidator._convert_square_roots(expression)
 
-        # Replace | | with the Python equivalent if needed
+        # Replace | | with the Python equivalent if needed (math.js text keeps the bars until
+        # rename_for_mathjs, so stored function text reads as typed)
         if python_compatible:
-            expression = re.sub(r"\|(.*?)\|", r"abs(\1)", expression)
+            expression = ef.replace_absolute_bars(expression)
 
         # Handle factorials with balanced operand extraction
         expression = ExpressionValidator._replace_factorials(expression)

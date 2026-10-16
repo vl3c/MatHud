@@ -443,16 +443,42 @@ def _rename_call(match: re.Match[str]) -> str:
 
 # The remainder operator with the spaces around it; math.js reads "mod" with the same precedence
 _PERCENT = re.compile(r"\s*%\s*")
+# Absolute value bars, paired left to right: |a|b|c| is abs(a)b abs(c)... as before
+_ABSOLUTE_BARS = re.compile(r"\|(.*?)\|")
+# Spellings of the functions that take one argument: a bar right after them is the argument
+# (ln|x| is ln(abs(x))), not a product. mod, atan2, nthroot and pow are left out.
+_UNARY_SPELLINGS: FrozenSet[str] = frozenset(
+    spelling for row in FUNCTIONS if row.arity[0] == 1 for spelling in (row.name,) + row.aliases + row.word_aliases
+)
+
+
+def _absolute_value(match: re.Match[str]) -> str:
+    before = match.string[: match.start()].rstrip()
+    tokens = list(TOKEN_PATTERN.finditer(before))
+    called = bool(tokens) and tokens[-1].end() == len(before) and tokens[-1].group(0) in _UNARY_SPELLINGS
+    return f"(abs({match.group(1)}))" if called else f"abs({match.group(1)})"
+
+
+def replace_absolute_bars(text: str) -> str:
+    """Rewrite |a| as abs(a), and as the argument after a function: ln|x| -> ln(abs(x)).
+
+    The function must be a whole token (2ln|x| -> 2ln(abs(x))); after anything else the
+    output is as before: x|y| -> xabs(y), kiln|x| -> kilnabs(x). math.js cannot read bars.
+    """
+    if "|" not in text:
+        return text
+    return _ABSOLUTE_BARS.sub(_absolute_value, text)
 
 
 def rename_for_mathjs(text: str) -> str:
     """Rewrite text for math.js: calls of functions it knows under another name (trunc(x) ->
-    fix(x)), and % as its mod operator.
+    fix(x)), |x| as abs(x) (math.js cannot read bars) and % as its mod operator.
 
     Every place that hands expression text to math.js calls this. Names are matched as whole
     tokens followed by "(", like the aliases, so xtrunc(x) stays. % always means the remainder,
     as in Python: math.js would read 7 % -3 as (7%) - 3, a percentage, so it becomes 7 mod -3.
     """
+    text = replace_absolute_bars(text)  # before %, so |x|%|y| stays an operator
     if "%" in text:
         text = _PERCENT.sub(" mod ", text)
     if not any(hint in text for hint in _RENAME_HINTS):

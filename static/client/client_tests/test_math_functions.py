@@ -1470,6 +1470,21 @@ class TestMathFunctions(unittest.TestCase):
         result = {k: float(v) for k, v in result.items()}  # convert results to floats
         self.assertEqual(result, {"x": -1.0, "y": -6.0})
 
+    def test_vertical_asymptotes_behind_absolute_bars(self) -> None:
+        # The analysis reads the stored text, which keeps the bars; 1/|x| was missed on main too
+        for expression in ("ln|x|", "1/|x|", "log(|x|)"):
+            with self.subTest(expression=expression):
+                self.assertEqual(MathUtils.calculate_vertical_asymptotes(expression, -5, 5), [0])
+
+    def test_evaluate_absolute_bars(self) -> None:
+        # math.js cannot read |x|: it raised "Value expected" after the Python form validated
+        self.assertEqual(float(MathUtils.evaluate("|-3|")), 3)
+        self.assertEqual(float(MathUtils.evaluate("|x - 3|", {"x": 1})), 2)
+        self.assertAlmostEqual(float(MathUtils.evaluate("ln|-e|")), 1.0)
+        self.assertAlmostEqual(float(MathUtils.evaluate("2ln|x|", {"x": -math.e})), 2.0)
+        self.assertAlmostEqual(float(MathUtils.evaluate("sin|x|", {"x": -1})), math.sin(1))
+        self.assertEqual(float(MathUtils.evaluate("|x| % |y|", {"x": -7, "y": 3})), 1)
+
     def test_calculate_vertical_asymptotes(self) -> None:
         # Test logarithmic function
         result = MathUtils.calculate_vertical_asymptotes("log(x)")

@@ -75,9 +75,19 @@ _EVALUATE_CASES = (
     ("std([1,2]) + var([1,2])", None),
     ("nthroot(-8, 3)", None),
     ("17 % 5", None),
+    ("|x - 3|", {"x": 1}),
 )
 # Inputs for the other places that hand expression text to math.js
-_SITE_INPUTS = ("trunc(x)", "xtrunc(x)", "arrangements(x, 2)", "stdev([x, 1])", "sin(x)", "nthroot(x, 3)", "x % 2")
+_SITE_INPUTS = (
+    "trunc(x)",
+    "xtrunc(x)",
+    "arrangements(x, 2)",
+    "stdev([x, 1])",
+    "sin(x)",
+    "nthroot(x, 3)",
+    "x % 2",
+    "|x|",
+)
 
 
 def _label(key: str, value: Any) -> str:

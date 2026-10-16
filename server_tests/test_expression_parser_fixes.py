@@ -1,8 +1,9 @@
 """Tests for ASCII forms the expression parser reads as calculators do.
 
 sin^2(x) and sin^-1(x) are the ASCII forms of sin²(x) and sin⁻¹(x): they used to validate
-and then fail at run time (sin**2*(x) raises TypeError). The client suite checks the same
-forms end to end through math.js (client_tests/test_math_functions.py).
+and then fail at run time (sin**2*(x) raises TypeError). ln|x| became the unknown name
+lnabs(x). The client suite checks the same forms end to end through math.js
+(client_tests/test_math_functions.py).
 """
 
 from __future__ import annotations
@@ -84,6 +85,50 @@ class TestCaretFunctionPowers(unittest.TestCase):
         self.assertEqual(MathUtils._cas_input("sin^2(x)"), "sin(x)^2")
         self.assertEqual(MathUtils._cas_input("sin^-1(x) + ln^2(x)"), "asin(x) + log(x)^2")
         self.assertEqual(ExpressionValidator.convert_caret_function_powers("x^2 + 1"), "x^2 + 1")
+
+
+# Absolute value bars right after a function are its argument (python_compatible=True)
+BAR_CASES: Dict[str, str] = {
+    "ln|x|": "log(abs(x))",
+    "sin|x|": "sin(abs(x))",
+    "2ln|x|": "2*log(abs(x))",
+    "ln |x|": "log (abs(x))",
+    "ln|x| + |x|ln|y|": "log(abs(x)) + abs(x)log(abs(y))",
+    # Unchanged: not after a one-argument function spelling
+    "kiln|x|": "kilnabs(x)",
+    "x|y|": "xabs(y)",
+    "|x|": "abs(x)",
+    "mod|x|": "modabs(x)",
+    "hybrid|text|": "hybridabs(text)",
+}
+
+
+class TestAbsoluteBars(unittest.TestCase):
+    def test_bars_after_a_function_are_its_argument(self) -> None:
+        for expression, expected in BAR_CASES.items():
+            with self.subTest(expression=expression):
+                self.assertEqual(ExpressionValidator.fix_math_expression(expression, python_compatible=True), expected)
+
+    def test_math_js_text_keeps_bars_until_the_math_js_boundary(self) -> None:
+        import expression_functions as ef
+
+        self.assertEqual(ExpressionValidator.fix_math_expression("ln|x|"), "log|x|")
+        cases = {
+            "|x|": "abs(x)",
+            "log|x|": "log(abs(x))",
+            "|x - 3|": "abs(x - 3)",
+            "|x|%|y|": "abs(x) mod abs(y)",
+            "trunc|x|": "fix(abs(x))",
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(ef.rename_for_mathjs(text), expected)
+                self.assertEqual(ef.rename_for_mathjs(expected), expected)
+
+    def test_ln_of_bars_plots(self) -> None:
+        function = ExpressionValidator.parse_function_string("ln|x|")
+        self.assertAlmostEqual(function(-math.e), 1.0)
+        self.assertAlmostEqual(function(math.e), 1.0)
 
 
 if __name__ == "__main__":

@@ -5142,6 +5142,14 @@
     "path": "none",
     "raised": null,
     "returned_error": true
+   },
+   "|x - 3|": {
+    "mathjs": [
+     "evaluate abs(x - 3)"
+    ],
+    "path": "mathjs",
+    "raised": null,
+    "returned_error": false
    }
   },
   "sites": {
@@ -5191,6 +5199,13 @@
     "xtrunc(x)": {
      "mathjs": [
       "compile (xtrunc(x) )-( 1)"
+     ],
+     "raised": "ValueError",
+     "returned_error": false
+    },
+    "|x|": {
+     "mathjs": [
+      "compile (abs(x) )-( 1)"
      ],
      "raised": "ValueError",
      "returned_error": false
@@ -5280,6 +5295,18 @@
      ],
      "raised": null,
      "returned_error": false
+    },
+    "|x|": {
+     "mathjs": [
+      "evaluate abs(x)",
+      "evaluate 1",
+      "evaluate abs(x)",
+      "evaluate 1",
+      "evaluate abs(x)",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
     }
    },
    "evaluate_residuals": {
@@ -5328,6 +5355,13 @@
     "xtrunc(x)": {
      "mathjs": [
       "evaluate xtrunc(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "|x|": {
+     "mathjs": [
+      "evaluate abs(x)"
      ],
      "raised": null,
      "returned_error": false
@@ -5396,6 +5430,15 @@
      ],
      "raised": null,
      "returned_error": false
+    },
+    "|x|": {
+     "mathjs": [
+      "compile abs(x)",
+      "evaluate 0",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
     }
    },
    "numeric_value": {
@@ -5444,6 +5487,13 @@
     "xtrunc(x)": {
      "mathjs": [
       "compile xtrunc(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "|x|": {
+     "mathjs": [
+      "compile abs(x)"
      ],
      "raised": null,
      "returned_error": false
@@ -5498,6 +5548,13 @@
      ],
      "raised": null,
      "returned_error": false
+    },
+    "|x|": {
+     "mathjs": [
+      "compile abs(x)"
+     ],
+     "raised": null,
+     "returned_error": false
     }
    },
    "real_function": {
@@ -5546,6 +5603,13 @@
     "xtrunc(x)": {
      "mathjs": [
       "compile xtrunc(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "|x|": {
+     "mathjs": [
+      "compile abs(x)"
      ],
      "raised": null,
      "returned_error": false
@@ -5649,6 +5713,20 @@
      ],
      "raised": null,
      "returned_error": false
+    },
+    "|x|": {
+     "mathjs": [
+      "evaluate abs(x)",
+      "evaluate 1",
+      "evaluate abs(x)",
+      "evaluate 1",
+      "evaluate abs(x)",
+      "evaluate 1",
+      "evaluate abs(x)",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
     }
    },
    "tangent_asymptotes": {
@@ -5697,6 +5775,13 @@
     "xtrunc(x)": {
      "mathjs": [
       "compile xtrunc(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "|x|": {
+     "mathjs": [
+      "compile abs(x)"
      ],
      "raised": null,
      "returned_error": false

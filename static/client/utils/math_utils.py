@@ -42,7 +42,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Un
 
 from browser import window
 
-from expression_functions import calls_python_only, rename_for_mathjs
+from expression_functions import calls_python_only, rename_for_mathjs, replace_absolute_bars
 
 Number = Union[int, float]
 PointLike = Any
@@ -3452,8 +3452,9 @@ class MathUtils:
         """
         from expression_validator import ExpressionValidator
 
-        # Standardize the function string
-        function_string = ExpressionValidator.fix_math_expression(function_string)
+        # Standardize the function string; bars become abs() here only (the stored text keeps
+        # them), so ln|x| and 1/|x| show their log argument and denominator
+        function_string = replace_absolute_bars(ExpressionValidator.fix_math_expression(function_string))
         log_zeros: List[float] = []
         denominator_zeros: List[float] = []
 
