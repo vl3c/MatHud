@@ -4,6 +4,26 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
 
 ![MatHud - Interactive Mathematics Visualization Tool](MatHud%20-%20Screenshot%202025-12-21.png)
 
+## Vision
+
+MatHud is building toward a **mathematical heads-up display**: an AI that looks at a real situation, models it mathematically, and explains it, by voice and with drawings laid over what you see, on smart glasses or in VR.
+
+This repository is the prototype and the foundation for that HUD:
+
+- **Now:** a desktop and web app (Flask and Brython, a 2D canvas), where the core is built, tested and measured.
+- **Next platform:** Android.
+- **Later:** smart glasses and VR. 3D rendering comes to this app first, alongside 2D, and carries over.
+
+What sets MatHud apart from other math apps and AI assistants:
+
+- **Practical math, from the graphing calculator tradition.** MatHud evolves the scientific graphing calculator and adds what real-world problems need: measuring, fitting data, rates, probabilities, the geometry of real objects. It does not try to cover every advanced field of mathematics; GeoGebra's suite and research tools reach well beyond practical math.
+- **A scene that persists and can be checked.** Everything the AI draws stays on a canvas that both you and the model can inspect, edit and undo. The interactive visuals AI assistants now draw are not checked and are not fed back to the model as state it can build on.
+- **Checked results.** The model calls deterministic tools; symbolic answers are checked numerically before they are shown, wherever a check can decide.
+- **Local-first, any model.** It runs offline with a local model by default, and works with OpenAI, Anthropic and OpenRouter models too.
+- **Measured.** A built-in scenario suite grades what the AI builds by geometry, so models and changes are compared on evidence.
+
+The app may be rewritten in another language or stack along the way. What has to carry over is the design rather than the code: the AI-first operating model, the tool contract, math-only drawable models, the scene state shared by user and model, checked math, the saved-state schema and the scenario catalogue ([Project Architecture](documentation/Project%20Architecture.txt) lists where each lives). The [Roadmap](documentation/Roadmap.md#the-path-to-the-hud) shows which phase builds which part of the HUD.
+
 ## 1. AI-First Operating Model
 
 1. Primary interaction is conversational: users express intent in chat and the AI executes tool workflows.
