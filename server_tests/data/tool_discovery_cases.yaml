@@ -1628,7 +1628,7 @@
       "id": "u_exact_distance_1",
       "query": "Find the exact distance between A and B",
       "expected_any": [
-        "create_region_colored_area",
+        "simplify",
         "evaluate_expression"
       ],
       "forbidden": [
