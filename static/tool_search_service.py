@@ -298,7 +298,8 @@ TOOL_CATEGORIES: Dict[str, CategoryEntry] = {
             "standard", "deviation", "stdev", "quartile", "percentile",
             "probability", "bell", "discrete", "continuous", "frequency",
             "descriptive", "stats", "average", "variance",
-            "correlation", "correlate", "covariance", "pearson",
+            # The verb "correlate" is left to the intent boost, which skips graphs and matrices
+            "correlation", "covariance", "pearson",
         ],
     },
     "graph_theory": {
@@ -843,9 +844,10 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["fit_regression"] += 6.0
         if token_set & {"descriptive", "stats", "statistics", "mean", "median", "stdev", "quartile", "average"}:
             scores["compute_descriptive_statistics"] += 6.0
-        # A fit that is asked for its correlation belongs to fit_regression, whose linear fit reports r
+        # A fit that is asked for its correlation belongs to fit_regression, whose linear fit reports r;
+        # a covariance matrix is linear algebra, and correlating graphs is a graph analysis
         if token_set & {"correlation", "correlate", "correlated", "covariance", "pearson"} and not (
-            token_set & {"fit", "fitting", "regression"}
+            token_set & {"fit", "fitting", "regression", "matrix", "matrices", "graph", "graphs"}
         ):
             scores["compute_descriptive_statistics"] += 6.0
 

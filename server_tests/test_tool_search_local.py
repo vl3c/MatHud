@@ -433,6 +433,22 @@ class TestCreativePrompts:
         names = _top_n(self.service, "fit a line and give the correlation")
         assert names[:2] == ["fit_regression", "compute_descriptive_statistics"]
 
+    def test_stats_correlate_two_lists(self) -> None:
+        """The verb alone still finds the statistics tool."""
+        names = _top_n(self.service, "correlate x = 1, 2, 3 with y = 2, 4, 7")
+        assert names[0] == "compute_descriptive_statistics"
+
+    def test_covariance_matrix_is_linear_algebra(self) -> None:
+        """A covariance matrix is computed by the linear algebra tool, not the statistics one."""
+        for query in ("covariance matrix", "compute the covariance matrix of A"):
+            names = _top_n(self.service, query)
+            assert names[0] == "evaluate_linear_algebra_expression", (query, names)
+
+    def test_correlating_graphs_keeps_the_graph_tool(self) -> None:
+        """Graphs to correlate are not paired lists."""
+        names = _top_n(self.service, "correlate the two graphs")
+        assert "analyze_graph" in names[:3]
+
     # -- Graph theory --
 
     def test_graph_shortest_path(self) -> None:
