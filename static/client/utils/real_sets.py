@@ -62,6 +62,9 @@ CURVATURE_FLOOR = EPSILON / 16
 # lhs = rhs (an identity such as (x+1)^2 >= x^2 + 2x + 1).
 UNDERFLOW_SIZE = 1e-250
 ZERO_RUN = 3
+# A run next to a definite value within FADE_FACTOR times that value's noise is one the
+# function fades into (cosh(x) - sinh(x)): it stays unknown too.
+FADE_FACTOR = 16.0
 # An end undefined only by rounding (sqrt(2 - x^2) at the float nearest sqrt(2)) is read from
 # its values these many ulps away.
 END_NUDGES = (-1, 1, -2, 2, -4, 4, -8, 8, -16, 16)
@@ -80,8 +83,10 @@ SAME_POINT = 1e-12
 POLE_RATIO = 1e4
 POLE_MINIMUM = 1e6
 NEIGHBOUR_STEP = 1e-7
-# An infinite value whose neighbours are infinite or beyond this is an overflow (e^1000), not a pole.
+# An infinite value whose neighbours (OVERFLOW_STEP away, relative) are infinite or beyond
+# OVERFLOW_SIZE is an overflow (e^1000), not a pole.
 OVERFLOW_SIZE = 1e100
+OVERFLOW_STEP = 1e-12
 # Ends are written as p/q or p*pi/q (q <= NICE_DENOMINATOR) when that close (relative); a
 # value is written as 0 only within ZERO_SIZE of it (the rounding of 0 next to sides near 1).
 NICE_DENOMINATOR = 12
@@ -243,23 +248,42 @@ def is_plain_number(text: str) -> bool:
 
 
 def _value(function: RealFunction, point: float) -> Optional[float]:
-    """function(point) as a float; None where it is undefined (not real, 0/0 or a pole), +-inf for an overflow."""
+    """function(point) as a float: None where it is undefined (not real, a hole such as x/x
+    at 0, or a pole), +-inf where it overflowed (e^1000), and NaN where overflow or underflow
+    left it unknown (4^x - 2^x beyond 1024 is inf - inf, exp(-x)/exp(-x) far right is 0/0).
+
+    Overflow is no gap in the domain: an unknown value neither refutes a set nor bounds one.
+    """
     value = function(point)
-    if value is None or value != value:  # None, or NaN
+    if value is None:
         return None
-    if (value == math.inf or value == -math.inf) and not _overflows(function, point):
-        return None
+    if value != value or value == math.inf or value == -math.inf:
+        return float(value) if _overflows(function, point) else None
     return float(value)
 
 
 def _overflows(function: RealFunction, point: float) -> bool:
-    """True when function's infinite value at point comes from an overflow: its neighbours are huge too."""
-    step = NEIGHBOUR_STEP * max(1.0, abs(point))
+    """True when function's infinite or NaN value at point comes from overflow or underflow, not
+    from a pole, a hole or the edge of its domain: both neighbours (OVERFLOW_STEP relative to
+    point, NEIGHBOUR_STEP away from 0) are defined and infinite, NaN (inf - inf) or beyond
+    OVERFLOW_SIZE. The step is relative and short, so that it stays on the point's side of a
+    pole: from -1e-7, a step of 1e-7 reaches the pole 0 of 1/exp(1/x), and from 1 + 1e-7 it
+    crosses the pole 1 of exp(1/(x - 1)), where the values are 0."""
+    step = OVERFLOW_STEP * abs(point) if point != 0 else NEIGHBOUR_STEP
     for neighbour in (point - step, point + step):
         value = function(neighbour)
-        if value is None or math.isnan(value) or (math.isfinite(value) and abs(value) < OVERFLOW_SIZE):
+        if value is None or (value == value and abs(value) < OVERFLOW_SIZE):
             return False
     return True
+
+
+def _unknown(relations: Sequence[Relation], point: float) -> bool:
+    """Whether overflow or underflow leaves some lhs - rhs unknown at point (NaN)."""
+    for relation in relations:
+        value = _value(relation.difference, point)
+        if value is not None and value != value:
+            return True
+    return False
 
 
 def _compare(value: float, sign: str) -> bool:
@@ -277,7 +301,7 @@ def holds(relations: Sequence[Relation], point: float) -> Optional[bool]:
     result = True
     for relation in relations:
         value = _value(relation.difference, point)
-        if value is None:
+        if value is None or value != value:
             return None
         result = result and _compare(value, relation.sign)
     return result
@@ -358,13 +382,16 @@ def _curvature(function: RealFunction, point: float, value: float) -> float:
 
 
 # The sign of lhs - rhs at a sample: None where undefined, -1 or 1, 0 on a stretch where
-# lhs = rhs, _NEAR within rounding of 0 (unknown).
+# lhs = rhs, _NEAR within rounding of 0 (unknown), _UNKNOWN where overflow left it unknown.
 _NEAR = 2
+_UNKNOWN = 3
 
 
 def _code(relation: Relation, point: float, value: Optional[float]) -> Optional[int]:
     if value is None:
         return None
+    if value != value:
+        return _UNKNOWN
     if math.isfinite(value):
         size = _magnitude(relation, point, value)
         # Most samples are far from 0 next to the sides, and need no noise estimate
@@ -389,7 +416,7 @@ def _combine(relations: Sequence[Relation], codes: Sequence[Optional[int]]) -> T
         return True, None
     near = False
     for relation, code in zip(relations, codes):
-        if code == _NEAR:
+        if code == _NEAR or code == _UNKNOWN:
             near = True
         elif code is not None and not _holds_code(code, relation.sign):
             return True, False
@@ -403,7 +430,7 @@ def _point_state(relations: Sequence[Relation], point: float) -> Tuple[bool, Opt
         code = _code(relation, point, _value(relation.difference, point))
         if code is None:
             return True, None
-        if code == _NEAR:
+        if code == _NEAR or code == _UNKNOWN:
             return False, None
         return True, _holds_code(code, relation.sign)
     codes = [_code(relation, point, _value(relation.difference, point)) for relation in relations]
@@ -436,6 +463,8 @@ def _end_reading(relation: Relation, point: float) -> Optional[Tuple[float, floa
     undefined.
     """
     value = _value(relation.difference, point)
+    if value is not None and value != value:
+        return None  # unknown (overflow): no reading
     if value is not None:
         if _is_pole(relation.difference, point, value):
             return None
@@ -465,6 +494,8 @@ def _is_pole(function: RealFunction, point: float, value: float) -> bool:
     neighbours = [_value(function, point - step), _value(function, point + step)]
     if any(neighbour is None for neighbour in neighbours):
         return True
+    if any(neighbour != neighbour for neighbour in neighbours):
+        return False  # beside an overflow, not a pole
     largest = max(1.0, *(abs(neighbour) for neighbour in neighbours if neighbour is not None))
     return abs(value) > POLE_RATIO * largest
 
@@ -561,11 +592,12 @@ def _codes(relation: Relation, points: Sequence[float]) -> Tuple[List[Optional[f
     values: List[Optional[float]] = []
     codes: List[Optional[int]] = []
     small: List[bool] = []
+    faded: Set[int] = set()  # the samples of a definite sign within FADE_FACTOR times their noise
     for point in points:
         value = _value(difference, point)
         values.append(value)
-        if value is None:
-            codes.append(None)
+        if value is None or value != value:
+            codes.append(None if value is None else _UNKNOWN)
             small.append(False)
             continue
         size = value if value >= 0 else -value
@@ -587,13 +619,21 @@ def _codes(relation: Relation, points: Sequence[float]) -> Tuple[List[Optional[f
         noise, suspicious = _noise_and_suspicion(relation, point, value)
         codes.append(_NEAR if size <= noise else (1 if value > 0 else -1))
         small.append(suspicious)
-    _settle_noise_runs(values, codes, small)
+        if suspicious and noise < size <= FADE_FACTOR * noise:
+            faded.add(len(codes) - 1)
+    _settle_noise_runs(values, codes, small, faded)
     return values, codes
 
 
-def _settle_noise_runs(values: Sequence[Optional[float]], codes: List[Optional[int]], small: Sequence[bool]) -> None:
+def _settle_noise_runs(
+    values: Sequence[Optional[float]], codes: List[Optional[int]], small: Sequence[bool], faded: Set[int]
+) -> None:
     """Read each run of ZERO_RUN or more noisy samples as a stretch where lhs = rhs (code 0),
-    unless a value next to it is below UNDERFLOW_SIZE: then it is underflow and stays unknown.
+    unless the function fades into it: a value next to it is below UNDERFLOW_SIZE (underflow,
+    x*exp(x) far left), or one of ZERO_RUN values of one sign next to it is within
+    FADE_FACTOR times its own noise (cosh(x) - sinh(x) = e^-x sinks below the rounding of
+    cosh(x) past 17). Such a run stays unknown: a stretch where lhs = rhs starts where a
+    definite value drops to 0, not where a small one blurs.
 
     A few small values between two such stretches are rounding the noise estimate missed
     ((x+1)^2 against x^2 + 2x + 1 near -1, where both sides are tiny next to x^2 and 2x):
@@ -608,9 +648,11 @@ def _settle_noise_runs(values: Sequence[Optional[float]], codes: List[Optional[i
         end = start
         while end < count and codes[end] == _NEAR:
             end += 1
-        border = [values[index] for index in (start - 1, end) if 0 <= index < count and codes[index] in (-1, 1)]
-        underflow = any(value is not None and abs(value) < UNDERFLOW_SIZE for value in border)
-        if end - start >= ZERO_RUN and not underflow:
+        borders = [index for index in (start - 1, end) if 0 <= index < count and codes[index] in (-1, 1)]
+        border = [values[index] for index in borders]
+        fades = any(value is not None and abs(value) < UNDERFLOW_SIZE for value in border)
+        fades = fades or any(index in faded and _definite_run(codes, index, index - start) for index in borders)
+        if end - start >= ZERO_RUN and not fades:
             for index in range(start, end):
                 codes[index] = 0
         start = end
@@ -626,6 +668,16 @@ def _settle_noise_runs(values: Sequence[Optional[float]], codes: List[Optional[i
             for index in range(start, end):
                 codes[index] = 0
         start = end + 1
+
+
+def _definite_run(codes: Sequence[Optional[int]], index: int, away: int) -> bool:
+    """Whether codes[index] and the ZERO_RUN - 1 codes beyond it in direction away (< 0 left,
+    > 0 right) are one definite sign: a fade, not a lone sample of noise."""
+    step = -1 if away < 0 else 1
+    last = index + step * (ZERO_RUN - 1)
+    if not 0 <= last < len(codes):
+        return False
+    return all(codes[other] == codes[index] for other in range(index, last + step, step))
 
 
 def _grid_states(
@@ -644,6 +696,7 @@ def _grid_states(
         table: Dict[Optional[int], Tuple[bool, Optional[bool]]] = {
             None: (True, None),
             _NEAR: (False, None),
+            _UNKNOWN: (False, None),
             0: (True, _holds_code(0, sign)),
             1: (True, _holds_code(1, sign)),
             -1: (True, _holds_code(-1, sign)),
@@ -679,10 +732,11 @@ def verify_solution_set(
 
     Every grid point away from the ends must hold exactly where the set contains it (a point
     of the set where the inequality is undefined refutes it); a sample within rounding of a
-    root, or underflowed to 0, neither confirms nor refutes. Each finite end and window end
-    in the window, and each seed (a polynomial root, say), must be in the set exactly when
-    the inequality holds there (a root belongs to it for <= and >=), and the points just
-    beside each end must agree with the set too. "unchecked" when the inequality could not
+    root, underflowed to 0 or left unknown by overflow neither confirms nor refutes. Each
+    finite end and window end in the window, and each seed (a polynomial root, say), must be
+    in the set exactly when the inequality holds there (a root belongs to it for <= and >=),
+    unless overflow leaves it unknown, and the points just beside each end must agree with
+    the set too. "unchecked" when the inequality could not
     be evaluated anywhere.
     """
     ends = [end for piece in pieces for end in (piece.lower, piece.upper) if math.isfinite(end)]
@@ -704,6 +758,8 @@ def verify_solution_set(
     if checked == 0:
         return "unchecked"
     for point in _end_candidates(ends, window, seeds):
+        if _unknown(relations, point):
+            continue
         expected = holds_at_end(relations, point)
         if bool(expected) != _contained(pieces, point):
             return "refuted"
@@ -744,12 +800,24 @@ class SignChartFailure(ValueError):
 def sign_chart(
     relations: Sequence[Relation], window: Optional[Window] = None, seeds: Sequence[float] = ()
 ) -> List[Piece]:
+    """chart's pieces."""
+    return chart(relations, window, seeds)[0]
+
+
+def chart(
+    relations: Sequence[Relation], window: Optional[Window] = None, seeds: Sequence[float] = ()
+) -> Tuple[List[Piece], Optional[Tuple[float, float]]]:
     """The inequality's solution set found numerically on the grid (and seeds, e.g. polynomial roots).
 
     Samples within rounding of a root (or underflowed to 0) are left out; a long run of them
     is a stretch where both sides are equal. Boundaries are found by bisection between
     samples, touching roots by golden-section search, and ends are snapped to seeds and nice
     numbers.
+
+    Where overflow, underflow or rounding leaves the samples unknown at an end of the grid
+    (4^x - 2^x beyond 1024 is inf - inf), the last state known stands for the rest, as beyond
+    the grid's reach, and the second item is the range the samples did read: (lowest,
+    highest) settled sample; None when that is the whole grid.
 
     Raises:
         SignChartFailure: when the inequality cannot be evaluated, its sign keeps changing far
@@ -777,7 +845,16 @@ def sign_chart(
     pieces = _pieces(relations, boundaries, chart_points, chart_states, sampled, window)
     if len(pieces) > MAX_PIECES:
         raise SignChartFailure(f"the solution set has more than {MAX_PIECES} intervals; give a smaller interval")
-    return pieces
+    return pieces, _checked_range(points, kept)
+
+
+def _checked_range(points: List[float], kept: List[int]) -> Optional[Tuple[float, float]]:
+    """(lowest, highest) settled sample when at least ZERO_RUN samples beyond one of them are
+    unknown (overflow, underflow or rounding), else None: how far the chart read the inequality."""
+    first, last = kept[0], kept[-1]
+    if first < ZERO_RUN and len(points) - 1 - last < ZERO_RUN:
+        return None
+    return points[first], points[last]
 
 
 def _check_piece_count(states: List[Optional[bool]]) -> None:
@@ -1074,6 +1151,11 @@ def _transitions(
         if middle <= low or middle >= high:
             break
         state = holds(relations, middle)
+        if state != low_state and state != high_state and (low_state is None) != (high_state is None):
+            # Within rounding of 0 beside an undefined point (exp(-1/x^2) underflows to 0 next
+            # to the pole 0), a third state is no reading: the defined end's state stands
+            if not _point_state(relations, middle)[0]:
+                state = high_state if low_state is None else low_state
         if state == low_state:
             low = middle
         elif state == high_state:

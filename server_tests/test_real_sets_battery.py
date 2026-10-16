@@ -1,5 +1,5 @@
 """A regression battery for the numeric sign chart (utils.real_sets), as the browser runs it
-without SymPy: every input the two reviews of the inequality solver found failing, and the
+without SymPy: every input the reviews of the inequality solver found failing, and the
 cases that were already right, each with its solution set written out.
 
 Each case is (inequality, interval or None, expected set[, relative tolerance of its ends]).
@@ -14,6 +14,7 @@ uses math.js; an answer that depends on the last ulp can differ between the two.
 
 from __future__ import annotations
 
+import math
 import re
 import warnings
 from typing import List, Optional, Tuple, Union
@@ -21,6 +22,7 @@ from typing import List, Optional, Tuple, Union
 import pytest
 
 from server_tests import real_sets_harness as harness
+from utils import real_sets
 from utils.inequality_solver import InequalitySolver
 from utils.real_sets import verify_solution_set
 
@@ -466,6 +468,43 @@ CASES: List[Case] = [
     ("2|x| > 1", None, "(-Infinity, -1/2) ∪ (1/2, Infinity)"),
     ("3 > x > 1", None, "(1, 3)"),
     ("x² - 5x + 6 ≤ 0", None, "[2, 3]"),
+    # ----- The third review (rev126c on 0fbfd77): overflow is unknown, not undefined. Far
+    # out a side overflows (inf - inf is NaN), which must neither refute SymPy's set nor end
+    # the sign chart's; and an end beside an overflow is no pole.
+    ("4^x > 2^x", None, "(0, Infinity)"),
+    ("4^x - 2^x >= 0", None, "[0, Infinity)"),
+    ("4^x - 3*2^x + 2 > 0", None, "(-Infinity, 0) ∪ (1, Infinity)"),
+    ("exp(2x) - 3exp(x) + 2 > 0", None, "(-Infinity, 0) ∪ (log(2), Infinity)"),
+    ("9^x - 4*3^x + 3 > 0", None, "(-Infinity, 0) ∪ (1, Infinity)"),
+    ("9^x - 4*3^x + 3 <= 0", None, "[0, 1]"),
+    ("exp(x) - exp(x/2) > 0", None, "(0, Infinity)"),
+    ("exp(x)*exp(-x) >= 1", None, "(-Infinity, Infinity)"),
+    # e^x = x^100 at -0.990147384359501, 1.01015271985388 and 647.277512439400 (mpmath findroot)
+    ("exp(x) - x^100 > 0", None, "(-0.990147384359501, 1.01015271985388) ∪ (647.277512439400, Infinity)"),
+    # e^-x sinks below the rounding of cosh(x) past 17: unknown there, not an equal stretch
+    ("cosh(x) - sinh(x) > 0", None, "(-Infinity, Infinity)"),
+    ("cosh(x) - sinh(x) < 0", None, "{}"),
+    ("x + 1e-10 > x", None, "(-Infinity, Infinity)"),
+    ("x^2 + 1e10 > 1e10", None, "(-Infinity, 0) ∪ (0, Infinity)"),
+    # A pole next to an overflow: exp(-1/x) overflows just left of 0, and at 0 (1/0) it is
+    # undefined though math.js computes exp(-Infinity) = 0 there
+    ("exp(-1/x) > 0.5", None, "(-Infinity, 0) ∪ (1/log(2), Infinity)"),
+    ("1/exp(1/x) > 0.5", None, "(-Infinity, 0) ∪ (1/log(2), Infinity)"),
+    ("exp(-1/x) < 0.5", None, "(0, 1/log(2))"),
+    ("1/exp(1/x) < 0.5", None, "(0, 1/log(2))"),
+    ("exp(1/x^2) > 2", None, "(-1/sqrt(log(2)), 0) ∪ (0, 1/sqrt(log(2)))"),
+    ("exp(-1/x^2) < 0.5", None, "(-1/sqrt(log(2)), 0) ∪ (0, 1/sqrt(log(2)))"),
+    ("exp(-1/x^2) > 0", None, "(-Infinity, 0) ∪ (0, Infinity)"),
+    ("exp(-1/x^2) < 1e-300", None, "(-1/sqrt(300*log(10)), 0) ∪ (0, 1/sqrt(300*log(10)))"),
+    ("exp(1/x) > 2", None, "(0, 1/log(2))"),
+    ("exp(1/x) < 2", None, "(-Infinity, 0) ∪ (1/log(2), Infinity)"),
+    ("2^(1/x) > 4", None, "(0, 1/2)"),
+    ("x*exp(1/x) > 0", None, "(0, Infinity)"),
+    ("exp(1/(x-1)) > 1", None, "(1, Infinity)"),
+    ("exp(1/(x-1)) < 1", None, "(-Infinity, 1)"),
+    ("exp(x^2) > 1e300", None, "(-Infinity, -sqrt(300*log(10))) ∪ (sqrt(300*log(10)), Infinity)"),
+    ("1/gamma(x) > 0", "(-3, 3)", "(-2, -1) ∪ (0, 3)"),
+    ("x^log(x) > 1", None, "(0, 1) ∪ (1, Infinity)"),
 ]
 
 # Wrong answers the sign chart still gives, kept so that a fix shows up (strict xfail)
@@ -528,3 +567,52 @@ def test_balanced_sides_put_each_term_where_it_is_added() -> None:
     assert InequalitySolver._balanced_sides("exp(2x) - 3exp(x) + 2", "0") == ("(exp(2x)) + (2)", "(3exp(x)) + (0)")
     assert InequalitySolver._balanced_sides("1", "x - 2") == ("(1) + (2)", "(x)")
     assert InequalitySolver._balanced_sides("x^2 + 1", "2x") is None
+
+
+def _value_at(text: str, point: float) -> Optional[float]:
+    relations, _, _, _ = harness.prepared(text, None)
+    value = real_sets._value(relations[0].difference, point)
+    return None if value is None else float(value)
+
+
+def test_overflow_is_unknown_and_a_division_by_zero_undefined() -> None:
+    """inf - inf far out is unknown (NaN), not a gap in the domain; a point where a denominator
+    is 0 is undefined even where math.js computes a number (exp(-1/x) is exp(-Infinity) = 0)."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        unknown = _value_at("4^x > 2^x", 2000.0)
+        assert unknown is not None and unknown != unknown
+        assert _value_at("4^x > 2^x", 700.0) == math.inf  # 4^700 overflows alone: a sign
+        assert _value_at("x/x >= 1", 0.0) is None  # a hole
+        assert _value_at("exp(-1/x) < 0.5", 0.0) is None
+        assert _value_at("exp(1/x^2) > 2", 0.0) is None
+        # Beside the pole the values overflow; a short relative step keeps to that side
+        assert _value_at("exp(-1/x) > 0.5", -1e-7) == math.inf
+        assert _value_at("exp(1/(x-1)) > 1", 1 + 1e-7) == math.inf
+
+
+def test_the_chart_says_how_far_it_could_read() -> None:
+    """Where overflow leaves the samples unknown, the chart reports the range it did read."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        relations, window, seeds, _ = harness.prepared("exp(x) - x^100 > 0", None)
+        _, checked = real_sets.chart(relations, window, seeds)
+        assert checked is not None
+        assert checked[0] <= -9.9e5  # the grid's end on the left
+        assert 1000 < checked[1] < 1209.4  # inf - inf beyond 1209.34, where x^100 overflows too
+        relations, window, seeds, _ = harness.prepared("x^2 > 1", None)
+        assert real_sets.chart(relations, window, seeds)[1] is None
+
+
+def test_the_numeric_answer_notes_the_range_it_read(monkeypatch: pytest.MonkeyPatch) -> None:
+    from utils.sympy_client import SympyClient
+
+    monkeypatch.setattr(SympyClient, "compute", staticmethod(lambda operation, **args: None))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        with harness._evaluated_here():
+            answer = InequalitySolver.solve("exp(x) - x^100 > 0", "x")
+            plain = InequalitySolver.solve("x^2 > 1", "x")
+    assert "x > 647.277512439" in answer, answer
+    assert "checked for -10^6 <= x <= 1122.02" in answer, answer
+    assert "checked out to |x| = 10^6" in plain, plain

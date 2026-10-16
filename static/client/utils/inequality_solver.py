@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import math
 import re
-from typing import Any, Dict, List, Optional, Sequence, Tuple, cast
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, cast
 
 from utils.cas_text import (
     insert_implicit_products,
@@ -38,7 +38,7 @@ from utils.real_sets import (
     nice_number,
     number_text,
     reach_text,
-    sign_chart,
+    chart,
     verify_solution_set,
 )
 
@@ -64,11 +64,11 @@ class InequalitySolver:
             variable = str(MathUtils._normalize_variable(variable))
             window = InequalitySolver.window(interval)
             InequalitySolver._check_variable(parts, variable)
-            relations = InequalitySolver._relations(parts, signs, variable)
+            seeds = InequalitySolver._seeds(parts, signs, variable)
+            relations = InequalitySolver._relations(parts, signs, variable, seeds)
         except ValueError as error:
             return f"Error: {error}"
         relation_text = InequalitySolver._relation_text(parts, signs)
-        seeds = InequalitySolver._seeds(parts, signs, variable)
         response = InequalitySolver._ask_sympy(relation_text, variable, window, interval)
         result = response.get("result") if response is not None else None
         sympy_window = window
@@ -174,8 +174,11 @@ class InequalitySolver:
         return others
 
     @staticmethod
-    def _relations(parts: Sequence[str], signs: Sequence[str], variable: str) -> List[Relation]:
-        """One Relation per sign, evaluated by math.js."""
+    def _relations(
+        parts: Sequence[str], signs: Sequence[str], variable: str, seeds: Sequence[float] = ()
+    ) -> List[Relation]:
+        """One Relation per sign, evaluated by math.js, undefined at the seeds where a
+        denominator is 0."""
         from utils.symbolic_checks import SymbolicChecks
 
         relations: List[Relation] = []
@@ -191,8 +194,33 @@ class InequalitySolver:
                 if moved[0] is not None and moved[1] is not None:
                     left, right, sides = balanced[0], balanced[1], moved
             relation = InequalitySolver._relation(left, right, sign, sides[0], sides[1], variable, difference_text)
+            zeros = InequalitySolver._denominator_zeros(parts[index], parts[index + 1], variable, seeds)
+            if zeros:
+                relation.difference = _undefined_at(relation.difference, zeros)
             relations.append(relation)
         return relations
+
+    @staticmethod
+    def _denominator_zeros(left: str, right: str, variable: str, seeds: Sequence[float]) -> Set[float]:
+        """The seeds where a denominator of lhs - rhs computes to exactly 0: lhs - rhs divides
+        by zero there, so it is undefined, though math.js may give a finite value (exp(-1/x) is
+        exp(-Infinity) = 0 at 0) or one that looks like an overflow (exp(1/x^2) at 0)."""
+        from compiled_expression import substitute_variable
+        from utils.math_utils import MathUtils
+        from utils.symbolic_checks import SymbolicChecks
+
+        zeros: Set[float] = set()
+        if not seeds:
+            return zeros
+        difference = f"({left})-({right})"
+        if variable != "x":
+            difference = substitute_variable(difference, variable, "x")
+        for denominator in MathUtils._denominators(difference):
+            function = SymbolicChecks.real_function(denominator, "x")
+            if function is None:
+                continue
+            zeros.update(seed for seed in seeds if function(seed) == 0)
+        return zeros
 
     @staticmethod
     def _balanced_sides(left: str, right: str) -> Optional[Tuple[str, str]]:
@@ -371,11 +399,14 @@ class InequalitySolver:
         if window is None and any(_TRIG_CALL.search(part) for part in parts):
             window = Window(_TRIG_WINDOW[0], _TRIG_WINDOW[1], True, True, _TRIG_WINDOW[2], _TRIG_WINDOW[3])
         try:
-            pieces = sign_chart(relations, window, seeds)
+            pieces, checked = chart(relations, window, seeds)
         except SignChartFailure as error:
             return f"Error: could not solve {relation_text} reliably ({error})."
         unbounded = window is None or not (math.isfinite(window.lower) and math.isfinite(window.upper))
         reach = f"; checked out to |{variable}| = {reach_text(grid_reach(seeds))}" if unbounded else ""
+        if checked is not None:
+            # Overflow, underflow or rounding left the values unknown beyond these samples
+            reach = f"; checked for {_checked_end(checked[0])} <= {variable} <= {_checked_end(checked[1])}"
         note = f"found numerically because {reason}{reach}"
         return str(format_solution(variable, pieces, relation_text, window, period, note))
 
@@ -392,6 +423,25 @@ def _constant_side_magnitude(constant: float, constant_sign: float) -> Magnitude
         return other if other > constant_size else constant_size
 
     return magnitude
+
+
+def _checked_end(value: float) -> str:
+    """A sample bounding the checked range: -10^6 for a grid end, else 6 significant digits."""
+    exponent = round(math.log10(abs(value))) if value != 0 else 0
+    if value != 0 and abs(abs(value) - 10.0**exponent) <= 1e-9 * abs(value):
+        return ("-" if value < 0 else "") + str(reach_text(abs(value)))
+    return str(number_text(value, 6))
+
+
+def _undefined_at(
+    function: Callable[[float], Optional[float]], points: Set[float]
+) -> Callable[[float], Optional[float]]:
+    """function, undefined (None) at the given points."""
+
+    def restricted(point: float) -> Optional[float]:
+        return None if point in points else function(point)
+
+    return restricted
 
 
 def _end_text(text: str, value: float) -> str:

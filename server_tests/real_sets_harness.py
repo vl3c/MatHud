@@ -1,9 +1,9 @@
 """The browser's numeric inequality path (InequalitySolver without SymPy) in CPython.
 
 The browser evaluates with math.js; here compile_expression's Python evaluators stand in,
-with numpy float64 arithmetic so that an overflow is +-inf and 1/0 is inf as in math.js, and
-log, gamma, floor and ceil as math.js has them (log(0) is -Infinity; floor(1.999999999998)
-is 2). The relations are InequalitySolver._relations' own; the seeds (the real roots of the
+with numpy float64 arithmetic so that an overflow is +-inf, inf - inf is NaN and 1/0 is inf
+as in math.js, and log, gamma, floor, ceil and sqrt as math.js has them (log(0) is
+-Infinity; floor(1.999999999998) is 2; sqrt(-1) and (-2)^(1/2) are complex, so not real). The relations are InequalitySolver._relations' own; the seeds (the real roots of the
 polynomial parts) are found as InequalitySolver._seeds finds them, with SymPy for nerdamer.
 Used by test_real_sets_battery.py.
 """
@@ -68,8 +68,19 @@ def _ceil(value: float) -> float:
     return nearest if nearest is not None else float(math.ceil(value))
 
 
+def _square_root(function: Callable[[float], float]) -> Callable[[float], float]:
+    """math.js's sqrt of a negative number: complex, so not real (MathUtils.sqrt gives NaN)."""
+
+    def sqrt(value: float) -> float:
+        if value < 0:
+            raise ValueError("not real")
+        return function(value)
+
+    return sqrt
+
+
 _GLOBALS.update({name: _logarithm(_GLOBALS[name]) for name in ("log", "log10", "log2") if name in _GLOBALS})
-_GLOBALS.update({"gamma": _gamma, "floor": _floor, "ceil": _ceil})
+_GLOBALS.update({"gamma": _gamma, "floor": _floor, "ceil": _ceil, "sqrt": _square_root(_GLOBALS["sqrt"])})
 
 
 def evaluator(text: str) -> RealFunction:
@@ -88,9 +99,23 @@ def evaluator(text: str) -> RealFunction:
                 return None
         if isinstance(value, complex):
             return None
+        if value != value and not _real_in_python(bound, point):
+            return None  # (-2)^(1/2): complex in math.js, NaN in numpy
         return float(value)
 
     return evaluate
+
+
+def _real_in_python(bound: Callable[[float], Any], point: float) -> bool:
+    """Whether a NaN is real arithmetic's (inf - inf, 0/0), not a complex power: Python's own
+    floats give a complex number for (-2)**0.5 and raise on overflow and division by zero."""
+    try:
+        value = bound(float(point))
+    except (OverflowError, ZeroDivisionError):
+        return True
+    except (ArithmeticError, ValueError, TypeError):
+        return False
+    return not isinstance(value, complex)
 
 
 def _numeric_value(text: Any) -> Optional[float]:
@@ -128,9 +153,9 @@ def _evaluated_here() -> Iterator[None]:
             setattr(SymbolicChecks, name, original)
 
 
-def relations(parts: Sequence[str], signs: Sequence[str]) -> List[Relation]:
+def relations(parts: Sequence[str], signs: Sequence[str], roots: Sequence[float] = ()) -> List[Relation]:
     """InequalitySolver._relations, with the evaluator for math.js."""
-    return list(InequalitySolver._relations(parts, signs, "x"))
+    return list(InequalitySolver._relations(parts, signs, "x", roots))
 
 
 def seeds(parts: Sequence[str], signs: Sequence[str]) -> List[float]:
@@ -183,7 +208,8 @@ def prepared(text: str, interval: Optional[str]) -> Tuple[List[Relation], Option
         window = InequalitySolver.window(interval)
         if window is None and any(_TRIG_CALL.search(part) for part in parts):
             window = Window(_TRIG_WINDOW[0], _TRIG_WINDOW[1], True, True, _TRIG_WINDOW[2], _TRIG_WINDOW[3])
-        return relations(parts, signs), window, seeds(parts, signs), InequalitySolver._relation_text(parts, signs)
+        roots = seeds(parts, signs)
+        return relations(parts, signs, roots), window, roots, InequalitySolver._relation_text(parts, signs)
 
 
 def solve(text: str, interval: Optional[str] = None) -> Tuple[Optional[List[Piece]], str]:
