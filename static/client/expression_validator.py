@@ -52,7 +52,7 @@ from __future__ import annotations
 import ast
 import math
 import re
-from typing import Any, Callable, Dict, Optional, Set, Tuple, Type, cast
+from typing import Any, Callable, Dict, NoReturn, Optional, Set, Tuple, Type, cast
 
 import expression_functions as ef
 
@@ -320,6 +320,25 @@ class ExpressionValidator(ast.NodeVisitor):
         Raises:
             ValueError: If expression contains disallowed operations or syntax errors
         """
+        ExpressionValidator.parse_validated_tree(expression)
+
+    @staticmethod
+    def parse_validated_tree(expression: str) -> ast.Expression:
+        """
+        Parse and validate a mathematical expression, returning its syntax tree.
+
+        The same checks and messages as validate_expression_tree; the tree can be compiled
+        without parsing the text again.
+
+        Args:
+            expression (str): Mathematical expression to validate (Python form)
+
+        Returns:
+            ast.Expression: The validated tree (mode "eval")
+
+        Raises:
+            ValueError: If expression contains disallowed operations or syntax errors
+        """
         ExpressionValidator._reject_folded_letters(expression)
         try:
             # Parse the expression into an abstract syntax tree
@@ -331,6 +350,7 @@ class ExpressionValidator(ast.NodeVisitor):
             ExpressionValidator._handle_syntax_error(expression, e)
         except Exception as e:
             ExpressionValidator._handle_validation_error(expression, e)
+        return tree
 
     @staticmethod
     def _reject_folded_letters(expression: str) -> None:
@@ -346,13 +366,13 @@ class ExpressionValidator(ast.NodeVisitor):
                 raise ValueError(f"Unsupported symbol '{char}' in expression '{expression}'")
 
     @staticmethod
-    def _handle_syntax_error(expression: str, error: SyntaxError) -> None:
+    def _handle_syntax_error(expression: str, error: SyntaxError) -> NoReturn:
         """Handle syntax errors during expression validation"""
         print(f"Syntax error in expression: {expression}")
         raise ValueError(f"Syntax error in expression '{expression}': {str(error)}") from error
 
     @staticmethod
-    def _handle_validation_error(expression: str, error: Exception) -> None:
+    def _handle_validation_error(expression: str, error: Exception) -> NoReturn:
         """Handle general validation errors during expression validation"""
         print(f"Invalid expression: {expression}")
         raise ValueError(f"Error validating expression '{expression}': {str(error)}") from error
