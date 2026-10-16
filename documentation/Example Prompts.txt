@@ -148,6 +148,11 @@ Compute the indefinite integral of 1/x.
 Find the limit of (x^2 - 1)/(x - 1) as x approaches 1.
 Determine the limit of sin(x)/x as x tends to 0.
 Solve the equation x^2 - 5x + 6 = 0 for x.
+Solve x^2 - 5x + 6 < 0.
+For which x is |x - 1| >= 2?
+Solve 1 < 2x + 1 <= 5.
+Solve sin(x) > 1/2 on [0, 2pi]. (Brackets are honoured; without an interval a periodic inequality is answered on [-2pi, 2pi].)
+Solve cos(x) = 3/10 for x in [0, 20].
 Find the solutions for 2a + b = 7 and a - b = 2.
 Solve the system y = x^3 and y = x and list every intersection point.
 Where does y = 1/x meet y = x?
