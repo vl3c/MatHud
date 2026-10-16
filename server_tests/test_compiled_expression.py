@@ -13,7 +13,7 @@ import math
 import random
 import re
 import unittest
-from typing import Any, Sequence, Tuple
+from typing import Sequence, Tuple
 
 from server_tests import client_renderer  # noqa: F401  (browser stub, so MathUtils resolves)
 import compiled_expression as ce
@@ -156,23 +156,6 @@ class TestBind(unittest.TestCase):
     def test_deeply_nested_text_still_evaluates(self) -> None:
         # The lambda adds no brackets, so text at the parser's nesting limit still works
         self.assertEqual(compile_expression("(" * 199 + "x" + ")" * 199).bind()(2.0), 2.0)
-
-    def test_a_lambda_that_does_not_compile_falls_back_to_the_parsed_code(self) -> None:
-        compiled = compile_expression("x*t + 1", ("x", "t"))
-        original = ce._lambda_tree
-
-        def fail(tree: Any, variables: Any) -> Any:
-            raise RecursionError("maximum recursion depth exceeded")
-
-        ce._lambda_tree = fail  # type: ignore[assignment]
-        try:
-            evaluate = ce._compile_lambda(compiled._parsed, compiled.variables, compiled.functions)
-        finally:
-            ce._lambda_tree = original  # type: ignore[assignment]
-        self.assertEqual(evaluate(2.0, 3.0), 7.0)
-        self.assertEqual(evaluate(1.0, 1.0), 2.0)
-        with self.assertRaises(NameError):
-            ce._compile_lambda(compile_expression("a*x")._parsed, ("x",), FUNCTIONS_ALL)(1.0)
 
     def test_evaluation_errors_are_raised_by_the_callable(self) -> None:
         with self.assertRaises(NameError):

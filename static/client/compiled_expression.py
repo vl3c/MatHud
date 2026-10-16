@@ -51,12 +51,11 @@ _CACHE_LIMIT = 256
 class _Parsed:
     """What compiling one text yields; independent of the variables and the namespace."""
 
-    __slots__ = ("python_text", "tree", "code", "names")
+    __slots__ = ("python_text", "tree", "names")
 
-    def __init__(self, python_text: str, tree: ast.Expression, code: Any, names: FrozenSet[str]) -> None:
+    def __init__(self, python_text: str, tree: ast.Expression, names: FrozenSet[str]) -> None:
         self.python_text = python_text
         self.tree = tree
-        self.code = code
         self.names = names
 
 
@@ -120,7 +119,7 @@ class CompiledExpression:
     def bind(self) -> Callable[..., float]:
         """A callable taking the variables positionally and returning a float.
 
-        It never raises here; calling it raises what evaluating the expression raises
+        Calling it raises what evaluating the expression raises
         (NameError for a free name, ValueError for a domain error...).
 
         The callable is a lambda compiled once per (Python text, variables, functions)
@@ -147,15 +146,11 @@ _FLOAT = "<float>"
 def _compile_lambda(parsed: _Parsed, variables: Tuple[str, ...], functions: str) -> Callable[..., float]:
     """lambda <variables>: float(<validated tree>), built from the tree, never from text.
 
-    If the lambda does not compile (a limit compiling the extra nodes hits first), the
-    callable evaluates the parsed code with the variables set in its own namespace, as
-    before compiled lambdas.
+    The tree itself compiled while parsing, and the lambda adds two nodes above it, well
+    within the depth the validator allows.
     """
-    try:
-        code = compile(_lambda_tree(parsed.tree, variables), "<string>", mode="eval")
-        return cast(Callable[..., float], eval(code, _lambda_globals(functions)))
-    except (SyntaxError, RecursionError, MemoryError, ValueError):
-        return _evaluate_with_namespace(parsed.code, variables, functions)
+    code = compile(_lambda_tree(parsed.tree, variables), "<string>", mode="eval")
+    return cast(Callable[..., float], eval(code, _lambda_globals(functions)))
 
 
 def _lambda_tree(tree: ast.Expression, variables: Tuple[str, ...]) -> ast.Expression:
@@ -178,16 +173,6 @@ def _lambda_tree(tree: ast.Expression, variables: Tuple[str, ...]) -> ast.Expres
     )
     call = ast.Call(func=ast.Name(id=_FLOAT, ctx=ast.Load(), **location), args=[body], keywords=[], **location)
     return ast.Expression(body=ast.Lambda(args=arguments, body=call, **location))
-
-
-def _evaluate_with_namespace(code: Any, variables: Tuple[str, ...], functions: str) -> Callable[..., float]:
-    namespace = dict(base_namespace(functions))
-
-    def evaluate(*values: float) -> float:
-        namespace.update(zip(variables, values))
-        return float(eval(code, namespace))
-
-    return evaluate
 
 
 def _lambda_globals(functions: str) -> Dict[str, Any]:
@@ -228,10 +213,9 @@ def compile_expression(
 def _parse(text: str) -> _Parsed:
     python_text = ExpressionValidator.fix_math_expression(text, python_compatible=True)
     tree = ExpressionValidator.parse_validated_tree(python_text)
-    # Compiled here, as before, so an error only compile finds is still raised while parsing;
-    # bind() falls back to this code if its lambda does not compile
-    code = compile(tree, "<string>", mode="eval")
-    return _Parsed(python_text, tree, code, _read_names(tree))
+    # Compiled here, as before, so an error only compile finds is still raised while parsing
+    compile(tree, "<string>", mode="eval")
+    return _Parsed(python_text, tree, _read_names(tree))
 
 
 def _read_names(tree: ast.AST) -> FrozenSet[str]:
