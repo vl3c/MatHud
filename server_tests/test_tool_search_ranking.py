@@ -359,3 +359,36 @@ def test_function_definition_with_points_mentioned_still_plots_the_function(
     service: ToolSearchService, query: str, expected: str
 ) -> None:
     assert _names(service, query)[0] == expected
+
+
+# The solution set of an inequality comes from solve; piecewise rules and shading keep their tools.
+@pytest.mark.parametrize(
+    "query",
+    [
+        "Solve x^2 - 5x + 6 < 0.",
+        "For which x is |x - 1| >= 2?",
+        "Solve sin(x) > 1/2 for x in [0, 2pi].",
+        "for which x is x >= 2 and x^2 < 9",
+        "when is x > 3 - x",
+        "solve the inequality 2x + 3 ≤ 7",
+    ],
+)
+def test_inequalities_to_solve_rank_solve_first(service: ToolSearchService, query: str) -> None:
+    names = _names(service, query)
+    assert names[0] == "solve", names
+    assert "draw_piecewise_function" not in names, names
+
+
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("Graph f(x)=1 for x<0 and -1 for x>=0.", "draw_piecewise_function"),
+        ("Plot a piecewise function: x^2 for x<0 and 2x+1 for x>=0.", "draw_piecewise_function"),
+        ("Shade the region where y > x^2", "create_region_colored_area"),
+        ("Compute lim x->infinity (1+1/x)^x.", "limit"),
+    ],
+)
+def test_drawing_an_inequality_or_an_arrow_is_not_solving_one(
+    service: ToolSearchService, query: str, expected: str
+) -> None:
+    assert _names(service, query)[0] == expected

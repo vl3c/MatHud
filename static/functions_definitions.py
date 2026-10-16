@@ -1653,18 +1653,22 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "solve",
-            "description": "Solves a mathematical equation for a given variable.",
+            "description": "Solves an equation, or an inequality in one variable, for a variable. Equations give the list of roots. Inequalities (<, <=, >, >=, also chained such as 1 < 2x+1 <= 5) give the solution set as inequalities and in interval notation, e.g. '2 < x < 3; interval notation: (2, 3)'. interval restricts an inequality's answer to an interval such as '[0, 2*pi]' (brackets are honoured: '[0, 2*pi)' leaves out 2*pi); leave it null unless the user names one. A periodic inequality without one is solved on [-2*pi, 2*pi], as periodic roots are.",
             "strict": True,
             "parameters": {
                 "type": "object",
                 "properties": {
                     "equation": {
                         "type": "string",
-                        "description": "The mathematical equation represented as a string. Example: 'x^2 - 1'",
+                        "description": "The equation or inequality as a string. Examples: 'x^2 - 1 = 0', 'x^2 - 5x + 6 < 0', '|x - 1| >= 2', '(x-1)/(x+2) > 0'",
                     },
                     "variable": {"type": "string", "description": "The variable to solve for. Example: 'x'"},
+                    "interval": {
+                        "type": ["string", "null"],
+                        "description": "Optional interval for an inequality's answer, e.g. '[0, 2*pi]' or '[0, 2*pi)'; null unless the user names one.",
+                    },
                 },
-                "required": ["equation", "variable"],
+                "required": ["equation", "variable", "interval"],
                 "additionalProperties": False,
             },
         },

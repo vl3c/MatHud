@@ -137,6 +137,13 @@ _FUNCTION_DEFINITION_RE = re.compile(r"(?:^|[^\w(])(?:y|[a-z]\(\s*[a-z]\s*\))\s*
 _FUNCTION_NAME_WORDS = frozenset({"sin", "cos", "exp", "ln", "log", "squared", "cubed"})
 _FUNCTION_EQUATION_RE = re.compile(r"\b[a-z]\(\s*[a-z]\s*\)|[=^]")
 _PIECEWISE_RE = re.compile(r"for\s+x\s*[<>]|when\s+x\s*[<>]|x\s*>=|x\s*<=")
+# An inequality sign: <, >, <=, >=, ≤, ≥, but not the arrow of "x->2"
+_INEQUALITY_SIGN_RE = re.compile(r"[<≤≥]|(?<!-)>")
+# Words that ask for the solution set of an inequality, and words that ask to draw one instead
+_INEQUALITY_SOLVE_WORDS = frozenset({"solve", "find", "which", "when"})
+_INEQUALITY_DRAW_WORDS = frozenset(
+    {"shade", "shaded", "shading", "graph", "plot", "draw", "sketch", "region", "piecewise", "rules"}
+)
 # Shapes, charts and other drawables a query can "graph" with an equation or coordinates
 # ("graph the circle x^2 + y^2 = 4", "graph the point A = (2, 3)"): not a function plot.
 # "line" is left out: "graph the line y = 2x + 1" is a function.
@@ -954,6 +961,15 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
                     scores[tool_name] -= 6.0
 
         # -- Solve family --
+        # "Solve x^2 - 5x + 6 < 0", "for which x is |x - 1| >= 2?": the solution set of an
+        # inequality, which solve gives (shading or plotting one is left to the drawing tools)
+        solves_inequality = (
+            bool(_INEQUALITY_SIGN_RE.search(raw_lower) or token_set & {"inequality", "inequalities"})
+            and bool(token_set & _INEQUALITY_SOLVE_WORDS)
+            and not token_set & _INEQUALITY_DRAW_WORDS
+        )
+        if solves_inequality:
+            scores["solve"] += 6.0
         if token_set & {"solve", "find"} and token_set & {"system", "simultaneous", "equations"}:
             scores["solve_system_of_equations"] += 8.0
         elif token_set & {"system", "simultaneous"}:
@@ -1043,7 +1059,8 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         if token_set & {"piecewise", "rules"}:
             scores["draw_piecewise_function"] += 6.0
         # Detect piecewise patterns: "for x<..." or "when x>..." with multiple conditions
-        piecewise_pattern = _PIECEWISE_RE.search(raw_lower) is not None
+        # "for which x is x >= 2 and x^2 < 9" is an inequality to solve, not a piecewise rule
+        piecewise_pattern = _PIECEWISE_RE.search(raw_lower) is not None and not solves_inequality
         if piecewise_pattern:
             scores["draw_piecewise_function"] += 6.0
         # "graph f(x)", "graph y = x^2", "graph sin(x)", "graph x squared" mean draw_function, not
