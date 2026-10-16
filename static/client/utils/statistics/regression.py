@@ -11,13 +11,15 @@ Provides fitting algorithms for multiple regression model types:
 - Sinusoidal: y = a * sin(bx + c) + d
 
 Each fitting function returns a RegressionResult with the fitted expression,
-coefficients, R-squared value, and model type.
+coefficients, R-squared value, and model type; the linear fit adds Pearson's r.
 """
 
 from __future__ import annotations
 
 import math
 from typing import Any, Dict, List, Optional, TypedDict
+
+from utils.statistics.two_variable import paired_sums
 
 
 class RegressionResult(TypedDict):
@@ -27,6 +29,12 @@ class RegressionResult(TypedDict):
     coefficients: Dict[str, float]
     r_squared: float
     model_type: str
+
+
+class LinearRegressionResult(RegressionResult, total=False):
+    """A linear fit also reports Pearson's r (None when all y values are equal)."""
+
+    r: Optional[float]
 
 
 # ---------------------------------------------------------------------------
@@ -282,11 +290,12 @@ def build_expression(model_type: str, coefficients: Dict[str, float]) -> str:
 # ---------------------------------------------------------------------------
 
 
-def fit_linear(x_data: List[float], y_data: List[float]) -> RegressionResult:
+def fit_linear(x_data: List[float], y_data: List[float]) -> LinearRegressionResult:
     """
     Fit linear model: y = mx + b
 
-    Returns coefficients {m, b} and R-squared.
+    Returns coefficients {m, b}, R-squared and Pearson's r, the same r that
+    two-variable statistics report for the data.
     """
     _validate_data(x_data, y_data)
 
@@ -316,6 +325,7 @@ def fit_linear(x_data: List[float], y_data: List[float]) -> RegressionResult:
         "coefficients": coefficients,
         "r_squared": r_squared,
         "model_type": "linear",
+        "r": paired_sums(x_data, y_data).r,
     }
 
 

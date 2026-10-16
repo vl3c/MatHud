@@ -797,6 +797,39 @@ class TestMathFunctions(unittest.TestCase):
         self.assertAlmostEqual(float(MathUtils.evaluate("6.02e23*2")) / 1.204e24, 1.0)
         self.assertAlmostEqual(float(MathUtils.evaluate("2x + 1e3", {"x": 2})), 1004.0)
 
+    def test_evaluate_population_and_sample_spread(self) -> None:
+        data = "[2, 4, 4, 4, 5, 5, 7, 9]"
+        # pstdev and pvariance are python-only; the Python path's stdev is the sample figure too
+        self.assertEqual(float(MathUtils.evaluate(f"pstdev({data})")), 2.0)
+        self.assertEqual(float(MathUtils.evaluate(f"pvariance({data})")), 4.0)
+        self.assertAlmostEqual(
+            float(MathUtils.evaluate(f"stdev({data}) - pstdev({data})")), 0.13808993529939517, places=12
+        )
+        self.assertAlmostEqual(float(MathUtils.evaluate(f"2pvariance({data})")), 8.0)
+
+    def test_evaluate_stdev_matches_the_statistics_tool(self) -> None:
+        from utils.statistics.descriptive import compute_descriptive_statistics
+
+        data = [2, 4, 4, 4, 5, 5, 7, 9]
+        tool = compute_descriptive_statistics(data)
+        math_js = float(MathUtils.evaluate("stdev([2, 4, 4, 4, 5, 5, 7, 9])"))
+        self.assertAlmostEqual(math_js, tool["sample_standard_deviation"], delta=1e-12)
+        self.assertEqual(
+            float(MathUtils.evaluate("pstdev([2, 4, 4, 4, 5, 5, 7, 9])")), tool["population_standard_deviation"]
+        )
+
+    def test_evaluate_stdev_of_one_value_is_zero_in_mathjs(self) -> None:
+        # Known divergence: math.js gives 0, the statistics tool reports null and Python's stdev raises
+        self.assertEqual(float(MathUtils.evaluate("stdev([5])")), 0.0)
+        self.assertEqual(float(MathUtils.evaluate("variance([5])")), 0.0)
+
+    def test_evaluate_refuses_a_normalization_argument(self) -> None:
+        # math.js's "biased" divides by n + 1; the population figures are pstdev and pvariance
+        for text in ('stdev([1, 2, 3, 4], "biased")', 'std([1, 2, 3, 4], "uncorrected")', "var([1, 2], 'unbiased')"):
+            result = str(MathUtils.evaluate(text))
+            self.assertTrue(result.startswith("Error"), f"{text}: {result}")
+            self.assertIn("use pstdev or pvariance", result)
+
     def test_evaluate_large_integer_valued_results(self) -> None:
         # Results >= 2^53 used to fail converting from JavaScript ("not a big int")
         self.assertAlmostEqual(float(MathUtils.evaluate("2^60")) / 2**60, 1.0)
@@ -976,6 +1009,13 @@ class TestMathFunctions(unittest.TestCase):
     def test_variance(self) -> None:
         result = MathUtils.variance([2.75, 1.75, 1.25, 0.25, 0.5, 1.25, 3.5])
         self.assertAlmostEqual(result, 1.372, places=3)
+
+    def test_pstdev_and_pvariance(self) -> None:
+        self.assertEqual(MathUtils.pstdev([2, 4, 4, 4, 5, 5, 7, 9]), 2.0)
+        self.assertEqual(MathUtils.pvariance([2, 4, 4, 4, 5, 5, 7, 9]), 4.0)
+        self.assertEqual(MathUtils.pstdev([5]), 0.0)
+        with self.assertRaises(ValueError):
+            MathUtils.pstdev([])
 
     def test_check_div_by_zero(self) -> None:
         # Test cases that should raise ZeroDivisionError

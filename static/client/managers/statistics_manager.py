@@ -26,9 +26,6 @@ from drawables.discrete_plot import DiscretePlot
 from drawables.plot import Plot
 from plot_kinds import PLOT_CLASS_NAMES, derived_bar_name, plot_kind
 from utils.statistics.distributions import DEFAULT_DISTRIBUTION_TYPE, DistributionSpec, get_distribution
-from utils.statistics.descriptive import (
-    compute_descriptive_statistics as _compute_descriptive_statistics,
-)
 from utils.statistics.regression import fit_regression as _fit_regression, SUPPORTED_MODEL_TYPES
 
 if TYPE_CHECKING:
@@ -502,6 +499,9 @@ class StatisticsManager:
                 "model_type": model,
                 "bounds": {"left": left_bound, "right": right_bound},
             }
+            if model == "linear":
+                # Pearson's r keeps the slope's sign, which the square root of R-squared loses
+                result_dict["r"] = result.get("r")
 
             if point_names:
                 result_dict["point_names"] = point_names
@@ -591,25 +591,6 @@ class StatisticsManager:
         except Exception:
             pass
         return None
-
-    def compute_descriptive_statistics(
-        self,
-        *,
-        data: List[float],
-    ) -> Dict[str, Any]:
-        """Compute descriptive statistics for a list of numbers.
-
-        Delegates to the pure algorithm in ``utils.statistics.descriptive``.
-        No canvas mutations or undo/redo archiving — purely computational.
-
-        Args:
-            data: Non-empty list of finite numbers.
-
-        Returns:
-            Dict with count, mean, median, mode, standard_deviation,
-            variance, min, max, q1, q3, iqr, range.
-        """
-        return dict(_compute_descriptive_statistics(data))
 
     def delete_plot(self, name: str) -> bool:
         started_at = time.perf_counter()

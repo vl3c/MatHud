@@ -361,6 +361,93 @@ class TestCalculatorFunctions(unittest.TestCase):
                 )
 
 
+class TestPopulationSpread(unittest.TestCase):
+    """pstdev and pvariance divide by n, with the statistics tool's own routine."""
+
+    DATA = [2, 4, 4, 4, 5, 5, 7, 9]
+
+    def test_values(self) -> None:
+        from utils.math_utils import MathUtils
+
+        self.assertEqual(MathUtils.pstdev(self.DATA), 2.0)
+        self.assertEqual(MathUtils.pvariance(self.DATA), 4.0)
+        self.assertEqual(MathUtils.pstdev([5]), 0.0)
+        # The fsum mean of [0.1] * 3 misses 0.1 by an ulp; a constant list still has no spread
+        self.assertEqual(MathUtils.pstdev([0.1, 0.1, 0.1]), 0.0)
+        self.assertEqual(MathUtils.pvariance([0.1, 0.1, 0.1]), 0.0)
+        self.assertAlmostEqual(MathUtils.stdev(self.DATA) - MathUtils.pstdev(self.DATA), 0.13808993529939517)
+
+    def test_bit_identical_to_the_tool(self) -> None:
+        import random
+
+        from utils.math_utils import MathUtils
+        from utils.statistics.descriptive import compute_descriptive_statistics
+
+        rng = random.Random(5)
+        for trial in range(100):
+            data = [rng.uniform(-1e6, 1e6) for _ in range(rng.randint(1, 30))]
+            tool = compute_descriptive_statistics(data)
+            rng.shuffle(data)  # the tool sorts its copy; the figures must not depend on order
+            with self.subTest(trial=trial):
+                self.assertEqual(MathUtils.pstdev(data), tool["population_standard_deviation"])
+                self.assertEqual(MathUtils.pvariance(data), tool["population_variance"])
+
+    def test_errors_name_the_function(self) -> None:
+        from utils.math_utils import MathUtils
+
+        with self.assertRaisesRegex(ValueError, "pstdev's list must not be empty"):
+            MathUtils.pstdev([])
+        with self.assertRaisesRegex(TypeError, "pvariance's list must be a list"):
+            MathUtils.pvariance(5)  # type: ignore[arg-type]
+        with self.assertRaises(TypeError):
+            MathUtils.pstdev([1, 2], [3])  # type: ignore[call-arg]
+
+    def test_python_path_evaluates_them(self) -> None:
+        from expression_validator import ExpressionValidator
+
+        evaluate = ExpressionValidator.evaluate_expression
+        self.assertEqual(evaluate("pstdev([2, 4, 4, 4, 5, 5, 7, 9])"), 2.0)
+        self.assertEqual(evaluate("2*pvariance([1, 3])"), 2.0)
+        self.assertAlmostEqual(
+            evaluate("stdev([2, 4, 4, 4, 5, 5, 7, 9]) - pstdev([2, 4, 4, 4, 5, 5, 7, 9])"), 0.13808993529939517
+        )
+
+
+class TestNormalizationArgument(unittest.TestCase):
+    """A string second argument of stdev or variance is refused: math.js's "biased" divides by n + 1."""
+
+    def test_refused_with_a_pointer_to_the_population_functions(self) -> None:
+        from expression_validator import ExpressionValidator
+
+        for text in (
+            'stdev([1, 2, 3], "biased")',
+            "variance([1, 2], 'uncorrected')",
+            'std([1, 2], "unbiased")',
+            "var([1, 2], 'biased')",
+        ):
+            with self.subTest(text=text):
+                python_text = ExpressionValidator.fix_math_expression(text, python_compatible=True)
+                with self.assertRaisesRegex(ValueError, "use pstdev or pvariance"):
+                    ExpressionValidator.validate_expression_tree(python_text)
+
+    def test_checked_names_are_whitelisted_functions(self) -> None:
+        # Only whitelisted calls reach the check; the aliases std and var are rewritten
+        # to stdev and variance before it and would be refused as unknown functions
+        from expression_validator import ExpressionValidator
+
+        self.assertLessEqual(ExpressionValidator._SAMPLE_SPREAD_FUNCTIONS, ExpressionValidator.ALLOWED_FUNCTIONS)
+        for alias in ("std", "var"):
+            with self.subTest(alias=alias):
+                self.assertNotIn(alias, ExpressionValidator.ALLOWED_FUNCTIONS)
+
+    def test_other_calls_are_untouched(self) -> None:
+        from expression_validator import ExpressionValidator
+
+        for text in ("stdev([1, 2, 3])", "variance([1, 2])", "summation('n', 'n', 0, 3)", "pstdev([1, 2])"):
+            with self.subTest(text=text):
+                ExpressionValidator.validate_expression_tree(text)
+
+
 class TestPythonOnlyRouting(unittest.TestCase):
     def test_python_only_functions_are_found_by_call(self) -> None:
         cases = {
@@ -368,6 +455,9 @@ class TestPythonOnlyRouting(unittest.TestCase):
             "2 + randint (1, 2)": True,
             "summation('n^2', 'n', 0, 3)": True,
             "sin(next_prime(4))": True,
+            "pstdev([1, 2])": True,
+            "2*pvariance([1, 2]) + stdev([1, 2])": True,
+            "stdev([1, 2])": False,
             "2*product": False,
             "cross_product(a, b)": False,
             "summation + 1": False,

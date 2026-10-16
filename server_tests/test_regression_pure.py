@@ -27,6 +27,7 @@ from utils.statistics.regression import (
     _validate_positive,
     _solve_least_squares,
 )
+from utils.statistics.two_variable import compute_two_variable_statistics
 
 
 class TestValidation(unittest.TestCase):
@@ -226,6 +227,47 @@ class TestFitLinear(unittest.TestCase):
         y = [1.0, 2.0, 3.0, 4.0]
         with self.assertRaises(ValueError):
             fit_linear(x, y)
+
+    def test_r_is_the_two_variable_statistics_r(self) -> None:
+        x = [1, 2, 3, 4, 5]
+        y = [2, 4, 5, 4, 5]
+        result = fit_linear(x, y)
+        self.assertEqual(result["r"], compute_two_variable_statistics(x, y)["r"])
+        self.assertEqual(result["r"], 0.7745966692414834)
+
+    def test_r_squared_agrees_with_r(self) -> None:
+        cases = (
+            ([1, 2, 3, 4, 5], [2, 4, 5, 4, 5]),
+            ([0.5, 1.5, 2.0, 7.0, 9.0, 11.0], [3.0, -1.0, 2.5, 8.0, 7.5, 13.0]),
+            ([1e9 + 1, 1e9 + 2, 1e9 + 4, 1e9 + 8], [1, 3, 2, 5]),
+        )
+        for x, y in cases:
+            with self.subTest(x=x):
+                result = fit_linear(x, y)
+                r = result["r"]
+                assert r is not None
+                self.assertAlmostEqual(result["r_squared"], r * r, delta=1e-12)
+
+    def test_r_has_the_slope_sign(self) -> None:
+        result = fit_linear([1.0, 2.0, 3.0, 4.0], [8.0, 6.5, 4.0, 2.0])
+        r = result["r"]
+        assert r is not None
+        self.assertLess(r, 0.0)
+        self.assertLess(result["coefficients"]["m"], 0.0)
+
+    def test_constant_y_has_no_r(self) -> None:
+        # fit_regression's convention keeps R-squared at 1 for constant y; r is undefined
+        result = fit_linear([1.0, 2.0, 3.0], [4.0, 4.0, 4.0])
+        self.assertIsNone(result["r"])
+        self.assertEqual(result["r_squared"], 1.0)
+
+    def test_only_the_linear_model_reports_r(self) -> None:
+        x = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+        y = [2.7, 7.4, 20.1, 54.6, 148.4, 403.4]
+        for model, degree in (("polynomial", 2), ("exponential", None), ("logarithmic", None), ("power", None)):
+            with self.subTest(model=model):
+                self.assertNotIn("r", fit_regression(x, y, model, degree))
+        self.assertIn("r", fit_regression(x, y, "linear"))
 
 
 class TestFitPolynomial(unittest.TestCase):

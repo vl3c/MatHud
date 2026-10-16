@@ -43,6 +43,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Un
 from browser import window
 
 from expression_functions import calls_python_only, rename_for_mathjs, replace_absolute_bars
+from utils.statistics.descriptive import population_spread
 
 Number = Union[int, float]
 PointLike = Any
@@ -3424,6 +3425,36 @@ class MathUtils:
             float: Sample variance
         """
         return statistics.variance(values)
+
+    @staticmethod
+    def pstdev(values: List[float]) -> float:
+        """Calculate the population standard deviation (dividing by n) of a list of values.
+
+        Uses the compute_descriptive_statistics routine, so both report the same figure.
+
+        Args:
+            values (list): Non-empty list of finite numbers
+
+        Returns:
+            float: Population standard deviation
+        """
+        std_dev: float = population_spread(values, "pstdev's list")[1]
+        return std_dev
+
+    @staticmethod
+    def pvariance(values: List[float]) -> float:
+        """Calculate the population variance (dividing by n) of a list of values.
+
+        Uses the compute_descriptive_statistics routine, so both report the same figure.
+
+        Args:
+            values (list): Non-empty list of finite numbers
+
+        Returns:
+            float: Population variance
+        """
+        variance: float = population_spread(values, "pvariance's list")[0]
+        return variance
 
     @staticmethod
     def calculate_vertical_asymptotes(

@@ -201,10 +201,18 @@ class TestPlotToolSchemas(unittest.TestCase):
             "compute_descriptive_statistics.required",
         )
 
-        self.assertEqual(required, ["data"])
+        self.assertEqual(list(props.keys()), ["data", "y_data"])
+        self.assertEqual(required, ["data", "y_data"])
 
         data = _require_dict(props.get("data"), "data")
         self.assertEqual(data.get("type"), "array")
         data_items = _require_dict(data.get("items"), "data.items")
         self.assertEqual(data_items.get("type"), "number")
         self.assertEqual(data.get("minItems"), 1)
+
+        # Nullable for one list; its length is checked in code, which names y_data
+        y_data = _require_dict(props.get("y_data"), "y_data")
+        self.assertEqual(y_data.get("type"), ["array", "null"])
+        y_items = _require_dict(y_data.get("items"), "y_data.items")
+        self.assertEqual(y_items.get("type"), "number")
+        self.assertNotIn("minItems", y_data)

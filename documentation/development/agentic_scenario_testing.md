@@ -1031,8 +1031,8 @@ Added after the first live run (phase 6, item 10).
 - Turn 1: "Give me the mean, median and standard deviation of 10, 20, 30, 40, 50."
   - Reference: `compute_descriptive_statistics(data=[10, 20, 30, 40, 50])`
 - Checks:
-  - tool result: mean 30, median 30, standard_deviation 14.1421 (population); canvas unchanged
-  - answer mentions 30, 30 and 14.14 (model quality)
+  - tool result: mean 30, median 30, population_standard_deviation 14.1421 and sample_standard_deviation 15.8114; canvas unchanged
+  - answer mentions 30 and either SD, 14.14 or 15.81 (model quality; whether models name both, as the tool description asks when the user does not say which, has not been measured live)
 - Targets: non-canvas tool; model reporting.
 
 #### ST-05: Moving a bar chart as a whole is refused, not faked
@@ -1043,6 +1043,23 @@ Added after the first live run (phase 6, item 10).
 - Turn 2: "Rotate the sales chart by 90 degrees."
   - Reference: `rotate_object(name="sales", angle=90)`
 - Checks: both calls are errors (the translate error says to plot again with `x_start`), and the canvas equals the setup snapshot (before the fix both answered "Call successful!" and nothing moved)
+
+#### ST-06: Two-variable statistics and the regression r
+
+- Turn 1: "For x = 1, 2, 3, 4, 5 and y = 2, 4, 5, 4, 5, what are the correlation coefficient and the sample covariance?"
+  - Reference: `compute_descriptive_statistics(data=[1, 2, 3, 4, 5], y_data=[2, 4, 5, 4, 5])`
+- Turn 2: "Fit the regression line."
+  - Reference: `fit_regression(x_data=[1, 2, 3, 4, 5], y_data=[2, 4, 5, 4, 5], model_type="linear")`
+- Checks:
+  - turn 1: no tool errors; r 0.7746, sample_covariance 1.5, population_covariance 1.2, x.sample_standard_deviation 1.5811; canvas unchanged; the answer mentions 0.77 and 1.5
+  - turn 2: no tool errors; m 0.6, b 2.2 and the same r 0.7746; one function
+- Targets: `y_data` and the nested two-variable result; one r from both tools.
+
+#### ST-07: Sample and population SD agree across tools
+
+- Steps (scripted): `compute_descriptive_statistics(data=[2, 4, 4, 4, 5, 5, 7, 9])`, then `evaluate_expression` on `stdev([2, 4, 4, 4, 5, 5, 7, 9])` and `pstdev([2, 4, 4, 4, 5, 5, 7, 9])`
+- Checks: sample_standard_deviation 2.1381 and population_standard_deviation 2; the expressions give 2.1381 (math.js) and 2 (Python path)
+- Targets: the tool's sample/population fields against `stdev` and `pstdev`.
 - Targets: transforms of composite plot records.
 - Known bugs: K31, fixed on `claude/fix-batch-7`; the checks are regression guards.
 

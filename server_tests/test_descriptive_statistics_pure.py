@@ -1,10 +1,20 @@
 from __future__ import annotations
 
 import math
+import random
+import statistics
 import unittest
 
 from utils.statistics.descriptive import (
     compute_descriptive_statistics,
+    population_spread,
+)
+
+SPREAD_KEYS = (
+    "sample_standard_deviation",
+    "population_standard_deviation",
+    "sample_variance",
+    "population_variance",
 )
 
 
@@ -110,25 +120,66 @@ class TestMode(unittest.TestCase):
 
 class TestVarianceAndStdDev(unittest.TestCase):
     def test_known_dataset(self) -> None:
-        # Population variance of [2,4,4,4,5,5,7,9] = 4.0, std dev = 2.0
+        # [2,4,4,4,5,5,7,9]: squared deviations sum to 32, so sigma^2 = 32/8 and s^2 = 32/7
         result = compute_descriptive_statistics([2, 4, 4, 4, 5, 5, 7, 9])
-        self.assertAlmostEqual(result["variance"], 4.0)
-        self.assertAlmostEqual(result["standard_deviation"], 2.0)
+        self.assertEqual(result["population_variance"], 4.0)
+        self.assertEqual(result["population_standard_deviation"], 2.0)
+        self.assertEqual(result["sample_variance"], 32 / 7)
+        self.assertEqual(result["sample_standard_deviation"], math.sqrt(32 / 7))
+        self.assertAlmostEqual(result["sample_standard_deviation"], 2.138089935299395, places=15)
+
+    def test_scenario_dataset(self) -> None:
+        # ST-04's data: sigma = sqrt(200), s = sqrt(250)
+        result = compute_descriptive_statistics([10, 20, 30, 40, 50])
+        self.assertEqual(result["population_standard_deviation"], 14.142135623730951)
+        self.assertEqual(result["sample_standard_deviation"], 15.811388300841896)
+        self.assertEqual(result["population_variance"], 200.0)
+        self.assertEqual(result["sample_variance"], 250.0)
 
     def test_all_same_values(self) -> None:
-        result = compute_descriptive_statistics([3, 3, 3])
-        self.assertAlmostEqual(result["variance"], 0.0)
-        self.assertAlmostEqual(result["standard_deviation"], 0.0)
+        # The fsum mean of [0.1] * 3 misses 0.1 by an ulp; the spread must still be 0
+        constant = random.Random(122).uniform(-1e5, 1e5)
+        for data in ([3, 3, 3], [0.1] * 3, [0.7] * 11, [constant] * 7):
+            result = compute_descriptive_statistics(data)
+            for key in SPREAD_KEYS:
+                with self.subTest(data=data, key=key):
+                    self.assertEqual(result[key], 0.0)
+            with self.subTest(data=data):
+                self.assertEqual(population_spread(data), (0.0, 0.0))
 
-    def test_population_formula(self) -> None:
-        # [2, 8]: mean=5, pop variance = ((2-5)^2 + (8-5)^2) / 2 = 9.0
+    def test_population_and_sample_formulas(self) -> None:
+        # [2, 8]: mean=5, squared deviations sum to 18: population 18/2, sample 18/1
         result = compute_descriptive_statistics([2, 8])
-        self.assertAlmostEqual(result["variance"], 9.0)
+        self.assertAlmostEqual(result["population_variance"], 9.0)
+        self.assertAlmostEqual(result["sample_variance"], 18.0)
+
+    def test_single_value_has_no_sample_figures(self) -> None:
+        result = compute_descriptive_statistics([5])
+        self.assertIsNone(result["sample_standard_deviation"])
+        self.assertIsNone(result["sample_variance"])
+        self.assertEqual(result["population_standard_deviation"], 0.0)
+        self.assertEqual(result["population_variance"], 0.0)
 
     def test_numerical_robustness(self) -> None:
         result = compute_descriptive_statistics([1.0, 1.0, 1.0000000000000002])
-        self.assertGreaterEqual(result["variance"], 0.0)
-        self.assertGreaterEqual(result["standard_deviation"], 0.0)
+        for key in SPREAD_KEYS:
+            with self.subTest(key=key):
+                self.assertGreaterEqual(result[key], 0.0)
+
+    def test_agrees_with_the_statistics_module(self) -> None:
+        rng = random.Random(20261016)
+        for trial in range(200):
+            data = [rng.uniform(-1e3, 1e3) for _ in range(rng.randint(2, 40))]
+            result = compute_descriptive_statistics(data)
+            with self.subTest(trial=trial):
+                self.assertTrue(
+                    math.isclose(result["sample_standard_deviation"], statistics.stdev(data), rel_tol=1e-12)
+                )
+                self.assertTrue(
+                    math.isclose(result["population_standard_deviation"], statistics.pstdev(data), rel_tol=1e-12)
+                )
+                self.assertTrue(math.isclose(result["sample_variance"], statistics.variance(data), rel_tol=1e-12))
+                self.assertTrue(math.isclose(result["population_variance"], statistics.pvariance(data), rel_tol=1e-12))
 
 
 class TestMinMax(unittest.TestCase):
@@ -229,8 +280,10 @@ class TestResultStructure(unittest.TestCase):
             "mean",
             "median",
             "mode",
-            "standard_deviation",
-            "variance",
+            "sample_standard_deviation",
+            "population_standard_deviation",
+            "sample_variance",
+            "population_variance",
             "min",
             "max",
             "q1",
@@ -239,6 +292,12 @@ class TestResultStructure(unittest.TestCase):
             "range",
         }
         self.assertEqual(set(result.keys()), expected_keys)
+
+    def test_keys_are_in_calculator_order(self) -> None:
+        # Sx before sigma x, as TI's 1-Var Stats lists them
+        result = compute_descriptive_statistics([1, 2, 3])
+        keys = list(result.keys())
+        self.assertEqual(keys[4:8], list(SPREAD_KEYS))
 
     def test_count_is_int(self) -> None:
         result = compute_descriptive_statistics([1, 2, 3])
@@ -254,8 +313,10 @@ class TestResultStructure(unittest.TestCase):
         float_keys = [
             "mean",
             "median",
-            "standard_deviation",
-            "variance",
+            "sample_standard_deviation",
+            "population_standard_deviation",
+            "sample_variance",
+            "population_variance",
             "min",
             "max",
             "q1",
@@ -281,13 +342,19 @@ class TestPrecision(unittest.TestCase):
         result = compute_descriptive_statistics([1e308, 1e308])
         self.assertEqual(result["mean"], 1e308)
         self.assertEqual(result["median"], 1e308)
-        self.assertEqual(result["variance"], 0.0)
+        self.assertEqual(result["population_variance"], 0.0)
+        self.assertEqual(result["sample_variance"], 0.0)
 
         result = compute_descriptive_statistics([1.5e308, 1.7e308, 1.6e308])
         self.assertAlmostEqual(result["mean"] / 1.6e308, 1.0, places=12)
-        expected_std = math.sqrt(2.0 / 3.0) * 1e307
-        self.assertAlmostEqual(result["standard_deviation"] / expected_std, 1.0, places=9)
+        # Deviations -1e307, 0, 1e307: the standard deviations stay finite, the variances overflow
+        expected_population = math.sqrt(2.0 / 3.0) * 1e307
+        self.assertAlmostEqual(result["population_standard_deviation"] / expected_population, 1.0, places=9)
+        self.assertAlmostEqual(result["sample_standard_deviation"] / 1e307, 1.0, places=9)
+        self.assertEqual(result["population_variance"], math.inf)
+        self.assertEqual(result["sample_variance"], math.inf)
 
     def test_large_offset_variance(self) -> None:
         result = compute_descriptive_statistics([1e9 + 4, 1e9 + 7, 1e9 + 13, 1e9 + 16])
-        self.assertAlmostEqual(result["variance"], 22.5, places=6)
+        self.assertAlmostEqual(result["population_variance"], 22.5, places=6)
+        self.assertAlmostEqual(result["sample_variance"], 30.0, places=6)

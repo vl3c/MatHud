@@ -65,6 +65,7 @@ _ALIAS_EXTRAS = (
 _EVALUATE_CASES = (
     ("arrangements(5,2)", None),
     ("stdev([1,2])", None),
+    ("pstdev([1,2])", None),
     ("trunc(2.5)", None),
     ("xtrunc(1)", None),
     ("is_prime(7)", None),
@@ -290,8 +291,8 @@ class TestExpressionFunctionTables(unittest.TestCase):
     def test_known_counts(self) -> None:
         # Sanity checks on the golden itself, so an empty or truncated file cannot pass
         tables = self.golden["tables"]
-        self.assertEqual(len(tables["allowed_functions"]), 83)
-        self.assertEqual(len(self.golden["namespaces"]["x"]), 85)
+        self.assertEqual(len(tables["allowed_functions"]), 85)
+        self.assertEqual(len(self.golden["namespaces"]["x"]), 87)
         self.assertEqual(len(self.golden["namespaces"]["t"]), 44)
         self.assertGreater(len(self.golden["aliases"]), 1000)
         self.assertTrue(math.isclose(float(self.golden["namespaces"]["x"]["pi"][len("const:") :]), math.pi))

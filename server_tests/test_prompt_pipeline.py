@@ -205,7 +205,7 @@ class TestPromptPipelineStream(unittest.TestCase):
             "compute descriptive statistics for [1,2,3]",
             "descriptive statistics",
             "compute_descriptive_statistics",
-            {"data": [1, 2, 3]},
+            {"data": [1, 2, 3], "y_data": None},
         )
 
     def test_create_graph(self) -> None:

@@ -1085,6 +1085,104 @@
       "difficulty": "normal"
     },
     {
+      "id": "u_compute_descriptive_statistics_1",
+      "query": "Correlation coefficient between x = [1,2,3,4,5] and y = [2,4,5,4,5]",
+      "expected_any": [
+        "compute_descriptive_statistics",
+        "fit_regression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_compute_descriptive_statistics_2",
+      "query": "Sample standard deviation of 4, 8, 15, 16, 23, 42",
+      "expected_any": [
+        "compute_descriptive_statistics",
+        "evaluate_expression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_compute_descriptive_statistics_3",
+      "query": "Covariance of these paired data",
+      "expected_any": [
+        "compute_descriptive_statistics"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_compute_descriptive_statistics_4",
+      "query": "graph the correlation of x and y",
+      "expected_any": [
+        "compute_descriptive_statistics"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_compute_descriptive_statistics_5",
+      "query": "correlation graph",
+      "expected_any": [
+        "compute_descriptive_statistics"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_compute_descriptive_statistics_6",
+      "query": "correlation of points on the graph",
+      "expected_any": [
+        "compute_descriptive_statistics"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_compute_descriptive_statistics_7",
+      "query": "do these graphs correlate",
+      "expected_any": [
+        "compute_descriptive_statistics"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_compute_descriptive_statistics_8",
+      "query": "find the correlation between tree age and height: ages [1,2,3], heights [2,4,5]",
+      "expected_any": [
+        "compute_descriptive_statistics"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
       "id": "u_convert_1",
       "query": "Convert 45 degrees to radians.",
       "expected_any": [

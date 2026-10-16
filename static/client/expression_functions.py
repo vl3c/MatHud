@@ -252,6 +252,10 @@ FUNCTIONS: Tuple[ExpressionFunction, ...] = (
     _F("mode", "mode", _ONE),
     _F("stdev", "stdev", _ONE, mathjs="std", aliases=("std",)),
     _F("variance", "variance", _ONE, aliases=("var",)),
+    # math.js has std(L, "uncorrected") for the population SD; its "biased" divides by n + 1, so the
+    # population figures get their own names and Python's routine (the statistics tool's)
+    _F("pstdev", "pstdev", _ONE, mathjs=None, python_only=True),
+    _F("pvariance", "pvariance", _ONE, mathjs=None, python_only=True),
     _F("ceil", math.ceil, _ONE, curve_safe=True, sympy=True),
     _F("floor", math.floor, _ONE, curve_safe=True, sympy=True),
     _F("trunc", math.trunc, _ONE, mathjs="fix", curve_safe=True),
