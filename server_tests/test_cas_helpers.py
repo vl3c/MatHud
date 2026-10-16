@@ -22,6 +22,7 @@ from utils.cas_numeric import (  # noqa: E402
 from utils.cas_text import (  # noqa: E402
     find_closing_parenthesis,
     has_inequality,
+    insert_implicit_products,
     insert_letter_call_products,
     is_unevaluated,
     parse_interval,
@@ -48,6 +49,28 @@ class TestInequalityText(unittest.TestCase):
         for text, expected in cases.items():
             with self.subTest(text=text):
                 self.assertEqual(insert_letter_call_products(text, self.FUNCTIONS), expected)
+
+    def test_implicit_products(self) -> None:
+        cases = {
+            "(x-1)(x+2)": "(x-1)*(x+2)",
+            "(x-2)^2 (x+1)": "(x-2)^2*(x+1)",
+            "abs(x-1)(x+1)": "abs(x-1)*(x+1)",
+            "(x+1)x": "(x+1)*x",
+            "(x+1)2": "(x+1)*2",
+            "(x+1) e^x": "(x+1)*e^x",
+            "1e5 x": "1e5*x",
+            "2.5 (x+1)": "2.5*(x+1)",
+            # unchanged: a number directly before a name, exponents, names with digits, operators
+            "2x": "2x",
+            "2(x+1)": "2(x+1)",
+            "1e-5": "1e-5",
+            "x2 + 1": "x2 + 1",
+            "(x+1) + 2": "(x+1) + 2",
+            "sin(x)^2": "sin(x)^2",
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(insert_implicit_products(text), expected)
 
     def test_split_relation(self) -> None:
         self.assertEqual(split_relation("x^2 - 5x + 6 < 0"), (["x^2 - 5x + 6", "0"], ["<"]))

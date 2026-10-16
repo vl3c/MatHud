@@ -5,9 +5,10 @@ derivative is "ln"; log(x, 2) keeps only the natural log when differentiated. Th
 helpers rewrite the common spellings nerdamer lacks into ones it knows, and list the
 function names it would misread so the caller can refuse them with a clear message.
 
-The solve tool's inequalities use three more: split_relation (the expressions and signs of
-an inequality or a chain), parse_interval ("[0, 2*pi)" and the like) and
-insert_letter_call_products (x(x+2) as x*(x+2), which SymPy and math.js read as a call).
+The solve tool's inequalities use four more: split_relation (the expressions and signs of
+an inequality or a chain), parse_interval ("[0, 2*pi)" and the like),
+insert_letter_call_products (x(x+2) as x*(x+2), which SymPy and math.js read as a call) and
+insert_implicit_products ((x-1)(x+2) and (x+1)2 as products, as SymPy reads them).
 
 Pure Python (no browser imports), so server-side pytest covers it.
 """
@@ -150,6 +151,71 @@ def insert_letter_call_products(text: str, function_names: Iterable[str]) -> str
         if start == index and not text[index - 1 : index] == ".":
             output.append("*")
     return "".join(output)
+
+
+def insert_implicit_products(text: str) -> str:
+    """Write the implicit products after ")" and after a number followed by spaces as explicit ones.
+
+    (x-1)(x+2), (x+1)x, (x+1)2 and |x-1|(x+1) (as abs(x-1)(x+1)) get "*" after ")"; so does
+    a number before a name or "(" across spaces, as in (x-2)^2 (x+1). SymPy's parser reads
+    these as products (sympy_cas._prepared_text); math.js and the expression validator do
+    not. A number directly before a name (2x) is left as it is, as is an exponent (1e5).
+    """
+    output: List[str] = []
+    index = 0
+    count = len(text)
+    while index < count:
+        char = text[index]
+        if char == ")":
+            following = _next_non_space(text, index + 1)
+            output.append(")")
+            if following < count and (
+                _is_letter(text[following]) or text[following].isdigit() or text[following] == "("
+            ):
+                output.append("*")
+                index = following
+                continue
+            index += 1
+            continue
+        if char.isdigit() and (index == 0 or not (_is_name_char(text[index - 1]) or text[index - 1] == ".")):
+            end = _number_end(text, index)
+            output.append(text[index:end])
+            following = _next_non_space(text, end)
+            if following > end and following < count and (_is_letter(text[following]) or text[following] == "("):
+                output.append("*")
+                index = following
+                continue
+            index = end
+            continue
+        output.append(char)
+        index += 1
+    return "".join(output)
+
+
+def _next_non_space(text: str, index: int) -> int:
+    while index < len(text) and text[index] == " ":
+        index += 1
+    return index
+
+
+def _number_end(text: str, start: int) -> int:
+    """The end of the number starting at start: digits, a decimal part and an exponent (1.5e-3)."""
+    index = start
+    while index < len(text) and text[index].isdigit():
+        index += 1
+    if index < len(text) and text[index] == ".":
+        index += 1
+        while index < len(text) and text[index].isdigit():
+            index += 1
+    if index < len(text) and text[index] in "eE":
+        exponent = index + 1
+        if exponent < len(text) and text[exponent] in "+-":
+            exponent += 1
+        if exponent < len(text) and text[exponent].isdigit():
+            index = exponent
+            while index < len(text) and text[index].isdigit():
+                index += 1
+    return index
 
 
 # Inequality signs as split_relation reads them, longest first: "=<" and "=>" are aliases.
