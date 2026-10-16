@@ -141,7 +141,7 @@ MAX_SANE_MAGNITUDE = 1e12
 # |f| beyond which a probe next to a listed vertical asymptote counts as blowing up (I3).
 ASYMPTOTE_BLOWUP = 1e4
 # ...or by how much |f| must grow from the far probe (1000 times further out) to the near one, for
-# slow singularities: ln|x| is only -16.1 at 1e-7 from 0, and -9.2 at 1e-4.
+# slow singularities: ln|x| is only -16.1 at 1e-7 from 0, and -9.2 at 1e-4. It must grow on both sides.
 ASYMPTOTE_GROWTH = 1.0
 # Mutating tools whose success must change something (I4); set_* and reset_canvas can be no-ops.
 _MUTATING_PREFIXES = ("create_", "delete_", "update_", "construct_", "draw_", "plot_")
@@ -1832,11 +1832,26 @@ def _blows_up(value: Any) -> bool:
     )
 
 
+def _is_finite_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and math.isfinite(value)
+
+
 def _grows_toward(near: Any, far: Any) -> bool:
-    """f blows up at the near probe, or |f| grows toward it from the far one (a logarithm)."""
-    if _blows_up(near):
+    """|f| grows toward the near probe from the far one (a logarithm)."""
+    return _is_finite_number(near) and _is_finite_number(far) and abs(near) - abs(far) >= ASYMPTOTE_GROWTH
+
+
+def _probe_shows_asymptote(near: list[Any], far: list[Any]) -> bool:
+    """f blows up beside the listed asymptote, or |f| grows toward it from both far probes.
+
+    A slow singularity like ln|x| grows on both sides; one side growing is only a steep slope
+    (1/(x - 1) listed at 1.005, or the line 2e4*x + 5 at 0).
+    """
+    if any(_blows_up(value) for value in near):
         return True
-    return isinstance(far, (int, float)) and math.isfinite(far) and abs(near) - abs(far) >= ASYMPTOTE_GROWTH
+    if all(_is_finite_number(value) for value in far):
+        return all(_grows_toward(n, f) for n, f in zip(near, far))
+    return any(_grows_toward(n, f) for n, f in zip(near, far))
 
 
 def _derived_function(obj: CanvasObject) -> list[str]:
@@ -1849,7 +1864,7 @@ def _derived_function(obj: CanvasObject) -> list[str]:
         if not isinstance(probe, list) or len(probe) not in (3, 5):
             continue
         far = probe[3:5] if len(probe) == 5 else [None, None]
-        if not (_grows_toward(probe[1], far[0]) or _grows_toward(probe[2], far[1])):
+        if not _probe_shows_asymptote(probe[1:3], far):
             problems.append(
                 f"{obj.type} {obj.name}: listed vertical asymptote x = {probe[0]} but f is {probe[1]} and {probe[2]} beside it"
             )

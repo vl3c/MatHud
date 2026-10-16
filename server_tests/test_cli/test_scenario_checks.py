@@ -853,6 +853,28 @@ class TestInvariants:
         message = by_id(invariants(self.empty, CanvasView(log, flat)), "I3").message
         assert "vertical asymptote x = 0" in message
 
+    def test_i3_one_sided_growth_is_not_an_asymptote(self) -> None:
+        # Next to a misplaced asymptote a steep curve grows toward the near probe on one side only
+        misplaced = [
+            ("1/(x-1)", [1.005, 200.004, 199.996, 204.0816, 196.0784]),
+            ("1/(x-1)", [1.009, 111.1123, 111.1099, 112.3596, 109.8901]),
+            ("1/(x-1)^2", [1.04, 625.0031, 624.9969, 628.1368, 621.8867]),
+            ("tan(x)", [1.578796, -124.9989, -124.9958, -126.5796, -123.4541]),
+            ("5/(x-3)", [3.02, 250.0013, 249.9988, 251.2563, 248.7562]),
+            ("2e4*x+5", [0, 4.998, 5.002, 3.0, 7.0]),
+        ]
+        for expression, probe in misplaced:
+            raw = state(function("f", expression, vertical_asymptotes=[probe[0]]))
+            insp = inspection({"class": "Function", "name": "f", "asymptote_probes": [probe]})
+            message = by_id(invariants(self.empty, CanvasView(raw, insp)), "I3").message
+            assert f"vertical asymptote x = {probe[0]}" in message, expression
+
+    def test_i3_blowup_on_one_side_is_an_asymptote(self) -> None:
+        # exp(1/x) at 0: tends to 0 from the left, overflows on the right
+        raw = state(function("f", "exp(1/x)", vertical_asymptotes=[0]))
+        insp = inspection({"class": "Function", "name": "f", "asymptote_probes": [[0, 0.0, None, 0.0, None]]})
+        assert by_id(invariants(self.empty, CanvasView(raw, insp)), "I3").status == "pass"
+
     def test_i3_ellipse_formula(self) -> None:
         good = state(
             point("A", -8, 5),
