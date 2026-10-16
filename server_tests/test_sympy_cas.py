@@ -330,6 +330,16 @@ class TestInequalities(unittest.TestCase):
             ],
         )
 
+    def test_decimal_close_to_a_fraction_stays_itself(self) -> None:
+        # nsimplify reads 1.0000000001 as 1, which would make (x - 1)^2 + 1e-10 touch 0
+        self.assertEqual(
+            _ends(compute_solve_inequality("x^2 - 2x + 1.0000000001 > 0", "x")),
+            [("-Infinity", "Infinity", False, False)],
+        )
+        self.assertEqual(
+            _ends(compute_solve_inequality("x > 0.333333333333333", "x")), [("1/3", "Infinity", False, False)]
+        )
+
     def test_decimal_input_gives_decimal_ends(self) -> None:
         self.assertEqual(
             _ends(compute_solve_inequality("x >= 1.23456789", "x")), [("1.23456789", "Infinity", True, False)]

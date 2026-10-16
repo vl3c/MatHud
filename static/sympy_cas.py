@@ -29,6 +29,8 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 MAX_EXPRESSION_LENGTH = 1000
 # Integer literals with more digits than this are refused.
 MAX_INTEGER_DIGITS = 60
+# A decimal is read as nsimplify's fraction only when they agree this closely (relative).
+DECIMAL_AGREEMENT = 1e-14
 # A power of two numbers is left unevaluated when the exponent is larger than this, so
 # 10^10^10 cannot exhaust memory before the time limit stops the worker.
 MAX_EVALUATED_EXPONENT = 10_000
@@ -206,11 +208,13 @@ class _Builder:
         if abs(value) >= 10.0**MAX_INTEGER_DIGITS:
             raise ExpressionError(f"Numbers have at most {MAX_INTEGER_DIGITS} digits before the point.")
         # A decimal such as 0.5 is read as the exact rational it stands for: nsimplify's
-        # (0.333333333333333 as 1/3), unless the decimal itself is shorter (1e-300 as 10^-300,
-        # where nsimplify gives a fraction of two 300-digit numbers).
+        # (0.333333333333333 as 1/3) when it is the decimal up to rounding and no longer than
+        # it (1e-300 as 10^-300, where nsimplify gives a fraction of two 300-digit numbers;
+        # 1.0000000001 as itself, where nsimplify gives 1).
         simplified = sp.nsimplify(sp.Float(repr(value)), rational=True)
         exact = sp.Rational(repr(value))
-        return simplified if len(str(simplified)) <= len(str(exact)) else exact
+        close = abs(float(simplified) - value) <= DECIMAL_AGREEMENT * abs(value)
+        return simplified if close and len(str(simplified)) <= len(str(exact)) else exact
 
     def _name(self, name: str) -> Any:
         sp = self.sp
