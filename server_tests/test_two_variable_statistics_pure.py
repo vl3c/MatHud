@@ -77,6 +77,9 @@ class TestEqualValues(unittest.TestCase):
                 result = compute_two_variable_statistics([1, 2, 3], [value] * 3)
                 self.assertIsNone(result["r"])
                 self.assertEqual(result["sample_covariance"], 0.0)
+                # The y figures agree with the "all y values are equal" note
+                self.assertEqual(result["y"]["sample_standard_deviation"], 0.0)
+                self.assertEqual(result["y"]["population_variance"], 0.0)
 
     def test_large_values_with_small_spread_are_not_constant(self) -> None:
         # An absolute rule like fit_linear's would call this x constant

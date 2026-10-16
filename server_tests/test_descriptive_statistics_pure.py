@@ -7,6 +7,7 @@ import unittest
 
 from utils.statistics.descriptive import (
     compute_descriptive_statistics,
+    population_spread,
 )
 
 SPREAD_KEYS = (
@@ -136,10 +137,15 @@ class TestVarianceAndStdDev(unittest.TestCase):
         self.assertEqual(result["sample_variance"], 250.0)
 
     def test_all_same_values(self) -> None:
-        result = compute_descriptive_statistics([3, 3, 3])
-        for key in SPREAD_KEYS:
-            with self.subTest(key=key):
-                self.assertEqual(result[key], 0.0)
+        # The fsum mean of [0.1] * 3 misses 0.1 by an ulp; the spread must still be 0
+        constant = random.Random(122).uniform(-1e5, 1e5)
+        for data in ([3, 3, 3], [0.1] * 3, [0.7] * 11, [constant] * 7):
+            result = compute_descriptive_statistics(data)
+            for key in SPREAD_KEYS:
+                with self.subTest(data=data, key=key):
+                    self.assertEqual(result[key], 0.0)
+            with self.subTest(data=data):
+                self.assertEqual(population_spread(data), (0.0, 0.0))
 
     def test_population_and_sample_formulas(self) -> None:
         # [2, 8]: mean=5, squared deviations sum to 18: population 18/2, sample 18/1

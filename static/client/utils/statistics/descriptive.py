@@ -128,6 +128,17 @@ def _variance_and_deviation(scale: float, scaled: float, divisor: int) -> Tuple[
     return std_dev * std_dev, std_dev
 
 
+def _spread_sums(values: List[float], mean: float, all_equal: bool) -> Tuple[float, float]:
+    """Return _sum_of_squares' (scale, scaled), with exactly zero spread when *all_equal*.
+
+    The fsum mean of a constant list can miss the value by an ulp ([0.1] * 3 gives
+    0.10000000000000002), which would leave a tiny nonzero standard deviation.
+    """
+    if all_equal:
+        return 1.0, 0.0
+    return _sum_of_squares(values, mean)
+
+
 def population_spread(values: List[float], name: str = "data") -> Tuple[float, float]:
     """Return the population (variance, standard deviation) of *values*.
 
@@ -136,7 +147,7 @@ def population_spread(values: List[float], name: str = "data") -> Tuple[float, f
     the error messages.
     """
     _validate_data(values, name)
-    scale, scaled = _sum_of_squares(values, _compute_mean(values))
+    scale, scaled = _spread_sums(values, _compute_mean(values), min(values) == max(values))
     return _variance_and_deviation(scale, scaled, len(values))
 
 
@@ -235,7 +246,7 @@ def compute_descriptive_statistics(
     mode = _compute_mode(sorted_data)
 
     # Spread: population figures divide by n, sample figures by n - 1
-    scale, scaled = _sum_of_squares(sorted_data, mean)
+    scale, scaled = _spread_sums(sorted_data, mean, sorted_data[0] == sorted_data[-1])
     population_variance, population_std_dev = _variance_and_deviation(scale, scaled, n)
     sample_variance: Optional[float] = None
     sample_std_dev: Optional[float] = None

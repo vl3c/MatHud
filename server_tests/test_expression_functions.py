@@ -372,6 +372,9 @@ class TestPopulationSpread(unittest.TestCase):
         self.assertEqual(MathUtils.pstdev(self.DATA), 2.0)
         self.assertEqual(MathUtils.pvariance(self.DATA), 4.0)
         self.assertEqual(MathUtils.pstdev([5]), 0.0)
+        # The fsum mean of [0.1] * 3 misses 0.1 by an ulp; a constant list still has no spread
+        self.assertEqual(MathUtils.pstdev([0.1, 0.1, 0.1]), 0.0)
+        self.assertEqual(MathUtils.pvariance([0.1, 0.1, 0.1]), 0.0)
         self.assertAlmostEqual(MathUtils.stdev(self.DATA) - MathUtils.pstdev(self.DATA), 0.13808993529939517)
 
     def test_bit_identical_to_the_tool(self) -> None:
