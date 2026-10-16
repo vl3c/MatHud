@@ -53,6 +53,11 @@ from .test_math_functions import (
     TestSequencesAndSeriesEvaluate,
 )
 from .test_math_utils_solving import TestMathUtilsSolving
+from .test_inequality_solver import (
+    TestInequalityHelpers,
+    TestInequalitySolverSympy,
+    TestInequalitySolverWithoutSympy,
+)
 from .test_cas_known_answers import TestCasKnownAnswers, TestCasKnownAnswersNerdamer, TestCasSympyAnswers
 from .test_periodicity_detection import TestPeriodicityDetection, TestPeriodicityEdgeCases
 from .test_geometry_utils import TestGeometryUtils, TestConvexHull, TestPointInConvexHull
@@ -552,6 +557,9 @@ class Tests:
             TestMathFunctions,
             TestNumberTheory,
             TestMathUtilsSolving,
+            TestInequalityHelpers,
+            TestInequalitySolverSympy,
+            TestInequalitySolverWithoutSympy,
             TestCasKnownAnswers,
             TestCasKnownAnswersNerdamer,
             TestCasSympyAnswers,

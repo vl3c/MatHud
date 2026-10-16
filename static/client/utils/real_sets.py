@@ -185,7 +185,7 @@ def is_plain_number(text: str) -> bool:
     for part in parts:
         try:
             float(part)
-        except ValueError:
+        except (ValueError, TypeError):  # Brython raises TypeError
             return False
         if not all(char.isdigit() or char in ".eE+-" for char in part):
             return False  # float() also reads "inf" and "nan"
@@ -198,14 +198,11 @@ def is_plain_number(text: str) -> bool:
 def _value(function: RealFunction, point: float) -> Optional[float]:
     """function(point) as a float; None where it is undefined (not real, 0/0 or a pole), +-inf for an overflow."""
     value = function(point)
-    if value is None:
+    if value is None or value != value:  # None, or NaN
         return None
-    value = float(value)
-    if math.isnan(value):
+    if (value == math.inf or value == -math.inf) and not _overflows(function, point):
         return None
-    if math.isinf(value) and not _overflows(function, point):
-        return None
-    return value
+    return float(value)
 
 
 def _overflows(function: RealFunction, point: float) -> bool:
@@ -304,8 +301,48 @@ def _contained(pieces: Sequence[Piece], point: float) -> bool:
     return any(piece.contains(point) for piece in pieces)
 
 
+def _membership(pieces: Sequence[Piece], points: Sequence[float]) -> List[bool]:
+    """_contained for each of the sorted points, in one sweep over the sorted pieces."""
+    result: List[bool] = []
+    index = 0
+    count = len(pieces)
+    for point in points:
+        while index < count and pieces[index].upper < point:
+            index += 1
+        inside = index < count and pieces[index].contains(point)
+        if not inside and index + 1 < count:
+            inside = pieces[index + 1].contains(point)  # [0, 1) and [1, 2] share the point 1
+        result.append(inside)
+    return result
+
+
+def _grid_states(
+    relations: Sequence[Relation], points: Sequence[float]
+) -> Tuple[List[List[Optional[float]]], List[Optional[bool]]]:
+    """(each relation's values at the points, whether the inequality holds there: None where undefined)."""
+    columns = [[_value(relation.difference, point) for point in points] for relation in relations]
+    if len(relations) == 1:
+        column, sign = columns[0], relations[0].sign
+        return columns, [None if value is None else _compare(value, sign) for value in column]
+    states: List[Optional[bool]] = []
+    for index in range(len(points)):
+        state: Optional[bool] = True
+        for relation, column in zip(relations, columns):
+            value = column[index]
+            if value is None:
+                state = None
+                break
+            if state and not _compare(value, relation.sign):
+                state = False
+        states.append(state)
+    return columns, states
+
+
 def _near_end(ends: Sequence[float], point: float) -> bool:
-    return any(abs(point - end) <= 2 * NEIGHBOUR_STEP * max(1.0, abs(end)) for end in ends)
+    for end in ends:
+        if abs(point - end) <= 2 * NEIGHBOUR_STEP * max(1.0, abs(end)):
+            return True
+    return False
 
 
 # ----- checking a set ---------------------------------------------------------------------
@@ -328,12 +365,11 @@ def verify_solution_set(
     """
     ends = [end for piece in pieces for end in (piece.lower, piece.upper) if math.isfinite(end)]
     window_ends = [end for end in (window.lower, window.upper) if math.isfinite(end)] if window is not None else []
+    skipped = ends + window_ends
+    points = [point for point in sample_grid(window) if not _near_end(skipped, point)]
+    states = _grid_states(relations, points)[1]
     checked = 0
-    for point in sample_grid(window):
-        if _near_end(ends + window_ends, point):
-            continue
-        state = holds(relations, point)
-        inside = _contained(pieces, point)
+    for state, inside in zip(states, _membership(pieces, points)):
         if state is None:
             if inside:
                 return "refuted"
@@ -343,7 +379,10 @@ def verify_solution_set(
             return "refuted"
     if checked == 0:
         return "unchecked"
-    candidates = list(ends) + [point for point in seeds if window is None or window.contains(point)]
+    # A seed is a numeric root, off by rounding: one beside an end is the end
+    candidates = list(ends) + [
+        point for point in seeds if (window is None or window.contains(point)) and not _near_end(ends, point)
+    ]
     if window is not None:
         candidates += [end for end in (window.lower, window.upper) if math.isfinite(end) and window.contains(end)]
     for point in candidates:
@@ -380,8 +419,7 @@ def sign_chart(
             out (no reliable outer interval) or the set has more than MAX_PIECES intervals.
     """
     points = sorted(set(sample_grid(window)) | {seed for seed in seeds if window is None or window.contains(seed)})
-    values = [[_value(relation.difference, point) for point in points] for relation in relations]
-    states = [_state(relations, [column[index] for column in values]) for index in range(len(points))]
+    values, states = _grid_states(relations, points)
     if all(state is None for state in states):
         raise SignChartFailure("the inequality cannot be evaluated")
     if window is None or not (math.isfinite(window.lower) and math.isfinite(window.upper)):
@@ -392,13 +430,6 @@ def sign_chart(
     if len(pieces) > MAX_PIECES:
         raise SignChartFailure(f"the solution set has more than {MAX_PIECES} intervals; give a smaller interval")
     return pieces
-
-
-def _state(relations: Sequence[Relation], values: Sequence[Optional[float]]) -> Optional[bool]:
-    """holds() from the relations' values at a point."""
-    if any(value is None for value in values):
-        return None
-    return all(_compare(float(value), relation.sign) for relation, value in zip(relations, values) if value is not None)
 
 
 def _check_tails(states: List[Optional[bool]]) -> None:
@@ -418,12 +449,12 @@ def _with_touching_points(
     found: List[float] = []
     searches = 0
     for relation, column in zip(relations, values):
+        sizes = [math.inf if value is None else abs(value) for value in column]
         for index in range(1, len(points) - 1):
-            trio = column[index - 1 : index + 2]
-            if any(value is None or not math.isfinite(value) for value in trio):
-                continue
-            left, middle, right = (abs(value) for value in trio if value is not None)
-            if not (middle < left and middle < right) or states[index - 1] != states[index + 1]:
+            middle = sizes[index]
+            if not (middle < sizes[index - 1] and middle < sizes[index + 1]):
+                continue  # not a dip (an undefined or infinite neighbour counts as infinitely large)
+            if sizes[index - 1] == math.inf or sizes[index + 1] == math.inf or states[index - 1] != states[index + 1]:
                 continue
             searches += 1
             if searches > MAX_TOUCH_SEARCHES:

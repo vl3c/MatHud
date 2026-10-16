@@ -2042,8 +2042,8 @@ class MathUtils:
             return 0
 
     @staticmethod
-    def solve(equation: str, variable: str) -> str:
-        """Solve an equation for a specific variable.
+    def solve(equation: str, variable: str, interval: Optional[str] = None) -> str:
+        """Solve an equation, or an inequality (InequalitySolver), for a specific variable.
 
         Uses Nerdamer symbolic computation for equation solving, then checks each root by
         substituting it back: roots that fail the equation or make it undefined (x = 1 in
@@ -2052,20 +2052,28 @@ class MathUtils:
         forms lose (it finds none for x^3+x+1 = 0) are added from a numeric root finder.
 
         Args:
-            equation (str): Mathematical equation (e.g., "x^2 + 2*x - 3 = 0")
+            equation (str): Mathematical equation (e.g., "x^2 + 2*x - 3 = 0"), or an
+                inequality ("x^2 - 5x + 6 < 0", "1 < 2x+1 <= 5")
             variable (str): Variable to solve for (e.g., "x")
+            interval (str): For an inequality, the interval its answer is restricted to
+                ("[0, 2*pi]", brackets honoured), or None
 
         Returns:
             str: The roots as "[r1,r2,...]" ("[]" when there are none), a sentence for an
             identity, or an error message. When a periodic equation has many numeric roots,
-            only those in [-2*pi, 2*pi] are listed, with a note saying so.
+            only those in [-2*pi, 2*pi] are listed, with a note saying so. An inequality's
+            solution set as inequalities and in interval notation (InequalitySolver.solve).
         """
         from utils.cas_text import has_inequality
 
         if not isinstance(equation, str):
             return "Error: The equation must be given as text."
         if has_inequality(MathUtils._normalize_symbols(equation)):
-            return "Error: solve handles equations (with '='), not inequalities."
+            from utils.inequality_solver import InequalitySolver
+
+            return str(InequalitySolver.solve(equation, variable, interval))
+        if interval is not None and str(interval).strip():
+            return "Error: interval applies to inequalities; leave it null for an equation."
         try:
             equation, variable = MathUtils._cas_input(equation), MathUtils._normalize_variable(variable)
         except Exception as e:

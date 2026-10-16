@@ -230,6 +230,8 @@ class TestVerification(unittest.TestCase):
         self.assertEqual(verify_solution_set(relations, [Piece(2, 2.5, False, False)]), "refuted")
         # A dropped isolated point: the seed (a polynomial root) shows it
         self.assertEqual(verify_solution_set(_relations("x^2 <= 0"), [], seeds=[0.0]), "refuted")
+        # Seeds are numeric roots: one rounding off an end is that end
+        self.assertEqual(verify_solution_set(relations, [Piece(2, 3, False, False)], seeds=[2 + 4e-16]), "confirmed")
         # SymPy's tan(x) > 1 on [0, 2*pi] misses a period
         window = _window(0, TWO_PI, "0", "2*pi")
         self.assertEqual(
