@@ -4,7 +4,7 @@ Generated on: 2026-09-24 22:34:22
 
 AI-FIRST PRODUCT DIRECTION
 --------------------------------------------------
-- Vision: this app is the prototype and foundation of a mathematical heads-up display that models and explains real situations on smart glasses or in VR, in 3D as well as 2D (desktop and web now, Android as the next platform). Scope: practical math from the graphing calculator tradition.
+- Vision: this app is the prototype and foundation of a mathematical heads-up display that models and explains real situations on smart glasses or in VR, in 3D as well as 2D (desktop and web now, Android as the next platform, then glasses and VR; 3D comes to this app first; it may be rewritten in another stack, see Project Architecture). Scope: practical math from the graphing calculator tradition.
 - Users express intent in chat; AI executes workflows and updates canvas state.
 - Canvas/HUD is the display and validation surface for AI actions.
 - Feature planning should optimize intent resolution quality, deterministic execution, and explainable results.
