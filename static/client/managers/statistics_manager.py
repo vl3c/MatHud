@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import math
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, cast
 
 from constants import default_area_fill_color, default_area_opacity
 from drawables.bars_plot import BarsPlot
@@ -25,7 +25,7 @@ from drawables.bar import Bar
 from drawables.discrete_plot import DiscretePlot
 from drawables.plot import Plot
 from plot_kinds import PLOT_CLASS_NAMES, derived_bar_name, plot_kind
-from utils.statistics.distributions import default_normal_bounds, normal_pdf, normal_pdf_expression
+from utils.statistics.distributions import DEFAULT_DISTRIBUTION_TYPE, DistributionSpec, get_distribution
 from utils.statistics.descriptive import (
     compute_descriptive_statistics as _compute_descriptive_statistics,
 )
@@ -124,28 +124,28 @@ class StatisticsManager:
         )
         result_payload: Optional[Dict[str, Any]] = None
         try:
-            dist = str(distribution_type or "").strip().lower()
-            if dist != "normal":
-                raise ValueError(f"Unsupported distribution_type '{distribution_type}'")
+            # No default: the tool requires a type, and an empty one is an error.
+            spec = get_distribution(distribution_type)
+            dist = spec.name
 
             rep = str(representation or "").strip().lower()
             if rep not in ("continuous", "discrete"):
                 raise ValueError("representation must be 'continuous' or 'discrete'")
 
-            mean, sigma = self._parse_normal_params(distribution_params)
+            params = spec.parse_params(distribution_params)
             plot_bounds_dict = plot_bounds if isinstance(plot_bounds, dict) else {}
             plot_left_raw = plot_bounds_dict.get("left_bound")
             plot_right_raw = plot_bounds_dict.get("right_bound")
-            resolved_left, resolved_right = self._resolve_bounds(mean, sigma, plot_left_raw, plot_right_raw)
+            resolved_left, resolved_right = self._resolve_bounds(spec, params, plot_left_raw, plot_right_raw)
 
-            plot_name = self._generate_unique_name(self.name_generator.filter_string(name or "") or "normal_plot")
+            plot_name = self._generate_unique_name(self.name_generator.filter_string(name or "") or f"{dist}_plot")
 
             if rep == "discrete":
                 result_payload = self._plot_distribution_discrete(
                     plot_name=plot_name,
                     distribution_type=dist,
-                    mean=mean,
-                    sigma=sigma,
+                    distribution_params=params,
+                    height=lambda x: spec.pdf(x, params),
                     left_bound=resolved_left,
                     right_bound=resolved_right,
                     curve_color=curve_color,
@@ -155,7 +155,7 @@ class StatisticsManager:
                 )
                 return result_payload
 
-            expression = normal_pdf_expression(mean, sigma)
+            expression = spec.pdf_expression(params)
 
             function_preferred = f"{plot_name}_pdf"
             function_name = self.name_generator.generate_function_name(function_preferred)
@@ -208,7 +208,7 @@ class StatisticsManager:
                 distribution_type=dist,
                 function_name=function_name,
                 fill_area_name=fill_area_name,
-                distribution_params={"mean": mean, "sigma": sigma},
+                distribution_params=dict(params),
                 bounds={"left": resolved_left, "right": resolved_right},
             )
             self.drawables.add(plot)
@@ -223,7 +223,7 @@ class StatisticsManager:
                 "plot_name": plot_name,
                 "representation": "continuous",
                 "distribution_type": dist,
-                "distribution_params": {"mean": mean, "sigma": sigma},
+                "distribution_params": dict(params),
                 "bounds": {"left": resolved_left, "right": resolved_right},
                 "shade_bounds": {"left": shade_left, "right": shade_right},
                 "function_name": function_name,
@@ -665,6 +665,8 @@ class StatisticsManager:
         Create Bar drawables for a DiscretePlot from its stored parameters.
 
         This is intended for workspace restore and does not archive undo history.
+        A plot saved without a distribution_type is a normal one. Invalid saved parameters
+        make no bars; so does an unknown distribution_type, with a warning.
         """
         if plot is None:
             return
@@ -684,22 +686,23 @@ class StatisticsManager:
         if not math.isfinite(left_f) or not math.isfinite(right_f) or left_f >= right_f:
             return
 
-        params = getattr(plot, "distribution_params", None)
-        params = params if isinstance(params, dict) else {}
-        try:
-            mean = float(params.get("mean", 0.0))
-            sigma = float(params.get("sigma", 1.0))
-        except Exception:
-            return
-        if not math.isfinite(mean) or not math.isfinite(sigma) or sigma <= 0.0:
-            return
-
         bar_count = getattr(plot, "bar_count", None)
         try:
             n = int(bar_count) if bar_count is not None else 0
         except Exception:
             n = 0
         if n <= 0:
+            return
+
+        try:
+            spec = get_distribution(getattr(plot, "distribution_type", None), default=DEFAULT_DISTRIBUTION_TYPE)
+        except ValueError as exc:
+            print(f"Warning: Could not rebuild the bars of plot '{plot_name}': {exc}")
+            return
+        try:
+            # Strict: a saved parameter that is present but null is invalid, not defaulted.
+            params = spec.parse_params(getattr(plot, "distribution_params", None), strict=True)
+        except Exception:
             return
 
         labels = getattr(plot, "bar_labels", None)
@@ -712,8 +715,7 @@ class StatisticsManager:
             left_bound=left_f,
             right_bound=right_f,
             bar_count=n,
-            mean=mean,
-            sigma=sigma,
+            height=lambda x: spec.pdf(x, params),
             curve_color=getattr(plot, "curve_color", None),
             fill_color=getattr(plot, "fill_color", None),
             fill_opacity=getattr(plot, "fill_opacity", None),
@@ -803,8 +805,8 @@ class StatisticsManager:
         *,
         plot_name: str,
         distribution_type: str,
-        mean: float,
-        sigma: float,
+        distribution_params: Dict[str, float],
+        height: Callable[[float], float],
         left_bound: float,
         right_bound: float,
         curve_color: Optional[str],
@@ -825,7 +827,7 @@ class StatisticsManager:
             curve_color=None if curve_color is None else str(curve_color),
             fill_color=self._normalize_fill_color(fill_color),
             fill_opacity=self._normalize_fill_opacity(fill_opacity),
-            distribution_params={"mean": mean, "sigma": sigma},
+            distribution_params=dict(distribution_params),
             bounds={"left": left_bound, "right": right_bound},
             metadata={"bar_count": n},
         )
@@ -835,8 +837,7 @@ class StatisticsManager:
                 left_bound=left_bound,
                 right_bound=right_bound,
                 bar_count=n,
-                mean=mean,
-                sigma=sigma,
+                height=height,
                 curve_color=curve_color,
                 fill_color=fill_color,
                 fill_opacity=fill_opacity,
@@ -852,7 +853,7 @@ class StatisticsManager:
             "plot_name": plot_name,
             "representation": "discrete",
             "distribution_type": distribution_type,
-            "distribution_params": {"mean": mean, "sigma": sigma},
+            "distribution_params": dict(distribution_params),
             "bounds": {"left": left_bound, "right": right_bound},
             "bar_count": n,
         }
@@ -864,14 +865,13 @@ class StatisticsManager:
         left_bound: float,
         right_bound: float,
         bar_count: int,
-        mean: float,
-        sigma: float,
+        height: Callable[[float], float],
         curve_color: Optional[str],
         fill_color: Optional[str],
         fill_opacity: Optional[float],
         labels: Optional[List[str]],
     ) -> None:
-        """Create the bars of a discrete normal plot, each as tall as the pdf at its midpoint."""
+        """Create the bars of a discrete distribution plot, each as tall as ``height`` at its midpoint."""
         width = (right_bound - left_bound) / float(bar_count)
         bar_manager = self._get_bar_manager()
         existing_bar_names = self._existing_names("Bar")
@@ -888,7 +888,7 @@ class StatisticsManager:
                 x_left=x_left,
                 x_right=x_right,
                 y_bottom=0.0,
-                y_top=normal_pdf((x_left + x_right) / 2.0, mean, sigma),
+                y_top=height((x_left + x_right) / 2.0),
                 stroke_color=curve_color,
                 fill_color=self._normalize_fill_color(fill_color),
                 fill_opacity=self._normalize_fill_opacity(fill_opacity),
@@ -1095,32 +1095,14 @@ class StatisticsManager:
                 return candidate
             idx += 1
 
-    def _parse_normal_params(self, params: Optional[Dict[str, Any]]) -> tuple[float, float]:
-        params = params if isinstance(params, dict) else {}
-
-        mean_raw = params.get("mean")
-        sigma_raw = params.get("sigma")
-
-        mean = 0.0 if mean_raw is None else float(mean_raw)
-        sigma = 1.0 if sigma_raw is None else float(sigma_raw)
-
-        if not math.isfinite(mean):
-            raise ValueError("mean must be finite")
-        if not math.isfinite(sigma):
-            raise ValueError("sigma must be finite")
-        if sigma <= 0.0:
-            raise ValueError("sigma must be > 0")
-
-        return mean, sigma
-
     def _resolve_bounds(
         self,
-        mean: float,
-        sigma: float,
+        spec: DistributionSpec,
+        params: Dict[str, float],
         left_bound: Optional[float],
         right_bound: Optional[float],
     ) -> tuple[float, float]:
-        default_left, default_right = default_normal_bounds(mean, sigma, k=4.0)
+        default_left, default_right = spec.default_bounds(params)
         left = default_left if left_bound is None else float(left_bound)
         right = default_right if right_bound is None else float(right_bound)
 
