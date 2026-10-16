@@ -201,6 +201,31 @@ class TestOperations(unittest.TestCase):
         # Roots that pile up at 0 cannot all be listed
         self.assertIsNone(compute_solve("sin(1/x)=0", "x"))
 
+    def test_solve_on_an_interval(self) -> None:
+        cosine = compute_solve("cos(x)=3/10", "x", "0", "20", "[]")
+        assert cosine is not None
+        self.assertEqual(cosine["roots"][:3], ["acos(3/10)", "-acos(3/10)+2*pi", "acos(3/10)+2*pi"])
+        self.assertEqual(len(cosine["roots"]), 6)
+        tangent = compute_solve("tan(x)=1", "x", "0", "20", "[]")
+        assert tangent is not None
+        self.assertEqual(tangent["roots"], ["pi/4", "5*pi/4", "9*pi/4", "13*pi/4", "17*pi/4", "21*pi/4", "25*pi/4"])
+        self.assertEqual(compute_solve("x^2=2", "x", "0", "5", "[]"), {"roots": ["sqrt(2)"]})
+        self.assertEqual(compute_solve("x^2=4", "x", "-Infinity", "0", "(]"), {"roots": ["-2"]})
+        # The brackets are honoured
+        self.assertEqual(compute_solve("sin(x)=0", "x", "0", "2*pi", "[)"), {"roots": ["0", "pi"]})
+        self.assertEqual(compute_solve("sin(x)=0", "x", "0", "2*pi", "[]"), {"roots": ["0", "pi", "2*pi"]})
+        self.assertEqual(compute_solve("sin(x)=0", "x", "0", "pi", "()"), {"roots": []})
+        self.assertEqual(compute_solve("x-x=0", "x", "0", "5", "[]"), {"identity": True, "roots": []})
+        self.assertEqual(compute_solve("x^2+1=0", "x", "0", "5", "[]"), {"roots": []})
+        self.assertIsNone(compute_solve("cos(x)=x", "x", "0", "5", "[]"))
+
+    def test_solve_on_an_interval_lists_at_most_sixty_roots(self) -> None:
+        solution = compute_solve("sin(x)=0", "x", "0", "1000", "[]")
+        assert solution is not None
+        self.assertEqual(len(solution["roots"]), 60)
+        self.assertEqual(solution["roots"][-1], "59*pi")
+        self.assertEqual(solution["total"], 319)
+
     def test_handle(self) -> None:
         self.assertEqual(handle({"operation": "simplify", "args": {"expression": "2x+3x"}}), {"result": "5*x"})
         self.assertIn("error", handle({"operation": "simplify", "args": {"expression": "x.y"}}))
@@ -361,6 +386,7 @@ class TestResponsesAreBrythonSafe(unittest.TestCase):
             ("solve_inequality", {"inequality": "sin(x) > 1/2", "variable": "x", "lower": "0", "upper": "1e5"}),
             ("solve", {"equation": "x^3+x+1=0", "variable": "x"}),
             ("solve", {"equation": "x^2=1e40", "variable": "x"}),
+            ("solve", {"equation": "sin(x)=0", "variable": "x", "lower": "0", "upper": "1000", "bounds": "[)"}),
             ("simplify", {"expression": "2^60"}),
             ("integrate", {"expression": "x", "variable": "x", "lower": "0", "upper": "1e10"}),
         ]

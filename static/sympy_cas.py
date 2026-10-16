@@ -436,7 +436,13 @@ def compute_simplify(expression: str) -> Optional[str]:
     return to_text(result) if _is_usable(result) else None
 
 
-def compute_solve(equation: str, variable: str) -> Optional[Dict[str, Any]]:
+def compute_solve(
+    equation: str,
+    variable: str,
+    lower: Optional[str] = None,
+    upper: Optional[str] = None,
+    bounds: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
     """The solution set of lhs = rhs, or None when it is not a list of roots.
 
     Returns {"roots": [...]} or {"identity": True, "roots": []}. A periodic solution set
@@ -444,12 +450,19 @@ def compute_solve(equation: str, variable: str) -> Optional[Dict[str, Any]]:
     MAX_LISTED_ROOTS), with "window" set to that bound and "general" to its general forms
     (x = a*n + b for any integer n) when they are affine in n. A polynomial or rational
     equation is solved over the complex numbers, any other over the reals.
+
+    With lower and upper (and bounds, see _interval), the real roots in that interval are
+    listed: at most MAX_LISTED_ROOTS, the smallest first, with "total" set to their number
+    when there are more.
     """
     import sympy as sp
 
     sides = str(equation).split("=")
     if len(sides) > 2:
         raise ExpressionError("An equation has at most one '='.")
+    domain = _interval(lower, upper, bounds)
+    if domain is not None:
+        return _roots_in_interval(sides, variable, domain)
     x = _symbol(variable, real=False)
     difference = parse_expression(sides[0]) - (parse_expression(sides[1]) if len(sides) == 2 else 0)
     numerator, denominator = sp.fraction(sp.together(difference))
@@ -471,6 +484,31 @@ def compute_solve(equation: str, variable: str) -> Optional[Dict[str, Any]]:
             return None
         return {"roots": [to_text(root) for root in _sorted_roots(listed)]}
     return _periodic_solution(solutions, variable)
+
+
+def _roots_in_interval(sides: Sequence[str], variable: str, domain: Any) -> Optional[Dict[str, Any]]:
+    """The real roots of lhs = rhs in domain (an Interval), or None when they are not a finite list."""
+    import sympy as sp
+
+    x = _symbol(variable, real=True)
+    difference = parse_expression(sides[0], real=True) - (
+        parse_expression(sides[1], real=True) if len(sides) == 2 else 0
+    )
+    solutions = sp.solveset(difference, x, domain=domain)
+    if solutions == domain:
+        return {"identity": True, "roots": []}
+    if solutions == sp.S.EmptySet:
+        return {"roots": []}
+    if not isinstance(solutions, sp.FiniteSet):
+        return None  # a condition set (cos(x) = x) or roots solveset cannot list (sin(x^2) = 0)
+    listed = [_displayed_root(root) for root in solutions]
+    if not all(_is_usable(root) and _is_real_value(root) for root in listed):
+        return None
+    ordered = _sorted_roots(listed)
+    result: Dict[str, Any] = {"roots": [to_text(root) for root in ordered[:MAX_LISTED_ROOTS]]}
+    if len(ordered) > MAX_LISTED_ROOTS:
+        result["total"] = len(ordered)
+    return result
 
 
 # At most this many roots of a periodic equation are listed (the window shrinks to fit).

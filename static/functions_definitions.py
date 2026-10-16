@@ -1653,7 +1653,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "solve",
-            "description": "Solves an equation, or an inequality in one variable, for a variable. Equations give the list of roots. Inequalities (<, <=, >, >=, also chained such as 1 < 2x+1 <= 5) give the solution set as inequalities and in interval notation, e.g. '2 < x < 3; interval notation: (2, 3)'. interval restricts an inequality's answer to an interval such as '[0, 2*pi]' (brackets are honoured: '[0, 2*pi)' leaves out 2*pi); leave it null unless the user names one. A periodic inequality without one is solved on [-2*pi, 2*pi], as periodic roots are.",
+            "description": "Solves an equation, or an inequality in one variable, for a variable. Equations give the list of roots. Inequalities (<, <=, >, >=, also chained such as 1 < 2x+1 <= 5) give the solution set as inequalities and in interval notation, e.g. '2 < x < 3; interval notation: (2, 3)'. interval restricts the roots, or an inequality's answer, to an interval such as '[0, 2*pi]' (brackets are honoured: '[0, 2*pi)' leaves out 2*pi); leave it null unless the user names one. Without one, a periodic equation or inequality is answered on [-2*pi, 2*pi].",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -1665,7 +1665,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "variable": {"type": "string", "description": "The variable to solve for. Example: 'x'"},
                     "interval": {
                         "type": ["string", "null"],
-                        "description": "Optional interval for an inequality's answer, e.g. '[0, 2*pi]' or '[0, 2*pi)'; null unless the user names one.",
+                        "description": "Optional interval for the roots or the inequality's answer, e.g. '[0, 2*pi]' or '[0, 2*pi)'; null unless the user names one.",
                     },
                 },
                 "required": ["equation", "variable", "interval"],

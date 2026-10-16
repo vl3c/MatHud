@@ -202,11 +202,19 @@ class InequalitySolver:
         from utils.sympy_client import SympyClient
 
         args: Dict[str, Optional[str]] = {"inequality": relation_text.replace(" ", ""), "variable": variable}
-        if window is not None:
-            args["lower"] = window.lower_text if math.isfinite(window.lower) else "-Infinity"
-            args["upper"] = window.upper_text if math.isfinite(window.upper) else "Infinity"
-            args["bounds"] = ("[" if window.lower_closed else "(") + ("]" if window.upper_closed else ")")
+        args.update(InequalitySolver.sympy_interval_args(window))
         return cast(Optional[Dict[str, Any]], SympyClient.compute("solve_inequality", **args))
+
+    @staticmethod
+    def sympy_interval_args(window: Optional[Window]) -> Dict[str, Optional[str]]:
+        """The window as the SymPy engine's lower, upper and bounds arguments; none without a window."""
+        if window is None:
+            return {}
+        return {
+            "lower": window.lower_text if math.isfinite(window.lower) else "-Infinity",
+            "upper": window.upper_text if math.isfinite(window.upper) else "Infinity",
+            "bounds": ("[" if window.lower_closed else "(") + ("]" if window.upper_closed else ")"),
+        }
 
     @staticmethod
     def _pieces(intervals: Any) -> Optional[List[Piece]]:
