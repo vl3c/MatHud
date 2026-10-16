@@ -6,6 +6,8 @@ import random
 import statistics
 import time
 import unittest
+from fractions import Fraction
+from typing import List, Tuple
 
 from utils.statistics.descriptive import compute_descriptive_statistics
 from utils.statistics.tool import SAMPLE_FIGURES_NOTE, compute_descriptive_statistics_tool
@@ -112,11 +114,65 @@ class TestNumerics(unittest.TestCase):
         # The deviation of -1.7e308 from the mean overflows; r is still exact
         result = compute_two_variable_statistics([-1.7e308, 1.7e308, 1.7e308], [1, 2, 2])
         self.assertEqual(result["r"], 1.0)
-        self.assertEqual(result["sample_covariance"], math.inf)
+        self.assertTrue(math.isfinite(result["sample_covariance"]))
+
+    @staticmethod
+    def _exact_covariances(x: List[float], y: List[float]) -> Tuple[float, float]:
+        n = len(x)
+        fx = [Fraction(v) for v in x]
+        fy = [Fraction(v) for v in y]
+        mean_x = sum(fx) / n
+        mean_y = sum(fy) / n
+        sxy = sum((a - mean_x) * (b - mean_y) for a, b in zip(fx, fy))
+        return float(sxy / (n - 1)), float(sxy / n)
+
+    def test_covariance_beyond_the_float_limit_matches_exact_arithmetic(self) -> None:
+        cases = [
+            # Sxy is 0: the covariance must be 0, not inf * 0 = nan
+            ([-1.7e308, 1.7e308, 1.7e308], [0, 1, -1]),
+            # A finite covariance from deviations that overflow
+            ([-1.7e308, 1.7e308, 1.7e308], [1, 2, 2]),
+            # Tiny x and huge y: an intermediate y_scale * quotient would overflow
+            ([1e-300, 2e-300], [1.7e308, -1.7e308]),
+            ([1.7e308, -1.7e308, 1e308], [1e-300, 3e-300, 2e-300]),
+        ]
+        for x, y in cases:
+            sample, population = self._exact_covariances(x, y)
+            result = compute_two_variable_statistics(x, y)
+            with self.subTest(x=x, y=y):
+                self.assertFalse(math.isnan(result["sample_covariance"]))
+                self.assertTrue(math.isclose(result["sample_covariance"], sample, rel_tol=1e-12, abs_tol=0.0))
+                self.assertTrue(math.isclose(result["population_covariance"], population, rel_tol=1e-12, abs_tol=0.0))
 
     def test_tiny_values(self) -> None:
         result = compute_two_variable_statistics([1e-300, 2e-300, 3e-300], [3, 2, 1])
         self.assertEqual(result["r"], -1.0)
+
+    def test_covariance_at_any_magnitude_matches_exact_arithmetic(self) -> None:
+        # The error is measured against sqrt(Sxx * Syy) / (n - 1), the size of the terms Sxy cancels
+        rng = random.Random(122)
+        exponents = [-300, -150, 0, 150, 300, 308]
+        for trial in range(300):
+            n = rng.randint(2, 6)
+            x_exp, y_exp = rng.choice(exponents), rng.choice(exponents)
+            x = [rng.uniform(-1.79, 1.79) * 10.0**x_exp for _ in range(n)]
+            y = [rng.uniform(-1.79, 1.79) * 10.0**y_exp for _ in range(n)]
+            fx = [Fraction(v) for v in x]
+            fy = [Fraction(v) for v in y]
+            mean_x, mean_y = sum(fx) / n, sum(fy) / n
+            sxx = sum((a - mean_x) ** 2 for a in fx)
+            syy = sum((b - mean_y) ** 2 for b in fy)
+            exact = sum((a - mean_x) * (b - mean_y) for a, b in zip(fx, fy)) / (n - 1)
+            got = compute_two_variable_statistics(x, y)["sample_covariance"]
+            with self.subTest(trial=trial, x=x, y=y):
+                if abs(exact) > Fraction(1.7976931348623157e308):
+                    self.assertEqual(got, math.inf if exact > 0 else -math.inf)
+                    continue
+                self.assertTrue(math.isfinite(got))
+                error = abs(Fraction(got) - exact)
+                # A result below the smallest normal float keeps only the subnormal step
+                if error > Fraction(1e-323):
+                    self.assertLessEqual(error * error, Fraction(1e-24) * sxx * syy / (n - 1) ** 2)
 
     def test_agrees_with_the_statistics_module(self) -> None:
         rng = random.Random(20261016)

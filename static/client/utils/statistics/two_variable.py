@@ -32,7 +32,7 @@ class TwoVariableStatisticsResult(TypedDict):
 
 @dataclass(frozen=True)
 class PairedSums:
-    """Centred sums of paired data, each axis divided by its largest |deviation|.
+    """Centred sums of paired data, each axis's deviations divided by a finite scale.
 
     The unscaled sums are Sxx = x_scale**2 * sxx, Syy = y_scale**2 * syy and
     Sxy = x_scale * y_scale * sxy; the scaled ones never overflow. A scale is 0
@@ -49,19 +49,29 @@ class PairedSums:
 
     def covariance(self, divisor: int) -> float:
         """Sxy / divisor: n - 1 for the sample covariance, n for the population one."""
-        if self.x_scale == 0.0 or self.y_scale == 0.0:
+        if self.sxy == 0.0:
+            # Also when a scale is 0; a scale near the float limit times 0 must not give nan
             return 0.0
-        # sxy / divisor is at most 2 in size, so this overflows only when the result does
-        return self.x_scale * (self.y_scale * (self.sxy / divisor))
+        # sxy / divisor is at most 8 in size. The scales are multiplied so that no
+        # step overflows (or underflows) unless the result does: the larger scale
+        # times the smaller one when only one is below 1, else times the quotient first.
+        quotient = self.sxy / divisor
+        small, large = sorted((self.x_scale, self.y_scale))
+        if small < 1.0 <= large:
+            return (large * small) * quotient
+        return (large * quotient) * small
 
 
 def _scaled_deviations(values: List[float]) -> Tuple[float, List[float]]:
     """Return (scale, deviations from the mean divided by scale); (0, zeros) for equal values.
 
+    The scale is the largest |deviation|, so the scaled deviations lie in [-1, 1].
     Equal values are tested directly: the fsum mean of a constant list can miss
     the value by an ulp, which would leave tiny nonzero deviations. A deviation
     too large for a float (values near the float limit with opposite signs) is
-    taken from the halved values, and the scale doubled.
+    taken from the halved values: the scale is then the largest halved deviation,
+    which is finite, and the scaled deviations are doubled into [-2, 2], so that
+    the scale itself never overflows.
     """
     if min(values) == max(values):
         return 0.0, [0.0] * len(values)
@@ -76,7 +86,7 @@ def _scaled_deviations(values: List[float]) -> Tuple[float, List[float]]:
         factor = 2.0
     if largest == 0.0:
         return 0.0, [0.0] * len(values)
-    return factor * largest, [d / largest for d in deviations]
+    return largest, [factor * (d / largest) for d in deviations]
 
 
 def paired_sums(x: List[float], y: List[float]) -> PairedSums:
@@ -93,7 +103,7 @@ def paired_sums(x: List[float], y: List[float]) -> PairedSums:
     sxy = math.fsum(a * b for a, b in zip(dx, dy))
     r: Optional[float] = None
     if x_scale > 0.0 and y_scale > 0.0:
-        # Each scaled sum of squares lies in [1, n], so the product cannot overflow
+        # Each scaled sum of squares lies in [1, 4n], so the product cannot overflow
         r = max(-1.0, min(1.0, sxy / math.sqrt(sxx * syy)))
     return PairedSums(count=len(x), x_scale=x_scale, y_scale=y_scale, sxx=sxx, syy=syy, sxy=sxy, r=r)
 
