@@ -837,6 +837,34 @@ class TestMathFunctions(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertIn("Error", str(MathUtils.evaluate(text)))
 
+    def test_evaluate_roots_and_angles(self) -> None:
+        self.assertEqual(float(MathUtils.evaluate("nthroot(-8, 3)")), -2)
+        self.assertEqual(float(MathUtils.evaluate("nthRoot(32, 5)")), 2)
+        self.assertAlmostEqual(float(MathUtils.evaluate("nthroot(16, -2)")), 0.25)
+        self.assertIn("Error", str(MathUtils.evaluate("nthroot(-8, 2)")))  # no real even root
+        self.assertEqual(float(MathUtils.evaluate("cbrt(-27)")), -3)
+        quadrants = {(1, 1): math.pi / 4, (1, -1): 3 * math.pi / 4, (-1, -1): -3 * math.pi / 4, (-1, 1): -math.pi / 4}
+        for (y, x), expected in quadrants.items():
+            with self.subTest(y=y, x=x):
+                self.assertAlmostEqual(float(MathUtils.evaluate(f"atan2({y}, {x})")), expected)
+        self.assertEqual([float(MathUtils.evaluate(f"sign({v})")) for v in (-2.5, 0, 3)], [-1, 0, 1])
+        self.assertEqual(float(MathUtils.evaluate("sgn(-4)")), -1)
+
+    def test_evaluate_gamma_and_erf(self) -> None:
+        self.assertEqual(float(MathUtils.evaluate("gamma(5)")), 24)
+        self.assertAlmostEqual(float(MathUtils.evaluate("gamma(0.5)")), math.sqrt(math.pi))
+        self.assertIn("infinite", str(MathUtils.evaluate("gamma(0)")))  # a pole
+        self.assertAlmostEqual(float(MathUtils.evaluate("erf(0.5)")), 0.5204998778130465)
+
+    def test_evaluate_complex_parts(self) -> None:
+        self.assertEqual(float(MathUtils.evaluate("re(3 + 4i)")), 3)
+        self.assertEqual(float(MathUtils.evaluate("im(3 + 4i)")), 4)
+        self.assertEqual(float(MathUtils.evaluate("real(2 - i) + imag(2 - i)")), 1)
+        self.assertAlmostEqual(float(MathUtils.evaluate("arg(1 + i)")), math.pi / 4)
+        self.assertAlmostEqual(float(MathUtils.evaluate("arg(-1)")), math.pi)
+        self.assertEqual(MathUtils.evaluate("conj(3 + 4i)"), "3 - 4i")
+        self.assertEqual(MathUtils.evaluate("conjugate(3 + 4i)"), "3 - 4i")
+
     def test_evaluate_string_results_have_no_json_quotes(self) -> None:
         self.assertEqual(MathUtils.evaluate("bin(10)"), "0b1010")
         self.assertEqual(MathUtils.evaluate("bin(5)"), "0b101")
@@ -1135,6 +1163,16 @@ class TestMathFunctions(unittest.TestCase):
             self.assertEqual(MathUtils.simplify("x^2 + 2*x + 1"), "x^2+2*x+1")
         with WithoutSympy():
             self.assertEqual(MathUtils.simplify("x^2 + 2*x + 1"), "(1+x)^2")
+
+    def test_simplify_gives_exact_arithmetic(self) -> None:
+        if sympy_available():
+            self.assertEqual(MathUtils.simplify("1/3 + 1/4"), "7/12")
+            self.assertEqual(MathUtils.simplify("sqrt(12)"), "2*sqrt(3)")
+            self.assertEqual(MathUtils.simplify("0.1 + 0.2"), "3/10")
+        with WithoutSympy():
+            # nerdamer's text() prints decimals (0.583333333333333333): exact only with SymPy
+            self.assertAlmostEqual(value_of(MathUtils.simplify("1/3 + 1/4")), 7 / 12)
+            self.assertEqual(MathUtils.simplify("sqrt(12)"), "2*sqrt(3)")
 
     def test_simplify_remainder(self) -> None:
         if sympy_available():

@@ -49,3 +49,14 @@ class TestExpressionEvaluatorZeroResults(unittest.TestCase):
         self.assertIsInstance(result, str)
         # Without a canvas the numeric error itself is reported
         self.assertIn("Result is infinite", result)
+
+    def test_built_in_functions_shadow_canvas_functions_of_the_same_name(self) -> None:
+        # A canvas function is used only when the numeric path refuses the name, so one named
+        # like a row (sign, gamma, mod...) is unreachable by name; changing that would change
+        # existing names such as exp or max as well
+        shadowed = SimpleMock(name="sign", function=lambda x: x + 100)
+        canvas = SimpleMock(get_drawables_by_class_name=SimpleMock(return_value=[shadowed]))
+        self.assertEqual(ExpressionEvaluator.evaluate_expression("sign(2)", canvas=canvas), 1.0)
+        own = SimpleMock(name="signal", function=lambda x: x + 100)
+        canvas = SimpleMock(get_drawables_by_class_name=SimpleMock(return_value=[own]))
+        self.assertEqual(ExpressionEvaluator.evaluate_expression("signal(2)", canvas=canvas), 102.0)

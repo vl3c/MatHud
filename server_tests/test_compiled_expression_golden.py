@@ -101,6 +101,17 @@ FUNCTION_CORPUS: Tuple[str, ...] = (
     "inf",
     "min(x, Infinity)",
     "x % 2",
+    "x % 3",
+    "mod(x, 3)",
+    "cbrt(x)",
+    "nthroot(x, 3)",
+    "sign(x)",
+    "gamma(x)",
+    "erf(x)",
+    "atan2(x, 1)",
+    "ln|x|",
+    "sin^-1(x)",
+    "sin^2(x)",
     # Unicode (characters the validator's one-for-one table covers)
     "x²",
     "x³ - 4x",
@@ -118,6 +129,7 @@ FUNCTION_CORPUS: Tuple[str, ...] = (
     "ϑ*x",
     "Δx + x",
     "µ",
+    "sine²(x)",
 )
 
 PARAMETRIC_CORPUS: Tuple[str, ...] = (
@@ -156,6 +168,10 @@ PARAMETRIC_CORPUS: Tuple[str, ...] = (
     "2πt",
     "max(t, -∞)",
     "θ",
+    "sign(cos(t))*abs(cos(t))^0.5",
+    "mod(t, 1)",
+    "t % 1",
+    "re(t)",
 )
 
 ERROR_CORPUS: Tuple[str, ...] = (
