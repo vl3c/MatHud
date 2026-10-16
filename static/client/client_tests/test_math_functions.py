@@ -1136,6 +1136,16 @@ class TestMathFunctions(unittest.TestCase):
         with WithoutSympy():
             self.assertEqual(MathUtils.simplify("x^2 + 2*x + 1"), "(1+x)^2")
 
+    def test_simplify_remainder(self) -> None:
+        if sympy_available():
+            self.assertEqual(MathUtils.simplify("mod(-7, 3)"), "2")
+            self.assertEqual(MathUtils.simplify("17 % 5"), "2")
+        with WithoutSympy():
+            # nerdamer reads 7%-3 as a percentage and x%3 as its truncated mod, so it refuses %
+            result = MathUtils.simplify("17 % 5")
+            self.assertIn("Error", result)
+            self.assertIn("%", result)
+
     def test_expand(self) -> None:
         result = MathUtils.expand("(x + 1)^2")
         self.assertEqual(result, "1+2*x+x^2")

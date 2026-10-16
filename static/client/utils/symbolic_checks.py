@@ -51,8 +51,11 @@ class SymbolicChecks:
 
         Raises:
             ValueError: if the expression calls a function nerdamer does not define (it
-                would read gamma(x) as gamma*x and answer for that instead).
+                would read gamma(x) as gamma*x and answer for that instead), or holds % (it
+                reads 7%-3 as a percentage and x%3 as its own mod, which truncates).
         """
+        if "%" in expression:
+            raise ValueError("The symbolic engine cannot read the remainder operator %.")
         rewritten = rewrite_for_nerdamer(expression)
         unknown = unknown_function_names(rewritten, SymbolicChecks._known_functions())
         if unknown:
