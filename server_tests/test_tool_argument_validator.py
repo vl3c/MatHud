@@ -1367,14 +1367,45 @@ class TestOmittedNullableArguments(unittest.TestCase):
         self.assertEqual(result["arguments"], {"y_data": [1, 2]})
 
     def test_arguments_whose_handler_treats_none_differently_stay_missing(self) -> None:
-        angle = {"vx": 0, "vy": 0, "p1x": 1, "p1y": 0, "p2x": 0, "p2y": 1, "color": None, "angle_name": None}
+        # Left absent and not reported missing; the other arguments are still coerced and filled
+        angle = {"vx": "0", "vy": 0, "p1x": "1", "p1y": 0, "p2x": 0, "p2y": 1}
+        result = ToolArgumentValidator.validate("create_angle", angle)
+        self.assertTrue(result["valid"], result["errors"])
+        self.assertEqual(
+            result["arguments"],
+            {"vx": 0.0, "vy": 0, "p1x": 1.0, "p1y": 0, "p2x": 0, "p2y": 1, "color": None, "angle_name": None},
+        )
+        graph = ToolArgumentValidator.validate(
+            "generate_graph",
+            {
+                "graph_type": "graph",
+                "vertices": [
+                    {"name": "A", "x": "0", "y": 0, "color": None, "label": None},
+                    {"name": "B", "x": 5, "y": 5, "color": None, "label": None},
+                ],
+                "edges": [{"source": 0, "target": 1, "weight": "2", "name": None, "color": None, "directed": None}],
+            },
+        )
+        self.assertTrue(graph["valid"], graph["errors"])
+        self.assertNotIn("name", graph["arguments"])
+        self.assertEqual(graph["arguments"]["vertices"][0]["x"], 0.0)
+        self.assertEqual(graph["arguments"]["edges"][0]["weight"], 2.0)
+        self.assertIsNone(graph["arguments"]["layout"])
+
+    def test_omitted_no_null_fill_argument_does_not_hide_other_errors(self) -> None:
+        angle = {"vx": "abc", "vy": 0, "p1x": 1, "p1y": 0, "p2x": 0, "p2y": 1}
         result = ToolArgumentValidator.validate("create_angle", angle)
         self.assertFalse(result["valid"])
-        self.assertIn("missing required argument 'is_reflex'", " ".join(result["errors"]))
-        self.assertNotIn("is_reflex", result["arguments"])
-        graph = ToolArgumentValidator.validate("generate_graph", {"graph_type": "graph"})
-        self.assertIn("missing required argument 'name'", " ".join(graph["errors"]))
-        self.assertNotIn("name", graph["arguments"])
+        errors = " ".join(result["errors"])
+        self.assertIn("vx", errors)
+        self.assertNotIn("is_reflex", errors)
+        self.assertEqual(result["arguments"], angle)
+
+    def test_processor_coerces_a_call_that_omits_a_no_null_fill_argument(self) -> None:
+        tool_call = self._make_tool_call("create_angle", '{"vx": "0", "vy": 0, "p1x": 1, "p1y": 0, "p2x": 0, "p2y": 1}')
+        processed = ToolCallProcessor.jsonify_tool_call(tool_call)
+        self.assertEqual(processed["arguments"]["vx"], 0.0)
+        self.assertNotIn("is_reflex", processed["arguments"])
 
     def test_no_null_fill_names_nullable_required_arguments(self) -> None:
         for tool, keys in NO_NULL_FILL.items():
@@ -1393,7 +1424,7 @@ class TestOmittedNullableArguments(unittest.TestCase):
             filled = {key for key in required if "null" in properties[key].get("type", []) and key not in skipped}
             result = ToolArgumentValidator.validate(name, {})
             with self.subTest(tool=name):
-                if required - filled:
+                if required - filled - skipped:
                     self.assertFalse(result["valid"])
                     self.assertEqual(result["arguments"], {})
                 else:

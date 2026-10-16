@@ -26,7 +26,10 @@ Canonicalization rules (applied when schema type is matched):
       with None when its schema allows null (strict schemas mark every argument
       required, and an optional one is nullable), so the call validates and the
       other arguments are still coerced. The client handlers treat None as "not
-      given" for these arguments, except those in NO_NULL_FILL, which stay missing.
+      given" for these arguments, except those in NO_NULL_FILL, which stay missing
+      without counting as missing. Unlike the null-strings rule, this applies only
+      inside ``validate()`` (the non-streaming /send_message path and scenario
+      replay), not to the tool calls of streaming providers.
     - NaN/Infinity rejection: float('nan'), float('inf') are invalid numbers
     - int pass-through for number fields: 5 stays as 5 (JSON doesn't distinguish)
     - bool is NOT a number: True/False rejected for number/integer fields
@@ -72,7 +75,8 @@ DISPLAY_TEXT_ARGUMENTS: Dict[str, frozenset] = {
 # Nullable arguments whose client handler treats None differently from an omitted argument:
 # create_angle's is_reflex defaults to False, while None matches an existing angle of either
 # kind; generate_graph's name defaults to "Graph", while None would name the graph None.
-# Omitting one of them still fails validation, and the call passes through uncoerced.
+# An omitted one stays absent and is not reported as missing; the rest of the call is still
+# validated and coerced.
 NO_NULL_FILL: Dict[str, frozenset] = {
     "create_angle": frozenset({"is_reflex"}),
     "generate_graph": frozenset({"name"}),
@@ -520,9 +524,10 @@ class ToolArgumentValidator:
         # An omitted optional (nullable) argument means null, as strict-schema models send it
         _fill_omitted_nullable(function_name, canonical_args, properties, required)
 
-        # Required fields
+        # Required fields; an omitted NO_NULL_FILL argument stays absent, so the handler applies its default
+        left_absent = NO_NULL_FILL.get(function_name, frozenset())
         for req_key in required:
-            if req_key not in canonical_args:
+            if req_key not in canonical_args and req_key not in left_absent:
                 errors.append(f"Tool '{function_name}': missing required argument '{req_key}'.")
 
         # Unknown keys
