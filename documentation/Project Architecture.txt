@@ -4,7 +4,7 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
 
 ## Vision and the Role of This Codebase
 - The goal is a mathematical heads-up display: an AI that looks at a real situation, models it mathematically and explains it by voice and with drawings over what the user sees, on smart glasses or in VR, rendering 3D as well as 2D.
-- Scope: practical math grown from the scientific graphing calculator tradition, plus what real-world problems need; not every advanced field of mathematics.
+- Scope: practical math grown from the scientific graphing calculator tradition, plus what real-world problems need; not every advanced field of mathematics. Together with a persistent, checkable scene shared by user and model, local-first models and the scenario suite, this is what sets MatHud apart (README, "Vision").
 - This codebase is the prototype and foundation: a desktop and web app (Flask and Brython, 2D canvas) now, Android next, glasses and VR later. It may be rewritten in another language or stack on the way; `documentation/Roadmap.md` ("The path to the HUD") orders the steps.
 - Build the parts below so they can outlive this stack. They are the design a rewrite keeps:
   - Tool contract: `static/functions_definitions.py` holds the JSON-schema tool definitions from which every provider's tool list is built; the model's whole vocabulary is defined here, independent of the UI.
