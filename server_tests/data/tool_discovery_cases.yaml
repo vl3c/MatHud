@@ -1613,6 +1613,31 @@
       "difficulty": "normal"
     },
     {
+      "id": "u_evaluate_expression_6",
+      "query": "What is f(3) as a fraction?",
+      "expected_any": [
+        "evaluate_expression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_exact_distance_1",
+      "query": "Find the exact distance between A and B",
+      "expected_any": [
+        "create_region_colored_area",
+        "evaluate_expression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
       "id": "u_evaluate_linear_algebra_expression_1",
       "query": "Compute determinant of [[1,2],[3,4]].",
       "expected_any": [

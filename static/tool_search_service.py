@@ -64,6 +64,10 @@ TEST_QUERY_WORDS = frozenset({"test", "tests", "testing"})
 
 # A function applied to a single number, e.g. "f(3)" or "g(-2.5)".
 _FUNCTION_AT_POINT_RE = re.compile(r"\b[a-z]\w*\(\s*-?\d+(?:\.\d+)?\s*\)")
+# The same with a one-letter name, a defined function (f(3)) rather than sqrt(12)
+_NAMED_FUNCTION_AT_POINT_RE = re.compile(r"\b[a-z]\(\s*-?\d+(?:\.\d+)?\s*\)")
+# Measurements of the canvas: an "exact" one still goes to the geometry tools first
+_MEASUREMENT_WORDS = frozenset({"distance", "length", "area", "angle"})
 
 # "graph" means a graph of vertices and edges (generate_graph) rather than the plot of
 # a function when the query names that structure (_GRAPH_STRUCTURE_WORDS). Two weaker
@@ -952,10 +956,16 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["numeric_integrate"] += 2.0
         if token_set & {"simplify", "reduce"}:
             scores["simplify"] += 6.0
-        # An exact fraction or radical comes from simplify (evaluate_expression gives decimals)
+        # An exact fraction or radical comes from simplify (evaluate_expression gives decimals).
+        # A function's value at a point or a measurement ("f(3) as a fraction", "the exact
+        # distance between A and B") keeps its own tools first, with simplify behind them.
         wants_exact = bool(token_set & {"exact", "fraction", "fractions", "radical"})
+        at_point = _FUNCTION_AT_POINT_RE.search(raw_lower) is not None
+        named_at_point = _NAMED_FUNCTION_AT_POINT_RE.search(raw_lower) is not None
+        exact_alongside = wants_exact and (named_at_point or bool(token_set & _MEASUREMENT_WORDS))
         if wants_exact:
-            scores["simplify"] += 6.0
+            scores["simplify"] += 3.0 if exact_alongside else 6.0
+        only_exact = wants_exact and not exact_alongside
         if token_set & {"mod", "modulo", "remainder"}:
             scores["evaluate_expression"] += 6.0
         if token_set & {"expand", "multiply"} and not (token_set & {"matrix", "matrices"}):
@@ -970,9 +980,9 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["evaluate_expression"] += 3.0
         # Values of a function at points: "f(3)", "value of f at 2", "table of values"; not an
         # exact value ("the exact value of sqrt(12)"), which simplify gives
-        if not wants_exact and _FUNCTION_AT_POINT_RE.search(raw_lower):
+        if not only_exact and at_point:
             scores["evaluate_expression"] += 12.0
-        elif not wants_exact and token_set & {"value", "values", "table", "plug", "substitute"}:
+        elif not only_exact and token_set & {"value", "values", "table", "plug", "substitute"}:
             scores["evaluate_expression"] += 8.0
 
         # -- Convert (unit vs coordinate) --
