@@ -13,7 +13,7 @@ from typing import Any, Dict, List
 from unittest.mock import MagicMock
 
 from static.functions_definitions import FUNCTIONS
-from static.tool_argument_validator import ToolArgumentValidator, _SCHEMA_INDEX
+from static.tool_argument_validator import NO_NULL_FILL, ToolArgumentValidator, _SCHEMA_INDEX
 from static.tool_call_processor import ToolCallProcessor
 
 
@@ -532,14 +532,13 @@ class TestRequiredFields(unittest.TestCase):
     """Tests for missing required fields."""
 
     def test_missing_required_fields_create_point(self) -> None:
-        """Missing y, color, name should produce errors."""
+        """Missing y is an error; the omitted nullable color and name mean null."""
         result = ToolArgumentValidator.validate("create_point", {"x": 5})
         self.assertFalse(result["valid"])
-        # Should report missing y, color, and name
         error_text = " ".join(result["errors"])
         self.assertIn("'y'", error_text)
-        self.assertIn("'color'", error_text)
-        self.assertIn("'name'", error_text)
+        self.assertNotIn("'color'", error_text)
+        self.assertNotIn("'name'", error_text)
 
     def test_missing_required_fields_zoom(self) -> None:
         """Missing center_y, range_val, range_axis should produce errors."""
@@ -573,7 +572,7 @@ class TestRequiredFields(unittest.TestCase):
         """Empty args dict for a tool with required fields should fail."""
         result = ToolArgumentValidator.validate("create_point", {})
         self.assertFalse(result["valid"])
-        self.assertGreaterEqual(len(result["errors"]), 4)  # x, y, color, name
+        self.assertEqual(len(result["errors"]), 2)  # x and y; color and name are nullable
 
 
 # ===================================================================
@@ -1324,6 +1323,82 @@ class TestEdgeCases(unittest.TestCase):
 # ===================================================================
 # 6k. Integration Tests with ToolCallProcessor
 # ===================================================================
+
+
+class TestOmittedNullableArguments(unittest.TestCase):
+    """A required argument left out means null when its schema allows null."""
+
+    @staticmethod
+    def _make_tool_call(name: str, arguments_json: str) -> Any:
+        tool_call = MagicMock()
+        tool_call.function.name = name
+        tool_call.function.arguments = arguments_json
+        return tool_call
+
+    def test_omitted_y_data_still_coerces_data(self) -> None:
+        result = ToolArgumentValidator.validate("compute_descriptive_statistics", {"data": ["1", "2", "3"]})
+        self.assertTrue(result["valid"], result["errors"])
+        self.assertEqual(result["arguments"], {"data": [1.0, 2.0, 3.0], "y_data": None})
+
+    def test_processor_sends_coerced_arguments_when_y_data_is_omitted(self) -> None:
+        # The non-streaming route: the client received the strings when y_data was left out
+        tool_call = self._make_tool_call("compute_descriptive_statistics", '{"data": ["1", "2", "3"]}')
+        processed = ToolCallProcessor.jsonify_tool_call(tool_call)
+        self.assertEqual(processed["arguments"], {"data": [1.0, 2.0, 3.0], "y_data": None})
+
+    def test_omitted_optional_arguments_of_create_point(self) -> None:
+        result = ToolArgumentValidator.validate("create_point", {"x": "5", "y": 2})
+        self.assertTrue(result["valid"], result["errors"])
+        self.assertEqual(result["arguments"], {"x": 5.0, "y": 2, "color": None, "name": None})
+
+    def test_given_values_are_kept(self) -> None:
+        result = ToolArgumentValidator.validate("compute_descriptive_statistics", {"data": [1, 2], "y_data": [3, 4]})
+        self.assertEqual(result["arguments"], {"data": [1, 2], "y_data": [3, 4]})
+
+    def test_input_is_not_modified(self) -> None:
+        arguments: Dict[str, Any] = {"data": ["1", "2"]}
+        ToolArgumentValidator.validate("compute_descriptive_statistics", arguments)
+        self.assertEqual(arguments, {"data": ["1", "2"]})
+
+    def test_non_nullable_required_argument_is_still_missing(self) -> None:
+        result = ToolArgumentValidator.validate("compute_descriptive_statistics", {"y_data": [1, 2]})
+        self.assertFalse(result["valid"])
+        self.assertIn("missing required argument 'data'", " ".join(result["errors"]))
+        self.assertEqual(result["arguments"], {"y_data": [1, 2]})
+
+    def test_arguments_whose_handler_treats_none_differently_stay_missing(self) -> None:
+        angle = {"vx": 0, "vy": 0, "p1x": 1, "p1y": 0, "p2x": 0, "p2y": 1, "color": None, "angle_name": None}
+        result = ToolArgumentValidator.validate("create_angle", angle)
+        self.assertFalse(result["valid"])
+        self.assertIn("missing required argument 'is_reflex'", " ".join(result["errors"]))
+        self.assertNotIn("is_reflex", result["arguments"])
+        graph = ToolArgumentValidator.validate("generate_graph", {"graph_type": "graph"})
+        self.assertIn("missing required argument 'name'", " ".join(graph["errors"]))
+        self.assertNotIn("name", graph["arguments"])
+
+    def test_no_null_fill_names_nullable_required_arguments(self) -> None:
+        for tool, keys in NO_NULL_FILL.items():
+            schema = _SCHEMA_INDEX[tool]
+            for key in keys:
+                with self.subTest(tool=tool, key=key):
+                    self.assertIn(key, schema["required"])
+                    self.assertIn("null", schema["properties"][key]["type"])
+
+    def test_only_nullable_arguments_are_filled(self) -> None:
+        # Every tool: an empty call gains exactly its nullable required arguments, as None
+        for name, schema in _SCHEMA_INDEX.items():
+            properties = schema.get("properties", {})
+            skipped = NO_NULL_FILL.get(name, frozenset())
+            required = set(schema.get("required", []))
+            filled = {key for key in required if "null" in properties[key].get("type", []) and key not in skipped}
+            result = ToolArgumentValidator.validate(name, {})
+            with self.subTest(tool=name):
+                if required - filled:
+                    self.assertFalse(result["valid"])
+                    self.assertEqual(result["arguments"], {})
+                else:
+                    self.assertTrue(result["valid"], result["errors"])
+                    self.assertEqual(result["arguments"], {key: None for key in filled})
 
 
 class TestToolCallProcessorIntegration(unittest.TestCase):
