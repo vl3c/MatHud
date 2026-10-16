@@ -194,7 +194,7 @@ def _recorded(call: Callable[[], Any]) -> Dict[str, Any]:
 
 
 def _mathjs_bridge() -> Dict[str, Any]:
-    from numeric_solver.expression_utils import evaluate_residuals
+    from numeric_solver.expression_utils import equation_to_residual, evaluate_residuals
     from utils.symbolic_checks import SymbolicChecks
 
     evaluate: Dict[str, Any] = {}
@@ -222,7 +222,7 @@ def _mathjs_bridge() -> Dict[str, Any]:
         "degenerate_linear_system": lambda text: MathUtils._degenerate_linear_system([text + " = 1"]),
         "real_function": real_function,
         "numeric_value": SymbolicChecks.numeric_value,
-        "evaluate_residuals": lambda text: evaluate_residuals([text], ["x"], [1.0]),
+        "evaluate_residuals": lambda text: evaluate_residuals([equation_to_residual(text)], ["x"], [1.0]),
     }
     recorded_sites = {
         site: {text: _recorded(lambda: call(text)) for text in _SITE_INPUTS} for site, call in sites.items()

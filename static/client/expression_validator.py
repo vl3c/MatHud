@@ -88,9 +88,8 @@ class ExpressionValidator(ast.NodeVisitor):
     # Both derive from the rows in expression_functions (kept mutable sets, as before)
     ALLOWED_NODES: Set[Type[ast.AST]] = set(ef.ALLOWED_NODES)
     ALLOWED_FUNCTIONS: Set[str] = set(ef.ALLOWED_FUNCTIONS)
-    # Identifiers or number literals (with optional exponent), matched whole for implicit multiplication.
-    # Note: "[-+]" rather than "[+-]" -- Brython's re fails to match "e-5" with the latter.
-    _IMPLICIT_MULTIPLICATION_TOKEN = re.compile(r"[a-zA-Z_][a-zA-Z_0-9]*|(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?")
+    # Identifiers or number literals (with optional exponent), matched whole for implicit multiplication
+    _IMPLICIT_MULTIPLICATION_TOKEN = ef.TOKEN_PATTERN
     # Evaluation namespaces (built lazily once, copied per parse) and compiled code per function string
     _functions: Optional[Dict[str, Any]] = None
     _curve_functions: Optional[Dict[str, Any]] = None

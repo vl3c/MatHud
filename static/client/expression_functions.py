@@ -297,8 +297,10 @@ def build_curve_namespace() -> Dict[str, Any]:
 # one after a number (2ln(x), 1e3sine(x), 2.5ln(x)) is.
 # Note: "[-+]" rather than "[+-]" -- Brython's re fails to match "e-5" with the latter.
 _TOKEN = r"[a-zA-Z_][a-zA-Z_0-9]*|(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?"
-# Call aliases with a space ("hyperbolic sine") are matched with their "(" before any
-# identifier; "(" is escaped by hand, since re.escape would also escape the space
+# Call aliases with a space ("hyperbolic sine") are tried, with their "(", before any
+# identifier, so they match only where they start a token: after a name such as x their
+# first word joins it, and "sine(" is then matched as an alias on its own.
+# "(" is escaped by hand, since re.escape would also escape the space
 _SPACED_CALL_ALIASES = sorted((alias for alias in CALL_ALIASES if " " in alias), key=lambda a: (-len(a), a))
 _ALIAS_PATTERN = re.compile("|".join([alias + "\\(" for alias in _SPACED_CALL_ALIASES] + [_TOKEN]))
 
@@ -337,7 +339,8 @@ def replace_aliases(text: str) -> str:
     return _ALIAS_PATTERN.sub(_replace_alias, text)
 
 
-_TOKEN_PATTERN = re.compile(_TOKEN)
+# Identifiers and number literals, matched whole (also used for implicit multiplication)
+TOKEN_PATTERN = re.compile(_TOKEN)
 # Text that must occur for rename_for_mathjs or calls_python_only to find anything
 _RENAME_HINTS = tuple(sorted(name + "(" for name in MATHJS_RENAMES))
 _PYTHON_ONLY_HINTS = _minimal_substrings(sorted(PYTHON_ONLY_NAMES))
@@ -359,7 +362,7 @@ def rename_for_mathjs(text: str) -> str:
     """
     if not any(hint in text for hint in _RENAME_HINTS):
         return text
-    return _TOKEN_PATTERN.sub(_rename_call, text)
+    return TOKEN_PATTERN.sub(_rename_call, text)
 
 
 def calls_python_only(text: str) -> bool:
@@ -370,7 +373,7 @@ def calls_python_only(text: str) -> bool:
     """
     if not any(name in text for name in _PYTHON_ONLY_HINTS):
         return False
-    for match in _TOKEN_PATTERN.finditer(text):
+    for match in TOKEN_PATTERN.finditer(text):
         if match.group(0) in PYTHON_ONLY_NAMES and text[match.end() :].lstrip()[:1] == "(":
             return True
     return False

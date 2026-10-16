@@ -186,6 +186,37 @@ class TestAliases(unittest.TestCase):
                 self.assertNotEqual(ef.replace_aliases(text), text)
 
 
+class TestAliasesEvaluate(unittest.TestCase):
+    """Aliased input gives the same values as the canonical names (sampled at x = 0.7)."""
+
+    CASES = {
+        "2πln(x)": "2*pi*log(x)",
+        "ln²(x)": "log(x)**2",
+        "2ln(x) + sine(x)": "2*log(x) + sin(x)",
+        "hyperbolic sine(x) + arccosine(x)": "sinh(x) + acos(x)",
+        "1e3ln(x)": "1000*log(x)",
+    }
+
+    def test_aliased_functions_evaluate_like_their_names(self) -> None:
+        from expression_validator import ExpressionValidator
+
+        for text, canonical in self.CASES.items():
+            with self.subTest(text=text):
+                self.assertAlmostEqual(
+                    ExpressionValidator.parse_function_string(text)(0.7),
+                    ExpressionValidator.parse_function_string(canonical)(0.7),
+                )
+
+    def test_a_name_that_only_starts_with_an_alias_is_not_a_function(self) -> None:
+        # ln2(x) and ln10(x) used to become log2(x) and log10(x) by substring replacement
+        from expression_validator import ExpressionValidator
+
+        for text in ("ln2(x)", "ln10(x)"):
+            with self.subTest(text=text):
+                with self.assertRaises(ValueError):
+                    ExpressionValidator.parse_function_string(text)
+
+
 class TestMathJsRenames(unittest.TestCase):
     def test_renames_are_matched_as_whole_tokens(self) -> None:
         cases = {
