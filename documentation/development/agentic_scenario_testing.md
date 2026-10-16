@@ -391,12 +391,12 @@ Conventions:
 | Transforms (TR) | 6 | TR-01 |
 | Graph theory (GR) | 6 | GR-01 |
 | Statistics, plots and regression (ST) | 5 | ST-01 |
-| Math tools feeding the canvas (MC) | 4 | MC-01 |
+| Math tools feeding the canvas (MC) | 6 | MC-01 |
 | Canvas operations: view, coordinate systems, undo and redo (CV) | 8 | CV-02 |
 | Workspaces (WS) | 4 | WS-01 |
 | Naming, editing and deleting (NM) | 9 | NM-03 |
 | Multi-turn follow-ups (MT) | 4 | MT-01 |
-| **Total** | **86** | **11** |
+| **Total** | **88** | **11** |
 
 The smoke subset has 11 scenarios (18 turns), one for each area except coloured areas, which FN-01 already exercises: GEO-01, CON-01, FN-01, TR-01, GR-01, ST-01, MC-01, CV-02, WS-01, NM-03 and MT-01. It runs in about 40 s in replay and about 6 to 27 minutes live on the local model.
 
@@ -1082,6 +1082,25 @@ Added after the first live run (phase 6, item 10).
   - a point at (0,2) within 1e-9 (the conversion result has x = 1.2e-16; a model that copies it must still land within tolerance)
   - model check: the model converted degrees to radians
 - Targets: polar mode; units.
+
+#### MC-05: Calculator functions and an exact fraction
+
+- Turn 1: "Work out -7 mod 3, atan2(1, -1), the argument of 1 + i and the conjugate of 3 + 4i. Then give 1/3 + 1/4 as an exact fraction."
+  - Reference: `evaluate_expression(expression="mod(-7, 3)")`; `evaluate_expression(expression="atan2(1, -1)")`; `evaluate_expression(expression="arg(1 + i)")`; `evaluate_expression(expression="conj(3 + 4i)")`; `simplify(expression="1/3 + 1/4")`
+- Checks:
+  - no tool errors; evaluate results include 2, 3*pi/4 (2.356194490192345), pi/4 (0.7853981633974483) and `3 - 4i`
+  - simplify result is `7/12`; answer mentions 2 and 7/12
+- Targets: `mod`, `atan2` and the complex helpers in `evaluate_expression`; `simplify` for exact answers.
+- The `7/12` check needs the server's SymPy engine, which CI installs: without it nerdamer prints 0.583333333333333333, so the check fails in a local replay without SymPy.
+
+#### MC-06: Plots of the new functions
+
+- Turn 1: "Plot the cube root of x, ln|x| and x % 2."
+  - Reference: `draw_function(function_string="cbrt(x)", name="f")`; `draw_function(function_string="ln|x|", name="g")`; `draw_function(function_string="x % 2", name="h")`
+- Checks:
+  - no tool errors; three functions, selected by their values (`samples`): through (-8,-2) and (8,2), through (-1,0) and (e,1), and through (0.5,0.5), (2.5,0.5) and (-0.5,1.5) (% is the remainder with the sign of the divisor, never a percentage)
+  - the log(abs(x)) function lists a vertical asymptote at 0
+- Targets: `cbrt`, bars after a function and `%` in plots; the asymptote found behind the bars. Invariant I3 accepts the asymptote because log(abs(x)) grows in size between its far and near probes.
 
 ### 5.9 Canvas operations: view, coordinate systems, undo and redo (CV)
 
