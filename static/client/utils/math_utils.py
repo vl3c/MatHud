@@ -4102,7 +4102,9 @@ class MathUtils:
                 right = math.floor(right_bound)
                 point_discontinuities_set.update(range(left, right + 1))
 
-        # For absolute value function at its corners
+        # For absolute value function at its corners; bars become abs() here only, so |x|
+        # and sin|x| list their corner as abs(x) and sin(abs(x)) do
+        function_string = replace_absolute_bars(function_string)
         if "abs" in function_string:
             # Solve each (balanced) abs argument = 0 to find the corner points
             for abs_argument in MathUtils._function_call_arguments(function_string, "abs"):
