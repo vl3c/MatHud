@@ -148,9 +148,16 @@ _INEQUALITY_OTHER_WORDS = frozenset(
     | {"area", "integral", "integrate", "integration", "derivative", "derive", "differentiate"}
     | {"maximum", "minimum", "max", "min", "extrema", "extremum", "limit", "probability", "probabilities"}
     | {"normal", "distribution", "distributions", "distance", "distances"}
+    | {"mean", "median", "mode", "average", "deviation", "variance", "statistics", "regression"}
+    | {"angle", "angles", "length", "lengths", "segment", "segments", "perimeter", "triangle", "triangles"}
+    | {"point", "points", "polygon", "polygons"}
 )
 # "P(X > 2)": a probability, whose condition is not an inequality to solve
 _PROBABILITY_CALL_RE = re.compile(r"(?<![a-z0-9_])p\s*\(")
+# "AB > BC": a relation between two named objects (lengths), not an inequality in x
+_NAMES_RELATION_RE = re.compile(r"(?<![A-Za-z0-9_])[A-Z][A-Z0-9]*\s*(?:<=|>=|<|>|≤|≥)\s*[A-Z][A-Z0-9]*(?![A-Za-z0-9_])")
+# "when x < 0 what is |x|": a value asked under a condition on x
+_VALUE_QUESTION_WORDS = frozenset({"what", "whats"})
 # "f(x) = x for x < 0 ...", "the function is -x when x < 0": a function defined by cases
 _DEFINES_FUNCTION_WORDS = frozenset({"function", "define", "defined"})
 # Shapes, charts and other drawables a query can "graph" with an equation or coordinates
@@ -982,7 +989,8 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             and bool(token_set & _INEQUALITY_SOLVE_WORDS)
             and not token_set & _INEQUALITY_OTHER_WORDS
             and not _PROBABILITY_CALL_RE.search(raw_lower)
-            and not (condition_rule and defines_function)
+            and not _NAMES_RELATION_RE.search(raw_query)
+            and not (condition_rule and (defines_function or token_set & _VALUE_QUESTION_WORDS))
         )
         if solves_inequality:
             scores["solve"] += 6.0

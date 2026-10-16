@@ -371,6 +371,8 @@ def test_function_definition_with_points_mentioned_still_plots_the_function(
         "for which x is x >= 2 and x^2 < 9",
         "when is x > 3 - x",
         "solve the inequality 2x + 3 ≤ 7",
+        "when is 2x+1 > 7",
+        "find the zeros of sin(x) for 0 < x < 2pi",
     ],
 )
 def test_inequalities_to_solve_rank_solve_first(service: ToolSearchService, query: str) -> None:
@@ -424,6 +426,29 @@ def test_conditions_that_qualify_another_operation_do_not_rank_solve_first(
     ],
 )
 def test_probabilities_and_distances_do_not_rank_solve_first(
+    service: ToolSearchService, query: str, expected: Optional[str]
+) -> None:
+    names = _names(service, query)
+    assert names[0] != "solve", names
+    if expected is not None:
+        assert expected in names[:3], names
+
+
+# Statistics, geometric measurements and objects, a relation between two named objects (AB >
+# BC) and a value asked under a condition keep their own tools
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("find the standard deviation for values > 5", "compute_descriptive_statistics"),
+        ("find the median of data where x > 3", "compute_descriptive_statistics"),
+        ("find the angle ABC where AB > BC", "create_angle"),
+        ("find the length of segment AB when AB > 3", "create_segment"),
+        ("find the perimeter of triangle ABC if AB < 5", "create_polygon"),
+        ("which points have x > 3", None),
+        ("when x < 0 what is |x|", None),
+    ],
+)
+def test_measurements_and_named_relations_do_not_rank_solve_first(
     service: ToolSearchService, query: str, expected: Optional[str]
 ) -> None:
     names = _names(service, query)
