@@ -141,6 +141,7 @@ Then navigate to `http://127.0.0.1:5004/` in the browser.
 16. `turn_metrics.py` aggregates per-request metrics into per-turn summaries (chat footer under the final answer; `window.getMatHudLastTurnMetrics()` / `window.getMatHudTurnMetricsHistory()` return them as JSON strings for benchmarks).
 17. `json_safe.py` converts tool results to plain JSON data (`to_json_safe`, `is_json_plain`) before they are sent back to the model; a failed Brython `json.dumps` breaks later dumps of the same objects ("Circular reference detected").
 18. `canvas_backup_manager.py` mirrors the canvas (workspace-shaped state plus the view) to `localStorage` after draws and on page hide, and `main.py` restores it on page load, so a reload keeps the canvas (not the chat).
+19. `plot_kinds.py` (`PLOT_KINDS`) has one row per plot class (saved bucket, builder, `StatisticsManager` materialize and delete methods, derived bars); the workspace restore, `delete_plot`, plot lookup and Canvas bar pruning loop over it. `utils/statistics/distributions.py` (`DISTRIBUTIONS`, `get_distribution`) has one `DistributionSpec` per `distribution_type` (parameter parsing, pdf, pdf expression, default bounds); only `normal` exists.
 
 ---
 
@@ -348,6 +349,7 @@ Follow this checklist when introducing a new drawable type:
 - Register the manager within `DrawableManager` and expose delegating methods.
 - Add undo/redo archiving in manager methods before mutating state.
 - Update `workspace_manager.py` to handle serialization/deserialization, and add the saved bucket to `WorkspaceManager.RESTORED_BUCKETS`.
+- A new plot kind is one `PLOT_KINDS` row in `static/client/plot_kinds.py` (builder, materialize and delete method names on `StatisticsManager`), plus its bucket in `RESTORED_BUCKETS`, a formatter spec in `static/canvas_state_formatter.py` and `cli/scenarios/geometry.PLOT_TYPES` (`server_tests/test_drawable_wiring.py`, `test_plot_kinds.py` and `test_plot_table_guards.py` check them). A new distribution is one `DISTRIBUTIONS` entry plus the `plot_distribution` enum. A kind deriving drawables other than Bars also needs the save-time Bar drop and Canvas pruning changed.
 
 ### 4. Wire the Canvas API
 - Add convenience methods on `Canvas` (create/get/delete) that delegate to the manager.
