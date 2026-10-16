@@ -392,3 +392,23 @@ def test_drawing_an_inequality_or_an_arrow_is_not_solving_one(
     service: ToolSearchService, query: str, expected: str
 ) -> None:
     assert _names(service, query)[0] == expected
+
+
+# A condition on x that only qualifies another operation, or a function defined by cases,
+# is not an inequality to solve.
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("define f(x) = x for x<0 and x^2 when x>=0", "draw_piecewise_function"),
+        ("f(x) = x if x < 0, x^2 when x >= 0", "draw_piecewise_function"),
+        ("when x < 0 the function is -x, when x >= 0 it is x^2", "draw_piecewise_function"),
+        ("find the area under x^2 for 0 < x < 2", "create_colored_area"),
+        ("find the integral of x^2 from 0 to 2 where x > 0", "integrate"),
+        ("find the derivative of f(x) = x^2 when x > 0", "derive"),
+        ("find the maximum of f(x)=x^2 when 0<x<3", "find_function_features"),
+    ],
+)
+def test_conditions_that_qualify_another_operation_do_not_rank_solve_first(
+    service: ToolSearchService, query: str, expected: str
+) -> None:
+    assert _names(service, query)[0] == expected

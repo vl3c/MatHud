@@ -2686,6 +2686,80 @@
       "category": "confusion_probe",
       "difficulty": "hard",
       "cluster": "solve_cluster"
+    },
+    {
+      "id": "cf_piecewise_definition_not_inequality",
+      "query": "Define f(x) = x for x<0 and x^2 when x>=0.",
+      "expected_any": [
+        "draw_piecewise_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "cf_piecewise_cases_not_inequality",
+      "query": "When x < 0 the function is -x, when x >= 0 it is x^2.",
+      "expected_any": [
+        "draw_piecewise_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "cf_area_over_range_not_inequality",
+      "query": "Find the area under x^2 for 0 < x < 2.",
+      "expected_any": [
+        "create_colored_area"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard"
+    },
+    {
+      "id": "cf_integral_over_range_not_inequality",
+      "query": "Find the integral of x^2 from 0 to 2 where x > 0.",
+      "expected_any": [
+        "integrate"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard"
+    },
+    {
+      "id": "cf_derivative_with_condition_not_inequality",
+      "query": "Find the derivative of f(x) = x^2 when x > 0.",
+      "expected_any": [
+        "derive"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard"
+    },
+    {
+      "id": "cf_maximum_on_range_not_inequality",
+      "query": "Find the maximum of f(x)=x^2 when 0<x<3.",
+      "expected_any": [
+        "find_function_features"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard"
     }
   ]
 }
