@@ -206,6 +206,85 @@
           ]
         }
       ]
+    },
+    {
+      "id": "ST-06",
+      "title": "Two-variable statistics and the regression r",
+      "tags": ["statistics", "regression", "read-only"],
+      "smoke": false,
+      "targets": "compute_descriptive_statistics with y_data (r, covariances, nested x and y); the linear fit's r agrees",
+      "steps": [
+        {
+          "user": "For x = 1, 2, 3, 4, 5 and y = 2, 4, 5, 4, 5, what are the correlation coefficient and the sample covariance?",
+          "reference": [
+            {"tool": "compute_descriptive_statistics", "args": {"data": [1, 2, 3, 4, 5], "y_data": [2, 4, 5, 4, 5]}}
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "tool_result", "tool": "compute_descriptive_statistics", "path": "r", "eq": 0.7745966692414834},
+            {"check": "tool_result", "tool": "compute_descriptive_statistics", "path": "sample_covariance", "eq": 1.5},
+            {"check": "tool_result", "tool": "compute_descriptive_statistics", "path": "population_covariance", "eq": 1.2},
+            {
+              "check": "tool_result",
+              "tool": "compute_descriptive_statistics",
+              "path": "x.sample_standard_deviation",
+              "eq": 1.5811388300841898
+            },
+            {"check": "state_equals", "snapshot": "start"},
+            {"check": "answer_mentions", "numbers": [0.77, 1.5]}
+          ]
+        },
+        {
+          "user": "Fit the regression line.",
+          "reference": [
+            {
+              "tool": "fit_regression",
+              "args": {"x_data": [1, 2, 3, 4, 5], "y_data": [2, 4, 5, 4, 5], "model_type": "linear"}
+            }
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "tool_result", "tool": "fit_regression", "path": "coefficients.m", "eq": 0.6},
+            {"check": "tool_result", "tool": "fit_regression", "path": "coefficients.b", "eq": 2.2},
+            {"check": "tool_result", "tool": "fit_regression", "path": "r", "eq": 0.7745966692414834},
+            {"check": "count", "select": {"type": "Function"}, "eq": 1}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ST-07",
+      "title": "Sample and population SD agree across tools",
+      "tags": ["statistics", "math", "read-only"],
+      "smoke": false,
+      "targets": "the statistics tool's sample_* and population_* fields against stdev (math.js) and pstdev (Python path) in evaluate_expression",
+      "steps": [
+        {
+          "do": [{"tool": "compute_descriptive_statistics", "args": {"data": [2, 4, 4, 4, 5, 5, 7, 9]}}],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {
+              "check": "tool_result",
+              "tool": "compute_descriptive_statistics",
+              "path": "sample_standard_deviation",
+              "eq": 2.138089935299395
+            },
+            {"check": "tool_result", "tool": "compute_descriptive_statistics", "path": "population_standard_deviation", "eq": 2},
+            {"check": "state_equals", "snapshot": "start"}
+          ]
+        },
+        {
+          "do": [
+            {"tool": "evaluate_expression", "args": {"expression": "stdev([2, 4, 4, 4, 5, 5, 7, 9])"}},
+            {"tool": "evaluate_expression", "args": {"expression": "pstdev([2, 4, 4, 4, 5, 5, 7, 9])"}}
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "tool_result", "tool": "evaluate_expression", "any": true, "has_numbers": [2.138089935299395]},
+            {"check": "tool_result", "tool": "evaluate_expression", "any": true, "has_numbers": [2]}
+          ]
+        }
+      ]
     }
   ]
 }
