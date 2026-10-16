@@ -421,6 +421,18 @@ class TestCreativePrompts:
                        "[88, 92, 76, 95, 83, 91, 78]")
         assert "compute_descriptive_statistics" in names
 
+    def test_stats_correlation(self) -> None:
+        """Correlation and covariance of paired data."""
+        names = _top_n(self.service,
+                       "what is the correlation coefficient and covariance of "
+                       "x = 1, 2, 3, 4, 5 and y = 2, 4, 5, 4, 5?")
+        assert "compute_descriptive_statistics" in names
+
+    def test_stats_correlation_of_a_fit(self) -> None:
+        """A fit asked for its correlation: the linear fit reports r itself."""
+        names = _top_n(self.service, "fit a line and give the correlation")
+        assert names[:2] == ["fit_regression", "compute_descriptive_statistics"]
+
     # -- Graph theory --
 
     def test_graph_shortest_path(self) -> None:

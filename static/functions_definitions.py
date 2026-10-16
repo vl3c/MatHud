@@ -2609,7 +2609,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "compute_descriptive_statistics",
-            "description": "Computes descriptive statistics for a list of numbers. Returns count, mean, median, mode, sample_standard_deviation and sample_variance (s, Sx, dividing by n - 1: the usual standard deviation of a data sample; null for a single value), population_standard_deviation and population_variance (sigma, dividing by n: the list is the whole population), min, max, q1 and q3 (first and third quartiles), iqr (interquartile range) and range. When the user does not say which standard deviation, report both and name them. Mode is returned as a list of every value with the highest frequency, sorted ascending; it is empty when there are two or more distinct values and all appear equally often (e.g. [1, 2, 3] or [1, 1, 2, 2]), and a single distinct value is the mode however often it appears ([5] and [7, 7, 7] give [5] and [7]). Quartiles use the median-of-halves (exclusive) method. Use this for summarizing datasets, finding central tendency and spread, or answering questions about data distributions.",
+            "description": "Statistics of one list or of paired x and y lists: mean, median, sample and population standard deviation, quartiles; correlation r and covariance. For one list (data), returns count, mean, median, mode, sample_standard_deviation and sample_variance (s, Sx, dividing by n - 1: the usual standard deviation of a data sample; null for a single value), population_standard_deviation and population_variance (sigma, dividing by n: the list is the whole population), min, max, q1 and q3 (first and third quartiles), iqr (interquartile range) and range. When the user does not say which standard deviation, report both and name them. Mode is returned as a list of every value with the highest frequency, sorted ascending; it is empty when there are two or more distinct values and all appear equally often (e.g. [1, 2, 3] or [1, 1, 2, 2]), and a single distinct value is the mode however often it appears ([5] and [7, 7, 7] give [5] and [7]). Quartiles use the median-of-halves (exclusive) method. For paired data, pass the x values as data and the y values as y_data; the result then holds count, x and y (the one-list statistics of each), r (Pearson correlation; null when all x values or all y values are equal), r_squared, sample_covariance (dividing by n - 1) and population_covariance (dividing by n). r_squared equals fit_regression's R-squared for a linear model; use fit_regression for the line itself. Use this for summarizing datasets, finding central tendency and spread, or answering questions about data distributions.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2618,10 +2618,15 @@ FUNCTIONS: List[Dict[str, Any]] = [
                         "type": "array",
                         "items": {"type": "number"},
                         "minItems": 1,
-                        "description": "Array of numbers to analyze. Must contain at least one number. All values must be finite (no Infinity or NaN).",
-                    }
+                        "description": "Array of numbers to analyze (the x values when y_data is given). Must contain at least one number. All values must be finite (no Infinity or NaN).",
+                    },
+                    "y_data": {
+                        "type": ["array", "null"],
+                        "items": {"type": "number"},
+                        "description": "Optional y values paired with data, as many as data, for two-variable statistics: correlation r and covariance. null for one list.",
+                    },
                 },
-                "required": ["data"],
+                "required": ["data", "y_data"],
                 "additionalProperties": False,
             },
         },

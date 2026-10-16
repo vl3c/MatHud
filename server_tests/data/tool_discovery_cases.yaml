@@ -1085,6 +1085,44 @@
       "difficulty": "normal"
     },
     {
+      "id": "u_compute_descriptive_statistics_1",
+      "query": "Correlation coefficient between x = [1,2,3,4,5] and y = [2,4,5,4,5]",
+      "expected_any": [
+        "compute_descriptive_statistics",
+        "fit_regression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_compute_descriptive_statistics_2",
+      "query": "Sample standard deviation of 4, 8, 15, 16, 23, 42",
+      "expected_any": [
+        "compute_descriptive_statistics",
+        "evaluate_expression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_compute_descriptive_statistics_3",
+      "query": "Covariance of these paired data",
+      "expected_any": [
+        "compute_descriptive_statistics"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
       "id": "u_convert_1",
       "query": "Convert 45 degrees to radians.",
       "expected_any": [

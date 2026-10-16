@@ -298,6 +298,7 @@ TOOL_CATEGORIES: Dict[str, CategoryEntry] = {
             "standard", "deviation", "stdev", "quartile", "percentile",
             "probability", "bell", "discrete", "continuous", "frequency",
             "descriptive", "stats", "average", "variance",
+            "correlation", "correlate", "covariance", "pearson",
         ],
     },
     "graph_theory": {
@@ -841,6 +842,11 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         if token_set & {"regression", "fit", "fitting"}:
             scores["fit_regression"] += 6.0
         if token_set & {"descriptive", "stats", "statistics", "mean", "median", "stdev", "quartile", "average"}:
+            scores["compute_descriptive_statistics"] += 6.0
+        # A fit that is asked for its correlation belongs to fit_regression, whose linear fit reports r
+        if token_set & {"correlation", "correlate", "correlated", "covariance", "pearson"} and not (
+            token_set & {"fit", "fitting", "regression"}
+        ):
             scores["compute_descriptive_statistics"] += 6.0
 
         # -- Linear algebra --
