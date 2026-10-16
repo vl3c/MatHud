@@ -335,8 +335,8 @@ Attributes:
 - `construct_incircle(triangle_name, name=None, color=None)`: Construct the inscribed circle (incircle) of a triangle. The incircle is tangent to all three sides. `name` works as in `create_circle`. A triangle is degenerate (no incircle, and no circumcircle) when four times its area is within 1e-9 of its longest side squared, so small triangles are accepted at any scale.
 - `plot_distribution(name=None, representation="continuous", distribution_type="normal", distribution_params=None, plot_bounds=None, shade_bounds=None, curve_color=None, fill_color=None, fill_opacity=None, bar_count=None)`: Plot a probability distribution. For representation="continuous", `plot_bounds` controls the curve domain, while `shade_bounds` controls the shaded interval under the curve (clamped into `plot_bounds`). For representation="discrete", `plot_bounds` controls the bar span, `shade_bounds` is ignored, and `bar_count` is a whole number from 1 to 500 (default 24); each bar is as tall as the pdf at its midpoint, so bars far in the tails can have zero height. Discrete distribution plots create a `DiscretePlot` composite plus derived `Bar` drawables for rendering; derived bars are regenerated on workspace load and may be omitted from serialized canvas state to keep prompts compact.
 - `plot_bars(name=None, values=None, labels_below=None, labels_above=None, bar_spacing=None, bar_width=None, stroke_color=None, fill_color=None, fill_opacity=None, x_start=None, y_base=None)`: Plot a bar chart (`BarsPlot` composite plus derived `Bar` drawables). Every value must be a finite number; a zero value gives a zero-height bar that keeps its labels. Values and layout are validated before anything is drawn, and a failure removes any bars already created, so a failed call leaves no partial chart. Derived bars are regenerated on workspace load and may be omitted from serialized canvas state to keep prompts compact.
-- `fit_regression(name=None, x_data=None, y_data=None, model_type="linear", degree=None, plot_bounds=None, curve_color=None, show_points=True, point_color=None)`: Fit a regression model to data and plot the resulting curve. Supported model types: "linear" (y=mx+b), "polynomial" (y=a0+a1*x+...+an*x^n, requires `degree`), "exponential" (y=a*e^(bx), requires positive y), "logarithmic" (y=a+b*ln(x), requires positive x), "power" (y=a*x^b, requires positive x and y), "logistic" (y=L/(1+e^(-k(x-x0)))), and "sinusoidal" (y=a*sin(bx+c)+d, requires at least 4 points). Returns function_name, expression, coefficients, r_squared, model_type, bounds, and, when points are shown, point_names. Data points take the next free canvas point names (A, B, C, ..., A', ...), and point_names lists the names in data order. A point that already exists at a data coordinate is reused and left unchanged (`point_color` is not applied to it); the result then also has reused_point_names (those points), created_point_names (the others) and a note. Use `delete_function` to remove the curve; to remove the data points, delete the point_names, or when points were reused only the created_point_names. The curve and the points are one undo step.
-- `compute_descriptive_statistics(data)`: Compute descriptive statistics for a list of numbers. Returns a dictionary with: count, mean, median, mode (every value with the highest frequency, sorted; empty when two or more distinct values all appear equally often; a single distinct value, as in [5] or [7, 7, 7], is the mode), standard_deviation (population), variance (population), min, max, q1 (first quartile), q3 (third quartile), iqr (interquartile range), and range. Quartiles use the median-of-halves (exclusive) method. All values must be finite (no Infinity or NaN). Sums use exactly rounded summation (`math.fsum`), so [1e16, 1, -1e16] has mean 1/3, and values near the float limit do not overflow the mean or standard deviation.
+- `fit_regression(name=None, x_data=None, y_data=None, model_type="linear", degree=None, plot_bounds=None, curve_color=None, show_points=True, point_color=None)`: Fit a regression model to data and plot the resulting curve. Supported model types: "linear" (y=mx+b), "polynomial" (y=a0+a1*x+...+an*x^n, requires `degree`), "exponential" (y=a*e^(bx), requires positive y), "logarithmic" (y=a+b*ln(x), requires positive x), "power" (y=a*x^b, requires positive x and y), "logistic" (y=L/(1+e^(-k(x-x0)))), and "sinusoidal" (y=a*sin(bx+c)+d, requires at least 4 points). Returns function_name, expression, coefficients, r_squared, model_type, bounds, for the linear model r (Pearson's r, with the slope's sign; null when all y values are equal), and, when points are shown, point_names. Data points take the next free canvas point names (A, B, C, ..., A', ...), and point_names lists the names in data order. A point that already exists at a data coordinate is reused and left unchanged (`point_color` is not applied to it); the result then also has reused_point_names (those points), created_point_names (the others) and a note. Use `delete_function` to remove the curve; to remove the data points, delete the point_names, or when points were reused only the created_point_names. The curve and the points are one undo step.
+- `compute_descriptive_statistics(data, y_data=None)`: Statistics of one list, or of paired x and y lists. With one list (`y_data` null, or `[]`, which local models send for an unused array) it returns: count, mean, median, mode (every value with the highest frequency, sorted; empty when two or more distinct values all appear equally often; a single distinct value, as in [5] or [7, 7, 7], is the mode), sample_standard_deviation and sample_variance (s, Sx: dividing by n - 1; null for a single value, and the result then has a `note` saying they need at least two values), population_standard_deviation and population_variance (sigma: dividing by n), min, max, q1 (first quartile), q3 (third quartile), iqr (interquartile range), and range. The description tells the model which figure is which (`stdev()` in expressions is the sample one) and to report both, named, when the user does not say which. Quartiles use the median-of-halves (exclusive) method. All values must be finite (no Infinity or NaN). Sums use exactly rounded summation (`math.fsum`), so [1e16, 1, -1e16] has mean 1/3, and values near the float limit do not overflow the mean or standard deviations (a variance too large for a float is reported as `"Infinity"`). With `y_data` (as many values as `data`, which are then the x values; at least two pairs) it returns count, `x` and `y` (the one-list result of each), r (Pearson's r, clamped to [-1, 1]), r_squared (r*r), sample_covariance (dividing by n - 1) and population_covariance (dividing by n). r and r_squared are null when all x values or all y values are equal (tested as min == max), with a `note` naming the axis; the covariances are then 0. r is computed from centred sums that each axis divides by its largest deviation, so it stays finite for values near the float limit, where a covariance may be `"Infinity"`. r is the same number `fit_regression` reports for a linear fit, and r_squared agrees with its R-squared to about 1e-15, except for constant y, where `fit_regression` keeps R-squared = 1 by convention while r is null in both. Errors name the argument (`y_data[2] is not finite`) and the lengths ("data and y_data must have the same length (5 and 4)"). The tool needs no canvas: the registry binds it to `utils/statistics/tool.py` `compute_descriptive_statistics_tool`.
 - `delete_plot(name)`: Delete a plot composite created by plot_distribution/plot_bars, including its derived components.
 - `zoom(center_x, center_y, range_val, range_axis)`: Center the viewport on (center_x, center_y) showing center +/- `range_val` along `range_axis` ('x' or 'y'); the other axis follows the canvas aspect ratio. Delegates to `CoordinateMapper.set_visible_bounds`. Tool: `zoom`, which is undoable (undo restores the previous view); a zoom to the view already shown returns "The view already shows x from -2 to 2 and y from -1.5 to 1.5; nothing changed." and adds no undo entry
 - `set_coordinate_system(mode)`: Switch the grid between 'cartesian' and 'polar'. Tool: `set_coordinate_system` (undoable; the mode already active is reported as "The coordinate system is already polar; nothing changed.")
@@ -953,7 +953,7 @@ Mathematical Support:
     - Hyperbolic functions (sinh, cosh, tanh, asinh, acosh, atanh)
     - Logarithmic functions (log, log10, log2, ln)
     - Advanced functions (sqrt, exp, abs, factorial, arrangements, permutations, combinations)
-    - Statistical functions (mean, median, mode, variance, stdev)
+    - Statistical functions (mean, median, mode, variance and stdev of a sample, pvariance and pstdev of a population)
     - Mathematical constants (pi, e)
     - Calculus operations (derivative, integral, limit)
     - Algebraic operations (simplify, expand, factor, solve)
@@ -1024,6 +1024,8 @@ Attributes:
 - Absolute value bars right after a one-argument function are its argument: `ln|x|` is `log(abs(x))`, `2ln|x|` is `2*log(abs(x))`. After anything else the output is as before (`x|y|` → `xabs(y)`, `kiln|x|` → `kilnabs(x)`). `fix_math_expression` does this in Python mode; math.js text keeps the bars until `rename_for_mathjs`, and the vertical asymptote search reads them too, so `ln|x|` and `1/|x|` report an asymptote at 0. A call alias before such a bar is a call too, in math.js text as in Python mode: `cosine|x|` becomes `cos|x|` (`replace_aliases` rewrites a call alias of a one-argument function before `(` or before the bar that opens its argument, with bars paired left to right), so `evaluate("cosine|-1|")` is cos(1); `|sine|` keeps its variable.
 - Superscripts work on every spelling of a superscript function (`sine²(x)`, `hyperbolic sine²(x)`, `arcsine²(x)`), caret powers on the names and the one-word aliases (`sin^2(x)`, `sine^2(x)`, `arcsine^2(x)`; see `convert_caret_function_powers`). A spaced alias with a caret is not handled: `hyperbolic sine^2(x)` becomes `hyperbolic sin(x)^2`, so write `sinh(x)^2` or `hyperbolic sine²(x)`.
 - The new names are in `RESERVED_NAMES`, so none of them can be a curve variable.
+
+**Sample and population spread:** `stdev` and `variance` (aliases `std`, `var`) are the sample figures, dividing by n - 1, in math.js and in Python. `pstdev` and `pvariance` are the population figures, dividing by n: `python_only` rows (math.js has no such names), so an expression that calls them is evaluated wholly in Python, where `stdev` is the sample figure too, and they fail at the sites that hand text to math.js only (the probes, `numeric_value`, residuals), like `is_prime`. The validator refuses a string argument to `stdev`, `variance`, `std` or `var` ("stdev takes no normalization argument: ... use pstdev or pvariance for the population figures"), because math.js reads it as the normalization and its names mislead: `"uncorrected"` divides by n and `"biased"` by n + 1. Known divergence, left as it is: math.js gives `stdev([5])` = 0, Python's `statistics.stdev` raises for one value, and the statistics tool reports null. The aliases `stdevp` and `varp` are not offered: `calls_python_only` reads the text before aliases are rewritten, so an alias of a python-only row would reach math.js.
 - `re`, `im`, `arg` and `conj` are for numbers (`arg(1 + i)` = pi/4). In a plot `i` becomes an unbound `j`, and SymPy reads CAS variables as real, so `simplify("im(z)")` is 0 and `conj(z)` is z.
 - The numeric checks of CAS results (`SymbolicChecks`) skip text that calls `gamma`, `re`, `im` or `conj`: math.js evaluates them, but `real_function` binds those names as variables, so the check gives no answer and the result is accepted unchecked.
 - A canvas function named like a built-in function (`sign`, `gamma`, `mod`...) is shadowed by it in `evaluate_expression`: the canvas lookup runs only when the numeric path refuses the name, as it already did for `exp` or `max`.
@@ -3144,8 +3146,9 @@ Class Attributes:
 - `mean(values)`: Calculate arithmetic mean
 - `median(values)`: Calculate median value
 - `mode(values)`: Calculate mode of values
-- `stdev(values)`: Calculate standard deviation
-- `variance(values)`: Calculate variance
+- `stdev(values)`: Calculate the sample standard deviation (dividing by n - 1; `statistics.stdev`)
+- `variance(values)`: Calculate the sample variance (dividing by n - 1; `statistics.variance`)
+- `pstdev(values)` / `pvariance(values)`: Population standard deviation and variance (dividing by n) of a non-empty list of finite numbers, from `utils/statistics/descriptive.py` `population_spread`, the routine `compute_descriptive_statistics` uses, so the figures are the same to the bit. Errors name the function ("pstdev's list must not be empty")
 - `calculate_vertical_asymptotes(function_string, left_bound=None, right_bound=None)`: Find vertical asymptotes of function. A zero of a denominator is an asymptote only if f grows beside it on either side (or is undefined on both); otherwise it is a point discontinuity: a hole such as (x^2-1)/(x-1) at x = 1, a jump, or a bounded oscillation such as sin(1/x) at 0. Each side is sampled at offsets shrinking 4-fold from 1e-2 * max(1, |x0|) (or a tenth of the distance to the nearest other singular point), stopping before float noise, and judged on the differences between samples, so adding a constant to f changes nothing: differences that do not shrink (powers, logs, even 1/x^0.004) or ratios rising towards 1 (log(log(1/x))) are growth; differences shrinking to 0.9 or less of the previous one converge. A limit approached like L + c*|h|^p with p below about 0.076 is read as growth. The poles of every tan() in the expression go through the same test, so x/tan(x) and 1/tan(x), which tend to 0 at pi/2, list those points as point discontinuities rather than asymptotes; every pole is tested, first with a quick check (f at pole +/- start/8^k, k = 0..2: a second difference at least 4 times the first, same sign, is growth; at most a quarter of the first on both sides is a converging, bounded f) and with the full test when that is unclear, so tan(10*x) without bounds (about 6400 poles) takes about 1.4 s in the browser. Near-duplicates are merged after one sort, and the nearest other singular point is found by bisection. Candidates closer than 1e-6 * max(1, |x|) count as one point (nerdamer returns 0, 1.4e-9, 6.2e-9 and 9.7e-9 for 1 - cos(x)), and with bounds only points within them are listed (log and denominator asymptotes too, not only tan's)
 - `calculate_horizontal_asymptotes(function_string)`: Find horizontal asymptotes of function: the limits at +Infinity and -Infinity that are finite, one entry per side. They are estimated numerically, never with nerdamer (whose limit() hangs on abs(x)/x and is wrong for floor(x)/x): f is sampled at x = +/-9.73*4^k for k < 12 (up to 4.1e7). f is evaluated with math.js (IEEE floats), so an overflow inside f carries through it: 1/(1+exp(-x)) is 0 where exp(-x) overflows. An infinite or NaN sample (inf/inf, as in exp(x)/(1+exp(x)) and cosh(x)/sinh(x)) ends the sampling and the samples before it are judged. After an infinite sample, f just before the overflow (found by bisection) must also be at least as close to the limit as the last sample: it is huge where f itself overflows, so exp(x-700)+1 has no asymptote at +Infinity, and near the limit where a later operation keeps an inner overflow infinite, so log(1+exp(x))-x still gives 0. When the last five samples converge they are extrapolated with Aitken's delta-squared process (the last two extrapolations must agree), so offsets and scales that keep the first samples far from the limit ((x+500)/(x-500), 1/(x-1e5), atan(x/1000)) are found; otherwise the samples settle when the last four spread by at most 1e-4 * max(1, |value|) and by at most a quarter of the four before them (float noise, sin(x)/x). The value is rounded to the digits its tolerance supports (at most 12 significant digits), so 1/x gives 0 and floor(x)/x gives 1. Very slow limits (1/log(x), x^-0.05) are not listed, nor limits whose samples only settle beyond about 1e6 (1/(x-1e6))
 - `calculate_asymptotes_and_discontinuities(function_string, left_bound=None, right_bound=None)`: Complete asymptote and discontinuity analysis; denominator zeros that are not asymptotes are listed with the point discontinuities when within the bounds
@@ -4079,6 +4082,7 @@ Tools whose implementation appears in this manual under a different name (Canvas
 - `set_coordinate_system(mode)`: Switch the grid between `cartesian` and `polar`
 - `convert_coordinates(coord1, coord2, from_system, to_system)`: Convert between rectangular (or `cartesian`) and polar coordinates; returns `{r, theta, theta_degrees}` or `{x, y}` (theta in radians)
 - `set_grid_visible(visible)`: Show or hide the active grid without changing the coordinate system
+- `compute_descriptive_statistics(data, y_data)`: Bound to the pure `utils/statistics/tool.py` `compute_descriptive_statistics_tool`, not a Canvas method (see the Statistics Utilities)
 
 ### Tool Search Service (`static/tool_search_service.py`)
 
@@ -4908,7 +4912,7 @@ Descriptive statistics computation module.
 
 Key Features:
     - Mean, median, mode computation
-    - Population standard deviation and variance
+    - Sample (n - 1) and population (n) standard deviation and variance
     - Min, max, range
     - Quartiles (Q1, Q3) via median-of-halves (exclusive) method
     - Interquartile range (IQR)
@@ -4917,10 +4921,25 @@ Key Features:
 ```
 
 **Key Functions:**
-- `compute_descriptive_statistics(data)`: Compute all descriptive statistics for a list of numbers. Returns a `DescriptiveStatisticsResult` TypedDict with count, mean, median, mode, standard_deviation, variance, min, max, q1, q3, iqr, and range.
+- `compute_descriptive_statistics(data)`: Compute all descriptive statistics for a list of numbers. Returns a `DescriptiveStatisticsResult` TypedDict with count, mean, median, mode, sample_standard_deviation, population_standard_deviation, sample_variance, population_variance, min, max, q1, q3, iqr, and range. One scaled sum of squared deviations (`_sum_of_squares`) gives both pairs of spread figures.
+- `population_spread(values, name="data")`: The population (variance, standard deviation) by the same routine; `MathUtils.pstdev` and `pvariance` use it.
 
 **Key Types:**
-- `DescriptiveStatisticsResult(TypedDict)`: Result dict with fields: `count` (int), `mean` (float), `median` (float), `mode` (List[float]), `standard_deviation` (float), `variance` (float), `min` (float), `max` (float), `q1` (float), `q3` (float), `iqr` (float), `range` (float).
+- `DescriptiveStatisticsResult(TypedDict)`: Result dict with fields: `count` (int), `mean` (float), `median` (float), `mode` (List[float]), `sample_standard_deviation` (Optional[float], None for one value), `population_standard_deviation` (float), `sample_variance` (Optional[float]), `population_variance` (float), `min` (float), `max` (float), `q1` (float), `q3` (float), `iqr` (float), `range` (float).
+
+#### Two-Variable Statistics (`utils/statistics/two_variable.py`)
+
+```
+Two-variable statistics: Pearson's r and covariance of paired x and y lists.
+```
+
+**Key Functions:**
+- `paired_sums(x, y)`: Return a `PairedSums` (count, x_scale, y_scale, the scaled centred sums sxx, syy and sxy, and r) for equally long, validated lists. Each axis is divided by its largest deviation from its mean, so Sxx = x_scale^2 * sxx and the scaled sums never overflow; a deviation beyond the float limit is taken from the halved values. An axis whose values are all equal (min == max) has scale 0 and r is None. `PairedSums.covariance(divisor)` gives Sxy / divisor. It never raises for finite input, so `fit_linear` takes its r from it.
+- `compute_two_variable_statistics(data, y_data)`: Validate both lists (errors name `data` or `y_data`), require equal lengths and two pairs, and return a `TwoVariableStatisticsResult`: count, x, y, r, r_squared, sample_covariance, population_covariance.
+
+#### Statistics Tool Entry Point (`utils/statistics/tool.py`)
+
+- `compute_descriptive_statistics_tool(data, y_data=None)`: The `compute_descriptive_statistics` tool. Dispatches on `y_data` (null or `[]` means one list) and adds the `note` when a figure is null: `SAMPLE_FIGURES_NOTE` for a single value, or which axis has all values equal when r is undefined.
 
 #### Distributions (`utils/statistics/distributions.py`)
 
@@ -4968,14 +4987,13 @@ Key Features:
 #### Statistics Manager (`managers/statistics_manager.py`)
 
 ```
-Statistics manager for probability distributions, regression plots, and descriptive statistics.
+Statistics manager for probability distributions and regression plots.
 
 Key Features:
     - Continuous distribution plots with PDF curves and shaded areas
     - Discrete distribution plots using bar elements
     - Custom bar chart creation with values and labels
     - Regression fitting (linear, polynomial, exponential, etc.)
-    - Descriptive statistics computation (mean, median, mode, std dev, quartiles, etc.)
     - Plot deletion with proper cleanup of constituent drawables
     - Workspace restore via plot materialization methods
 ```
@@ -4983,8 +5001,7 @@ Key Features:
 **Key Methods:**
 - `plot_distribution(name, representation, distribution_type, ...)`: Create continuous or discrete distribution plots
 - `plot_bars(name, values, labels_below, labels_above, ...)`: Create custom bar charts
-- `fit_regression(name, x_data, y_data, model_type, ...)`: Fit regression models to data
-- `compute_descriptive_statistics(data)`: Compute summary statistics (count, mean, median, mode, std dev, variance, min, max, Q1, Q3, IQR, range)
+- `fit_regression(name, x_data, y_data, model_type, ...)`: Fit regression models to data; a linear fit's result also has `r`
 - `delete_plot(name)`: Delete a plot and all its constituent drawables
 
 **Supported Regression Model Types:**

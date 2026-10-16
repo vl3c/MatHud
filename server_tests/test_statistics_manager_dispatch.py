@@ -380,5 +380,39 @@ class TestMaterializeDiscretePlot(StatisticsManagerHarness):
                 self.assertEqual(output, "")
 
 
+class _UndoManager:
+    def begin_batch(self) -> None:
+        return None
+
+    def end_batch(self) -> None:
+        return None
+
+
+class TestFitRegressionResult(StatisticsManagerHarness):
+    def fit(self, model_type: str, degree: Optional[int] = None) -> Dict[str, Any]:
+        self.canvas.undo_redo_manager = _UndoManager()
+        return self.stats.fit_regression(
+            name=None,
+            x_data=[1.0, 2.0, 3.0, 4.0, 5.0],
+            y_data=[2.0, 4.0, 5.0, 4.0, 5.0],
+            model_type=model_type,
+            degree=degree,
+            plot_bounds=None,
+            curve_color=None,
+            show_points=False,
+            point_color=None,
+        )
+
+    def test_linear_fit_reports_r(self) -> None:
+        result = self.fit("linear")
+        self.assertEqual(result["r"], 0.7745966692414834)
+        self.assertAlmostEqual(result["r_squared"], 0.6, places=12)
+
+    def test_other_models_report_no_r(self) -> None:
+        for model, degree in (("polynomial", 2), ("exponential", None), ("power", None)):
+            with self.subTest(model=model):
+                self.assertNotIn("r", self.fit(model, degree))
+
+
 if __name__ == "__main__":
     unittest.main()

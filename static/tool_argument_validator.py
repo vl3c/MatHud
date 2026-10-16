@@ -22,6 +22,15 @@ Canonicalization rules (applied when schema type is matched):
       applied before validation, so also when validation fails. The routes apply
       it to every model reply's tool calls (``normalize_tool_calls``), streaming
       or not, before the client runs them.
+    - Omitted-to-null: a required top-level argument the call leaves out is filled
+      with None when its schema allows null (strict schemas mark every argument
+      required, and an optional one is nullable), so the call validates and the
+      other arguments are still coerced. The client handlers treat None as "not
+      given" for these arguments, except those in NO_NULL_FILL, which stay missing
+      without counting as missing. Unlike the null-strings rule, this applies only
+      inside ``validate()`` (the non-streaming /send_message path), not to the
+      tool calls of streaming providers; scenario replay fills every omitted
+      argument with None itself before validating.
     - NaN/Infinity rejection: float('nan'), float('inf') are invalid numbers
     - int pass-through for number fields: 5 stays as 5 (JSON doesn't distinguish)
     - bool is NOT a number: True/False rejected for number/integer fields
@@ -62,6 +71,16 @@ DISPLAY_TEXT_ARGUMENTS: Dict[str, frozenset] = {
     "generate_graph": frozenset({"vertices[].name", "vertices[].label", "root", "edges[].name"}),
     # Vertex names refer to the graph's own vertices, which may be called "undefined".
     "analyze_graph": frozenset({"params.root", "params.new_root"}),
+}
+
+# Nullable arguments whose client handler treats None differently from an omitted argument:
+# create_angle's is_reflex defaults to False, while None matches an existing angle of either
+# kind; generate_graph's name defaults to "Graph", while None would name the graph None.
+# An omitted one stays absent and is not reported as missing; the rest of the call is still
+# validated and coerced.
+NO_NULL_FILL: Dict[str, frozenset] = {
+    "create_angle": frozenset({"is_reflex"}),
+    "generate_graph": frozenset({"name"}),
 }
 
 
@@ -422,6 +441,23 @@ def _validate_value(
     return value
 
 
+def _fill_omitted_nullable(
+    tool_name: str, arguments: Dict[str, Any], properties: Dict[str, Any], required: List[str]
+) -> None:
+    """Set each required argument missing from *arguments* to None where its schema allows null.
+
+    Only top-level arguments, and none listed in NO_NULL_FILL for *tool_name*.
+    """
+    skipped = NO_NULL_FILL.get(tool_name, frozenset())
+    for key in required:
+        prop_schema = properties.get(key)
+        if key in arguments or key in skipped or not isinstance(prop_schema, dict):
+            continue
+        if _schema_allows_null(prop_schema):
+            logger.info("Tool '%s': omitted argument '%s' filled with null.", tool_name, key)
+            arguments[key] = None
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -486,9 +522,13 @@ class ToolArgumentValidator:
         required = schema.get("required", [])
         additional = schema.get("additionalProperties", True)
 
-        # Required fields
+        # An omitted optional (nullable) argument means null, as strict-schema models send it
+        _fill_omitted_nullable(function_name, canonical_args, properties, required)
+
+        # Required fields; an omitted NO_NULL_FILL argument stays absent, so the handler applies its default
+        left_absent = NO_NULL_FILL.get(function_name, frozenset())
         for req_key in required:
-            if req_key not in canonical_args:
+            if req_key not in canonical_args and req_key not in left_absent:
                 errors.append(f"Tool '{function_name}': missing required argument '{req_key}'.")
 
         # Unknown keys

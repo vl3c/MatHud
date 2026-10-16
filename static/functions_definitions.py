@@ -1400,7 +1400,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "evaluate_expression",
-            "description": "Calculate or evaluate a mathematical expression and return its decimal value (for an exact fraction or radical, use simplify). Use for arithmetic (+, -, *, /, ^, and % for the remainder: 17 % 5 = 2; % never means percent), algebra, complex numbers (3 + 4i) and math functions. Supports variables (x, y), constants (e, pi, i), and functions: sin, cos, tan, sqrt, cbrt, nthroot (real n-th root, so nthroot(-8, 3) = -2), log, log10, log2, factorial, arrangements, permutations, combinations, asin, acos, atan, atan2 (atan2(y, x) is the angle of the point (x, y), between -pi and pi), sec, csc, cot, asec, acsc, acot, sinh, cosh, tanh, asinh, acosh, atanh, exp, abs, sign, pow, mod (remainder with the sign of the divisor, like %, so mod(-7, 3) = 2), gamma, erf, re, im, arg (angle of a complex number, between -pi and pi), conj, det, bin, round, ceil, floor, trunc, max, min, sum, gcd, lcm, is_prime, prime_factors, mod_pow, mod_inverse, next_prime (smallest prime >= n, so next_prime(7) = 7), prev_prime (largest prime <= n), totient, divisors, mean, median, mode, stdev, variance, random, randint. Also supports sequence/series helpers such as summation('n^2','n',0,50), product('n+1','n',0,10), arithmetic_sum(1,2,20), geometric_sum(3,0.5,15), geometric_sum_infinite(3,0.5), ratio_test('1/factorial(n)','n'), root_test('(1/2)^n','n'), and p_series_test(2). Numbers like 2e-3 are scientific notation (0.002); write 2*e for a multiple of Euler's number.",
+            "description": "Calculate or evaluate a mathematical expression and return its decimal value (for an exact fraction or radical, use simplify). Use for arithmetic (+, -, *, /, ^, and % for the remainder: 17 % 5 = 2; % never means percent), algebra, complex numbers (3 + 4i) and math functions. Supports variables (x, y), constants (e, pi, i), and functions: sin, cos, tan, sqrt, cbrt, nthroot (real n-th root, so nthroot(-8, 3) = -2), log, log10, log2, factorial, arrangements, permutations, combinations, asin, acos, atan, atan2 (atan2(y, x) is the angle of the point (x, y), between -pi and pi), sec, csc, cot, asec, acsc, acot, sinh, cosh, tanh, asinh, acosh, atanh, exp, abs, sign, pow, mod (remainder with the sign of the divisor, like %, so mod(-7, 3) = 2), gamma, erf, re, im, arg (angle of a complex number, between -pi and pi), conj, det, bin, round, ceil, floor, trunc, max, min, sum, gcd, lcm, is_prime, prime_factors, mod_pow, mod_inverse, next_prime (smallest prime >= n, so next_prime(7) = 7), prev_prime (largest prime <= n), totient, divisors, mean, median, mode, stdev, variance (of a sample, dividing by n - 1), pstdev, pvariance (of a population, dividing by n), random, randint. Also supports sequence/series helpers such as summation('n^2','n',0,50), product('n+1','n',0,10), arithmetic_sum(1,2,20), geometric_sum(3,0.5,15), geometric_sum_infinite(3,0.5), ratio_test('1/factorial(n)','n'), root_test('(1/2)^n','n'), and p_series_test(2). Numbers like 2e-3 are scientific notation (0.002); write 2*e for a multiple of Euler's number.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -2528,7 +2528,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "fit_regression",
-            "description": "Fits a regression model to data points and plots the resulting curve. Supported model types: linear (y = mx + b), polynomial (y = a0 + a1*x + ... + an*x^n), exponential (y = a*e^(bx)), logarithmic (y = a + b*ln(x)), power (y = a*x^b), logistic (y = L/(1+e^(-k(x-x0)))), and sinusoidal (y = a*sin(bx+c)+d). Returns the function_name, fitted expression, coefficients, R-squared, and point_names (every data point in data order). A data point on an existing point reuses it; the result then adds reused_point_names (those points) and created_point_names (the points this call added). Use delete_function to remove the curve; to remove the data points, delete the point_names, or when reused_point_names is present only the created_point_names, never the reused ones (they belong to the user's existing drawing).",
+            "description": "Fits a regression model to data points and plots the resulting curve. Supported model types: linear (y = mx + b), polynomial (y = a0 + a1*x + ... + an*x^n), exponential (y = a*e^(bx)), logarithmic (y = a + b*ln(x)), power (y = a*x^b), logistic (y = L/(1+e^(-k(x-x0)))), and sinusoidal (y = a*sin(bx+c)+d). Returns the function_name, fitted expression, coefficients, R-squared and, for the linear model, r (Pearson correlation, with the slope's sign; null when all y values are equal, while R-squared is then 1), and point_names (every data point in data order). A data point on an existing point reuses it; the result then adds reused_point_names (those points) and created_point_names (the points this call added). Use delete_function to remove the curve; to remove the data points, delete the point_names, or when reused_point_names is present only the created_point_names, never the reused ones (they belong to the user's existing drawing).",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2609,7 +2609,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "compute_descriptive_statistics",
-            "description": "Computes descriptive statistics for a list of numbers. Returns count, mean, median, mode, population standard deviation, population variance, min, max, first quartile (Q1), third quartile (Q3), interquartile range (IQR), and range. Mode is returned as a list of every value with the highest frequency, sorted ascending; it is empty when there are two or more distinct values and all appear equally often (e.g. [1, 2, 3] or [1, 1, 2, 2]), and a single distinct value is the mode however often it appears ([5] and [7, 7, 7] give [5] and [7]). Quartiles use the median-of-halves (exclusive) method. Use this for summarizing datasets, finding central tendency and spread, or answering questions about data distributions.",
+            "description": "Statistics of one list or of paired x and y lists: mean, median, sample and population standard deviation, quartiles; correlation r and covariance. For one list (data), returns count, mean, median, mode, sample_standard_deviation and sample_variance (s, Sx, dividing by n - 1: the usual standard deviation of a data sample; null for a single value), population_standard_deviation and population_variance (sigma, dividing by n: the list is the whole population), min, max, q1 and q3 (first and third quartiles), iqr (interquartile range) and range. When the user does not say which standard deviation, report both and name them. Mode is returned as a list of every value with the highest frequency, sorted ascending; it is empty when there are two or more distinct values and all appear equally often (e.g. [1, 2, 3] or [1, 1, 2, 2]), and a single distinct value is the mode however often it appears ([5] and [7, 7, 7] give [5] and [7]). Quartiles use the median-of-halves (exclusive) method. For paired data, pass the x values as data and the y values as y_data; the result then holds count, x and y (the one-list statistics of each), r (Pearson correlation) and r_squared, both null when all x values or all y values are equal, sample_covariance (dividing by n - 1) and population_covariance (dividing by n). When defined, r_squared equals fit_regression's linear R-squared; for constant y the fit reports R-squared 1 where this tool reports null. Use fit_regression for the line itself. Use this for summarizing datasets, finding central tendency and spread, or answering questions about data distributions.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2618,10 +2618,15 @@ FUNCTIONS: List[Dict[str, Any]] = [
                         "type": "array",
                         "items": {"type": "number"},
                         "minItems": 1,
-                        "description": "Array of numbers to analyze. Must contain at least one number. All values must be finite (no Infinity or NaN).",
-                    }
+                        "description": "Array of numbers to analyze (the x values when y_data is given). Must contain at least one number. All values must be finite (no Infinity or NaN).",
+                    },
+                    "y_data": {
+                        "type": ["array", "null"],
+                        "items": {"type": "number"},
+                        "description": "Optional y values paired with data, as many as data, for two-variable statistics: correlation r and covariance. null for one list.",
+                    },
                 },
-                "required": ["data"],
+                "required": ["data", "y_data"],
                 "additionalProperties": False,
             },
         },

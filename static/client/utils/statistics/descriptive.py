@@ -8,7 +8,7 @@ for a list of numbers. No browser imports — fully testable with pytest.
 from __future__ import annotations
 
 import math
-from typing import List, TypedDict
+from typing import List, Optional, Tuple, TypedDict
 
 
 class DescriptiveStatisticsResult(TypedDict):
@@ -18,8 +18,12 @@ class DescriptiveStatisticsResult(TypedDict):
     mean: float
     median: float
     mode: List[float]
-    standard_deviation: float
-    variance: float
+    # Sample figures divide by n - 1 (s, Sx) and are None for one value;
+    # population figures divide by n (sigma)
+    sample_standard_deviation: Optional[float]
+    population_standard_deviation: float
+    sample_variance: Optional[float]
+    population_variance: float
     min: float
     max: float
     q1: float
@@ -33,8 +37,10 @@ class DescriptiveStatisticsResult(TypedDict):
 # ---------------------------------------------------------------------------
 
 
-def _validate_data(data: List[float]) -> None:
+def _validate_data(data: List[float], name: str = "data") -> None:
     """Validate that *data* is a non-empty list of finite numbers.
+
+    *name* is the argument's name in the error messages.
 
     Raises:
         TypeError: If *data* is not a list or contains non-numeric elements
@@ -42,18 +48,18 @@ def _validate_data(data: List[float]) -> None:
         ValueError: If *data* is empty or contains non-finite values.
     """
     if not isinstance(data, list):
-        raise TypeError(f"data must be a list, got {type(data).__name__}")
+        raise TypeError(f"{name} must be a list, got {type(data).__name__}")
 
     if len(data) == 0:
-        raise ValueError("data must not be empty")
+        raise ValueError(f"{name} must not be empty")
 
     for i, v in enumerate(data):
         if isinstance(v, bool):
-            raise TypeError(f"data[{i}] is a bool; only int and float are accepted")
+            raise TypeError(f"{name}[{i}] is a bool; only int and float are accepted")
         if not isinstance(v, (int, float)):
-            raise TypeError(f"data[{i}] must be int or float, got {type(v).__name__}")
+            raise TypeError(f"{name}[{i}] must be int or float, got {type(v).__name__}")
         if not math.isfinite(v):
-            raise ValueError(f"data[{i}] is not finite: {v}")
+            raise ValueError(f"{name}[{i}] is not finite: {v}")
 
 
 # ---------------------------------------------------------------------------
@@ -90,23 +96,59 @@ def _compute_mean(values: List[float]) -> float:
 _SAFE_DEVIATION = 1e150
 
 
-def _compute_spread(values: List[float], mean: float) -> tuple[float, float]:
-    """Return the population (variance, standard deviation).
+def _sum_of_squares(values: List[float], mean: float) -> Tuple[float, float]:
+    """Return (scale, scaled): the sum of squared deviations from *mean* is scale**2 * scaled.
 
-    Squared deviations are summed with math.fsum. Deviations too large to square
-    are scaled first, so the standard deviation stays finite when the variance
-    alone would overflow (the variance is then inf).
+    The squares are summed with math.fsum. Deviations too large to square are
+    divided by the largest one first (scale is then that deviation, otherwise 1),
+    so the standard deviation stays finite when the variance alone would
+    overflow. A deviation that overflows itself gives an infinite scale.
     """
-    n = len(values)
     deviations = [v - mean for v in values]
     largest = max(abs(d) for d in deviations)
     if largest <= _SAFE_DEVIATION:
-        variance = math.fsum(d * d for d in deviations) / n
-        return variance, math.sqrt(variance)
+        return 1.0, math.fsum(d * d for d in deviations)
     if not math.isfinite(largest):
         return math.inf, math.inf
-    std_dev = largest * math.sqrt(math.fsum((d / largest) ** 2 for d in deviations) / n)
+    return largest, math.fsum((d / largest) ** 2 for d in deviations)
+
+
+def _variance_and_deviation(scale: float, scaled: float, divisor: int) -> Tuple[float, float]:
+    """Return (variance, standard deviation) from _sum_of_squares' result.
+
+    *divisor* is n for the population figures and n - 1 for the sample ones.
+    """
+    if not math.isfinite(scale):
+        return math.inf, math.inf
+    if scale == 1.0:
+        # Summed unscaled (a scaled sum always has a scale above _SAFE_DEVIATION)
+        variance = scaled / divisor
+        return variance, math.sqrt(variance)
+    std_dev = scale * math.sqrt(scaled / divisor)
     return std_dev * std_dev, std_dev
+
+
+def _spread_sums(values: List[float], mean: float, all_equal: bool) -> Tuple[float, float]:
+    """Return _sum_of_squares' (scale, scaled), with exactly zero spread when *all_equal*.
+
+    The fsum mean of a constant list can miss the value by an ulp ([0.1] * 3 gives
+    0.10000000000000002), which would leave a tiny nonzero standard deviation.
+    """
+    if all_equal:
+        return 1.0, 0.0
+    return _sum_of_squares(values, mean)
+
+
+def population_spread(values: List[float], name: str = "data") -> Tuple[float, float]:
+    """Return the population (variance, standard deviation) of *values*.
+
+    The same routine as compute_descriptive_statistics, so expressions' pstdev and
+    pvariance give the tool's figures bit for bit. *name* is the argument's name in
+    the error messages.
+    """
+    _validate_data(values, name)
+    scale, scaled = _spread_sums(values, _compute_mean(values), min(values) == max(values))
+    return _variance_and_deviation(scale, scaled, len(values))
 
 
 def _compute_median(sorted_data: List[float]) -> float:
@@ -184,8 +226,10 @@ def compute_descriptive_statistics(
 
     Returns:
         A ``DescriptiveStatisticsResult`` dict containing:
-        count, mean, median, mode, standard_deviation, variance,
-        min, max, q1, q3, iqr, range.
+        count, mean, median, mode, sample_standard_deviation,
+        population_standard_deviation, sample_variance, population_variance,
+        min, max, q1, q3, iqr, range. The sample figures (divided by n - 1)
+        are None when there is one value.
 
     Raises:
         TypeError: If *data* is not a list or contains non-numeric values.
@@ -201,8 +245,13 @@ def compute_descriptive_statistics(
     median = _compute_median(sorted_data)
     mode = _compute_mode(sorted_data)
 
-    # Spread — population formula (divide by N)
-    variance, std_dev = _compute_spread(sorted_data, mean)
+    # Spread: population figures divide by n, sample figures by n - 1
+    scale, scaled = _spread_sums(sorted_data, mean, sorted_data[0] == sorted_data[-1])
+    population_variance, population_std_dev = _variance_and_deviation(scale, scaled, n)
+    sample_variance: Optional[float] = None
+    sample_std_dev: Optional[float] = None
+    if n > 1:
+        sample_variance, sample_std_dev = _variance_and_deviation(scale, scaled, n - 1)
 
     # Extremes
     data_min = float(sorted_data[0])
@@ -218,8 +267,10 @@ def compute_descriptive_statistics(
         mean=mean,
         median=median,
         mode=mode,
-        standard_deviation=std_dev,
-        variance=variance,
+        sample_standard_deviation=sample_std_dev,
+        population_standard_deviation=population_std_dev,
+        sample_variance=sample_variance,
+        population_variance=population_variance,
         min=data_min,
         max=data_max,
         q1=q1,

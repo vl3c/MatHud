@@ -25,6 +25,7 @@ import no_op_tools
 from creation_report import CreationReport
 from no_change_result import NoChangeResult
 from utils.math_utils import MathUtils
+from utils.statistics.tool import compute_descriptive_statistics_tool
 from process_function_calls import ProcessFunctionCalls
 from tool_kinds import UNDOABLE_TOOLS
 
@@ -323,7 +324,7 @@ class FunctionRegistry:
             "plot_bars": canvas.plot_bars,
             "delete_plot": canvas.delete_plot,
             "fit_regression": canvas.fit_regression,
-            "compute_descriptive_statistics": canvas.compute_descriptive_statistics,
+            "compute_descriptive_statistics": compute_descriptive_statistics_tool,
             # ===== ANGLE OPERATIONS =====
             "create_angle": canvas.create_angle,
             "delete_angle": canvas.delete_angle,

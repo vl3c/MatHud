@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Tuple
 from canvas import Canvas
 from constants import successful_call_message
 from function_registry import FunctionRegistry
+from json_safe import to_json_safe
 from process_function_calls import ProcessFunctionCalls
 from tool_call_log_manager import ToolCallLogManager
 from turn_metrics import aggregate_turn
@@ -593,6 +594,85 @@ class TestToolErrorResults(_ToolBatchTestCase):
         turn = aggregate_turn([], tool_results, None, "stop")
 
         self.assertEqual(turn["tool_errors"], 1)
+
+
+class TestStatisticsToolResults(_ToolBatchTestCase):
+    """compute_descriptive_statistics and the linear fit's r through the model's tool path."""
+
+    X = [1, 2, 3, 4, 5]
+    Y = [2, 4, 5, 4, 5]
+
+    def stats(self, data: List[float], y_data: Any) -> Dict[str, Any]:
+        _, traced = self.run_batch(("compute_descriptive_statistics", {"data": data, "y_data": y_data}))
+        self.assertFalse(traced[0]["is_error"], traced[0]["result"])
+        result = traced[0]["result"]
+        self.assertIsInstance(result, dict)
+        return dict(result)
+
+    def round_trip(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        loaded: Dict[str, Any] = json.loads(json.dumps(to_json_safe(result)))
+        return loaded
+
+    def test_one_list_reports_both_standard_deviations(self) -> None:
+        depth = self.undo_depth()
+        result = self.stats([10, 20, 30, 40, 50], None)
+        self.assertEqual(result["sample_standard_deviation"], 15.811388300841896)
+        self.assertEqual(result["population_standard_deviation"], 14.142135623730951)
+        self.assertEqual(result["sample_variance"], 250.0)
+        self.assertEqual(result["population_variance"], 200.0)
+        self.assertNotIn("standard_deviation", result)
+        self.assertEqual(self.undo_depth(), depth)
+
+    def test_empty_y_data_means_one_list(self) -> None:
+        self.assertEqual(self.stats(self.X, []), self.stats(self.X, None))
+
+    def test_single_value_has_null_sample_figures_and_a_note(self) -> None:
+        result = self.round_trip(self.stats([5], None))
+        self.assertIsNone(result["sample_standard_deviation"])
+        self.assertIn("at least two values", result["note"])
+
+    def test_paired_data(self) -> None:
+        result = self.stats(self.X, self.Y)
+        self.assertEqual(result["r"], 0.7745966692414834)
+        self.assertEqual(result["sample_covariance"], 1.5)
+        self.assertEqual(result["population_covariance"], 1.2)
+        self.assertEqual(result["x"]["sample_standard_deviation"], 1.5811388300841898)
+        self.assertEqual(result["y"]["mean"], 4.0)
+
+    def test_paired_results_survive_json(self) -> None:
+        constant = self.round_trip(self.stats([3, 3, 3], [1, 2, 3]))
+        self.assertIsNone(constant["r"])
+        self.assertIsNone(constant["r_squared"])
+        self.assertEqual(constant["sample_covariance"], 0.0)
+        self.assertIn("all x values are equal", constant["note"])
+        # Brython's json.loads misreads exponents such as 2e+200, so only the sent form is checked
+        huge = to_json_safe(self.stats([1e200, 2e200, 3e200], [1e200, 2e200, 3e200]))
+        self.assertEqual(huge["r"], 1.0)
+        self.assertEqual(huge["sample_covariance"], "Infinity")
+        self.assertIn('"sample_covariance": "Infinity"', json.dumps(huge))
+
+    def test_mismatched_lengths_are_an_error(self) -> None:
+        _, traced = self.run_batch(("compute_descriptive_statistics", {"data": self.X, "y_data": [1, 2]}))
+        self.assertTrue(traced[0]["is_error"])
+        self.assertIn("same length (5 and 2)", str(traced[0]["result"]))
+
+    def test_linear_fit_reports_the_same_r(self) -> None:
+        paired = self.stats(self.X, self.Y)
+        args: Dict[str, Any] = {
+            "name": "f",
+            "x_data": self.X,
+            "y_data": self.Y,
+            "degree": None,
+            "plot_bounds": None,
+            "curve_color": None,
+            "show_points": False,
+            "point_color": None,
+        }
+        linear = self.run_single("fit_regression", model_type="linear", **args)
+        self.assertEqual(linear["r"], paired["r"])
+        self.assertAlmostEqual(linear["r_squared"], paired["r_squared"], delta=1e-12)
+        exponential = self.run_single("fit_regression", model_type="exponential", **dict(args, name="g"))
+        self.assertNotIn("r", exponential)
 
 
 class TestEditRefusalGuidance(_ToolBatchTestCase):
