@@ -12,7 +12,7 @@ from browser import window
 
 from utils.math_utils import MathUtils
 
-from .cas_engines import AnyEngine, WithoutSympy, sympy_available, value_of
+from .cas_engines import AnyEngine, WithoutSympy, real_roots, sympy_available, value_of
 
 
 def _parse_point_pairs(result: str) -> List[Tuple[float, float]]:
@@ -268,3 +268,10 @@ class TestMathUtilsSolving(unittest.TestCase):
                 )
                 self.assertTrue(MathUtils.solve("x^2 = 4", "x", "[2, 1]").startswith("Error:"))
                 self.assertEqual(MathUtils.solve("x^2 = 4", "x", None), MathUtils.solve("x^2 = 4", "x"))
+                # One variable only, as for inequalities; implicit products as SymPy reads them
+                self.assertEqual(
+                    MathUtils.solve("x + y = 3", "x", "[0, 5]"),
+                    "Error: solve lists the roots in an interval for equations in one variable; "
+                    "besides x it also contains y.",
+                )
+                self.assertEqual(real_roots(MathUtils.solve("(x-1)(x+2) = 0", "x", "[-5, 5]")), [-2.0, 1.0])

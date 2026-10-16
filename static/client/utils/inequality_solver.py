@@ -19,13 +19,19 @@ import math
 import re
 from typing import Any, Dict, List, Optional, Sequence, cast
 
-from utils.cas_text import insert_letter_call_products, parse_interval, split_relation
+from utils.cas_text import insert_implicit_products, insert_letter_call_products, parse_interval, split_relation
 from utils.real_sets import (
+    Magnitude,
     Piece,
     Relation,
     SignChartFailure,
     Window,
     format_solution,
+    grid_reach,
+    is_plain_number,
+    nice_number,
+    number_text,
+    reach_text,
     sign_chart,
     verify_solution_set,
 )
@@ -35,7 +41,8 @@ _TRIG_CALL = re.compile(r"(?<![A-Za-z_])(?:sin|cos|tan|sec|csc|cot)\s*\(")
 _TRIG_WINDOW = (-2 * math.pi, 2 * math.pi, "-2*pi", "2*pi")
 # A number written before a name or "(" (2pi, 3(x+1)), but not an exponent (1e5)
 _IMPLICIT_PRODUCT = re.compile(r"(?<![A-Za-z_\d.])(\d+\.?\d*)(?![eE][-+]?\d)\s*(?=[A-Za-z(])")
-_INFINITE_ENDS = {"Infinity": math.inf, "-Infinity": -math.inf, "inf": math.inf, "-inf": -math.inf}
+# Spellings of an infinite interval end (any case, with an optional sign)
+_INFINITE_ENDS = ("inf", "infinity", "oo", "∞")
 
 
 class InequalitySolver:
@@ -80,14 +87,16 @@ class InequalitySolver:
 
     @staticmethod
     def prepared(text: str) -> str:
-        """text read the same way by SymPy and math.js: MathUtils._cas_input, bars as abs(), x(x+2) as x*(x+2)."""
+        """text read the same way by SymPy and math.js: MathUtils._cas_input, bars as abs(), x(x+2) as
+        x*(x+2), and (x-1)(x+2), (x+1)2 and (x-2)^2 (x+1) as products."""
         from expression_functions import BY_NAME, CALL_ALIASES, replace_absolute_bars
         from utils.math_utils import MathUtils
 
         if not isinstance(text, str):
             raise ValueError("The inequality must be given as text.")
         prepared = replace_absolute_bars(str(MathUtils._cas_input(text)))
-        return str(insert_letter_call_products(prepared, list(BY_NAME) + list(CALL_ALIASES)))
+        prepared = insert_letter_call_products(prepared, list(BY_NAME) + list(CALL_ALIASES))
+        return str(insert_implicit_products(prepared))
 
     @staticmethod
     def window(interval: Optional[str]) -> Optional[Window]:
@@ -106,38 +115,57 @@ class InequalitySolver:
             raise ValueError(f"the interval's ends must be real numbers, not {interval!r}.")
         if not lower < upper:
             raise ValueError(f"the interval's lower end must be below its upper end, not {interval!r}.")
-        return Window(lower, upper, lower_closed, upper_closed, _end_text(lower_text), _end_text(upper_text))
+        return Window(
+            lower,
+            upper,
+            lower_closed,
+            upper_closed,
+            _end_text(lower_text, lower),
+            _end_text(upper_text, upper),
+        )
 
     @staticmethod
     def _end_value(text: str) -> Optional[float]:
+        """An interval end's value: +-inf for Infinity, inf, oo or ∞; None unless it is a real number."""
         from utils.symbolic_checks import SymbolicChecks
 
         compact = text.replace(" ", "")
-        if compact in _INFINITE_ENDS:
-            return _INFINITE_ENDS[compact]
+        body = compact.lstrip("+-")
+        if body.lower() in _INFINITE_ENDS and len(compact) - len(body) <= 1:
+            return -math.inf if compact.startswith("-") else math.inf
         value = SymbolicChecks.numeric_value(compact)
         return None if value is None else float(value)
 
     @staticmethod
     def _check_variable(parts: Sequence[str], variable: str) -> None:
         """Refuse an inequality without the variable, or with other free names (a parameter, a second variable)."""
-        from compiled_expression import FUNCTIONS_ALL, compile_expression
-
-        others: List[str] = []
-        found = False
-        for part in parts:
-            try:
-                compiled = compile_expression(part, (variable,), FUNCTIONS_ALL)
-            except Exception as error:
-                raise ValueError(f"cannot read {part}: {error}") from None
-            others.extend(name for name in compiled.free_names if name not in others)
-            found = found or re.search(rf"(?<![A-Za-z_]){re.escape(variable)}(?![A-Za-z0-9_])", part) is not None
+        others = InequalitySolver.other_names(parts, variable, strict=True)
         if others:
             raise ValueError(
                 f"solve handles inequalities in one variable; besides {variable} it also contains {', '.join(others)}."
             )
-        if not found:
+        if not any(re.search(rf"(?<![A-Za-z_]){re.escape(variable)}(?![A-Za-z0-9_])", part) for part in parts):
             raise ValueError(f"the inequality does not contain {variable}.")
+
+    @staticmethod
+    def other_names(parts: Sequence[str], variable: str, strict: bool = False) -> List[str]:
+        """The free names of the expressions besides variable (a parameter, a second variable).
+
+        Raises:
+            ValueError: when strict and an expression cannot be read; otherwise it is skipped.
+        """
+        from compiled_expression import FUNCTIONS_ALL, compile_expression
+
+        others: List[str] = []
+        for part in parts:
+            try:
+                compiled = compile_expression(part, (variable,), FUNCTIONS_ALL)
+            except Exception as error:
+                if strict:
+                    raise ValueError(f"cannot read {part}: {error}") from None
+                continue
+            others.extend(name for name in compiled.free_names if name not in others)
+        return others
 
     @staticmethod
     def _relations(parts: Sequence[str], signs: Sequence[str], variable: str) -> List[Relation]:
@@ -147,21 +175,52 @@ class InequalitySolver:
         relations: List[Relation] = []
         for index, sign in enumerate(signs):
             left, right = parts[index], parts[index + 1]
-            difference = SymbolicChecks.real_function(f"({left})-({right})", variable)
             sides = [SymbolicChecks.real_function(side, variable) for side in (left, right)]
-            if difference is None or sides[0] is None or sides[1] is None:
+            if sides[0] is None or sides[1] is None:
                 raise ValueError(f"the expressions of {left} {sign} {right} cannot be evaluated.")
-            relations.append(Relation(difference, sign, InequalitySolver._scale(sides[0], sides[1])))
+            relations.append(InequalitySolver._relation(left, right, sign, sides[0], sides[1], variable))
         return relations
 
     @staticmethod
-    def _scale(left: Any, right: Any) -> Any:
-        def scale(point: float) -> Optional[float]:
-            values = [left(point), right(point)]
-            finite = [abs(value) for value in values if value is not None and math.isfinite(value)]
-            return float(max([1.0] + finite))
+    def _relation(left_text: str, right_text: str, sign: str, left: Any, right: Any, variable: str) -> Relation:
+        """lhs - rhs with max(|lhs|, |rhs|) as its magnitude.
 
-        return scale
+        A constant side gives the magnitude without evaluating the other side; otherwise the
+        difference is computed from both sides, which the magnitude at the same point reuses
+        (math.js would subtract the same two values in "(lhs)-(rhs)").
+        """
+        from utils.symbolic_checks import SymbolicChecks
+
+        for constant_text, constant_sign in ((right_text, 1.0), (left_text, -1.0)):
+            constant_value = SymbolicChecks.numeric_value(constant_text)
+            if constant_value is None:
+                continue
+            difference = SymbolicChecks.real_function(f"({left_text})-({right_text})", variable)
+            if difference is None:
+                raise ValueError(f"the expressions of {left_text} {sign} {right_text} cannot be evaluated.")
+            return Relation(difference, sign, _constant_side_magnitude(float(constant_value), constant_sign))
+        last: List[Any] = [None, None, None]  # the last point and both sides' values there
+
+        def sides_at(point: float) -> List[Any]:
+            if last[0] is None or last[0] != point:
+                last[0], last[1], last[2] = point, left(point), right(point)
+            return last
+
+        def difference_from_sides(point: float) -> Optional[float]:
+            _, lhs, rhs = sides_at(point)
+            return None if lhs is None or rhs is None else float(lhs - rhs)
+
+        def magnitude(point: float, value: float) -> Optional[float]:
+            _, lhs, rhs = sides_at(point)
+            largest: Optional[float] = None
+            for side in (lhs, rhs):
+                if side is not None and side == side and side != math.inf and side != -math.inf:
+                    size = side if side >= 0 else -side
+                    if largest is None or size > largest:
+                        largest = size
+            return largest
+
+        return Relation(difference_from_sides, sign, magnitude)
 
     @staticmethod
     def _relation_text(parts: Sequence[str], signs: Sequence[str]) -> str:
@@ -274,11 +333,36 @@ class InequalitySolver:
         except SignChartFailure as error:
             return f"Error: could not solve {relation_text} reliably ({error})."
         unbounded = window is None or not (math.isfinite(window.lower) and math.isfinite(window.upper))
-        reach = "; checked out to |x| = 10^6".replace("x", variable) if unbounded else ""
-        note = f"(found numerically because {reason}{reach})"
-        return f"{format_solution(variable, pieces, relation_text, window, period)} {note}"
+        reach = f"; checked out to |{variable}| = {reach_text(grid_reach(seeds))}" if unbounded else ""
+        note = f"found numerically because {reason}{reach}"
+        return str(format_solution(variable, pieces, relation_text, window, period, note))
 
 
-def _end_text(text: str) -> str:
-    """An interval end as the answer writes it: no spaces, 2pi as 2*pi."""
-    return _IMPLICIT_PRODUCT.sub(r"\1*", text.replace(" ", ""))
+def _constant_side_magnitude(constant: float, constant_sign: float) -> Magnitude:
+    """max(|lhs|, |rhs|) from lhs - rhs when one side is constant: lhs = value + constant for a
+    constant right side (constant_sign 1), rhs = constant - value for a constant left side (-1).
+    Written without calls, as the browser runs it at every sample."""
+    constant_size = constant if constant >= 0 else -constant
+
+    def magnitude(point: float, value: float) -> float:
+        other = constant + constant_sign * value
+        other = other if other >= 0 else -other
+        return other if other > constant_size else constant_size
+
+    return magnitude
+
+
+def _end_text(text: str, value: float) -> str:
+    """An interval end as the answer writes it: Infinity, a number as given (0.5, 1e-300, 1/3),
+    else p/q or p*pi/q (1+1 as 2, 2pi as 2*pi), an exact form as given (sqrt(2)), or decimals."""
+    if math.isinf(value):
+        return str(number_text(value))
+    compact = _IMPLICIT_PRODUCT.sub(r"\1*", text.replace(" ", ""))
+    if is_plain_number(compact):
+        return compact
+    nice = nice_number(value)
+    if nice is not None:
+        return str(nice[0])
+    if re.search(r"[A-Za-z]", compact):
+        return compact
+    return str(number_text(value))

@@ -2086,6 +2086,16 @@ class MathUtils:
         sides = equation.split("=")
         if len(sides) > 2:
             return "Error: An equation has at most one '='."
+        if roots_window is not None:
+            try:
+                others = InequalitySolver.other_names([InequalitySolver.prepared(side) for side in sides], variable)
+            except ValueError:
+                others = []  # left to the engines, which say what they cannot read
+            if others:
+                return (
+                    f"Error: solve lists the roots in an interval for equations in one variable; "
+                    f"besides {variable} it also contains {', '.join(others)}."
+                )
         interval_args = InequalitySolver.sympy_interval_args(roots_window)
         answer = MathUtils._sympy_answer("solve", equation=equation, variable=variable, **interval_args)
         if answer is not None and answer["result"] is not None:

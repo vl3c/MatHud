@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 import unittest
-from typing import List, Optional, Sequence, Tuple
+from typing import Callable, List, Optional, Sequence, Tuple
 
 from server_tests import client_renderer  # noqa: F401  (browser stub, so compiled_expression imports)
 from compiled_expression import compile_expression
@@ -19,9 +19,11 @@ from utils.real_sets import (
     SignChartFailure,
     Window,
     format_solution,
+    grid_reach,
     is_plain_number,
     nice_number,
     number_text,
+    reach_text,
     sign_chart,
     verify_solution_set,
 )
@@ -59,7 +61,24 @@ def _relations(text: str) -> List[Relation]:
         parts.append(rest[:index])
         found.append(sign)
         rest = rest[index + len(sign) :]
-    return [Relation(_function(f"({parts[index]}) - ({parts[index + 1]})"), sign) for index, sign in enumerate(found)]
+    return [
+        Relation(
+            _function(f"({parts[index]}) - ({parts[index + 1]})"),
+            sign,
+            _magnitude(_function(parts[index].strip()), _function(parts[index + 1].strip())),
+        )
+        for index, sign in enumerate(found)
+    ]
+
+
+def _magnitude(left: RealFunction, right: RealFunction) -> Callable[[float, float], Optional[float]]:
+    """max(|lhs|, |rhs|), as InequalitySolver gives it."""
+
+    def magnitude(point: float, difference: float) -> Optional[float]:
+        sizes = [abs(value) for value in (left(point), right(point)) if value is not None and math.isfinite(value)]
+        return max(sizes) if sizes else None
+
+    return magnitude
 
 
 def _window(
@@ -70,6 +89,9 @@ def _window(
 
 def _notation(pieces: Sequence[Piece]) -> List[Tuple[str, str, bool, bool]]:
     return [(piece.lower_text, piece.upper_text, piece.lower_closed, piece.upper_closed) for piece in pieces]
+
+
+DEFAULT_WINDOW = Window(-TWO_PI, TWO_PI, True, True, "-2*pi", "2*pi")
 
 
 def _solve(text: str, window: Optional[Window] = None, seeds: Sequence[float] = ()) -> str:
@@ -89,6 +111,9 @@ class TestNumbers(unittest.TestCase):
         self.assertIsNone(nice_number(math.sqrt(2)))
         # A value that merely resembles pi/3 is not labelled exact
         self.assertIsNone(nice_number(math.pi / 3 + 1e-8))
+        # Only rounding of 0 is 0
+        self.assertIsNone(nice_number(3e-11))
+        self.assertEqual(nice_number(1e-63), ("0", 0.0))
 
     def test_number_text(self) -> None:
         self.assertEqual(number_text(3.0), "3")
@@ -139,13 +164,29 @@ class TestFormatting(unittest.TestCase):
             "(on [-2*pi, 2*pi]; the pattern repeats every 2*pi)",
             format_solution("x", [piece], "sin(x) > 1/2", default, "2*pi"),
         )
+        # An empty or whole set names its window once
         self.assertEqual(
             format_solution("x", [], "x > 2", _window(0, 1, "0", "1")),
-            "No x in [0, 1] satisfies x > 2 (the solution set is empty) (on [0, 1]).",
+            "No x in [0, 1] satisfies x > 2 (the solution set is empty).",
         )
         self.assertEqual(
             format_solution("t", [Piece(0, 1, True, True)], "t^2 <= t", _window(0, 1, "0", "1")),
-            "Every t in [0, 1] satisfies t^2 <= t (on [0, 1]); interval notation: [0, 1]",
+            "Every t in [0, 1] satisfies t^2 <= t; interval notation: [0, 1]",
+        )
+        self.assertEqual(
+            format_solution("x", [], "sin(x) > 2", default, "2*pi"),
+            "No x in [-2*pi, 2*pi] satisfies sin(x) > 2 (the solution set is empty; the pattern repeats every 2*pi).",
+        )
+
+    def test_notes(self) -> None:
+        note = "found numerically because SymPy was not available"
+        self.assertEqual(
+            format_solution("x", [], "x^2 + 1 < 0", _window(-2, 2, "-2", "2"), note=note),
+            f"No x in [-2, 2] satisfies x^2 + 1 < 0 (the solution set is empty; {note}).",
+        )
+        self.assertEqual(
+            format_solution("x", [Piece(2, 3, False, False)], "x^2 - 5x + 6 < 0", note=note),
+            f"2 < x < 3; interval notation: (2, 3) ({note})",
         )
 
 
@@ -197,6 +238,111 @@ class TestSignChart(unittest.TestCase):
             [("0", "pi/2", True, False), ("pi/2", "7*pi/6", False, False), ("11*pi/6", "2*pi", False, False)],
         )
 
+    def test_underflow_far_out_is_not_a_sign_change(self) -> None:
+        # exp underflows to 0 beyond |x| = 745 (exp(-x^2) beyond 27): that is no root
+        self.assertEqual(_solve("x*exp(x) < 0"), "x < 0; interval notation: (-Infinity, 0)")
+        self.assertEqual(_solve("(x+1)*exp(x) < 0"), "x < -1; interval notation: (-Infinity, -1)")
+        # (x*exp(-x) > 0 and 1/(1+exp(-x)) > 0 are left to the Brython tests: Python's exp
+        # raises on overflow, where math.js gives Infinity)
+        for text in ("exp(-x^2) > 0", "exp(x) > 0", "2^x > 0"):
+            self.assertEqual(
+                _solve(text), f"Every real x satisfies {text}; interval notation: (-Infinity, Infinity)", text
+            )
+
+    def test_identities_read_as_equalities(self) -> None:
+        self.assertEqual(
+            _solve("sin(x)^2 + cos(x)^2 > 1", DEFAULT_WINDOW),
+            "No x in [-2*pi, 2*pi] satisfies sin(x)^2 + cos(x)^2 > 1 (the solution set is empty).",
+        )
+        self.assertEqual(
+            _solve("sin(x)^2 + cos(x)^2 <= 1", _window(0, 10, "0", "10")),
+            "Every x in [0, 10] satisfies sin(x)^2 + cos(x)^2 <= 1; interval notation: [0, 10]",
+        )
+        self.assertEqual(
+            _solve("(x+1)^2 >= x^2 + 2x + 1"),
+            "Every real x satisfies (x+1)^2 >= x^2 + 2x + 1; interval notation: (-Infinity, Infinity)",
+        )
+        self.assertEqual(
+            _solve("(x+1)^2 > x^2 + 2x + 1"),
+            "No real x satisfies (x+1)^2 > x^2 + 2x + 1 (the solution set is empty).",
+        )
+
+    def test_flat_touching_roots_are_points(self) -> None:
+        # cos(x) - 1 rounds to 0 within 1e-8 of 2*pi: no sliver [6.28318529664, 2*pi]
+        self.assertEqual(
+            _solve("cos(x) >= 1", DEFAULT_WINDOW).split(";")[0], "x = -2*pi or x = 0 or x = 2*pi (on [-2*pi, 2*pi])"
+        )
+        self.assertEqual(
+            _solve("cos(x) >= 1", _window(0, TWO_PI, "0", "2*pi")).split(";")[0], "x = 0 or x = 2*pi (on [0, 2*pi])"
+        )
+        self.assertEqual(
+            _solve("cos(x)^2 >= 1", _window(0, 3 * math.pi, "0", "3*pi")).split(";")[0],
+            "x = 0 or x = pi or x = 2*pi or x = 3*pi (on [0, 3*pi])",
+        )
+        self.assertEqual(
+            _solve("cos(6x) >= 1", _window(0, math.pi, "0", "pi")).split(";")[0],
+            "x = 0 or x = pi/3 or x = 2*pi/3 or x = pi (on [0, pi])",
+        )
+
+    def test_domain_edges_undefined_by_rounding(self) -> None:
+        # float(sqrt(3))^2 < 3, so sqrt(x^2 - 3) is not real there; the end is still a root
+        root = math.sqrt(3)
+        self.assertEqual(
+            _solve("sqrt(x^2 - 3) >= 0", seeds=[-root, root]),
+            "x <= -1.73205080757 or x >= 1.73205080757; "
+            "interval notation: (-Infinity, -1.73205080757] ∪ [1.73205080757, Infinity)",
+        )
+        self.assertEqual(
+            _solve("sqrt(2 - x^2) >= 0", seeds=[-math.sqrt(2), math.sqrt(2)]),
+            "-1.41421356237 <= x <= 1.41421356237; interval notation: [-1.41421356237, 1.41421356237]",
+        )
+        self.assertEqual(
+            _solve("sqrt(2 - x^2) > 0", seeds=[-math.sqrt(2), math.sqrt(2)]),
+            "-1.41421356237 < x < 1.41421356237; interval notation: (-1.41421356237, 1.41421356237)",
+        )
+
+    def test_features_beyond_the_grid_or_between_seeds(self) -> None:
+        self.assertEqual(_solve("x > 2000000", seeds=[2e6]), "x > 2000000; interval notation: (2000000, Infinity)")
+        self.assertEqual(
+            _solve("x > 1e20", seeds=[1e20]),
+            "x > 100000000000000000000; interval notation: (100000000000000000000, Infinity)",
+        )
+        self.assertEqual(grid_reach([1e20]), 1e22)
+        self.assertEqual(reach_text(grid_reach([1e20])), "10^22")
+        self.assertEqual(reach_text(grid_reach()), "10^6")
+        wide = _window(-10000, 10000, "-10000", "10000")
+        self.assertTrue(_solve("x^2 - 5x + 6 < 0", wide).startswith("2 < x < 3 (on [-10000, 10000])"))
+        self.assertTrue(_solve("x^2 - 5x + 6 < 0", wide, seeds=[2.0, 3.0]).startswith("2 < x < 3 (on"))
+        self.assertEqual(
+            _solve("(x-1)*(x-1.0000001) < 0", seeds=[1.0, 1.0000001]),
+            "1 < x < 1.0000001; interval notation: (1, 1.0000001)",
+        )
+        self.assertEqual(
+            _solve("x^2 > 1e-12", seeds=[-1e-6, 1e-6]),
+            "x < -1e-06 or x > 1e-06; interval notation: (-Infinity, -1e-06) ∪ (1e-06, Infinity)",
+        )
+        self.assertEqual(_solve("x > 3e-11"), "x > 3e-11; interval notation: (3e-11, Infinity)")
+
+    def test_tiny_ends_are_not_roots(self) -> None:
+        self.assertEqual(
+            _solve("x > 0", _window(1e-300, 1, "1e-300", "1")),
+            "Every x in [1e-300, 1] satisfies x > 0; interval notation: [1e-300, 1]",
+        )
+        self.assertEqual(
+            verify_solution_set(_relations("x > 0"), [Piece(1e-300, 1, True, True)], _window(1e-300, 1, "1e-300", "1")),
+            "confirmed",
+        )
+
+    def test_open_windows(self) -> None:
+        self.assertEqual(
+            _solve("x^2 < 2", _window(0, 5, "0", "5", (False, False))),
+            "0 < x < 1.41421356237 (on (0, 5)); interval notation: (0, 1.41421356237)",
+        )
+        self.assertEqual(
+            _solve("x >= 1", _window(1, 3, "1", "3", (False, False))),
+            "Every x in (1, 3) satisfies x >= 1; interval notation: (1, 3)",
+        )
+
     def test_failures(self) -> None:
         with self.assertRaises(SignChartFailure):
             sign_chart(_relations("sin(x) > 0"))  # the sign keeps changing far out
@@ -204,6 +350,16 @@ class TestSignChart(unittest.TestCase):
             sign_chart(_relations("sqrt(-1 - x^2) > 0"))
         with self.assertRaises(SignChartFailure):
             sign_chart(_relations("sin(20*x) > 0"), _window(0, 20, "0", "20"))  # too many intervals
+
+    def test_too_many_intervals_fail_before_bisection(self) -> None:
+        with self.assertRaisesRegex(SignChartFailure, "more than 40 intervals"):
+            sign_chart(_relations("sin(x) > 0"), _window(0, 1e9, "0", "1e9"))
+        with self.assertRaisesRegex(SignChartFailure, "keeps changing far from 0"):  # said first when unbounded
+            sign_chart(_relations("sin(x) > 0"), _window(0, math.inf, "0", "Infinity", (True, False)))
+        # Exactly MAX_PIECES intervals are still answered
+        pieces = sign_chart(_relations("sin(x) > 0"), _window(0, 80 * math.pi, "0", "80*pi", (True, False)))
+        self.assertEqual(len(pieces), 40)
+        self.assertEqual((pieces[-1].lower_text, pieces[-1].upper_text), ("78*pi", "79*pi"))
 
 
 class TestVerification(unittest.TestCase):
@@ -254,6 +410,62 @@ class TestVerification(unittest.TestCase):
             Piece(TWO_PI, TWO_PI, True, True),
         ]
         self.assertEqual(verify_solution_set(_relations("2*sin(x)^2 - sin(x) - 1 < 0"), claimed, window), "refuted")
+
+    def test_underflow_and_rounding_neither_confirm_nor_refute(self) -> None:
+        inf = math.inf
+        everything = [Piece(-inf, inf, False, False)]
+        self.assertEqual(verify_solution_set(_relations("x*exp(x) < 0"), [Piece(-inf, 0, False, False)]), "confirmed")
+        for text in ("exp(-x^2) > 0", "exp(x) > 0", "2^x > 0", "(x+1)^2 >= x^2 + 2x + 1"):
+            self.assertEqual(verify_solution_set(_relations(text), everything), "confirmed", text)
+        self.assertEqual(verify_solution_set(_relations("sin(x)^2 + cos(x)^2 > 1"), [], DEFAULT_WINDOW), "confirmed")
+        self.assertEqual(
+            verify_solution_set(
+                _relations("sin(x)^2 + cos(x)^2 <= 1"), [Piece(0, 10, True, True)], _window(0, 10, "0", "10")
+            ),
+            "confirmed",
+        )
+        # ... while a wrong set is still refuted
+        self.assertEqual(verify_solution_set(_relations("x*exp(x) < 0"), [Piece(-inf, 1, False, False)]), "refuted")
+        self.assertEqual(verify_solution_set(_relations("(x+1)^2 > x^2 + 2x + 1"), everything), "refuted")
+
+    def test_open_window_ends_are_not_checked(self) -> None:
+        half_open = _window(0, TWO_PI, "0", "2*pi", (True, False))
+        cosine = [Piece(0, math.pi / 2, True, False), Piece(1.5 * math.pi, TWO_PI, False, False)]
+        self.assertEqual(verify_solution_set(_relations("cos(x) > 0"), cosine, half_open), "confirmed")
+        open_window = _window(0, 5, "0", "5", (False, False))
+        self.assertEqual(
+            verify_solution_set(_relations("x^2 < 2"), [Piece(0, math.sqrt(2), False, False)], open_window), "confirmed"
+        )
+        self.assertEqual(
+            verify_solution_set(
+                _relations("x < 3"), [Piece(2, 3, False, False)], _window(2, 5, "2", "5", (False, False))
+            ),
+            "confirmed",
+        )
+        self.assertEqual(
+            verify_solution_set(
+                _relations("x >= 1"), [Piece(1, 3, False, False)], _window(1, 3, "1", "3", (False, False))
+            ),
+            "confirmed",
+        )
+
+    def test_domain_edges_keep_their_closedness(self) -> None:
+        root = math.sqrt(2)
+        self.assertEqual(
+            verify_solution_set(_relations("sqrt(2 - x^2) >= 0"), [Piece(-root, root, True, True)]), "confirmed"
+        )
+        self.assertEqual(
+            verify_solution_set(_relations("sqrt(2 - x^2) >= 0"), [Piece(-root, root, False, False)]), "refuted"
+        )
+        self.assertEqual(
+            verify_solution_set(_relations("sqrt(2 - x^2) > 0"), [Piece(-root, root, False, False)]), "confirmed"
+        )
+        three = math.sqrt(3)
+        outside = [Piece(-math.inf, -three, False, True), Piece(three, math.inf, True, False)]
+        self.assertEqual(verify_solution_set(_relations("sqrt(x^2 - 3) >= 0"), outside), "confirmed")
+        # ln(x - 1) is undefined at 1 for good (it tends to -Infinity), whatever its values beside it
+        self.assertEqual(verify_solution_set(_relations("ln(x - 1) <= 0"), [Piece(1, 2, False, True)]), "confirmed")
+        self.assertEqual(verify_solution_set(_relations("ln(x - 1) <= 0"), [Piece(1, 2, True, True)]), "refuted")
 
     def test_unchecked_when_nothing_evaluates(self) -> None:
         self.assertEqual(verify_solution_set(_relations("sqrt(-1 - x^2) > 0"), []), "unchecked")
