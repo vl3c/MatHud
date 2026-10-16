@@ -45,8 +45,8 @@ class ExpressionFunction:
         mathjs: The name math.js knows it by, or None when math.js lacks it.
         aliases: Spellings rewritten to name when "(" follows them (sine( -> sin().
         word_aliases: Spellings rewritten to name as words (ln -> log).
-        curve_safe: Allowed in parametric curves (the t namespace). Function and
-            piecewise plots still use the full namespace.
+        curve_safe: Allowed in parametric curves (the curve namespace, FUNCTIONS_CURVE in
+            compiled_expression). Function and piecewise plots still use the full namespace.
         superscript: sin²(x) means sin(x)^2 (the word aliases follow the row).
         inverse: The function a superscript ⁻¹ names (sin⁻¹ -> asin), if any.
         python_only: MathUtils.evaluate must use Python (math.js lacks it).

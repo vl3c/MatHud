@@ -133,7 +133,7 @@ Then navigate to `http://127.0.0.1:5004/` in the browser.
 8. `image_attachment_manager.py` manages the file picker, preview, and image modal.
 9. `tts_ui_manager.py` controls text-to-speech UI (read aloud, voice settings).
 10. `process_function_calls.py` and `result_processor.py` coordinate tool execution and result handling.
-11. `expression_evaluator.py`, `expression_validator.py`, and `result_validator.py` provide math parsing, validation, and error messaging; `expression_functions.py` is the one table of functions expressions may call.
+11. `expression_evaluator.py`, `expression_validator.py`, and `result_validator.py` provide math parsing, validation, and error messaging; `expression_functions.py` is the one table of functions expressions may call; `compiled_expression.py` (`compile_expression(text, variables, functions)`) compiles an expression once and binds it to named variables (x, t, θ, k, or x and y), and `substitute_variable` shifts one by whole tokens.
 12. `managers/base_drawable_manager.py` provides a shared base for all drawable managers.
 13. `managers/visibility_manager.py` handles viewport culling extracted from Canvas.
 14. `rendering/base_telemetry.py` provides a shared telemetry base for renderers.
@@ -381,7 +381,7 @@ For features that extend existing managers (e.g., `fit_regression` in `Statistic
 5. **Tests** - Pure Python tests for algorithm, Brython tests for Canvas integration
 6. **Documentation** - Example Prompts, Reference Manual
 
-**Note:** If the feature requires custom expression parsing (e.g., parametric `t` variable), update `expression_validator.py` with a new parsing method.
+**Note:** If the feature evaluates an expression in its own variables (e.g., θ for polar curves, k for sequences, x and y for implicit curves), call `compile_expression(text, variables=(...), functions=FUNCTIONS_ALL or FUNCTIONS_CURVE)` from `compiled_expression.py` and `bind()` it, instead of adding a parsing method to `expression_validator.py`.
 
 ## Adding a Function Expressions May Call
 
