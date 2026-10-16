@@ -176,8 +176,11 @@ class ExpressionValidator(ast.NodeVisitor):
     _INVERSE_FUNCTIONS: Dict[str, str] = dict(ef.INVERSE_NAMES)
     # Those names as a regex alternation, longest first so sinh is not read as sin
     _FUNCTION_NAMES = "(?:" + "|".join(sorted(_SUPERSCRIPT_FUNCTIONS, key=lambda name: (-len(name), name))) + ")"
-    # A known function name, an optional superscript and spaces: sin²(x), sin⁻¹ (x), sin²x, sinθ
-    _FUNCTION_NOTATION = re.compile(f"(?<![A-Za-z_])({_FUNCTION_NAMES})({_SUPERSCRIPT_RUN})?([ \\t]*)")
+    # Their spellings, aliases included, longest first so sine is not read as sin and
+    # hyperbolic sine not as sine
+    _FUNCTION_SPELLINGS = "(?:" + "|".join(sorted(ef.SUPERSCRIPT_SPELLINGS, key=lambda name: (-len(name), name))) + ")"
+    # A known function spelling, an optional superscript and spaces: sin²(x), sine⁻¹ (x), sin²x, sinθ
+    _FUNCTION_NOTATION = re.compile(f"(?<![A-Za-z_])({_FUNCTION_SPELLINGS})({_SUPERSCRIPT_RUN})?([ \\t]*)")
     # The operand of a function written without parentheses (group 1): an optional number and
     # factors (x, θ1, Δx, π, ωt) that stop before another function name (sin²x cos²x), then an
     # optional superscript (sin x² is sin(x²)) and degree sign (sin 30°)
@@ -189,6 +192,8 @@ class ExpressionValidator(ast.NodeVisitor):
     _FUNCTION_OPERAND = re.compile(
         f"((?:\\d+\\.?\\d*|\\.\\d+)?(?:{_OPERAND_FACTOR})*)((?:{_SUPERSCRIPT_RUN})?(?:[ \\t]*°)?)"
     )
+    # After a function name: ^ or **, an integer exponent (2, -1, (-1)) and "(": sin^2(x), sin^(-1)(x)
+    _CARET_POWER = re.compile(r"[ \t]*(?:\^|\*\*)[ \t]*(?:(-?\d+)|\([ \t]*(-?\d+)[ \t]*\))[ \t]*\(")
     _PI_SIGN = "π"  # U+03C0, rewritten to the constant name "pi"
     _SCRIPT_E = "ℯ"  # U+212F, rewritten to the constant name "e"
     _IMAGINARY_IOTA = "ί"  # U+03AF, GeoGebra's imaginary unit, rewritten to i (Python: 2j, or 1j alone)
@@ -427,6 +432,7 @@ class ExpressionValidator(ast.NodeVisitor):
         expression = ExpressionValidator._convert_degrees(expression)
         expression = ExpressionValidator._handle_special_symbols(expression, python_compatible)
         expression = ExpressionValidator._replace_function_names(expression)
+        expression = ExpressionValidator.convert_caret_function_powers(expression)
         expression = ExpressionValidator._handle_power_and_imaginary(expression, python_compatible)
         expression = ExpressionValidator._insert_multiplication_operators(expression, python_compatible)
         # Only now, so the "!" of "!=" is not read as a factorial
@@ -544,7 +550,7 @@ class ExpressionValidator(ast.NodeVisitor):
         """Rewrite known functions written with a superscript or without parentheses.
 
         A superscript moves after the call and ⁻¹ names the inverse: sin²(x) -> sin(x)^2,
-        sin⁻¹ (x) -> asin(x). A single operand without parentheses is wrapped when the
+        sin⁻¹ (x) -> asin(x). Aliases are spellings of the name: sine²(x) -> sin(x)^2. A single operand without parentheses is wrapped when the
         function has a superscript or the operand is Unicode: sin²x -> sin(x)^2,
         sin⁻¹x -> asin(x), sinθ -> sin(θ), sinπ -> sin(π), sin 30° -> sin(30°). ASCII such as
         sinx or sin (x) is left for the later steps, as before.
@@ -554,7 +560,7 @@ class ExpressionValidator(ast.NodeVisitor):
             match = ExpressionValidator._FUNCTION_NOTATION.search(expression, search_start)
             if match is None:
                 return expression
-            name, superscript = match.group(1), match.group(2) or ""
+            name, superscript = ef.SUPERSCRIPT_SPELLINGS[match.group(1)], match.group(2) or ""
             exponent = ExpressionValidator._superscript_exponent(superscript) if superscript else ""
             if superscript and not any(char.isalnum() for char in exponent):
                 exponent = ""  # signs alone (sin⁻x) are not an exponent
@@ -679,9 +685,10 @@ class ExpressionValidator(ast.NodeVisitor):
         """Handle square roots, absolute values, and factorials"""
         expression = ExpressionValidator._convert_square_roots(expression)
 
-        # Replace | | with the Python equivalent if needed
+        # Replace | | with the Python equivalent if needed (math.js text keeps the bars until
+        # rename_for_mathjs, so stored function text reads as typed)
         if python_compatible:
-            expression = re.sub(r"\|(.*?)\|", r"abs(\1)", expression)
+            expression = ef.replace_absolute_bars(expression)
 
         # Handle factorials with balanced operand extraction
         expression = ExpressionValidator._replace_factorials(expression)
@@ -762,6 +769,42 @@ class ExpressionValidator(ast.NodeVisitor):
         artifact) are left alone. π was already spelled out by the Unicode step.
         """
         return cast(str, ef.replace_aliases(expression))
+
+    @staticmethod
+    def convert_caret_function_powers(expression: str) -> str:
+        """Read a power written on a function name as calculators do, the ASCII form of sin²(x).
+
+        sin^2(x) -> sin(x)^2 and sin**2(x) -> sin(x)^2; an exponent of -1 names the inverse
+        where there is one: sin^-1(x) and sin^(-1)(x) -> asin(x), but log^-1(x) ->
+        log(x)^(-1). Only integer exponents directly followed by "(" count, and the name must
+        be a whole token: 2sin^2(x) changes, x2sin^2(x), e^2(x) and sin^2 x do not.
+        fix_math_expression does this; the CAS tools call it on their raw input.
+        """
+        if "^" not in expression and "**" not in expression:
+            return expression
+        position = 0
+        while True:
+            match = ef.TOKEN_PATTERN.search(expression, position)
+            if match is None:
+                return expression
+            position = match.end()
+            name = ef.SUPERSCRIPT_SPELLINGS.get(match.group(0))
+            power = ExpressionValidator._CARET_POWER.match(expression, match.end()) if name else None
+            if name is None or power is None:
+                continue
+            open_index = power.end() - 1
+            close_index = ExpressionValidator._find_closing_parenthesis(expression, open_index)
+            if close_index < 0:
+                continue
+            exponent = int(power.group(1) or power.group(2))
+            arguments = expression[open_index : close_index + 1]
+            inverse = ExpressionValidator._INVERSE_FUNCTIONS.get(name) if exponent == -1 else None
+            if inverse is not None:
+                head, tail = inverse, ""
+            else:
+                head, tail = name, "^" + (str(exponent) if exponent >= 0 else f"({exponent})")
+            expression = expression[: match.start()] + head + arguments + tail + expression[close_index + 1 :]
+            position = match.start() + len(head)  # the arguments may hold more: sin^2(cos^2(x))
 
     @staticmethod
     def _handle_power_and_imaginary(expression: str, python_compatible: bool) -> str:

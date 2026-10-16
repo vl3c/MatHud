@@ -101,6 +101,11 @@ def _function_table() -> Dict[str, Tuple[Callable[..., Any], Tuple[int, ...]]]:
             "cbrt": (lambda a: sp.real_root(a, 3), one),
             "nthroot": (sp.real_root, (2,)),
             "atan2": (sp.atan2, (2,)),
+            "mod": (sp.Mod, (2,)),
+            "re": (sp.re, one),
+            "im": (sp.im, one),
+            "arg": (sp.arg, one),
+            "conj": (sp.conjugate, one),
             "pow": (sp.Pow, (2,)),
             "min": (sp.Min, (2, 3, 4)),
             "max": (sp.Max, (2, 3, 4)),
@@ -168,6 +173,8 @@ class _Builder:
                 return left / right
             if isinstance(node.op, ast.Pow):
                 return self._power(left, right)
+            if isinstance(node.op, ast.Mod):
+                return self.sp.Mod(left, right)  # floored, like Python's % and math.js mod
             raise ExpressionError(f"The operator {type(node.op).__name__} is not supported.")
         if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
             operand = self.build(node.operand)
@@ -240,7 +247,7 @@ def _printer_class() -> Any:
     from sympy.printing.str import StrPrinter
 
     class ClientPrinter(StrPrinter):
-        """SymPy's str() in the client's notation: ^, e, i, Infinity, abs, ceil."""
+        """SymPy's str() in the client's notation: ^, e, i, Infinity, abs, ceil, mod, conj."""
 
         def _print_Pow(self, expr: Any, rational: bool = False) -> str:
             text = str(super()._print_Pow(expr, rational))
@@ -269,6 +276,12 @@ def _printer_class() -> Any:
 
         def _print_ceiling(self, expr: Any) -> str:
             return f"ceil({self._print(expr.args[0])})"
+
+        def _print_Mod(self, expr: Any) -> str:
+            return f"mod({','.join(self._print(arg) for arg in expr.args)})"
+
+        def _print_conjugate(self, expr: Any) -> str:
+            return f"conj({self._print(expr.args[0])})"
 
         def _print_Min(self, expr: Any) -> str:
             return f"min({','.join(self._print(arg) for arg in expr.args)})"

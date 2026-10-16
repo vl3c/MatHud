@@ -86,6 +86,14 @@ FIX_CASES: Dict[str, Tuple[str, str]] = {
     "sin⁻¹ (x)": ("asin(x)", "asin(x)"),
     "sin² (x)": ("sin(x)**2", "sin(x)^2"),
     "sinh⁻¹(x)·cot⁻¹(x)": ("asinh(x)*acot(x)", "asinh(x)*acot(x)"),
+    # ...and on spelled-out names, which used to become sin(e**2)*(x)
+    "sine²(x)": ("sin(x)**2", "sin(x)^2"),
+    "cosine²(x)": ("cos(x)**2", "cos(x)^2"),
+    "hyperbolic sine²(x)": ("sinh(x)**2", "sinh(x)^2"),
+    "sine⁻¹(x)": ("asin(x)", "asin(x)"),
+    "arcsine²(x)": ("asin(x)**2", "asin(x)^2"),
+    "2cosine³(2x)": ("2*cos(2*x)**3", "2*cos(2*x)^3"),
+    "xsine²(x)": ("xsine**2*(x)", "xsine^2*(x)"),
     # Known functions without parentheses take the single operand after them
     "sin²x": ("sin(x)**2", "sin(x)^2"),
     "sin² x": ("sin(x)**2", "sin(x)^2"),

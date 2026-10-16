@@ -73,9 +73,21 @@ _EVALUATE_CASES = (
     ("2*product", {"product": 3}),
     ("sin(x)", {"x": 1}),
     ("std([1,2]) + var([1,2])", None),
+    ("nthroot(-8, 3)", None),
+    ("17 % 5", None),
+    ("|x - 3|", {"x": 1}),
 )
 # Inputs for the other places that hand expression text to math.js
-_SITE_INPUTS = ("trunc(x)", "xtrunc(x)", "arrangements(x, 2)", "stdev([x, 1])", "sin(x)")
+_SITE_INPUTS = (
+    "trunc(x)",
+    "xtrunc(x)",
+    "arrangements(x, 2)",
+    "stdev([x, 1])",
+    "sin(x)",
+    "nthroot(x, 3)",
+    "x % 2",
+    "|x|",
+)
 
 
 def _label(key: str, value: Any) -> str:
@@ -278,9 +290,9 @@ class TestExpressionFunctionTables(unittest.TestCase):
     def test_known_counts(self) -> None:
         # Sanity checks on the golden itself, so an empty or truncated file cannot pass
         tables = self.golden["tables"]
-        self.assertEqual(len(tables["allowed_functions"]), 72)
-        self.assertEqual(len(self.golden["namespaces"]["x"]), 74)
-        self.assertEqual(len(self.golden["namespaces"]["t"]), 37)
+        self.assertEqual(len(tables["allowed_functions"]), 83)
+        self.assertEqual(len(self.golden["namespaces"]["x"]), 85)
+        self.assertEqual(len(self.golden["namespaces"]["t"]), 44)
         self.assertGreater(len(self.golden["aliases"]), 1000)
         self.assertTrue(math.isclose(float(self.golden["namespaces"]["x"]["pi"][len("const:") :]), math.pi))
 

@@ -283,6 +283,37 @@ class TestCreativePrompts:
         names = _top_n(self.service, "I can't see anything, zoom out")
         assert "zoom" in names
 
+    # -- "Exact" answers --
+
+    def test_exact_value_goes_to_simplify(self) -> None:
+        assert _top_n(self.service, "Give 1/3 + 1/4 as an exact fraction.")[0] == "simplify"
+        assert _top_n(self.service, "What is the exact value of sqrt(12)?")[0] == "simplify"
+
+    def test_exact_function_value_or_area_keeps_its_tools_first(self) -> None:
+        """'Exact' adds simplify behind the tools a function value or an area needs."""
+        assert _top_n(self.service, "What is f(3) as a fraction?")[0] == "evaluate_expression"
+        assert _top_n(self.service, "the exact area of a circle of radius 3")[0] == "calculate_area"
+        assert "simplify" in _top_n(self.service, "the exact area of a circle of radius 3")
+
+    def test_exact_function_value_at_a_constant_keeps_evaluate_expression(self) -> None:
+        """A one-letter function at a fraction or at pi is a function value too, f(x) is not."""
+        for query in ("exact value of f(1/3)", "exact value of h(1/2)", "exact value of f(pi/4)"):
+            assert _top_n(self.service, query)[0] == "evaluate_expression", query
+        assert "simplify" in _top_n(self.service, "exact value of f(1/3)")
+        assert "evaluate_expression" in _top_n(self.service, "exact value of f(sqrt(2))")
+        assert _top_n(self.service, "exact value of f(x)")[0] == "simplify"
+
+    def test_letter_before_a_fraction_is_no_function_value_without_exact(self) -> None:
+        """Outside exact queries only f(3)-style calls are function values, not a(1/2)."""
+        assert _top_n(self.service, "plot y = a(1/2)x")[0] == "draw_function"
+
+    def test_exact_distance_or_length_goes_to_simplify(self) -> None:
+        """No tool measures a distance or a length, so the exact radical comes from simplify."""
+        assert _top_n(self.service, "Find the exact distance between A and B")[0] == "simplify"
+        assert "simplify" in _top_n(self.service, "exact length of segment AB")[:3]
+        assert "simplify" in _top_n(self.service, "distance between (1,2) and (4,6) as a radical")
+        assert "simplify" in _top_n(self.service, "give the angle in radians as an exact multiple of pi")
+
     # -- Math class homework scenarios --
 
     def test_homework_quadratic(self) -> None:

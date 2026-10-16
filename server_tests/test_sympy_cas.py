@@ -74,6 +74,20 @@ class TestParser(unittest.TestCase):
         self.assertEqual(to_text(x ** sympy.Rational(3, 2)), "x^(3/2)")
         self.assertEqual(to_text((x + 1) ** -2), "(x+1)^(-2)")
         self.assertEqual(to_text(sympy.Min(x, 1)), "min(1,x)")
+        # math.js is case-sensitive and has no Mod or conjugate
+        self.assertEqual(to_text(sympy.Mod(x, 3)), "mod(x,3)")
+        self.assertEqual(to_text(sympy.conjugate(sympy.Symbol("z"))), "conj(z)")
+
+    def test_remainder_and_complex_helpers(self) -> None:
+        x = sympy.Symbol("x")
+        self.assertEqual(parse_expression("x % 3"), sympy.Mod(x, 3))
+        self.assertEqual(parse_expression("mod(x, 3)"), sympy.Mod(x, 3))
+        self.assertEqual(parse_expression("2^7 % 5"), 3)  # % binds like * and /, below ^
+        self.assertEqual(parse_expression("-7 % 3"), 2)  # floored, like Python and math.js
+        z = sympy.Symbol("z")
+        self.assertEqual(parse_expression("re(z) + im(z)"), sympy.re(z) + sympy.im(z))
+        self.assertEqual(parse_expression("arg(z)"), sympy.arg(z))
+        self.assertEqual(parse_expression("conj(z)"), sympy.conjugate(z))
 
 
 class TestOperations(unittest.TestCase):
@@ -104,6 +118,35 @@ class TestOperations(unittest.TestCase):
         self.assertEqual(compute_simplify("(x^3-8)/(x-2)"), "x^2+2*x+4")
         self.assertEqual(compute_simplify("(1/x+1/y)/(1/(x*y))"), "x+y")
         self.assertEqual(compute_simplify("e^(ln(x))"), "x")
+
+    def test_simplify_keeps_numbers_exact(self) -> None:
+        self.assertEqual(compute_simplify("1/3+1/4"), "7/12")
+        self.assertEqual(compute_simplify("sqrt(12)"), "2*sqrt(3)")
+        self.assertEqual(compute_simplify("0.1+0.2"), "3/10")
+
+    def test_simplify_calculator_functions(self) -> None:
+        cases = {
+            "mod(-7,3)": "2",
+            "17 % 5": "2",
+            "2*7 % 3": "2",
+            "re(3+4i)": "3",
+            "im(3+4i)": "4",
+            "arg(1+i)": "pi/4",
+            "conj(3+4i)": "3-4*i",
+        }
+        for expression, expected in cases.items():
+            with self.subTest(expression=expression):
+                self.assertEqual(compute_simplify(expression), expected)
+        # Variables are real in simplify, so the complex helpers only mean something for numbers
+        self.assertEqual(compute_simplify("im(z)"), "0")
+        self.assertEqual(compute_simplify("re(z)"), "z")
+
+    def test_a_zero_divisor_is_a_note_not_a_crash(self) -> None:
+        for expression in ("mod(7, 0)", "7 % 0"):
+            with self.subTest(expression=expression):
+                response = handle({"operation": "simplify", "args": {"expression": expression}})
+                self.assertIsNone(response.get("result"))
+                self.assertIn("note", response)
 
     def test_derivatives(self) -> None:
         self.assertEqual(compute_derivative("atan2(y,x)", "x"), "-y/(x^2+y^2)")

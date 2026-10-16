@@ -42,7 +42,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Un
 
 from browser import window
 
-from expression_functions import calls_python_only, rename_for_mathjs
+from expression_functions import calls_python_only, rename_for_mathjs, replace_absolute_bars
 
 Number = Union[int, float]
 PointLike = Any
@@ -1244,12 +1244,15 @@ class MathUtils:
 
     @staticmethod
     def _cas_input(expression: Any) -> Any:
-        """An expression for SymPy and math.js: Unicode notation normalized, ln/log2/log(a, b) rewritten."""
+        """An expression for SymPy and math.js: Unicode notation normalized, sin^2(x) read as
+        sin(x)^2 (as the evaluator and plots do), ln/log2/log(a, b) rewritten."""
+        from expression_validator import ExpressionValidator
         from utils.cas_text import rewrite_for_nerdamer
 
         if not isinstance(expression, str):
             return expression
-        return rewrite_for_nerdamer(MathUtils._normalize_symbols(expression))
+        normalized = MathUtils._normalize_symbols(expression)
+        return rewrite_for_nerdamer(ExpressionValidator.convert_caret_function_powers(normalized))
 
     @staticmethod
     def _sympy_answer(operation: str, **args: Optional[str]) -> Optional[Dict[str, Any]]:
@@ -3449,8 +3452,9 @@ class MathUtils:
         """
         from expression_validator import ExpressionValidator
 
-        # Standardize the function string
-        function_string = ExpressionValidator.fix_math_expression(function_string)
+        # Standardize the function string; bars become abs() here only (the stored text keeps
+        # them), so ln|x| and 1/|x| show their log argument and denominator
+        function_string = replace_absolute_bars(ExpressionValidator.fix_math_expression(function_string))
         log_zeros: List[float] = []
         denominator_zeros: List[float] = []
 

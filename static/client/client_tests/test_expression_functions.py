@@ -7,8 +7,9 @@ namespaces, Python against math.js values, and which names math.js knows.
 
 from __future__ import annotations
 
+import math
 import unittest
-from typing import Dict, List, Sequence
+from typing import Dict, List, Sequence, Tuple
 
 from browser import window
 
@@ -48,6 +49,16 @@ CURVE_UNARY_SAMPLES: Dict[str, Sequence[float]] = {
     "ceil": (2.7, -2.7),
     "floor": (2.7, -2.7),
     "trunc": (2.7, -2.7),
+    "cbrt": (2.5, -3.3),
+    "sign": (0.7, -2.0),
+    "gamma": (0.7, 4.3),
+    "erf": (0.3, -1.2),
+}
+# Argument pairs of the two-argument calculator rows, compared between Python and math.js
+BINARY_SAMPLES: Dict[str, Sequence[Tuple[float, float]]] = {
+    "mod": ((17, 5), (-7, 3), (7, -3), (5.5, 2), (7, 0), (-7.5, 2)),
+    "atan2": ((1, -1), (-1, -1), (0, 0), (1, 1), (-1, 1)),
+    "nthroot": ((-8, 3), (32, 5), (16, -2), (2.5, 2)),
 }
 
 # Aliases are matched as whole tokens; the same cases as server_tests/test_expression_functions.py, run through Brython's re
@@ -68,6 +79,9 @@ ALIAS_CASES = {
     "myvar(2)": "myvar(2)",
     "sine (x)": "sine (x)",
     "var": "var",
+    "sgn(x)": "sign(x)",
+    "nthRoot(8, 3)": "nthroot(8, 3)",
+    "xsgn(x)": "xsgn(x)",
 }
 
 
@@ -100,6 +114,30 @@ class TestExpressionFunctions(unittest.TestCase):
                     mathjs_value = MathUtils.evaluate(expression, {"x": point})
                     self.assertIsInstance(mathjs_value, (int, float), f"{expression} at {point}: {mathjs_value}")
                     self.assertAlmostEqual(python_value, float(mathjs_value), delta=1e-9 * max(1.0, abs(python_value)))
+
+    def test_python_and_mathjs_agree_on_binary_functions(self) -> None:
+        for name in sorted(BINARY_SAMPLES):
+            for a, b in BINARY_SAMPLES[name]:
+                with self.subTest(name=name, a=a, b=b):
+                    expression = f"{name}(x, y)"
+                    python_value = ExpressionValidator.evaluate_expression(
+                        ExpressionValidator.fix_math_expression(expression, True), a, {"y": b}
+                    )
+                    mathjs_value = MathUtils.evaluate(expression, {"x": a, "y": b})
+                    self.assertIsInstance(mathjs_value, (int, float), f"{expression} at {a}, {b}: {mathjs_value}")
+                    self.assertAlmostEqual(python_value, float(mathjs_value), delta=1e-9 * max(1.0, abs(python_value)))
+
+    def test_brython_float_remainder_is_floored(self) -> None:
+        self.assertEqual(-7.5 % 2, 0.5)
+        self.assertEqual(7.5 % -2, -0.5)
+        self.assertEqual(ExpressionValidator.parse_function_string("mod(x, 2)")(-7.5), 0.5)
+
+    def test_complex_parts_in_brython(self) -> None:
+        namespace = ExpressionValidator._build_functions()
+        self.assertEqual(namespace["conj"](3 + 4j), 3 - 4j)
+        self.assertEqual((namespace["re"](3 + 4j), namespace["im"](3 + 4j)), (3.0, 4.0))
+        self.assertEqual((namespace["re"](2.5), namespace["im"](2.5)), (2.5, 0.0))
+        self.assertAlmostEqual(namespace["arg"](-1), math.pi)
 
     def test_mathjs_knows_the_mapped_names(self) -> None:
         names = sorted({row.mathjs for row in ef.FUNCTIONS if row.mathjs is not None})

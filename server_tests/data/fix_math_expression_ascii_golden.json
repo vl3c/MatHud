@@ -2256,7 +2256,7 @@
 "rect ^ circ": ["rect ** circ", "rect ^ circ"],
 "rotate the square 45 degrees clockwise": ["rotate the square 0.7853981633974483 clockwise", "rotate the square 0.7853981633974483 clockwise"],
 "shade the region between y=x^2 and y=x": ["shade the region between y=x**2 and y=x", "shade the region between y=x^2 and y=x"],
-"simplify sin^2(x) + cos^2(x) - 1": ["simplify sin**2*(x) + cos**2*(x) - 1", "simplify sin^2*(x) + cos^2*(x) - 1"],
+"simplify sin^2(x) + cos^2(x) - 1": ["simplify sin(x)**2 + cos(x)**2 - 1", "simplify sin(x)^2 + cos(x)^2 - 1"],
 "simplify(sin(x)**2 + cos(x)**2)": ["simplify(sin(x)**2 + cos(x)**2)", "simplify(sin(x)^2 + cos(x)^2)"],
 "sin(10x) should be detected as periodic with shorter period.": ["sin(10*x) should be detected as periodic with shorter period.", "sin(10*x) should be detected as periodic with shorter period."],
 "sin(2*x)**2": ["sin(2*x)**2", "sin(2*x)^2"],

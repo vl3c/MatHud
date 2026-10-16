@@ -44,6 +44,10 @@
    "'2*atan(x)'",
    "'2*atan(x)'"
   ],
+  "2arg(x)": [
+   "'2*arg(x)'",
+   "'2*arg(x)'"
+  ],
   "2arithmetic_sum(x)": [
    "'2*arithmetic_sum(x)'",
    "'2*arithmetic_sum(x)'"
@@ -68,6 +72,10 @@
    "'2*atan(x)'",
    "'2*atan(x)'"
   ],
+  "2atan2(x)": [
+   "'2*atan2(x)'",
+   "'2*atan2(x)'"
+  ],
   "2atanh(x)": [
    "'2*atanh(x)'",
    "'2*atanh(x)'"
@@ -80,6 +88,10 @@
    "'2*bin(x)'",
    "'2*bin(x)'"
   ],
+  "2cbrt(x)": [
+   "'2*cbrt(x)'",
+   "'2*cbrt(x)'"
+  ],
   "2ceil(x)": [
    "'2*ceil(x)'",
    "'2*ceil(x)'"
@@ -87,6 +99,14 @@
   "2combinations(x)": [
    "'2*combinations(x)'",
    "'2*combinations(x)'"
+  ],
+  "2conj(x)": [
+   "'2*conj(x)'",
+   "'2*conj(x)'"
+  ],
+  "2conjugate(x)": [
+   "'2*conj(x)'",
+   "'2*conj(x)'"
   ],
   "2cos(x)": [
    "'2*cos(x)'",
@@ -136,6 +156,10 @@
    "'2*e(x)'",
    "'2*e(x)'"
   ],
+  "2erf(x)": [
+   "'2*erf(x)'",
+   "'2*erf(x)'"
+  ],
   "2exp(x)": [
    "'2*exp(x)'",
    "'2*exp(x)'"
@@ -164,6 +188,10 @@
    "'2*floor(x)'",
    "'2*floor(x)'"
   ],
+  "2gamma(x)": [
+   "'2*gamma(x)'",
+   "'2*gamma(x)'"
+  ],
   "2gcd(x)": [
    "'2*gcd(x)'",
    "'2*gcd(x)'"
@@ -187,6 +215,14 @@
   "2hyperbolic tangent(x)": [
    "'2*tanh(x)'",
    "'2*tanh(x)'"
+  ],
+  "2im(x)": [
+   "'2*im(x)'",
+   "'2im(x)'"
+  ],
+  "2imag(x)": [
+   "'2*im(x)'",
+   "'2im(x)'"
   ],
   "2integral(x)": [
    "'2*integrate(x)'",
@@ -260,6 +296,10 @@
    "'2*min(x)'",
    "'2*min(x)'"
   ],
+  "2mod(x)": [
+   "'2*mod(x)'",
+   "'2*mod(x)'"
+  ],
   "2mod_inverse(x)": [
    "'2*mod_inverse(x)'",
    "'2*mod_inverse(x)'"
@@ -275,6 +315,14 @@
   "2next_prime(x)": [
    "'2*next_prime(x)'",
    "'2*next_prime(x)'"
+  ],
+  "2nthRoot(x)": [
+   "'2*nthroot(x)'",
+   "'2*nthroot(x)'"
+  ],
+  "2nthroot(x)": [
+   "'2*nthroot(x)'",
+   "'2*nthroot(x)'"
   ],
   "2p_series_test(x)": [
    "'2*p_series_test(x)'",
@@ -324,6 +372,14 @@
    "'2*ratio_test(x)'",
    "'2*ratio_test(x)'"
   ],
+  "2re(x)": [
+   "'2*re(x)'",
+   "'2*re(x)'"
+  ],
+  "2real(x)": [
+   "'2*re(x)'",
+   "'2*re(x)'"
+  ],
   "2root_test(x)": [
    "'2*root_test(x)'",
    "'2*root_test(x)'"
@@ -335,6 +391,14 @@
   "2sec(x)": [
    "'2*sec(x)'",
    "'2*sec(x)'"
+  ],
+  "2sgn(x)": [
+   "'2*sign(x)'",
+   "'2*sign(x)'"
+  ],
+  "2sign(x)": [
+   "'2*sign(x)'",
+   "'2*sign(x)'"
   ],
   "2simplify(x)": [
    "'2*simplify(x)'",
@@ -444,6 +508,10 @@
    "'_arctangent(x)'",
    "'_arctangent(x)'"
   ],
+  "_arg(x)": [
+   "'_arg(x)'",
+   "'_arg(x)'"
+  ],
   "_arithmetic_sum(x)": [
    "'_arithmetic_sum(x)'",
    "'_arithmetic_sum(x)'"
@@ -468,6 +536,10 @@
    "'_atan(x)'",
    "'_atan(x)'"
   ],
+  "_atan2(x)": [
+   "'_atan2(x)'",
+   "'_atan2(x)'"
+  ],
   "_atanh(x)": [
    "'_atanh(x)'",
    "'_atanh(x)'"
@@ -480,6 +552,10 @@
    "'_binary(x)'",
    "'_binary(x)'"
   ],
+  "_cbrt(x)": [
+   "'_cbrt(x)'",
+   "'_cbrt(x)'"
+  ],
   "_ceil(x)": [
    "'_ceil(x)'",
    "'_ceil(x)'"
@@ -487,6 +563,14 @@
   "_combinations(x)": [
    "'_combinations(x)'",
    "'_combinations(x)'"
+  ],
+  "_conj(x)": [
+   "'_conj(x)'",
+   "'_conj(x)'"
+  ],
+  "_conjugate(x)": [
+   "'_conjugate(x)'",
+   "'_conjugate(x)'"
   ],
   "_cos(x)": [
    "'_cos(x)'",
@@ -536,6 +620,10 @@
    "'_e(x)'",
    "'_e(x)'"
   ],
+  "_erf(x)": [
+   "'_erf(x)'",
+   "'_erf(x)'"
+  ],
   "_exp(x)": [
    "'_exp(x)'",
    "'_exp(x)'"
@@ -564,6 +652,10 @@
    "'_floor(x)'",
    "'_floor(x)'"
   ],
+  "_gamma(x)": [
+   "'_gamma(x)'",
+   "'_gamma(x)'"
+  ],
   "_gcd(x)": [
    "'_gcd(x)'",
    "'_gcd(x)'"
@@ -587,6 +679,14 @@
   "_hyperbolic tangent(x)": [
    "'_hyperbolic tan(x)'",
    "'_hyperbolic tan(x)'"
+  ],
+  "_im(x)": [
+   "'_im(x)'",
+   "'_im(x)'"
+  ],
+  "_imag(x)": [
+   "'_imag(x)'",
+   "'_imag(x)'"
   ],
   "_integral(x)": [
    "'_integral(x)'",
@@ -656,6 +756,10 @@
    "'_min(x)'",
    "'_min(x)'"
   ],
+  "_mod(x)": [
+   "'_mod(x)'",
+   "'_mod(x)'"
+  ],
   "_mod_inverse(x)": [
    "'_mod_inverse(x)'",
    "'_mod_inverse(x)'"
@@ -671,6 +775,14 @@
   "_next_prime(x)": [
    "'_next_prime(x)'",
    "'_next_prime(x)'"
+  ],
+  "_nthRoot(x)": [
+   "'_nthRoot(x)'",
+   "'_nthRoot(x)'"
+  ],
+  "_nthroot(x)": [
+   "'_nthroot(x)'",
+   "'_nthroot(x)'"
   ],
   "_p_series_test(x)": [
    "'_p_series_test(x)'",
@@ -720,6 +832,14 @@
    "'_ratio_test(x)'",
    "'_ratio_test(x)'"
   ],
+  "_re(x)": [
+   "'_re(x)'",
+   "'_re(x)'"
+  ],
+  "_real(x)": [
+   "'_real(x)'",
+   "'_real(x)'"
+  ],
   "_root_test(x)": [
    "'_root_test(x)'",
    "'_root_test(x)'"
@@ -731,6 +851,14 @@
   "_sec(x)": [
    "'_sec(x)'",
    "'_sec(x)'"
+  ],
+  "_sgn(x)": [
+   "'_sgn(x)'",
+   "'_sgn(x)'"
+  ],
+  "_sign(x)": [
+   "'_sign(x)'",
+   "'_sign(x)'"
   ],
   "_simplify(x)": [
    "'_simplify(x)'",
@@ -1024,6 +1152,30 @@
    "'arctangentx'",
    "'arctangentx'"
   ],
+  "arg": [
+   "'arg'",
+   "'arg'"
+  ],
+  "arg (x)": [
+   "'arg (x)'",
+   "'arg (x)'"
+  ],
+  "arg(x)": [
+   "'arg(x)'",
+   "'arg(x)'"
+  ],
+  "arg(x)+arg(y)": [
+   "'arg(x)+arg(y)'",
+   "'arg(x)+arg(y)'"
+  ],
+  "arg2(x)": [
+   "'arg2(x)'",
+   "'arg2(x)'"
+  ],
+  "argx": [
+   "'argx'",
+   "'argx'"
+  ],
   "arithmetic_sum": [
    "'arithmetic_sum'",
    "'arithmetic_sum'"
@@ -1164,9 +1316,29 @@
    "'atan(x)+atan(y)'",
    "'atan(x)+atan(y)'"
   ],
+  "atan2": [
+   "'atan2'",
+   "'atan2'"
+  ],
+  "atan2 (x)": [
+   "'atan2 (x)'",
+   "'atan2 (x)'"
+  ],
   "atan2(x)": [
    "'atan2(x)'",
    "'atan2(x)'"
+  ],
+  "atan2(x)+atan2(y)": [
+   "'atan2(x)+atan2(y)'",
+   "'atan2(x)+atan2(y)'"
+  ],
+  "atan22(x)": [
+   "'atan22(x)'",
+   "'atan22(x)'"
+  ],
+  "atan2x": [
+   "'atan2x'",
+   "'atan2x'"
   ],
   "atanh": [
    "'atanh'",
@@ -1252,6 +1424,30 @@
    "'c2ln'",
    "'c2ln'"
   ],
+  "cbrt": [
+   "'cbrt'",
+   "'cbrt'"
+  ],
+  "cbrt (x)": [
+   "'cbrt (x)'",
+   "'cbrt (x)'"
+  ],
+  "cbrt(x)": [
+   "'cbrt(x)'",
+   "'cbrt(x)'"
+  ],
+  "cbrt(x)+cbrt(y)": [
+   "'cbrt(x)+cbrt(y)'",
+   "'cbrt(x)+cbrt(y)'"
+  ],
+  "cbrt2(x)": [
+   "'cbrt2(x)'",
+   "'cbrt2(x)'"
+  ],
+  "cbrtx": [
+   "'cbrtx'",
+   "'cbrtx'"
+  ],
   "ceil": [
    "'ceil'",
    "'ceil'"
@@ -1299,6 +1495,54 @@
   "combinationsx": [
    "'combinationsx'",
    "'combinationsx'"
+  ],
+  "conj": [
+   "'conj'",
+   "'conj'"
+  ],
+  "conj (x)": [
+   "'conj (x)'",
+   "'conj (x)'"
+  ],
+  "conj(x)": [
+   "'conj(x)'",
+   "'conj(x)'"
+  ],
+  "conj(x)+conj(y)": [
+   "'conj(x)+conj(y)'",
+   "'conj(x)+conj(y)'"
+  ],
+  "conj2(x)": [
+   "'conj2(x)'",
+   "'conj2(x)'"
+  ],
+  "conjugate": [
+   "'conjugate'",
+   "'conjugate'"
+  ],
+  "conjugate (x)": [
+   "'conjugate (x)'",
+   "'conjugate (x)'"
+  ],
+  "conjugate(x)": [
+   "'conj(x)'",
+   "'conj(x)'"
+  ],
+  "conjugate(x)+conjugate(y)": [
+   "'conj(x)+conj(y)'",
+   "'conj(x)+conj(y)'"
+  ],
+  "conjugate2(x)": [
+   "'conjugate2(x)'",
+   "'conjugate2(x)'"
+  ],
+  "conjugatex": [
+   "'conjugatex'",
+   "'conjugatex'"
+  ],
+  "conjx": [
+   "'conjx'",
+   "'conjx'"
   ],
   "cos": [
    "'cos'",
@@ -1584,6 +1828,30 @@
    "'e2(x)'",
    "'e2(x)'"
   ],
+  "erf": [
+   "'erf'",
+   "'erf'"
+  ],
+  "erf (x)": [
+   "'erf (x)'",
+   "'erf (x)'"
+  ],
+  "erf(x)": [
+   "'erf(x)'",
+   "'erf(x)'"
+  ],
+  "erf(x)+erf(y)": [
+   "'erf(x)+erf(y)'",
+   "'erf(x)+erf(y)'"
+  ],
+  "erf2(x)": [
+   "'erf2(x)'",
+   "'erf2(x)'"
+  ],
+  "erfx": [
+   "'erfx'",
+   "'erfx'"
+  ],
   "ex": [
    "'ex'",
    "'ex'"
@@ -1756,6 +2024,30 @@
    "'floorx'",
    "'floorx'"
   ],
+  "gamma": [
+   "'gamma'",
+   "'gamma'"
+  ],
+  "gamma (x)": [
+   "'gamma (x)'",
+   "'gamma (x)'"
+  ],
+  "gamma(x)": [
+   "'gamma(x)'",
+   "'gamma(x)'"
+  ],
+  "gamma(x)+gamma(y)": [
+   "'gamma(x)+gamma(y)'",
+   "'gamma(x)+gamma(y)'"
+  ],
+  "gamma2(x)": [
+   "'gamma2(x)'",
+   "'gamma2(x)'"
+  ],
+  "gammax": [
+   "'gammax'",
+   "'gammax'"
+  ],
   "gcd": [
    "'gcd'",
    "'gcd'"
@@ -1900,6 +2192,54 @@
    "'hyperbolic tangentx'",
    "'hyperbolic tangentx'"
   ],
+  "im": [
+   "'im'",
+   "'im'"
+  ],
+  "im (x)": [
+   "'im (x)'",
+   "'im (x)'"
+  ],
+  "im(x)": [
+   "'im(x)'",
+   "'im(x)'"
+  ],
+  "im(x)+im(y)": [
+   "'im(x)+im(y)'",
+   "'im(x)+im(y)'"
+  ],
+  "im2(x)": [
+   "'im2(x)'",
+   "'im2(x)'"
+  ],
+  "imag": [
+   "'imag'",
+   "'imag'"
+  ],
+  "imag (x)": [
+   "'imag (x)'",
+   "'imag (x)'"
+  ],
+  "imag(x)": [
+   "'im(x)'",
+   "'im(x)'"
+  ],
+  "imag(x)+imag(y)": [
+   "'im(x)+im(y)'",
+   "'im(x)+im(y)'"
+  ],
+  "imag2(x)": [
+   "'imag2(x)'",
+   "'imag2(x)'"
+  ],
+  "imagx": [
+   "'imagx'",
+   "'imagx'"
+  ],
+  "imx": [
+   "'imx'",
+   "'imx'"
+  ],
   "integral": [
    "'integral'",
    "'integral'"
@@ -2008,6 +2348,10 @@
    "'karctangent(x)'",
    "'karctangent(x)'"
   ],
+  "karg(x)": [
+   "'karg(x)'",
+   "'karg(x)'"
+  ],
   "karithmetic_sum(x)": [
    "'karithmetic_sum(x)'",
    "'karithmetic_sum(x)'"
@@ -2032,6 +2376,10 @@
    "'katan(x)'",
    "'katan(x)'"
   ],
+  "katan2(x)": [
+   "'katan2(x)'",
+   "'katan2(x)'"
+  ],
   "katanh(x)": [
    "'katanh(x)'",
    "'katanh(x)'"
@@ -2044,6 +2392,10 @@
    "'kbinary(x)'",
    "'kbinary(x)'"
   ],
+  "kcbrt(x)": [
+   "'kcbrt(x)'",
+   "'kcbrt(x)'"
+  ],
   "kceil(x)": [
    "'kceil(x)'",
    "'kceil(x)'"
@@ -2051,6 +2403,14 @@
   "kcombinations(x)": [
    "'kcombinations(x)'",
    "'kcombinations(x)'"
+  ],
+  "kconj(x)": [
+   "'kconj(x)'",
+   "'kconj(x)'"
+  ],
+  "kconjugate(x)": [
+   "'kconjugate(x)'",
+   "'kconjugate(x)'"
   ],
   "kcos(x)": [
    "'kcos(x)'",
@@ -2100,6 +2460,10 @@
    "'ke(x)'",
    "'ke(x)'"
   ],
+  "kerf(x)": [
+   "'kerf(x)'",
+   "'kerf(x)'"
+  ],
   "kexp(x)": [
    "'kexp(x)'",
    "'kexp(x)'"
@@ -2128,6 +2492,10 @@
    "'kfloor(x)'",
    "'kfloor(x)'"
   ],
+  "kgamma(x)": [
+   "'kgamma(x)'",
+   "'kgamma(x)'"
+  ],
   "kgcd(x)": [
    "'kgcd(x)'",
    "'kgcd(x)'"
@@ -2155,6 +2523,14 @@
   "kiln*2": [
    "'kiln*2'",
    "'kiln*2'"
+  ],
+  "kim(x)": [
+   "'kim(x)'",
+   "'kim(x)'"
+  ],
+  "kimag(x)": [
+   "'kimag(x)'",
+   "'kimag(x)'"
   ],
   "kintegral(x)": [
    "'kintegral(x)'",
@@ -2224,6 +2600,10 @@
    "'kmin(x)'",
    "'kmin(x)'"
   ],
+  "kmod(x)": [
+   "'kmod(x)'",
+   "'kmod(x)'"
+  ],
   "kmod_inverse(x)": [
    "'kmod_inverse(x)'",
    "'kmod_inverse(x)'"
@@ -2239,6 +2619,14 @@
   "knext_prime(x)": [
    "'knext_prime(x)'",
    "'knext_prime(x)'"
+  ],
+  "knthRoot(x)": [
+   "'knthRoot(x)'",
+   "'knthRoot(x)'"
+  ],
+  "knthroot(x)": [
+   "'knthroot(x)'",
+   "'knthroot(x)'"
   ],
   "kp_series_test(x)": [
    "'kp_series_test(x)'",
@@ -2288,6 +2676,14 @@
    "'kratio_test(x)'",
    "'kratio_test(x)'"
   ],
+  "kre(x)": [
+   "'kre(x)'",
+   "'kre(x)'"
+  ],
+  "kreal(x)": [
+   "'kreal(x)'",
+   "'kreal(x)'"
+  ],
   "kroot_test(x)": [
    "'kroot_test(x)'",
    "'kroot_test(x)'"
@@ -2299,6 +2695,14 @@
   "ksec(x)": [
    "'ksec(x)'",
    "'ksec(x)'"
+  ],
+  "ksgn(x)": [
+   "'ksgn(x)'",
+   "'ksgn(x)'"
+  ],
+  "ksign(x)": [
+   "'ksign(x)'",
+   "'ksign(x)'"
   ],
   "ksimplify(x)": [
    "'ksimplify(x)'",
@@ -2712,6 +3116,26 @@
    "'minx'",
    "'minx'"
   ],
+  "mod": [
+   "'mod'",
+   "'mod'"
+  ],
+  "mod (x)": [
+   "'mod (x)'",
+   "'mod (x)'"
+  ],
+  "mod(x)": [
+   "'mod(x)'",
+   "'mod(x)'"
+  ],
+  "mod(x)+mod(y)": [
+   "'mod(x)+mod(y)'",
+   "'mod(x)+mod(y)'"
+  ],
+  "mod2(x)": [
+   "'mod2(x)'",
+   "'mod2(x)'"
+  ],
   "mod_inverse": [
    "'mod_inverse'",
    "'mod_inverse'"
@@ -2784,6 +3208,10 @@
    "'modex'",
    "'modex'"
   ],
+  "modx": [
+   "'modx'",
+   "'modx'"
+  ],
   "myvar(2)": [
    "'myvar(2)'",
    "'myvar(2)'"
@@ -2815,6 +3243,54 @@
   "next_primex": [
    "'next_primex'",
    "'next_primex'"
+  ],
+  "nthRoot": [
+   "'nthRoot'",
+   "'nthRoot'"
+  ],
+  "nthRoot (x)": [
+   "'nthRoot (x)'",
+   "'nthRoot (x)'"
+  ],
+  "nthRoot(x)": [
+   "'nthroot(x)'",
+   "'nthroot(x)'"
+  ],
+  "nthRoot(x)+nthRoot(y)": [
+   "'nthroot(x)+nthroot(y)'",
+   "'nthroot(x)+nthroot(y)'"
+  ],
+  "nthRoot2(x)": [
+   "'nthRoot2(x)'",
+   "'nthRoot2(x)'"
+  ],
+  "nthRootx": [
+   "'nthRootx'",
+   "'nthRootx'"
+  ],
+  "nthroot": [
+   "'nthroot'",
+   "'nthroot'"
+  ],
+  "nthroot (x)": [
+   "'nthroot (x)'",
+   "'nthroot (x)'"
+  ],
+  "nthroot(x)": [
+   "'nthroot(x)'",
+   "'nthroot(x)'"
+  ],
+  "nthroot(x)+nthroot(y)": [
+   "'nthroot(x)+nthroot(y)'",
+   "'nthroot(x)+nthroot(y)'"
+  ],
+  "nthroot2(x)": [
+   "'nthroot2(x)'",
+   "'nthroot2(x)'"
+  ],
+  "nthrootx": [
+   "'nthrootx'",
+   "'nthrootx'"
   ],
   "p_series_test": [
    "'p_series_test'",
@@ -3104,6 +3580,54 @@
    "'ratio_testx'",
    "'ratio_testx'"
   ],
+  "re": [
+   "'re'",
+   "'re'"
+  ],
+  "re (x)": [
+   "'re (x)'",
+   "'re (x)'"
+  ],
+  "re(x)": [
+   "'re(x)'",
+   "'re(x)'"
+  ],
+  "re(x)+re(y)": [
+   "'re(x)+re(y)'",
+   "'re(x)+re(y)'"
+  ],
+  "re2(x)": [
+   "'re2(x)'",
+   "'re2(x)'"
+  ],
+  "real": [
+   "'real'",
+   "'real'"
+  ],
+  "real (x)": [
+   "'real (x)'",
+   "'real (x)'"
+  ],
+  "real(x)": [
+   "'re(x)'",
+   "'re(x)'"
+  ],
+  "real(x)+real(y)": [
+   "'re(x)+re(y)'",
+   "'re(x)+re(y)'"
+  ],
+  "real2(x)": [
+   "'real2(x)'",
+   "'real2(x)'"
+  ],
+  "realx": [
+   "'realx'",
+   "'realx'"
+  ],
+  "rex": [
+   "'rex'",
+   "'rex'"
+  ],
   "root_test": [
    "'root_test'",
    "'root_test'"
@@ -3175,6 +3699,54 @@
   "secx": [
    "'secx'",
    "'secx'"
+  ],
+  "sgn": [
+   "'sgn'",
+   "'sgn'"
+  ],
+  "sgn (x)": [
+   "'sgn (x)'",
+   "'sgn (x)'"
+  ],
+  "sgn(x)": [
+   "'sign(x)'",
+   "'sign(x)'"
+  ],
+  "sgn(x)+sgn(y)": [
+   "'sign(x)+sign(y)'",
+   "'sign(x)+sign(y)'"
+  ],
+  "sgn2(x)": [
+   "'sgn2(x)'",
+   "'sgn2(x)'"
+  ],
+  "sgnx": [
+   "'sgnx'",
+   "'sgnx'"
+  ],
+  "sign": [
+   "'sign'",
+   "'sign'"
+  ],
+  "sign (x)": [
+   "'sign (x)'",
+   "'sign (x)'"
+  ],
+  "sign(x)": [
+   "'sign(x)'",
+   "'sign(x)'"
+  ],
+  "sign(x)+sign(y)": [
+   "'sign(x)+sign(y)'",
+   "'sign(x)+sign(y)'"
+  ],
+  "sign2(x)": [
+   "'sign2(x)'",
+   "'sign2(x)'"
+  ],
+  "signx": [
+   "'signx'",
+   "'signx'"
   ],
   "simplify": [
    "'simplify'",
@@ -3644,6 +4216,10 @@
    "'x*arctangent'",
    "'x*arctangent'"
   ],
+  "x*arg": [
+   "'x*arg'",
+   "'x*arg'"
+  ],
   "x*arithmetic_sum": [
    "'x*arithmetic_sum'",
    "'x*arithmetic_sum'"
@@ -3668,6 +4244,10 @@
    "'x*atan'",
    "'x*atan'"
   ],
+  "x*atan2": [
+   "'x*atan2'",
+   "'x*atan2'"
+  ],
   "x*atanh": [
    "'x*atanh'",
    "'x*atanh'"
@@ -3680,6 +4260,10 @@
    "'x*binary'",
    "'x*binary'"
   ],
+  "x*cbrt": [
+   "'x*cbrt'",
+   "'x*cbrt'"
+  ],
   "x*ceil": [
    "'x*ceil'",
    "'x*ceil'"
@@ -3687,6 +4271,14 @@
   "x*combinations": [
    "'x*combinations'",
    "'x*combinations'"
+  ],
+  "x*conj": [
+   "'x*conj'",
+   "'x*conj'"
+  ],
+  "x*conjugate": [
+   "'x*conjugate'",
+   "'x*conjugate'"
   ],
   "x*cos": [
    "'x*cos'",
@@ -3736,6 +4328,10 @@
    "'x*e'",
    "'x*e'"
   ],
+  "x*erf": [
+   "'x*erf'",
+   "'x*erf'"
+  ],
   "x*exp": [
    "'x*exp'",
    "'x*exp'"
@@ -3764,6 +4360,10 @@
    "'x*floor'",
    "'x*floor'"
   ],
+  "x*gamma": [
+   "'x*gamma'",
+   "'x*gamma'"
+  ],
   "x*gcd": [
    "'x*gcd'",
    "'x*gcd'"
@@ -3787,6 +4387,14 @@
   "x*hyperbolic tangent": [
    "'x*hyperbolic tangent'",
    "'x*hyperbolic tangent'"
+  ],
+  "x*im": [
+   "'x*im'",
+   "'x*im'"
+  ],
+  "x*imag": [
+   "'x*imag'",
+   "'x*imag'"
   ],
   "x*integral": [
    "'x*integral'",
@@ -3856,6 +4464,10 @@
    "'x*min'",
    "'x*min'"
   ],
+  "x*mod": [
+   "'x*mod'",
+   "'x*mod'"
+  ],
   "x*mod_inverse": [
    "'x*mod_inverse'",
    "'x*mod_inverse'"
@@ -3871,6 +4483,14 @@
   "x*next_prime": [
    "'x*next_prime'",
    "'x*next_prime'"
+  ],
+  "x*nthRoot": [
+   "'x*nthRoot'",
+   "'x*nthRoot'"
+  ],
+  "x*nthroot": [
+   "'x*nthroot'",
+   "'x*nthroot'"
   ],
   "x*p_series_test": [
    "'x*p_series_test'",
@@ -3920,6 +4540,14 @@
    "'x*ratio_test'",
    "'x*ratio_test'"
   ],
+  "x*re": [
+   "'x*re'",
+   "'x*re'"
+  ],
+  "x*real": [
+   "'x*real'",
+   "'x*real'"
+  ],
   "x*root_test": [
    "'x*root_test'",
    "'x*root_test'"
@@ -3931,6 +4559,14 @@
   "x*sec": [
    "'x*sec'",
    "'x*sec'"
+  ],
+  "x*sgn": [
+   "'x*sgn'",
+   "'x*sgn'"
+  ],
+  "x*sign": [
+   "'x*sign'",
+   "'x*sign'"
   ],
   "x*simplify": [
    "'x*simplify'",
@@ -4116,12 +4752,32 @@
    "EXCEPTION TypeError",
    "EXCEPTION TypeError"
   ],
+  "atan2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "atan2/2": [
+   "0.12435499454676144",
+   "0.24497866312686414",
+   "0.7853981633974483"
+  ],
   "atanh": [
    "0.25541281188299536",
    "0.5493061443340548",
    "EXCEPTION ValueError"
   ],
   "atanh/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "cbrt": [
+   "0.6299605249474366",
+   "0.7937005259840998",
+   "1.2599210498948734"
+  ],
+  "cbrt/2": [
    "EXCEPTION TypeError",
    "EXCEPTION TypeError",
    "EXCEPTION TypeError"
@@ -4176,6 +4832,16 @@
    "EXCEPTION TypeError",
    "EXCEPTION TypeError"
   ],
+  "erf": [
+   "0.2763263901682369",
+   "0.5204998778130465",
+   "0.9953222650189527"
+  ],
+  "erf/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
   "exp": [
    "1.2840254166877414",
    "1.6487212707001282",
@@ -4202,6 +4868,16 @@
    "2"
   ],
   "floor/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "gamma": [
+   "3.6256099082219087",
+   "1.7724538509055159",
+   "1.0"
+  ],
+  "gamma/2": [
    "EXCEPTION TypeError",
    "EXCEPTION TypeError",
    "EXCEPTION TypeError"
@@ -4256,6 +4932,26 @@
    "0.5",
    "2"
   ],
+  "mod": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "mod/2": [
+   "0.25",
+   "0.5",
+   "0"
+  ],
+  "nthroot": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "nthroot/2": [
+   "0.5",
+   "0.7071067811865476",
+   "1.4142135623730951"
+  ],
   "pow": [
    "EXCEPTION TypeError",
    "EXCEPTION TypeError",
@@ -4282,6 +4978,16 @@
    "-2.402997961722381"
   ],
   "sec/2": [
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError",
+   "EXCEPTION TypeError"
+  ],
+  "sign": [
+   "1.0",
+   "1.0",
+   "1.0"
+  ],
+  "sign/2": [
    "EXCEPTION TypeError",
    "EXCEPTION TypeError",
    "EXCEPTION TypeError"
@@ -4349,6 +5055,14 @@
  },
  "mathjs_bridge": {
   "evaluate": {
+   "17 % 5": {
+    "mathjs": [
+     "evaluate 17 mod 5"
+    ],
+    "path": "mathjs",
+    "raised": null,
+    "returned_error": false
+   },
    "2*product": {
     "mathjs": [
      "evaluate 2*product"
@@ -4368,6 +5082,14 @@
    "is_prime(7)": {
     "mathjs": [],
     "path": "python",
+    "raised": null,
+    "returned_error": false
+   },
+   "nthroot(-8, 3)": {
+    "mathjs": [
+     "evaluate nthRoot(-8, 3)"
+    ],
+    "path": "mathjs",
     "raised": null,
     "returned_error": false
    },
@@ -4420,6 +5142,14 @@
     "path": "none",
     "raised": null,
     "returned_error": true
+   },
+   "|x - 3|": {
+    "mathjs": [
+     "evaluate abs(x - 3)"
+    ],
+    "path": "mathjs",
+    "raised": null,
+    "returned_error": false
    }
   },
   "sites": {
@@ -4427,6 +5157,13 @@
     "arrangements(x, 2)": {
      "mathjs": [
       "compile (permutations(x, 2) )-( 1)"
+     ],
+     "raised": "ValueError",
+     "returned_error": false
+    },
+    "nthroot(x, 3)": {
+     "mathjs": [
+      "compile (nthRoot(x, 3) )-( 1)"
      ],
      "raised": "ValueError",
      "returned_error": false
@@ -4452,9 +5189,23 @@
      "raised": "ValueError",
      "returned_error": false
     },
+    "x % 2": {
+     "mathjs": [
+      "compile (x mod 2 )-( 1)"
+     ],
+     "raised": "ValueError",
+     "returned_error": false
+    },
     "xtrunc(x)": {
      "mathjs": [
       "compile (xtrunc(x) )-( 1)"
+     ],
+     "raised": "ValueError",
+     "returned_error": false
+    },
+    "|x|": {
+     "mathjs": [
+      "compile (abs(x) )-( 1)"
      ],
      "raised": "ValueError",
      "returned_error": false
@@ -4468,6 +5219,18 @@
       "evaluate permutations(x, 2)",
       "evaluate 1",
       "evaluate permutations(x, 2)",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "nthroot(x, 3)": {
+     "mathjs": [
+      "evaluate nthRoot(x, 3)",
+      "evaluate 1",
+      "evaluate nthRoot(x, 3)",
+      "evaluate 1",
+      "evaluate nthRoot(x, 3)",
       "evaluate 1"
      ],
      "raised": null,
@@ -4509,6 +5272,18 @@
      "raised": null,
      "returned_error": false
     },
+    "x % 2": {
+     "mathjs": [
+      "evaluate x mod 2",
+      "evaluate 1",
+      "evaluate x mod 2",
+      "evaluate 1",
+      "evaluate x mod 2",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
     "xtrunc(x)": {
      "mathjs": [
       "evaluate xtrunc(x)",
@@ -4520,12 +5295,31 @@
      ],
      "raised": null,
      "returned_error": false
+    },
+    "|x|": {
+     "mathjs": [
+      "evaluate abs(x)",
+      "evaluate 1",
+      "evaluate abs(x)",
+      "evaluate 1",
+      "evaluate abs(x)",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
     }
    },
    "evaluate_residuals": {
     "arrangements(x, 2)": {
      "mathjs": [
       "evaluate permutations(x, 2)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "nthroot(x, 3)": {
+     "mathjs": [
+      "evaluate nthRoot(x, 3)"
      ],
      "raised": null,
      "returned_error": false
@@ -4551,9 +5345,23 @@
      "raised": null,
      "returned_error": false
     },
+    "x % 2": {
+     "mathjs": [
+      "evaluate x mod 2"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
     "xtrunc(x)": {
      "mathjs": [
       "evaluate xtrunc(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "|x|": {
+     "mathjs": [
+      "evaluate abs(x)"
      ],
      "raised": null,
      "returned_error": false
@@ -4563,6 +5371,15 @@
     "arrangements(x, 2)": {
      "mathjs": [
       "compile permutations(x, 2)",
+      "evaluate 0",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "nthroot(x, 3)": {
+     "mathjs": [
+      "compile nthRoot(x, 3)",
       "evaluate 0",
       "evaluate 1"
      ],
@@ -4596,9 +5413,27 @@
      "raised": null,
      "returned_error": false
     },
+    "x % 2": {
+     "mathjs": [
+      "compile x mod 2",
+      "evaluate 0",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
     "xtrunc(x)": {
      "mathjs": [
       "compile xtrunc(x)",
+      "evaluate 0",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "|x|": {
+     "mathjs": [
+      "compile abs(x)",
       "evaluate 0",
       "evaluate 1"
      ],
@@ -4614,6 +5449,13 @@
      "raised": null,
      "returned_error": false
     },
+    "nthroot(x, 3)": {
+     "mathjs": [
+      "compile nthRoot(x, 3)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
     "sin(x)": {
      "mathjs": [
       "compile sin(x)"
@@ -4635,9 +5477,23 @@
      "raised": null,
      "returned_error": false
     },
+    "x % 2": {
+     "mathjs": [
+      "compile x mod 2"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
     "xtrunc(x)": {
      "mathjs": [
       "compile xtrunc(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "|x|": {
+     "mathjs": [
+      "compile abs(x)"
      ],
      "raised": null,
      "returned_error": false
@@ -4651,6 +5507,13 @@
      "raised": null,
      "returned_error": false
     },
+    "nthroot(x, 3)": {
+     "mathjs": [
+      "compile nthRoot(x, 3)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
     "sin(x)": {
      "mathjs": [
       "compile sin(x)"
@@ -4672,9 +5535,23 @@
      "raised": null,
      "returned_error": false
     },
+    "x % 2": {
+     "mathjs": [
+      "compile x mod 2"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
     "xtrunc(x)": {
      "mathjs": [
       "compile xtrunc(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "|x|": {
+     "mathjs": [
+      "compile abs(x)"
      ],
      "raised": null,
      "returned_error": false
@@ -4688,6 +5565,13 @@
      "raised": null,
      "returned_error": false
     },
+    "nthroot(x, 3)": {
+     "mathjs": [
+      "compile nthRoot(x, 3)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
     "sin(x)": {
      "mathjs": [
       "compile sin(x)"
@@ -4709,9 +5593,23 @@
      "raised": null,
      "returned_error": false
     },
+    "x % 2": {
+     "mathjs": [
+      "compile x mod 2"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
     "xtrunc(x)": {
      "mathjs": [
       "compile xtrunc(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "|x|": {
+     "mathjs": [
+      "compile abs(x)"
      ],
      "raised": null,
      "returned_error": false
@@ -4732,6 +5630,20 @@
      "raised": null,
      "returned_error": false
     },
+    "nthroot(x, 3)": {
+     "mathjs": [
+      "evaluate nthRoot(x, 3)",
+      "evaluate 1",
+      "evaluate nthRoot(x, 3)",
+      "evaluate 1",
+      "evaluate nthRoot(x, 3)",
+      "evaluate 1",
+      "evaluate nthRoot(x, 3)",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
     "sin(x)": {
      "mathjs": [
       "evaluate sin(x)",
@@ -4774,6 +5686,20 @@
      "raised": null,
      "returned_error": false
     },
+    "x % 2": {
+     "mathjs": [
+      "evaluate x mod 2",
+      "evaluate 1",
+      "evaluate x mod 2",
+      "evaluate 1",
+      "evaluate x mod 2",
+      "evaluate 1",
+      "evaluate x mod 2",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
     "xtrunc(x)": {
      "mathjs": [
       "evaluate xtrunc(x)",
@@ -4787,12 +5713,33 @@
      ],
      "raised": null,
      "returned_error": false
+    },
+    "|x|": {
+     "mathjs": [
+      "evaluate abs(x)",
+      "evaluate 1",
+      "evaluate abs(x)",
+      "evaluate 1",
+      "evaluate abs(x)",
+      "evaluate 1",
+      "evaluate abs(x)",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
     }
    },
    "tangent_asymptotes": {
     "arrangements(x, 2)": {
      "mathjs": [
       "compile permutations(x, 2)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "nthroot(x, 3)": {
+     "mathjs": [
+      "compile nthRoot(x, 3)"
      ],
      "raised": null,
      "returned_error": false
@@ -4818,9 +5765,23 @@
      "raised": null,
      "returned_error": false
     },
+    "x % 2": {
+     "mathjs": [
+      "compile x mod 2"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
     "xtrunc(x)": {
      "mathjs": [
       "compile xtrunc(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "|x|": {
+     "mathjs": [
+      "compile abs(x)"
      ],
      "raised": null,
      "returned_error": false
@@ -4840,26 +5801,33 @@
    "asin": "math.asin",
    "asinh": "math.asinh",
    "atan": "math.atan",
+   "atan2": "math.atan2",
    "atanh": "math.atanh",
+   "cbrt": "math.cbrt",
    "ceil": "math.ceil",
    "cos": "math.cos",
    "cosh": "math.cosh",
    "cot": "local:cot",
    "csc": "local:csc",
    "e": "const:2.718281828459045",
+   "erf": "math.erf",
    "exp": "math.exp",
    "factorial": "math.factorial",
    "floor": "math.floor",
+   "gamma": "math.gamma",
    "inf": "const:inf",
    "log": "math.log",
    "log10": "math.log10",
    "log2": "math.log2",
    "max": "builtins.max",
    "min": "builtins.min",
+   "mod": "local:mod",
+   "nthroot": "local:nthroot",
    "pi": "const:3.141592653589793",
    "pow": "MathUtils.pow",
    "round": "MathUtils.round",
    "sec": "local:sec",
+   "sign": "local:sign",
    "sin": "math.sin",
    "sinh": "math.sinh",
    "sqrt": "MathUtils.sqrt",
@@ -4875,16 +5843,20 @@
    "acosh": "math.acosh",
    "acot": "local:acot",
    "acsc": "local:acsc",
+   "arg": "local:arg",
    "arithmetic_sum": "MathUtils.arithmetic_sum",
    "arrangements": "MathUtils.arrangements",
    "asec": "local:asec",
    "asin": "math.asin",
    "asinh": "math.asinh",
    "atan": "math.atan",
+   "atan2": "math.atan2",
    "atanh": "math.atanh",
    "bin": "builtins.bin",
+   "cbrt": "math.cbrt",
    "ceil": "math.ceil",
    "combinations": "MathUtils.combinations",
+   "conj": "local:conj",
    "cos": "math.cos",
    "cosh": "math.cosh",
    "cot": "local:cot",
@@ -4893,14 +5865,17 @@
    "det": "MathUtils.det",
    "divisors": "MathUtils.divisors",
    "e": "const:2.718281828459045",
+   "erf": "math.erf",
    "exp": "math.exp",
    "expand": "MathUtils.expand",
    "factor": "MathUtils.factor",
    "factorial": "math.factorial",
    "floor": "math.floor",
+   "gamma": "math.gamma",
    "gcd": "MathUtils.gcd",
    "geometric_sum": "MathUtils.geometric_sum",
    "geometric_sum_infinite": "MathUtils.geometric_sum_infinite",
+   "im": "local:im",
    "inf": "const:inf",
    "integrate": "MathUtils.integral",
    "is_prime": "MathUtils.is_prime",
@@ -4913,10 +5888,12 @@
    "mean": "MathUtils.mean",
    "median": "MathUtils.median",
    "min": "builtins.min",
+   "mod": "local:mod",
    "mod_inverse": "MathUtils.mod_inverse",
    "mod_pow": "MathUtils.mod_pow",
    "mode": "MathUtils.mode",
    "next_prime": "MathUtils.next_prime",
+   "nthroot": "local:nthroot",
    "p_series_test": "MathUtils.p_series_test",
    "permutations": "MathUtils.permutations",
    "pi": "const:3.141592653589793",
@@ -4927,9 +5904,11 @@
    "randint": "local:randint",
    "random": "MathUtils.random",
    "ratio_test": "MathUtils.ratio_test",
+   "re": "local:re",
    "root_test": "MathUtils.root_test",
    "round": "MathUtils.round",
    "sec": "local:sec",
+   "sign": "local:sign",
    "simplify": "MathUtils.simplify",
    "sin": "math.sin",
    "sinh": "math.sinh",
@@ -4952,16 +5931,20 @@
    "acosh",
    "acot",
    "acsc",
+   "arg",
    "arithmetic_sum",
    "arrangements",
    "asec",
    "asin",
    "asinh",
    "atan",
+   "atan2",
    "atanh",
    "bin",
+   "cbrt",
    "ceil",
    "combinations",
+   "conj",
    "cos",
    "cosh",
    "cot",
@@ -4970,14 +5953,17 @@
    "det",
    "divisors",
    "e",
+   "erf",
    "exp",
    "expand",
    "factor",
    "factorial",
    "floor",
+   "gamma",
    "gcd",
    "geometric_sum",
    "geometric_sum_infinite",
+   "im",
    "integrate",
    "is_prime",
    "lcm",
@@ -4989,10 +5975,12 @@
    "mean",
    "median",
    "min",
+   "mod",
    "mod_inverse",
    "mod_pow",
    "mode",
    "next_prime",
+   "nthroot",
    "p_series_test",
    "permutations",
    "pi",
@@ -5003,9 +5991,11 @@
    "randint",
    "random",
    "ratio_test",
+   "re",
    "root_test",
    "round",
    "sec",
+   "sign",
    "simplify",
    "sin",
    "sinh",
@@ -5028,6 +6018,7 @@
    "Div",
    "Expression",
    "List",
+   "Mod",
    "Mult",
    "Name",
    "Pow",
@@ -5042,6 +6033,7 @@
    "arcsine": "asin",
    "arctangent": "atan",
    "binary": "bin",
+   "conjugate": "conj",
    "cosine": "cos",
    "derivate": "derive",
    "derivative": "derive",
@@ -5051,13 +6043,17 @@
    "hyperbolic cosine": "cosh",
    "hyperbolic sine": "sinh",
    "hyperbolic tangent": "tanh",
+   "imag": "im",
    "integral": "integrate",
    "lim": "limit",
    "logarithm": "log",
    "logarithm10": "log10",
    "logarithm2": "log2",
+   "nthRoot": "nthroot",
    "power": "pow",
    "rand": "random",
+   "real": "re",
+   "sgn": "sign",
    "sine": "sin",
    "square root": "sqrt",
    "std": "stdev",

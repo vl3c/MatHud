@@ -172,6 +172,8 @@ class TestScenarioHookCanvas(unittest.TestCase):
         probe = function["asymptote_probes"][0]
         self.assertAlmostEqual(probe[0], 1.0)
         self.assertGreater(abs(probe[2]), 1e4)
+        self.assertEqual(len(probe), 5)  # and the far probes, 1e-4 away
+        self.assertLess(abs(probe[4]), abs(probe[2]))
         self.assertEqual(inspection["undo_depth"], len(self.canvas.undo_redo_manager.undo_stack))
         self.assertEqual(inspection["coordinate_mode"], "cartesian")
         self.assertTrue(inspection["grid_visible"]["active"])

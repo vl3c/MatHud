@@ -122,6 +122,69 @@
           ]
         }
       ]
+    },
+    {
+      "id": "MC-05",
+      "title": "Calculator functions and an exact fraction",
+      "tags": ["math"],
+      "smoke": false,
+      "targets": "mod, atan2 and the complex helpers in evaluate_expression; simplify for exact answers (its 7/12 needs the server's SymPy engine, which CI installs: nerdamer alone prints 0.583333333333333333)",
+      "steps": [
+        {
+          "user": "Work out -7 mod 3, atan2(1, -1), the argument of 1 + i and the conjugate of 3 + 4i. Then give 1/3 + 1/4 as an exact fraction.",
+          "reference": [
+            {"tool": "evaluate_expression", "args": {"expression": "mod(-7, 3)"}},
+            {"tool": "evaluate_expression", "args": {"expression": "atan2(1, -1)"}},
+            {"tool": "evaluate_expression", "args": {"expression": "arg(1 + i)"}},
+            {"tool": "evaluate_expression", "args": {"expression": "conj(3 + 4i)"}},
+            {"tool": "simplify", "args": {"expression": "1/3 + 1/4"}}
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "tool_result", "tool": "evaluate_expression", "any": true, "has_numbers": [2]},
+            {"check": "tool_result", "tool": "evaluate_expression", "any": true, "has_numbers": [2.356194490192345]},
+            {"check": "tool_result", "tool": "evaluate_expression", "any": true, "has_numbers": [0.7853981633974483]},
+            {"check": "tool_result", "tool": "evaluate_expression", "any": true, "matches": "^3 - 4i$"},
+            {
+              "check": "tool_result",
+              "tool": "simplify",
+              "eq": "7/12",
+              "note": "exact with the server's SymPy engine (CI installs it); nerdamer alone prints 0.583333333333333333"
+            },
+            {"check": "answer_mentions", "numbers": [2], "matches": "7\\s*/\\s*12"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "MC-06",
+      "title": "Plots of the new functions",
+      "tags": ["math", "functions", "asymptotes"],
+      "smoke": false,
+      "targets": "cbrt, ln|x| and % in function plots; the asymptote of ln|x| found behind its bars",
+      "steps": [
+        {
+          "user": "Plot the cube root of x, ln|x| and x % 2.",
+          "reference": [
+            {"tool": "draw_function", "args": {"function_string": "cbrt(x)", "name": "f"}},
+            {"tool": "draw_function", "args": {"function_string": "ln|x|", "name": "g"}},
+            {"tool": "draw_function", "args": {"function_string": "x % 2", "name": "h"}}
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "count", "select": {"type": "Function"}, "eq": 3},
+            {"check": "exists", "select": {"type": "Function", "samples": [[-8, -2], [8, 2]]}},
+            {"check": "exists", "select": {"type": "Function", "samples": [[-1, 0], [2.718281828459045, 1]]}},
+            {"check": "exists", "select": {"type": "Function", "samples": [[0.5, 0.5], [2.5, 0.5], [-0.5, 1.5]]}},
+            {
+              "check": "attribute",
+              "path": "args.vertical_asymptotes",
+              "select": {"type": "Function", "samples": [[-1, 0], [2.718281828459045, 1]]},
+              "contains": 0
+            }
+          ]
+        }
+      ]
     }
   ]
 }

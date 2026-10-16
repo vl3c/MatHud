@@ -64,6 +64,17 @@ TEST_QUERY_WORDS = frozenset({"test", "tests", "testing"})
 
 # A function applied to a single number, e.g. "f(3)" or "g(-2.5)".
 _FUNCTION_AT_POINT_RE = re.compile(r"\b[a-z]\w*\(\s*-?\d+(?:\.\d+)?\s*\)")
+# A one-letter function, a defined one rather than sqrt(12), applied to a constant:
+# numbers, operators, parentheses, pi, e and sqrt, e.g. "f(3)", "f(1/3)", "f(pi/4)",
+# "f(sqrt(2))", but not "f(x)". Only read in exact queries: elsewhere "a(1/2)x" or
+# "part b(1/2)" is rarely a function value. The bounded repeats keep a long query linear.
+_NAMED_FUNCTION_AT_POINT_RE = re.compile(
+    r"\b[a-z]\((?=[^)]{0,40}(?:\d|\bpi\b|\be\b))(?:[\d.+\-*/^\s()]|\bpi\b|\be\b|\bsqrt\b){1,40}\)"
+)
+# Measurements a tool takes (calculate_area): an "exact" one still goes to that tool first.
+# No tool measures a distance or a length, and create_angle draws an angle in decimal
+# degrees, so an exact distance, length or angle goes to simplify.
+_MEASUREMENT_WORDS = frozenset({"area"})
 
 # "graph" means a graph of vertices and edges (generate_graph) rather than the plot of
 # a function when the query names that structure (_GRAPH_STRUCTURE_WORDS). Two weaker
@@ -952,6 +963,18 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["numeric_integrate"] += 2.0
         if token_set & {"simplify", "reduce"}:
             scores["simplify"] += 6.0
+        # An exact fraction or radical comes from simplify (evaluate_expression gives decimals).
+        # A function's value at a point or an area ("f(3) as a fraction", "the exact area of
+        # the triangle") keeps its own tools first, with simplify behind them.
+        wants_exact = bool(token_set & {"exact", "fraction", "fractions", "radical"})
+        named_at_point = wants_exact and _NAMED_FUNCTION_AT_POINT_RE.search(raw_lower) is not None
+        at_point = named_at_point or _FUNCTION_AT_POINT_RE.search(raw_lower) is not None
+        exact_alongside = wants_exact and (named_at_point or bool(token_set & _MEASUREMENT_WORDS))
+        if wants_exact:
+            scores["simplify"] += 3.0 if exact_alongside else 6.0
+        only_exact = wants_exact and not exact_alongside
+        if token_set & {"mod", "modulo", "remainder"}:
+            scores["evaluate_expression"] += 6.0
         if token_set & {"expand", "multiply"} and not (token_set & {"matrix", "matrices"}):
             scores["expand"] += 6.0
         if token_set & {"factor", "factorize", "factorise", "factored"}:
@@ -962,10 +985,11 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             token_set & {"area", "statistics", "descriptive", "stats", "mean", "median"}
         ):
             scores["evaluate_expression"] += 3.0
-        # Values of a function at points: "f(3)", "value of f at 2", "table of values"
-        if _FUNCTION_AT_POINT_RE.search(raw_lower):
+        # Values of a function at points: "f(3)", "value of f at 2", "table of values"; not an
+        # exact value ("the exact value of sqrt(12)"), which simplify gives
+        if not only_exact and at_point:
             scores["evaluate_expression"] += 12.0
-        elif token_set & {"value", "values", "table", "plug", "substitute"}:
+        elif not only_exact and token_set & {"value", "values", "table", "plug", "substitute"}:
             scores["evaluate_expression"] += 8.0
 
         # -- Convert (unit vs coordinate) --
@@ -1076,6 +1100,12 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         # -- Coordinate system --
         if token_set & {"polar", "cartesian"} and token_set & {"system", "mode", "switch"}:
             scores["set_coordinate_system"] += 6.0
+
+        # Simplify's +3 alone falls under RELATIVE_SCORE_CUTOFF of a function value's score
+        # and behind the other area tools, so it scores one point under the leading tool
+        if exact_alongside:
+            leading = max(score for name, score in scores.items() if not name.startswith(DESTRUCTIVE_TOOL_PREFIXES))
+            scores["simplify"] = max(scores["simplify"], leading - 1.0)
 
     # ------------------------------------------------------------------
     # API-based search (original implementation)

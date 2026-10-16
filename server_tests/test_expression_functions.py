@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import math
 import re
 import subprocess
 import sys
@@ -21,8 +22,9 @@ from server_tests import client_renderer  # noqa: F401  (browser stub, so MathUt
 import expression_functions as ef
 from server_tests.test_expression_function_tables import GOLDEN_PATH, _label
 
-# Functions the server's SymPy parser accepts that expressions on the client do not
-SYMPY_ONLY_NAMES = {"coth", "sech", "csch", "sign", "sgn", "gamma", "erf", "cbrt", "nthroot", "atan2"}
+# Names the server's SymPy parser accepts that are neither rows nor word aliases (sgn is a
+# call alias of sign on the client)
+SYMPY_ONLY_NAMES = {"coth", "sech", "csch", "sgn"}
 
 
 # Aliases are matched as whole tokens; the client suite runs the same cases through Brython's re
@@ -43,6 +45,9 @@ ALIAS_CASES = {
     "myvar(2)": "myvar(2)",
     "sine (x)": "sine (x)",
     "var": "var",
+    "sgn(x)": "sign(x)",
+    "nthRoot(8, 3)": "nthroot(8, 3)",
+    "xsgn(x)": "xsgn(x)",
 }
 
 
@@ -94,7 +99,10 @@ class TestDerivedTables(unittest.TestCase):
         self.assertEqual(sorted(ef.PYTHON_ONLY_NAMES), self.golden["tables"]["python_only_functions"])
 
     def test_mathjs_renames(self) -> None:
-        self.assertEqual(ef.MATHJS_RENAMES, {"arrangements": "permutations", "stdev": "std", "trunc": "fix"})
+        self.assertEqual(
+            ef.MATHJS_RENAMES,
+            {"arrangements": "permutations", "stdev": "std", "trunc": "fix", "nthroot": "nthRoot"},
+        )
 
     def test_namespaces(self) -> None:
         namespaces = self.golden["namespaces"]
@@ -230,6 +238,127 @@ class TestMathJsRenames(unittest.TestCase):
         for text, expected in cases.items():
             with self.subTest(text=text):
                 self.assertEqual(ef.rename_for_mathjs(text), expected)
+
+    def test_percent_becomes_the_mod_operator(self) -> None:
+        # math.js reads 7 % -3 as (7%) - 3 = -2.93; mod is the remainder in every engine
+        cases = {
+            "7 % -3": "7 mod -3",
+            "x%2": "x mod 2",
+            "trunc(x) % 3": "fix(x) mod 3",
+            "2^7 % 5": "2^7 mod 5",
+            "7 mod -3": "7 mod -3",
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(ef.rename_for_mathjs(text), expected)
+                self.assertEqual(ef.rename_for_mathjs(expected), expected)  # idempotent
+
+
+class TestRemainderOperator(unittest.TestCase):
+    """% is Python's floored remainder, with the precedence of * and /; never a percentage."""
+
+    def test_percent_validates_and_evaluates_as_the_remainder(self) -> None:
+        from expression_validator import ExpressionValidator
+
+        cases = {"-7 % 3": 2, "x % 3": 1.5, "7 % -3": -2, "2^7 % 5": 3, "2*7 % 3": 2, "-x % 2": 0.5}
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(ExpressionValidator.parse_function_string(text)(7.5 if "x" in text else 0.0), expected)
+        self.assertEqual(ExpressionValidator.fix_math_expression("x % 2", True), "x % 2")
+        self.assertEqual(ExpressionValidator.fix_math_expression("x % 2", False), "x % 2")
+
+    def test_a_zero_divisor_raises_in_python_but_mod_keeps_x(self) -> None:
+        # A plot drops the sample of x % 0; mod(x, 0) is x, as in math.js (one rule is item 11's)
+        from expression_validator import ExpressionValidator
+
+        with self.assertRaises(ZeroDivisionError):
+            ExpressionValidator.parse_function_string("x % 0")(3.0)
+        self.assertEqual(ExpressionValidator.parse_function_string("mod(x, 0)")(3.0), 3.0)
+
+    def test_postfix_percent_is_not_an_expression(self) -> None:
+        from expression_validator import ExpressionValidator
+
+        for text in ("50%", "x*(1 + 5%)"):
+            with self.subTest(text=text):
+                with self.assertRaises(ValueError):
+                    ExpressionValidator.validate_expression_tree(ExpressionValidator.fix_math_expression(text, True))
+
+    def test_raw_text_sites_lose_postfix_percent(self) -> None:
+        # The numeric solver passes raw text to math.js; 5% is no longer 0.05 there
+        from numeric_solver.expression_utils import equation_to_residual
+
+        self.assertEqual(equation_to_residual("x*(1 + 5%) = 105"), "(x*(1 + 5 mod )) - (105)")
+        self.assertEqual(equation_to_residual("x % 4 = 1"), "(x mod 4) - (1)")
+
+
+class TestCalculatorFunctions(unittest.TestCase):
+    """The Python callables of the calculator rows follow math.js 14.5.2 (plots use them)."""
+
+    @staticmethod
+    def _call(name: str, *args: Any) -> Any:
+        return ef.build_python_namespace()[name](*args)
+
+    def test_mod_is_floored_and_keeps_x_for_a_zero_divisor(self) -> None:
+        cases = {(17, 5): 2, (-7, 3): 2, (7, -3): -2, (-7, -3): -1, (5.5, 2): 1.5, (7, 0): 7, (-2.5, 0): -2.5}
+        for (x, y), expected in cases.items():
+            with self.subTest(x=x, y=y):
+                self.assertEqual(self._call("mod", x, y), expected)
+        self.assertIsInstance(self._call("mod", 17, 5), int)  # exact for integers
+        with self.assertRaises(TypeError):
+            self._call("mod", 3j, 2)
+
+    def test_nthroot_is_the_real_root(self) -> None:
+        cases = {(-8, 3): -2.0, (32, 5): 2.0, (16, -2): 0.25, (16, 2): 4.0, (-32, 5): -2.0, (-8, -3): -0.5, (0, 3): 0.0}
+        for (x, n), expected in cases.items():
+            with self.subTest(x=x, n=n):
+                self.assertAlmostEqual(self._call("nthroot", x, n), expected)
+        for x, n in ((-8, 2), (-27, 1.5), (5, 0), (-8, 0)):
+            with self.subTest(x=x, n=n):
+                with self.assertRaises(ValueError):
+                    self._call("nthroot", x, n)
+
+    def test_cbrt_atan2_gamma_erf(self) -> None:
+        self.assertAlmostEqual(self._call("cbrt", -27), -3.0)
+        self.assertAlmostEqual(self._call("atan2", 1, -1), 3 * math.pi / 4)
+        self.assertAlmostEqual(self._call("atan2", -1, -1), -3 * math.pi / 4)
+        self.assertEqual(self._call("atan2", 0, 0), 0.0)
+        self.assertAlmostEqual(self._call("gamma", 5), 24.0)
+        self.assertAlmostEqual(self._call("gamma", 0.5), math.sqrt(math.pi))
+        self.assertAlmostEqual(self._call("erf", 0.5), 0.5204998778130465)
+        for pole in (0, -1, -2):
+            with self.subTest(pole=pole):
+                with self.assertRaises(ValueError):  # math.js gives Infinity; the plot drops the sample
+                    self._call("gamma", pole)
+
+    def test_sign(self) -> None:
+        self.assertEqual([self._call("sign", value) for value in (2.5, -0.1, 0, -0.0)], [1.0, -1.0, 0.0, 0.0])
+        self.assertTrue(math.isnan(self._call("sign", math.nan)))
+        self.assertAlmostEqual(self._call("sign", 3 + 4j), 0.6 + 0.8j)
+        self.assertEqual(self._call("sign", 0j), 0.0)
+
+    def test_complex_parts_of_complex_and_real_values(self) -> None:
+        z = 3 + 4j
+        self.assertEqual((self._call("re", z), self._call("im", z)), (3.0, 4.0))
+        self.assertEqual(self._call("conj", z), 3 - 4j)
+        self.assertAlmostEqual(self._call("arg", 1 + 1j), math.pi / 4)
+        self.assertEqual((self._call("re", -2.5), self._call("im", -2.5), self._call("conj", -2.5)), (-2.5, 0.0, -2.5))
+        self.assertAlmostEqual(self._call("arg", -1), math.pi)
+        self.assertEqual(self._call("arg", 2), 0.0)
+
+    def test_aliases_evaluate_like_their_names(self) -> None:
+        from expression_validator import ExpressionValidator
+
+        cases = {
+            "sgn(x - 1)": "sign(x - 1)",
+            "nthRoot(x, 3)": "nthroot(x, 3)",
+            "real(x) + imag(x) + conjugate(x)": "re(x) + im(x) + conj(x)",
+        }
+        for text, canonical in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(
+                    ExpressionValidator.parse_function_string(text)(0.7),
+                    ExpressionValidator.parse_function_string(canonical)(0.7),
+                )
 
 
 class TestPythonOnlyRouting(unittest.TestCase):

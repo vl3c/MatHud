@@ -824,6 +824,47 @@ class TestMathFunctions(unittest.TestCase):
                 self.assertIn("infinite", result)
                 self.assertNotIn("ZeroDivisionError", result)
 
+    def test_evaluate_remainder_operator(self) -> None:
+        # % is the floored remainder in every engine; math.js alone reads 7 % -3 as (7%) - 3 = -2.93
+        cases = {"7 % -3": -2, "-7 % 3": 2, "17 % 5": 2, "2^7 % 5": 3, "2*7 % 3": 2, "x % 3": 1.5}
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(float(MathUtils.evaluate(text, {"x": 7.5})), expected)
+        # A zero divisor gives the dividend, like mod() (plots drop the sample instead)
+        self.assertEqual(float(MathUtils.evaluate("5 % 0")), 5)
+        self.assertEqual(float(MathUtils.evaluate("mod(7, 0)")), 7)
+        for text in ("50%", "100 + 5%"):
+            with self.subTest(text=text):
+                self.assertIn("Error", str(MathUtils.evaluate(text)))
+
+    def test_evaluate_roots_and_angles(self) -> None:
+        self.assertEqual(float(MathUtils.evaluate("nthroot(-8, 3)")), -2)
+        self.assertEqual(float(MathUtils.evaluate("nthRoot(32, 5)")), 2)
+        self.assertAlmostEqual(float(MathUtils.evaluate("nthroot(16, -2)")), 0.25)
+        self.assertIn("Error", str(MathUtils.evaluate("nthroot(-8, 2)")))  # no real even root
+        self.assertEqual(float(MathUtils.evaluate("cbrt(-27)")), -3)
+        quadrants = {(1, 1): math.pi / 4, (1, -1): 3 * math.pi / 4, (-1, -1): -3 * math.pi / 4, (-1, 1): -math.pi / 4}
+        for (y, x), expected in quadrants.items():
+            with self.subTest(y=y, x=x):
+                self.assertAlmostEqual(float(MathUtils.evaluate(f"atan2({y}, {x})")), expected)
+        self.assertEqual([float(MathUtils.evaluate(f"sign({v})")) for v in (-2.5, 0, 3)], [-1, 0, 1])
+        self.assertEqual(float(MathUtils.evaluate("sgn(-4)")), -1)
+
+    def test_evaluate_gamma_and_erf(self) -> None:
+        self.assertEqual(float(MathUtils.evaluate("gamma(5)")), 24)
+        self.assertAlmostEqual(float(MathUtils.evaluate("gamma(0.5)")), math.sqrt(math.pi))
+        self.assertIn("infinite", str(MathUtils.evaluate("gamma(0)")))  # a pole
+        self.assertAlmostEqual(float(MathUtils.evaluate("erf(0.5)")), 0.5204998778130465)
+
+    def test_evaluate_complex_parts(self) -> None:
+        self.assertEqual(float(MathUtils.evaluate("re(3 + 4i)")), 3)
+        self.assertEqual(float(MathUtils.evaluate("im(3 + 4i)")), 4)
+        self.assertEqual(float(MathUtils.evaluate("real(2 - i) + imag(2 - i)")), 1)
+        self.assertAlmostEqual(float(MathUtils.evaluate("arg(1 + i)")), math.pi / 4)
+        self.assertAlmostEqual(float(MathUtils.evaluate("arg(-1)")), math.pi)
+        self.assertEqual(MathUtils.evaluate("conj(3 + 4i)"), "3 - 4i")
+        self.assertEqual(MathUtils.evaluate("conjugate(3 + 4i)"), "3 - 4i")
+
     def test_evaluate_string_results_have_no_json_quotes(self) -> None:
         self.assertEqual(MathUtils.evaluate("bin(10)"), "0b1010")
         self.assertEqual(MathUtils.evaluate("bin(5)"), "0b101")
@@ -1123,6 +1164,26 @@ class TestMathFunctions(unittest.TestCase):
         with WithoutSympy():
             self.assertEqual(MathUtils.simplify("x^2 + 2*x + 1"), "(1+x)^2")
 
+    def test_simplify_gives_exact_arithmetic(self) -> None:
+        if sympy_available():
+            self.assertEqual(MathUtils.simplify("1/3 + 1/4"), "7/12")
+            self.assertEqual(MathUtils.simplify("sqrt(12)"), "2*sqrt(3)")
+            self.assertEqual(MathUtils.simplify("0.1 + 0.2"), "3/10")
+        with WithoutSympy():
+            # nerdamer's text() prints decimals (0.583333333333333333): exact only with SymPy
+            self.assertAlmostEqual(value_of(MathUtils.simplify("1/3 + 1/4")), 7 / 12)
+            self.assertEqual(MathUtils.simplify("sqrt(12)"), "2*sqrt(3)")
+
+    def test_simplify_remainder(self) -> None:
+        if sympy_available():
+            self.assertEqual(MathUtils.simplify("mod(-7, 3)"), "2")
+            self.assertEqual(MathUtils.simplify("17 % 5"), "2")
+        with WithoutSympy():
+            # nerdamer reads 7%-3 as a percentage and x%3 as its truncated mod, so it refuses %
+            result = MathUtils.simplify("17 % 5")
+            self.assertIn("Error", result)
+            self.assertIn("%", result)
+
     def test_expand(self) -> None:
         result = MathUtils.expand("(x + 1)^2")
         self.assertEqual(result, "1+2*x+x^2")
@@ -1344,6 +1405,31 @@ class TestMathFunctions(unittest.TestCase):
         self.assertEqual(MathUtils.derivative("sin⁻¹x", "x"), MathUtils.derivative("asin(x)", "x"))
         self.assertAlmostEqual(MathUtils.evaluate("cos⁻¹0.5"), math.pi / 3)
 
+    def test_superscripts_on_spelled_out_function_names(self) -> None:
+        # Regression: sine²(1) became sin(e^2)*(1)
+        self.assertAlmostEqual(float(MathUtils.evaluate("sine²(1)")), math.sin(1) ** 2)
+        self.assertAlmostEqual(float(MathUtils.evaluate("hyperbolic sine²(1)")), math.sinh(1) ** 2)
+        self.assertAlmostEqual(float(MathUtils.evaluate("sine⁻¹(0.5)")), math.pi / 6)
+        self.assertAlmostEqual(value_of(MathUtils.simplify("sine²(x) + cosine²(x)")), 1.0)
+
+    def test_caret_powers_on_function_names(self) -> None:
+        # Regression: sin^2(x) validated as sin**2*(x) and failed when evaluated
+        self.assertAlmostEqual(float(MathUtils.evaluate("sin^2(1)")), math.sin(1) ** 2)
+        self.assertAlmostEqual(float(MathUtils.evaluate("sin^-1(0.5)")), math.pi / 6)
+        self.assertAlmostEqual(float(MathUtils.evaluate("tan^(-1)(1)")), math.pi / 4)
+        self.assertAlmostEqual(float(MathUtils.evaluate("log^-1(x)", {"x": 2})), 1 / math.log(2))
+        # The CAS tools read them the same way: derive("sin^2(x)") answered for sin^2*x before
+        for engines in (WithoutSympy(), AnyEngine()):
+            with engines:
+                caret = MathUtils.derivative("sin^2(x)", "x")
+                plain = MathUtils.derivative("sin(x)^2", "x")
+                self.assertNotIn("Error", caret)
+                for point in (0.3, 1.1):
+                    self.assertAlmostEqual(
+                        float(MathUtils.evaluate(caret, {"x": point})), float(MathUtils.evaluate(plain, {"x": point}))
+                    )
+                self.assertNotIn("Error", MathUtils.derivative("sin^-1(x)", "x"))
+
     def test_degrees_reach_nerdamer_as_radians(self) -> None:
         # Regression: nerdamer received the ° sign itself
         for engines in (WithoutSympy(), AnyEngine()):
@@ -1421,6 +1507,37 @@ class TestMathFunctions(unittest.TestCase):
         result = dict(item.split(" = ") for item in result.split(", "))  # parse result from string to dictionary
         result = {k: float(v) for k, v in result.items()}  # convert results to floats
         self.assertEqual(result, {"x": -1.0, "y": -6.0})
+
+    def test_vertical_asymptotes_behind_absolute_bars(self) -> None:
+        # The analysis reads the stored text, which keeps the bars; 1/|x| was missed on main too
+        for expression in ("ln|x|", "1/|x|", "log(|x|)"):
+            with self.subTest(expression=expression):
+                self.assertEqual(MathUtils.calculate_vertical_asymptotes(expression, -5, 5), [0])
+
+    def test_evaluate_absolute_bars(self) -> None:
+        # math.js cannot read |x|: it raised "Value expected" after the Python form validated
+        self.assertEqual(float(MathUtils.evaluate("|-3|")), 3)
+        self.assertEqual(float(MathUtils.evaluate("|x - 3|", {"x": 1})), 2)
+        self.assertAlmostEqual(float(MathUtils.evaluate("ln|-e|")), 1.0)
+        self.assertAlmostEqual(float(MathUtils.evaluate("2ln|x|", {"x": -math.e})), 2.0)
+        self.assertAlmostEqual(float(MathUtils.evaluate("sin|x|", {"x": -1})), math.sin(1))
+        self.assertEqual(float(MathUtils.evaluate("|x| % |y|", {"x": -7, "y": 3})), 1)
+
+    def test_evaluate_call_aliases_before_absolute_bars(self) -> None:
+        # The alias was left in the math.js text: cosine|-1| became cosine(abs(-1)), unknown to math.js
+        self.assertAlmostEqual(float(MathUtils.evaluate("cosine|-1|")), math.cos(1))
+        self.assertAlmostEqual(float(MathUtils.evaluate("sine|-0.5|")), math.sin(0.5))
+        self.assertEqual(float(MathUtils.evaluate("sgn|-3|")), 1)
+        self.assertAlmostEqual(float(MathUtils.evaluate("arcsine|-0.5|")), math.asin(0.5))
+        self.assertAlmostEqual(float(MathUtils.evaluate("hyperbolic sine|x|", {"x": -1})), math.sinh(1))
+        self.assertEqual(float(MathUtils.evaluate("real|-2|")), 2)
+        self.assertEqual(float(MathUtils.evaluate("imag|-2|")), 0)
+        self.assertEqual(float(MathUtils.evaluate("conjugate|-2|")), 2)
+
+    def test_vertical_asymptotes_behind_call_aliases_and_bars(self) -> None:
+        expected = MathUtils.calculate_asymptotes_and_discontinuities("1/sin(abs(x))", -4, 4)[0]
+        self.assertEqual(len(expected), 3)  # -pi, 0, pi
+        self.assertEqual(MathUtils.calculate_asymptotes_and_discontinuities("1/sine|x|", -4, 4)[0], expected)
 
     def test_calculate_vertical_asymptotes(self) -> None:
         # Test logarithmic function

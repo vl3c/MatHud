@@ -252,6 +252,17 @@ class TestNumericSolverIntegration(unittest.TestCase):
         self.assertEqual(len(result["solutions"]), 0)
         self.assertIn("message", result)
 
+    def test_percent_is_the_remainder_not_a_percentage(self) -> None:
+        """% means the remainder everywhere, so a postfix percentage no longer solves."""
+        from numeric_solver import solve_numeric
+
+        result = json.loads(solve_numeric(["x*(1 + 5%) = 105"]))
+        self.assertEqual(result.get("solutions", []), [])
+        remainder = json.loads(solve_numeric(["x % 4 + x = 4.5"], initial_guesses=[[2.0]]))
+        self.assertTrue(remainder["solutions"], remainder)
+        for sol in remainder["solutions"]:
+            self.assertAlmostEqual(sol["x"] % 4 + sol["x"], 4.5, places=6)
+
     def test_solve_numeric_with_initial_guesses(self) -> None:
         """Test that user-provided initial guesses are used."""
         from numeric_solver import solve_numeric

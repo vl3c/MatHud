@@ -134,6 +134,59 @@ def _randint(a: int, b: int) -> int:
     return random.randint(a, b)
 
 
+# Calculator functions, following math.js 14.5.2 so plots and evaluate_expression agree.
+def _mod(x: float, y: float) -> float:
+    """The floored remainder (its sign is the divisor's): mod(-7, 3) = 2, mod(7, -3) = -2.
+
+    A zero divisor gives x, as math.js does (Python's % raises instead).
+    """
+    return x if y == 0 else x % y
+
+
+def _nthroot(x: float, n: float) -> float:
+    """The real n-th root, as math.js nthRoot: nthroot(-8, 3) = -2, nthroot(16, -2) = 0.25.
+
+    Raises:
+        ValueError: for n = 0, and for a negative x unless n is an odd integer.
+    """
+    if n == 0:
+        raise ValueError("nthroot: the root n must not be 0")
+    if x < 0:
+        if n != int(n) or int(n) % 2 == 0:
+            raise ValueError("nthroot: the root must be odd when the value is negative")
+        return -float((-x) ** (1 / n))
+    return float(x ** (1 / n))
+
+
+def _sign(x: Any) -> Any:
+    """-1, 0 or 1 for a real number (NaN stays NaN); z/|z| for a complex number (0 at 0)."""
+    if isinstance(x, complex):
+        return x / abs(x) if x != 0 else 0.0
+    if x != x:  # NaN
+        return x
+    return float((x > 0) - (x < 0))
+
+
+# Parts of a complex number; a real number is its own real part, with angle 0 or pi.
+def _re(z: Any) -> Any:
+    return z.real if isinstance(z, complex) else z
+
+
+def _im(z: Any) -> Any:
+    return z.imag if isinstance(z, complex) else 0.0
+
+
+def _arg(z: Any) -> float:
+    """The angle of z, between -pi and pi: arg(-1) = pi."""
+    if isinstance(z, complex):
+        return math.atan2(z.imag, z.real)
+    return math.atan2(0.0, z)
+
+
+def _conj(z: Any) -> Any:
+    return z.conjugate() if isinstance(z, complex) else z
+
+
 _F = ExpressionFunction
 _ONE: Arity = (1, 1)
 
@@ -205,6 +258,17 @@ FUNCTIONS: Tuple[ExpressionFunction, ...] = (
     _F("max", max, (1, None), curve_safe=True, sympy=True),
     _F("min", min, (1, None), curve_safe=True, sympy=True),
     _F("sum", sum, (1, 2)),
+    _F("mod", _mod, (2, 2), curve_safe=True, sympy=True),
+    _F("nthroot", _nthroot, (2, 2), mathjs="nthRoot", aliases=("nthRoot",), curve_safe=True, sympy=True),
+    _F("cbrt", math.cbrt, _ONE, curve_safe=True, sympy=True),
+    _F("atan2", math.atan2, (2, 2), curve_safe=True, sympy=True),
+    _F("sign", _sign, _ONE, aliases=("sgn",), curve_safe=True, sympy=True),
+    _F("gamma", math.gamma, _ONE, curve_safe=True, sympy=True),
+    _F("erf", math.erf, _ONE, curve_safe=True, sympy=True),
+    _F("re", _re, _ONE, aliases=("real",), sympy=True),
+    _F("im", _im, _ONE, aliases=("imag",), sympy=True),
+    _F("arg", _arg, _ONE, sympy=True),
+    _F("conj", _conj, _ONE, aliases=("conjugate",), sympy=True),
     _F("randint", _randint, (2, 2), mathjs=None, python_only=True),
     _F("summation", "summation", (4, 4), mathjs=None, python_only=True),
     _F("product", "product", (4, 4), mathjs=None, python_only=True),
@@ -228,6 +292,7 @@ ALLOWED_NODES: Tuple[Type[ast.AST], ...] = (
     ast.Mult,
     ast.Div,
     ast.Pow,
+    ast.Mod,
     ast.USub,
     ast.UAdd,
     ast.Constant,
@@ -247,6 +312,15 @@ SUPERSCRIPT_NAMES: FrozenSet[str] = frozenset(
     name for row in FUNCTIONS if row.superscript for name in (row.name,) + row.word_aliases
 )
 
+# Every spelling of those functions (names, word and call aliases, "hyperbolic sine" too) and
+# the name it stands for, so sine²(x) is sin(x)^2 rather than sin(e^2)*(x)
+SUPERSCRIPT_SPELLINGS: Dict[str, str] = {
+    spelling: row.name
+    for row in FUNCTIONS
+    if row.superscript
+    for spelling in (row.name,) + row.word_aliases + row.aliases
+}
+
 # A superscript ⁻¹ on these names the inverse function: sin⁻¹(x) = asin(x)
 INVERSE_NAMES: Dict[str, str] = {row.name: row.inverse for row in FUNCTIONS if row.inverse is not None}
 
@@ -258,7 +332,8 @@ WORD_ALIASES: Dict[str, str] = {alias: row.name for row in FUNCTIONS for alias i
 # Functions MathUtils.evaluate computes in Python because math.js lacks them
 PYTHON_ONLY_NAMES: FrozenSet[str] = frozenset(row.name for row in FUNCTIONS if row.python_only)
 
-# Names math.js knows under another name (arrangements -> permutations, stdev -> std, trunc -> fix)
+# Names math.js knows under another name (arrangements -> permutations, stdev -> std, trunc -> fix,
+# nthroot -> nthRoot)
 MATHJS_RENAMES: Dict[str, str] = {
     row.name: row.mathjs for row in FUNCTIONS if row.mathjs is not None and row.mathjs != row.name
 }
@@ -309,12 +384,12 @@ def build_curve_namespace() -> Dict[str, Any]:
 # one after a number (2ln(x), 1e3sine(x), 2.5ln(x)) is.
 # Note: "[-+]" rather than "[+-]" -- Brython's re fails to match "e-5" with the latter.
 _TOKEN = r"[a-zA-Z_][a-zA-Z_0-9]*|(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?"
-# Call aliases with a space ("hyperbolic sine") are tried, with their "(", before any
+# Call aliases with a space ("hyperbolic sine") are tried, with their "(" or "|", before any
 # identifier, so they match only where they start a token: after a name such as x their
 # first word joins it, and "sine(" is then matched as an alias on its own.
-# "(" is escaped by hand, since re.escape would also escape the space
+# The character class is written by hand, since re.escape would also escape the space
 _SPACED_CALL_ALIASES = sorted((alias for alias in CALL_ALIASES if " " in alias), key=lambda a: (-len(a), a))
-_ALIAS_PATTERN = re.compile("|".join([alias + "\\(" for alias in _SPACED_CALL_ALIASES] + [_TOKEN]))
+_ALIAS_PATTERN = re.compile("|".join([alias + "[(|]" for alias in _SPACED_CALL_ALIASES] + [_TOKEN]))
 
 
 def _minimal_substrings(texts: List[str]) -> Tuple[str, ...]:
@@ -323,18 +398,37 @@ def _minimal_substrings(texts: List[str]) -> Tuple[str, ...]:
 
 
 # Text that must occur for replace_aliases to change anything ("sine(" also covers "cosine(")
-_ALIAS_HINTS = _minimal_substrings(sorted([alias + "(" for alias in CALL_ALIASES] + list(WORD_ALIASES)))
+_ALIAS_HINTS = _minimal_substrings(
+    sorted([alias + "(" for alias in CALL_ALIASES] + [alias + "|" for alias in CALL_ALIASES] + list(WORD_ALIASES))
+)
+
+
+def _calls_with_bars(text: str, alias: str, bar: int) -> bool:
+    """True when the bar at text[bar] opens the argument of the one-argument alias before it.
+
+    As replace_absolute_bars reads it (bars pair left to right, a function's last word is
+    checked), so math.js text keeps the meaning fix_math_expression gives it in Python mode:
+    cosine|x| -> cos|x|, while |sine| keeps its variable.
+    """
+    return alias.split()[-1] in _UNARY_SPELLINGS and text.count("|", 0, bar) % 2 == 0 and "|" in text[bar + 1 :]
 
 
 def _replace_alias(match: re.Match[str]) -> str:
     token = match.group(0)
-    if token[-1] == "(":  # a call alias with a space, matched with its "("
-        return CALL_ALIASES[token[:-1]] + "("
+    text = match.string
+    if token[-1] in "(|":  # a call alias with a space, matched with its "(" or "|"
+        alias = token[:-1]
+        if token[-1] == "(" or _calls_with_bars(text, alias, match.end() - 1):
+            return CALL_ALIASES[alias] + token[-1]
+        return token
     word_target = WORD_ALIASES.get(token)
     if word_target is not None:
         return word_target
     call_target = CALL_ALIASES.get(token)
-    if call_target is not None and match.string[match.end() : match.end() + 1] == "(":
+    following = text[match.end() : match.end() + 1]
+    if call_target is not None and (
+        following == "(" or (following == "|" and _calls_with_bars(text, token, match.end()))
+    ):
         return call_target
     return token
 
@@ -342,7 +436,8 @@ def _replace_alias(match: re.Match[str]) -> str:
 def replace_aliases(text: str) -> str:
     """Rewrite aliases as canonical names, each matched as a whole token.
 
-    Call aliases change only when "(" follows: sine(x) -> sin(x), 2sine(x) -> 2sin(x).
+    Call aliases change only when "(" follows, or the bar that opens the argument of a
+    one-argument function: sine(x) -> sin(x), 2sine(x) -> 2sin(x), cosine|x| -> cos|x|.
     Word aliases change anywhere: ln(x) -> log(x), 2ln -> 2log. Names that merely contain an
     alias stay: kiln, ln2, x2ln(x), artifact(3), myvar(2).
     """
@@ -366,12 +461,46 @@ def _rename_call(match: re.Match[str]) -> str:
     return token
 
 
+# The remainder operator with the spaces around it; math.js reads "mod" with the same precedence
+_PERCENT = re.compile(r"\s*%\s*")
+# Absolute value bars, paired left to right: |a|b|c| is abs(a)b abs(c)... as before
+_ABSOLUTE_BARS = re.compile(r"\|(.*?)\|")
+# Spellings of the functions that take one argument: a bar right after them is the argument
+# (ln|x| is ln(abs(x))), not a product. mod, atan2, nthroot and pow are left out.
+_UNARY_SPELLINGS: FrozenSet[str] = frozenset(
+    spelling for row in FUNCTIONS if row.arity[0] == 1 for spelling in (row.name,) + row.aliases + row.word_aliases
+)
+
+
+def _absolute_value(match: re.Match[str]) -> str:
+    before = match.string[: match.start()].rstrip()
+    tokens = list(TOKEN_PATTERN.finditer(before))
+    called = bool(tokens) and tokens[-1].end() == len(before) and tokens[-1].group(0) in _UNARY_SPELLINGS
+    return f"(abs({match.group(1)}))" if called else f"abs({match.group(1)})"
+
+
+def replace_absolute_bars(text: str) -> str:
+    """Rewrite |a| as abs(a), and as the argument after a function: ln|x| -> ln(abs(x)).
+
+    The function must be a whole token (2ln|x| -> 2ln(abs(x))); after anything else the
+    output is as before: x|y| -> xabs(y), kiln|x| -> kilnabs(x). math.js cannot read bars.
+    """
+    if "|" not in text:
+        return text
+    return _ABSOLUTE_BARS.sub(_absolute_value, text)
+
+
 def rename_for_mathjs(text: str) -> str:
-    """Rewrite calls of functions math.js knows under another name: trunc(x) -> fix(x).
+    """Rewrite text for math.js: calls of functions it knows under another name (trunc(x) ->
+    fix(x)), |x| as abs(x) (math.js cannot read bars) and % as its mod operator.
 
     Every place that hands expression text to math.js calls this. Names are matched as whole
-    tokens followed by "(", like the aliases, so xtrunc(x) stays.
+    tokens followed by "(", like the aliases, so xtrunc(x) stays. % always means the remainder,
+    as in Python: math.js would read 7 % -3 as (7%) - 3, a percentage, so it becomes 7 mod -3.
     """
+    text = replace_absolute_bars(text)  # before %, so |x|%|y| stays an operator
+    if "%" in text:
+        text = _PERCENT.sub(" mod ", text)
     if not any(hint in text for hint in _RENAME_HINTS):
         return text
     return TOKEN_PATTERN.sub(_rename_call, text)
