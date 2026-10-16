@@ -419,11 +419,26 @@ class TestNormalizationArgument(unittest.TestCase):
     def test_refused_with_a_pointer_to_the_population_functions(self) -> None:
         from expression_validator import ExpressionValidator
 
-        for text in ('stdev([1, 2, 3], "biased")', "variance([1, 2], 'uncorrected')", 'std([1, 2], "unbiased")'):
+        for text in (
+            'stdev([1, 2, 3], "biased")',
+            "variance([1, 2], 'uncorrected')",
+            'std([1, 2], "unbiased")',
+            "var([1, 2], 'biased')",
+        ):
             with self.subTest(text=text):
                 python_text = ExpressionValidator.fix_math_expression(text, python_compatible=True)
                 with self.assertRaisesRegex(ValueError, "use pstdev or pvariance"):
                     ExpressionValidator.validate_expression_tree(python_text)
+
+    def test_checked_names_are_whitelisted_functions(self) -> None:
+        # Only whitelisted calls reach the check; the aliases std and var are rewritten
+        # to stdev and variance before it and would be refused as unknown functions
+        from expression_validator import ExpressionValidator
+
+        self.assertLessEqual(ExpressionValidator._SAMPLE_SPREAD_FUNCTIONS, ExpressionValidator.ALLOWED_FUNCTIONS)
+        for alias in ("std", "var"):
+            with self.subTest(alias=alias):
+                self.assertNotIn(alias, ExpressionValidator.ALLOWED_FUNCTIONS)
 
     def test_other_calls_are_untouched(self) -> None:
         from expression_validator import ExpressionValidator

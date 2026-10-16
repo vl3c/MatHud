@@ -278,8 +278,9 @@ class ExpressionValidator(ast.NodeVisitor):
             raise ValueError(f"Disallowed function: {ast.dump(node)}")
 
     # math.js reads a string second argument of std and variance as the normalization, and its
-    # names mislead: "biased" divides by n + 1, "uncorrected" by n
-    _SAMPLE_SPREAD_FUNCTIONS = frozenset({"stdev", "variance", "std", "var"})
+    # names mislead: "biased" divides by n + 1, "uncorrected" by n. The aliases std and var are
+    # rewritten to these names before validation.
+    _SAMPLE_SPREAD_FUNCTIONS = frozenset({"stdev", "variance"})
 
     @classmethod
     def _reject_normalization_argument(cls, name: str, node: ast.Call) -> None:
