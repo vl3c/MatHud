@@ -9,6 +9,7 @@ Key Features:
     - Expression building for fitted models
     - Normal distribution PDF expression generation
     - Descriptive statistics (mean, median, mode, quartiles, etc.)
+    - Two-variable statistics (Pearson's r, covariance)
 """
 
 from __future__ import annotations
@@ -17,6 +18,13 @@ from utils.statistics.descriptive import (
     DescriptiveStatisticsResult,
     compute_descriptive_statistics,
 )
+from utils.statistics.two_variable import (
+    PairedSums,
+    TwoVariableStatisticsResult,
+    compute_two_variable_statistics,
+    paired_sums,
+)
+from utils.statistics.tool import compute_descriptive_statistics_tool
 from utils.statistics.regression import (
     RegressionResult,
     SUPPORTED_MODEL_TYPES,
