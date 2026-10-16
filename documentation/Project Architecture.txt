@@ -209,6 +209,7 @@ static/client/
 ├── result_processor.py                # Function call execution engine
 ├── expression_evaluator.py            # Mathematical expression evaluation
 ├── expression_validator.py            # Expression syntax validation
+├── expression_functions.py            # Function rows the validator and MathUtils derive from
 ├── result_validator.py                # Result validation utilities
 ├── cartesian_system_2axis.py          # 2D Cartesian coordinate system management
 ├── polar_grid.py                      # Polar coordinate grid system

@@ -42,8 +42,8 @@ Expression Processing:
 Dependencies:
     - ast: Abstract syntax tree parsing for security
     - math: Standard mathematical functions
-    - random: Random number generation
     - re: Regular expression pattern matching
+    - expression_functions: The function rows the whitelist, aliases and namespaces derive from
     - utils.math_utils: Advanced mathematical operations
 """
 
@@ -51,49 +51,10 @@ from __future__ import annotations
 
 import ast
 import math
-import random
 import re
 from typing import Any, Callable, Dict, Optional, Set, Tuple, Type, cast
 
-
-# Reciprocal trigonometric functions and their inverses, which Python's math module lacks.
-# They follow math.js: acot(x) = atan(1/x), so acot(0) = pi/2 and acot(-1) = -pi/4.
-def _sec(x: float) -> float:
-    return 1 / math.cos(x)
-
-
-def _csc(x: float) -> float:
-    return 1 / math.sin(x)
-
-
-def _cot(x: float) -> float:
-    return 1 / math.tan(x)
-
-
-def _asec(x: float) -> float:
-    return math.acos(1 / x)
-
-
-def _acsc(x: float) -> float:
-    return math.asin(1 / x)
-
-
-def _acot(x: float) -> float:
-    return math.pi / 2 if x == 0 else math.atan(1 / x)
-
-
-# Functions both Python evaluation namespaces (x and parametric t) share beyond the basics
-_TRIGONOMETRIC_EXTRAS: Dict[str, Callable[[float], float]] = {
-    "sec": _sec,
-    "csc": _csc,
-    "cot": _cot,
-    "asec": _asec,
-    "acsc": _acsc,
-    "acot": _acot,
-    "asinh": math.asinh,
-    "acosh": math.acosh,
-    "atanh": math.atanh,
-}
+import expression_functions as ef
 
 
 # The ExpressionValidator class is used to validate and evaluate mathematical expressions
@@ -124,101 +85,14 @@ class ExpressionValidator(ast.NodeVisitor):
         ALLOWED_FUNCTIONS (set): Whitelist of permitted mathematical functions
     """
 
-    ALLOWED_NODES: Set[Type[ast.AST]] = {
-        ast.Add,
-        ast.Sub,
-        ast.Mult,
-        ast.Div,
-        ast.Pow,  # Exponentiation operator (**)
-        ast.USub,
-        ast.UAdd,
-        ast.Constant,
-        ast.Name,
-        ast.BinOp,
-        ast.UnaryOp,
-        ast.Expression,
-        ast.Call,
-        ast.List,  # List literals (e.g., [1, 2, 3])
-    }
-    ALLOWED_FUNCTIONS: Set[str] = {
-        "sin",
-        "cos",
-        "tan",
-        "sqrt",
-        "log",
-        "log10",
-        "log2",
-        "factorial",
-        "asin",
-        "acos",
-        "atan",
-        "sinh",
-        "cosh",
-        "tanh",
-        "sec",
-        "csc",
-        "cot",
-        "asec",
-        "acsc",
-        "acot",
-        "asinh",
-        "acosh",
-        "atanh",
-        "exp",
-        "abs",
-        "pi",
-        "e",
-        "pow",
-        "det",
-        "bin",
-        "arrangements",
-        "permutations",
-        "combinations",
-        "round",
-        "ceil",
-        "floor",
-        "trunc",
-        "max",
-        "min",
-        "sum",
-        "limit",
-        "derive",
-        "integrate",
-        "simplify",
-        "expand",
-        "factor",
-        "solve",
-        "gcd",
-        "lcm",
-        "is_prime",
-        "prime_factors",
-        "mod_pow",
-        "mod_inverse",
-        "next_prime",
-        "prev_prime",
-        "totient",
-        "divisors",
-        "mean",
-        "median",
-        "mode",
-        "stdev",
-        "variance",
-        "random",
-        "randint",
-        "summation",
-        "product",
-        "arithmetic_sum",
-        "geometric_sum",
-        "geometric_sum_infinite",
-        "ratio_test",
-        "root_test",
-        "p_series_test",
-    }
-    # Identifiers or number literals (with optional exponent), matched whole for implicit multiplication.
-    # Note: "[-+]" rather than "[+-]" -- Brython's re fails to match "e-5" with the latter.
-    _IMPLICIT_MULTIPLICATION_TOKEN = re.compile(r"[a-zA-Z_][a-zA-Z_0-9]*|(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?")
-    # Evaluation namespace (built lazily once) and compiled code objects keyed by function string
+    # Both derive from the rows in expression_functions (kept mutable sets, as before)
+    ALLOWED_NODES: Set[Type[ast.AST]] = set(ef.ALLOWED_NODES)
+    ALLOWED_FUNCTIONS: Set[str] = set(ef.ALLOWED_FUNCTIONS)
+    # Identifiers or number literals (with optional exponent), matched whole for implicit multiplication
+    _IMPLICIT_MULTIPLICATION_TOKEN = ef.TOKEN_PATTERN
+    # Evaluation namespaces (built lazily once, copied per parse) and compiled code per function string
     _functions: Optional[Dict[str, Any]] = None
+    _curve_functions: Optional[Dict[str, Any]] = None
     _compiled_cache: Dict[str, Any] = {}
     _COMPILED_CACHE_LIMIT = 256
 
@@ -302,47 +176,11 @@ class ExpressionValidator(ast.NodeVisitor):
     _SUPERSCRIPT_RUN = "[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁽⁾ⁿⁱˣ]+"
     _SUPERSCRIPT_POWER = re.compile(_SUPERSCRIPT_RUN)
     # Functions whose superscript applies to the result: sin²(x) = sin(x)^2
-    _SUPERSCRIPT_FUNCTIONS: Set[str] = {
-        "sin",
-        "cos",
-        "tan",
-        "sec",
-        "csc",
-        "cot",
-        "sinh",
-        "cosh",
-        "tanh",
-        "asin",
-        "acos",
-        "atan",
-        "asec",
-        "acsc",
-        "acot",
-        "asinh",
-        "acosh",
-        "atanh",
-        "log",
-        "ln",
-        "log10",
-        "log2",
-        "exp",
-        "sqrt",
-        "abs",
-    }
+    _SUPERSCRIPT_FUNCTIONS: Set[str] = set(ef.SUPERSCRIPT_NAMES)
     # ...except a ⁻¹ on these, which names the inverse function: sin⁻¹(x) = asin(x)
-    _INVERSE_FUNCTIONS: Dict[str, str] = {
-        "sin": "asin",
-        "cos": "acos",
-        "tan": "atan",
-        "sec": "asec",
-        "csc": "acsc",
-        "cot": "acot",
-        "sinh": "asinh",
-        "cosh": "acosh",
-        "tanh": "atanh",
-    }
+    _INVERSE_FUNCTIONS: Dict[str, str] = dict(ef.INVERSE_NAMES)
     # Those names as a regex alternation, longest first so sinh is not read as sin
-    _FUNCTION_NAMES = "(?:" + "|".join(sorted(_SUPERSCRIPT_FUNCTIONS, key=len, reverse=True)) + ")"
+    _FUNCTION_NAMES = "(?:" + "|".join(sorted(_SUPERSCRIPT_FUNCTIONS, key=lambda name: (-len(name), name))) + ")"
     # A known function name, an optional superscript and spaces: sin²(x), sin⁻¹ (x), sin²x, sinθ
     _FUNCTION_NOTATION = re.compile(f"(?<![A-Za-z_])({_FUNCTION_NAMES})({_SUPERSCRIPT_RUN})?([ \\t]*)")
     # The operand of a function written without parentheses (group 1): an optional number and
@@ -555,76 +393,8 @@ class ExpressionValidator(ast.NodeVisitor):
     @staticmethod
     def _build_functions() -> Dict[str, Any]:
         """Build the dictionary of functions and constants available to expressions (built once)"""
-        from utils.math_utils import MathUtils
-
-        return {
-            "sin": math.sin,
-            "cos": math.cos,
-            "tan": math.tan,
-            "sqrt": MathUtils.sqrt,  # Square root function
-            "log": math.log,  # Natural logarithm (base e)
-            "log10": math.log10,  # Logarithm base 10
-            "log2": math.log2,  # Logarithm base 2
-            "factorial": math.factorial,  # Factorial function
-            "asin": math.asin,  # Arcsine function
-            "acos": math.acos,  # Arccosine function
-            "atan": math.atan,  # Arctangent function
-            "sinh": math.sinh,  # Hyperbolic sine function
-            "cosh": math.cosh,  # Hyperbolic cosine function
-            "tanh": math.tanh,  # Hyperbolic tangent function
-            **_TRIGONOMETRIC_EXTRAS,  # sec, csc, cot, their inverses and the inverse hyperbolic functions
-            "exp": math.exp,  # Exponential function
-            "abs": abs,  # Absolute value function
-            "pi": math.pi,  # The constant pi
-            "e": math.e,  # The constant e
-            "inf": math.inf,  # Infinity, written ∞
-            "Infinity": math.inf,  # The math.js spelling of ∞, kept in stored function strings
-            "pow": MathUtils.pow,  # Power function
-            "bin": bin,  # Binary representation of an integer
-            "det": MathUtils.det,  # Determinant of a matrix
-            "arrangements": MathUtils.arrangements,  # Arrangements aka permutations nPk
-            "permutations": MathUtils.permutations,  # Permutations
-            "combinations": MathUtils.combinations,  # Combinations
-            "limit": MathUtils.limit,  # Limit of a function
-            "derive": MathUtils.derivative,  # Derivative of a function
-            "integrate": MathUtils.integral,  # Indefinite integral of a function
-            "simplify": MathUtils.simplify,  # Simplify an expression
-            "expand": MathUtils.expand,  # Expand an expression
-            "factor": MathUtils.factor,  # Factor an expression
-            "solve": MathUtils.solve,  # Solve an equation
-            "random": MathUtils.random,  # Generate a random number
-            "round": MathUtils.round,  # Round a number
-            "gcd": MathUtils.gcd,  # Greatest common divisor
-            "lcm": MathUtils.lcm,  # Least common multiple
-            "is_prime": MathUtils.is_prime,  # Check if number is prime
-            "prime_factors": MathUtils.prime_factors,  # Prime factorization with multiplicity
-            "mod_pow": MathUtils.mod_pow,  # Modular exponentiation
-            "mod_inverse": MathUtils.mod_inverse,  # Modular multiplicative inverse
-            "next_prime": MathUtils.next_prime,  # Find smallest prime >= n
-            "prev_prime": MathUtils.prev_prime,  # Find largest prime <= n
-            "totient": MathUtils.totient,  # Euler's totient function
-            "divisors": MathUtils.divisors,  # All positive divisors
-            "mean": MathUtils.mean,  # Mean of a list of numbers
-            "median": MathUtils.median,  # Median of a list of numbers
-            "mode": MathUtils.mode,  # Mode of a list of numbers
-            "stdev": MathUtils.stdev,  # Standard deviation of a list of numbers
-            "variance": MathUtils.variance,  # Variance of a list of numbers
-            "ceil": math.ceil,  # Round up to the nearest integer
-            "floor": math.floor,  # Round down to the nearest integer
-            "trunc": math.trunc,  # Truncate to an integer
-            "max": max,  # Maximum of a list of numbers
-            "min": min,  # Minimum of a list of numbers
-            "sum": sum,  # Sum of a list of numbers
-            "randint": lambda a, b: random.randint(a, b),  # Random integer between a and b
-            "summation": MathUtils.summation,
-            "product": MathUtils.product,
-            "arithmetic_sum": MathUtils.arithmetic_sum,
-            "geometric_sum": MathUtils.geometric_sum,
-            "geometric_sum_infinite": MathUtils.geometric_sum_infinite,
-            "ratio_test": MathUtils.ratio_test,
-            "root_test": MathUtils.root_test,
-            "p_series_test": MathUtils.p_series_test,
-        }
+        functions: Dict[str, Any] = ef.build_python_namespace()
+        return functions
 
     @staticmethod
     def fix_math_expression(expression: str, python_compatible: bool = False) -> str:
@@ -974,46 +744,12 @@ class ExpressionValidator(ast.NodeVisitor):
 
     @staticmethod
     def _replace_function_names(expression: str) -> str:
-        """Replace common mathematical function names with their Python equivalents"""
-        replacements = ExpressionValidator._get_function_replacements()
-        # Longest names first so "sine(" doesn't clobber "arcsine(", "cosine(" or "hyperbolic sine("
-        for old, new in sorted(replacements.items(), key=lambda item: len(item[0]), reverse=True):
-            expression = expression.replace(old, new)
-        return expression
+        """Rewrite function aliases as the canonical names (sine( -> sin(, ln -> log).
 
-    @staticmethod
-    def _get_function_replacements() -> Dict[str, str]:
-        """Get a dictionary of function name replacements"""
-        return {
-            "π": "pi",  # Using the variable from the dictionary
-            "ln": "log",  # Python's math.log is ln by default
-            "absolute(": "abs(",
-            "power(": "pow(",
-            "binary(": "bin(",
-            "logarithm(": "log(",
-            "logarithm10(": "log10(",
-            "logarithm2(": "log2(",
-            "square root(": "sqrt(",
-            "sine(": "sin(",
-            "cosine(": "cos(",
-            "tangent(": "tan(",
-            "arcsine(": "asin(",
-            "arccosine(": "acos(",
-            "arctangent(": "atan(",
-            "hyperbolic sine(": "sinh(",
-            "hyperbolic cosine(": "cosh(",
-            "hyperbolic tangent(": "tanh(",
-            "exponential(": "exp(",
-            "determinant(": "det(",
-            "std(": "stdev(",
-            "var(": "variance(",
-            "lim(": "limit(",
-            "fact(": "factorial(",
-            "rand(": "random(",
-            "integral(": "integrate(",
-            "derivative(": "derive(",
-            "derivate(": "derive(",
-        }
+        Each alias is matched as a whole token, so names that contain one (kiln, x2ln,
+        artifact) are left alone. π was already spelled out by the Unicode step.
+        """
+        return cast(str, ef.replace_aliases(expression))
 
     @staticmethod
     def _handle_power_and_imaginary(expression: str, python_compatible: bool) -> str:
@@ -1117,41 +853,14 @@ class ExpressionValidator(ast.NodeVisitor):
         """Create a dictionary with variables and functions for parametric expression evaluation.
 
         Similar to _get_variables_and_functions but uses 't' as the parameter variable
-        instead of 'x', for parametric curves like x(t), y(t).
+        instead of 'x', for parametric curves like x(t), y(t). Only the curve-safe functions
+        of expression_functions are available.
         """
-        from utils.math_utils import MathUtils
-
-        return {
-            "t": t,
-            "sin": math.sin,
-            "cos": math.cos,
-            "tan": math.tan,
-            "sqrt": MathUtils.sqrt,
-            "log": math.log,
-            "log10": math.log10,
-            "log2": math.log2,
-            "factorial": math.factorial,
-            "asin": math.asin,
-            "acos": math.acos,
-            "atan": math.atan,
-            "sinh": math.sinh,
-            "cosh": math.cosh,
-            "tanh": math.tanh,
-            **_TRIGONOMETRIC_EXTRAS,
-            "exp": math.exp,
-            "abs": abs,
-            "pi": math.pi,
-            "e": math.e,
-            "inf": math.inf,
-            "Infinity": math.inf,
-            "pow": MathUtils.pow,
-            "ceil": math.ceil,
-            "floor": math.floor,
-            "trunc": math.trunc,
-            "max": max,
-            "min": min,
-            "round": MathUtils.round,
-        }
+        if ExpressionValidator._curve_functions is None:
+            ExpressionValidator._curve_functions = ef.build_curve_namespace()
+        variables_and_functions = dict(ExpressionValidator._curve_functions)
+        variables_and_functions["t"] = t
+        return variables_and_functions
 
     @staticmethod
     def _parse_parametric_with_python(expression_string: str) -> Callable[[float], float]:

@@ -133,7 +133,7 @@ Then navigate to `http://127.0.0.1:5004/` in the browser.
 8. `image_attachment_manager.py` manages the file picker, preview, and image modal.
 9. `tts_ui_manager.py` controls text-to-speech UI (read aloud, voice settings).
 10. `process_function_calls.py` and `result_processor.py` coordinate tool execution and result handling.
-11. `expression_evaluator.py`, `expression_validator.py`, and `result_validator.py` provide math parsing, validation, and error messaging.
+11. `expression_evaluator.py`, `expression_validator.py`, and `result_validator.py` provide math parsing, validation, and error messaging; `expression_functions.py` is the one table of functions expressions may call.
 12. `managers/base_drawable_manager.py` provides a shared base for all drawable managers.
 13. `managers/visibility_manager.py` handles viewport culling extracted from Canvas.
 14. `rendering/base_telemetry.py` provides a shared telemetry base for renderers.
@@ -382,6 +382,10 @@ For features that extend existing managers (e.g., `fit_regression` in `Statistic
 6. **Documentation** - Example Prompts, Reference Manual
 
 **Note:** If the feature requires custom expression parsing (e.g., parametric `t` variable), update `expression_validator.py` with a new parsing method.
+
+## Adding a Function Expressions May Call
+
+Add one row to `FUNCTIONS` in `static/client/expression_functions.py` (callable or `MathUtils` attribute name, arity, math.js name, aliases, flags); the validator's whitelist, aliases and namespaces and MathUtils' routing derive from it. A row with `described=True` must also be named in the hand-written `evaluate_expression` description in `static/functions_definitions.py`, and a curve-safe one-argument row needs sample points in `client_tests/test_expression_functions.py`; the tests fail until both are done.
 
 ---
 

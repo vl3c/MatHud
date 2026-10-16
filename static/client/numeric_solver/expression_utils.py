@@ -11,6 +11,8 @@ from typing import List, Optional, Sequence
 
 from browser import window
 
+from expression_functions import rename_for_mathjs
+
 
 # Math function names to exclude from variable detection
 MATH_FUNCTIONS = frozenset(
@@ -91,14 +93,14 @@ def equation_to_residual(equation: str) -> str:
         equation: Equation string, possibly containing '='.
 
     Returns:
-        Residual expression string.
+        Residual expression string, with functions renamed for math.js.
     """
     if "=" in equation:
         parts = equation.split("=", 1)
         lhs = parts[0].strip()
         rhs = parts[1].strip()
-        return f"({lhs}) - ({rhs})"
-    return equation
+        return rename_for_mathjs(f"({lhs}) - ({rhs})")
+    return rename_for_mathjs(equation)
 
 
 def evaluate_residuals(
@@ -109,7 +111,7 @@ def evaluate_residuals(
     """Evaluate all residual expressions at given variable values.
 
     Args:
-        residual_exprs: List of residual expression strings.
+        residual_exprs: Residual expressions from equation_to_residual (already renamed for math.js).
         variables: List of variable names.
         values: List of values corresponding to variables.
 
