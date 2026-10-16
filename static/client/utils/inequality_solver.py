@@ -17,9 +17,15 @@ from __future__ import annotations
 
 import math
 import re
-from typing import Any, Dict, List, Optional, Sequence, cast
+from typing import Any, Dict, List, Optional, Sequence, Tuple, cast
 
-from utils.cas_text import insert_implicit_products, insert_letter_call_products, parse_interval, split_relation
+from utils.cas_text import (
+    insert_implicit_products,
+    insert_letter_call_products,
+    parse_interval,
+    split_relation,
+    split_top_level_terms,
+)
 from utils.real_sets import (
     Magnitude,
     Piece,
@@ -178,16 +184,52 @@ class InequalitySolver:
             sides = [SymbolicChecks.real_function(side, variable) for side in (left, right)]
             if sides[0] is None or sides[1] is None:
                 raise ValueError(f"the expressions of {left} {sign} {right} cannot be evaluated.")
-            relations.append(InequalitySolver._relation(left, right, sign, sides[0], sides[1], variable))
+            difference_text = f"({left})-({right})"
+            balanced = InequalitySolver._balanced_sides(left, right)
+            if balanced is not None:
+                moved = [SymbolicChecks.real_function(side, variable) for side in balanced]
+                if moved[0] is not None and moved[1] is not None:
+                    left, right, sides = balanced[0], balanced[1], moved
+            relation = InequalitySolver._relation(left, right, sign, sides[0], sides[1], variable, difference_text)
+            relations.append(relation)
         return relations
 
     @staticmethod
-    def _relation(left_text: str, right_text: str, sign: str, left: Any, right: Any, variable: str) -> Relation:
+    def _balanced_sides(left: str, right: str) -> Optional[Tuple[str, str]]:
+        """The same inequality with every term on the side where it is added, or None when
+        each already is: x^3 - 2x^2 + x > 0 as x^3 + x > 2x^2.
+
+        Rounding error in a sum is relative to its largest terms, not to the sum, so the
+        sides' magnitude (2 here, near the double root 1) measures the noise of lhs - rhs
+        where a side that is 0 cannot. A constant side keeps the difference as written:
+        1 - cos(x) < 1e-6 is not evaluated as 1 - (cos(x) + 1e-6), which rounds 1e-6 against 1."""
+        left_terms, right_terms = split_top_level_terms(left), split_top_level_terms(right)
+        if all(sign > 0 for sign, _ in left_terms + right_terms):
+            return None
+        added = [term for sign, term in left_terms if sign > 0] + [term for sign, term in right_terms if sign < 0]
+        taken = [term for sign, term in left_terms if sign < 0] + [term for sign, term in right_terms if sign > 0]
+
+        def sum_text(terms: List[str]) -> str:
+            return " + ".join(f"({term})" for term in terms) if terms else "0"
+
+        return sum_text(added), sum_text(taken)
+
+    @staticmethod
+    def _relation(
+        left_text: str,
+        right_text: str,
+        sign: str,
+        left: Any,
+        right: Any,
+        variable: str,
+        difference_text: Optional[str] = None,
+    ) -> Relation:
         """lhs - rhs with max(|lhs|, |rhs|) as its magnitude.
 
-        A constant side gives the magnitude without evaluating the other side; otherwise the
-        difference is computed from both sides, which the magnitude at the same point reuses
-        (math.js would subtract the same two values in "(lhs)-(rhs)").
+        A constant side gives the magnitude without evaluating the other side, and the
+        difference is difference_text (by default "(lhs)-(rhs)"); otherwise the difference is
+        computed from both sides, which the magnitude at the same point reuses (math.js would
+        subtract the same two values in "(lhs)-(rhs)").
         """
         from utils.symbolic_checks import SymbolicChecks
 
@@ -195,7 +237,7 @@ class InequalitySolver:
             constant_value = SymbolicChecks.numeric_value(constant_text)
             if constant_value is None:
                 continue
-            difference = SymbolicChecks.real_function(f"({left_text})-({right_text})", variable)
+            difference = SymbolicChecks.real_function(difference_text or f"({left_text})-({right_text})", variable)
             if difference is None:
                 raise ValueError(f"the expressions of {left_text} {sign} {right_text} cannot be evaluated.")
             return Relation(difference, sign, _constant_side_magnitude(float(constant_value), constant_sign))

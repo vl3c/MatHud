@@ -29,6 +29,7 @@ from utils.cas_text import (  # noqa: E402
     rewrite_for_nerdamer,
     split_relation,
     split_top_level_commas,
+    split_top_level_terms,
     unknown_function_names,
 )
 
@@ -96,6 +97,27 @@ class TestInequalityText(unittest.TestCase):
                 with self.assertRaises(ValueError) as caught:
                     split_relation(text)
                 self.assertIn(message, str(caught.exception))
+
+    def test_split_top_level_terms(self) -> None:
+        cases = {
+            "x^3 - 2x^2 + x": [(1, "x^3"), (-1, "2x^2"), (1, "x")],
+            "exp(2x) - 3exp(x) + 2": [(1, "exp(2x)"), (-1, "3exp(x)"), (1, "2")],
+            "-x": [(-1, "x")],
+            "-(x) - -1": [(-1, "(x)"), (1, "1")],
+            "1e-10*(x-2)": [(1, "1e-10*(x-2)")],
+            "1.5e+3 - x": [(1, "1.5e+3"), (-1, "x")],
+            "2e-x": [(1, "2e"), (-1, "x")],
+            "x^-1 - 1": [(1, "x^-1"), (-1, "1")],
+            "2*-x+3": [(1, "2*-x"), (1, "3")],
+            "abs(x-1) + abs(x+1)": [(1, "abs(x-1)"), (1, "abs(x+1)")],
+            "x²-1": [(1, "x²"), (-1, "1")],
+            "5": [(1, "5")],
+            "x +": [(1, "x +")],
+            "(x - 1": [(1, "(x - 1")],
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(split_top_level_terms(text), expected)
 
     def test_parse_interval(self) -> None:
         self.assertEqual(parse_interval("[0, 2*pi]"), ("0", "2*pi", True, True))

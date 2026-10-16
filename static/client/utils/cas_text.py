@@ -5,10 +5,11 @@ derivative is "ln"; log(x, 2) keeps only the natural log when differentiated. Th
 helpers rewrite the common spellings nerdamer lacks into ones it knows, and list the
 function names it would misread so the caller can refuse them with a clear message.
 
-The solve tool's inequalities use four more: split_relation (the expressions and signs of
+The solve tool's inequalities use five more: split_relation (the expressions and signs of
 an inequality or a chain), parse_interval ("[0, 2*pi)" and the like),
-insert_letter_call_products (x(x+2) as x*(x+2), which SymPy and math.js read as a call) and
-insert_implicit_products ((x-1)(x+2) and (x+1)2 as products, as SymPy reads them).
+insert_letter_call_products (x(x+2) as x*(x+2), which SymPy and math.js read as a call),
+insert_implicit_products ((x-1)(x+2) and (x+1)2 as products, as SymPy reads them) and
+split_top_level_terms (the signed terms of a sum).
 
 Pure Python (no browser imports), so server-side pytest covers it.
 """
@@ -190,6 +191,76 @@ def insert_implicit_products(text: str) -> str:
         output.append(char)
         index += 1
     return "".join(output)
+
+
+def split_top_level_terms(text: str) -> List[Tuple[int, str]]:
+    """The terms of a sum, each with its sign: "x^3 - 2x^2 + x" gives [(1, "x^3"), (-1, "2x^2"), (1, "x")].
+
+    Only + and - outside brackets split, and only as binary operators: not in an exponent
+    (1e-10), nor after an operator (2*-x, x^-1). A term's leading signs fold into its sign
+    (-(x) - -1 gives [(-1, "(x)"), (1, "1")]). Text that does not read as a sum of
+    non-empty terms is one term with sign 1.
+    """
+    terms: List[Tuple[int, str]] = []
+    depth = 0
+    sign = 1
+    start = 0
+    index = 0
+    count = len(text)
+    while index < count and text[index] in "+- ":
+        if text[index] == "-":
+            sign = -sign
+        index += 1
+    start = index
+    while index < count:
+        char = text[index]
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+        elif char in "+-" and depth == 0 and _ends_operand(text, start, index):
+            term = text[start:index].strip()
+            if not term:
+                return [(1, text.strip())]
+            terms.append((sign, term))
+            sign = 1
+            while index < count and text[index] in "+- ":
+                if text[index] == "-":
+                    sign = -sign
+                index += 1
+            start = index
+            continue
+        index += 1
+    term = text[start:].strip()
+    if not term or depth != 0:
+        return [(1, text.strip())]
+    terms.append((sign, term))
+    return terms
+
+
+def _ends_operand(text: str, start: int, index: int) -> bool:
+    """Whether the sign at index follows an operand of the term starting at start (so it is
+    binary): a name, a number other than an exponent's mantissa, ")" or "]"."""
+    before = index - 1
+    while before >= start and text[before] == " ":
+        before -= 1
+    if before < start:
+        return False
+    previous = text[before]
+    exponent_digit = index + 1 < len(text) and text[index + 1].isdigit()
+    if (
+        previous in "eE"
+        and exponent_digit
+        and before == index - 1
+        and before > start
+        and text[before - 1] in "0123456789."
+    ):
+        number_start = before - 1
+        while number_start > start and (text[number_start - 1].isdigit() or text[number_start - 1] == "."):
+            number_start -= 1
+        if number_start == start or not _is_name_char(text[number_start - 1]):
+            return False  # 1e-10, 2.5E+3: an exponent
+    return _is_name_char(previous) or previous in ")]." or previous in "²³!"
 
 
 def _next_non_space(text: str, index: int) -> int:
