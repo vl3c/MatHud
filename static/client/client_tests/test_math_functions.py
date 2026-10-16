@@ -1523,6 +1523,22 @@ class TestMathFunctions(unittest.TestCase):
         self.assertAlmostEqual(float(MathUtils.evaluate("sin|x|", {"x": -1})), math.sin(1))
         self.assertEqual(float(MathUtils.evaluate("|x| % |y|", {"x": -7, "y": 3})), 1)
 
+    def test_evaluate_call_aliases_before_absolute_bars(self) -> None:
+        # The alias was left in the math.js text: cosine|-1| became cosine(abs(-1)), unknown to math.js
+        self.assertAlmostEqual(float(MathUtils.evaluate("cosine|-1|")), math.cos(1))
+        self.assertAlmostEqual(float(MathUtils.evaluate("sine|-0.5|")), math.sin(0.5))
+        self.assertEqual(float(MathUtils.evaluate("sgn|-3|")), 1)
+        self.assertAlmostEqual(float(MathUtils.evaluate("arcsine|-0.5|")), math.asin(0.5))
+        self.assertAlmostEqual(float(MathUtils.evaluate("hyperbolic sine|x|", {"x": -1})), math.sinh(1))
+        self.assertEqual(float(MathUtils.evaluate("real|-2|")), 2)
+        self.assertEqual(float(MathUtils.evaluate("imag|-2|")), 0)
+        self.assertEqual(float(MathUtils.evaluate("conjugate|-2|")), 2)
+
+    def test_vertical_asymptotes_behind_call_aliases_and_bars(self) -> None:
+        expected = MathUtils.calculate_asymptotes_and_discontinuities("1/sin(abs(x))", -4, 4)[0]
+        self.assertEqual(len(expected), 3)  # -pi, 0, pi
+        self.assertEqual(MathUtils.calculate_asymptotes_and_discontinuities("1/sine|x|", -4, 4)[0], expected)
+
     def test_calculate_vertical_asymptotes(self) -> None:
         # Test logarithmic function
         result = MathUtils.calculate_vertical_asymptotes("log(x)")

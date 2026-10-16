@@ -384,12 +384,12 @@ def build_curve_namespace() -> Dict[str, Any]:
 # one after a number (2ln(x), 1e3sine(x), 2.5ln(x)) is.
 # Note: "[-+]" rather than "[+-]" -- Brython's re fails to match "e-5" with the latter.
 _TOKEN = r"[a-zA-Z_][a-zA-Z_0-9]*|(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?"
-# Call aliases with a space ("hyperbolic sine") are tried, with their "(", before any
+# Call aliases with a space ("hyperbolic sine") are tried, with their "(" or "|", before any
 # identifier, so they match only where they start a token: after a name such as x their
 # first word joins it, and "sine(" is then matched as an alias on its own.
-# "(" is escaped by hand, since re.escape would also escape the space
+# The character class is written by hand, since re.escape would also escape the space
 _SPACED_CALL_ALIASES = sorted((alias for alias in CALL_ALIASES if " " in alias), key=lambda a: (-len(a), a))
-_ALIAS_PATTERN = re.compile("|".join([alias + "\\(" for alias in _SPACED_CALL_ALIASES] + [_TOKEN]))
+_ALIAS_PATTERN = re.compile("|".join([alias + "[(|]" for alias in _SPACED_CALL_ALIASES] + [_TOKEN]))
 
 
 def _minimal_substrings(texts: List[str]) -> Tuple[str, ...]:
@@ -398,18 +398,37 @@ def _minimal_substrings(texts: List[str]) -> Tuple[str, ...]:
 
 
 # Text that must occur for replace_aliases to change anything ("sine(" also covers "cosine(")
-_ALIAS_HINTS = _minimal_substrings(sorted([alias + "(" for alias in CALL_ALIASES] + list(WORD_ALIASES)))
+_ALIAS_HINTS = _minimal_substrings(
+    sorted([alias + "(" for alias in CALL_ALIASES] + [alias + "|" for alias in CALL_ALIASES] + list(WORD_ALIASES))
+)
+
+
+def _calls_with_bars(text: str, alias: str, bar: int) -> bool:
+    """True when the bar at text[bar] opens the argument of the one-argument alias before it.
+
+    As replace_absolute_bars reads it (bars pair left to right, a function's last word is
+    checked), so math.js text keeps the meaning fix_math_expression gives it in Python mode:
+    cosine|x| -> cos|x|, while |sine| keeps its variable.
+    """
+    return alias.split()[-1] in _UNARY_SPELLINGS and text.count("|", 0, bar) % 2 == 0 and "|" in text[bar + 1 :]
 
 
 def _replace_alias(match: re.Match[str]) -> str:
     token = match.group(0)
-    if token[-1] == "(":  # a call alias with a space, matched with its "("
-        return CALL_ALIASES[token[:-1]] + "("
+    text = match.string
+    if token[-1] in "(|":  # a call alias with a space, matched with its "(" or "|"
+        alias = token[:-1]
+        if token[-1] == "(" or _calls_with_bars(text, alias, match.end() - 1):
+            return CALL_ALIASES[alias] + token[-1]
+        return token
     word_target = WORD_ALIASES.get(token)
     if word_target is not None:
         return word_target
     call_target = CALL_ALIASES.get(token)
-    if call_target is not None and match.string[match.end() : match.end() + 1] == "(":
+    following = text[match.end() : match.end() + 1]
+    if call_target is not None and (
+        following == "(" or (following == "|" and _calls_with_bars(text, token, match.end()))
+    ):
         return call_target
     return token
 
@@ -417,7 +436,8 @@ def _replace_alias(match: re.Match[str]) -> str:
 def replace_aliases(text: str) -> str:
     """Rewrite aliases as canonical names, each matched as a whole token.
 
-    Call aliases change only when "(" follows: sine(x) -> sin(x), 2sine(x) -> 2sin(x).
+    Call aliases change only when "(" follows, or the bar that opens the argument of a
+    one-argument function: sine(x) -> sin(x), 2sine(x) -> 2sin(x), cosine|x| -> cos|x|.
     Word aliases change anywhere: ln(x) -> log(x), 2ln -> 2log. Names that merely contain an
     alias stay: kiln, ln2, x2ln(x), artifact(3), myvar(2).
     """

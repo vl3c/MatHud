@@ -88,7 +88,22 @@ class TestCaretFunctionPowers(unittest.TestCase):
 
 
 # Absolute value bars right after a function are its argument (python_compatible=True)
+# Call aliases before bars: the same reading in Python and, after rename_for_mathjs, in math.js
+ALIAS_BAR_CASES: Dict[str, str] = {
+    "cosine|x|": "cos(abs(x))",
+    "sine|x|": "sin(abs(x))",
+    "sgn|x|": "sign(abs(x))",
+    "arcsine|x|": "asin(abs(x))",
+    "hyperbolic sine|x|": "sinh(abs(x))",
+    "real|x|": "re(abs(x))",
+    "imag|x|": "im(abs(x))",
+    "conjugate|x|": "conj(abs(x))",
+    "2cosine|x|": "2*cos(abs(x))",
+    "|sine| + cosine|x|": "abs(sine) + cos(abs(x))",
+}
+
 BAR_CASES: Dict[str, str] = {
+    **ALIAS_BAR_CASES,
     "ln|x|": "log(abs(x))",
     "sin|x|": "sin(abs(x))",
     "2ln|x|": "2*log(abs(x))",
@@ -100,6 +115,7 @@ BAR_CASES: Dict[str, str] = {
     "|x|": "abs(x)",
     "mod|x|": "modabs(x)",
     "hybrid|text|": "hybridabs(text)",
+    "xcosine|x|": "xcosineabs(x)",
 }
 
 
@@ -124,6 +140,15 @@ class TestAbsoluteBars(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual(ef.rename_for_mathjs(text), expected)
                 self.assertEqual(ef.rename_for_mathjs(expected), expected)
+
+    def test_math_js_text_reads_call_aliases_before_bars(self) -> None:
+        import expression_functions as ef
+
+        self.assertEqual(ExpressionValidator.fix_math_expression("cosine|x|"), "cos|x|")
+        self.assertEqual(ExpressionValidator.fix_math_expression("|sine|"), "|sine|")
+        for expression, expected in ALIAS_BAR_CASES.items():
+            with self.subTest(expression=expression):
+                self.assertEqual(ef.rename_for_mathjs(ExpressionValidator.fix_math_expression(expression)), expected)
 
     def test_ln_of_bars_plots(self) -> None:
         function = ExpressionValidator.parse_function_string("ln|x|")
