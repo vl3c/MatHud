@@ -20,6 +20,7 @@ from bisect import bisect_left
 from copy import deepcopy
 from typing import Any, Callable, Dict, List, Optional, cast
 
+from compiled_expression import substitute_variable
 from constants import default_color, default_point_size
 from drawables.drawable import Drawable
 from expression_validator import ExpressionValidator
@@ -180,24 +181,7 @@ class Function(Drawable):
         try:
             # First handle horizontal translation by replacing x with (x - x_offset)
             if x_offset != 0:
-                import re
-
-                # Use all allowed functions from ExpressionValidator
-                protected_funcs: list[str] = sorted(ExpressionValidator.ALLOWED_FUNCTIONS, key=len, reverse=True)
-
-                # Create a regex pattern that matches standalone x while protecting function names
-                func_pattern: str = "|".join(map(re.escape, protected_funcs))
-                # Use word boundaries to match standalone 'x'
-                pattern: str = rf"\b(x)\b|({func_pattern})"
-
-                def replace_match(match: Any) -> str:
-                    if match.group(1):  # If it's a standalone 'x'
-                        return f"(x - {x_offset})"
-                    elif match.group(2):  # If it's a function name
-                        return cast(str, match.group(2))  # Return the function name unchanged
-                    return cast(str, match.group(0))
-
-                new_function_string: str = re.sub(pattern, replace_match, self.function_string)
+                new_function_string: str = substitute_variable(self.function_string, "x", f"(x - {x_offset})")
             else:
                 new_function_string = self.function_string
 

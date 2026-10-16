@@ -28,6 +28,7 @@ from __future__ import annotations
 import math
 from typing import Any, Dict, List, Optional, cast
 
+from compiled_expression import substitute_variable
 from constants import default_color
 from drawables.drawable import Drawable
 from drawables.piecewise_function_interval import PiecewiseFunctionInterval
@@ -302,26 +303,13 @@ class PiecewiseFunction(Drawable):
         if x_offset == 0 and y_offset == 0:
             return
 
-        import re
-
         new_pieces: List[Dict[str, Any]] = []
 
         for interval in self.intervals:
             new_expr = interval.expression
 
             if x_offset != 0:
-                protected_funcs: list[str] = sorted(ExpressionValidator.ALLOWED_FUNCTIONS, key=len, reverse=True)
-                func_pattern: str = "|".join(map(re.escape, protected_funcs))
-                pattern: str = rf"\b(x)\b|({func_pattern})"
-
-                def replace_match(match: Any) -> str:
-                    if match.group(1):
-                        return f"(x - {x_offset})"
-                    elif match.group(2):
-                        return cast(str, match.group(2))
-                    return cast(str, match.group(0))
-
-                new_expr = re.sub(pattern, replace_match, new_expr)
+                new_expr = substitute_variable(new_expr, "x", f"(x - {x_offset})")
 
             if y_offset != 0:
                 new_expr = f"({new_expr}) + {y_offset}"

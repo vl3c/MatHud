@@ -2,8 +2,9 @@
 
 The server tests (server_tests/test_compiled_expression.py) cover the API under CPython.
 These need the browser: Brython's ast, compile and eval with named and Greek variables
-(Brython does not NFKC-normalise identifiers), its keyword module, and the values of the
-functions MathUtils computes with math.js (the server stub fakes them).
+(Brython does not NFKC-normalise identifiers), its keyword module, its re with Unicode
+word characters (substitute_variable), and the values of the functions MathUtils computes
+with math.js (the server stub fakes them).
 """
 
 from __future__ import annotations
@@ -12,7 +13,9 @@ import math
 import unittest
 
 import compiled_expression as ce
-from compiled_expression import FUNCTIONS_ALL, FUNCTIONS_CURVE, compile_expression
+from compiled_expression import FUNCTIONS_ALL, FUNCTIONS_CURVE, compile_expression, substitute_variable
+from drawables.function import Function
+from drawables.piecewise_function import PiecewiseFunction
 from expression_validator import ExpressionValidator
 
 
@@ -99,3 +102,25 @@ class TestCompiledExpression(unittest.TestCase):
         self.assertAlmostEqual(ExpressionValidator.parse_parametric_expression("t*cos(t)")(math.pi), -math.pi)
         with self.assertRaises(NameError):
             ExpressionValidator.parse_parametric_expression("mean([t])")(1.0)
+
+    def test_substitute_variable_with_unicode_names(self) -> None:
+        # Brython's re must treat θ and Δ as word characters
+        self.assertEqual(substitute_variable("2*θ + θ1 + sin(θ)", "θ", "(θ - 1)"), "2*(θ - 1) + θ1 + sin((θ - 1))")
+        self.assertEqual(
+            substitute_variable("Δx + x + max(x, 1e5)", "x", "(x - 2)"), "Δx + (x - 2) + max((x - 2), 1e5)"
+        )
+        self.assertEqual(substitute_variable("cos(2*θ)", "ϑ", "(θ + 1)"), "cos(2*(θ + 1))")
+        shifted = compile_expression(substitute_variable("θ^2", "θ", "(θ - 1)"), ("θ",), FUNCTIONS_CURVE).bind()
+        self.assertEqual(shifted(3.0), 4.0)
+
+    def test_translate_rewrites_whole_tokens(self) -> None:
+        function = Function("max(x, 2) + exp(x)", name="f")
+        function.translate(-3, 1)
+        self.assertEqual(function.function_string, "(max((x - -3), 2) + exp((x - -3))) + 1")
+        self.assertAlmostEqual(function.function(-3.0), 2 + 1 + 1)
+        piecewise = PiecewiseFunction(
+            [{"expression": "x^2", "left": None, "right": 0}, {"expression": "max(x, 1)", "left": 0, "right": None}],
+            name="p",
+        )
+        piecewise.translate(2, 0)
+        self.assertEqual([interval.expression for interval in piecewise.intervals], ["(x - 2)^2", "max((x - 2), 1)"])

@@ -15,12 +15,16 @@ Names the expression reads that are neither functions, constants, the imaginary 
 variables are listed in ``free_names``; they are not rejected (``a*x`` parses and fails
 per sample, as before).
 
+``substitute_variable(text, name, replacement)`` rewrites one variable as a whole token,
+for shifting a graph: substitute_variable("x^2 + max(x, 1)", "x", "(x - 2)").
+
 Pure Python (no browser imports), so server-side pytest imports it directly.
 """
 
 from __future__ import annotations
 
 import ast
+import re
 from typing import Any, Callable, Dict, FrozenSet, List, Optional, Sequence, Tuple
 
 import expression_functions as ef
@@ -56,6 +60,10 @@ class _Parsed:
 
 
 _CACHE: Dict[str, _Parsed] = {}
+
+# Identifiers (Unicode letters too, so θ and Δx are names) and number literals matched whole,
+# so a variable is never found inside a longer name (max, x2, Δx) or a number (1e5)
+_NAME_OR_NUMBER = re.compile(r"[^\W\d]\w*|(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?")
 # Checked variable tuples per (variables, functions) as given
 _CHECKED_VARIABLES: Dict[Tuple[Tuple[str, ...], str], Tuple[str, ...]] = {}
 
@@ -220,3 +228,36 @@ def _check_variables(variables: Sequence[str], functions: str) -> Tuple[str, ...
             raise ValueError(f"Duplicate variable name {given!r}")
         checked.append(name)
     return tuple(checked)
+
+
+def substitute_variable(text: str, name: str, replacement: str) -> str:
+    """Replace each whole-token occurrence of the variable name in text.
+
+    Tokens that only contain the name are left alone: other names (max, exp, x2, xy, Δx,
+    θ1), number literals (1e5) and the name followed by "(" (a call, never a variable).
+    The text is the stored form of fix_math_expression, so ϑ is already θ; the name is
+    normalised the same way.
+
+    On every stored function text this gives the same string as the regex that
+    Function.translate and PiecewiseFunction.translate used before (a standalone x between
+    word boundaries, function names protected). The two differ only where a digit precedes
+    the name (2x, which stored text never holds, since fix_math_expression inserts "*" after
+    numbers) or "(" follows it (x(x+1), which never parses and so is never stored).
+
+    Args:
+        text: The expression (stored, non-Python form).
+        name: The variable to replace, such as "x" or "θ".
+        replacement: The text put in its place, such as "(x - 2)".
+
+    Returns:
+        The rewritten text.
+    """
+    target = ExpressionValidator.normalize_unicode_name(name)
+
+    def replace(match: re.Match[str]) -> str:
+        token = match.group(0)
+        if token == target and text[match.end() : match.end() + 1] != "(":
+            return replacement
+        return token
+
+    return _NAME_OR_NUMBER.sub(replace, text)

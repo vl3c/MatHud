@@ -1,6 +1,7 @@
 """Tests for compile_expression (static/client/compiled_expression.py).
 
-Named variables, free names, variable checks, binding and the parse cache. The browser
+Named variables, free names, variable checks, binding, the parse cache and
+substitute_variable (shifting a graph). The browser
 counterpart (client_tests/test_compiled_expression.py) runs the Unicode and binding cases
 through Brython.
 """
@@ -8,12 +9,14 @@ through Brython.
 from __future__ import annotations
 
 import math
+import random
+import re
 import unittest
 from typing import Sequence, Tuple
 
 from server_tests import client_renderer  # noqa: F401  (browser stub, so MathUtils resolves)
 import compiled_expression as ce
-from compiled_expression import FUNCTIONS_ALL, FUNCTIONS_CURVE, compile_expression
+from compiled_expression import FUNCTIONS_ALL, FUNCTIONS_CURVE, compile_expression, substitute_variable
 from expression_validator import ExpressionValidator
 
 
@@ -174,6 +177,73 @@ class TestParseErrorsAndCache(unittest.TestCase):
             compile_expression(f"x + {index}")
         self.assertLessEqual(len(ce._CACHE), ce._CACHE_LIMIT)
         self.assertEqual(compile_expression("x + 3").bind()(1.0), 4.0)
+
+
+def _old_translate_x(text: str, x_offset: float) -> str:
+    """The regex Function.translate and PiecewiseFunction.translate used before (the oracle)."""
+    protected = sorted(ExpressionValidator.ALLOWED_FUNCTIONS, key=len, reverse=True)
+    pattern = rf"\b(x)\b|({'|'.join(map(re.escape, protected))})"
+
+    def replace(match: re.Match[str]) -> str:
+        if match.group(1):
+            return f"(x - {x_offset})"
+        return match.group(2) or match.group(0)
+
+    return re.sub(pattern, replace, text)
+
+
+# Inputs as typed; the stored text is their fix_math_expression form
+_TRANSLATE_CORPUS = [
+    "x", "x^2", "sin(x)", "2x", "3x^2+2x-1", "x*exp(x)", "max(x,2)", "exp(x)", "1e-5x", "x2+xy",
+    "|x|", "x!", "(x+1)!", "sqrt(x)", "√x", "x²", "sin²x", "2πx", "θx", "Δx+x", "x°",
+    "sin(30°)+x", "ln(x)", "log2(x)", "log10(x)+x", "2.5e3x", "x/(x-1)", "e^x", "e^-x", "xe^x",
+    "x e", "x(x+1)", "0x10", "x_1+x", "1/x", "x^x", "sinx", "cosx+x", "tan(x)", "x**2", "-x",
+    "x-(-3)", "degrees(x)", "2 x",
+]  # fmt: skip
+_OFFSETS = (2, -3, -0.5, 1e-7, 1e20)
+
+
+class TestSubstituteVariable(unittest.TestCase):
+    def test_whole_tokens_only(self) -> None:
+        shift = "(x - 2)"
+        self.assertEqual(substitute_variable("x^2 + max(x, 1)", "x", shift), "(x - 2)^2 + max((x - 2), 1)")
+        self.assertEqual(substitute_variable("exp(x) + x2 + xy + Δx", "x", shift), "exp((x - 2)) + x2 + xy + Δx")
+        self.assertEqual(substitute_variable("1e5*x + 2.5E-3", "x", shift), "1e5*(x - 2) + 2.5E-3")
+        self.assertEqual(substitute_variable("x_1 + 0x10", "x", shift), "x_1 + 0x10")
+        self.assertEqual(substitute_variable("x(x+1)", "x", shift), "x((x - 2)+1)")  # a call is not the variable
+
+    def test_greek_and_other_variables(self) -> None:
+        self.assertEqual(substitute_variable("2*θ + θ1 + sin(θ)", "θ", "(θ - 1)"), "2*(θ - 1) + θ1 + sin((θ - 1))")
+        self.assertEqual(substitute_variable("cos(2*θ)", "ϑ", "(θ + 1)"), "cos(2*(θ + 1))")  # ϑ is θ
+        self.assertEqual(substitute_variable("1/k! + k2 + kπ", "k", "(k + 1)"), "1/(k + 1)! + k2 + kπ")
+        self.assertEqual(substitute_variable("Δx*x", "Δx", "h"), "h*x")
+
+    def test_matches_the_old_regex_on_stored_text(self) -> None:
+        for text in _TRANSLATE_CORPUS:
+            stored = ExpressionValidator.fix_math_expression(text)
+            for offset in _OFFSETS:
+                with self.subTest(text=text, offset=offset):
+                    expected = _old_translate_x(stored, offset)
+                    actual = substitute_variable(stored, "x", f"(x - {offset})")
+                    if text == "x(x+1)":  # never parses, so never stored
+                        self.assertNotEqual(actual, expected)
+                    else:
+                        self.assertEqual(actual, expected)
+
+    def test_matches_the_old_regex_on_random_text_that_parses(self) -> None:
+        rng = random.Random(1)
+        alphabet = list("x2e.()+*-/asinθΔ_ 9^|!") + ["x", "x", "exp", "max", "1e5"]
+        compared = 0
+        for _ in range(4000):
+            text = "".join(rng.choice(alphabet) for _ in range(rng.randint(1, 8)))
+            try:
+                ExpressionValidator.parse_function_string(text)
+                stored = ExpressionValidator.fix_math_expression(text)
+            except Exception:
+                continue
+            compared += 1
+            self.assertEqual(substitute_variable(stored, "x", "(x - 2)"), _old_translate_x(stored, 2), text)
+        self.assertGreater(compared, 100)
 
 
 if __name__ == "__main__":
