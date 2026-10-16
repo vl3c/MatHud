@@ -24,6 +24,7 @@ Pure Python (no browser imports), so server-side pytest imports it directly.
 from __future__ import annotations
 
 import ast
+import keyword
 import math
 import random
 import re
@@ -264,6 +265,17 @@ MATHJS_RENAMES: Dict[str, str] = {
 
 # Functions allowed in parametric curves
 CURVE_NAMES: FrozenSet[str] = frozenset(row.name for row in FUNCTIONS if row.curve_safe)
+
+# The imaginary unit: fix_math_expression writes i as j for Python (2i -> 2j, i alone -> j)
+IMAGINARY_UNITS: FrozenSet[str] = frozenset(("i", "j"))
+
+# Names a variable (or, later, a parameter) may not take: function names, word aliases
+# (ln), constants, the imaginary unit and Python keywords (2in becomes 2*in, a syntax error).
+# Call-only aliases (power, binary, var, fact, rand, lim, std, sine...) stay free: they
+# name a function only when "(" follows them.
+RESERVED_NAMES: FrozenSet[str] = (
+    frozenset(BY_NAME) | frozenset(WORD_ALIASES) | frozenset(CONSTANTS) | IMAGINARY_UNITS | frozenset(keyword.kwlist)
+)
 
 
 def _resolve(row: ExpressionFunction) -> Callable[..., Any]:

@@ -249,6 +249,38 @@ class TestPythonOnlyRouting(unittest.TestCase):
                 self.assertEqual(ef.calls_python_only(text), expected)
 
 
+class TestReservedNames(unittest.TestCase):
+    """Names a variable may not take: functions, word aliases, constants, i, j, keywords."""
+
+    def test_functions_constants_and_imaginary_units_are_reserved(self) -> None:
+        for name in ("ln", "i", "j", "e", "pi", "inf", "Infinity", "sin", "mean", "product", "factorial"):
+            with self.subTest(name=name):
+                self.assertIn(name, ef.RESERVED_NAMES)
+        self.assertEqual(ef.IMAGINARY_UNITS, frozenset(("i", "j")))
+
+    def test_python_keywords_are_reserved(self) -> None:
+        # fix_math_expression("2in + x", True) gives "2*in + x", a syntax error
+        for name in ("in", "is", "or", "if", "as", "and", "not", "lambda", "None", "True"):
+            with self.subTest(name=name):
+                self.assertIn(name, ef.RESERVED_NAMES)
+
+    def test_call_only_aliases_are_not_reserved(self) -> None:
+        # They name a function only when "(" follows, so "power" or "var" stays a usable name
+        for name in ("power", "binary", "var", "fact", "rand", "lim", "std", "sine", "derivative"):
+            with self.subTest(name=name):
+                self.assertNotIn(name, ef.RESERVED_NAMES)
+                self.assertIn(name, ef.CALL_ALIASES)
+
+    def test_every_function_and_constant_is_reserved(self) -> None:
+        self.assertLessEqual(set(ef.BY_NAME), ef.RESERVED_NAMES)
+        self.assertLessEqual(set(ef.CONSTANTS) | set(ef.WORD_ALIASES), ef.RESERVED_NAMES)
+
+    def test_ordinary_variable_names_are_free(self) -> None:
+        for name in ("x", "y", "t", "k", "n", "a", "θ", "r", "xy", "type", "match"):
+            with self.subTest(name=name):
+                self.assertNotIn(name, ef.RESERVED_NAMES)
+
+
 class TestBrowserFreeImport(unittest.TestCase):
     def test_module_imports_without_browser(self) -> None:
         code = (
