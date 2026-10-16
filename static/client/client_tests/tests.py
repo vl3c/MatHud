@@ -27,6 +27,7 @@ from .test_throttle import TestThrottle
 from .test_window_mocks import TestWindowMocks
 from .test_expression_validator import TestExpressionValidator
 from .test_expression_functions import TestExpressionFunctions
+from .test_compiled_expression import TestCompiledExpression
 from .test_expression_evaluator import TestExpressionEvaluatorZeroResults
 from .test_function import TestFunction, TestFunctionUndefinedAt
 from .test_functions_bounded_colored_area import TestFunctionsBoundedColoredArea
@@ -689,6 +690,7 @@ class Tests:
             TestZoomEdgeCases,
             TestExpressionValidator,
             TestExpressionFunctions,
+            TestCompiledExpression,
             TestExpressionEvaluatorZeroResults,
             TestProcessFunctionCalls,
             TestProcessFunctionCallsPlotTools,
