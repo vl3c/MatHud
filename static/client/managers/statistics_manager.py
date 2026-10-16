@@ -502,6 +502,9 @@ class StatisticsManager:
                 "model_type": model,
                 "bounds": {"left": left_bound, "right": right_bound},
             }
+            if model == "linear":
+                # Pearson's r keeps the slope's sign, which the square root of R-squared loses
+                result_dict["r"] = result.get("r")
 
             if point_names:
                 result_dict["point_names"] = point_names
