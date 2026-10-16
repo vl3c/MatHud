@@ -824,6 +824,19 @@ class TestMathFunctions(unittest.TestCase):
                 self.assertIn("infinite", result)
                 self.assertNotIn("ZeroDivisionError", result)
 
+    def test_evaluate_remainder_operator(self) -> None:
+        # % is the floored remainder in every engine; math.js alone reads 7 % -3 as (7%) - 3 = -2.93
+        cases = {"7 % -3": -2, "-7 % 3": 2, "17 % 5": 2, "2^7 % 5": 3, "2*7 % 3": 2, "x % 3": 1.5}
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(float(MathUtils.evaluate(text, {"x": 7.5})), expected)
+        # A zero divisor gives the dividend, like mod() (plots drop the sample instead)
+        self.assertEqual(float(MathUtils.evaluate("5 % 0")), 5)
+        self.assertEqual(float(MathUtils.evaluate("mod(7, 0)")), 7)
+        for text in ("50%", "100 + 5%"):
+            with self.subTest(text=text):
+                self.assertIn("Error", str(MathUtils.evaluate(text)))
+
     def test_evaluate_string_results_have_no_json_quotes(self) -> None:
         self.assertEqual(MathUtils.evaluate("bin(10)"), "0b1010")
         self.assertEqual(MathUtils.evaluate("bin(5)"), "0b101")

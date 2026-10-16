@@ -292,6 +292,7 @@ ALLOWED_NODES: Tuple[Type[ast.AST], ...] = (
     ast.Mult,
     ast.Div,
     ast.Pow,
+    ast.Mod,
     ast.USub,
     ast.UAdd,
     ast.Constant,
@@ -431,12 +432,20 @@ def _rename_call(match: re.Match[str]) -> str:
     return token
 
 
+# The remainder operator with the spaces around it; math.js reads "mod" with the same precedence
+_PERCENT = re.compile(r"\s*%\s*")
+
+
 def rename_for_mathjs(text: str) -> str:
-    """Rewrite calls of functions math.js knows under another name: trunc(x) -> fix(x).
+    """Rewrite text for math.js: calls of functions it knows under another name (trunc(x) ->
+    fix(x)), and % as its mod operator.
 
     Every place that hands expression text to math.js calls this. Names are matched as whole
-    tokens followed by "(", like the aliases, so xtrunc(x) stays.
+    tokens followed by "(", like the aliases, so xtrunc(x) stays. % always means the remainder,
+    as in Python: math.js would read 7 % -3 as (7%) - 3, a percentage, so it becomes 7 mod -3.
     """
+    if "%" in text:
+        text = _PERCENT.sub(" mod ", text)
     if not any(hint in text for hint in _RENAME_HINTS):
         return text
     return TOKEN_PATTERN.sub(_rename_call, text)

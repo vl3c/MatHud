@@ -32,9 +32,9 @@
    "function": "ValueError: Syntax error in expression 'sin(x': <detail>",
    "parametric": "ValueError: Syntax error in expression 'sin(x': <detail>"
   },
-  "x % 2": {
-   "function": "ValueError: Error validating expression 'x % 2': Disallowed node type: Mod",
-   "parametric": "ValueError: Error validating expression 'x % 2': Disallowed node type: Mod"
+  "x // 2": {
+   "function": "ValueError: Error validating expression 'x // 2': Disallowed node type: FloorDiv",
+   "parametric": "ValueError: Error validating expression 'x // 2': Disallowed node type: FloorDiv"
   },
   "x > 1": {
    "function": "ValueError: Error validating expression 'x > 1': Disallowed node type: Compare",
@@ -1022,6 +1022,14 @@
    "0.5",
    "1.0",
    "3.0"
+  ],
+  "x % 2": [
+   "1.5",
+   "1.0",
+   "0.0",
+   "0.5",
+   "1.0",
+   "1.0"
   ],
   "x + i": [
    "EXCEPTION NameError",

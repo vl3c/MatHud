@@ -5055,6 +5055,14 @@
  },
  "mathjs_bridge": {
   "evaluate": {
+   "17 % 5": {
+    "mathjs": [
+     "evaluate 17 mod 5"
+    ],
+    "path": "mathjs",
+    "raised": null,
+    "returned_error": false
+   },
    "2*product": {
     "mathjs": [
      "evaluate 2*product"
@@ -5173,6 +5181,13 @@
      "raised": "ValueError",
      "returned_error": false
     },
+    "x % 2": {
+     "mathjs": [
+      "compile (x mod 2 )-( 1)"
+     ],
+     "raised": "ValueError",
+     "returned_error": false
+    },
     "xtrunc(x)": {
      "mathjs": [
       "compile (xtrunc(x) )-( 1)"
@@ -5242,6 +5257,18 @@
      "raised": null,
      "returned_error": false
     },
+    "x % 2": {
+     "mathjs": [
+      "evaluate x mod 2",
+      "evaluate 1",
+      "evaluate x mod 2",
+      "evaluate 1",
+      "evaluate x mod 2",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
     "xtrunc(x)": {
      "mathjs": [
       "evaluate xtrunc(x)",
@@ -5287,6 +5314,13 @@
     "trunc(x)": {
      "mathjs": [
       "evaluate fix(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "x % 2": {
+     "mathjs": [
+      "evaluate x mod 2"
      ],
      "raised": null,
      "returned_error": false
@@ -5345,6 +5379,15 @@
      "raised": null,
      "returned_error": false
     },
+    "x % 2": {
+     "mathjs": [
+      "compile x mod 2",
+      "evaluate 0",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
     "xtrunc(x)": {
      "mathjs": [
       "compile xtrunc(x)",
@@ -5387,6 +5430,13 @@
     "trunc(x)": {
      "mathjs": [
       "compile fix(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "x % 2": {
+     "mathjs": [
+      "compile x mod 2"
      ],
      "raised": null,
      "returned_error": false
@@ -5435,6 +5485,13 @@
      "raised": null,
      "returned_error": false
     },
+    "x % 2": {
+     "mathjs": [
+      "compile x mod 2"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
     "xtrunc(x)": {
      "mathjs": [
       "compile xtrunc(x)"
@@ -5475,6 +5532,13 @@
     "trunc(x)": {
      "mathjs": [
       "compile fix(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "x % 2": {
+     "mathjs": [
+      "compile x mod 2"
      ],
      "raised": null,
      "returned_error": false
@@ -5558,6 +5622,20 @@
      "raised": null,
      "returned_error": false
     },
+    "x % 2": {
+     "mathjs": [
+      "evaluate x mod 2",
+      "evaluate 1",
+      "evaluate x mod 2",
+      "evaluate 1",
+      "evaluate x mod 2",
+      "evaluate 1",
+      "evaluate x mod 2",
+      "evaluate 1"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
     "xtrunc(x)": {
      "mathjs": [
       "evaluate xtrunc(x)",
@@ -5605,6 +5683,13 @@
     "trunc(x)": {
      "mathjs": [
       "compile fix(x)"
+     ],
+     "raised": null,
+     "returned_error": false
+    },
+    "x % 2": {
+     "mathjs": [
+      "compile x mod 2"
      ],
      "raised": null,
      "returned_error": false
@@ -5848,6 +5933,7 @@
    "Div",
    "Expression",
    "List",
+   "Mod",
    "Mult",
    "Name",
    "Pow",

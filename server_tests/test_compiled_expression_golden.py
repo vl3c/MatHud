@@ -100,6 +100,7 @@ FUNCTION_CORPUS: Tuple[str, ...] = (
     "x # comment",
     "inf",
     "min(x, Infinity)",
+    "x % 2",
     # Unicode (characters the validator's one-for-one table covers)
     "x²",
     "x³ - 4x",
@@ -166,7 +167,7 @@ ERROR_CORPUS: Tuple[str, ...] = (
     "",
     "x=1",
     "x > 1",
-    "x % 2",
+    "x // 2",
     "ℝ",
     "x(x+1)",
     "2in + x",

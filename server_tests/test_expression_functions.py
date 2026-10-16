@@ -239,6 +239,57 @@ class TestMathJsRenames(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual(ef.rename_for_mathjs(text), expected)
 
+    def test_percent_becomes_the_mod_operator(self) -> None:
+        # math.js reads 7 % -3 as (7%) - 3 = -2.93; mod is the remainder in every engine
+        cases = {
+            "7 % -3": "7 mod -3",
+            "x%2": "x mod 2",
+            "trunc(x) % 3": "fix(x) mod 3",
+            "2^7 % 5": "2^7 mod 5",
+            "7 mod -3": "7 mod -3",
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(ef.rename_for_mathjs(text), expected)
+                self.assertEqual(ef.rename_for_mathjs(expected), expected)  # idempotent
+
+
+class TestRemainderOperator(unittest.TestCase):
+    """% is Python's floored remainder, with the precedence of * and /; never a percentage."""
+
+    def test_percent_validates_and_evaluates_as_the_remainder(self) -> None:
+        from expression_validator import ExpressionValidator
+
+        cases = {"-7 % 3": 2, "x % 3": 1.5, "7 % -3": -2, "2^7 % 5": 3, "2*7 % 3": 2, "-x % 2": 0.5}
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(ExpressionValidator.parse_function_string(text)(7.5 if "x" in text else 0.0), expected)
+        self.assertEqual(ExpressionValidator.fix_math_expression("x % 2", True), "x % 2")
+        self.assertEqual(ExpressionValidator.fix_math_expression("x % 2", False), "x % 2")
+
+    def test_a_zero_divisor_raises_in_python_but_mod_keeps_x(self) -> None:
+        # A plot drops the sample of x % 0; mod(x, 0) is x, as in math.js (one rule is item 11's)
+        from expression_validator import ExpressionValidator
+
+        with self.assertRaises(ZeroDivisionError):
+            ExpressionValidator.parse_function_string("x % 0")(3.0)
+        self.assertEqual(ExpressionValidator.parse_function_string("mod(x, 0)")(3.0), 3.0)
+
+    def test_postfix_percent_is_not_an_expression(self) -> None:
+        from expression_validator import ExpressionValidator
+
+        for text in ("50%", "x*(1 + 5%)"):
+            with self.subTest(text=text):
+                with self.assertRaises(ValueError):
+                    ExpressionValidator.validate_expression_tree(ExpressionValidator.fix_math_expression(text, True))
+
+    def test_raw_text_sites_lose_postfix_percent(self) -> None:
+        # The numeric solver passes raw text to math.js; 5% is no longer 0.05 there
+        from numeric_solver.expression_utils import equation_to_residual
+
+        self.assertEqual(equation_to_residual("x*(1 + 5%) = 105"), "(x*(1 + 5 mod )) - (105)")
+        self.assertEqual(equation_to_residual("x % 4 = 1"), "(x mod 4) - (1)")
+
 
 class TestCalculatorFunctions(unittest.TestCase):
     """The Python callables of the calculator rows follow math.js 14.5.2 (plots use them)."""
