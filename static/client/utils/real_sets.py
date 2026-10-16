@@ -40,8 +40,7 @@ MAX_REACH = 1e300
 WIDE_WINDOW = 200.0
 # The outer intervals reach Infinity only when this many outermost samples agree.
 TAIL_AGREEMENT = 10
-# A value within ROOT_TOLERANCE * max(|lhs|, |rhs|, min(1, |x|)) of 0 (plus the rounding of
-# its point) is a root.
+# A value below ROOT_TOLERANCE * max(1, |lhs|, |rhs|) may be rounding: its noise is measured.
 ROOT_TOLERANCE = 1e-9
 # Rounding noise. lhs - rhs within NOISE_ULPS ulps of max(|lhs|, |rhs|) of 0, or (for a value
 # below ROOT_TOLERANCE * max(1, |lhs|, |rhs|)) within NOISE_FACTOR times its scatter over
@@ -52,6 +51,12 @@ SMALLEST = 5e-324
 NOISE_ULPS = 16
 NOISE_NUDGES = (-4, -1, 1, 4)
 NOISE_FACTOR = 4.0
+# Below |x| = 1 the noise is also measured over these ulps of 1 (_curvature), around 0 below
+# CURVATURE_POINT; a second difference below CURVATURE_FLOOR there is no rounding of an inner
+# value near 1.
+CURVATURE_STEPS = (0.5, 1.5)
+CURVATURE_POINT = 1e-12
+CURVATURE_FLOOR = EPSILON / 16
 # A run of noisy samples next to a value below UNDERFLOW_SIZE is underflow (x*exp(x) far left):
 # it stays unknown. Any other run of at least ZERO_RUN noisy samples is a stretch where
 # lhs = rhs (an identity such as (x+1)^2 >= x^2 + 2x + 1).
@@ -60,8 +65,16 @@ ZERO_RUN = 3
 # An end undefined only by rounding (sqrt(2 - x^2) at the float nearest sqrt(2)) is read from
 # its values these many ulps away.
 END_NUDGES = (-1, 1, -2, 2, -4, 4, -8, 8, -16, 16)
-# A boundary this close (relative) to a seed is the seed.
-SEED_SNAP = 1e-9
+# A boundary moves to the nearest nice number or seed within LOOSE_TOLERANCE (relative to
+# max(1, |x|)) when lhs - rhs is within SNAP_FACTOR times its rounding noise of 0 at all
+# SNAP_SAMPLES points between them; a touching point does when the state changes there too.
+LOOSE_TOLERANCE = 1e-3
+SNAP_SAMPLES = 8
+SNAP_FACTOR = 4.0
+# Beyond this every float is an integer, so no number is nicer than another.
+NICE_LIMIT = 1e15
+# Two points found numerically within this (relative) of each other are the same point
+SAME_POINT = 1e-12
 # A value this much larger than its neighbours at +-NEIGHBOUR_STEP (relative) is a pole that
 # math.js reaches as a huge finite number (tan(pi/2) is 1.6e16).
 POLE_RATIO = 1e4
@@ -73,7 +86,6 @@ OVERFLOW_SIZE = 1e100
 # value is written as 0 only within ZERO_SIZE of it (the rounding of 0 next to sides near 1).
 NICE_DENOMINATOR = 12
 NICE_TOLERANCE = 1e-10
-TOUCH_NICE_TOLERANCE = 1e-7
 ZERO_SIZE = 1e-13
 # Numeric ends are written with this many significant digits.
 DIGITS = 12
@@ -300,7 +312,12 @@ def _noise_and_suspicion(
     suspicious = abs(value) <= ROOT_TOLERANCE * max(1.0, size)
     if abs(value) <= noise or not suspicious:
         return noise, suspicious
-    return max(noise, _scatter(relation.difference, point, value, NOISE_NUDGES)), True
+    spread = _scatter(relation.difference, point, value, NOISE_NUDGES)
+    if abs(point) < 1.0:
+        curvature = _curvature(relation.difference, point, value)
+        if curvature <= NOISE_FACTOR * NOISE_ULPS * EPSILON * max(1.0, size):
+            spread = max(spread, curvature)
+    return max(noise, spread), True
 
 
 def _scatter(function: RealFunction, point: float, value: float, nudges: Sequence[int]) -> float:
@@ -312,6 +329,32 @@ def _scatter(function: RealFunction, point: float, value: float, nudges: Sequenc
         if other is not None and math.isfinite(other):
             largest = max(largest, abs(other - value))
     return NOISE_FACTOR * largest
+
+
+def _curvature(function: RealFunction, point: float, value: float) -> float:
+    """NOISE_FACTOR times the largest second difference of function over CURVATURE_STEPS ulps
+    of 1 around point, where it shows the rounding of an inner value near 1; else 0.
+
+    For |point| < 1 an inner 1 + x rounds by up to half an ulp of 1, which nudging point by
+    its own ulps never shows (ln(1 + x) - x near 0); that rounding error is a sawtooth with
+    a period of one ulp, so half ulps show it. The second difference cancels the slope, so a
+    genuine small value (x itself) is not read as noise. Below CURVATURE_POINT, x plus an ulp
+    of 1 loses x itself, so the reading is taken around 0, which rounds the same way. A
+    reading far below an ulp of 1 is the function's shape, not rounding (x^2 near 1e-15); the
+    caller ignores one above the rounding of an inner value near 1 (1/x, floor(x)).
+    """
+    if abs(point) < CURVATURE_POINT:
+        point, value_at = 0.0, _value(function, 0.0)
+        if value_at is None or not math.isfinite(value_at):
+            return 0.0
+        value = value_at
+    largest = 0.0
+    for nudge in CURVATURE_STEPS:
+        step = nudge * EPSILON
+        above, below = _value(function, point + step), _value(function, point - step)
+        if above is not None and below is not None and math.isfinite(above) and math.isfinite(below):
+            largest = max(largest, abs(above + below - 2 * value))
+    return NOISE_FACTOR * largest if largest >= CURVATURE_FLOOR else 0.0
 
 
 # The sign of lhs - rhs at a sample: None where undefined, -1 or 1, 0 on a stretch where
@@ -353,24 +396,17 @@ def _combine(relations: Sequence[Relation], codes: Sequence[Optional[int]]) -> T
     return (False, None) if near else (True, True)
 
 
-def _point_state(
-    relations: Sequence[Relation], point: float, noise_as_root: bool = False
-) -> Tuple[bool, Optional[bool]]:
-    """(settled?, holds?) at one point: unsettled where lhs - rhs is within rounding of 0, or
-    with noise_as_root, settled as if lhs = rhs there."""
-    if len(relations) == 1:  # the common case, without the lists (bisection calls this often)
+def _point_state(relations: Sequence[Relation], point: float) -> Tuple[bool, Optional[bool]]:
+    """(settled?, holds?) at one point: unsettled where lhs - rhs is within rounding of 0."""
+    if len(relations) == 1:  # the common case, without the lists
         relation = relations[0]
         code = _code(relation, point, _value(relation.difference, point))
         if code is None:
             return True, None
         if code == _NEAR:
-            if not noise_as_root:
-                return False, None
-            code = 0
+            return False, None
         return True, _holds_code(code, relation.sign)
     codes = [_code(relation, point, _value(relation.difference, point)) for relation in relations]
-    if noise_as_root:
-        codes = [0 if code == _NEAR else code for code in codes]
     return _combine(relations, codes)
 
 
@@ -393,9 +429,11 @@ def holds_at_end(relations: Sequence[Relation], point: float) -> Optional[bool]:
 def _end_reading(relation: Relation, point: float) -> Optional[Tuple[float, float]]:
     """(lhs - rhs at point, how close to 0 is a root there), or None where it is undefined or a pole.
 
-    Where it is undefined only by rounding (sqrt(2 - x^2) at the float nearest sqrt(2), whose
-    square is just above 2), its values a few ulps away decide: within their spread of 0 the
-    end is a root (sqrt(2 - x^2) = 0 there); otherwise it stays undefined.
+    Where it is undefined only by rounding at the edge of its domain (sqrt(2 - x^2) at the
+    float nearest sqrt(2), whose square is just above 2), its values a few ulps away on the
+    side where it is defined decide: within their spread of 0 the end is a root (sqrt(2 -
+    x^2) = 0 there); otherwise it stays undefined. A hole, defined on both sides, stays
+    undefined.
     """
     value = _value(relation.difference, point)
     if value is not None:
@@ -406,13 +444,16 @@ def _end_reading(relation: Relation, point: float) -> Optional[Tuple[float, floa
         return value, max(_root_tolerance(relation, point, value), _noise(relation, point, value))
     if point == 0 or not math.isfinite(point):
         return None
-    nearby: List[float] = []
+    sides: Dict[bool, List[float]] = {True: [], False: []}  # the defined values above and below
     for nudge in END_NUDGES:
         nudged = point * (1 + nudge * EPSILON)
         other = _value(relation.difference, nudged)
         if other is not None and math.isfinite(other) and not _is_pole(relation.difference, nudged, other):
-            nearby.append(other)
-    if not nearby or abs(nearby[0]) > NOISE_FACTOR * (max(nearby) - min(nearby)):
+            sides[nudge > 0].append(other)
+    if bool(sides[True]) == bool(sides[False]):
+        return None  # a hole ((x^2 - 1)/(x - 1) at 1, defined on both sides), or undefined around it
+    nearby = sides[True] or sides[False]
+    if abs(nearby[0]) > NOISE_FACTOR * (max(nearby) - min(nearby)):
         return None
     return 0.0, 0.0
 
@@ -429,21 +470,18 @@ def _is_pole(function: RealFunction, point: float, value: float) -> bool:
 
 
 def _root_tolerance(relation: Relation, point: float, value: float) -> float:
-    """ROOT_TOLERANCE times the size of the problem at point, plus the change of lhs - rhs over the rounding of point.
+    """The change of lhs - rhs over the rounding of point (a printed end such as 0.69314718056).
 
-    The size is max(|lhs|, |rhs|), but at least min(1, |point|): a touching root found by
-    golden-section search ((x - sqrt(2))^2 near sqrt(2)) leaves a value near 1e-16 where
-    both sides are that small; near 0 the point itself sets the scale (x > 0 at 1e-300 is
-    no root).
+    A value below it, or below its rounding noise (_noise), is a root; nothing else is:
+    1e-10*(x - 2) at 1, (x - 1)^2 + 1e-10 at 1 and x^2 + 1.0000000001 against 2x at 1 are no
+    roots, nor x at 1e-300.
     """
-    size = _magnitude(relation, point, value) if math.isfinite(value) else 0.0
-    scale = max(size, min(1.0, abs(point)))
     step = NEIGHBOUR_STEP * max(1.0, abs(point))
     below, above = _value(relation.difference, point - step), _value(relation.difference, point + step)
     slope = 0.0
     if below is not None and above is not None and math.isfinite(below) and math.isfinite(above):
         slope = abs(above - below) / (2 * step)
-    return ROOT_TOLERANCE * scale + 1e-12 * slope * abs(point)
+    return 1e-12 * slope * abs(point)
 
 
 # ----- the grid ---------------------------------------------------------------------------
@@ -725,7 +763,7 @@ def sign_chart(
     if window is None or not (math.isfinite(window.lower) and math.isfinite(window.upper)):
         _check_tails([states[index] for index in kept])
     _check_piece_count([states[index] for index in kept])
-    touching = _touching_roots(relations, points, values, states, settled)
+    touching = _touching_roots(relations, points, values, states, settled, seeds)
     chart_points = [points[index] for index in kept]
     chart_states = [states[index] for index in kept]
     if touching:
@@ -734,8 +772,9 @@ def sign_chart(
         merged.sort(key=lambda item: item[0])
         chart_points = [point for point, _ in merged]
         chart_states = [state for _, state in merged]
-    boundaries = _boundaries(relations, chart_points, chart_states, touching, seeds)
-    pieces = _pieces(relations, boundaries, chart_points, chart_states, window)
+    sampled = [points[index] for index in kept]  # the grid samples, judged as runs (no touching points)
+    boundaries = _boundaries(relations, chart_points, chart_states, sampled, seeds)
+    pieces = _pieces(relations, boundaries, chart_points, chart_states, sampled, window)
     if len(pieces) > MAX_PIECES:
         raise SignChartFailure(f"the solution set has more than {MAX_PIECES} intervals; give a smaller interval")
     return pieces
@@ -761,10 +800,12 @@ def _touching_roots(
     values: List[List[Optional[float]]],
     states: List[Optional[bool]],
     settled: List[bool],
+    seeds: Sequence[float] = (),
 ) -> List[float]:
     """Where |lhs - rhs| dips to 0 without a sign change ((x-1)^2 > 0 at 1), found by
     golden-section search: around each dip between samples and each run of unsettled samples
-    whose settled neighbours agree."""
+    whose settled neighbours agree. A seed or nice number near the minimum where the state
+    changes too is taken instead (exp(x) > x + 1 at 0, not 8.5e-10)."""
     count = len(points)
     before = [-1] * count  # the nearest settled sample before each index
     last = -1
@@ -797,11 +838,25 @@ def _touching_roots(
         if left < 0 or right >= count or states[left] is None or states[left] != states[right]:
             continue  # a sign change (left to bisection), or no settled sample on one side
         searched.add((low, high))
-        candidate = _touching_candidate(relations, points[low], points[min(high, count - 1)])
-        if candidate is not None and holds_at_end(relations, candidate) != states[left]:
-            if not any(abs(candidate - other) <= 1e-12 * max(1.0, abs(other)) for other in found):
-                found.append(candidate)
+        bracket = (points[low], points[min(high, count - 1)])
+        best = _touching_candidate(relations, bracket[0], bracket[1])
+        if best is None:
+            continue
+        # A seed or a nice number beside the minimum is preferred where it is a touching point itself
+        for candidate in _snap_candidates(best, seeds, LOOSE_TOLERANCE) + [best]:
+            if not bracket[0] <= candidate <= bracket[1]:
+                continue
+            if holds_at_end(relations, candidate) != states[left]:
+                if not any(_same_point(candidate, other) for other in found):
+                    found.append(candidate)
+                break
     return sorted(found)
+
+
+def _same_point(first: float, second: float) -> bool:
+    """Whether two points found numerically are one: within 1e-12 relative. Relative also near 0,
+    where -1e-15 and 1e-15 are the two ends of x^2 <= 1e-30."""
+    return abs(first - second) <= SAME_POINT * max(abs(first), abs(second))
 
 
 def _size(value: Optional[float]) -> float:
@@ -812,7 +867,7 @@ def _size(value: Optional[float]) -> float:
 
 
 def _touching_candidate(relations: Sequence[Relation], low: float, high: float) -> Optional[float]:
-    """The point of [low, high] where some |lhs - rhs| is smallest, snapped to a nice number."""
+    """The point of [low, high] where some |lhs - rhs| is smallest."""
     best: Optional[float] = None
     best_size = math.inf
     for relation in relations:
@@ -823,10 +878,7 @@ def _touching_candidate(relations: Sequence[Relation], low: float, high: float) 
         size = abs(value) if value is not None and math.isfinite(value) else math.inf
         if size < best_size:
             best, best_size = candidate, size
-    if best is None:
-        return None
-    nice = nice_number(best, TOUCH_NICE_TOLERANCE)
-    return nice[1] if nice is not None else best
+    return best
 
 
 _GOLDEN = (math.sqrt(5) - 1) / 2
@@ -857,6 +909,10 @@ def _golden_minimum(function: RealFunction, low: float, high: float) -> Optional
     return middle if math.isfinite(size(middle)) else None
 
 
+# A boundary found by bisection: (value, low, high) with the state changing in [low, high]
+_Bracket = Tuple[float, float, float]
+
+
 class _Boundary:
     """A point where the inequality's state changes, its end text and whether it belongs to the set."""
 
@@ -870,51 +926,132 @@ def _boundaries(
     relations: Sequence[Relation],
     points: List[float],
     states: List[Optional[bool]],
-    touching: List[float],
+    sampled: Sequence[float],
     seeds: Sequence[float] = (),
 ) -> List[_Boundary]:
-    """Every state change between neighbouring samples, located by bisection and snapped to a seed or a nice value."""
-    raw: List[Tuple[float, float]] = []  # (value, nice tolerance)
+    """Every state change between neighbouring chart points, located by bisection and snapped
+    to a seed or a nice value; sampled are the grid samples (the chart points but touching ones)."""
+    raw: List[_Bracket] = []
     for index in range(len(points) - 1):
         if states[index] != states[index + 1]:
-            for value in _transitions(relations, points[index], states[index], points[index + 1], states[index + 1], 0):
-                near_touch = any(abs(value - point) <= 1e-12 * max(1.0, abs(point)) for point in touching)
-                raw.append((value, TOUCH_NICE_TOLERANCE if near_touch else NICE_TOLERANCE))
+            raw += _transitions(relations, points[index], states[index], points[index + 1], states[index + 1], 0)
     boundaries: List[_Boundary] = []
-    for value, tolerance in _collapse_noise_gaps(relations, sorted(raw)):
-        value = _snapped_to_seed(value, seeds)
-        nice = nice_number(value, tolerance)
-        exact = nice[1] if nice is not None else value
-        if boundaries and abs(boundaries[-1].value - exact) <= 1e-12 * max(1.0, abs(exact)):
+    for value, low, high in _collapse_noise_gaps(relations, sorted(raw), sampled):
+        exact = _snapped(relations, value, low, high, seeds)
+        if boundaries and _same_point(boundaries[-1].value, exact):
             continue
-        text = nice[0] if nice is not None else number_text(value)
+        nice = nice_number(exact)
+        text = nice[0] if nice is not None and nice[1] == exact else number_text(exact)
         boundaries.append(_Boundary(exact, text, holds_at_end(relations, exact)))
     return boundaries
 
 
-def _snapped_to_seed(value: float, seeds: Sequence[float]) -> float:
-    """The seed within SEED_SNAP (relative) of value, else value: x^2 > 1e-12 ends at 1e-06, not 1.00000000043e-06."""
-    for seed in seeds:
-        if math.isfinite(seed) and abs(value - seed) <= max(SEED_SNAP * abs(seed), ZERO_SIZE):
-            return seed
+def _snapped(relations: Sequence[Relation], value: float, low: float, high: float, seeds: Sequence[float]) -> float:
+    """value moved to a seed or a nice number in its bracket [low, high] or with only rounding
+    noise between them, else value.
+
+    Bisection stops at a computed sign change, which within the noise around a root can be
+    anywhere in it: sin(x) < x at 1.5e-7 (the root is 0), the expanded (x - 1)^3 at 0.99999
+    (1), x^2 > 1e-12 just beside 1e-06; at a pole it stops where the values overflow (1/sin(x)
+    at 5.6e-309, the pole is 0). A candidate within NICE_TOLERANCE (relative) is taken as it
+    is: the printed digits cannot tell them apart, and math.js's floor and ceil read a number
+    within 1e-12 of an integer as that integer (floor(x) > 1 changes at 1.999999999998).
+    """
+    for candidate in _snap_candidates(value, seeds, LOOSE_TOLERANCE):
+        if low <= candidate <= high or abs(candidate - value) <= NICE_TOLERANCE * abs(value):
+            return candidate
+        if _noise_between(relations, value, candidate) or _pole_between(relations, value, candidate):
+            return candidate
     return value
 
 
-def _collapse_noise_gaps(relations: Sequence[Relation], raw: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
+def _snap_candidates(value: float, seeds: Sequence[float], tolerance: float) -> List[float]:
+    """The nearest nice number (p/q or p*pi/q in lowest terms, 0 included; none beyond
+    NICE_LIMIT) and the nearest seed (a numeric root, off by rounding at a multiple root)
+    within tolerance (relative to max(1, |value|)) of value, in that order."""
+    allowed = tolerance * max(1.0, abs(value))
+    nice: Optional[float] = None
+    if abs(value) < NICE_LIMIT:
+        for denominator in range(1, NICE_DENOMINATOR + 1):
+            for factor in (1.0, math.pi):
+                numerator = round(value * denominator / factor)
+                divisor = math.gcd(numerator, denominator)
+                candidate = (numerator // divisor) * factor / (denominator // divisor)
+                if abs(candidate - value) < allowed and (nice is None or abs(candidate - value) < abs(nice - value)):
+                    nice = candidate
+    near = [seed for seed in seeds if math.isfinite(seed) and abs(seed - value) <= allowed]
+    seed = min(near, key=lambda item: abs(item - value)) if near else None
+    candidates = [nice] if nice is not None else []
+    if seed is not None and (nice is None or not _same_point(seed, nice)):
+        candidates.append(seed)
+    return candidates
+
+
+def _noise_between(relations: Sequence[Relation], start: float, end: float) -> bool:
+    """Whether some lhs - rhs is within SNAP_FACTOR times its rounding noise of 0 at all of
+    SNAP_SAMPLES points strictly between start and end.
+
+    The noise is judged over the run, not point by point: it is the largest estimate at any
+    of the points, because the estimate at a single point can fall short (the scatter of the
+    expanded (x - 1)^3 over a few ulps of 1.00001 happens to be 0).
+    """
+    low, high = min(start, end), max(start, end)
+    points = [low + (high - low) * index / (SNAP_SAMPLES + 1) for index in range(1, SNAP_SAMPLES + 1)]
+    points = [point for point in points if low < point < high]
+    for relation in relations:
+        values = [_value(relation.difference, point) for point in points]
+        if any(value is None or not math.isfinite(value) for value in values):
+            continue
+        sizes = [abs(value) for value in values if value is not None]
+        noise = max(
+            (_noise(relation, point, value) for point, value in zip(points, values) if value is not None), default=0.0
+        )
+        if all(size <= SNAP_FACTOR * noise for size in sizes):
+            return True
+    return False
+
+
+def _pole_between(relations: Sequence[Relation], start: float, end: float) -> bool:
+    """Whether some lhs - rhs is undefined at end (a pole) and infinite all the way from start:
+    1/sin(x) overflows to inf below 5.6e-309, so bisection stops there, not at the pole 0."""
+    low, high = min(start, end), max(start, end)
+    points = [low + (high - low) * index / (SNAP_SAMPLES + 1) for index in range(1, SNAP_SAMPLES + 1)]
+    for relation in relations:
+        function = relation.difference
+        if _value(function, end) is not None:
+            continue
+        values = [function(point) for point in points if low < point < high]
+        if all(value is not None and math.isinf(value) for value in values):
+            return True
+    return False
+
+
+def _sampled_between(points: Sequence[float], start: float, end: float) -> bool:
+    """Whether one of the sorted points lies strictly between start and end (start < end)."""
+    index = bisect.bisect_right(points, start)
+    return index < len(points) and points[index] < end
+
+
+def _collapse_noise_gaps(relations: Sequence[Relation], raw: List[_Bracket], points: Sequence[float]) -> List[_Bracket]:
     """Two boundaries with only rounding noise between them as one point between them.
 
     Near a touching root lhs - rhs can round to 0 over a short stretch (2*sin(x)^2 - sin(x) -
     1 within 1e-8 of pi/2), so bisection finds where that stretch starts and where it ends.
+    A gap the grid sampled is no noise: its samples were judged as runs, and exact zeros over
+    a run are a stretch where lhs = rhs (2 <= floor(x) < 3).
     """
-    collapsed: List[Tuple[float, float]] = []
-    for value, tolerance in raw:
+    collapsed: List[_Bracket] = []
+    for bracket in raw:
+        value = bracket[0]
         if collapsed:
-            previous = collapsed[-1][0]
-            duplicate = value - previous <= 1e-12 * max(1.0, abs(value))
-            if duplicate or not _point_state(relations, (previous + value) / 2)[0]:
-                collapsed[-1] = ((previous + value) / 2, TOUCH_NICE_TOLERANCE)
+            previous = collapsed[-1]
+            duplicate = _same_point(previous[0], value)
+            if duplicate or (
+                not _sampled_between(points, previous[0], value) and _noise_between(relations, previous[0], value)
+            ):
+                collapsed[-1] = ((previous[0] + value) / 2, previous[1], bracket[2])
                 continue
-        collapsed.append((value, tolerance))
+        collapsed.append(bracket)
     return collapsed
 
 
@@ -925,15 +1062,18 @@ def _transitions(
     high: float,
     high_state: Optional[bool],
     depth: int,
-) -> List[float]:
+) -> List[_Bracket]:
     """The points between low and high where the state changes (two when a third state lies
-    between). A midpoint within rounding of 0 counts as a root, so bisection ends at the edge
-    of a stretch where lhs = rhs (floor(x) = 2 up to 3) or of the noise around a root."""
+    between), each with the last bracket around it. Each midpoint is judged by its computed
+    values as they are: that ends bisection at the edge of a stretch where lhs = rhs exactly
+    (floor(x) = 2 up to 3) and at the computed crossing of a simple root, not at the edge of a
+    noise estimate (1 - cos(x) < 1e-6). Within the noise around a root it ends anywhere;
+    _collapse_noise_gaps and _snapped judge that noise over runs of points."""
     for _ in range(200):
-        middle = (low + high) / 2
+        middle = _middle(low, high)
         if middle <= low or middle >= high:
             break
-        state = _point_state(relations, middle, noise_as_root=True)[1]
+        state = holds(relations, middle)
         if state == low_state:
             low = middle
         elif state == high_state:
@@ -944,7 +1084,22 @@ def _transitions(
             )
         else:
             high = middle
-    return [(low + high) / 2]
+    return [((low + high) / 2, low, high)]
+
+
+def _middle(low: float, high: float) -> float:
+    """The point bisection tries next in [low, high]: 0 when they have opposite signs, the
+    geometric mean when one is more than twice the other (0 standing for the smallest double),
+    else the arithmetic mean. Halving the exponent first reaches a boundary as close to 0 as
+    1e-300 (1e300*x > 1) in about 70 steps; halving the bracket would need over 1000."""
+    if low < 0 < high:
+        return 0.0
+    sign = 1.0 if high > 0 else -1.0
+    near, far = (low, high) if sign > 0 else (-high, -low)
+    near = max(near, SMALLEST)
+    if far > 2 * near:
+        return sign * math.sqrt(near) * math.sqrt(far)
+    return (low + high) / 2
 
 
 def _pieces(
@@ -952,6 +1107,7 @@ def _pieces(
     boundaries: List[_Boundary],
     points: List[float],
     states: List[Optional[bool]],
+    sampled: Sequence[float],
     window: Optional[Window],
 ) -> List[Piece]:
     """The set from the boundaries: alternating open stretches and boundary points, each in or out."""
@@ -959,9 +1115,9 @@ def _pieces(
     upper = window.upper if window is not None else math.inf
     inner = [boundary for boundary in boundaries if lower < boundary.value < upper]
     # A boundary with only rounding noise between it and a window end is that end (cos(x) >= 1 at 2*pi)
-    if inner and math.isfinite(lower) and not _point_state(relations, (lower + inner[0].value) / 2)[0]:
+    if inner and math.isfinite(lower) and _noise_gap(relations, sampled, lower, inner[0].value):
         inner = inner[1:]
-    if inner and math.isfinite(upper) and not _point_state(relations, (inner[-1].value + upper) / 2)[0]:
+    if inner and math.isfinite(upper) and _noise_gap(relations, sampled, inner[-1].value, upper):
         inner = inner[:-1]
     # atoms: (start, end, start text, end text, in the set?) -- a point has start == end
     atoms: List[Tuple[float, float, str, str, bool]] = []
@@ -979,6 +1135,11 @@ def _pieces(
     if window is not None and window.upper_closed:
         atoms.append((upper, upper, window.upper_text, window.upper_text, bool(holds_at_end(relations, upper))))
     return _merge_atoms(atoms)
+
+
+def _noise_gap(relations: Sequence[Relation], points: Sequence[float], start: float, end: float) -> bool:
+    """Whether (start, end) holds no grid sample and only rounding noise."""
+    return not _sampled_between(points, start, end) and _noise_between(relations, start, end)
 
 
 def _stretch_state(
