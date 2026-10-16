@@ -134,6 +134,59 @@ def _randint(a: int, b: int) -> int:
     return random.randint(a, b)
 
 
+# Calculator functions, following math.js 14.5.2 so plots and evaluate_expression agree.
+def _mod(x: float, y: float) -> float:
+    """The floored remainder (its sign is the divisor's): mod(-7, 3) = 2, mod(7, -3) = -2.
+
+    A zero divisor gives x, as math.js does (Python's % raises instead).
+    """
+    return x if y == 0 else x % y
+
+
+def _nthroot(x: float, n: float) -> float:
+    """The real n-th root, as math.js nthRoot: nthroot(-8, 3) = -2, nthroot(16, -2) = 0.25.
+
+    Raises:
+        ValueError: for n = 0, and for a negative x unless n is an odd integer.
+    """
+    if n == 0:
+        raise ValueError("nthroot: the root n must not be 0")
+    if x < 0:
+        if n != int(n) or int(n) % 2 == 0:
+            raise ValueError("nthroot: the root must be odd when the value is negative")
+        return -float((-x) ** (1 / n))
+    return float(x ** (1 / n))
+
+
+def _sign(x: Any) -> Any:
+    """-1, 0 or 1 for a real number (NaN stays NaN); z/|z| for a complex number (0 at 0)."""
+    if isinstance(x, complex):
+        return x / abs(x) if x != 0 else 0.0
+    if x != x:  # NaN
+        return x
+    return float((x > 0) - (x < 0))
+
+
+# Parts of a complex number; a real number is its own real part, with angle 0 or pi.
+def _re(z: Any) -> Any:
+    return z.real if isinstance(z, complex) else z
+
+
+def _im(z: Any) -> Any:
+    return z.imag if isinstance(z, complex) else 0.0
+
+
+def _arg(z: Any) -> float:
+    """The angle of z, between -pi and pi: arg(-1) = pi."""
+    if isinstance(z, complex):
+        return math.atan2(z.imag, z.real)
+    return math.atan2(0.0, z)
+
+
+def _conj(z: Any) -> Any:
+    return z.conjugate() if isinstance(z, complex) else z
+
+
 _F = ExpressionFunction
 _ONE: Arity = (1, 1)
 
@@ -205,6 +258,17 @@ FUNCTIONS: Tuple[ExpressionFunction, ...] = (
     _F("max", max, (1, None), curve_safe=True, sympy=True),
     _F("min", min, (1, None), curve_safe=True, sympy=True),
     _F("sum", sum, (1, 2)),
+    _F("mod", _mod, (2, 2), curve_safe=True),
+    _F("nthroot", _nthroot, (2, 2), mathjs="nthRoot", aliases=("nthRoot",), curve_safe=True, sympy=True),
+    _F("cbrt", math.cbrt, _ONE, curve_safe=True, sympy=True),
+    _F("atan2", math.atan2, (2, 2), curve_safe=True, sympy=True),
+    _F("sign", _sign, _ONE, aliases=("sgn",), curve_safe=True, sympy=True),
+    _F("gamma", math.gamma, _ONE, curve_safe=True, sympy=True),
+    _F("erf", math.erf, _ONE, curve_safe=True, sympy=True),
+    _F("re", _re, _ONE, aliases=("real",)),
+    _F("im", _im, _ONE, aliases=("imag",)),
+    _F("arg", _arg, _ONE),
+    _F("conj", _conj, _ONE, aliases=("conjugate",)),
     _F("randint", _randint, (2, 2), mathjs=None, python_only=True),
     _F("summation", "summation", (4, 4), mathjs=None, python_only=True),
     _F("product", "product", (4, 4), mathjs=None, python_only=True),
@@ -258,7 +322,8 @@ WORD_ALIASES: Dict[str, str] = {alias: row.name for row in FUNCTIONS for alias i
 # Functions MathUtils.evaluate computes in Python because math.js lacks them
 PYTHON_ONLY_NAMES: FrozenSet[str] = frozenset(row.name for row in FUNCTIONS if row.python_only)
 
-# Names math.js knows under another name (arrangements -> permutations, stdev -> std, trunc -> fix)
+# Names math.js knows under another name (arrangements -> permutations, stdev -> std, trunc -> fix,
+# nthroot -> nthRoot)
 MATHJS_RENAMES: Dict[str, str] = {
     row.name: row.mathjs for row in FUNCTIONS if row.mathjs is not None and row.mathjs != row.name
 }
