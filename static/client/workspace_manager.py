@@ -55,15 +55,18 @@ from constants import (
     default_color,
 )
 from drawables.label_render_mode import LabelRenderMode
-from drawables.bars_plot import BarsPlot
-from drawables.continuous_plot import ContinuousPlot
 from drawables.directed_graph import DirectedGraph
-from drawables.discrete_plot import DiscretePlot
-from drawables.plot import Plot
 from drawables.tree import Tree
 from drawables.undirected_graph import UndirectedGraph
 from utils.math_utils import MathUtils
 from managers.polygon_type import PolygonType
+from plot_kinds import (
+    PLOT_KINDS,
+    PlotKind,
+    build_saved_plot,
+    is_legacy_continuous_args,
+    is_legacy_discrete_args,
+)
 from utils.geometry_utils import GeometryUtils
 from utils.polygon_subtype_checks import cyclic_vertex_order
 
@@ -845,7 +848,7 @@ class WorkspaceManager:
 
     def _create_plots(self, state: Dict[str, Any]) -> None:
         """
-        Restore plot composites (ContinuousPlot/DiscretePlot) from workspace state.
+        Restore plot composites from workspace state, kind by kind (``plot_kinds.PLOT_KINDS``).
 
         Plot composites are non-renderable bookkeeping objects that reference other drawables.
         They must be restored after polygons, functions, and colored areas.
@@ -865,7 +868,7 @@ class WorkspaceManager:
             name = str(item_state.get("name", "") or "")
 
             try:
-                plot, name = self._build_plot_from_state(kind, item_state)
+                plot, name = build_saved_plot(kind, item_state)
             except Exception as exc:
                 print(f"Warning: Could not restore plot '{name}': {exc}")
                 continue
@@ -875,214 +878,17 @@ class WorkspaceManager:
             except Exception:
                 continue
 
-    def _collect_plot_items(self, state: Dict[str, Any]) -> List[Tuple[str, Any]]:
-        plot_items: List[Tuple[str, Any]] = []
-        for item_state in state.get("ContinuousPlots", []) or []:
-            plot_items.append(("continuous", item_state))
-        for item_state in state.get("DiscretePlots", []) or []:
-            plot_items.append(("discrete", item_state))
-        for item_state in state.get("BarsPlots", []) or []:
-            plot_items.append(("bars", item_state))
-        for item_state in state.get("Plots", []) or []:
-            plot_items.append(("legacy", item_state))
-        return plot_items
+    def _collect_plot_items(self, state: Dict[str, Any]) -> List[Tuple[PlotKind, Any]]:
+        return [(kind, item_state) for kind in PLOT_KINDS for item_state in state.get(kind.bucket, []) or []]
 
     def _get_drawables_collection(self) -> Any:
         return getattr(getattr(self.canvas, "drawable_manager", None), "drawables", None)
 
-    def _build_plot_from_state(self, kind: str, item_state: Dict[str, Any]) -> Tuple[Any, str]:
-        args = item_state.get("args", {}) if isinstance(item_state.get("args", {}), dict) else {}
-        name = str(item_state.get("name", "") or "")
-        plot_type = str(args.get("plot_type", "") or "distribution")
-        distribution_type = args.get("distribution_type", None)
-        distribution_params = args.get("distribution_params", None)
-        bounds = args.get("bounds", None)
-        metadata = args.get("metadata", None)
-
-        if kind == "continuous":
-            plot = self._build_continuous_plot(
-                name=name,
-                args=args,
-                plot_type=plot_type,
-                distribution_type=distribution_type,
-                distribution_params=distribution_params,
-                bounds=bounds,
-                metadata=metadata,
-            )
-            return plot, name
-
-        if kind == "discrete":
-            plot = self._build_discrete_plot(
-                name=name,
-                args=args,
-                plot_type=plot_type,
-                distribution_type=distribution_type,
-                distribution_params=distribution_params,
-                bounds=bounds,
-                metadata=metadata,
-            )
-            return plot, name
-
-        if kind == "bars":
-            plot = self._build_bars_plot(
-                name=name,
-                args=args,
-                plot_type=plot_type,
-                bounds=bounds,
-                metadata=metadata,
-            )
-            return plot, name
-
-        return self._build_legacy_plot(
-            name=name,
-            args=args,
-            plot_type=plot_type,
-            distribution_type=distribution_type,
-            distribution_params=distribution_params,
-            bounds=bounds,
-            metadata=metadata,
-        ), name
-
-    def _build_continuous_plot(
-        self,
-        *,
-        name: str,
-        args: Dict[str, Any],
-        plot_type: str,
-        distribution_type: Any,
-        distribution_params: Any,
-        bounds: Any,
-        metadata: Any,
-    ) -> ContinuousPlot:
-        return ContinuousPlot(
-            name,
-            plot_type=plot_type,
-            distribution_type=distribution_type,
-            function_name=args.get("function_name"),
-            fill_area_name=args.get("fill_area_name"),
-            distribution_params=distribution_params,
-            bounds=bounds,
-            metadata=metadata,
-        )
-
-    def _build_discrete_plot(
-        self,
-        *,
-        name: str,
-        args: Dict[str, Any],
-        plot_type: str,
-        distribution_type: Any,
-        distribution_params: Any,
-        bounds: Any,
-        metadata: Any,
-    ) -> DiscretePlot:
-        return DiscretePlot(
-            name,
-            plot_type=plot_type,
-            distribution_type=distribution_type,
-            bar_count=args.get("bar_count"),
-            bar_labels=args.get("bar_labels"),
-            curve_color=args.get("curve_color"),
-            fill_color=args.get("fill_color"),
-            fill_opacity=args.get("fill_opacity"),
-            rectangle_names=args.get("rectangle_names"),
-            fill_area_names=args.get("fill_area_names"),
-            distribution_params=distribution_params,
-            bounds=bounds,
-            metadata=metadata,
-        )
-
-    def _build_bars_plot(
-        self,
-        *,
-        name: str,
-        args: Dict[str, Any],
-        plot_type: str,
-        bounds: Any,
-        metadata: Any,
-    ) -> BarsPlot:
-        return BarsPlot(
-            name,
-            plot_type=plot_type,
-            values=args.get("values") or [],
-            labels_below=args.get("labels_below") or [],
-            labels_above=args.get("labels_above"),
-            bar_spacing=args.get("bar_spacing"),
-            bar_width=args.get("bar_width"),
-            x_start=args.get("x_start"),
-            y_base=args.get("y_base"),
-            stroke_color=args.get("stroke_color"),
-            fill_color=args.get("fill_color"),
-            fill_opacity=args.get("fill_opacity"),
-            bounds=bounds,
-            metadata=metadata,
-        )
-
-    def _build_legacy_plot(
-        self,
-        *,
-        name: str,
-        args: Dict[str, Any],
-        plot_type: str,
-        distribution_type: Any,
-        distribution_params: Any,
-        bounds: Any,
-        metadata: Any,
-    ) -> Any:
-        # Legacy Plot saved before subclasses existed.
-        if self._is_legacy_discrete_plot_args(args):
-            return self._build_discrete_plot(
-                name=name,
-                args=args,
-                plot_type=plot_type,
-                distribution_type=distribution_type,
-                distribution_params=distribution_params,
-                bounds=bounds,
-                metadata=metadata,
-            )
-        if self._is_legacy_continuous_plot_args(args):
-            return self._build_continuous_plot(
-                name=name,
-                args=args,
-                plot_type=plot_type,
-                distribution_type=distribution_type,
-                distribution_params=distribution_params,
-                bounds=bounds,
-                metadata=metadata,
-            )
-        return self._build_base_plot(
-            name=name,
-            plot_type=plot_type,
-            distribution_type=distribution_type,
-            distribution_params=distribution_params,
-            bounds=bounds,
-            metadata=metadata,
-        )
-
     def _is_legacy_discrete_plot_args(self, args: Dict[str, Any]) -> bool:
-        return bool(args.get("rectangle_names") or args.get("fill_area_names"))
+        return bool(is_legacy_discrete_args(args))
 
     def _is_legacy_continuous_plot_args(self, args: Dict[str, Any]) -> bool:
-        return bool(args.get("function_name") or args.get("fill_area_name"))
-
-    def _build_base_plot(
-        self,
-        *,
-        name: str,
-        plot_type: str,
-        distribution_type: Any,
-        distribution_params: Any,
-        bounds: Any,
-        metadata: Any,
-    ) -> Plot:
-        return Plot(
-            name,
-            plot_type=plot_type,
-            distribution_type=distribution_type,
-            distribution_params=distribution_params,
-            bounds=bounds,
-            metadata=metadata,
-        )
+        return bool(is_legacy_continuous_args(args))
 
     def _restore_closed_shape_area(self, item_state: Dict[str, Any]) -> Any:
         shape_args = item_state.get("args", {})
@@ -1349,8 +1155,7 @@ class WorkspaceManager:
         self._create_colored_areas(state)
         # Restore plot composites after functions, polygons, and colored areas.
         self._create_plots(state)
-        self._materialize_discrete_plot_bars()
-        self._materialize_bars_plot_bars()
+        self._materialize_plot_kinds()
 
     def _pre_plot_restore_steps(self) -> List[Callable[[Dict[str, Any]], None]]:
         return [
@@ -1393,27 +1198,17 @@ class WorkspaceManager:
         # Create angles after segments since they depend on segments
         self._create_angles(state)
 
-    def _materialize_discrete_plot_bars(self) -> None:
+    def _materialize_plot_kinds(self) -> None:
         """
-        Build Bar drawables for restored DiscretePlot objects.
+        Build the derived parts (Bars) of every restored plot whose kind has a materializer.
 
-        Bars are derived from DiscretePlot params and are not persisted in saved workspaces.
+        Derived parts are not persisted in saved workspaces. Kinds run in table order, and each
+        plot is materialized by the class it was built as, so a legacy item rebuilt as a
+        DiscretePlot materializes as one.
         """
-        self._materialize_plot_family(
-            class_name="DiscretePlot",
-            materializer_name="materialize_discrete_plot",
-        )
-
-    def _materialize_bars_plot_bars(self) -> None:
-        """
-        Build Bar drawables for restored BarsPlot objects.
-
-        Bars are derived from BarsPlot params and are not persisted in saved workspaces.
-        """
-        self._materialize_plot_family(
-            class_name="BarsPlot",
-            materializer_name="materialize_bars_plot",
-        )
+        for kind in PLOT_KINDS:
+            if kind.materialize:
+                self._materialize_plot_family(class_name=kind.class_name, materializer_name=kind.materialize)
 
     def _materialize_plot_family(self, class_name: str, materializer_name: str) -> None:
         stats_manager = self._get_statistics_manager_for_materialization(materializer_name)

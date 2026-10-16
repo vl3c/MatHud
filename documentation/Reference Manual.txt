@@ -114,7 +114,7 @@ Note: All drawables are math-only. They do not hold screen-space coordinates and
    - Common (`utils/canonicalizers/common.py`)
    - Quadrilateral (`utils/canonicalizers/quadrilateral.py`, rectangles only)
 9. Statistics Package (`utils/statistics/`)
-   - Distributions (`utils/statistics/distributions.py`)
+   - Distributions (`utils/statistics/distributions.py`): the `DISTRIBUTIONS` table
 10. Function Features (`utils/function_features.py`)
 11. Object Intersections (`utils/object_intersections.py`)
 12. Curve Pair Intersections (`utils/curve_pair_intersections.py`)
@@ -4765,6 +4765,17 @@ Key Features:
 
 `BarsPlot` creates bar charts from explicit value and label arrays rather than statistical distributions.
 
+#### Plot Kinds (`plot_kinds.py`)
+
+`PLOT_KINDS` has one `PlotKind` row per plot class, in restore order: `ContinuousPlot`, `DiscretePlot`, `BarsPlot`, then the base `Plot`. Each row gives:
+- `bucket`: the saved-state list (`class_name + "s"`).
+- `build(name, args)`: makes the plot from a saved item. The `Plot` row reads `Plots` lists saved before the plot classes were split and returns a `DiscretePlot` when the item names rectangles or areas, a `ContinuousPlot` when it names a function or fill area, and a base `Plot` otherwise.
+- `materialize`: the `StatisticsManager` method that rebuilds the plot's derived bars after a restore (`materialize_discrete_plot`, `materialize_bars_plot`), or None.
+- `delete_parts`: the `StatisticsManager` method that deletes the drawables the plot is drawn with, or None (a base `Plot` deletes only its record).
+- `derived_bars`: whether the plot owns Bars named `derived_bar_name(name, i)` (`{name}_bar_{i}`). Saved workspaces drop all Bars, and canvas states drop these, because they are rebuilt.
+
+`WorkspaceManager` restores each bucket with its row's builder and then materializes kind by kind; `StatisticsManager.delete_plot` and plot lookup, and `Canvas._collect_plot_derived_bar_prefixes`, read the same rows. `build_saved_plot(kind, item_state)`, `plot_kind(class_name)` and `PLOT_CLASS_NAMES` are the helpers. The model-facing canvas formatter and summarizer describe each kind by hand and do not read the table.
+
 #### Bar (`drawables/bar.py`)
 
 ```
@@ -4895,19 +4906,27 @@ Key Features:
 **Key Types:**
 - `DescriptiveStatisticsResult(TypedDict)`: Result dict with fields: `count` (int), `mean` (float), `median` (float), `mode` (List[float]), `standard_deviation` (float), `variance` (float), `min` (float), `max` (float), `q1` (float), `q3` (float), `iqr` (float), `range` (float).
 
-#### Distribution Expressions (`utils/statistics/distributions.py`)
+#### Distributions (`utils/statistics/distributions.py`)
 
 ```
-Probability distribution expression generators.
+Probability distributions: the distribution table and the normal distribution's functions.
 
 Key Features:
     - Normal PDF expression generation with mean and sigma
+    - Normal PDF evaluation at a point
     - Default bounds calculation for normal distributions
     - Finite value validation for parameters
 ```
 
+**Key Types and Tables:**
+- `DistributionSpec`: frozen dataclass with `name`, `parse_params(raw, strict=False)` (canonical parameters in a fixed key order; a missing or null parameter takes its default, or with `strict=True` a present null is an error; ValueError for invalid values), `pdf(x, params)`, `pdf_expression(params)` and `default_bounds(params)`.
+- `DISTRIBUTIONS`: `distribution_type` to spec. Only `normal` (`mean` default 0, `sigma` default 1, bounds mean ± 4σ). The `plot_distribution` enum must list the same names (`server_tests/test_plot_table_guards.py`).
+- `DEFAULT_DISTRIBUTION_TYPE`: `"normal"`, the type of a plot saved without one.
+
 **Key Functions:**
+- `get_distribution(distribution_type, *, default=None)`: The spec for a type, matched without case or surrounding spaces. An empty or null type takes `default` when given; otherwise, and for an unknown type, it raises `ValueError("Unsupported distribution_type '<value>'")`. The `plot_distribution` tool passes no default; the workspace restore passes `"normal"`, and a discrete plot saved with an unknown type makes no bars and prints a warning.
 - `normal_pdf_expression(mean, sigma)`: Returns a MatHud-compatible function expression string for the normal PDF using `^` for exponentiation.
+- `normal_pdf(x, mean, sigma)`: Evaluates the normal PDF at `x` (far tails underflow to 0.0).
 - `default_normal_bounds(mean, sigma, k=4.0)`: Calculates default plot bounds as `(mean - k*sigma, mean + k*sigma)`.
 
 ### Additional Managers

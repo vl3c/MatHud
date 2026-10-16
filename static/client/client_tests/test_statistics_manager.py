@@ -572,6 +572,34 @@ class TestStatisticsManager(unittest.TestCase):
         stats.materialize_discrete_plot(plot)
         self.assertEqual(len(self._names_for_class("Bar")), 3)
 
+    def test_materialize_discrete_plot_with_unknown_type_makes_no_bars(self) -> None:
+        plot = DiscretePlot(
+            "FutureDiscrete",
+            plot_type="distribution",
+            distribution_type="poisson",
+            bar_count=3,
+            distribution_params={"rate": 2.0},
+            bounds={"left": 0.0, "right": 3.0},
+        )
+        self.canvas.drawable_manager.drawables.add(plot)
+        self.canvas.drawable_manager.statistics_manager.materialize_discrete_plot(plot)
+        self.assertEqual(self._names_for_class("Bar"), [])
+
+    def test_materialize_discrete_plot_without_type_draws_normal_bars(self) -> None:
+        plot = DiscretePlot(
+            "UntypedDiscrete",
+            plot_type="distribution",
+            distribution_type=None,
+            bar_count=2,
+            distribution_params={"mean": 0.0, "sigma": 1.0},
+            bounds={"left": -1.0, "right": 1.0},
+        )
+        self.canvas.drawable_manager.drawables.add(plot)
+        self.canvas.drawable_manager.statistics_manager.materialize_discrete_plot(plot)
+        bars = {b.name: b for b in self.canvas.get_drawables_by_class_name("Bar")}
+        self.assertEqual(sorted(bars), ["UntypedDiscrete_bar_0", "UntypedDiscrete_bar_1"])
+        self.assertAlmostEqual(bars["UntypedDiscrete_bar_0"].y_top, math.exp(-0.125) / math.sqrt(2.0 * math.pi))
+
     def test_materialize_bars_plot_is_idempotent(self) -> None:
         plot = BarsPlot(
             "RestoredBars",

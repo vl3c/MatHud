@@ -55,6 +55,7 @@ from managers.transformations_manager import TransformationsManager
 from managers.coordinate_system_manager import CoordinateSystemManager
 from managers.visibility_manager import VisibilityManager
 from managers.polygon_type import PolygonType
+from plot_kinds import PLOT_KINDS, derived_bar_prefix
 from constants import DEFAULT_RENDERER_MODE
 from rendering.factory import create_renderer
 from rendering.interfaces import RendererProtocol
@@ -763,8 +764,9 @@ class Canvas:
 
     def _collect_plot_derived_bar_prefixes(self, state: Dict[str, Any]) -> List[str]:
         prefixes: List[str] = []
-        self._append_plot_prefixes(state.get("DiscretePlots"), prefixes)
-        self._append_plot_prefixes(state.get("BarsPlots"), prefixes)
+        for kind in PLOT_KINDS:
+            if kind.derived_bars:
+                self._append_plot_prefixes(state.get(kind.bucket), prefixes)
         return prefixes
 
     def _append_plot_prefixes(self, plots_state: Any, prefixes: List[str]) -> None:
@@ -775,7 +777,7 @@ class Canvas:
                 continue
             name = item.get("name")
             if isinstance(name, str) and name:
-                prefixes.append(f"{name}_bar_")
+                prefixes.append(derived_bar_prefix(name))
 
     def _filter_bars_excluding_prefixes(self, bars_state: List[Any], prefixes: List[str]) -> List[Any]:
         kept: List[Any] = []

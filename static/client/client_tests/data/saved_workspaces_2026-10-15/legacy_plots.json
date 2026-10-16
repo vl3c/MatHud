@@ -1,0 +1,501 @@
+{
+  "metadata": {
+    "name": "legacy_plots",
+    "last_modified": "2026-10-16T00:00:00.000000",
+    "schema_version": 1
+  },
+  "state": {
+    "Points": [
+      {
+        "name": "D",
+        "args": {
+          "position": {
+            "x": 10,
+            "y": 0
+          }
+        }
+      },
+      {
+        "name": "E",
+        "args": {
+          "position": {
+            "x": 14,
+            "y": 0
+          }
+        }
+      },
+      {
+        "name": "F",
+        "args": {
+          "position": {
+            "x": 14,
+            "y": 2
+          }
+        }
+      },
+      {
+        "name": "G",
+        "args": {
+          "position": {
+            "x": 10,
+            "y": 2
+          }
+        }
+      }
+    ],
+    "Segments": [
+      {
+        "name": "DE",
+        "args": {
+          "p1": "D",
+          "p2": "E"
+        },
+        "_p1_coords": [
+          10,
+          0
+        ],
+        "_p2_coords": [
+          14,
+          0
+        ]
+      },
+      {
+        "name": "EF",
+        "args": {
+          "p1": "E",
+          "p2": "F"
+        },
+        "_p1_coords": [
+          14,
+          0
+        ],
+        "_p2_coords": [
+          14,
+          2
+        ]
+      },
+      {
+        "name": "FG",
+        "args": {
+          "p1": "F",
+          "p2": "G"
+        },
+        "_p1_coords": [
+          14,
+          2
+        ],
+        "_p2_coords": [
+          10,
+          2
+        ]
+      },
+      {
+        "name": "GD",
+        "args": {
+          "p1": "G",
+          "p2": "D"
+        },
+        "_p1_coords": [
+          10,
+          2
+        ],
+        "_p2_coords": [
+          10,
+          0
+        ]
+      }
+    ],
+    "Rectangles": [
+      {
+        "name": "DEFG",
+        "args": {
+          "p1": "D",
+          "p2": "E",
+          "p3": "F",
+          "p4": "G"
+        },
+        "types": [
+          "quadrilateral",
+          "rectangle"
+        ]
+      }
+    ],
+    "Functions": [
+      {
+        "name": "Leg_pdf",
+        "args": {
+          "function_string": "(1/((1.0)*sqrt(2*pi)))*exp(-(((x-(0.0))^2)/(2*(1.0)^2)))",
+          "left_bound": -2,
+          "right_bound": 2,
+          "horizontal_asymptotes": [
+            0,
+            0
+          ]
+        }
+      }
+    ],
+    "FunctionsBoundedColoredAreas": [
+      {
+        "name": "Leg_fill",
+        "args": {
+          "color": "lightblue",
+          "opacity": 0.3,
+          "func1": "Leg_pdf",
+          "func2": "x_axis",
+          "left_bound": -2,
+          "right_bound": 2,
+          "num_sample_points": 100
+        }
+      }
+    ],
+    "Plots": [
+      {
+        "name": "LegCont",
+        "args": {
+          "plot_type": "distribution",
+          "distribution_type": "normal",
+          "distribution_params": {
+            "mean": 0,
+            "sigma": 1
+          },
+          "bounds": {
+            "left": -2,
+            "right": 2
+          },
+          "metadata": {},
+          "function_name": "Leg_pdf",
+          "fill_area_name": "Leg_fill"
+        }
+      },
+      {
+        "name": "LegRects",
+        "args": {
+          "plot_type": "distribution",
+          "distribution_type": "normal",
+          "distribution_params": {
+            "mean": 0,
+            "sigma": 1
+          },
+          "bounds": {
+            "left": 10,
+            "right": 14
+          },
+          "metadata": {},
+          "rectangle_names": [
+            "DEFG"
+          ],
+          "fill_area_names": []
+        }
+      },
+      {
+        "name": "LegBare",
+        "args": {
+          "plot_type": "distribution",
+          "distribution_params": {
+            "mean": 1,
+            "sigma": 2
+          },
+          "bounds": {},
+          "metadata": {}
+        }
+      }
+    ],
+    "DiscretePlots": [
+      {
+        "name": "Untyped",
+        "args": {
+          "plot_type": "distribution",
+          "distribution_params": {
+            "mean": 0,
+            "sigma": 1
+          },
+          "bounds": {
+            "left": -1.5,
+            "right": 1.5
+          },
+          "metadata": {
+            "bar_count": 3
+          },
+          "bar_count": 3,
+          "bar_labels": [
+            "a",
+            "b",
+            "c"
+          ],
+          "curve_color": "red",
+          "fill_color": "orange",
+          "fill_opacity": 0.5,
+          "rectangle_names": [],
+          "fill_area_names": []
+        }
+      }
+    ],
+    "Bars": [
+      {
+        "name": "Untyped_bar_0",
+        "args": {
+          "x_left": 100,
+          "x_right": 101,
+          "y_bottom": 5,
+          "y_top": 9,
+          "stroke_color": "black",
+          "fill_color": "green",
+          "fill_opacity": 1,
+          "label_above_text": "stale",
+          "label_below_text": null,
+          "label_text": null
+        }
+      }
+    ],
+    "Cartesian_System_Visibility": {
+      "left_bound": -250,
+      "right_bound": 250,
+      "top_bound": 250,
+      "bottom_bound": -250
+    },
+    "current_tick_spacing": 100,
+    "default_tick_spacing": 100,
+    "current_tick_spacing_repr": "100",
+    "min_tick_spacing": 1e-06,
+    "visible": true,
+    "coordinate_system": {
+      "mode": "cartesian"
+    }
+  },
+  "expected_state": {
+    "Points": [
+      {
+        "name": "D",
+        "args": {
+          "position": {
+            "x": 10,
+            "y": 0
+          }
+        }
+      },
+      {
+        "name": "E",
+        "args": {
+          "position": {
+            "x": 14,
+            "y": 0
+          }
+        }
+      },
+      {
+        "name": "F",
+        "args": {
+          "position": {
+            "x": 14,
+            "y": 2
+          }
+        }
+      },
+      {
+        "name": "G",
+        "args": {
+          "position": {
+            "x": 10,
+            "y": 2
+          }
+        }
+      }
+    ],
+    "Segments": [
+      {
+        "name": "DE",
+        "args": {
+          "p1": "D",
+          "p2": "E"
+        },
+        "_p1_coords": [
+          10,
+          0
+        ],
+        "_p2_coords": [
+          14,
+          0
+        ]
+      },
+      {
+        "name": "EF",
+        "args": {
+          "p1": "E",
+          "p2": "F"
+        },
+        "_p1_coords": [
+          14,
+          0
+        ],
+        "_p2_coords": [
+          14,
+          2
+        ]
+      },
+      {
+        "name": "FG",
+        "args": {
+          "p1": "F",
+          "p2": "G"
+        },
+        "_p1_coords": [
+          14,
+          2
+        ],
+        "_p2_coords": [
+          10,
+          2
+        ]
+      },
+      {
+        "name": "GD",
+        "args": {
+          "p1": "G",
+          "p2": "D"
+        },
+        "_p1_coords": [
+          10,
+          2
+        ],
+        "_p2_coords": [
+          10,
+          0
+        ]
+      }
+    ],
+    "Rectangles": [
+      {
+        "name": "DEFG",
+        "args": {
+          "p1": "D",
+          "p2": "E",
+          "p3": "F",
+          "p4": "G"
+        },
+        "types": [
+          "quadrilateral",
+          "rectangle"
+        ]
+      }
+    ],
+    "Functions": [
+      {
+        "name": "Leg_pdf",
+        "args": {
+          "function_string": "(1/((1.0)*sqrt(2*pi)))*exp(-(((x-(0.0))^2)/(2*(1.0)^2)))",
+          "left_bound": -2,
+          "right_bound": 2,
+          "horizontal_asymptotes": [
+            0,
+            0
+          ]
+        }
+      }
+    ],
+    "FunctionsBoundedColoredAreas": [
+      {
+        "name": "Leg_fill",
+        "args": {
+          "color": "lightblue",
+          "opacity": 0.3,
+          "func1": "Leg_pdf",
+          "func2": "x_axis",
+          "left_bound": -2,
+          "right_bound": 2,
+          "num_sample_points": 100
+        }
+      }
+    ],
+    "DiscretePlots": [
+      {
+        "name": "Untyped",
+        "args": {
+          "plot_type": "distribution",
+          "distribution_type": null,
+          "distribution_params": {
+            "mean": 0,
+            "sigma": 1
+          },
+          "bounds": {
+            "left": -1.5,
+            "right": 1.5
+          },
+          "metadata": {
+            "bar_count": 3
+          },
+          "bar_count": 3,
+          "bar_labels": [
+            "a",
+            "b",
+            "c"
+          ],
+          "curve_color": "red",
+          "fill_color": "orange",
+          "fill_opacity": 0.5,
+          "rectangle_names": [],
+          "fill_area_names": []
+        }
+      },
+      {
+        "name": "LegRects",
+        "args": {
+          "plot_type": "distribution",
+          "distribution_type": "normal",
+          "distribution_params": {
+            "mean": 0,
+            "sigma": 1
+          },
+          "bounds": {
+            "left": 10,
+            "right": 14
+          },
+          "metadata": {},
+          "bar_count": null,
+          "bar_labels": null,
+          "curve_color": null,
+          "fill_color": null,
+          "fill_opacity": null,
+          "rectangle_names": [
+            "DEFG"
+          ],
+          "fill_area_names": []
+        }
+      }
+    ],
+    "ContinuousPlots": [
+      {
+        "name": "LegCont",
+        "args": {
+          "plot_type": "distribution",
+          "distribution_type": "normal",
+          "distribution_params": {
+            "mean": 0,
+            "sigma": 1
+          },
+          "bounds": {
+            "left": -2,
+            "right": 2
+          },
+          "metadata": {},
+          "function_name": "Leg_pdf",
+          "fill_area_name": "Leg_fill"
+        }
+      }
+    ],
+    "Plots": [
+      {
+        "name": "LegBare",
+        "args": {
+          "plot_type": "distribution",
+          "distribution_type": null,
+          "distribution_params": {
+            "mean": 1,
+            "sigma": 2
+          },
+          "bounds": {},
+          "metadata": {}
+        }
+      }
+    ]
+  }
+}
