@@ -606,8 +606,9 @@ class StatisticsManager:
             data: Non-empty list of finite numbers.
 
         Returns:
-            Dict with count, mean, median, mode, standard_deviation,
-            variance, min, max, q1, q3, iqr, range.
+            Dict with count, mean, median, mode, sample_standard_deviation,
+            population_standard_deviation, sample_variance, population_variance,
+            min, max, q1, q3, iqr, range.
         """
         return dict(_compute_descriptive_statistics(data))
 

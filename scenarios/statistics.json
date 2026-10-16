@@ -163,11 +163,17 @@
             {
               "check": "tool_result",
               "tool": "compute_descriptive_statistics",
-              "path": "standard_deviation",
+              "path": "population_standard_deviation",
               "eq": 14.142135623730951
             },
+            {
+              "check": "tool_result",
+              "tool": "compute_descriptive_statistics",
+              "path": "sample_standard_deviation",
+              "eq": 15.811388300841896
+            },
             {"check": "state_equals", "snapshot": "start"},
-            {"check": "answer_mentions", "numbers": [30, 14.14]}
+            {"check": "answer_mentions", "numbers": [30], "matches": "14\\.14|15\\.81"}
           ]
         }
       ]
