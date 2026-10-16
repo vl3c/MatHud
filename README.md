@@ -11,18 +11,18 @@ MatHud is building toward a **mathematical heads-up display**: an AI that looks 
 This repository is the prototype and the foundation for that HUD:
 
 - **Now:** a desktop and web app (Flask and Brython, a 2D canvas), where the core is built, tested and measured.
-- **Next:** Android.
-- **Later:** smart glasses and VR, with 3D rendering alongside 2D.
+- **Next platform:** Android.
+- **Later:** smart glasses and VR. 3D rendering comes to this app first, alongside 2D, and carries over.
 
 What sets MatHud apart from other math apps and AI assistants:
 
-- **Practical math, from the graphing calculator tradition.** MatHud evolves the scientific graphing calculator and adds what real-world problems need: measuring, fitting data, rates, probabilities, the geometry of real objects. It does not try to cover every advanced field of mathematics, as GeoGebra's many apps or research tools do.
-- **A scene that persists and can be checked.** Everything the AI draws stays on a canvas that both you and the model can inspect, edit and undo. AI assistants that draw interactive visuals rebuild or discard them each turn and never see them again.
-- **Checked results.** The model calls deterministic tools; symbolic answers are checked numerically before they are shown.
+- **Practical math, from the graphing calculator tradition.** MatHud evolves the scientific graphing calculator and adds what real-world problems need: measuring, fitting data, rates, probabilities, the geometry of real objects. It does not try to cover every advanced field of mathematics; GeoGebra's suite and research tools reach well beyond practical math.
+- **A scene that persists and can be checked.** Everything the AI draws stays on a canvas that both you and the model can inspect, edit and undo. The interactive visuals AI assistants now draw are not checked and are not fed back to the model as state it can build on.
+- **Checked results.** The model calls deterministic tools; symbolic answers are checked numerically before they are shown, wherever a check can decide.
 - **Local-first, any model.** It runs offline with a local model by default, and works with OpenAI, Anthropic and OpenRouter models too.
 - **Measured.** A built-in scenario suite grades what the AI builds by geometry, so models and changes are compared on evidence.
 
-The app may be rewritten in another language or stack along the way. What has to carry over is the design rather than the code: the AI-first operating model below, the tool contract the model calls, the scene state that the user and the model both see, checked math, and the scenario catalogue that defines correct behavior ([Project Architecture](documentation/Project%20Architecture.txt) lists where each lives). The [Roadmap](documentation/Roadmap.md#the-path-to-the-hud) shows which phase builds which part of the HUD.
+The app may be rewritten in another language or stack along the way. What has to carry over is the design rather than the code: the AI-first operating model, the tool contract, math-only drawable models, the scene state shared by user and model, checked math, the saved-state schema and the scenario catalogue ([Project Architecture](documentation/Project%20Architecture.txt) lists where each lives). The [Roadmap](documentation/Roadmap.md#the-path-to-the-hud) shows which phase builds which part of the HUD.
 
 ## 1. AI-First Operating Model
 
