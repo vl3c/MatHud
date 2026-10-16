@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import ast
 import re
-from typing import Any, Callable, Dict, FrozenSet, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, FrozenSet, List, Optional, Sequence, Tuple, cast
 
 import expression_functions as ef
 from expression_validator import ExpressionValidator
@@ -60,6 +60,9 @@ class _Parsed:
 
 
 _CACHE: Dict[str, _Parsed] = {}
+# Bound lambdas per (Python text, variables, functions), and their globals per function set
+_LAMBDAS: Dict[Tuple[str, Tuple[str, ...], str], Callable[..., float]] = {}
+_LAMBDA_GLOBALS: Dict[str, Dict[str, Any]] = {}
 
 # Identifiers (Unicode letters too, so θ and Δx are names) and number literals matched whole,
 # so a variable is never found inside a longer name (max, x2, Δx) or a number (1e5)
@@ -118,34 +121,38 @@ class CompiledExpression:
 
         It never raises here; calling it raises what evaluating the expression raises
         (NameError for a free name, ValueError for a domain error...).
+
+        The callable is a lambda compiled once per (Python text, variables, functions)
+        and shared by every bind of them: Brython's eval(code, namespace) translates the
+        code to JavaScript on every call, a compiled lambda only once. Its globals are one
+        namespace per function set, never written while evaluating.
         """
-        code = self._parsed.code
-        namespace = dict(base_namespace(self.functions))
-        names = self.variables
-        if len(names) == 1:
-            name = names[0]
+        key = (self.python_text, self.variables, self.functions)
+        evaluate = _LAMBDAS.get(key)
+        if evaluate is None:
+            evaluate = _compile_lambda(self.python_text, self.variables, self.functions)
+            if len(_LAMBDAS) >= _CACHE_LIMIT:
+                _LAMBDAS.clear()
+            _LAMBDAS[key] = evaluate
+        return evaluate
 
-            def evaluate_one(value: float) -> float:
-                namespace[name] = value
-                return float(eval(code, namespace))
 
-            return evaluate_one
-        if len(names) == 2:
-            first, second = names
+def _compile_lambda(python_text: str, variables: Tuple[str, ...], functions: str) -> Callable[..., float]:
+    # The text validated on its own, so it is one expression in parentheses too; the line
+    # break ends a trailing comment. _float cannot be a variable (names starting with "_"
+    # are rejected), so it always is float.
+    source = f"lambda {', '.join(variables)}: _float(({python_text}\n))"
+    return cast(Callable[..., float], eval(source, _lambda_globals(functions)))
 
-            def evaluate_two(first_value: float, second_value: float) -> float:
-                namespace[first] = first_value
-                namespace[second] = second_value
-                return float(eval(code, namespace))
 
-            return evaluate_two
-
-        def evaluate_many(*values: float) -> float:
-            for name, value in zip(names, values):
-                namespace[name] = value
-            return float(eval(code, namespace))
-
-        return evaluate_many
+def _lambda_globals(functions: str) -> Dict[str, Any]:
+    """The globals of the compiled lambdas: a copy of the base namespace plus _float."""
+    namespace = _LAMBDA_GLOBALS.get(functions)
+    if namespace is None:
+        namespace = dict(base_namespace(functions))
+        namespace["_float"] = float
+        _LAMBDA_GLOBALS[functions] = namespace
+    return namespace
 
 
 def compile_expression(
@@ -176,6 +183,7 @@ def compile_expression(
 def _parse(text: str) -> _Parsed:
     python_text = ExpressionValidator.fix_math_expression(text, python_compatible=True)
     tree = ExpressionValidator.parse_validated_tree(python_text)
+    # Compiled here, as before, so an error only compile finds is still raised while parsing
     code = compile(tree, "<string>", mode="eval")
     return _Parsed(python_text, code, _read_names(tree))
 

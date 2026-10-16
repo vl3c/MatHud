@@ -60,6 +60,16 @@ class TestCompiledExpression(unittest.TestCase):
         self.assertEqual(first(1.0), 2.0)
         for functions in (FUNCTIONS_ALL, FUNCTIONS_CURVE):
             self.assertNotIn("x", ce.base_namespace(functions))
+            self.assertNotIn("__builtins__", ce.base_namespace(functions))
+            self.assertNotIn("x", ce._lambda_globals(functions))
+
+    def test_bind_compiles_one_lambda(self) -> None:
+        # Brython compiles the lambda once; a comment in the text must not swallow its end
+        self.assertIs(compile_expression("x + 1").bind(), compile_expression("x + 1").bind())
+        self.assertEqual(compile_expression("x + 1 # shift").bind()(1.0), 2.0)
+        self.assertEqual(compile_expression("2*float", ("float",)).bind()(3.0), 6.0)
+        self.assertEqual(compile_expression("x - t", ("t", "x")).bind()(1.0, 10.0), 9.0)
+        self.assertIsInstance(compile_expression("x + 1").bind()(2), float)
 
     def test_repeated_text_reuses_the_parse(self) -> None:
         self.assertIs(compile_expression("x^3 + 7")._parsed, compile_expression("x^3 + 7")._parsed)

@@ -123,6 +123,23 @@ class TestBind(unittest.TestCase):
         self.assertEqual(first(1.0), 2.0)
         for functions in (FUNCTIONS_ALL, FUNCTIONS_CURVE):
             self.assertNotIn("x", ce.base_namespace(functions))
+            self.assertNotIn("__builtins__", ce.base_namespace(functions))
+            self.assertNotIn("x", ce._lambda_globals(functions))
+
+    def test_one_lambda_per_text_variables_and_functions(self) -> None:
+        self.assertIs(compile_expression("x + 1").bind(), compile_expression("x + 1").bind())
+        self.assertIsNot(
+            compile_expression("x + 1").bind(), compile_expression("x + 1", ("x",), FUNCTIONS_CURVE).bind()
+        )
+        self.assertEqual(compile_expression("t + x", ("x", "t")).bind()(1.0, 10.0), 11.0)
+        self.assertEqual(compile_expression("t + x", ("t", "x")).bind()(1.0, 10.0), 11.0)
+        self.assertEqual(compile_expression("x - t", ("t", "x")).bind()(1.0, 10.0), 9.0)
+
+    def test_text_with_a_comment_and_a_variable_named_float(self) -> None:
+        # The lambda wraps the validated text; a trailing comment must not swallow it
+        self.assertEqual(compile_expression("x + 1 # shift").bind()(1.0), 2.0)
+        # The lambda converts with _float, so a variable may be called float
+        self.assertEqual(compile_expression("2*float", ("float",)).bind()(3.0), 6.0)
 
     def test_evaluation_errors_are_raised_by_the_callable(self) -> None:
         with self.assertRaises(NameError):
