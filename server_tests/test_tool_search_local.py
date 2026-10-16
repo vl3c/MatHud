@@ -440,14 +440,26 @@ class TestCreativePrompts:
 
     def test_covariance_matrix_is_linear_algebra(self) -> None:
         """A covariance matrix is computed by the linear algebra tool, not the statistics one."""
-        for query in ("covariance matrix", "compute the covariance matrix of A"):
+        for query in ("covariance matrix", "correlation matrix", "compute the covariance matrix of A"):
             names = _top_n(self.service, query)
             assert names[0] == "evaluate_linear_algebra_expression", (query, names)
 
-    def test_correlating_graphs_keeps_the_graph_tool(self) -> None:
-        """Graphs to correlate are not paired lists."""
-        names = _top_n(self.service, "correlate the two graphs")
+    def test_correlation_on_a_plotted_graph_is_statistics(self) -> None:
+        """A plain "graph" is usually a plot, so its correlation is still the statistics tool."""
+        for query in (
+            "graph the correlation of x and y",
+            "correlation graph",
+            "correlation of points on the graph",
+            "do these graphs correlate",
+        ):
+            names = _top_n(self.service, query)
+            assert names[0] == "compute_descriptive_statistics", (query, names)
+
+    def test_correlating_graph_structure_keeps_the_graph_tool(self) -> None:
+        """Edges and trees to correlate are a graph analysis, not paired lists."""
+        names = _top_n(self.service, "correlate the edge weights of the tree")
         assert "analyze_graph" in names[:3]
+        assert "compute_descriptive_statistics" not in names[:3]
 
     # -- Graph theory --
 

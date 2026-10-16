@@ -88,6 +88,12 @@ _GRAPH_STRUCTURE_WORDS = frozenset(
 _GRAPH_ANALYSIS_WORDS = frozenset(
     {"shortest", "path", "bfs", "dfs", "mst", "topological", "spanning", "adjacency", "degree", "dag", "tree"}
 )
+# Vocabulary that only graph theory uses, unlike a plain "graph" (often a plot) or "degree" and
+# "weighted" ("degree of correlation", "weighted correlation").
+_GRAPH_THEORY_WORDS = (_GRAPH_STRUCTURE_WORDS | _GRAPH_ANALYSIS_WORDS | {"trees", "paths", "networks", "dags"}) - {
+    "degree",
+    "weighted",
+}
 _GRAPH_VERTEX_WORDS = frozenset({"point", "points"})
 _GRAPH_EDGE_WORDS = frozenset({"segment", "segments", "connect", "connected", "connecting", "connects"})
 # Words that make "graph" another tool's object: plots and charts, curves and functions,
@@ -298,7 +304,7 @@ TOOL_CATEGORIES: Dict[str, CategoryEntry] = {
             "standard", "deviation", "stdev", "quartile", "percentile",
             "probability", "bell", "discrete", "continuous", "frequency",
             "descriptive", "stats", "average", "variance",
-            # The verb "correlate" is left to the intent boost, which skips graphs and matrices
+            # The verb "correlate" is left to the intent boost, which skips graph theory and matrices
             "correlation", "covariance", "pearson",
         ],
     },
@@ -845,9 +851,10 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         if token_set & {"descriptive", "stats", "statistics", "mean", "median", "stdev", "quartile", "average"}:
             scores["compute_descriptive_statistics"] += 6.0
         # A fit that is asked for its correlation belongs to fit_regression, whose linear fit reports r;
-        # a covariance matrix is linear algebra, and correlating graphs is a graph analysis
+        # a covariance matrix is linear algebra, and correlating vertices, edges or paths is a graph
+        # analysis. A plain "graph" is usually a plot ("graph the correlation of x and y").
         if token_set & {"correlation", "correlate", "correlated", "covariance", "pearson"} and not (
-            token_set & {"fit", "fitting", "regression", "matrix", "matrices", "graph", "graphs"}
+            token_set & {"fit", "fitting", "regression", "matrix", "matrices"} or token_set & _GRAPH_THEORY_WORDS
         ):
             scores["compute_descriptive_statistics"] += 6.0
 
