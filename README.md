@@ -4,6 +4,18 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
 
 ![MatHud - Interactive Mathematics Visualization Tool](MatHud%20-%20Screenshot%202025-12-21.png)
 
+## Vision
+
+MatHud is building toward a **mathematical heads-up display**: an AI that looks at a real situation, models it mathematically, and explains it, by voice and with drawings laid over what you see, on smart glasses or in VR.
+
+This repository is the prototype and the foundation for that HUD:
+
+- **Now:** a desktop and web app (Flask and Brython, a 2D canvas), where the core is built, tested and measured.
+- **Next:** Android.
+- **Later:** smart glasses and VR, with 3D rendering alongside 2D.
+
+The app may be rewritten in another language or stack along the way. What has to carry over is the design rather than the code: the AI-first operating model below, the tool contract the model calls, the scene state that the user and the model both see, checked math, and the scenario catalogue that defines correct behavior ([Project Architecture](documentation/Project%20Architecture.txt) lists where each lives). The [Roadmap](documentation/Roadmap.md#the-path-to-the-hud) shows which phase builds which part of the HUD.
+
 ## 1. AI-First Operating Model
 
 1. Primary interaction is conversational: users express intent in chat and the AI executes tool workflows.

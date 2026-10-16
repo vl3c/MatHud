@@ -4,7 +4,7 @@
 
 MatHud is a personal workbench for exploring mathematics with an AI assistant: the user describes intent in chat, the model executes tool workflows, and the canvas shows the result.
 
-The long-term goal is the name: a mathematical **heads-up display** on smart glasses that looks at a real situation, models it mathematically, and explains it, by voice and with drawings over what the user sees. Everything below is a step toward it; [The path to the HUD](#the-path-to-the-hud) shows which phase builds which part.
+The long-term goal is the name: a mathematical **heads-up display** that looks at a real situation, models it mathematically, and explains it, by voice and with drawings over what the user sees, on smart glasses or in VR, in 3D as well as 2D. This app is the prototype and foundation for it: a desktop and web app now, Android next, glasses and VR later. It may be rewritten in another language or stack along the way, so what must carry over is the design (the AI-first model, the tool contract, the shared scene state, checked math and the scenario catalogue), not this code; `documentation/Project Architecture.txt` lists where each part lives. Everything below is a step toward the HUD; [The path to the HUD](#the-path-to-the-hud) shows which phase builds which part.
 
 Near-term goals:
 
@@ -33,15 +33,17 @@ A HUD that explains real problems needs the abilities below. MatHud builds them 
 | Model real situations | Problems come from the world, not typed equations | photo to math (A4): underlay, calibration, AI-assisted extraction | planned |
 | Run on small, local models | Glasses need low latency, privacy and offline use | LocalAgent and the model workbench (A1) | in progress |
 | Follow live, changing input | The world moves, and the drawings must follow it | parameters and sliders (A2.1), dynamic geometry (A2.11), then a live camera (Part B) | planned |
-| A wearable display | The last step | Part B: AR overlay, world anchoring, gaze, voice-first | long term |
+| 3D as well as 2D | The world is three-dimensional; a HUD or VR scene needs 3D objects and views | Part B: 3D models, graphing and camera, as another renderer over math-only models | after 2D dynamic geometry |
+| Other platforms | The HUD runs on a phone first, then glasses and VR | desktop shell (done), Android (Part B), then the wearable HUD; possibly in another stack | later |
+| A wearable display | The last step | Part B: AR overlay, world anchoring, gaze, voice-first; VR | long term |
 
 Stages, each useful on its own:
 
 1. **Workbench** (now): correct math on a desktop canvas, with local models, measured by the scenario suite; data arrives as named datasets.
 2. **Explainer**: the AI walks through a result step by step on the canvas and reads it aloud.
 3. **Live scenes**: constructions follow changing inputs (sliders, dynamic geometry).
-4. **Real world**: a photo becomes a calibrated model (A4), then a live camera on a phone or tablet.
-5. **HUD**: the same tools and explanations, drawn over the world on glasses.
+4. **Real world**: a photo becomes a calibrated model (A4), then a live camera on a phone or tablet (Android).
+5. **HUD**: the same tools and explanations, in 3D as well as 2D, drawn over the world on glasses or placed in a VR scene.
 
 ---
 
@@ -187,7 +189,7 @@ This is stage 4 of [the path to the HUD](#the-path-to-the-hud), and it rests on 
 Not scheduled. Worth revisiting once Part A is solid, or better built as a separate app. Detailed step lists for these items, grouped into spinoff app ideas, are in [`archive/Roadmap_2026-09_full.md`](archive/Roadmap_2026-09_full.md).
 
 ### Platform
-- **Android app** — separate project; likely a thin client to a desktop/remote MatHud server, or a WebView wrapper once the desktop shell (A1) exists.
+- **Android app** — the next platform on the way to glasses (live camera, stage 4 of [the path to the HUD](#the-path-to-the-hud)); likely a thin client to a desktop/remote MatHud server, or a WebView wrapper once the desktop shell (A1) exists, or a native rewrite.
 - PWA, touch/stylus input, shareable links, notebook-style cell mode.
 - **MatHud as an MCP server**, so any agent (Claude Code, Codex) can use the canvas as a visual sketchpad; community GeoGebra MCP servers show the demand.
 - Accessibility baseline: ARIA live regions for answers, and the canvas text summary as a screen-reader alternative.
@@ -208,7 +210,7 @@ Not scheduled. Worth revisiting once Part A is solid, or better built as a separ
 - Heatmaps.
 
 ### 3D
-- 3D graphing, shapes, constraints, camera navigation — after 2D is mature.
+- 3D graphing, shapes, constraints, camera navigation — after 2D dynamic geometry. Part of the long-term vision (glasses and VR need 3D), not an optional extra; it is in Part B only because it is not scheduled yet.
 
 ### Collaboration and education
 - Real-time collaborative sessions, teacher/student mode.
@@ -217,7 +219,7 @@ Not scheduled. Worth revisiting once Part A is solid, or better built as a separ
 - Optional "guide me" mode (hints first, the answer on request) for learning; studies found unrestricted AI help raised practice scores but lowered exam scores.
 
 ### Wearable HUD (long-term vision)
-Stage 5 of [the path to the HUD](#the-path-to-the-hud): the tools, scene state and explanation layer built in Part A, drawn over the world.
+Stage 5 of [the path to the HUD](#the-path-to-the-hud): the tools, scene state and explanation layer built in Part A, drawn over the world on glasses, or placed in a VR scene.
 - AR canvas overlay: world-anchored objects, ghosted solutions, live measurement lines, construction guides.
 - Continuous scene understanding: live camera analysis, real-time segmentation, material recognition.
 - Voice-first interaction: wake word, spatial audio, gaze-anchored context, dictation.
@@ -249,6 +251,6 @@ Stage 5 of [the path to the HUD](#the-path-to-the-hud): the tools, scene state a
 | **6 — Explain** | Explanation layer: style and visibility, highlight, walkthrough, turn replay, visible checks, export, click to reference (A3); speech input | 2 |
 | **7 — Dynamic geometry** | Dependent constructions, loci, relations "in general" | 3 |
 | **8 — Photo to math** | Image underlay, calibration, AI-assisted extraction | 4 |
-| **9 — Live camera and HUD** | Part B: live camera on a phone or tablet, then the wearable HUD | 4, 5 |
+| **9 — Live camera, 3D and HUD** | Part B: Android with a live camera, 3D, then the wearable HUD and VR | 4, 5 |
 
 Alongside, as wanted: tabs, dark mode, packaging, and the remaining exploration items (adaptive plotting beyond the correctness pass, calculus visuals, conics, inversion and tangents, ODE fields, point sets).

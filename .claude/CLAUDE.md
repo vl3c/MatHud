@@ -3,6 +3,9 @@
 ## Purpose
 MatHud pairs a canvas with an AI assistant so users can sketch geometric scenes, analyze mathematically, and iterate quickly inside a single workspace.
 
+## Vision
+The long-term goal is a mathematical heads-up display: an AI that looks at a real situation, models it mathematically and explains it by voice and with drawings over what the user sees, on smart glasses or in VR, in 3D as well as 2D. This repository is the prototype and foundation (desktop and web now, Android next, glasses and VR later) and may be rewritten in another stack, so keep the parts that must carry over clean and stack-independent: the tool contract, math-only drawable models, the canvas text state, checked math and the scenario catalogue (see `documentation/Project Architecture.txt`, "Vision and the Role of This Codebase", and `documentation/Roadmap.md`, "The path to the HUD").
+
 ## AI-First Product Direction
 1. Primary UX is conversational: users tell the AI what they want; AI executes tool workflows.
 2. HUD canvas is the output and inspection surface for AI actions, not the primary control channel.

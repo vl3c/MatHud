@@ -2,6 +2,17 @@
 
 MatHud is an interactive mathematical visualization tool that combines a drawing canvas with an AI assistant to help understand and solve real-world mathematical problems. It serves as a heads-up display system for mathematical analysis, allowing users to visualize, analyze, and solve problems in real-time.
 
+## Vision and the Role of This Codebase
+- The goal is a mathematical heads-up display: an AI that looks at a real situation, models it mathematically and explains it by voice and with drawings over what the user sees, on smart glasses or in VR, rendering 3D as well as 2D.
+- This codebase is the prototype and foundation: a desktop and web app (Flask and Brython, 2D canvas) now, Android next, glasses and VR later. It may be rewritten in another language or stack on the way; `documentation/Roadmap.md` ("The path to the HUD") orders the steps.
+- Build the parts below so they can outlive this stack. They are the design a rewrite keeps:
+  - Tool contract: `static/functions_definitions.py` holds the JSON-schema tool definitions from which every provider's tool list is built; the model's whole vocabulary is defined here, independent of the UI.
+  - Math-only models: drawables in `static/client/drawables/` hold geometry and state only, and renderers (`static/client/rendering/`, chosen by `factory.create_renderer`) turn them into screen primitives. A 3D, mobile or AR display is another renderer over the models (3D also needs 3D models, which do not exist yet).
+  - Scene state for the model: `static/canvas_state_formatter.py` renders the canvas as compact text in every prompt and as `[canvas changes]` after each tool batch, so the model reasons over exact state rather than pixels.
+  - Checked math: SymPy on the server (`static/sympy_cas.py`, `/api/cas`), with numeric checks of symbolic results in the client (`static/client/utils/symbolic_checks.py`).
+  - Saved state: workspace JSON with a schema version (`CURRENT_WORKSPACE_SCHEMA_VERSION` in `static/config.py`).
+  - Behavior specification: the scenario catalogue in `scenarios/*.json` (prompts, reference tool calls and geometric checks) describes correct behavior in data, not in code.
+
 ## AI-First Operating Model
 - Users primarily interact by talking to the AI; the AI performs tool calls and state mutations.
 - The HUD canvas is the visual execution surface for AI outcomes and state inspection.
