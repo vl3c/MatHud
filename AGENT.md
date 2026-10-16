@@ -1,5 +1,10 @@
 # MatHud Agent Direction
 
+## Vision
+- MatHud is the prototype and foundation of a mathematical heads-up display: an AI that models and explains real situations by voice and with drawings over what the user sees, on smart glasses or in VR, in 3D as well as 2D.
+- Scope: practical math grown from the scientific graphing calculator tradition, plus what real-world problems need; advanced math for its own sake stays out.
+- Desktop and web now; Android is the next platform, then glasses and VR; 3D comes to this app first. The code may be rewritten in another stack, so keep the AI-first operating model, the tool contract, math-only drawable models, the scene state shared by user and model, checked math, the saved-state schema and the scenario catalogue clean and stack-independent.
+
 ## AI-First Product Philosophy
 - MatHud is an AI-augmented application where users communicate intent through chat.
 - Agents should execute workflows end-to-end via tool calls and update the HUD canvas as the visual output.
