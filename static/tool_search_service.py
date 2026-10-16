@@ -952,6 +952,12 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["numeric_integrate"] += 2.0
         if token_set & {"simplify", "reduce"}:
             scores["simplify"] += 6.0
+        # An exact fraction or radical comes from simplify (evaluate_expression gives decimals)
+        wants_exact = bool(token_set & {"exact", "fraction", "fractions", "radical"})
+        if wants_exact:
+            scores["simplify"] += 6.0
+        if token_set & {"mod", "modulo", "remainder"}:
+            scores["evaluate_expression"] += 6.0
         if token_set & {"expand", "multiply"} and not (token_set & {"matrix", "matrices"}):
             scores["expand"] += 6.0
         if token_set & {"factor", "factorize", "factorise", "factored"}:
@@ -962,10 +968,11 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             token_set & {"area", "statistics", "descriptive", "stats", "mean", "median"}
         ):
             scores["evaluate_expression"] += 3.0
-        # Values of a function at points: "f(3)", "value of f at 2", "table of values"
-        if _FUNCTION_AT_POINT_RE.search(raw_lower):
+        # Values of a function at points: "f(3)", "value of f at 2", "table of values"; not an
+        # exact value ("the exact value of sqrt(12)"), which simplify gives
+        if not wants_exact and _FUNCTION_AT_POINT_RE.search(raw_lower):
             scores["evaluate_expression"] += 12.0
-        elif token_set & {"value", "values", "table", "plug", "substitute"}:
+        elif not wants_exact and token_set & {"value", "values", "table", "plug", "substitute"}:
             scores["evaluate_expression"] += 8.0
 
         # -- Convert (unit vs coordinate) --

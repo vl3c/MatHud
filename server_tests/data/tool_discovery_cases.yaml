@@ -1589,6 +1589,30 @@
       "difficulty": "normal"
     },
     {
+      "id": "u_evaluate_expression_4",
+      "query": "What is -7 mod 3?",
+      "expected_any": [
+        "evaluate_expression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_evaluate_expression_5",
+      "query": "Find the remainder when 17 is divided by 5.",
+      "expected_any": [
+        "evaluate_expression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
       "id": "u_evaluate_linear_algebra_expression_1",
       "query": "Compute determinant of [[1,2],[3,4]].",
       "expected_any": [
@@ -2251,6 +2275,30 @@
     {
       "id": "u_simplify_3",
       "query": "Simplify (a*b + a*c)/a.",
+      "expected_any": [
+        "simplify"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_simplify_4",
+      "query": "Give 1/3 + 1/4 as an exact fraction.",
+      "expected_any": [
+        "simplify"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_simplify_5",
+      "query": "What is the exact value of sqrt(12)?",
       "expected_any": [
         "simplify"
       ],
