@@ -1101,6 +1101,12 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         if token_set & {"polar", "cartesian"} and token_set & {"system", "mode", "switch"}:
             scores["set_coordinate_system"] += 6.0
 
+        # Simplify's +3 alone falls under RELATIVE_SCORE_CUTOFF of a function value's score
+        # and behind the other area tools, so it scores one point under the leading tool
+        if exact_alongside:
+            leading = max(score for name, score in scores.items() if not name.startswith(DESTRUCTIVE_TOOL_PREFIXES))
+            scores["simplify"] = max(scores["simplify"], leading - 1.0)
+
     # ------------------------------------------------------------------
     # API-based search (original implementation)
     # ------------------------------------------------------------------

@@ -293,11 +293,13 @@ class TestCreativePrompts:
         """'Exact' adds simplify behind the tools a function value or an area needs."""
         assert _top_n(self.service, "What is f(3) as a fraction?")[0] == "evaluate_expression"
         assert _top_n(self.service, "the exact area of a circle of radius 3")[0] == "calculate_area"
+        assert "simplify" in _top_n(self.service, "the exact area of a circle of radius 3")
 
     def test_exact_function_value_at_a_constant_keeps_evaluate_expression(self) -> None:
         """A one-letter function at a fraction or at pi is a function value too, f(x) is not."""
         for query in ("exact value of f(1/3)", "exact value of h(1/2)", "exact value of f(pi/4)"):
             assert _top_n(self.service, query)[0] == "evaluate_expression", query
+        assert "simplify" in _top_n(self.service, "exact value of f(1/3)")
         assert "evaluate_expression" in _top_n(self.service, "exact value of f(sqrt(2))")
         assert _top_n(self.service, "exact value of f(x)")[0] == "simplify"
 
