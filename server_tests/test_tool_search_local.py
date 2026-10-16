@@ -455,6 +455,18 @@ class TestCreativePrompts:
             names = _top_n(self.service, query)
             assert names[0] == "compute_descriptive_statistics", (query, names)
 
+    def test_correlation_of_everyday_tree_or_path_data_is_statistics(self) -> None:
+        """One everyday word such as "tree" or "path" names data, not graph theory."""
+        for query in (
+            "find the correlation between tree age and height: ages [1,2,3], heights [2,4,5]",
+            "correlation between tree height and trunk diameter",
+            "correlation between edge length and weight [1,2,3] [4,5,6]",
+            "covariance of path length and travel time",
+            "correlate the number of nodes and runtime",
+        ):
+            names = _top_n(self.service, query)
+            assert names[0] == "compute_descriptive_statistics", (query, names)
+
     def test_correlating_graph_structure_keeps_the_graph_tool(self) -> None:
         """Edges and trees to correlate are a graph analysis, not paired lists."""
         names = _top_n(self.service, "correlate the edge weights of the tree")

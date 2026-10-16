@@ -88,12 +88,16 @@ _GRAPH_STRUCTURE_WORDS = frozenset(
 _GRAPH_ANALYSIS_WORDS = frozenset(
     {"shortest", "path", "bfs", "dfs", "mst", "topological", "spanning", "adjacency", "degree", "dag", "tree"}
 )
-# Vocabulary that only graph theory uses, unlike a plain "graph" (often a plot) or "degree" and
-# "weighted" ("degree of correlation", "weighted correlation").
-_GRAPH_THEORY_WORDS = (_GRAPH_STRUCTURE_WORDS | _GRAPH_ANALYSIS_WORDS | {"trees", "paths", "networks", "dags"}) - {
-    "degree",
-    "weighted",
-}
+# Words that mark a correlation question as graph theory. The unambiguous ones count alone;
+# the everyday ones ("tree height", "path length", "a graph" meaning a plot) only in pairs.
+_GRAPH_THEORY_ONLY_WORDS = frozenset(
+    {"vertex", "vertices", "bfs", "dfs", "mst", "topological", "spanning", "adjacency", "dag", "dags"}
+    | {"directed", "undirected"}
+)
+_GRAPH_THEORY_AMBIGUOUS_WORDS = frozenset(
+    {"graph", "graphs", "edge", "edges", "node", "nodes", "network", "networks", "tree", "trees"}
+    | {"path", "paths", "shortest", "weighted", "degree"}
+)
 _GRAPH_VERTEX_WORDS = frozenset({"point", "points"})
 _GRAPH_EDGE_WORDS = frozenset({"segment", "segments", "connect", "connected", "connecting", "connects"})
 # Words that make "graph" another tool's object: plots and charts, curves and functions,
@@ -808,6 +812,11 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         return _BARE_GRAPH_REQUEST_RE.match(raw_lower) is not None
 
     @staticmethod
+    def _names_graph_theory(token_set: set[str]) -> bool:
+        """Whether a query uses graph-theory words: one unambiguous word, or two everyday ones."""
+        return bool(token_set & _GRAPH_THEORY_ONLY_WORDS) or len(token_set & _GRAPH_THEORY_AMBIGUOUS_WORDS) >= 2
+
+    @staticmethod
     def _apply_intent_boosts(
         query_tokens: List[str],
         scores: Dict[str, float],
@@ -852,9 +861,10 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["compute_descriptive_statistics"] += 6.0
         # A fit that is asked for its correlation belongs to fit_regression, whose linear fit reports r;
         # a covariance matrix is linear algebra, and correlating vertices, edges or paths is a graph
-        # analysis. A plain "graph" is usually a plot ("graph the correlation of x and y").
+        # analysis. A lone "graph" or "tree" is a plot or data ("graph the correlation of x and y",
+        # "correlation between tree age and height").
         if token_set & {"correlation", "correlate", "correlated", "covariance", "pearson"} and not (
-            token_set & {"fit", "fitting", "regression", "matrix", "matrices"} or token_set & _GRAPH_THEORY_WORDS
+            token_set & {"fit", "fitting", "regression", "matrix", "matrices"} or ToolSearchService._names_graph_theory(token_set)
         ):
             scores["compute_descriptive_statistics"] += 6.0
 

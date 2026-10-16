@@ -28,8 +28,9 @@ Canonicalization rules (applied when schema type is matched):
       other arguments are still coerced. The client handlers treat None as "not
       given" for these arguments, except those in NO_NULL_FILL, which stay missing
       without counting as missing. Unlike the null-strings rule, this applies only
-      inside ``validate()`` (the non-streaming /send_message path and scenario
-      replay), not to the tool calls of streaming providers.
+      inside ``validate()`` (the non-streaming /send_message path), not to the
+      tool calls of streaming providers; scenario replay fills every omitted
+      argument with None itself before validating.
     - NaN/Infinity rejection: float('nan'), float('inf') are invalid numbers
     - int pass-through for number fields: 5 stays as 5 (JSON doesn't distinguish)
     - bool is NOT a number: True/False rejected for number/integer fields

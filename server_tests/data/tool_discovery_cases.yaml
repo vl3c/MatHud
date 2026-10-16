@@ -1171,6 +1171,18 @@
       "difficulty": "normal"
     },
     {
+      "id": "u_compute_descriptive_statistics_8",
+      "query": "find the correlation between tree age and height: ages [1,2,3], heights [2,4,5]",
+      "expected_any": [
+        "compute_descriptive_statistics"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
       "id": "u_convert_1",
       "query": "Convert 45 degrees to radians.",
       "expected_any": [
