@@ -24,6 +24,7 @@ from drawables.continuous_plot import ContinuousPlot
 from drawables.bar import Bar
 from drawables.discrete_plot import DiscretePlot
 from drawables.plot import Plot
+from plot_kinds import PLOT_CLASS_NAMES, derived_bar_name, plot_kind
 from utils.statistics.distributions import default_normal_bounds, normal_pdf, normal_pdf_expression
 from utils.statistics.descriptive import (
     compute_descriptive_statistics as _compute_descriptive_statistics,
@@ -620,16 +621,10 @@ class StatisticsManager:
                 return False
 
             plot_class = plot.get_class_name() if hasattr(plot, "get_class_name") else ""
-
-            if plot_class == "DiscretePlot":
-                self._delete_discrete_plot(plot)
-            elif plot_class == "BarsPlot":
-                self._delete_bars_plot(plot)
-            elif plot_class == "ContinuousPlot":
-                self._delete_continuous_plot(plot)
-            else:
-                # Legacy best-effort deletion.
-                self._delete_legacy_plot(plot)
+            kind = plot_kind(plot_class)
+            # A base Plot names no parts: only its record is removed.
+            if kind is not None and kind.delete_parts:
+                getattr(self, kind.delete_parts)(plot)
 
             try:
                 self.drawables.remove(plot)
@@ -765,7 +760,7 @@ class StatisticsManager:
         bar_manager = self._get_bar_manager()
         existing_bar_names = self._existing_names("Bar")
         for i in range(len(values)):
-            bar_name = f"{plot_name}_bar_{i}"
+            bar_name = derived_bar_name(plot_name, i)
             if bar_name in existing_bar_names:
                 continue
             try:
@@ -794,7 +789,7 @@ class StatisticsManager:
     # Internal helpers
     # ------------------------------------------------------------------
     def _get_plot_by_name(self, name: str) -> Optional[Plot]:
-        for class_name in ("ContinuousPlot", "DiscretePlot", "BarsPlot", "Plot"):
+        for class_name in PLOT_CLASS_NAMES:
             for d in self.drawables.get_by_class_name(class_name):
                 try:
                     if getattr(d, "name", None) == name:
@@ -881,7 +876,7 @@ class StatisticsManager:
         bar_manager = self._get_bar_manager()
         existing_bar_names = self._existing_names("Bar")
         for i in range(bar_count):
-            bar_name = f"{plot_name}_bar_{i}"
+            bar_name = derived_bar_name(plot_name, i)
             if bar_name in existing_bar_names:
                 continue
             x_left = left_bound + i * width
@@ -1033,7 +1028,7 @@ class StatisticsManager:
         if plot_name and n > 0:
             bar_manager = getattr(getattr(self.canvas, "drawable_manager", None), "bar_manager", None)
             for i in range(n):
-                bar_name = f"{plot_name}_bar_{i}"
+                bar_name = derived_bar_name(plot_name, i)
                 if bar_manager is not None and hasattr(bar_manager, "delete_bar"):
                     try:
                         bar_manager.delete_bar(bar_name, archive=False, redraw=False)
@@ -1052,7 +1047,7 @@ class StatisticsManager:
             return
         bar_manager = getattr(getattr(self.canvas, "drawable_manager", None), "bar_manager", None)
         for i in range(len(values)):
-            bar_name = f"{plot_name}_bar_{i}"
+            bar_name = derived_bar_name(plot_name, i)
             if bar_manager is not None and hasattr(bar_manager, "delete_bar"):
                 try:
                     bar_manager.delete_bar(bar_name, archive=False, redraw=False)
@@ -1060,34 +1055,6 @@ class StatisticsManager:
                 except Exception:
                     pass
             self._delete_drawable_by_name(bar_name, "Bar")
-
-        # Legacy discrete plots: delete colored areas and rectangles.
-        fill_names = getattr(plot, "fill_area_names", []) or []
-        for fill_name in list(fill_names):
-            if not fill_name:
-                continue
-            try:
-                self.colored_area_manager.delete_colored_area(str(fill_name))
-            except Exception:
-                pass
-
-        rect_names = getattr(plot, "rectangle_names", []) or []
-        for rect_name in list(rect_names):
-            if not rect_name:
-                continue
-            try:
-                self.canvas.delete_polygon(name=str(rect_name), polygon_type="rectangle")
-            except Exception:
-                pass
-
-    def _delete_legacy_plot(self, plot: Any) -> None:
-        # Best-effort support for older plot objects that stored component names directly.
-        if getattr(plot, "fill_area_name", None) or getattr(plot, "function_name", None):
-            self._delete_continuous_plot(plot)
-            return
-        if getattr(plot, "fill_area_names", None) or getattr(plot, "rectangle_names", None):
-            self._delete_discrete_plot(plot)
-            return
 
     def _delete_drawable_by_name(self, name: str, class_name: str) -> None:
         if not name:
