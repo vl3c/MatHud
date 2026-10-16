@@ -192,6 +192,8 @@ class ExpressionValidator(ast.NodeVisitor):
     _FUNCTION_OPERAND = re.compile(
         f"((?:\\d+\\.?\\d*|\\.\\d+)?(?:{_OPERAND_FACTOR})*)((?:{_SUPERSCRIPT_RUN})?(?:[ \\t]*°)?)"
     )
+    # After a function name: ^ or **, an integer exponent (2, -1, (-1)) and "(": sin^2(x), sin^(-1)(x)
+    _CARET_POWER = re.compile(r"[ \t]*(?:\^|\*\*)[ \t]*(?:(-?\d+)|\([ \t]*(-?\d+)[ \t]*\))[ \t]*\(")
     _PI_SIGN = "π"  # U+03C0, rewritten to the constant name "pi"
     _SCRIPT_E = "ℯ"  # U+212F, rewritten to the constant name "e"
     _IMAGINARY_IOTA = "ί"  # U+03AF, GeoGebra's imaginary unit, rewritten to i (Python: 2j, or 1j alone)
@@ -430,6 +432,7 @@ class ExpressionValidator(ast.NodeVisitor):
         expression = ExpressionValidator._convert_degrees(expression)
         expression = ExpressionValidator._handle_special_symbols(expression, python_compatible)
         expression = ExpressionValidator._replace_function_names(expression)
+        expression = ExpressionValidator.convert_caret_function_powers(expression)
         expression = ExpressionValidator._handle_power_and_imaginary(expression, python_compatible)
         expression = ExpressionValidator._insert_multiplication_operators(expression, python_compatible)
         # Only now, so the "!" of "!=" is not read as a factorial
@@ -765,6 +768,42 @@ class ExpressionValidator(ast.NodeVisitor):
         artifact) are left alone. π was already spelled out by the Unicode step.
         """
         return cast(str, ef.replace_aliases(expression))
+
+    @staticmethod
+    def convert_caret_function_powers(expression: str) -> str:
+        """Read a power written on a function name as calculators do, the ASCII form of sin²(x).
+
+        sin^2(x) -> sin(x)^2 and sin**2(x) -> sin(x)^2; an exponent of -1 names the inverse
+        where there is one: sin^-1(x) and sin^(-1)(x) -> asin(x), but log^-1(x) ->
+        log(x)^(-1). Only integer exponents directly followed by "(" count, and the name must
+        be a whole token: 2sin^2(x) changes, x2sin^2(x), e^2(x) and sin^2 x do not.
+        fix_math_expression does this; the CAS tools call it on their raw input.
+        """
+        if "^" not in expression and "**" not in expression:
+            return expression
+        position = 0
+        while True:
+            match = ef.TOKEN_PATTERN.search(expression, position)
+            if match is None:
+                return expression
+            position = match.end()
+            name = ef.SUPERSCRIPT_SPELLINGS.get(match.group(0))
+            power = ExpressionValidator._CARET_POWER.match(expression, match.end()) if name else None
+            if name is None or power is None:
+                continue
+            open_index = power.end() - 1
+            close_index = ExpressionValidator._find_closing_parenthesis(expression, open_index)
+            if close_index < 0:
+                continue
+            exponent = int(power.group(1) or power.group(2))
+            arguments = expression[open_index : close_index + 1]
+            inverse = ExpressionValidator._INVERSE_FUNCTIONS.get(name) if exponent == -1 else None
+            if inverse is not None:
+                head, tail = inverse, ""
+            else:
+                head, tail = name, "^" + (str(exponent) if exponent >= 0 else f"({exponent})")
+            expression = expression[: match.start()] + head + arguments + tail + expression[close_index + 1 :]
+            position = match.start() + len(head)  # the arguments may hold more: sin^2(cos^2(x))
 
     @staticmethod
     def _handle_power_and_imaginary(expression: str, python_compatible: bool) -> str:

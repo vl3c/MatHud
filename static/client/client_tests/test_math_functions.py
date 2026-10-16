@@ -1374,6 +1374,24 @@ class TestMathFunctions(unittest.TestCase):
         self.assertAlmostEqual(float(MathUtils.evaluate("sine⁻¹(0.5)")), math.pi / 6)
         self.assertAlmostEqual(value_of(MathUtils.simplify("sine²(x) + cosine²(x)")), 1.0)
 
+    def test_caret_powers_on_function_names(self) -> None:
+        # Regression: sin^2(x) validated as sin**2*(x) and failed when evaluated
+        self.assertAlmostEqual(float(MathUtils.evaluate("sin^2(1)")), math.sin(1) ** 2)
+        self.assertAlmostEqual(float(MathUtils.evaluate("sin^-1(0.5)")), math.pi / 6)
+        self.assertAlmostEqual(float(MathUtils.evaluate("tan^(-1)(1)")), math.pi / 4)
+        self.assertAlmostEqual(float(MathUtils.evaluate("log^-1(x)", {"x": 2})), 1 / math.log(2))
+        # The CAS tools read them the same way: derive("sin^2(x)") answered for sin^2*x before
+        for engines in (WithoutSympy(), AnyEngine()):
+            with engines:
+                caret = MathUtils.derivative("sin^2(x)", "x")
+                plain = MathUtils.derivative("sin(x)^2", "x")
+                self.assertNotIn("Error", caret)
+                for point in (0.3, 1.1):
+                    self.assertAlmostEqual(
+                        float(MathUtils.evaluate(caret, {"x": point})), float(MathUtils.evaluate(plain, {"x": point}))
+                    )
+                self.assertNotIn("Error", MathUtils.derivative("sin^-1(x)", "x"))
+
     def test_degrees_reach_nerdamer_as_radians(self) -> None:
         # Regression: nerdamer received the ° sign itself
         for engines in (WithoutSympy(), AnyEngine()):

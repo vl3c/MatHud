@@ -1244,12 +1244,15 @@ class MathUtils:
 
     @staticmethod
     def _cas_input(expression: Any) -> Any:
-        """An expression for SymPy and math.js: Unicode notation normalized, ln/log2/log(a, b) rewritten."""
+        """An expression for SymPy and math.js: Unicode notation normalized, sin^2(x) read as
+        sin(x)^2 (as the evaluator and plots do), ln/log2/log(a, b) rewritten."""
+        from expression_validator import ExpressionValidator
         from utils.cas_text import rewrite_for_nerdamer
 
         if not isinstance(expression, str):
             return expression
-        return rewrite_for_nerdamer(MathUtils._normalize_symbols(expression))
+        normalized = MathUtils._normalize_symbols(expression)
+        return rewrite_for_nerdamer(ExpressionValidator.convert_caret_function_powers(normalized))
 
     @staticmethod
     def _sympy_answer(operation: str, **args: Optional[str]) -> Optional[Dict[str, Any]]:
