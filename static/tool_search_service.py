@@ -146,8 +146,11 @@ _INEQUALITY_SOLVE_WORDS = frozenset({"solve", "find", "which", "when"})
 _INEQUALITY_OTHER_WORDS = frozenset(
     {"shade", "shaded", "shading", "graph", "plot", "draw", "sketch", "region", "piecewise", "rules"}
     | {"area", "integral", "integrate", "integration", "derivative", "derive", "differentiate"}
-    | {"maximum", "minimum", "max", "min", "extrema", "extremum", "limit", "probability"}
+    | {"maximum", "minimum", "max", "min", "extrema", "extremum", "limit", "probability", "probabilities"}
+    | {"normal", "distribution", "distributions", "distance", "distances"}
 )
+# "P(X > 2)": a probability, whose condition is not an inequality to solve
+_PROBABILITY_CALL_RE = re.compile(r"(?<![a-z0-9_])p\s*\(")
 # "f(x) = x for x < 0 ...", "the function is -x when x < 0": a function defined by cases
 _DEFINES_FUNCTION_WORDS = frozenset({"function", "define", "defined"})
 # Shapes, charts and other drawables a query can "graph" with an equation or coordinates
@@ -978,6 +981,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             bool(_INEQUALITY_SIGN_RE.search(raw_lower) or token_set & {"inequality", "inequalities"})
             and bool(token_set & _INEQUALITY_SOLVE_WORDS)
             and not token_set & _INEQUALITY_OTHER_WORDS
+            and not _PROBABILITY_CALL_RE.search(raw_lower)
             and not (condition_rule and defines_function)
         )
         if solves_inequality:

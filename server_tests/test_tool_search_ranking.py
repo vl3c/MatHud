@@ -8,7 +8,7 @@ offered when the query is about tests.
 
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import pytest
 
@@ -412,3 +412,21 @@ def test_conditions_that_qualify_another_operation_do_not_rank_solve_first(
     service: ToolSearchService, query: str, expected: str
 ) -> None:
     assert _names(service, query)[0] == expected
+
+
+# A probability's condition and a condition on points are no inequalities to solve either
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("find P(X > 2) for a normal with mean 0 and sigma 1", "plot_distribution"),
+        ("find p(x < 3) for the normal distribution with mean 2", "plot_distribution"),
+        ("find the distance between points A and B where A.x < B.x", None),
+    ],
+)
+def test_probabilities_and_distances_do_not_rank_solve_first(
+    service: ToolSearchService, query: str, expected: Optional[str]
+) -> None:
+    names = _names(service, query)
+    assert names[0] != "solve", names
+    if expected is not None:
+        assert expected in names[:3], names
