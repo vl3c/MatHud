@@ -301,6 +301,10 @@ class TestCreativePrompts:
         assert "evaluate_expression" in _top_n(self.service, "exact value of f(sqrt(2))")
         assert _top_n(self.service, "exact value of f(x)")[0] == "simplify"
 
+    def test_letter_before_a_fraction_is_no_function_value_without_exact(self) -> None:
+        """Outside exact queries only f(3)-style calls are function values, not a(1/2)."""
+        assert _top_n(self.service, "plot y = a(1/2)x")[0] == "draw_function"
+
     def test_exact_distance_or_length_goes_to_simplify(self) -> None:
         """No tool measures a distance or a length, so the exact radical comes from simplify."""
         assert _top_n(self.service, "Find the exact distance between A and B")[0] == "simplify"
