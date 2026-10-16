@@ -39,6 +39,8 @@ if TYPE_CHECKING:
 
 # Step used to probe listed vertical asymptotes: f(a - h) and f(a + h), h = 1e-7 * max(1, |a|).
 ASYMPTOTE_PROBE_STEP = 1e-7
+# ...and the step of the far probes, so slow growth shows: ln|x| is -16.1 at 1e-7 from 0, -9.2 at 1e-4
+ASYMPTOTE_FAR_PROBE_STEP = 1e-4
 _FUNCTION_CLASSES = ("Function", "PiecewiseFunction")
 _POLYGON_CLASSES = (
     "Triangle",
@@ -599,7 +601,9 @@ def _asymptote_probes(function: Any) -> List[List[Any]]:
         except (TypeError, ValueError):
             continue
         h = ASYMPTOTE_PROBE_STEP * max(1.0, abs(a))
-        probes.append([a, _safe_eval(function.function, a - h), _safe_eval(function.function, a + h)])
+        far = ASYMPTOTE_FAR_PROBE_STEP * max(1.0, abs(a))
+        values = [_safe_eval(function.function, x) for x in (a - h, a + h, a - far, a + far)]
+        probes.append([a] + values)
     return probes
 
 

@@ -842,6 +842,17 @@ class TestInvariants:
         ok = state(function("f", "1/(x-2)", vertical_asymptotes=[2]))
         assert by_id(invariants(self.empty, CanvasView(ok, real)), "I3").status == "pass"
 
+    def test_i3_logarithmic_asymptotes_grow_slowly(self) -> None:
+        # ln|x| is only -16.1 at 1e-7 from 0, but its |f| grows from the far probes (1e-4 away)
+        log = state(function("g", "ln|x|", vertical_asymptotes=[0]))
+        growing = inspection(
+            {"class": "Function", "name": "g", "asymptote_probes": [[0, -16.118, -16.118, -9.2103, -9.2103]]}
+        )
+        assert by_id(invariants(self.empty, CanvasView(log, growing)), "I3").status == "pass"
+        flat = inspection({"class": "Function", "name": "g", "asymptote_probes": [[0, 2.5, 2.5, 2.5003, 2.4997]]})
+        message = by_id(invariants(self.empty, CanvasView(log, flat)), "I3").message
+        assert "vertical asymptote x = 0" in message
+
     def test_i3_ellipse_formula(self) -> None:
         good = state(
             point("A", -8, 5),
