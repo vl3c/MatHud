@@ -2,18 +2,46 @@
 
 ## Direction
 
-MatHud is a personal workbench for exploring mathematics with an AI assistant: the user describes intent in chat, the model executes tool workflows, and the canvas shows the result. Near-term goals:
+MatHud is a personal workbench for exploring mathematics with an AI assistant: the user describes intent in chat, the model executes tool workflows, and the canvas shows the result.
+
+The long-term goal is the name: a mathematical **heads-up display** on smart glasses that looks at a real situation, models it mathematically, and explains it, by voice and with drawings over what the user sees. Everything below is a step toward it; [The path to the HUD](#the-path-to-the-hud) shows which phase builds which part.
+
+Near-term goals:
 
 1. **Correct math** — tools must not return silently wrong answers.
 2. **One stable, unified app** — start one thing, get a window; works offline with a local model.
 3. **Model workbench** — run the same explorations against several models (default: local) and compare quality, speed, and tool-use reliability.
 4. **Exploration power** — parameters, curve analysis, implicit curves, dynamic constructions.
+5. **Explanation** — the AI shows a result step by step on the canvas: hides, dashes and highlights objects, reveals steps in order, reads them aloud, replays what it built.
 
 UI gestures remain secondary unless they directly support AI workflows.
 
 This file has two parts. **Part A** is the committed roadmap for this project, in priority order. **Part B** collects ideas that are interesting but optional — future work, or better suited to a separate app. The previous, longer roadmap (with step-by-step breakdowns of every Part B item) is kept unchanged in [`archive/Roadmap_2026-09_full.md`](archive/Roadmap_2026-09_full.md), with an index of possible spinoff apps.
 
 Items marked *(GeoGebra-inspired)* come from a concept review of the GeoGebra source. GeoGebra is GPL-licensed: implement these from the named public algorithms, never by porting its code.
+
+## The path to the HUD
+
+A HUD that explains real problems needs the abilities below. MatHud builds them on the desktop first, where each can be tested and measured, and keeps one core throughout: deterministic tools, a scene state that the user and the model both see, and checked results. That core is also what sets it apart: general assistants (ChatGPT, Claude, Gemini) now draw interactive math visuals, but those are rebuilt or discarded each turn, unchecked, and invisible to the model afterwards; a HUD that people act on needs persistent, inspectable, correct state.
+
+| What the HUD needs | Why | Built by | State |
+|---|---|---|---|
+| Understand intent from speech | On glasses, conversation is the only input | AI-first chat and tool layer, `search_tools`, providers (done); speech input (A3.6) | chat done, speech open |
+| Correct, checked math | A wrong answer laid over the real world misleads | A0 audits, CAS reliability (A1), closing the math set (A2), step-equivalence checker (A1) | mostly done, math list in progress |
+| A scene the AI can reason over | The model must know exactly what is there and how it relates | canvas text state and change reports (done), named datasets (A2.20), dynamic geometry (A2.11, A2.12, A2.16) | partly done |
+| Explain visually and aloud | The HUD's job is understanding, not only answers | explanation layer (A3), Kokoro read-aloud (done) | next direction |
+| Model real situations | Problems come from the world, not typed equations | photo to math (A4): underlay, calibration, AI-assisted extraction | planned |
+| Run on small, local models | Glasses need low latency, privacy and offline use | LocalAgent and the model workbench (A1) | in progress |
+| Follow live, changing input | The world moves, and the drawings must follow it | parameters and sliders (A2.1), dynamic geometry (A2.11), then a live camera (Part B) | planned |
+| A wearable display | The last step | Part B: AR overlay, world anchoring, gaze, voice-first | long term |
+
+Stages, each useful on its own:
+
+1. **Workbench** (now): correct math on a desktop canvas, with local models, measured by the scenario suite; data arrives as named datasets.
+2. **Explainer**: the AI walks through a result step by step on the canvas and reads it aloud.
+3. **Live scenes**: constructions follow changing inputs (sliders, dynamic geometry).
+4. **Real world**: a photo becomes a calibrated model (A4), then a live camera on a phone or tablet.
+5. **HUD**: the same tools and explanations, drawn over the world on glasses.
 
 ---
 
@@ -79,12 +107,19 @@ Goal: one command (later one executable) opens a MatHud window; no separate serv
    - ~~**CI job**~~ Done: the `scenario-replay` job in `tests.yml` replays the catalogue on every push and pull request. It never calls a model: CI has no keys and no GPU, so it runs only the recorded reference tool calls. Still open: make it blocking once it is stable.
 3. **Side-by-side mode:** send the same prompt to two models (pairs naturally with tabs, A3).
 4. **Local-model tuning:** tool descriptions and search-first prompts tuned for small local models; measure with the suite. LocalAgent now sends a reasoning effort (`chat_template_kwargs.reasoning_effort`, default `medium`, `MATHUD_LOCAL_REASONING_EFFORT`): without it Qwen3.8 27B thought to the 16,000-token limit on a trivial question. The live smoke runs also tuned local tool-search ranking (graph tools for graph requests, vl3c/MatHud#105).
+5. **Small-model reliability** (from the October 2026 landscape survey):
+   - *Variant scenarios*: several versions of a scenario with random coordinates or coefficients, reporting each model's worst-case accuracy (DynaMath found worst case far below average). Replay needs templated reference calls; otherwise variants run live only.
+   - *"Does the canvas help?"*: Visual Sketchpad-style geometry and graph tasks run with and without the canvas on the local model, building on `scripts/benchmark_canvas_formats.py`. A measured answer to the project's central claim.
+   - *Construction benchmarks*: a subset of GeoBuildBench (natural language to construction, graded by constraints) as live scenarios.
+   - *State, then verify*: the model states the relations it intends ("AB ⟂ CD") and `inspect_relation` confirms them after building; a scenario rule first, a prompt habit later.
+   - *Error hints and tool companions*: a known-pitfall hint on common tool errors, and `search_tools` returning the tools usually called together, to save round trips.
 
 ### CAS reliability
 1. ~~Known-answer audit of `derive`, `integrate`, `limit`, `solve`, `simplify`, `factor`, systems against nerdamer (unmaintained).~~ Done: 237 cases. nerdamer alone answered 173 correctly and was confidently wrong on many of the rest (ln read as a variable, lim 1/x at 0 = Infinity, lost cubic roots, garbage antiderivatives); raw SymPy answered 228.
 2. ~~Numerically verify symbolic results where possible (substitute roots back, compare derivative/integral numerically).~~ Done: every CAS tool checks nerdamer's result with math.js (`static/client/utils/symbolic_checks.py`, `cas_numeric.py`, `cas_text.py`) and refuses or replaces a wrong one; 226/237, and the 11 left are honest errors rather than wrong answers.
 3. ~~Decide on a server-side SymPy fallback~~ Done: SymPy on the server is the main engine for `limit`, `integrate`, `solve` and `simplify` (`static/sympy_cas.py`, `/api/cas`, a safe `ast` parser and a 6 s worker time limit), with nerdamer kept for `derive`/`expand`/`factor` and as the offline fallback. 237/237 on the audit.
 4. ~~Calculator functions the evaluator lacked (October 2026).~~ Done: `mod` and `%` as the remainder, `nthroot`, `cbrt`, `atan2`, `sign`, `gamma`, `erf`, and `re`, `im`, `arg`, `conj` for complex numbers are registry rows (Python, math.js, plots and the SymPy table); `sin^2(x)`, `sin^-1(x)`, `ln|x|` and spelled-out superscripts such as `sine²(x)` are read as calculators read them; `simplify` is the tool for exact fractions and radicals, and tool search sends "exact" and "remainder" requests to the right tool. Scenarios MC-05 and MC-06 cover them.
+5. **Step-equivalence checker** — given a list of expressions or equations, say whether each step is equivalent to the previous one and point at the first wrong step; checks the model's own multi-step derivations and a user's worked solution (including from a photo). Expressions come with math item 3 (SymPy, with a numeric fallback that varies every variable and needs more agreeing points than today's `SymbolicChecks.equivalent`, which accepts 2 of 7 and varies one); equations and inequalities (solution sets, steps that gain or lose roots) follow the math list.
 
 ### Conversation persistence
 ~~Save and restore the chat transcript with the workspace (truncate older turns on restore).~~ Done: workspaces (schema version 2) carry the user and assistant messages as markdown, with image counts and compact tool-call entries, capped at 200 messages / 400k characters. `/load` replaces the chat and rebuilds a plain-text AI history from it (newest 40 turns, about 10k tokens) through `/restore_conversation`; the AI's `load_workspace` tool restores the canvas only, so it never replaces the chat mid-turn. Older workspaces load with an empty chat. See `static/workspace_chat.py` and `static/client/chat_persistence_manager.py`. Still open: summarize dropped turns instead of only noting them; a provider created after the restore (switching to another provider) starts without the restored history, as it does for any conversation today.
@@ -92,6 +127,8 @@ Goal: one command (later one executable) opens a MatHud window; no separate serv
 ## A2. Exploration features
 
 Ordered by value for exploring math; cheap, independent items first.
+
+**Closing the math feature set (October 2026)** builds these, in this order: statistics fixes (sample and population SD, r and covariance), the SymPy gap-fill (series, partial fractions, inequalities, sums, ODEs) with the step-equivalence checker (A1, CAS reliability 5), polar plots (4), arc length (5), distributions and then hypothesis tests (13), histogram, box and scatter plots (18), sequences (14), parameters and sliders (1), custom-model regression (19), implicit curves (7), and a plot-correctness pass (3, scoped down). Sliders come before implicit curves so implicit curves take parameters from the start. Dynamic geometry (11, 12, 16), conics, inversion, ODE fields, calculus visuals and point sets stay after it. A refactor pass for readability and structure follows the list.
 
 1. **Parameters and sliders** *(GeoGebra-inspired)* — named scalars with range/step (`a ∈ [-5, 5]`) usable in functions, parametric curves, point coordinates, radii; a small slider panel; AI can set or animate them ("sweep a from 0 to 2π"). Animation runs on `requestAnimationFrame` without undo entries per frame.
 2. ~~**Roots, extrema, inflection points, intersections of plotted functions**~~ Done: the `find_function_features` tool finds roots, local extrema, inflection points and function-function intersections of plotted functions and piecewise functions (`utils/function_features.py`), and the `find_intersections` tool intersects any two segments, vectors, circles, circle arcs, ellipses (rotated too), functions, piecewise functions, parametric curves (two of them too) or polygons (`utils/object_intersections.py`: closed forms for lines, circles and line/ellipse, a numeric search along a conic or curve otherwise, polyline crossings refined by 2D Newton for two parametric curves in `utils/curve_pair_intersections.py`, and a polygon as its merged edges, a vertex crossing reported once with its edges and vertex), with each point's parameter on both objects, tangency flags, overlaps for coinciding objects and an `extend_lines` option; both can place points as one undo step. The function sampling refines itself where the grid does not resolve the curve, so features within a step or two of each other ((x^2 - a^2)^3 with a = 0.001, two roots 1e-4 apart, tanh(1e4 x)) are found, and inflection points are found far from 0 (up to about |x| = 1e9 in an interval of width 10). Still open: self-intersections of one curve, and implicit curves once they exist (item 7).
@@ -103,7 +140,7 @@ Ordered by value for exploring math; cheap, independent items first.
 8. **General conics** *(GeoGebra-inspired)* — conic through 5 points, classification (ellipse/hyperbola/parabola/degenerate), foci, directrix, eccentricity, asymptotes, pole/polar, tangents from a point. Renders via parametric or implicit plotting.
 9. **Circle inversion and tangent constructions** *(GeoGebra-inspired)* — reflect in a circle (lines/circles map to lines/circles), tangents from an external point, common tangents of two circles.
 10. **Slope fields and ODE solutions** *(GeoGebra-inspired)* — direction field for `y' = f(x,y)`; solution curves via Dormand–Prince RK5(4) with adaptive step; phase portraits for 2D systems; vector fields on the same base.
-11. **Dependent (dynamic) constructions** *(GeoGebra-inspired)* — derived objects store `{op, inputs, params}` and recompute in topological order when an input changes; undefined results hide instead of being deleted; definitions saved in workspaces. Builds on `drawable_dependency_manager.resolve_dependency_order()`. Unlocks loci and "is this true in general?" checks.
+11. **Dependent (dynamic) constructions** *(GeoGebra-inspired)* — derived objects store `{op, inputs, params}` and recompute in topological order when an input changes; undefined results hide instead of being deleted; definitions saved in workspaces. Builds on `drawable_dependency_manager.resolve_dependency_order()`. Unlocks loci and "is this true in general?" checks. It matters more in chat than in a manual tool: after "move A to (2,3)" the user expects the midpoint and bisector to follow, and on the HUD the inputs come from a moving world. Cinderella/CindyJS's continuity of intersections is the reference for keeping branches stable while inputs move. Once it exists, the canvas text should list dependency edges.
 12. **Loci and points on paths** *(GeoGebra-inspired)* — a point constrained to a curve by parameter; the trace of a dependent point as a driver moves (or a slider varies), with adaptive step control.
 13. **Probability distributions** *(GeoGebra-inspired)* — t, χ², F, exponential, gamma, beta, uniform, log-normal, binomial, Poisson, geometric; pdf/cdf/quantile and shaded `P(a < X < b)` (incomplete gamma/beta, Lanczos log-gamma, Brent for quantiles). Then hypothesis tests and confidence intervals. Each distribution is one `DISTRIBUTIONS` entry (`utils/statistics/distributions.py`); `StatisticsManager` already dispatches on it. Still normal-only: the `plot_distribution` schema (enum, `distribution_params`, the "mean ± 4σ" `plot_bounds` descriptions), `Canvas.plot_distribution`'s `distribution_type="normal"` default (an omitted type plots a normal, an explicit null errors), `perf_benchmark.py`'s mean and sigma, and the normal/gaussian tool-search keywords.
 14. **Sequences, iteration, cobweb diagrams** *(GeoGebra-inspired)* — `sequence(expr(k), k, a, b)` creates many objects in one call (one undo step); `iterate(g, x0, n)` for orbits and cobweb plots.
@@ -111,15 +148,24 @@ Ordered by value for exploring math; cheap, independent items first.
 16. **Relation checks "in general"** *(GeoGebra-inspired)* — after dependent constructions exist: randomly perturb free objects, recompute, re-check the relation (randomized identity testing).
 17. **Point-set geometry** *(GeoGebra-inspired, lower priority)* — Delaunay (Bowyer–Watson), Voronoi as its dual, TSP tour (nearest neighbour + 2-opt).
 18. **Scatter plot and histogram with binning** — small additions on existing plot infrastructure. A new plot kind is one `PLOT_KINDS` row (`static/client/plot_kinds.py`) plus its formatter spec; a histogram may instead be a `BarsPlot` with binning.
+19. **Custom-model regression** — fit any model the user gives with named constants (`a·e^(-b·x)·cos(c·x) + d`), with residuals, as Desmos `y1 ~ f(x1)` and GeoGebra `Fit` do; `fit_regression` has 7 fixed models. The fitted constants become parameters (item 1), so it follows sliders. Starting values are the hard part: seed with a grid or several starts, as the logistic fit already does.
+20. **Named datasets** — attach or paste a CSV once, show it as a table, and let the statistics, regression and plot tools take the dataset's name instead of every number in every call (which costs tokens and invites copying errors). Needs a non-image attachment path, a table view, a saved state bucket shown in the canvas text, and schema changes across those tools, so it comes after the math list and the refactor pass, done once over the finished tool set. Absorbs Part B's tabular data workflow.
 
-## A3. UI and workflow
+## A3. Explanation, UI and workflow
+
+**Explanation layer** — the next direction after the math list, the refactor pass and named datasets (stage 2 of [the path to the HUD](#the-path-to-the-hud)). MatHud can build and compute but has few ways to *show* a result step by step; every AI-first tool that explains well (GeoGebra's construction protocol, OpenMAIC's spotlight and laser actions timed to speech, narrated explanation agents) has this layer. Order: style and visibility (7), highlight (4), walkthrough (8), turn replay (9), visible checks (10), export (3), click to reference (11). Each is one tool call where possible, so small local models can use it.
 
 1. ~~**Math symbol input for the chat box**~~ Done (vl3c/MatHud#70): the Σ button (or `Ctrl+↑`) next to the chat input opens a grouped palette (Operators, Calculus, Sets & logic, Geometry, Greek, plus a Recent row) that inserts at the caret; `\alpha`-style completion and Alt shortcuts (`Alt+P` → π); and Unicode-aware parsing, so the same text works when passed into tools (`static/client/math_symbols.py`, `math_symbol_palette.py`, `math_symbol_input.py`).
 2. **Tabs for parallel problems** — each tab holds its own canvas state, chat history, and selected model. Implement by swapping state through the workspace serializer (depends on the A0 round-trip fixes) rather than running multiple `Canvas` instances; AI tools `create_tab`, `switch_tab`, `list_tabs`. Enables side-by-side model comparison (A1).
 3. **Export** — canvas to PNG/SVG; session (chat + results) to Markdown/LaTeX.
 4. **One `highlight`/`annotate` tool** — lets the AI point at objects and label them temporarily (replaces the earlier list of 11 temporary-drawable types).
 5. **Dark mode.**
-6. **Speech input** (TTS output already exists).
+6. **Speech input** (TTS output already exists). With highlights and read-aloud it gives "talk and point", locally; on glasses it is the main input.
+7. **Object style and visibility** — hide/show, dashed or dotted lines, width and opacity for any drawable ("construction lines dashed, result solid"). Drawable tools take only `color` today. Hide/show needs a new `visible` flag: `is_renderable` cannot serve, because triangles, polygons, graphs and plots are drawn through their segments and points, so hiding or dashing a polygon acts on parts another object may share. Dashes and widths are new in Canvas2D (the frozen SVG renderer may ignore them), and each style must reach saved state, workspaces, the canvas text and undo.
+8. **Walkthrough / step reveal** — one tool call with an ordered list of steps, each with text and the drawables it introduces or highlights; steps reveal one at a time, optionally read aloud with Kokoro.
+9. **Turn replay** — step through what a turn built (GeoGebra's construction protocol). Undo groups are one per turn, so replay uses the per-batch action traces and `replay_trace` (`managers/action_trace_collector.py`), re-executing older traces from the state archived in the turn's undo group. Traces live in memory only (newest 100 batches), so the first version covers the current session; replay after a reload needs trace persistence. Replaces Part B's construction history timeline.
+10. **Visible checks** — mark each CAS result "checked numerically" or "unchecked". A result the check cannot decide passes today with no mark, so each CAS method reports three states (passed, failed, undecided), using the stricter check built with the step-equivalence checker.
+11. **Click to reference** — clicking an object puts its name into the chat input ("selected: A, c1"), so the user can say "make this one dashed". Extends the double-click that already inserts coordinates; needs hit-testing, which the client does not have yet.
 
 ## A4. Photo to math (real-world problems)
 
@@ -132,6 +178,8 @@ Goal: take a photo and let the AI model a real problem in it mathematically — 
 
 Heavier segmentation (SAM) and OCR pipelines are in Part B; modern vision models cover most of this without them.
 
+This is stage 4 of [the path to the HUD](#the-path-to-the-hud), and it rests on the stages before it: extraction produces ordinary drawables and datasets, dynamic geometry keeps the model consistent when a calibration point moves, and the explanation layer presents the answer. Solving a photographed homework problem is not the goal (Photomath, Mathway and Symbolab do that); turning a real scene into a calibrated, checkable model is what no product found does.
+
 ---
 
 # Part B — Optional / future / separate projects
@@ -141,17 +189,20 @@ Not scheduled. Worth revisiting once Part A is solid, or better built as a separ
 ### Platform
 - **Android app** — separate project; likely a thin client to a desktop/remote MatHud server, or a WebView wrapper once the desktop shell (A1) exists.
 - PWA, touch/stylus input, shareable links, notebook-style cell mode.
+- **MatHud as an MCP server**, so any agent (Claude Code, Codex) can use the canvas as a visual sketchpad; community GeoGebra MCP servers show the demand.
+- Accessibility baseline: ARIA live regions for answers, and the canvas text summary as a screen-reader alternative.
 
 ### Advanced image analysis
 - Server-side Meta SAM segmentation (point/box/text prompts), segment-to-canvas projection.
 - Shape detection (OpenCV), math OCR (pix2tex-class models), curve fitting from images.
+- Live camera mode on a phone or tablet: the A4 pipeline on a video stream (stage 4 of [the path to the HUD](#the-path-to-the-hud)).
 - Physics from images: trajectories from video frames, structural geometry, symmetry/pattern detection, perspective geometry.
 
 ### Canvas and workflow
-- Construction history timeline, reusable macros and analysis templates.
+- Reusable macros and analysis templates (the construction history timeline is now A3.9).
 - Session snapshots with diff/restore, "what changed" summaries, command palette.
 - ~~CLI replay of action traces.~~ Done: `python -m cli.main test scenarios --mode retrace` replays a live run's executed tool calls on a fresh canvas.
-- Tabular data workflow and CSV import/export; plotting from table columns; box plots; residual diagnostics.
+- CSV export, plotting from table columns (CSV import is now A2.20, box plots are in the math list, residuals come with A2.19).
 - Numerical-methods visualizations (Newton iterations, bisection steps).
 - Graph workflows: random/complete generators, edit tools, algorithm playback.
 - Heatmaps.
@@ -163,8 +214,10 @@ Not scheduled. Worth revisiting once Part A is solid, or better built as a separ
 - Real-time collaborative sessions, teacher/student mode.
 - Guided lessons, quiz/challenge mode, step-by-step animation mode.
 - AI-initiated suggestions, multi-turn planning UI.
+- Optional "guide me" mode (hints first, the answer on request) for learning; studies found unrestricted AI help raised practice scores but lowered exam scores.
 
 ### Wearable HUD (long-term vision)
+Stage 5 of [the path to the HUD](#the-path-to-the-hud): the tools, scene state and explanation layer built in Part A, drawn over the world.
 - AR canvas overlay: world-anchored objects, ghosted solutions, live measurement lines, construction guides.
 - Continuous scene understanding: live camera analysis, real-time segmentation, material recognition.
 - Voice-first interaction: wake word, spatial audio, gaze-anchored context, dictation.
@@ -186,13 +239,16 @@ Not scheduled. Worth revisiting once Part A is solid, or better built as a separ
 
 ## Milestones
 
-| Milestone | Focus |
-|---|---|
-| **1 — Stable** ✓ | A0 complete: known math bugs fixed, workspace round-trip, tool-result plumbing, canvas-state format, renderer fixes and speed |
-| **2 — Unified app** ✓ | Desktop shell ✓, vendored libs ✓, client-side snapshots ✓, per-response metrics ✓, chat persistence ✓ |
-| **3 — Workbench** | Benchmark suite (built; full-catalogue runs open), CAS audit, side-by-side comparison, local-model tuning |
-| **4 — Explore I** | Sliders, roots/extrema/intersections ✓, adaptive plotting, polar, calculus visuals, adaptive quadrature |
-| **5 — UI** | Symbol palette ✓, tabs, export, highlight tool |
-| **6 — Explore II** | Implicit curves and inequalities, conics, inversion/tangents, ODEs, distributions, sequences |
-| **7 — Dynamic geometry** | Dependent constructions, loci, relations "in general" |
-| **8 — Photo to math** | Image underlay, calibration, AI-assisted extraction |
+| Milestone | Focus | HUD stage |
+|---|---|---|
+| **1 — Stable** ✓ | A0 complete: known math bugs fixed, workspace round-trip, tool-result plumbing, canvas-state format, renderer fixes and speed | 1 |
+| **2 — Unified app** ✓ | Desktop shell ✓, vendored libs ✓, client-side snapshots ✓, per-response metrics ✓, chat persistence ✓ | 1 |
+| **3 — Workbench** | Benchmark suite (built; full-catalogue runs open), CAS audit ✓, side-by-side comparison, local-model tuning, small-model reliability (A1) | 1, 5 |
+| **4 — Math complete** | The closing list in A2 (statistics fixes, SymPy gap-fill and step checker, polar, arc length, distributions and tests, histogram/box/scatter, sequences, sliders, custom regression, implicit curves, plot correctness); roots/extrema/intersections ✓; then a refactor pass | 1, 3 |
+| **5 — Data** | Named datasets (A2.20) | 1 |
+| **6 — Explain** | Explanation layer: style and visibility, highlight, walkthrough, turn replay, visible checks, export, click to reference (A3); speech input | 2 |
+| **7 — Dynamic geometry** | Dependent constructions, loci, relations "in general" | 3 |
+| **8 — Photo to math** | Image underlay, calibration, AI-assisted extraction | 4 |
+| **9 — Live camera and HUD** | Part B: live camera on a phone or tablet, then the wearable HUD | 4, 5 |
+
+Alongside, as wanted: tabs, dark mode, packaging, and the remaining exploration items (adaptive plotting beyond the correctness pass, calculus visuals, conics, inversion and tangents, ODE fields, point sets).
