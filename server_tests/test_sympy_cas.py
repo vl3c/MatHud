@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import unittest
+from typing import Any, List, Tuple
 
 import pytest
 
@@ -16,8 +17,10 @@ from static.sympy_cas import (  # noqa: E402
     compute_limit,
     compute_simplify,
     compute_solve,
+    compute_solve_inequality,
     handle,
     parse_expression,
+    parse_relation,
     to_text,
 )
 from static.sympy_engine import SympyEngine  # noqa: E402
@@ -206,6 +209,168 @@ class TestOperations(unittest.TestCase):
         self.assertIsNone(handle({"operation": "limit", "args": {"expression": "x"}})["result"])
 
 
+def _ends(solution: Any) -> List[Tuple[str, str, bool, bool]]:
+    """The intervals of a solve_inequality result as (lower, upper, lower_closed, upper_closed)."""
+    assert solution is not None
+    return [
+        (item["lower"], item["upper"], item["lower_closed"], item["upper_closed"]) for item in solution["intervals"]
+    ]
+
+
+class TestInequalities(unittest.TestCase):
+    def test_polynomial_rational_and_absolute_value(self) -> None:
+        self.assertEqual(_ends(compute_solve_inequality("x^2 - 5x + 6 < 0", "x")), [("2", "3", False, False)])
+        self.assertEqual(
+            _ends(compute_solve_inequality("abs(x - 1) >= 2", "x")),
+            [("-Infinity", "-1", False, True), ("3", "Infinity", True, False)],
+        )
+        self.assertEqual(
+            _ends(compute_solve_inequality("(x-1)/(x+2) > 0", "x")),
+            [("-Infinity", "-2", False, False), ("1", "Infinity", False, False)],
+        )
+        self.assertEqual(_ends(compute_solve_inequality("log(x) < 2", "x")), [("0", "exp(2)", False, False)])
+        self.assertEqual(_ends(compute_solve_inequality("sqrt(x-1) < 3", "x")), [("1", "10", True, False)])
+
+    def test_points_empty_and_every_real(self) -> None:
+        self.assertEqual(_ends(compute_solve_inequality("x^2 <= 0", "x")), [("0", "0", True, True)])
+        self.assertEqual(_ends(compute_solve_inequality("x^2 + 1 < 0", "x")), [])
+        self.assertEqual(_ends(compute_solve_inequality("x^2 + 1 > 0", "x")), [("-Infinity", "Infinity", False, False)])
+        self.assertEqual(
+            _ends(compute_solve_inequality("(x-1)^2 > 0", "x")),
+            [("-Infinity", "1", False, False), ("1", "Infinity", False, False)],
+        )
+
+    def test_chain_and_cubics(self) -> None:
+        self.assertEqual(_ends(compute_solve_inequality("1 < 2x+1 <= 5", "x")), [("0", "2", False, True)])
+        self.assertEqual(
+            _ends(compute_solve_inequality("x^3 - 2x + 1 > 0", "x")),
+            [("-sqrt(5)/2-1/2", "-1/2+sqrt(5)/2", False, False), ("1", "Infinity", False, False)],
+        )
+        # Cardano's form of the root is long: it is given in decimals
+        self.assertEqual(
+            _ends(compute_solve_inequality("x^3 + x + 1 > 0", "x")),
+            [("-0.682327803828019", "Infinity", False, False)],
+        )
+
+    def test_periodic_inequalities_cover_the_window(self) -> None:
+        # SymPy alone answers (pi/6, 5*pi/6) for one period, even on [-2*pi, 2*pi]
+        solution = compute_solve_inequality("sin(x) > 1/2", "x")
+        assert solution is not None
+        self.assertEqual(_ends(solution), [("-11*pi/6", "-7*pi/6", False, False), ("pi/6", "5*pi/6", False, False)])
+        self.assertEqual((solution["window"], solution["period"]), ("[-2*pi, 2*pi]", "2*pi"))
+        on_interval = compute_solve_inequality("sin(x) > 1/2", "x", "0", "2*pi")
+        assert on_interval is not None
+        self.assertEqual(_ends(on_interval), [("pi/6", "5*pi/6", False, False)])
+        self.assertEqual(on_interval["window"], "[0, 2*pi]")
+        # Copies merge across period edges
+        self.assertIn(("-pi/2", "pi/2", False, False), _ends(compute_solve_inequality("cos(x) > 0", "x")))
+
+    def test_periodic_regressions(self) -> None:
+        # SymPy gives only (pi/4, pi/2) for tan(x) > 1 on [0, 2*pi]
+        self.assertEqual(
+            _ends(compute_solve_inequality("tan(x) > 1", "x", "0", "2*pi")),
+            [("pi/4", "pi/2", False, False), ("5*pi/4", "3*pi/2", False, False)],
+        )
+        # ... and loses the point 2*pi of sin(x) >= 0 on [0, 2*pi]
+        self.assertEqual(
+            _ends(compute_solve_inequality("sin(x) >= 0", "x", "0", "2*pi")),
+            [("0", "pi", True, True), ("2*pi", "2*pi", True, True)],
+        )
+
+    def test_half_open_intervals(self) -> None:
+        solution = compute_solve_inequality("sin(x) >= 0", "x", "0", "2*pi", "[)")
+        assert solution is not None
+        self.assertEqual(_ends(solution), [("0", "pi", True, True)])
+        self.assertEqual(solution["window"], "[0, 2*pi)")
+        self.assertEqual(_ends(compute_solve_inequality("x > 2", "x", "0", "1")), [])
+
+    def test_many_periods_give_one_period(self) -> None:
+        solution = compute_solve_inequality("sin(100*x) > 0", "x")
+        assert solution is not None
+        self.assertEqual(_ends(solution), [("0", "pi/100", False, False)])
+        self.assertEqual((solution["window"], solution["period"]), ("[0, pi/50)", "pi/50"))
+        on_interval = compute_solve_inequality("sin(x) > 1/2", "x", "0", "1000")
+        assert on_interval is not None
+        self.assertEqual(on_interval["window"], "[0, 2*pi)")
+
+    def test_sympy_is_wrong_on_some_periodic_inequalities(self) -> None:
+        # The answer is [0, pi/2) U (pi/2, 7*pi/6) U (11*pi/6, 2*pi) in each period; SymPy gives
+        # [0, pi/2). The browser's numeric check refutes it and answers with the sign chart.
+        solution = compute_solve_inequality("2*sin(x)^2 - sin(x) - 1 < 0", "x", "0", "2*pi", "[)")
+        self.assertEqual(_ends(solution), [("0", "pi/2", True, False)])
+
+    def test_unsolvable_inequalities_give_none(self) -> None:
+        self.assertIsNone(compute_solve_inequality("cos(x) > x", "x"))
+        self.assertIsNone(compute_solve_inequality("x*sin(x) > 0", "x"))
+        # Both of SymPy's routes refuse it
+        self.assertIsNone(compute_solve_inequality("abs(sin(x)) < 1/2", "x"))
+
+    def test_refusals(self) -> None:
+        for text, variable in (
+            ("x > y", "x"),
+            ("x = 2", "x"),
+            ("x != 2", "x"),
+            ("1 < x > 0", "x"),
+            ("1 < x < 2 < 3", "x"),
+            ("2 < 3", "x"),
+            ("x < 2", "pi"),
+        ):
+            with self.subTest(text=text):
+                with self.assertRaises(ExpressionError):
+                    compute_solve_inequality(text, variable)
+        for lower, upper, bounds in (
+            ("2", "1", None),
+            ("0", "y", None),
+            ("0", None, None),
+            ("0", "1", "[["),
+            ("i", "2", None),
+        ):
+            with self.subTest(lower=lower, upper=upper, bounds=bounds):
+                with self.assertRaises(ExpressionError):
+                    compute_solve_inequality("x > 0", "x", lower, upper, bounds)
+
+    def test_parse_relation(self) -> None:
+        x = sympy.Symbol("x", real=True)
+        self.assertEqual(parse_relation("2x < 4"), [sympy.Lt(2 * x, 4)])
+        self.assertEqual(parse_relation("1 <= x^2 < 4"), [sympy.Le(1, x**2), sympy.Lt(x**2, 4)])
+
+
+class TestResponsesAreBrythonSafe(unittest.TestCase):
+    """Every number in an /api/cas response is text, a bool or a small int: Brython's json.loads
+    cannot read a float's exponent (1e+16)."""
+
+    def _assert_safe(self, value: Any) -> None:
+        if isinstance(value, dict):
+            for item in value.values():
+                self._assert_safe(item)
+        elif isinstance(value, list):
+            for item in value:
+                self._assert_safe(item)
+        elif isinstance(value, bool) or value is None or isinstance(value, str):
+            return
+        elif isinstance(value, int):
+            self.assertLess(abs(value), 2**31, value)
+        else:
+            self.fail(f"{value!r} ({type(value).__name__}) in a response")
+
+    def test_responses_hold_no_floats(self) -> None:
+        requests = [
+            ("solve_inequality", {"inequality": "x > 1e17", "variable": "x"}),
+            ("solve_inequality", {"inequality": "x^2 < 1e20", "variable": "x"}),
+            ("solve_inequality", {"inequality": "x^5 - x - 1 > 0", "variable": "x"}),
+            ("solve_inequality", {"inequality": "sin(x) > 1/2", "variable": "x", "lower": "0", "upper": "1e5"}),
+            ("solve", {"equation": "x^3+x+1=0", "variable": "x"}),
+            ("solve", {"equation": "x^2=1e40", "variable": "x"}),
+            ("simplify", {"expression": "2^60"}),
+            ("integrate", {"expression": "x", "variable": "x", "lower": "0", "upper": "1e10"}),
+        ]
+        for operation, args in requests:
+            with self.subTest(operation=operation, args=args):
+                response = handle({"operation": operation, "args": args})
+                self.assertIn("result", response)
+                self._assert_safe(response)
+
+
 class TestEngine(unittest.TestCase):
     def test_runs_requests_and_stops_long_ones(self) -> None:
         engine = SympyEngine(time_limit_s=2.0)
@@ -245,6 +410,15 @@ class TestRoute(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["data"], {"result": "x^2"})
+        response = self.client.post(
+            "/api/cas",
+            json={"operation": "solve_inequality", "args": {"inequality": "x^2 < 4", "variable": "x"}},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.get_json()["data"]["result"]["intervals"],
+            [{"lower": "-2", "upper": "2", "lower_closed": False, "upper_closed": False}],
+        )
 
     def test_cas_route_refuses_bad_bodies(self) -> None:
         self.assertEqual(self.client.post("/api/cas", json=[1]).status_code, 400)

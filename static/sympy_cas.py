@@ -1,5 +1,5 @@
 """SymPy computations for the CAS tools: limit, integrate, solve and simplify (and derive,
-where nerdamer has no answer).
+where nerdamer has no answer), and the solution sets of inequalities.
 
 The browser's symbolic engine (nerdamer) is often wrong on these four (see
 documentation/Roadmap.md, CAS reliability), so the client asks the server first and keeps
@@ -603,12 +603,249 @@ def _sorted_roots(roots: Sequence[Any]) -> List[Any]:
     return sorted(roots, key=key)
 
 
+# ----- inequalities ----------------------------------------------------------------------
+
+_RELATION_OPERATORS: Dict[type, str] = {ast.Lt: "<", ast.LtE: "<=", ast.Gt: ">", ast.GtE: ">="}
+# A periodic inequality without an interval is solved on [-PERIODIC_WINDOW, PERIODIC_WINDOW].
+PERIODIC_WINDOW = "2*pi"
+# A periodic inequality is solved on one period and shifted across the window; when that
+# takes more copies than this, the answer covers one period.
+MAX_PERIOD_COPIES = 50
+# Interval brackets: lower open?, upper open?
+_BOUNDS = {"[]": (False, False), "[)": (False, True), "(]": (True, False), "()": (True, True)}
+
+
+def parse_relation(text: str) -> List[Any]:
+    """The SymPy relations (real symbols) of an inequality, or of a chain such as 1 < 2x+1 <= 5 (two relations).
+
+    Raises:
+        ExpressionError: unless the text is one or two comparisons with <, <=, > or >= that
+            point the same way, between expressions parse_expression accepts.
+    """
+    import sympy as sp
+
+    try:
+        tree = ast.parse(_prepared_text(str(text)).strip(), mode="eval")
+    except SyntaxError as error:
+        raise ExpressionError(f"Cannot read the inequality {text!r}: {error.msg}.") from None
+    node = tree.body
+    if not isinstance(node, ast.Compare) or not all(type(op) in _RELATION_OPERATORS for op in node.ops):
+        raise ExpressionError("An inequality compares two expressions with <, <=, > or >=.")
+    operators = [_RELATION_OPERATORS[type(op)] for op in node.ops]
+    if len(operators) > 2 or len({operator[0] for operator in operators}) > 1:
+        raise ExpressionError("A chain of inequalities has two signs pointing the same way, e.g. 1 < 2x+1 <= 5.")
+    builder = _Builder(real=True)
+    operands = [builder.build(node.left)] + [builder.build(operand) for operand in node.comparators]
+    relation = {"<": sp.Lt, "<=": sp.Le, ">": sp.Gt, ">=": sp.Ge}
+    return [
+        relation[operator](operands[index], operands[index + 1], evaluate=False)
+        for index, operator in enumerate(operators)
+    ]
+
+
+def _interval(lower: Optional[str], upper: Optional[str], bounds: Optional[str]) -> Any:
+    """The Interval from lower to upper (bounds "[]", "[)", "(]" or "()"), or None when neither end is given."""
+    import sympy as sp
+
+    if lower is None and upper is None:
+        return None
+    if lower is None or upper is None:
+        raise ExpressionError("An interval needs both ends.")
+    if (bounds or "[]") not in _BOUNDS:
+        raise ExpressionError("The interval's brackets must be [], [), (] or ().")
+    low, high = parse_expression(lower, real=True), parse_expression(upper, real=True)
+    if low.free_symbols or high.free_symbols or not (_is_real_value(low) and _is_real_value(high)):
+        raise ExpressionError("The interval's ends must be real numbers.")
+    if not bool(low < high):
+        raise ExpressionError("The interval's lower end must be below its upper end.")
+    left_open, right_open = _BOUNDS[bounds or "[]"]
+    return sp.Interval(low, high, left_open, right_open)
+
+
+def compute_solve_inequality(
+    inequality: str,
+    variable: str,
+    lower: Optional[str] = None,
+    upper: Optional[str] = None,
+    bounds: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """The real solution set of an inequality in one variable, or None when SymPy has no usable answer.
+
+    Returns {"intervals": [{"lower", "upper", "lower_closed", "upper_closed"}, ...],
+    "window": text or None, "period": text or None}: the intervals in increasing order (an
+    isolated point is an interval with equal closed ends), every end as text in the client's
+    notation ("Infinity" for an infinite end). With lower and upper the set is restricted to
+    that interval (bounds as in _interval), which "window" repeats. A periodic inequality
+    (sin(x) > 1/2) is solved on one period [0, T) and the copies shifted across the interval,
+    or across [-2*pi, 2*pi] without one; "period" is then T, and when the window would need
+    more than MAX_PERIOD_COPIES copies "window" is one period, [a, a + T) (a is the
+    interval's lower end, or 0).
+    """
+    import sympy as sp
+    from sympy.calculus.util import periodicity
+
+    x = _symbol(variable, real=True)
+    relations = parse_relation(inequality)
+    for relation in relations:
+        names = relation.free_symbols - {x}
+        if names:
+            raise ExpressionError(f"The inequality has other variables besides {variable}: {_names(names)}.")
+    if not any(relation.has(x) for relation in relations):
+        raise ExpressionError(f"The inequality does not contain {variable}.")
+    domain = _interval(lower, upper, bounds)
+    periods = {periodicity(relation.lhs - relation.rhs, x) for relation in relations}
+    if periods == {None} or periods == {sp.S.Zero}:
+        solution = _solve_relations(relations, x, domain if domain is not None else sp.S.Reals)
+        window = domain
+        period = None
+    elif len(periods) == 1 and None not in periods:
+        period = periods.pop()
+        window = domain if domain is not None else _default_window()
+        solution, window = _periodic_solution_set(relations, x, period, window, domain is not None)
+    else:
+        return None  # periodic and non-periodic parts together: left to the numeric sign chart
+    if solution is None:
+        return None
+    intervals = _set_intervals(solution)
+    if intervals is None:
+        return None
+    return {
+        "intervals": intervals,
+        "window": _interval_text(window) if window is not None else None,
+        "period": to_text(period) if period is not None else None,
+    }
+
+
+def _names(symbols: Any) -> str:
+    return ", ".join(sorted(str(symbol) for symbol in symbols))
+
+
+def _default_window() -> Any:
+    import sympy as sp
+
+    bound = parse_expression(PERIODIC_WINDOW)
+    return sp.Interval(-bound, bound)
+
+
+def _solve_relations(relations: Sequence[Any], x: Any, domain: Any) -> Any:
+    """The intersection of each relation's solution set in domain, or None when SymPy cannot solve one."""
+    solution = domain
+    for relation in relations:
+        part = _solve_relation(relation, x, domain)
+        if part is None:
+            return None
+        solution = solution.intersect(part)
+    return solution
+
+
+def _solve_relation(relation: Any, x: Any, domain: Any) -> Any:
+    """solve_univariate_inequality's set in domain, or reduce_inequalities' when it cannot; None when neither can."""
+    from sympy.solvers.inequalities import reduce_inequalities, solve_univariate_inequality
+
+    try:
+        return solve_univariate_inequality(relation, x, relational=False, domain=domain)
+    except NotImplementedError:
+        pass
+    try:
+        return reduce_inequalities(relation, x).as_set().intersect(domain)
+    except NotImplementedError:
+        return None
+
+
+def _periodic_solution_set(relations: Sequence[Any], x: Any, period: Any, window: Any, given: bool) -> Tuple[Any, Any]:
+    """(solution set in the window, the window) for relations with this period.
+
+    SymPy answers a periodic inequality for one period, even on a larger domain
+    (sin(x) > 1/2 gives (pi/6, 5*pi/6) on [-2*pi, 2*pi]), so the inequality is solved on
+    [0, period) and the copies of that set are shifted across the window. The window shrinks
+    to one period when it is unbounded or needs more than MAX_PERIOD_COPIES copies.
+    """
+    import sympy as sp
+
+    base = _solve_relations(relations, x, sp.Interval.Ropen(0, period))
+    if base is None or _set_intervals(base) is None:
+        return None, window
+    first, last = _copy_range(window, period)
+    if first is None or last - first + 1 > MAX_PERIOD_COPIES:
+        start = window.inf if given and window.inf.is_finite else sp.S.Zero
+        window = sp.Interval.Ropen(start, start + period).intersect(window)
+        first, last = _copy_range(window, period)
+    assert first is not None and last is not None
+    shifted = [sp.imageset(sp.Lambda(x, x + k * period), base) for k in range(first, last + 1)]
+    return sp.Union(*shifted).intersect(window), window
+
+
+def _copy_range(window: Any, period: Any) -> Tuple[Optional[int], int]:
+    """(first, last) k such that the copies [k*T, (k+1)*T) cover the window; (None, 0) when it is unbounded."""
+    if not (window.inf.is_finite and window.sup.is_finite):
+        return None, 0
+    step = float(period)
+    return math.floor(float(window.inf) / step), math.floor(float(window.sup) / step)
+
+
+def _set_intervals(solution: Any) -> Optional[List[Dict[str, Any]]]:
+    """A union of intervals and points as sorted interval records, or None for any other set (ConditionSet, ...)."""
+    import sympy as sp
+
+    if solution == sp.S.EmptySet:
+        return []
+    parts = list(solution.args) if isinstance(solution, sp.Union) else [solution]
+    records: List[Tuple[float, Dict[str, Any]]] = []
+    for part in parts:
+        if part == sp.S.Reals:
+            part = sp.Interval(-sp.oo, sp.oo)
+        if isinstance(part, sp.Interval):
+            ends = (part.start, part.end)
+            closed = (not part.left_open, not part.right_open)
+        elif isinstance(part, sp.FiniteSet):
+            for point in part:
+                record = _interval_record(point, point, True, True)
+                if record is None:
+                    return None
+                records.append(record)
+            continue
+        else:
+            return None
+        record = _interval_record(ends[0], ends[1], closed[0], closed[1])
+        if record is None:
+            return None
+        records.append(record)
+    return [record for _, record in sorted(records, key=lambda item: item[0])]
+
+
+def _interval_record(
+    low: Any, high: Any, low_closed: bool, high_closed: bool
+) -> Optional[Tuple[float, Dict[str, Any]]]:
+    """(sort key, {"lower", "upper", "lower_closed", "upper_closed"}), or None when an end is not a real number."""
+    texts = []
+    for end in (low, high):
+        if not _is_usable(end) or not _is_real_value(end) or end.free_symbols:
+            return None
+        texts.append(to_text(_displayed_root(end)))
+    try:
+        key = float(low)
+    except (TypeError, ValueError):
+        return None
+    record = {"lower": texts[0], "upper": texts[1], "lower_closed": low_closed, "upper_closed": high_closed}
+    return key, record
+
+
+def _interval_text(interval: Any) -> str:
+    """[a, b), (a, b], ... in the client's notation."""
+    left = "(" if interval.left_open else "["
+    right = ")" if interval.right_open else "]"
+    return f"{left}{to_text(interval.start)}, {to_text(interval.end)}{right}"
+
+
+# Every value in a response is text, a bool, a small int or None: Brython's json.loads
+# cannot read the exponent of a float such as 1e+16.
 OPERATIONS: Dict[str, Callable[..., Any]] = {
     "derive": compute_derivative,
     "limit": compute_limit,
     "integrate": compute_integral,
     "simplify": compute_simplify,
     "solve": compute_solve,
+    "solve_inequality": compute_solve_inequality,
 }
 
 
