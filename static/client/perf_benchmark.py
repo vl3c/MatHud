@@ -112,6 +112,8 @@ def _per_drawable(build_ms: Dict[str, float], created: Dict[str, int]) -> Dict[s
 
 _FUNCTION_EXPRESSIONS: List[str] = ["sin(x)*x^2", "tan(x)", "1/(x^2 - 1)", "exp(-x^2/2)/sqrt(2*pi)"]
 _MATHJS_EXPRESSIONS: List[str] = ["2*sin(1) + sqrt(16)", "log(10)^2 / 3", "gcd(84, 36) + 5!"]
+# Numbers the uncached function_create appends, so its texts never repeat within a page
+_UNCACHED_TEXTS = {"next": 0}
 
 
 def _time_loop(perf_api: Any, repeats: int, body: Callable[[], Any]) -> Dict[str, float]:
@@ -124,6 +126,7 @@ def _time_loop(perf_api: Any, repeats: int, body: Callable[[], Any]) -> Dict[str
 
 def _expression_benchmarks(perf_api: Any, scale: int) -> Dict[str, Dict[str, float]]:
     """Time expression parsing and evaluation, the hot paths the refactors touch."""
+    from compiled_expression import compile_expression
     from drawables.function import Function
     from drawables.parametric_function import ParametricFunction
     from expression_validator import ExpressionValidator
@@ -146,6 +149,15 @@ def _expression_benchmarks(perf_api: Any, scale: int) -> Dict[str, Dict[str, flo
 
     results["function_create"] = _time_loop(perf_api, 4 * scale, create_function)
 
+    def create_uncached_function() -> None:
+        # A new text each time, so the parse cache misses (function_create measures hits)
+        _UNCACHED_TEXTS["next"] += 1
+        text = expressions[counter["i"] % len(expressions)] + " + " + str(_UNCACHED_TEXTS["next"])
+        Function(text, name="perf_f")
+        counter["i"] += 1
+
+    results["function_create_uncached"] = _time_loop(perf_api, 4 * scale, create_uncached_function)
+
     function = Function("sin(x)*x^2 + 1/(x - 0.123456789)", name="perf_eval")
     samples = 2000 * scale
     xs = [-10.0 + 20.0 * k / samples for k in range(samples)]
@@ -165,6 +177,18 @@ def _expression_benchmarks(perf_api: Any, scale: int) -> Dict[str, Dict[str, flo
         position["k"] += 1
 
     results["parametric_eval"] = _time_loop(perf_api, samples, eval_parametric)
+
+    # A function of two variables, the budget of an implicit curve F(x, y) = 0 on a grid
+    implicit = compile_expression("x^2 + y^2 - 1", ("x", "y")).bind()
+    grid_samples = 10000 * scale
+    position["k"] = 0
+
+    def eval_xy() -> None:
+        k = position["k"]
+        implicit(xs[k % samples], xs[(k * 7) % samples])
+        position["k"] = k + 1
+
+    results["xy_eval"] = _time_loop(perf_api, grid_samples, eval_xy)
 
     def evaluate_mathjs() -> None:
         MathUtils.evaluate(_MATHJS_EXPRESSIONS[counter["i"] % len(_MATHJS_EXPRESSIONS)])

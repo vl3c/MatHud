@@ -210,6 +210,7 @@ static/client/
 ├── expression_evaluator.py            # Mathematical expression evaluation
 ├── expression_validator.py            # Expression syntax validation
 ├── expression_functions.py            # Function rows the validator and MathUtils derive from
+├── compiled_expression.py             # Expressions compiled once, bound to named variables
 ├── result_validator.py                # Result validation utilities
 ├── cartesian_system_2axis.py          # 2D Cartesian coordinate system management
 ├── polar_grid.py                      # Polar coordinate grid system

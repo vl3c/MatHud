@@ -52,7 +52,7 @@ from __future__ import annotations
 import ast
 import math
 import re
-from typing import Any, Callable, Dict, Optional, Set, Tuple, Type, cast
+from typing import Any, Callable, Dict, NoReturn, Optional, Set, Tuple, Type, cast
 
 import expression_functions as ef
 
@@ -90,11 +90,6 @@ class ExpressionValidator(ast.NodeVisitor):
     ALLOWED_FUNCTIONS: Set[str] = set(ef.ALLOWED_FUNCTIONS)
     # Identifiers or number literals (with optional exponent), matched whole for implicit multiplication
     _IMPLICIT_MULTIPLICATION_TOKEN = ef.TOKEN_PATTERN
-    # Evaluation namespaces (built lazily once, copied per parse) and compiled code per function string
-    _functions: Optional[Dict[str, Any]] = None
-    _curve_functions: Optional[Dict[str, Any]] = None
-    _compiled_cache: Dict[str, Any] = {}
-    _COMPILED_CACHE_LIMIT = 256
 
     # ----- Unicode math notation (typed by users or copied into tool arguments by models) -----
     _NON_ASCII = re.compile(r"[^\x00-\x7f]")
@@ -320,6 +315,25 @@ class ExpressionValidator(ast.NodeVisitor):
         Raises:
             ValueError: If expression contains disallowed operations or syntax errors
         """
+        ExpressionValidator.parse_validated_tree(expression)
+
+    @staticmethod
+    def parse_validated_tree(expression: str) -> ast.Expression:
+        """
+        Parse and validate a mathematical expression, returning its syntax tree.
+
+        The same checks and messages as validate_expression_tree; the tree can be compiled
+        without parsing the text again.
+
+        Args:
+            expression (str): Mathematical expression to validate (Python form)
+
+        Returns:
+            ast.Expression: The validated tree (mode "eval")
+
+        Raises:
+            ValueError: If expression contains disallowed operations or syntax errors
+        """
         ExpressionValidator._reject_folded_letters(expression)
         try:
             # Parse the expression into an abstract syntax tree
@@ -331,6 +345,7 @@ class ExpressionValidator(ast.NodeVisitor):
             ExpressionValidator._handle_syntax_error(expression, e)
         except Exception as e:
             ExpressionValidator._handle_validation_error(expression, e)
+        return tree
 
     @staticmethod
     def _reject_folded_letters(expression: str) -> None:
@@ -346,13 +361,13 @@ class ExpressionValidator(ast.NodeVisitor):
                 raise ValueError(f"Unsupported symbol '{char}' in expression '{expression}'")
 
     @staticmethod
-    def _handle_syntax_error(expression: str, error: SyntaxError) -> None:
+    def _handle_syntax_error(expression: str, error: SyntaxError) -> NoReturn:
         """Handle syntax errors during expression validation"""
         print(f"Syntax error in expression: {expression}")
         raise ValueError(f"Syntax error in expression '{expression}': {str(error)}") from error
 
     @staticmethod
-    def _handle_validation_error(expression: str, error: Exception) -> None:
+    def _handle_validation_error(expression: str, error: Exception) -> NoReturn:
         """Handle general validation errors during expression validation"""
         print(f"Invalid expression: {expression}")
         raise ValueError(f"Error validating expression '{expression}': {str(error)}") from error
@@ -384,17 +399,14 @@ class ExpressionValidator(ast.NodeVisitor):
     @staticmethod
     def _get_variables_and_functions(x: float) -> Dict[str, Any]:
         """Create a dictionary with variables and functions for expression evaluation"""
-        if ExpressionValidator._functions is None:
-            ExpressionValidator._functions = ExpressionValidator._build_functions()
-        variables_and_functions = dict(ExpressionValidator._functions)
+        variables_and_functions = ExpressionValidator._build_functions()
         variables_and_functions["x"] = x
         return variables_and_functions
 
     @staticmethod
     def _build_functions() -> Dict[str, Any]:
-        """Build the dictionary of functions and constants available to expressions (built once)"""
-        functions: Dict[str, Any] = ef.build_python_namespace()
-        return functions
+        """A new dictionary of the functions and constants available to expressions"""
+        return dict(compiled_expression.base_namespace(compiled_expression.FUNCTIONS_ALL))
 
     @staticmethod
     def fix_math_expression(expression: str, python_compatible: bool = False) -> str:
@@ -804,32 +816,9 @@ class ExpressionValidator(ast.NodeVisitor):
         return lambda x: MathUtils.evaluate(function_string, {"x": x})
 
     @staticmethod
-    def _compile_function_string(function_string: str) -> Any:
-        """Fix, validate and compile a function string, caching the code object per string"""
-        cache = ExpressionValidator._compiled_cache
-        compiled_code = cache.get(function_string)
-        if compiled_code is None:
-            fixed_string = ExpressionValidator.fix_math_expression(function_string, python_compatible=True)
-            ExpressionValidator.validate_expression_tree(fixed_string)
-            tree = ast.parse(fixed_string, mode="eval")
-            compiled_code = compile(tree, "<string>", mode="eval")
-            if len(cache) >= ExpressionValidator._COMPILED_CACHE_LIMIT:
-                cache.clear()
-            cache[function_string] = compiled_code
-        return compiled_code
-
-    @staticmethod
     def _parse_with_python(function_string: str) -> Callable[[float], float]:
         """Parse a function string using Python's built-in evaluation (faster)"""
-        compiled_code = ExpressionValidator._compile_function_string(function_string)
-        # One namespace per parsed function, reused across calls; only 'x' changes (hot plotting path)
-        variables = ExpressionValidator._get_variables_and_functions(0)
-
-        def evaluator(x: float) -> float:
-            variables["x"] = x
-            return float(eval(compiled_code, variables))
-
-        return evaluator
+        return cast(Callable[[float], float], compiled_expression.compile_expression(function_string).bind())
 
     @staticmethod
     def parse_function_string(function_string: str, use_mathjs: bool = False) -> Callable[[float], Any]:
@@ -856,9 +845,7 @@ class ExpressionValidator(ast.NodeVisitor):
         instead of 'x', for parametric curves like x(t), y(t). Only the curve-safe functions
         of expression_functions are available.
         """
-        if ExpressionValidator._curve_functions is None:
-            ExpressionValidator._curve_functions = ef.build_curve_namespace()
-        variables_and_functions = dict(ExpressionValidator._curve_functions)
+        variables_and_functions = dict(compiled_expression.base_namespace(compiled_expression.FUNCTIONS_CURVE))
         variables_and_functions["t"] = t
         return variables_and_functions
 
@@ -866,17 +853,12 @@ class ExpressionValidator(ast.NodeVisitor):
     def _parse_parametric_with_python(expression_string: str) -> Callable[[float], float]:
         """Parse a parametric expression string using Python's built-in evaluation.
 
-        Uses 't' as the parameter variable instead of 'x'.
+        Uses 't' as the parameter variable instead of 'x', and only the curve-safe functions.
         """
-        compiled_code = ExpressionValidator._compile_function_string(expression_string)
-        # One namespace per parsed expression, reused across calls; only 't' changes
-        variables = ExpressionValidator._get_variables_and_functions_parametric(0)
-
-        def evaluator(t: float) -> float:
-            variables["t"] = t
-            return float(eval(compiled_code, variables))
-
-        return evaluator
+        compiled = compiled_expression.compile_expression(
+            expression_string, ("t",), compiled_expression.FUNCTIONS_CURVE
+        )
+        return cast(Callable[[float], float], compiled.bind())
 
     @staticmethod
     def parse_parametric_expression(expression_string: str) -> Callable[[float], float]:
@@ -893,3 +875,8 @@ class ExpressionValidator(ast.NodeVisitor):
             callable: Function that can be called with t value and returns a float
         """
         return ExpressionValidator._parse_parametric_with_python(expression_string)
+
+
+# Imported last: compiled_expression imports ExpressionValidator from this module. One
+# module-level import, not one per parse (parses run on every undo deep copy).
+import compiled_expression  # noqa: E402
