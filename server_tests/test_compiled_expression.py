@@ -8,11 +8,12 @@ through Brython.
 
 from __future__ import annotations
 
+import ast
 import math
 import random
 import re
 import unittest
-from typing import Sequence, Tuple
+from typing import Any, Sequence, Tuple
 
 from server_tests import client_renderer  # noqa: F401  (browser stub, so MathUtils resolves)
 import compiled_expression as ce
@@ -136,10 +137,42 @@ class TestBind(unittest.TestCase):
         self.assertEqual(compile_expression("x - t", ("t", "x")).bind()(1.0, 10.0), 9.0)
 
     def test_text_with_a_comment_and_a_variable_named_float(self) -> None:
-        # The lambda wraps the validated text; a trailing comment must not swallow it
         self.assertEqual(compile_expression("x + 1 # shift").bind()(1.0), 2.0)
-        # The lambda converts with _float, so a variable may be called float
+        # The lambda converts with a name no text or variable can spell, so float stays free
         self.assertEqual(compile_expression("2*float", ("float",)).bind()(3.0), 6.0)
+
+    def test_the_lambda_adds_no_name_the_text_can_read(self) -> None:
+        # As before compiled lambdas: _float is just an undefined name
+        with self.assertRaises(NameError):
+            compile_expression("_float + x").bind()(1.0)
+        self.assertEqual(compile_expression("_float + x").free_names, ("_float",))
+
+    def test_the_lambda_is_built_from_the_validated_tree(self) -> None:
+        compiled = compile_expression("x + 1 # )) , open('f'")
+        lambda_tree = ce._lambda_tree(compiled._parsed.tree, compiled.variables)
+        self.assertEqual(ast.dump(lambda_tree.body.body.args[0]), ast.dump(compiled._parsed.tree.body))
+        self.assertEqual(compiled.bind()(1.0), 2.0)
+
+    def test_deeply_nested_text_still_evaluates(self) -> None:
+        # The lambda adds no brackets, so text at the parser's nesting limit still works
+        self.assertEqual(compile_expression("(" * 199 + "x" + ")" * 199).bind()(2.0), 2.0)
+
+    def test_a_lambda_that_does_not_compile_falls_back_to_the_parsed_code(self) -> None:
+        compiled = compile_expression("x*t + 1", ("x", "t"))
+        original = ce._lambda_tree
+
+        def fail(tree: Any, variables: Any) -> Any:
+            raise RecursionError("maximum recursion depth exceeded")
+
+        ce._lambda_tree = fail  # type: ignore[assignment]
+        try:
+            evaluate = ce._compile_lambda(compiled._parsed, compiled.variables, compiled.functions)
+        finally:
+            ce._lambda_tree = original  # type: ignore[assignment]
+        self.assertEqual(evaluate(2.0, 3.0), 7.0)
+        self.assertEqual(evaluate(1.0, 1.0), 2.0)
+        with self.assertRaises(NameError):
+            ce._compile_lambda(compile_expression("a*x")._parsed, ("x",), FUNCTIONS_ALL)(1.0)
 
     def test_evaluation_errors_are_raised_by_the_callable(self) -> None:
         with self.assertRaises(NameError):

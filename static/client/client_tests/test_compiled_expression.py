@@ -71,6 +71,13 @@ class TestCompiledExpression(unittest.TestCase):
         self.assertEqual(compile_expression("x - t", ("t", "x")).bind()(1.0, 10.0), 9.0)
         self.assertIsInstance(compile_expression("x + 1").bind()(2), float)
 
+    def test_the_lambda_comes_from_the_validated_tree(self) -> None:
+        # Brython compiles the hand-built lambda; it adds no readable name and no brackets
+        with self.assertRaises(NameError):
+            compile_expression("_float + x").bind()(1.0)
+        self.assertEqual(compile_expression("x + 1 # )) , open('f'").bind()(1.0), 2.0)
+        self.assertEqual(compile_expression("(" * 50 + "x" + ")" * 50).bind()(2.0), 2.0)
+
     def test_repeated_text_reuses_the_parse(self) -> None:
         self.assertIs(compile_expression("x^3 + 7")._parsed, compile_expression("x^3 + 7")._parsed)
         for _ in range(2):
