@@ -14,6 +14,8 @@ This repository is the prototype and the foundation for that HUD:
 - **Next:** Android.
 - **Later:** smart glasses and VR, with 3D rendering alongside 2D.
 
+The math is practical: MatHud grows out of the scientific graphing calculator tradition and adds what real-world problems need, not every advanced field of mathematics.
+
 The app may be rewritten in another language or stack along the way. What has to carry over is the design rather than the code: the AI-first operating model below, the tool contract the model calls, the scene state that the user and the model both see, checked math, and the scenario catalogue that defines correct behavior ([Project Architecture](documentation/Project%20Architecture.txt) lists where each lives). The [Roadmap](documentation/Roadmap.md#the-path-to-the-hud) shows which phase builds which part of the HUD.
 
 ## 1. AI-First Operating Model
