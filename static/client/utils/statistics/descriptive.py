@@ -128,6 +128,18 @@ def _variance_and_deviation(scale: float, scaled: float, divisor: int) -> Tuple[
     return std_dev * std_dev, std_dev
 
 
+def population_spread(values: List[float], name: str = "data") -> Tuple[float, float]:
+    """Return the population (variance, standard deviation) of *values*.
+
+    The same routine as compute_descriptive_statistics, so expressions' pstdev and
+    pvariance give the tool's figures bit for bit. *name* is the argument's name in
+    the error messages.
+    """
+    _validate_data(values, name)
+    scale, scaled = _sum_of_squares(values, _compute_mean(values))
+    return _variance_and_deviation(scale, scaled, len(values))
+
+
 def _compute_median(sorted_data: List[float]) -> float:
     """Return the median of an already-sorted list."""
     n = len(sorted_data)

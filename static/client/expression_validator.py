@@ -268,6 +268,7 @@ class ExpressionValidator(ast.NodeVisitor):
             ValueError: If function is not in the allowed functions whitelist
         """
         if isinstance(node.func, ast.Name) and node.func.id in self.ALLOWED_FUNCTIONS:
+            self._reject_normalization_argument(node.func.id, node)
             # Visit the children of the ast.Call node manually
             for arg in node.args:
                 self.visit(arg)
@@ -275,6 +276,20 @@ class ExpressionValidator(ast.NodeVisitor):
                 self.visit(keyword)
         else:
             raise ValueError(f"Disallowed function: {ast.dump(node)}")
+
+    # math.js reads a string second argument of std and variance as the normalization, and its
+    # names mislead: "biased" divides by n + 1, "uncorrected" by n
+    _SAMPLE_SPREAD_FUNCTIONS = frozenset({"stdev", "variance", "std", "var"})
+
+    @classmethod
+    def _reject_normalization_argument(cls, name: str, node: ast.Call) -> None:
+        if name not in cls._SAMPLE_SPREAD_FUNCTIONS:
+            return
+        if any(isinstance(arg, ast.Constant) and isinstance(arg.value, str) for arg in node.args):
+            raise ValueError(
+                f"{name} takes no normalization argument: stdev and variance give the sample figures "
+                "(dividing by n - 1); use pstdev or pvariance for the population figures (dividing by n)"
+            )
 
     def visit_Import(self, node: ast.Import) -> None:
         raise ValueError("Import statements are not allowed")
