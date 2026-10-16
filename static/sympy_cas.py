@@ -205,8 +205,12 @@ class _Builder:
             raise ExpressionError("Numbers must be finite.")
         if abs(value) >= 10.0**MAX_INTEGER_DIGITS:
             raise ExpressionError(f"Numbers have at most {MAX_INTEGER_DIGITS} digits before the point.")
-        # A decimal such as 0.5 is read as the exact rational it stands for.
-        return sp.nsimplify(sp.Float(repr(value)), rational=True)
+        # A decimal such as 0.5 is read as the exact rational it stands for: nsimplify's
+        # (0.333333333333333 as 1/3), unless the decimal itself is shorter (1e-300 as 10^-300,
+        # where nsimplify gives a fraction of two 300-digit numbers).
+        simplified = sp.nsimplify(sp.Float(repr(value)), rational=True)
+        exact = sp.Rational(repr(value))
+        return simplified if len(str(simplified)) <= len(str(exact)) else exact
 
     def _name(self, name: str) -> Any:
         sp = self.sp
@@ -724,6 +728,7 @@ def compute_solve_inequality(
 
     x = _symbol(variable, real=True)
     relations = parse_relation(inequality)
+    decimal = any(_DECIMAL_LITERAL.search(str(text)) for text in (inequality, lower, upper) if text is not None)
     for relation in relations:
         names = relation.free_symbols - {x}
         if names:
@@ -744,12 +749,12 @@ def compute_solve_inequality(
         return None  # periodic and non-periodic parts together: left to the numeric sign chart
     if solution is None:
         return None
-    intervals = _set_intervals(solution)
+    intervals = _set_intervals(solution, decimal)
     if intervals is None:
         return None
     return {
         "intervals": intervals,
-        "window": _interval_text(window) if window is not None else None,
+        "window": _interval_text(window, decimal) if window is not None else None,
         "period": to_text(period) if period is not None else None,
     }
 
@@ -815,14 +820,19 @@ def _periodic_solution_set(relations: Sequence[Any], x: Any, period: Any, window
 
 def _copy_range(window: Any, period: Any) -> Tuple[Optional[int], int]:
     """(first, last) k such that the copies [k*T, (k+1)*T) cover the window; (None, 0) when it is unbounded."""
+    import sympy as sp
+
     if not (window.inf.is_finite and window.sup.is_finite):
         return None, 0
-    step = float(period)
-    return math.floor(float(window.inf) / step), math.floor(float(window.sup) / step)
+    # Exact: with float division, pi / (pi/3) can come out just below 3 and lose the last copy
+    return int(sp.floor(window.inf / period)), int(sp.floor(window.sup / period))
 
 
-def _set_intervals(solution: Any) -> Optional[List[Dict[str, Any]]]:
-    """A union of intervals and points as sorted interval records, or None for any other set (ConditionSet, ...)."""
+def _set_intervals(solution: Any, decimal: bool = False) -> Optional[List[Dict[str, Any]]]:
+    """A union of intervals and points as sorted interval records, or None for any other set (ConditionSet, ...).
+
+    With decimal (the input had decimals), terminating fractions are written as decimals (_end_text).
+    """
     import sympy as sp
 
     if solution == sp.S.EmptySet:
@@ -837,14 +847,14 @@ def _set_intervals(solution: Any) -> Optional[List[Dict[str, Any]]]:
             closed = (not part.left_open, not part.right_open)
         elif isinstance(part, sp.FiniteSet):
             for point in part:
-                record = _interval_record(point, point, True, True)
+                record = _interval_record(point, point, True, True, decimal)
                 if record is None:
                     return None
                 records.append(record)
             continue
         else:
             return None
-        record = _interval_record(ends[0], ends[1], closed[0], closed[1])
+        record = _interval_record(ends[0], ends[1], closed[0], closed[1], decimal)
         if record is None:
             return None
         records.append(record)
@@ -852,14 +862,14 @@ def _set_intervals(solution: Any) -> Optional[List[Dict[str, Any]]]:
 
 
 def _interval_record(
-    low: Any, high: Any, low_closed: bool, high_closed: bool
+    low: Any, high: Any, low_closed: bool, high_closed: bool, decimal: bool = False
 ) -> Optional[Tuple[float, Dict[str, Any]]]:
     """(sort key, {"lower", "upper", "lower_closed", "upper_closed"}), or None when an end is not a real number."""
     texts = []
     for end in (low, high):
         if not _is_usable(end) or not _is_real_value(end) or end.free_symbols:
             return None
-        texts.append(to_text(_displayed_root(end)))
+        texts.append(_end_text(end, decimal))
     try:
         key = float(low)
     except (TypeError, ValueError):
@@ -868,11 +878,52 @@ def _interval_record(
     return key, record
 
 
-def _interval_text(interval: Any) -> str:
+def _interval_text(interval: Any, decimal: bool = False) -> str:
     """[a, b), (a, b], ... in the client's notation."""
     left = "(" if interval.left_open else "["
     right = ")" if interval.right_open else "]"
-    return f"{left}{to_text(interval.start)}, {to_text(interval.end)}{right}"
+    return f"{left}{_end_text(interval.start, decimal)}, {_end_text(interval.end, decimal)}{right}"
+
+
+# A decimal number in the input: 1.5, .5, 2., 1e-300 (not part of a name such as x1)
+_DECIMAL_LITERAL = re.compile(r"(?<![A-Za-z_\d.])(?:\d+\.\d*|\.\d+|\d+[eE][-+]?\d+)")
+# A decimal end is written in scientific notation below this exponent (1e-7, not 0.0000001)
+MIN_PLAIN_EXPONENT = -6
+
+
+def _end_text(end: Any, decimal: bool) -> str:
+    """An interval end as text: with decimal, a fraction whose decimal expansion ends (p/q with
+    q = 2^a 5^b) as that decimal (123456789/100000000 as 1.23456789, 10^-300 as 1e-300);
+    otherwise as to_text writes the displayed root."""
+    import sympy as sp
+
+    if decimal and isinstance(end, sp.Rational) and not end.is_Integer:
+        text = _decimal_text(int(end.p), int(end.q))
+        if text is not None:
+            return text
+    return to_text(_displayed_root(end))
+
+
+def _decimal_text(numerator: int, denominator: int) -> Optional[str]:
+    """numerator / denominator in decimals, or None when its expansion does not end."""
+    rest, places = denominator, 0
+    for prime in (2, 5):
+        count = 0
+        while rest % prime == 0:
+            rest //= prime
+            count += 1
+        places = max(places, count)
+    if rest != 1:
+        return None
+    sign = "-" if numerator < 0 else ""
+    digits = str(abs(numerator) * (10**places // denominator))  # the value is digits * 10^-places
+    exponent = len(digits) - 1 - places
+    if exponent < MIN_PLAIN_EXPONENT:
+        mantissa = digits[0] + ("." + digits[1:].rstrip("0") if digits[1:].rstrip("0") else "")
+        return f"{sign}{mantissa}e{exponent}"
+    if len(digits) <= places:
+        digits = "0" * (places - len(digits) + 1) + digits
+    return f"{sign}{digits[: len(digits) - places]}.{digits[len(digits) - places :]}"
 
 
 # Every value in a response is text, a bool, a small int or None: Brython's json.loads

@@ -318,6 +318,35 @@ class TestInequalities(unittest.TestCase):
         assert on_interval is not None
         self.assertEqual(on_interval["window"], "[0, 2*pi)")
 
+    def test_the_last_period_copy_is_kept(self) -> None:
+        # pi / (pi/3) is just below 3 in floats, which lost the copy that holds pi
+        self.assertEqual(
+            _ends(compute_solve_inequality("cos(6*x) >= 1", "x", "0", "pi")),
+            [
+                ("0", "0", True, True),
+                ("pi/3", "pi/3", True, True),
+                ("2*pi/3", "2*pi/3", True, True),
+                ("pi", "pi", True, True),
+            ],
+        )
+
+    def test_decimal_input_gives_decimal_ends(self) -> None:
+        self.assertEqual(
+            _ends(compute_solve_inequality("x >= 1.23456789", "x")), [("1.23456789", "Infinity", True, False)]
+        )
+        self.assertEqual(
+            _ends(compute_solve_inequality("(x-1)*(x-1.0000001) < 0", "x")), [("1", "1.0000001", False, False)]
+        )
+        solution = compute_solve_inequality("x > 0", "x", "1e-300", "1")
+        assert solution is not None
+        self.assertEqual(_ends(solution), [("1e-300", "1", True, True)])
+        self.assertEqual(solution["window"], "[1e-300, 1]")
+        self.assertEqual(
+            _ends(compute_solve_inequality("x < 0.000001", "x")), [("-Infinity", "0.000001", False, False)]
+        )
+        # Without decimals in the input, fractions stay fractions
+        self.assertEqual(_ends(compute_solve_inequality("2*x < 1", "x")), [("-Infinity", "1/2", False, False)])
+
     def test_sympy_is_wrong_on_some_periodic_inequalities(self) -> None:
         # The answer is [0, pi/2) U (pi/2, 7*pi/6) U (11*pi/6, 2*pi) in each period; SymPy gives
         # [0, pi/2). The browser's numeric check refutes it and answers with the sign chart.
