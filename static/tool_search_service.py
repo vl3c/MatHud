@@ -89,15 +89,16 @@ _GRAPH_ANALYSIS_WORDS = frozenset(
     {"shortest", "path", "bfs", "dfs", "mst", "topological", "spanning", "adjacency", "degree", "dag", "tree"}
 )
 # Words that mark a correlation question as graph theory. The unambiguous ones count alone;
-# the everyday ones ("tree height", "path length", "a graph" meaning a plot) only in pairs.
+# the everyday ones ("tree height", "path length", "triangle vertices", "a graph" meaning a
+# plot) only in pairs, and none of them when the query gives number lists to correlate.
 _GRAPH_THEORY_ONLY_WORDS = frozenset(
-    {"vertex", "vertices", "bfs", "dfs", "mst", "topological", "spanning", "adjacency", "dag", "dags"}
-    | {"directed", "undirected"}
+    {"bfs", "dfs", "mst", "topological", "spanning", "adjacency", "dag", "dags", "undirected"}
 )
 _GRAPH_THEORY_AMBIGUOUS_WORDS = frozenset(
     {"graph", "graphs", "edge", "edges", "node", "nodes", "network", "networks", "tree", "trees"}
-    | {"path", "paths", "shortest", "weighted", "degree"}
+    | {"vertex", "vertices", "path", "paths", "shortest", "weighted", "degree", "directed"}
 )
+_NUMBER_LIST_RE = re.compile(r"\[\s*[-+.]?\d")
 _GRAPH_VERTEX_WORDS = frozenset({"point", "points"})
 _GRAPH_EDGE_WORDS = frozenset({"segment", "segments", "connect", "connected", "connecting", "connects"})
 # Words that make "graph" another tool's object: plots and charts, curves and functions,
@@ -812,8 +813,11 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         return _BARE_GRAPH_REQUEST_RE.match(raw_lower) is not None
 
     @staticmethod
-    def _names_graph_theory(token_set: set[str]) -> bool:
-        """Whether a query uses graph-theory words: one unambiguous word, or two everyday ones."""
+    def _names_graph_theory(token_set: set[str], raw_query: str) -> bool:
+        """Whether a query uses graph-theory words (one unambiguous word, or two everyday ones)
+        and gives no number lists, which make it a data question."""
+        if _NUMBER_LIST_RE.search(raw_query):
+            return False
         return bool(token_set & _GRAPH_THEORY_ONLY_WORDS) or len(token_set & _GRAPH_THEORY_AMBIGUOUS_WORDS) >= 2
 
     @staticmethod
@@ -864,7 +868,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         # analysis. A lone "graph" or "tree" is a plot or data ("graph the correlation of x and y",
         # "correlation between tree age and height").
         if token_set & {"correlation", "correlate", "correlated", "covariance", "pearson"} and not (
-            token_set & {"fit", "fitting", "regression", "matrix", "matrices"} or ToolSearchService._names_graph_theory(token_set)
+            token_set & {"fit", "fitting", "regression", "matrix", "matrices"} or ToolSearchService._names_graph_theory(token_set, raw_lower)
         ):
             scores["compute_descriptive_statistics"] += 6.0
 
