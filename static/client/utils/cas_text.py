@@ -384,13 +384,21 @@ _GLUED_OPERAND = re.compile(r"(\d+(?:\.\d+)?)?([A-Za-z])$")
 # One letter and e or pi written together: xe, ex, xpi, pix (not i, the imaginary unit)
 _CONSTANT_PRODUCT = re.compile(r"(?:([a-df-hj-zA-Z])(e|pi)|(e|pi)([a-df-hj-zA-Z]))$")
 _COEFFICIENTS = ("pi", "e")
+# A digit after these is part of a name (log2, log10), so log2x is left unread
+_LOGS = ("log", "ln")
+# One letter, the longest function name (asinh), a number and one letter: longer names stay
+_MAX_GLUED_LENGTH = 16
 
 
-def glued_call(name: str, glued_names: Iterable[str]) -> Optional[Tuple[str, str, str]]:
+def glued_call(
+    name: str, glued_names: Iterable[str], function_names: Iterable[str] = ()
+) -> Optional[Tuple[str, str, str]]:
     """(prefix, function, operand) when name is a function glued to a one-letter operand,
     with at most one letter before it: sinx -> ("", "sin", "x"), sin2x -> ("", "sin", "2x"),
-    xlnx -> ("x", "ln", "x"); None for any other name (costs, seconds, cos_theta)."""
-    if "_" in name:
+    xlnx -> ("x", "ln", "x"); None for any other name (costs, seconds, cos_theta), for a
+    function name (sech is not sec(h)) and for a digit after a log (log2x: log2(x) or log(2x)?).
+    """
+    if "_" in name or name in set(function_names) or len(name) > _MAX_GLUED_LENGTH:
         return None
     functions = sorted(glued_names, key=len, reverse=True)
     for prefix in ("", name[:1]):
@@ -398,13 +406,21 @@ def glued_call(name: str, glued_names: Iterable[str]) -> Optional[Tuple[str, str
             break
         body = name[len(prefix) :]
         for function in functions:
-            if body.startswith(function) and _GLUED_OPERAND.match(body[len(function) :]):
-                return prefix, function, body[len(function) :]
+            operand = body[len(function) :]
+            if not body.startswith(function) or not _GLUED_OPERAND.match(operand):
+                continue
+            if function in _LOGS and operand[0].isdigit():
+                return None
+            return prefix, function, operand
     return None
 
 
 def insert_calculator_calls(
-    text: str, unary_names: Iterable[str], glued_names: Iterable[str], keep: Iterable[str] = ()
+    text: str,
+    unary_names: Iterable[str],
+    glued_names: Iterable[str],
+    keep: Iterable[str] = (),
+    function_names: Iterable[str] = (),
 ) -> str:
     """Read a one-argument function written without parentheses as calculators do.
 
@@ -416,18 +432,22 @@ def insert_calculator_calls(
     with powers; it stops before another function. Where the textbook reading is not clear
     the text is left as it is, for the engines to refuse: sin x y, sin 2*x, sin x/2,
     sin x(x+1). So is text that already has its parentheses (sin(x), sin^2(x)), a name with
-    "_" and names in keep (a variable such as cost).
+    "_", names in keep (a variable such as cost) and, as a whole, function_names (sech, coth:
+    never sec(h) or cot(h)).
     """
     unary, glued, kept = set(unary_names), set(glued_names), set(keep)
+    functions = set(function_names) | unary
     if not any(name in text for name in unary | glued):
         return text
     tokens = [match for match in _TOKEN.finditer(text) if not match.group(0)[0].isdigit()]
     for match in reversed(tokens):
-        text = _calculator_call(text, match.start(), match.group(0), unary, glued, kept)
+        text = _calculator_call(text, match.start(), match.group(0), unary, glued, kept, functions)
     return text
 
 
-def _calculator_call(text: str, start: int, name: str, unary: Set[str], glued: Set[str], kept: Set[str]) -> str:
+def _calculator_call(
+    text: str, start: int, name: str, unary: Set[str], glued: Set[str], kept: Set[str], functions: Set[str]
+) -> str:
     """text with the function name at start applied to its operand, or text unchanged."""
     if name in kept or "_" in name or (start > 0 and text[start - 1] == "."):
         return text
@@ -447,7 +467,7 @@ def _calculator_call(text: str, start: int, name: str, unary: Set[str], glued: S
             return text
         call, operand_end = f"{name}{power}({operand[0]})", operand[1]
     else:
-        parts = glued_call(name, glued)
+        parts = glued_call(name, glued, functions)
         if parts is None:
             return text
         prefix, function, glued_operand = parts

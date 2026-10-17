@@ -222,9 +222,24 @@ class TestCalculatorNotation(unittest.TestCase):
         self.assertEqual(glued_call("asinx", glued), ("", "asin", "x"))
         self.assertEqual(glued_call("sin2x", glued), ("", "sin", "2x"))
         self.assertEqual(glued_call("xlnx", glued), ("x", "ln", "x"))
-        for name in ("costs", "cos_t", "xycosx", "sin", "seconds", "logs2"):
+        for name in ("costs", "cos_t", "xycosx", "sin", "seconds", "logs2", "log2x", "log10x", "ln2x"):
             with self.subTest(name=name):
                 self.assertIsNone(glued_call(name, glued))
+        # a function name is never split into a glued call: sech is not sec(h)
+        functions = ("sech", "csch", "coth", "sinc")
+        for name in functions:
+            with self.subTest(name=name):
+                self.assertIsNone(glued_call(name, ("sec", "csc", "cot", "sin"), functions))
+        self.assertEqual(glued_call("sinhx", ("sin", "sinh")), ("", "sinh", "x"))
+
+    def test_function_names_are_not_split(self) -> None:
+        unary = self.UNARY + ("sech", "coth")
+        glued = self.GLUED + ("sec", "cot")
+        functions = ("sech", "coth", "csch")
+        cases = {"sech x": "sech(x)", "coth x = 2": "coth(x) = 2", "csch + 1": "csch + 1", "sechx": "sechx"}
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(insert_calculator_calls(text, unary, glued, function_names=functions), expected)
 
     def test_kept_names(self) -> None:
         self.assertEqual(insert_calculator_calls("cost < 1", self.UNARY, self.GLUED, keep=("cost",)), "cost < 1")

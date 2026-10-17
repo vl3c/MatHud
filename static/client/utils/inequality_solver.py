@@ -104,6 +104,7 @@ class InequalitySolver:
             BY_NAME,
             CALCULATOR_SPELLINGS,
             CALL_ALIASES,
+            ENGINE_FUNCTION_NAMES,
             GLUED_CALL_NAMES,
             RESERVED_NAMES,
             replace_absolute_bars,
@@ -113,7 +114,9 @@ class InequalitySolver:
         if not isinstance(text, str):
             raise ValueError("The expression must be given as text.")
         prepared = replace_absolute_bars(str(MathUtils._normalize_symbols(text)))
-        prepared = insert_calculator_calls(prepared, CALCULATOR_SPELLINGS, GLUED_CALL_NAMES, keep)
+        prepared = insert_calculator_calls(
+            prepared, CALCULATOR_SPELLINGS, GLUED_CALL_NAMES, keep, ENGINE_FUNCTION_NAMES
+        )
         prepared = split_constant_products(prepared, set(RESERVED_NAMES) | set(CALL_ALIASES), keep)
         prepared = str(MathUtils._cas_input(prepared))
         prepared = insert_letter_call_products(prepared, list(BY_NAME) + list(CALL_ALIASES))

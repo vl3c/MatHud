@@ -10,6 +10,7 @@ static/client/client_tests/test_step_checker.py.
 from __future__ import annotations
 
 import math
+import time
 import unittest
 from typing import Any, Dict, List, Optional
 from unittest import mock
@@ -304,6 +305,8 @@ CALCULATOR_EQUIVALENT = [
     ["2*exponent", "exponent + exponent"],
     ["cos_theta^2", "cos_theta*cos_theta"],
     ["seconds*1000", "1000seconds"],
+    ["sinhx", "sinh(x)"],
+    ["coshx", "cosh x"],
 ]
 CALCULATOR_WRONG = [
     ["(x+1)e^x", "xe^x + 1"],
@@ -355,11 +358,27 @@ class TestCalculatorNotation(unittest.TestCase):
             (["sinxcosx", "sin(x)cos(x)"], "sinxcosx is read as one variable; write sin(x)*cos(x)"),
             (["sin x2", "sin(2x)"], "x2 is read as one variable; write x^2 or 2*x"),
             (["xy", "yx"], "xy and yx are each read as one variable; write x*y"),
+            (["log2x", "log2(x)"], "log2x is read as one variable; write log2(x) or log(2x)"),
+            (["log10x", "log(10x)"], "log10x is read as one variable; write log10(x) or log(10x)"),
         ):
             with self.subTest(steps=steps):
                 record = engines.check(steps)["steps"][0]
                 self.assertEqual((record["verdict"], record["method"], record["reason"]), ("undecided", "none", reason))
         self.assertEqual(engines.requests, [])
+
+    @unittest.skipUnless(HAVE_SYMPY, "needs SymPy")
+    def test_reciprocal_hyperbolic_functions(self) -> None:
+        # sech is sech(x), not sec(h)*x (the stand-in cannot evaluate sech, SymPy decides)
+        self.assertEqual(_check(["sech x", "1/cosh(x)"])["verdict"], "equivalent")
+        self.assertEqual(_check(["coth x", "cosh(x)/sinh(x)"])["verdict"], "equivalent")
+        # without math.js's sech here, SymPy alone cannot show this difference is not 0
+        self.assertNotEqual(_check(["sech x", "1/cos(x)"])["verdict"], "equivalent")
+
+    def test_long_names_are_checked_quickly(self) -> None:
+        started = time.time()
+        _Engines(sympy=lambda first, second: None).check(["tanx" * 14 + "Q", "t+a+n+x+Q"])
+        _Engines(sympy=lambda first, second: None).check(["tanx" * 9 + "Q", "t+a+n+x+Q"])
+        self.assertLess(time.time() - started, 2.0)
 
     def test_function_names_are_never_bound_as_variables(self) -> None:
         with mock.patch.object(step_checker, "compare", wraps=step_checker.compare) as spy:

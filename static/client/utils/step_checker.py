@@ -67,6 +67,10 @@ _SINGLE_LETTER = re.compile(r"^[A-Za-zͰ-Ͽ]$")
 
 
 _CONSTANTS = ("e", "pi")
+# Longer names are never split into factors or calls
+_MAX_SPLIT_LENGTH = 40
+# log2x and log10x: log2(x) or log(2x)?
+_LOG_DIGITS = re.compile(r"^(log|ln)(\d+)([A-Za-z])$")
 # A letter and digits, such as x2: x squared or 2x when x is a variable too
 _INDEXED = re.compile(r"^([A-Za-z])(\d+)$")
 
@@ -87,39 +91,54 @@ def _function_spellings() -> FrozenSet[str]:
 
 
 def _glued_names() -> List[str]:
-    """The calculator functions a name may be glued to (sinx, sinxy, sinxcosx), longest first."""
+    """The calculator functions a name may be glued to (sinx, sinxy, sinxcosx, sechx), longest
+    first."""
     from expression_functions import GLUED_CALL_NAMES
 
-    return sorted(GLUED_CALL_NAMES, key=len, reverse=True)
+    return sorted(set(GLUED_CALL_NAMES) | {"sech", "csch", "coth"}, key=len, reverse=True)
 
 
 def _pieces(name: str, letters: Set[str]) -> Optional[List[str]]:
-    """name split into letters, e and pi (xye -> [x, y, e]), or None."""
-    if not name:
-        return []
-    for piece in sorted(letters | set(_CONSTANTS), key=len, reverse=True):
-        if name.startswith(piece):
-            rest = _pieces(name[len(piece) :], letters)
+    """name split into letters, e and pi (xye -> [x, y, e]), or None (also for a name longer
+    than _MAX_SPLIT_LENGTH)."""
+    if len(name) > _MAX_SPLIT_LENGTH:
+        return None
+    parts = sorted(letters | set(_CONSTANTS), key=len, reverse=True)
+    # found[i]: the pieces of name[i:], or None; worked from the end, so it takes linear time
+    found: Dict[int, Optional[List[str]]] = {len(name): []}
+    for start in range(len(name) - 1, -1, -1):
+        found[start] = None
+        for part in parts:
+            rest = found.get(start + len(part)) if name.startswith(part, start) else None
             if rest is not None:
-                return [piece] + rest
-    return None
+                found[start] = [part] + rest
+                break
+    return found[0]
 
 
 def _call_pieces(name: str, letters: Set[str]) -> Optional[List[str]]:
     """name split into glued calls and letters, with a call among them (sinxcosx ->
-    [sin(x), cos(x)], xsinxcosx -> [x, sin(x), cos(x)]), or None."""
-    if not name:
-        return []
-    for function in _glued_names():
-        if name.startswith(function) and name[len(function) : len(function) + 1].isalpha():
-            rest = _call_pieces(name[len(function) + 1 :], letters)
-            if rest is not None:
-                return [f"{function}({name[len(function)]})"] + rest
-    if name[0] in letters:
-        rest = _call_pieces(name[1:], letters)
-        if rest is not None and any("(" in piece for piece in rest):
-            return [name[0]] + rest
-    return None
+    [sin(x), cos(x)], xsinxcosx -> [x, sin(x), cos(x)]), or None (also for a name longer than
+    _MAX_SPLIT_LENGTH). Worked from the end, so a failed split takes linear time."""
+    if len(name) > _MAX_SPLIT_LENGTH:
+        return None
+    # found[i]: (pieces of name[i:], whether a call is among them), or None
+    found: Dict[int, Optional[Tuple[List[str], bool]]] = {len(name): ([], False)}
+    for start in range(len(name) - 1, -1, -1):
+        found[start] = None
+        for function in _glued_names():
+            after = start + len(function)
+            if name.startswith(function, start) and name[after : after + 1].isalpha():
+                rest = found.get(after + 1)
+                if rest is not None:
+                    found[start] = ([f"{function}({name[after]})"] + rest[0], True)
+                    break
+        if found[start] is None and name[start] in letters:
+            rest = found.get(start + 1)
+            if rest is not None and rest[1]:
+                found[start] = ([name[start]] + rest[0], True)
+    result = found[0]
+    return result[0] if result is not None and result[1] else None
 
 
 class PreparedStep:
@@ -291,6 +310,13 @@ class StepChecker:
                 return f"{name} is the name of a function, which the engines cannot read as a variable; rename it"
             if len(name) < 2 or name in others or "_" in name:
                 continue
+            log_digits = _LOG_DIGITS.match(name)
+            if log_digits is not None:
+                function, digits, letter = log_digits.groups()
+                return (
+                    f"{name} is read as one variable; write {function}{digits}({letter}) or "
+                    f"{function}({digits}{letter})"
+                )
             indexed = _INDEXED.match(name)
             if indexed is not None and indexed.group(1) in letters:
                 letter, digits = indexed.groups()

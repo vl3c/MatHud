@@ -191,8 +191,14 @@ class TestStepCheckerWithoutSympy(unittest.TestCase):
             ["revenue - costs", "-(costs - revenue)"],
             ["cos_theta^2", "cos_theta*cos_theta"],
             ["seconds*1000", "1000seconds"],
+            ["sech x", "1/cosh(x)"],
+            ["coth x", "cosh(x)/sinh(x)"],
+            ["csch x", "1/sinh(x)"],
+            ["sinhx", "sinh(x)"],
         ]
         wrong = [
+            ["sech x", "1/cos(x)"],
+            ["coth x", "cosh(x)"],
             ["xlnx - x", "x(lnx + 1)"],
             ["sin pi x", "sin(pi)*x"],
             ["(x+1)e^x", "xe^x + 1"],

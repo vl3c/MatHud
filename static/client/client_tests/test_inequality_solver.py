@@ -212,6 +212,12 @@ class TestInequalitySolverSympy(unittest.TestCase):
             ("xe^x = 1", None): "[0.5671432904098]",
             ("ln x = 1", None): "[e]",
             ("xpi = 1", None): "[1/pi]",
+            # sech is a function, not sec(h); log2x is log2(x) or log(2x), so it is not read
+            ("sech x = 0.5", None): "[-asech(1/2),asech(1/2)]",
+            ("coth x = 2", None): "[acoth(2)]",
+            ("csch x = 1", None): "[log(1+sqrt(2))]",
+            ("sinhx = 1", None): "[log(1+sqrt(2))]",
+            ("log2x = 3", None): "[]",
         }
         for (text, interval), expected in equations.items():
             self.assertEqual(_solve(text, interval), expected, f"{text} on {interval}")

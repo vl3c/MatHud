@@ -486,16 +486,24 @@ _CALCULATOR_NAMES = (
     + ("sinh", "cosh", "tanh", "asinh", "acosh", "atanh")
     + ("log", "log10", "log2", "exp", "sqrt", "cbrt", "abs")
 )
+# The reciprocal hyperbolic functions: math.js and SymPy know them, the expression table does not
+_RECIPROCAL_HYPERBOLIC = ("sech", "csch", "coth")
 CALCULATOR_SPELLINGS: FrozenSet[str] = frozenset(
     spelling
     for name in _CALCULATOR_NAMES
     for spelling in (name,) + BY_NAME[name].aliases + BY_NAME[name].word_aliases
     if " " not in spelling
+) | frozenset(_RECIPROCAL_HYPERBOLIC)
+# Names either engine knows as a function: never split into a glued call (sech is not sec(h))
+ENGINE_FUNCTION_NAMES: FrozenSet[str] = (
+    frozenset(BY_NAME)
+    | frozenset(alias for row in FUNCTIONS for alias in row.aliases + row.word_aliases)
+    | frozenset(_RECIPROCAL_HYPERBOLIC + ("asech", "acsch", "acoth", "sinc", "sgn", "ceil", "nthroot"))
 )
 # The ones that may also touch a one-letter operand, with one letter before them: sinx, lnx,
-# xlnx, sqrtx
+# xlnx, sqrtx, sinhx
 GLUED_CALL_NAMES: FrozenSet[str] = frozenset(
-    _TRIG_NAMES + tuple("a" + name for name in _TRIG_NAMES) + ("ln", "log", "exp", "sqrt")
+    _TRIG_NAMES + tuple("a" + name for name in _TRIG_NAMES) + ("sinh", "cosh", "tanh") + ("ln", "log", "exp", "sqrt")
 )
 
 
