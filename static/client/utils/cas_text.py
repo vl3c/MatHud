@@ -349,10 +349,19 @@ def _operand_end(text: str, start: int, functions: Set[str]) -> Optional[int]:
     if text[start] == "(":
         closing = find_closing_parenthesis(text, start)
         return closing + 1 if closing >= 0 else None
+    if text[start] == "√":
+        return _operand_end(text, _next_non_space(text, start + 1), functions)
     if text[start] in "0123456789.":
         end = start
         while end < len(text) and text[end] in "0123456789.":
             end += 1
+        exponent = end + 1
+        if exponent < len(text) and text[end] in "eE" and text[exponent] in "+-":
+            exponent += 1
+        if end < len(text) and text[end] in "eE" and exponent < len(text) and text[exponent] in "0123456789":
+            end = exponent
+            while end < len(text) and text[end] in "0123456789":
+                end += 1  # 2.5e-3
         return end
     if not _is_letter(text[start]) and text[start] != "_":
         return None

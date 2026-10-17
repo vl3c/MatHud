@@ -176,11 +176,14 @@ class InequalitySolver:
             ValueError: naming the divisor and the two ways to write it.
         """
         from expression_functions import ENGINE_FUNCTION_NAMES
+        from expression_validator import ExpressionValidator
         from utils.cas_text import ambiguous_division
 
         if not isinstance(text, str):
             return
-        divisor = ambiguous_division(text, ENGINE_FUNCTION_NAMES)
+        # read as the engines will: 1/cos²x is 1/cos(x)^2, ÷ is /, and a tab or thin space is a space
+        spaced = "".join(" " if char.isspace() else char for char in text.replace("÷", "/"))
+        divisor = ambiguous_division(ExpressionValidator._convert_function_notation(spaced), ENGINE_FUNCTION_NAMES)
         if divisor is not None:
             raise ValueError(
                 f"{text.strip()} is ambiguous: another factor follows the divisor {divisor} without *. "
