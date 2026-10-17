@@ -21,6 +21,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from browser import window
 
+from utils import equivalence
 from utils.cas_numeric import IntegralEstimate, adaptive_integral
 from utils.cas_text import rewrite_for_nerdamer, unknown_function_names
 
@@ -198,28 +199,15 @@ class SymbolicChecks:
             return False
         return True if matches >= MIN_CHECKED_POINTS and mismatches == 0 else None
 
-    # Rounding noise is estimated from f at point * (1 + k * 2^-52) for these k, and scaled up
-    # by _NOISE_FACTOR, since a few nudges only sample it.
-    _NOISE_NUDGES = (-8, -4, -2, -1, 1, 2, 4, 8)
-    _NOISE_FACTOR = 4.0
-
     @staticmethod
     def rounding_noise(function: RealFunction, point: float) -> float:
         """How much f's floating-point value at point is off by rounding, estimated from its scatter.
 
         An expanded polynomial near a root ((x-3)^15 expanded, at 2.2) cancels terms much larger
         than its value, so its computed values scatter far beyond a relative tolerance on the value.
+        See utils.equivalence.rounding_noise, which does it for any number of variables.
         """
-        centre = function(point)
-        if centre is None or not math.isfinite(centre):
-            return math.inf
-        largest = 0.0
-        for nudge in SymbolicChecks._NOISE_NUDGES:
-            value = function(point * (1 + nudge * 2.0**-52) if point != 0 else nudge * 2.0**-1074)
-            if value is None or not math.isfinite(value):
-                return math.inf
-            largest = max(largest, abs(value - centre))
-        return SymbolicChecks._NOISE_FACTOR * largest
+        return equivalence.rounding_noise(lambda values: function(values["x"]), {"x": point})
 
     @staticmethod
     def _difference_quotient(function: RealFunction, point: float) -> Optional[List[float]]:
