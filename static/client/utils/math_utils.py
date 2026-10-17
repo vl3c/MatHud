@@ -2081,8 +2081,9 @@ class MathUtils:
             return f"Error: {e}"
         try:
             variable = MathUtils._normalize_variable(variable)
-            # the text the inequalities get: sin x, xe^x and x(x+2) as calculators read them
-            equation = InequalitySolver.prepared(equation, keep=(variable,))
+            InequalitySolver.refuse_misspellings(equation, variable)
+            # the text the inequalities get: |x| bars, ln|x| and x(x+2) as products
+            equation = InequalitySolver.prepared(equation)
         except Exception as e:
             return MathUtils._error_text(e)
         sides = equation.split("=")

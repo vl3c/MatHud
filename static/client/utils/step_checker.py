@@ -1,18 +1,24 @@
 """The check_steps tool: is each step of a derivation equivalent to the one before?
 
-Each step is an expression. Steps go through the input pipeline the solve tool uses for
-inequalities (InequalitySolver.prepared: Unicode notation, sin^2(x), ln, |x| bars, sin x,
-sinx and xe^x as calculators read them, x(x+2) and (x-1)(x+2) as products), so SymPy and
-math.js read the same text. Then, for each pair of neighbouring steps:
+Each step is an expression in standard syntax. Steps go through the input pipeline the
+solve tool uses (InequalitySolver.prepared: Unicode notation, sin^2(x), ln, |x| bars, x(x+2)
+and (x-1)(x+2) as products), so SymPy and math.js read the same text. Calculator spellings
+are never rewritten. Then, for each pair of neighbouring steps:
 
-1. A step neither engine can read makes the pair undecided, with the parse message.
-2. A pair with a name the engines misread is undecided, with a hint: a function name read
-   as a variable (sin alone), a function glued to more letters than the pipeline splits
-   (sinxy, sinxcosx), or xy against x and y.
-3. The numeric check (utils.equivalence.compare, every variable varied) decides most
+1. A function written without parentheses (sin x, sin alone) makes the pair undecided, with
+   the call to write (cas_text.misspellings).
+2. A step neither engine can read makes the pair undecided, with the parse message.
+3. A pair with a name the engines misread is undecided, with a hint: another function name
+   used as a variable (gamma), a function glued to more than one letter (sinxy, sinxcosx),
+   or xy against x and y.
+4. A name that looks like a glued call or constant (sinx, xlnx, xe, xpi, cost) is read as
+   one variable. If the steps are equivalent that way they are equivalent however it is
+   read, and the answer says so in a note; otherwise the pair is undecided with the form to
+   write (sin(x), x*ln(x), x*e^x). Such a pair is never not_equivalent.
+5. The numeric check (utils.equivalence.compare, every variable varied) decides most
    pairs. "equivalent" is the answer, with a note when one step is undefined where the
    other is defined (log(x^2) and 2*log(x)), and SymPy is not asked.
-4. Otherwise the server's SymPy engine is asked (operation "equivalent"), within a budget of
+6. Otherwise the server's SymPy engine is asked (operation "equivalent"), within a budget of
    SYMPY_BUDGET_S seconds for the whole derivation, and the two verdicts combine:
 
    | SymPy           | numeric                    | result                          |
@@ -69,8 +75,6 @@ _SINGLE_LETTER = re.compile(r"^[A-Za-zͰ-Ͽ]$")
 _CONSTANTS = ("e", "pi")
 # Longer names are never split into factors or calls
 _MAX_SPLIT_LENGTH = 40
-# log2x and log10x: log2(x) or log(2x)?
-_LOG_DIGITS = re.compile(r"^(log|ln)(\d+)([A-Za-z])$")
 # A letter and digits, such as x2: x squared or 2x when x is a variable too
 _INDEXED = re.compile(r"^([A-Za-z])(\d+)$")
 
@@ -96,27 +100,6 @@ def _glued_names() -> List[str]:
     from expression_functions import GLUED_CALL_NAMES
 
     return sorted(GLUED_CALL_NAMES, key=len, reverse=True)
-
-
-def _has_word_names(names: Sequence[str]) -> bool:
-    """True when a name is written as a word (revenue): then cost beside it is a variable."""
-    from expression_functions import ENGINE_FUNCTION_NAMES, GLUED_CALL_NAMES
-    from utils.cas_text import has_word_names
-
-    return bool(has_word_names(names, GLUED_CALL_NAMES, set(ENGINE_FUNCTION_NAMES) | set(_calculator_spellings())))
-
-
-def _unread_call(name: str) -> Optional[str]:
-    """sin(x) for sinx, x*ln(x) for xlnx: a glued call the input pipeline left unread, as what
-    follows it was not clear (sinx(x+1), sinx^-1); None for other names."""
-    from expression_functions import ENGINE_FUNCTION_NAMES, GLUED_CALL_NAMES
-    from utils.cas_text import glued_call
-
-    parts = glued_call(name, GLUED_CALL_NAMES, set(ENGINE_FUNCTION_NAMES) | set(_calculator_spellings()))
-    if parts is None:
-        return None
-    prefix, function, operand = parts
-    return f"{prefix + '*' if prefix else ''}{function}({operand})"
 
 
 def _pieces(name: str, letters: Set[str]) -> Optional[List[str]]:
@@ -173,9 +156,12 @@ class PreparedStep:
         evaluator: math.js's value at a point, or None when math.js cannot read the step.
         scale: the sum of |term| over the step's terms, when it is a sum of several.
         read_error: why math.js cannot read it ("" when it can).
+        bare: why a function in it has no parentheses (sin x), "" when none has.
+        glued: the names in it that look like a glued call or constant (sinx, xe), as
+            cas_text.Misspellings.
     """
 
-    __slots__ = ("number", "text", "prepared", "variables", "evaluator", "scale", "read_error")
+    __slots__ = ("number", "text", "prepared", "variables", "evaluator", "scale", "read_error", "bare", "glued")
 
     def __init__(self, number: int, text: str) -> None:
         self.number = number
@@ -185,6 +171,8 @@ class PreparedStep:
         self.evaluator: Optional[Evaluator] = None
         self.scale: Optional[Evaluator] = None
         self.read_error = ""
+        self.bare = ""
+        self.glued: List[Any] = []
 
 
 class _Budget:
@@ -251,6 +239,12 @@ class StepChecker:
     def _prepare(number: int, text: str) -> PreparedStep:
         step = PreparedStep(number, text)
         try:
+            found = StepChecker._misspellings(text)
+        except Exception:
+            found = []
+        step.bare = next((m.reason for m in found if m.bare), "")
+        step.glued = [m for m in found if not m.bare]
+        try:
             step.prepared = StepChecker._prepared_text(text)
             step.variables = StepChecker._variables(step.prepared)
         except Exception as error:
@@ -264,6 +258,13 @@ class StepChecker:
         if len(terms) > 1:
             step.scale = _sum_of_sizes([StepChecker._evaluator(term) for _, term in terms])
         return step
+
+    @staticmethod
+    def _misspellings(text: str) -> List[Any]:
+        """The calculator spellings in text (InequalitySolver.misspellings)."""
+        from utils.inequality_solver import InequalitySolver
+
+        return list(InequalitySolver.misspellings(text))
 
     @staticmethod
     def _prepared_text(text: str) -> str:
@@ -296,9 +297,31 @@ class StepChecker:
     @staticmethod
     def _check_pair(previous: PreparedStep, step: PreparedStep, budget: _Budget) -> Dict[str, Any]:
         record: Dict[str, Any] = {"step": step.number}
-        misread = StepChecker._misread_name(previous, step) or StepChecker._misread_name(step, previous)
-        if misread is not None:
+        misread = (
+            previous.bare
+            or step.bare
+            or StepChecker._misread_name(previous, step)
+            or StepChecker._misread_name(step, previous)
+        )
+        if misread:
             return dict(record, verdict=UNDECIDED, method=NEITHER, reason=misread)
+        glued = (previous.glued + step.glued)[:1]
+        result = StepChecker._verdict(record, previous, step, budget, numeric_only=bool(glued))
+        if not glued:
+            return result
+        if result.get("verdict") != EQUIVALENT:
+            # sinx read as a variable: a spelling never makes a step wrong
+            return dict(record, verdict=UNDECIDED, method=NEITHER, reason=glued[0].reason)
+        name, call = glued[0].name, glued[0].call
+        note = f"{name} is read as one variable (for the function, write {call}); the steps agree either way"
+        return dict(result, note=f"{result['note']}; {note}" if result.get("note") else note)
+
+    @staticmethod
+    def _verdict(
+        record: Dict[str, Any], previous: PreparedStep, step: PreparedStep, budget: _Budget, numeric_only: bool
+    ) -> Dict[str, Any]:
+        """The record for a pair the engines read as written; numeric_only skips SymPy unless
+        the numeric check cannot run."""
         numeric: Optional[EquivalenceReport] = None
         if previous.evaluator is not None and step.evaluator is not None:
             # a function name is never bound as a variable (it would hide the function)
@@ -306,6 +329,8 @@ class StepChecker:
             numeric = compare(previous.evaluator, step.evaluator, variables, previous.scale, step.scale)
             if numeric.verdict == EQUIVALENT:
                 return StepChecker._equivalent(record, previous, step, numeric, NUMERIC)
+            if numeric_only:
+                return dict(record, verdict=numeric.verdict)
         sympy = StepChecker._sympy_verdict(previous, step, budget)
         if numeric is None:
             return StepChecker._without_numeric(record, previous, step, sympy)
@@ -316,32 +341,24 @@ class StepChecker:
         """Why a name in step is not what the writer meant, or None.
 
         Misread, as math.js and SymPy read each of them as one variable: a calculator function
-        read as a variable (sin alone), another function name used as a variable (gamma, which
-        neither engine reads as one), a glued call the pipeline left unread (sinx(x+1)), a
-        function glued to more than one letter (sinxy, sinxcosx), and a name made of the other
-        step's one-letter variables, e and pi (xy against x and y), x2 beside x, and xy against
-        yx. Names with "_" and longer names (costs, cos_theta, seconds) are variables, and so is
-        cost beside a name written as a word (revenue - cost).
+        read as a variable, another function name used as a variable (gamma, which neither
+        engine reads as one), a function glued to more than one letter (sinxy, sinxcosx), and
+        a name made of the other step's one-letter variables, e and pi (xy against x and y), x2
+        beside x, and xy against yx. Names with "_" and longer names (costs, cos_theta,
+        seconds) are variables.
         """
         others = set(other.variables)
         letters = {name for name in others | set(step.variables) if _SINGLE_LETTER.match(name)}
+        glued = {misspelling.name for misspelling in step.glued}
         for name in step.variables:
+            if name in glued:
+                continue  # the caller decides (sinx, xe)
             if name in _calculator_spellings():
                 return f"{name} is a function, but it is read as a variable here; write {name}(x) with parentheses"
             if name in _function_spellings():
                 return f"{name} is the name of a function, which the engines cannot read as a variable; rename it"
-            call = None if _has_word_names(step.variables) else _unread_call(name)
-            if call is not None:
-                return f"{name} is read as one variable here; write {call}"
             if len(name) < 2 or name in others or "_" in name:
                 continue
-            log_digits = _LOG_DIGITS.match(name)
-            if log_digits is not None:
-                function, digits, letter = log_digits.groups()
-                return (
-                    f"{name} is read as one variable; write {function}{digits}({letter}) or "
-                    f"{function}({digits}{letter})"
-                )
             indexed = _INDEXED.match(name)
             if indexed is not None and indexed.group(1) in letters:
                 letter, digits = indexed.groups()

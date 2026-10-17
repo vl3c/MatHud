@@ -185,58 +185,56 @@ class TestInequalitySolverSympy(unittest.TestCase):
         for (text, interval), expected in REVIEW_EXACT.items():
             self.assertEqual(_solve(text, interval), expected, f"{text} on {interval}")
 
-    def test_calculator_notation(self) -> None:
-        # functions without parentheses and e or pi glued to x, read as calculators do
+    def test_calculator_spellings_are_refused_with_a_hint(self) -> None:
+        # sin x, sinx, xlnx, xe^x and xpi are never guessed: an error names the form to write
+        refused = {
+            ("sin x > 1/2", "[0, 2*pi]", "x"): "sin needs parentheses; write sin(x)",
+            ("sinx > 1/2", "[0, 2*pi]", "x"): "sinx is read as one variable; write sin(x)",
+            ("2 sin x cos x > 0", "[0, pi]", "x"): "sin needs parentheses; write sin(x)",
+            ("xe^x > 0", None, "x"): "xe is read as one variable; write x*e^x",
+            ("x ln x < 0", None, "x"): "ln needs parentheses; write ln(x)",
+            ("xpi > 1", None, "x"): "xpi is read as one variable; write x*pi",
+            ("sinx = 0.5", "[0, 2*pi]", "x"): "sinx is read as one variable; write sin(x)",
+            ("sinx = 0.5", None, "x"): "sinx is read as one variable; write sin(x)",
+            ("xe^x = 1", None, "x"): "xe is read as one variable; write x*e^x",
+            ("xe = 1", None, "x"): "xe is read as one variable; write x*e",
+            ("lnx = 1", "[0, 5]", "x"): "lnx is read as one variable; write ln(x)",
+            ("ln x = 1", None, "x"): "ln needs parentheses; write ln(x)",
+            ("xlnx = 1", "[0.5, 3]", "x"): "xlnx is read as one variable; write x*ln(x)",
+            ("sech x = 0.5", None, "x"): "sech needs parentheses; write sech(x)",
+            ("sinhx = 1", None, "x"): "sinhx is read as one variable; write sinh(x)",
+            ("asinhx = 1", None, "x"): "asinhx is read as one variable; write asinh(x)",
+            ("log2x = 3", None, "x"): "log2x is read as one variable; write log2(x) or log(2x)",
+            ("sinx/x = 0", "[1, 4]", "x"): "sinx is read as one variable; write sin(x)",
+            ("ke^x = 2", None, "x"): "ke is read as one variable; write k*e^x",
+            ("Ae^(kt) = 2A", None, "t"): "Ae is read as one variable; write A*e^(kt)",
+            ("cost = 0.5", None, "t"): "cost is read as one variable; write cos(t)",
+        }
+        for (text, interval, variable), reason in refused.items():
+            self.assertEqual(str(MathUtils.solve(text, variable, interval)), f"Error: {reason}.", text)
+        # the standard forms are solved
         cases = {
-            ("sin x > 1/2", "[0, 2*pi]"): "pi/6 < x < 5*pi/6 (on [0, 2*pi]); interval notation: (pi/6, 5*pi/6); "
+            ("sin(x) > 1/2", "[0, 2*pi]"): "pi/6 < x < 5*pi/6 (on [0, 2*pi]); interval notation: (pi/6, 5*pi/6); "
             "endpoints ≈ 0.523598775598, 2.61799387799",
-            ("sinx > 1/2", "[0, 2*pi]"): "pi/6 < x < 5*pi/6 (on [0, 2*pi]); interval notation: (pi/6, 5*pi/6); "
-            "endpoints ≈ 0.523598775598, 2.61799387799",
-            ("2 sin x cos x > 0", "[0, pi]"): "0 < x < pi/2 (on [0, pi]); interval notation: (0, pi/2); "
-            "endpoints ≈ 1.57079632679",
-            ("xe^x > 0", None): "x > 0; interval notation: (0, Infinity)",
-            ("x ln x < 0", None): "0 < x < 1; interval notation: (0, 1)",
-            ("ln x < 1", None): "0 < x < e; interval notation: (0, e); endpoints ≈ 2.71828182846",
-            ("xpi > 1", None): "x > 1/pi; interval notation: (1/pi, Infinity); endpoints ≈ 0.318309886184",
-            ("sqrt x < 2", None): "0 <= x < 4; interval notation: [0, 4)",
+            ("x*e^x > 0", None): "x > 0; interval notation: (0, Infinity)",
+            ("x*ln(x) < 0", None): "0 < x < 1; interval notation: (0, 1)",
+            ("x*pi > 1", None): "x > 1/pi; interval notation: (1/pi, Infinity); endpoints ≈ 0.318309886184",
+            ("sin(x) = 0.5", "[0, 2*pi]"): "[pi/6,5*pi/6] (the roots in [0, 2*pi])",
+            ("x*e^x = 1", None): "[0.5671432904098]",
+            ("ln(x) = 1", None): "[e]",
+            ("x*ln(x) = 1", "[0.5, 3]"): "[1.7632228343519] (the roots in [0.5, 3])",
+            ("sech(x) = 0.5", None): "[-asech(1/2),asech(1/2)]",
+            ("asinh(x) = 1", None): "[sinh(1)]",
+            ("sin(x)/x = 0", "[1, 4]"): "[pi] (the roots in [1, 4])",
         }
         for (text, interval), expected in cases.items():
-            self.assertEqual(_solve(text, interval), expected, text)
-        # equations, with an interval and without, read the same text
-        equations = {
-            ("sinx = 0.5", "[0, 2*pi]"): "[pi/6,5*pi/6] (the roots in [0, 2*pi])",
-            ("xe^x = 1", "[0, 2]"): "[0.5671432904098] (the roots in [0, 2])",
-            ("lnx = 1", "[0, 5]"): "[e] (the roots in [0, 5])",
-            ("x ln x = 1", "[0.5, 3]"): "[1.7632228343519] (the roots in [0.5, 3])",
-            ("sin 2x = 1", "[0, pi]"): "[pi/4] (the roots in [0, pi])",
-            ("xe^x = 1", None): "[0.5671432904098]",
-            ("ln x = 1", None): "[e]",
-            ("xpi = 1", None): "[1/pi]",
-            # sech is a function, not sec(h); log2x is log2(x) or log(2x), so it is not read
-            ("sech x = 0.5", None): "[-asech(1/2),asech(1/2)]",
-            ("coth x = 2", None): "[acoth(2)]",
-            ("csch x = 1", None): "[log(1+sqrt(2))]",
-            ("sinhx = 1", None): "[log(1+sqrt(2))]",
-            ("log2x = 3", None): "[]",
-            # a glued call before / or *; asinhx is asinh(x), not a*sinh(x)
-            ("sinx/x = 0", "[1, 4]"): "[pi] (the roots in [1, 4])",
-            ("lnx / x = 0", None): "[1]",
-            ("sinx*2 = 1", "[0, pi]"): "[pi/6,5*pi/6] (the roots in [0, pi])",
-            ("sqrtx/x = 2", None): "[1/4]",
-            ("asinhx = 1", None): "[sinh(1)]",
-            ("atanhx = 0.5", None): "[tanh(1/2)]",
-            ("sechx = 0.5", None): "[-asech(1/2),asech(1/2)]",
-        }
-        for (text, interval), expected in equations.items():
             self.assertEqual(_solve(text, interval), expected, f"{text} on {interval}")
-        self.assertTrue(_solve("cosx = x", "[0, 2]").startswith("[0.739085133215191] (the roots in [0, 2]"))
-        # the variable being solved for is never split: cost is not cos(t), ex is not e*x
+        # a glued name holding no variable of the equation is a variable, as on main
+        self.assertEqual(str(MathUtils.solve("profit = revenue - cost", "revenue")), "[cost+profit]")
         self.assertEqual(str(MathUtils.solve("cost < 1", "cost")), "cost < 1; interval notation: (-Infinity, 1)")
         self.assertEqual(str(MathUtils.solve("ex > 1", "ex")), "ex > 1; interval notation: (1, Infinity)")
         self.assertEqual(str(MathUtils.solve("cost = 5", "cost")), "[5]")
         self.assertEqual(str(MathUtils.solve("costs > 5", "costs")), "costs > 5; interval notation: (5, Infinity)")
-        # beside names written as words, cost is a variable too
-        self.assertEqual(str(MathUtils.solve("profit = revenue - cost", "revenue")), "[cost+profit]")
 
     def test_identities_without_an_exact_answer(self) -> None:
         result = _solve("sin(x)^2 + cos(x)^2 > 1")

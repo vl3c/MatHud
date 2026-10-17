@@ -476,9 +476,9 @@ _UNARY_SPELLINGS: FrozenSet[str] = frozenset(
 )
 
 
-# The trig, inverse trig and hyperbolic functions, logs, exp and roots: calculator keys that
-# take the operand written after them without parentheses (sin x, ln x), in every one-word
-# spelling (cas_text.insert_calculator_calls). Other functions (gamma, max, sign) need "(".
+# The trig, inverse trig and hyperbolic functions, logs, exp and roots: calculator keys a
+# writer may use without parentheses (sin x, ln x), in every one-word spelling. The tools
+# refuse that spelling with the call to write (cas_text.misspellings); they never rewrite it.
 _TRIG_NAMES = ("sin", "cos", "tan", "sec", "csc", "cot")
 _CALCULATOR_NAMES = (
     _TRIG_NAMES
@@ -494,14 +494,14 @@ CALCULATOR_SPELLINGS: FrozenSet[str] = frozenset(
     for spelling in (name,) + BY_NAME[name].aliases + BY_NAME[name].word_aliases
     if " " not in spelling
 ) | frozenset(_RECIPROCAL_HYPERBOLIC)
-# Names either engine knows as a function: never split into a glued call (sech is not sec(h))
+# Names either engine knows as a function: never taken for a glued call (sech is not sec(h))
 ENGINE_FUNCTION_NAMES: FrozenSet[str] = (
     frozenset(BY_NAME)
     | frozenset(alias for row in FUNCTIONS for alias in row.aliases + row.word_aliases)
     | frozenset(_RECIPROCAL_HYPERBOLIC + ("asech", "acsch", "acoth", "sinc", "sgn", "ceil", "nthroot"))
 )
-# The ones that may also touch a one-letter operand, with one letter before them: sinx, lnx,
-# xlnx, sqrtx, sinhx, asinhx, sechx
+# The ones a writer may glue to a one-letter operand, with one letter before them: sinx, lnx,
+# xlnx, sqrtx, sinhx, asinhx, sechx (refused with a hint, never rewritten)
 GLUED_CALL_NAMES: FrozenSet[str] = frozenset(
     _TRIG_NAMES
     + tuple("a" + name for name in _TRIG_NAMES)

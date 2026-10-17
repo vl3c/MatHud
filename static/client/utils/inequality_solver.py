@@ -20,11 +20,10 @@ import re
 from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, cast
 
 from utils.cas_text import (
-    insert_calculator_calls,
     insert_implicit_products,
     insert_letter_call_products,
+    misspellings,
     parse_interval,
-    split_constant_products,
     split_relation,
     split_top_level_terms,
 )
@@ -63,7 +62,8 @@ class InequalitySolver:
 
         try:
             variable = str(MathUtils._normalize_variable(variable))
-            parts, signs = split_relation(InequalitySolver.prepared(inequality, keep=(variable,)))
+            InequalitySolver.refuse_misspellings(inequality, variable)
+            parts, signs = split_relation(InequalitySolver.prepared(inequality))
             window = InequalitySolver.window(interval)
             InequalitySolver._check_variable(parts, variable)
             seeds = InequalitySolver._seeds(parts, signs, variable)
@@ -94,33 +94,50 @@ class InequalitySolver:
     # ----- input --------------------------------------------------------------------------
 
     @staticmethod
-    def prepared(text: str, keep: Sequence[str] = ()) -> str:
-        """text read the same way by SymPy and math.js: bars as abs(), functions without
-        parentheses as calculators read them (sin 2x, ln x, sinx), a letter and e or pi written
-        together as a product (xe^x, xpi), MathUtils._cas_input (after the bars, so ln|x| becomes
-        log(abs(x))), x(x+2) as x*(x+2), and (x-1)(x+2), (x+1)2 and (x-2)^2 (x+1) as products.
-        Names in keep (the variable being solved for) are never split."""
-        from expression_functions import (
-            BY_NAME,
-            CALCULATOR_SPELLINGS,
-            CALL_ALIASES,
-            ENGINE_FUNCTION_NAMES,
-            GLUED_CALL_NAMES,
-            RESERVED_NAMES,
-            replace_absolute_bars,
-        )
+    def prepared(text: str) -> str:
+        """text read the same way by SymPy and math.js: bars as abs(), MathUtils._cas_input
+        (after the bars, so ln|x| becomes log(abs(x))), x(x+2) as x*(x+2), and (x-1)(x+2), (x+1)2
+        and (x-2)^2 (x+1) as products. Calculator spellings (sin x, sinx, xe^x) are not
+        rewritten; refuse_misspellings refuses them."""
+        from expression_functions import BY_NAME, CALL_ALIASES, replace_absolute_bars
         from utils.math_utils import MathUtils
 
         if not isinstance(text, str):
             raise ValueError("The expression must be given as text.")
         prepared = replace_absolute_bars(str(MathUtils._normalize_symbols(text)))
-        prepared = insert_calculator_calls(
-            prepared, CALCULATOR_SPELLINGS, GLUED_CALL_NAMES, keep, ENGINE_FUNCTION_NAMES
-        )
-        prepared = split_constant_products(prepared, set(RESERVED_NAMES) | set(CALL_ALIASES), keep)
         prepared = str(MathUtils._cas_input(prepared))
         prepared = insert_letter_call_products(prepared, list(BY_NAME) + list(CALL_ALIASES))
         return str(insert_implicit_products(prepared))
+
+    @staticmethod
+    def misspellings(text: str, keep: Sequence[str] = ()) -> List[Any]:
+        """The calculator spellings in text that the tools refuse (cas_text.misspellings):
+        sin x, sinx, xlnx, xe^x, xpi, log2x. Names in keep are never misspellings."""
+        from expression_functions import CALCULATOR_SPELLINGS, ENGINE_FUNCTION_NAMES, GLUED_CALL_NAMES
+        from utils.math_utils import MathUtils
+
+        normalized = str(MathUtils._normalize_symbols(text))
+        return list(misspellings(normalized, CALCULATOR_SPELLINGS, GLUED_CALL_NAMES, ENGINE_FUNCTION_NAMES, keep))
+
+    @staticmethod
+    def refuse_misspellings(text: str, variable: str) -> None:
+        """Raise ValueError with the standard form to write when text has a function without
+        parentheses (sin x), or a glued name (sinx, xlnx, xe^x, xpi) that holds variable or
+        another variable of text, or e glued to a letter and raised to a power (ke^x). Other
+        glued names (cost in profit = revenue - cost, solved for revenue) are variables.
+
+        Raises:
+            ValueError: naming the misspelling and what to write instead.
+        """
+        if not isinstance(text, str):
+            return
+        found = InequalitySolver.misspellings(text, keep=(variable,))
+        if not found:
+            return
+        names = {match.group(0) for match in re.finditer(r"[A-Za-z_][A-Za-z_0-9]*", text)} | {variable}
+        for misspelling in found:
+            if misspelling.bare or misspelling.powered or set(misspelling.letters) & names:
+                raise ValueError(f"{misspelling.reason}.")
 
     @staticmethod
     def window(interval: Optional[str]) -> Optional[Window]:

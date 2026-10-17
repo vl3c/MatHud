@@ -272,32 +272,21 @@ class TestGuards(unittest.TestCase):
         )
 
 
-# Steps written as on a calculator: functions without parentheses, and e or pi glued to a letter
-CALCULATOR_EQUIVALENT = [
-    ["(x+1)e^x", "xe^x + e^x"],
-    ["2xe^(x^2)", "2x*exp(x^2)"],
-    ["xpi", "pi*x"],
-    ["2 sin x cos x", "sin 2x"],
-    ["ln x + ln y", "ln(x*y)"],
-    ["sin^2 x + cos^2 x", "1"],
-    ["sec x", "1/cos(x)"],
-    ["x ln x", "x*ln(x)"],
-    ["sinx", "sin(x)"],
-    ["sin x", "sin(x)"],
-    ["cos x", "cos(x)"],
-    ["log x^2", "log(x^2)"],
-    ["log x^2", "2log(x)"],
-    ["cos^2 x - sin^2 x", "cos 2x"],
-    ["xlnx - x", "x(lnx - 1)"],
-    ["2xsinx", "2x sin x"],
-    ["e^xsinx", "e^x sin x"],
-    ["xsinx + cosx", "x sin x + cos x"],
-    ["tcost", "t cos t"],
-    ["nlogn", "n log n"],
-    ["sin 2pi x", "sin(2pi*x)"],
-    ["sin 2.5 x", "sin(2.5x)"],
-    ["sin^-1 x", "asin(x)"],
-    # descriptive names stay variables
+# Standard syntax: functions with parentheses, products with * or a number before a letter
+STANDARD_EQUIVALENT = [
+    ["(x+1)e^x", "x*e^x + e^x"],
+    ["2x*e^(x^2)", "2x*exp(x^2)"],
+    ["x*pi", "pi*x"],
+    ["2*sin(x)*cos(x)", "sin(2x)"],
+    ["ln(x) + ln(y)", "ln(x*y)"],
+    ["sin^2(x) + cos^2(x)", "1"],
+    ["sec(x)", "1/cos(x)"],
+    ["x*ln(x) - x", "x(ln(x) - 1)"],
+    ["sin^-1(x)", "asin(x)"],
+    ["sinh(x)", "(e^x - e^(-x))/2"],
+    ["asinh(x)", "ln(x + sqrt(x^2 + 1))"],
+    ["sin(x)/x", "sin(x)*x^-1"],
+    # descriptive names are variables
     ["revenue - costs", "-(costs - revenue)"],
     ["max_height/2", "0.5*max_height"],
     ["signal + noise", "noise + signal"],
@@ -305,78 +294,95 @@ CALCULATOR_EQUIVALENT = [
     ["2*exponent", "exponent + exponent"],
     ["cos_theta^2", "cos_theta*cos_theta"],
     ["seconds*1000", "1000seconds"],
-    ["revenue - cost", "-(cost - revenue)"],
-    ["sinhx", "sinh(x)"],
-    ["coshx", "cosh x"],
-    ["asinhx", "asinh(x)"],
-    ["acoshx", "acosh(x)"],
-    ["atanhx", "atanh x"],
-    ["xasinhx", "x*asinh(x)"],
-    # a glued call before / or *
-    ["sinx/x", "sin(x)/x"],
-    ["lnx/x", "ln(x)/x"],
-    ["lnx / x", "ln(x)/x"],
-    ["sqrtx/x", "1/sqrtx"],
-    ["sinx*2", "2sin(x)"],
-    ["2cosx*x", "2x*cos(x)"],
-    ["sinx/2", "sin(x)/2"],
-    ["sinhx/x", "sinh(x)/x"],
 ]
-CALCULATOR_WRONG = [
-    ["revenue - cost", "revenue - cos(t)"],
-    ["(x+1)e^x", "xe^x + 1"],
-    ["2xe^(x^2)", "2e^(x^2)"],
-    ["xpi", "pi + x"],
-    ["xe^x", "x + e^x"],
-    ["2 sin x cos x", "sin x"],
-    ["sin 2x", "2 sin x"],
-    ["ln x + ln y", "ln(x + y)"],
-    ["sin^2 x + cos^2 x", "2"],
-    ["sec x", "1/sin x"],
-    ["x ln x", "ln(x)"],
-    ["sinx", "cos x"],
-    ["sin x^2", "sin(x)^2"],
-    ["ln x^2", "(ln x)^2"],
-    ["xlnx - x", "x(lnx + 1)"],
-    ["2xsinx", "2x cos x"],
-    ["e^xsinx", "e^x + sin x"],
-    ["tcost", "cos t"],
-    ["nlogn", "log n"],
-    ["sin pi x", "sin(pi)*x"],
+STANDARD_WRONG = [
+    ["(x+1)e^x", "x*e^x + 1"],
+    ["2x*e^(x^2)", "2e^(x^2)"],
+    ["x*pi", "pi + x"],
+    ["2*sin(x)*cos(x)", "sin(x)"],
+    ["sin(2x)", "2sin(x)"],
+    ["ln(x) + ln(y)", "ln(x + y)"],
+    ["sin(x)^2 + cos(x)^2", "2"],
+    ["sec(x)", "1/sin(x)"],
+    ["x*ln(x)", "ln(x)"],
+    ["sin(x^2)", "sin(x)^2"],
+    ["ln(x^2)", "ln(x)^2"],
+    ["x*ln(x) - x", "x(ln(x) + 1)"],
+    ["sin(pi*x)", "sin(pi)*x"],
+]
+# Calculator spellings: undecided with the form to write, right or wrong, never not_equivalent
+MISSPELLED = [
+    (["sin x", "sin(x)"], "sin needs parentheses; write sin(x)"),
+    (["sin 2x", "2 sin x"], "sin needs parentheses; write sin(2x)"),
+    (["2 sin x cos x", "sin(2x)"], "sin needs parentheses; write sin(x)"),
+    (["x ln x", "x*ln(x)"], "ln needs parentheses; write ln(x)"),
+    (["sin^2 x + cos^2 x", "1"], "sin needs parentheses; write sin^2(x)"),
+    (["sin^-1 x", "asin(x)"], "sin needs parentheses; write sin^-1(x)"),
+    (["sin(pi*x)", "sin pi x"], "sin needs parentheses; write sin(pi*x)"),
+    (["sech x", "1/cosh(x)"], "sech needs parentheses; write sech(x)"),
+    (["sin", "sin(x)"], "sin needs parentheses; write sin(x)"),
+    (["sinx", "sin(x)"], "sinx is read as one variable; write sin(x)"),
+    (["sinx", "cos(x)"], "sinx is read as one variable; write sin(x)"),
+    (["sinx/x", "sin(x)/x"], "sinx is read as one variable; write sin(x)"),
+    (["xlnx - x", "x(ln(x) - 1)"], "xlnx is read as one variable; write x*ln(x)"),
+    (["xlnx - x", "x(ln(x) + 1)"], "xlnx is read as one variable; write x*ln(x)"),
+    (["asinhx", "asinh(x)"], "asinhx is read as one variable; write asinh(x)"),
+    (["xe^x + e^x", "(x+1)e^x"], "xe is read as one variable; write x*e^x"),
+    (["(x+1)e^x", "xe^x + 1"], "xe is read as one variable; write x*e^x"),
+    (["2xe^(x^2)", "2x*exp(x^2)"], "xe is read as one variable; write x*e^(x^2)"),
+    (["xpi", "pi*x"], "xpi is read as one variable; write x*pi"),
+    (["tcost", "t*cos(t)"], "tcost is read as one variable; write t*cos(t)"),
+    (["e^xsinx", "e^x*sin(x)"], "xsinx is read as one variable; write x*sin(x)"),
+    (["log2x", "log2(x)"], "log2x is read as one variable; write log2(x) or log(2x)"),
+    (["log10x", "log(10x)"], "log10x is read as one variable; write log10(x) or log(10x)"),
+    (["sinx^-1", "1/sin(x)"], "sinx is read as one variable; write sin(x)"),
+    (["revenue - cost", "revenue - cos(t)"], "cost is read as one variable; write cos(t)"),
 ]
 
 
-class TestCalculatorNotation(unittest.TestCase):
+class TestCalculatorSpellings(unittest.TestCase):
     def _verdicts(self, cases: List[List[str]], sympy: bool) -> List[str]:
         engines = _Engines() if sympy else _Engines(sympy=lambda first, second: None)
         return [engines.check(steps)["verdict"] for steps in cases]
 
-    def test_correct_steps_are_equivalent_without_sympy(self) -> None:
-        self.assertEqual(self._verdicts(CALCULATOR_EQUIVALENT, False), ["equivalent"] * len(CALCULATOR_EQUIVALENT))
-
-    def test_wrong_steps_stay_wrong_without_sympy(self) -> None:
-        self.assertEqual(self._verdicts(CALCULATOR_WRONG, False), ["not_equivalent"] * len(CALCULATOR_WRONG))
+    def test_standard_syntax_without_sympy(self) -> None:
+        self.assertEqual(self._verdicts(STANDARD_EQUIVALENT, False), ["equivalent"] * len(STANDARD_EQUIVALENT))
+        self.assertEqual(self._verdicts(STANDARD_WRONG, False), ["not_equivalent"] * len(STANDARD_WRONG))
 
     @unittest.skipUnless(HAVE_SYMPY, "needs SymPy")
-    def test_with_sympy(self) -> None:
-        self.assertEqual(self._verdicts(CALCULATOR_EQUIVALENT, True), ["equivalent"] * len(CALCULATOR_EQUIVALENT))
-        self.assertEqual(self._verdicts(CALCULATOR_WRONG, True), ["not_equivalent"] * len(CALCULATOR_WRONG))
-        reason = _check(["(x+1)e^x", "xe^x + 1"])["steps"][0]["reason"]
+    def test_standard_syntax_with_sympy(self) -> None:
+        self.assertEqual(self._verdicts(STANDARD_EQUIVALENT, True), ["equivalent"] * len(STANDARD_EQUIVALENT))
+        self.assertEqual(self._verdicts(STANDARD_WRONG, True), ["not_equivalent"] * len(STANDARD_WRONG))
+        reason = _check(["(x+1)e^x", "x*e^x + 1"])["steps"][0]["reason"]
         self.assertEqual(reason, "step 2 - step 1 = 1-exp(x) (not 0); at x = 1, step 1 = 5.43656 and step 2 = 3.71828")
 
+    def test_calculator_spellings_are_undecided_with_a_hint(self) -> None:
+        for sympy in (True, False):
+            engines = _Engines() if sympy else _Engines(sympy=lambda first, second: None)
+            for steps, reason in MISSPELLED:
+                with self.subTest(steps=steps, sympy=sympy):
+                    record = engines.check(steps)["steps"][0]
+                    self.assertEqual(
+                        (record["verdict"], record["method"], record["reason"]), ("undecided", "none", reason)
+                    )
+            self.assertEqual(engines.requests, [])
+
+    def test_a_glued_name_the_steps_agree_on_is_equivalent_with_a_note(self) -> None:
+        record = _check(["revenue - cost", "-(cost - revenue)"])["steps"][0]
+        self.assertEqual(record["verdict"], "equivalent")
+        self.assertEqual(
+            record["note"], "cost is read as one variable (for the function, write cos(t)); the steps agree either way"
+        )
+
     def test_misread_names_are_undecided_with_a_hint(self) -> None:
-        # function names math.js reads as variables (sin alone, gamma) are in the Brython test
+        # function names math.js reads as variables (gamma) are in the Brython test
         engines = _Engines()
         for steps, reason in (
             (["sinxy", "sin(x*y)"], "sinxy is read as one variable; write sin(x*y)"),
             (["xye^x", "x*y*e^x"], "xye is read as one variable; write x*y*e"),
             (["sinxcosx", "sin(x)cos(x)"], "sinxcosx is read as one variable; write sin(x)*cos(x)"),
-            (["sin x2", "sin(2x)"], "x2 is read as one variable; write x^2 or 2*x"),
+            (["sin(x2)", "sin(2x)"], "x2 is read as one variable; write x^2 or 2*x"),
             (["xy", "yx"], "xy and yx are each read as one variable; write x*y"),
-            (["log2x", "log2(x)"], "log2x is read as one variable; write log2(x) or log(2x)"),
-            (["log10x", "log(10x)"], "log10x is read as one variable; write log10(x) or log(10x)"),
-            (["sinx^-1", "1/sin(x)"], "sinx is read as one variable here; write sin(x)"),
-            (["xlnx^-1", "x/ln(x)"], "xlnx is read as one variable here; write x*ln(x)"),
         ):
             with self.subTest(steps=steps):
                 record = engines.check(steps)["steps"][0]
@@ -385,11 +391,10 @@ class TestCalculatorNotation(unittest.TestCase):
 
     @unittest.skipUnless(HAVE_SYMPY, "needs SymPy")
     def test_reciprocal_hyperbolic_functions(self) -> None:
-        # sech is sech(x), not sec(h)*x (the stand-in cannot evaluate sech, SymPy decides)
-        self.assertEqual(_check(["sech x", "1/cosh(x)"])["verdict"], "equivalent")
-        self.assertEqual(_check(["coth x", "cosh(x)/sinh(x)"])["verdict"], "equivalent")
-        # without math.js's sech here, SymPy alone cannot show this difference is not 0
-        self.assertNotEqual(_check(["sech x", "1/cos(x)"])["verdict"], "equivalent")
+        # the stand-in cannot evaluate sech, so SymPy decides
+        self.assertEqual(_check(["sech(x)", "1/cosh(x)"])["verdict"], "equivalent")
+        self.assertEqual(_check(["coth(x)", "cosh(x)/sinh(x)"])["verdict"], "equivalent")
+        self.assertNotEqual(_check(["sech(x)", "1/cos(x)"])["verdict"], "equivalent")
 
     def test_long_names_are_checked_quickly(self) -> None:
         started = time.time()

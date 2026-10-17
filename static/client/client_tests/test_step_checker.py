@@ -113,8 +113,8 @@ class TestStepCheckerSympy(unittest.TestCase):
             (["(a + b)^2", "a^2 + 2a*b + b^2", "a^2 + b^2"], 3),
             (["sqrt((x-5)^2)", "|x - 5|", "5 - x"], 3),
             (["1/2 + 1/3", "2/5"], 2),
-            (["(x+1)e^x", "xe^x + e^x", "xe^x + 1"], 3),
-            (["2 sin x cos x", "sin 2x", "2 sin x"], 3),
+            (["(x+1)e^x", "x*e^x + e^x", "x*e^x + 1"], 3),
+            (["2sin(x)cos(x)", "sin(2x)", "2sin(x)"], 3),
         ):
             result = _check(steps)
             self.assertEqual(result["first_wrong_step"], wrong, f"{steps}: {result['summary']}")
@@ -164,80 +164,72 @@ class TestStepCheckerWithoutSympy(unittest.TestCase):
         self.assertTrue(unreadable["steps"][0]["reason"].startswith("step 2 cannot be read (math.js: "))
         self.assertEqual(domain["steps"][0]["note"], "equivalent where both are defined; step 2 is undefined at x = -1")
 
-    def test_calculator_notation(self) -> None:
+    def test_calculator_spellings(self) -> None:
+        # standard syntax is checked; calculator spellings are undecided with the form to write
         equivalent = [
-            ["(x+1)e^x", "xe^x + e^x"],
-            ["2xe^(x^2)", "2x*exp(x^2)"],
-            ["xpi", "pi*x"],
-            ["2 sin x cos x", "sin 2x"],
-            ["ln x + ln y", "ln(x*y)"],
-            ["sin^2 x + cos^2 x", "1"],
-            ["sec x", "1/cos(x)"],
-            ["x ln x", "x*ln(x)"],
-            ["sinx", "sin(x)"],
-            ["sin x", "sin(x)"],
-            ["cos x", "cos(x)"],
-            ["log x^2", "log(x^2)"],
-        ]
-        equivalent += [
-            ["xlnx - x", "x(lnx - 1)"],
-            ["2xsinx", "2x sin x"],
-            ["e^xsinx", "e^x sin x"],
-            ["tcost", "t cos t"],
-            ["nlogn", "n log n"],
-            ["sin pi x", "sin(pi x)"],
-            ["sin 2.5 x", "sin(2.5x)"],
-            ["sin^-1 x", "asin(x)"],
+            ["(x+1)e^x", "x*e^x + e^x"],
+            ["2x*e^(x^2)", "2x*exp(x^2)"],
+            ["x*pi", "pi*x"],
+            ["2sin(x)cos(x)", "sin(2x)"],
+            ["ln(x) + ln(y)", "ln(x*y)"],
+            ["sin^2(x) + cos^2(x)", "1"],
+            ["sec(x)", "1/cos(x)"],
+            ["x ln(x)", "x*ln(x)"],
+            ["sin(pi x)", "sin(pi*x)"],
+            ["sin^-1(x)", "asin(x)"],
+            ["sech(x)", "1/cosh(x)"],
+            ["coth(x)", "cosh(x)/sinh(x)"],
+            ["csch(x)", "1/sinh(x)"],
+            ["2x cos(x)", "2cos(x)*x"],
             ["revenue - costs", "-(costs - revenue)"],
             ["cos_theta^2", "cos_theta*cos_theta"],
             ["seconds*1000", "1000seconds"],
-            ["sech x", "1/cosh(x)"],
-            ["coth x", "cosh(x)/sinh(x)"],
-            ["csch x", "1/sinh(x)"],
-            ["sinhx", "sinh(x)"],
-            ["asinhx", "asinh(x)"],
-            ["sechx", "sech(x)"],
-            ["cothx", "coth(x)"],
-            ["cschx", "csch(x)"],
-            ["sinx/x", "sin(x)/x"],
-            ["lnx / x", "ln(x)/x"],
-            ["sqrtx/x", "1/sqrtx"],
-            ["sinx*2", "2sin(x)"],
-            ["2cosx*x", "2x cos(x)"],
-            ["sinx/2", "sin(x)/2"],
-            ["sinhx/x", "sinh(x)/x"],
         ]
         wrong = [
-            ["asinhx", "a*sinh(x)"],
-            ["sech x", "1/cos(x)"],
-            ["coth x", "cosh(x)"],
-            ["xlnx - x", "x(lnx + 1)"],
-            ["sin pi x", "sin(pi)*x"],
-            ["(x+1)e^x", "xe^x + 1"],
-            ["xpi", "pi + x"],
-            ["sin 2x", "2 sin x"],
-            ["ln x + ln y", "ln(x + y)"],
-            ["sec x", "1/sin x"],
-            ["sin x^2", "sin(x)^2"],
+            ["sech(x)", "1/cos(x)"],
+            ["coth(x)", "cosh(x)"],
+            ["x*ln(x) - x", "x(ln(x) + 1)"],
+            ["sin(pi x)", "sin(pi)*x"],
+            ["(x+1)e^x", "x*e^x + 1"],
+            ["sin(2x)", "2sin(x)"],
+            ["ln(x) + ln(y)", "ln(x + y)"],
+            ["sin(x^2)", "sin(x)^2"],
         ]
+        misspelled = {
+            ("sin x", "sin(x)"): "sin needs parentheses; write sin(x)",
+            ("sin", "sin(x)"): "sin needs parentheses; write sin(x)",
+            ("sin x - 1", "sin(x) - 1"): "sin needs parentheses; write sin(x)",
+            ("sin 2*x", "sin(2x)"): "sin needs parentheses around its argument; write sin(...)",
+            ("sin x y", "y sin(x)"): "sin needs parentheses around its argument; write sin(...)",
+            ("2 sin x cos x", "sin(2x)"): "sin needs parentheses; write sin(x)",
+            ("sech x", "1/cos(x)"): "sech needs parentheses; write sech(x)",
+            ("sinx", "sin(x)"): "sinx is read as one variable; write sin(x)",
+            ("sinx", "cos(x)"): "sinx is read as one variable; write sin(x)",
+            ("sinx/x", "sin(x)/x"): "sinx is read as one variable; write sin(x)",
+            ("sinx^-1", "1/sin(x)"): "sinx is read as one variable; write sin(x)",
+            ("sinhx", "sinh(x)"): "sinhx is read as one variable; write sinh(x)",
+            ("asinhx", "a*sinh(x)"): "asinhx is read as one variable; write asinh(x)",
+            ("sechx", "sech(x)"): "sechx is read as one variable; write sech(x)",
+            ("xlnx - x", "x(ln(x) + 1)"): "xlnx is read as one variable; write x*ln(x)",
+            ("(x+1)e^x", "xe^x + 1"): "xe is read as one variable; write x*e^x",
+            ("xpi", "pi + x"): "xpi is read as one variable; write x*pi",
+            ("2cosx*x", "2x cos(x)"): "cosx is read as one variable; write cos(x)",
+        }
         with WithoutSympy():
             verdicts = [_check(steps)["verdict"] for steps in equivalent]
             wrong_verdicts = [_check(steps)["verdict"] for steps in wrong]
-            bare = _check(["sin", "sin(x)"])
+            reasons = {steps: _check(list(steps))["steps"][0] for steps in misspelled}
             gamma = _check(["gamma*m*c^2", "m*gamma*c^2"])
-            unread = _check(["sinx^-1", "1/sin(x)"])
-            unclear = [_check(steps)["verdict"] for steps in (["sin 2*x", "sin(2x)"], ["sin x y", "y sin x"])]
-            spaced = _check(["sin x - 1", "sin(x) - 1"])
+            agreed = _check(["revenue - cost", "-(cost - revenue)"])["steps"][0]
         self.assertEqual(verdicts, ["equivalent"] * len(equivalent))
         self.assertEqual(wrong_verdicts, ["not_equivalent"] * len(wrong))
-        self.assertEqual(
-            bare["steps"][0]["reason"],
-            "sin is a function, but it is read as a variable here; write sin(x) with parentheses",
-        )
-        self.assertEqual(spaced["steps"][0], {"step": 2, "verdict": "equivalent", "method": "numeric"})
+        for steps, reason in misspelled.items():
+            self.assertEqual((reasons[steps]["verdict"], reasons[steps].get("reason")), ("undecided", reason), steps)
         self.assertEqual(
             gamma["steps"][0]["reason"],
             "gamma is the name of a function, which the engines cannot read as a variable; rename it",
         )
-        self.assertEqual(unread["steps"][0]["reason"], "sinx is read as one variable here; write sin(x)")
-        self.assertEqual(unclear, ["undecided", "undecided"])
+        self.assertEqual(agreed["verdict"], "equivalent")
+        self.assertEqual(
+            agreed["note"], "cost is read as one variable (for the function, write cos(t)); the steps agree either way"
+        )
