@@ -189,7 +189,22 @@ _CONNECT_EXCLUDED_WORDS = frozenset(
 # equivalent to DEF?", "follow these steps to construct ...", "the equivalent of 5 miles in
 # km", "equivalent fractions of 1/2").
 _DERIVATION_WORDS = frozenset({"derivation", "derivations"})
-_STEP_WORDS = frozenset({"step", "steps", "working", "workings", "algebra", "simplification"})
+_STEP_WORDS = frozenset({"step", "steps", "algebra", "simplification"})
+# Said only of a derivation to check: "my steps", "my working", "which step is wrong" (not
+# "the plot is not working")
+_OWN_STEPS_RE = re.compile(
+    r"\b(?:my|your)\s+(?:steps?|working|workings|algebra|simplification|derivation)\b"
+    r"|\bworkings\b|\b(?:the|of)\s+working\b|\bwhich\s+step\b"
+)
+# Another operation named in the query: "plot the function step by step and check" plots,
+# "compute the mean step by step and verify" computes
+_OTHER_OPERATION_WORDS = frozenset(
+    {"plot", "plots", "plotting", "draw", "drawing", "sketch", "shade", "shading", "zoom", "undo", "redo"}
+    | {"evaluate", "evaluating", "compute", "computing", "calculate", "calculating", "solve", "solving"}
+    | {"integral", "integrals", "integrate", "integrating", "integration", "derivative", "derivatives"}
+    | {"differentiate", "differentiating", "limit", "limits", "expand", "factor", "convert", "tangent"}
+    | {"mean", "median", "mode", "average", "statistics", "regression", "distribution", "area"}
+)
 _STEP_CHECK_WORDS = frozenset(
     {"check", "checking", "verify", "verifying", "wrong", "mistake", "mistakes", "error", "errors"}
     | {"correct", "valid", "follow", "follows", "right"}
@@ -1087,12 +1102,18 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         # -- Step checker --
         if not token_set & _NOT_STEP_WORDS and (
             token_set & _DERIVATION_WORDS
-            or (token_set & _STEP_WORDS and token_set & _STEP_CHECK_WORDS)
-            or token_set & _EQUIVALENCE_WORDS
+            or _OWN_STEPS_RE.search(raw_lower) is not None
             or (
-                token_set & _MISTAKE_WORDS
-                and _FROM_TO_RE.search(raw_lower) is not None
-                and _MATH_NOTATION_RE.search(raw_lower) is not None
+                not token_set & _OTHER_OPERATION_WORDS
+                and (
+                    (token_set & _STEP_WORDS and token_set & _STEP_CHECK_WORDS)
+                    or token_set & _EQUIVALENCE_WORDS
+                    or (
+                        token_set & _MISTAKE_WORDS
+                        and _FROM_TO_RE.search(raw_lower) is not None
+                        and _MATH_NOTATION_RE.search(raw_lower) is not None
+                    )
+                )
             )
         ):
             scores["check_steps"] += 10.0

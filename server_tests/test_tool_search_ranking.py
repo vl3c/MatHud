@@ -488,6 +488,23 @@ def test_other_operations_do_not_rank_check_steps_first(service: ToolSearchServi
     assert "check_steps" not in names[:3], names
 
 
+# A request that names another operation keeps its tool, though it says step, check or working
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("follow these steps: plot sin(x), then plot cos(x)", "draw_function"),
+        ("follow the steps below and plot the function x^3", "draw_function"),
+        ("the plot is not working correctly, please check", "draw_function"),
+        ("plot the function step by step and check", "draw_function"),
+        ("evaluate sin(pi/4) step by step and check", "evaluate_expression"),
+        ("compute the mean step by step and verify", "compute_descriptive_statistics"),
+        ("evaluate the integral of x^2 from 0 to 1, check each step", "evaluate_expression"),
+    ],
+)
+def test_named_operations_keep_their_tools(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected
+
+
 def test_a_derivative_is_not_a_derivation(service: ToolSearchService) -> None:
     assert _names(service, "What is the derivative of x^3 + 2x - 1?")[0] == "derive"
 
