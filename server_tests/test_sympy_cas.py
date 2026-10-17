@@ -206,7 +206,9 @@ class TestOperations(unittest.TestCase):
         self.assertEqual(compute_solve("a^x=b", "x"), {"roots": ["log(b)/log(a)"]})
         self.assertEqual(compute_solve("P*(1+r)^t=A", "t"), {"roots": ["log(A/P)/log(r+1)"]})
         self.assertEqual(compute_solve("d=sqrt((x-1)^2+4)", "x"), {"roots": ["sqrt(d^2-4)+1", "1-sqrt(d^2-4)"]})
-        self.assertEqual(len(compute_solve("x^3+a*x=1", "x")["roots"]), 3)  # Cardano's formula, kept exact
+        cubic = compute_solve("x^3+a*x=1", "x")
+        self.assertIsNotNone(cubic)
+        self.assertEqual(len((cubic or {})["roots"]), 3)  # Cardano's formula, kept exact
         self.assertIsNone(compute_solve("sin(a*x)=1", "x"))  # sp.solve would give principal values only
 
     def test_cubic_roots_without_cardano_forms(self) -> None:
