@@ -4,14 +4,18 @@ from __future__ import annotations
 
 import math
 import unittest
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import pytest
 
 sympy = pytest.importorskip("sympy")
 
 from static.sympy_cas import (  # noqa: E402
+    MAX_APART_DEGREE,
+    MAX_TAYLOR_ORDER,
+    TAYLOR_LOOKAHEAD,
     ExpressionError,
+    compute_apart,
     compute_derivative,
     compute_equivalent,
     compute_integral,
@@ -19,6 +23,7 @@ from static.sympy_cas import (  # noqa: E402
     compute_simplify,
     compute_solve,
     compute_solve_inequality,
+    compute_taylor,
     handle,
     parse_expression,
     parse_relation,
@@ -297,6 +302,162 @@ class TestEquivalent(unittest.TestCase):
         self.assertIn("error", handle({"operation": "equivalent", "args": {"first": "f(x)", "second": "x"}}))
 
 
+class TestTaylor(unittest.TestCase):
+    """Taylor polynomials: the polynomial in powers of (x - a), its next term, and refusals."""
+
+    def _taylor(self, expression: str, point: str, order: int) -> Dict[str, Any]:
+        return compute_taylor(expression, "x", point, str(order))
+
+    def test_polynomials_and_next_terms(self) -> None:
+        for expression, point, order, polynomial, next_term in (
+            ("e^x", "0", 4, "1 + x + x^2/2 + x^3/6 + x^4/24", "x^5/120"),
+            ("sin(x)", "0", 5, "x - x^3/6 + x^5/120", "-x^7/5040"),
+            ("cos(x)", "0", 0, "1", "-x^2/2"),
+            ("ln(x)", "1", 3, "(x-1) - (x-1)^2/2 + (x-1)^3/3", "-(x-1)^4/4"),
+            ("ln(1+x)", "0", 2, "x - x^2/2", "x^3/3"),
+            ("cos(x)", "pi/4", 2, "sqrt(2)/2 - sqrt(2)*(x-pi/4)/2 - sqrt(2)*(x-pi/4)^2/4", "sqrt(2)*(x-pi/4)^3/12"),
+            ("e^x", "-1", 1, "exp(-1) + (x+1)*exp(-1)", "(x+1)^2*exp(-1)/2"),
+            ("sqrt(x)", "4", 2, "2 + (x-4)/4 - (x-4)^2/64", "(x-4)^3/512"),
+            ("1/(1-x)", "0", 3, "1 + x + x^2 + x^3", "x^4"),
+            # removable: the polynomial of the continuous extension
+            ("sin(x)/x", "0", 4, "1 - x^2/6 + x^4/120", "-x^6/5040"),
+            # a centre that is a sum is bracketed
+            ("x^2", "1-sqrt(2)", 1, "3-2*sqrt(2) + (x-(1-sqrt(2)))*(2-2*sqrt(2))", "(x-(1-sqrt(2)))^2"),
+        ):
+            with self.subTest(expression=expression, point=point, order=order):
+                result = self._taylor(expression, point, order)
+                self.assertEqual(result["polynomial"], polynomial)
+                self.assertEqual(result["next_term"], next_term)
+                self.assertEqual(result["order"], order)
+                self.assertFalse(result["exact"] or result["flat"] or result["one_sided"])
+
+    def test_centre_and_base(self) -> None:
+        self.assertEqual(self._taylor("e^x", "0", 1)["base"], "x")
+        result = self._taylor("e^x", "0.5", 1)
+        self.assertEqual((result["center"], result["base"]), ("1/2", "(x-1/2)"))
+        self.assertEqual(self._taylor("e^x", "-pi/4", 1)["base"], "(x+pi/4)")
+
+    def test_exact_for_polynomials_of_low_degree(self) -> None:
+        result = self._taylor("x^3+2x", "1", 5)
+        self.assertEqual(result["polynomial"], "3 + 5*(x-1) + 3*(x-1)^2 + (x-1)^3")
+        self.assertTrue(result["exact"])
+        self.assertIsNone(result["next_term"])
+        # degree above the order: not exact, and the omitted term is the next power
+        result = self._taylor("x^3+2x", "1", 2)
+        self.assertFalse(result["exact"])
+        self.assertEqual(result["next_term"], "(x-1)^3")
+
+    def test_flat_and_vanishing_terms_are_not_exact(self) -> None:
+        result = self._taylor("exp(-1/x^2)", "0", 4)
+        self.assertEqual(result["polynomial"], "0")
+        self.assertTrue(result["flat"])
+        self.assertFalse(result["exact"])
+        # cos(x^10) to order 5: 1, and no nonzero term within the lookahead
+        result = self._taylor("cos(x^10)", "0", 5)
+        self.assertEqual((result["polynomial"], result["next_term"]), ("1", None))
+        self.assertFalse(result["exact"] or result["flat"])
+        self.assertEqual(result["lookahead"], 5 + TAYLOR_LOOKAHEAD)
+
+    def test_smooth_to_the_order_only(self) -> None:
+        # abs(x)^3 is twice differentiable at 0: its order-2 polynomial is 0, its series
+        # differ beyond (x^3 and -x^3), and order 3 is refused
+        result = self._taylor("abs(x)^3", "0", 2)
+        self.assertEqual((result["polynomial"], result["next_term"], result["one_sided"]), ("0", None, True))
+        with self.assertRaises(ExpressionError):
+            self._taylor("abs(x)^3", "0", 3)
+
+    def test_refuses_points_where_the_function_is_not_smooth(self) -> None:
+        # one-sided series hide abs, sign and floor (abs(x) is x right of 0): both sides are compared
+        for expression, point in (
+            ("abs(x)", "0"),
+            ("sign(x)", "0"),
+            ("floor(x)", "1"),
+            ("max(x, 0)", "0"),
+            ("sqrt(x)", "0"),
+            ("1/x", "0"),
+            ("ln(x)", "0"),
+            ("tan(x)", "pi/2"),
+            ("exp(-1/x)", "0"),
+        ):
+            with self.subTest(expression=expression, point=point):
+                with self.assertRaisesRegex(ExpressionError, "not smooth"):
+                    self._taylor(expression, point, 2)
+        # away from the corner abs(x) is smooth
+        self.assertEqual(self._taylor("abs(x)", "1", 2)["polynomial"], "1 + (x-1)")
+
+    def test_refuses_bad_arguments(self) -> None:
+        with self.assertRaisesRegex(ExpressionError, "order"):
+            self._taylor("e^x", "0", MAX_TAYLOR_ORDER + 1)
+        for order in ("-1", "2.5", "two"):
+            with self.assertRaisesRegex(ExpressionError, "order"):
+                compute_taylor("e^x", "x", "0", order)
+        with self.assertRaisesRegex(ExpressionError, "other variables"):
+            self._taylor("x*y", "0", 2)
+        for point in ("Infinity", "a", "i", "1/0"):
+            with self.subTest(point=point), self.assertRaisesRegex(ExpressionError, "point"):
+                self._taylor("e^x", point, 2)
+
+    def test_order_ten_of_a_product_is_quick(self) -> None:
+        # The slow case of the review: one series per side, TAYLOR_LOOKAHEAD orders beyond
+        result = self._taylor("exp(sin(x))*ln(1+x)", "0", MAX_TAYLOR_ORDER)
+        self.assertTrue(result["polynomial"].startswith("x + x^2/2 + x^3/3 - x^4/6"))
+        self.assertEqual(result["next_term"], "59077*x^11/1596672")
+
+    def test_handle(self) -> None:
+        response = handle(
+            {"operation": "taylor", "args": {"expression": "e^x", "variable": "x", "point": "0", "order": "2"}}
+        )
+        self.assertEqual(response["result"]["polynomial"], "1 + x + x^2/2")
+        args = {"expression": "abs(x)", "variable": "x", "point": "0", "order": "2"}
+        self.assertIn("not smooth", handle({"operation": "taylor", "args": args})["error"])
+
+
+class TestApart(unittest.TestCase):
+    """Partial fractions over the rationals, and the inputs left to ordinary expansion."""
+
+    def test_partial_fractions(self) -> None:
+        for expression, fractions in (
+            ("2/(x^2-1)", "1/(x-1) - 1/(x+1)"),
+            ("(3x+5)/((x+1)(x+2))", "2/(x+1) + 1/(x+2)"),
+            # improper: the polynomial part first
+            ("(x^2+1)/(x-1)", "x + 1 + 2/(x-1)"),
+            ("(x^4+1)/(x^2-1)", "x^2 + 1 + 1/(x-1) - 1/(x+1)"),
+            ("x/(x+1)", "1 - 1/(x+1)"),
+            # repeated factors, written 1/x^2 rather than x^(-2)
+            ("1/(x^2*(x+1))", "-1/x + 1/x^2 + 1/(x+1)"),
+            ("(2x+3)/(x^2+2x+1)", "2/(x+1) + 1/(x+1)^2"),
+            # irreducible quadratics stay whole
+            ("1/(x*(x^2+1))", "1/x - x/(x^2+1)"),
+            ("1/(x^3-1)", "1/(3*(x-1)) - (x+2)/(3*(x^2+x+1))"),
+            ("1/((x-1)(x-2)(x-3))", "1/(2*(x-1)) - 1/(x-2) + 1/(2*(x-3))"),
+            ("2.5/(x^2-1)", "5/(4*(x-1)) - 5/(4*(x+1))"),
+        ):
+            with self.subTest(expression=expression):
+                self.assertEqual(compute_apart(expression, "x"), {"fractions": fractions, "unchanged": False})
+
+    def test_single_fractions_are_unchanged(self) -> None:
+        self.assertEqual(compute_apart("1/(x^2-2)", "x"), {"fractions": "1/(x^2-2)", "unchanged": True})
+        self.assertEqual(compute_apart("3/(x-1)^2", "x"), {"fractions": "3/(x-1)^2", "unchanged": True})
+
+    def test_other_inputs_are_left_to_ordinary_expansion(self) -> None:
+        for expression in ("x^2+2x", "(x+1)^2/2", "sin(x)/(x+1)", "(x+1)/(x*y)", "2^x/(x+1)", "1/y", "5"):
+            with self.subTest(expression=expression):
+                self.assertEqual(compute_apart(expression, "x"), {"fractions": None, "unchanged": False})
+
+    def test_degree_limit(self) -> None:
+        result = compute_apart(f"1/(x^{MAX_APART_DEGREE + 2}-1)", "x")
+        self.assertIsNone(result["fractions"])
+        self.assertIn(str(MAX_APART_DEGREE), result["refusal"])
+        self.assertIsNotNone(compute_apart(f"1/(x^{MAX_APART_DEGREE}-1)", "x")["fractions"])
+
+    def test_handle(self) -> None:
+        self.assertEqual(
+            handle({"operation": "apart", "args": {"expression": "2/(x^2-1)", "variable": "x"}}),
+            {"result": {"fractions": "1/(x-1) - 1/(x+1)", "unchanged": False}},
+        )
+        self.assertIn("error", handle({"operation": "apart", "args": {"expression": "f(x)/x", "variable": "x"}}))
+
+
 def _ends(solution: Any) -> List[Tuple[str, str, bool, bool]]:
     """The intervals of a solve_inequality result as (lower, upper, lower_closed, upper_closed)."""
     assert solution is not None
@@ -493,6 +654,9 @@ class TestResponsesAreBrythonSafe(unittest.TestCase):
             ("integrate", {"expression": "x", "variable": "x", "lower": "0", "upper": "1e10"}),
             ("equivalent", {"first": "x^2", "second": "x^2 + 1e20"}),
             ("equivalent", {"first": "sqrt(x)", "second": "x^0.5 + 1e-30*x"}),
+            ("taylor", {"expression": "e^(40x)", "variable": "x", "point": "1e20", "order": "3"}),
+            ("taylor", {"expression": "1/(1-x)", "variable": "x", "point": "0.5", "order": "10"}),
+            ("apart", {"expression": "1e20/(x^2-1e-20)", "variable": "x"}),
         ]
         for operation, args in requests:
             with self.subTest(operation=operation, args=args):
@@ -556,6 +720,16 @@ class TestRoute(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["data"], {"result": {"verdict": "not_equivalent", "difference": "-2*x"}})
+
+    def test_cas_route_taylor_and_apart(self) -> None:
+        args = {"expression": "sin(x)", "variable": "x", "point": "0", "order": "3"}
+        response = self.client.post("/api/cas", json={"operation": "taylor", "args": args})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["data"]["result"]["polynomial"], "x - x^3/6")
+        response = self.client.post(
+            "/api/cas", json={"operation": "apart", "args": {"expression": "2/(x^2-1)", "variable": "x"}}
+        )
+        self.assertEqual(response.get_json()["data"]["result"]["fractions"], "1/(x-1) - 1/(x+1)")
 
     def test_cas_route_refuses_bad_bodies(self) -> None:
         self.assertEqual(self.client.post("/api/cas", json=[1]).status_code, 400)

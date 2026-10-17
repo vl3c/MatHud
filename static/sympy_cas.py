@@ -1,6 +1,6 @@
 """SymPy computations for the CAS tools: limit, integrate, solve and simplify (and derive,
-where nerdamer has no answer), the solution sets of inequalities, and whether two
-expressions are equivalent (for the step checker).
+where nerdamer has no answer), the solution sets of inequalities, whether two expressions
+are equivalent (for the step checker), Taylor polynomials and partial fractions.
 
 The browser's symbolic engine (nerdamer) is often wrong on these four (see
 documentation/Roadmap.md, CAS reliability), so the client asks the server first and keeps
@@ -1008,6 +1008,185 @@ def _difference_text(difference: Any) -> Optional[str]:
     return text if len(text) <= MAX_DIFFERENCE_LENGTH else None
 
 
+# ----- Taylor polynomials ----------------------------------------------------------------
+
+# The highest order taylor_polynomial gives: higher orders run past the worker's time limit
+# on ordinary products such as exp(sin(x))*ln(1+x).
+MAX_TAYLOR_ORDER = 10
+# The series is computed this many orders beyond the polynomial, for its first omitted term
+# (3 keeps order 10 of exp(sin(x))*ln(1+x) near 2 s; 5 takes over 10 s).
+TAYLOR_LOOKAHEAD = 3
+
+
+def compute_taylor(expression: str, variable: str, point: str, order: str) -> Dict[str, Any]:
+    """The Taylor polynomial of expression at variable = point, up to (variable - point)^order.
+
+    Returns {"polynomial", "center", "base", "order", "next_term", "exact", "flat",
+    "one_sided", "lookahead"}: the polynomial in ascending powers of (x - a) ("1 + x + x^2/2",
+    "1 + (x-1) - (x-1)^2/2"), a's text, the base of the powers (x or (x-1)), the order, the first nonzero omitted term up to
+    (x - a)^(order + TAYLOR_LOOKAHEAD) (None when there is none), whether the function is a
+    polynomial of degree at most order (the polynomial is the function), whether every
+    coefficient up to that power is 0 although the function is not 0 (exp(-1/x^2) at 0),
+    whether the two sides' series differ beyond the order (abs(x)^3 at 0 to order 2), and
+    order + TAYLOR_LOOKAHEAD.
+
+    The series is taken from both sides of a, because a one-sided series hides a corner or a
+    jump (abs(x) is x right of 0 and -x left of it).
+
+    Raises:
+        ExpressionError: for other variables, a point that is not a real number, an order
+            outside 0..MAX_TAYLOR_ORDER, and a function that is not smooth at the point
+            (a corner, a jump, a pole, a fractional power or a logarithm there).
+    """
+    import sympy as sp
+
+    x = _symbol(variable, real=True)
+    function = parse_expression(expression, real=True)
+    others = function.free_symbols - {x}
+    if others:
+        raise ExpressionError(f"The function has other variables besides {variable}: {_names(others)}.")
+    degree = _taylor_order(order)
+    center = parse_expression(point, real=True)
+    if center.free_symbols or center in (sp.oo, -sp.oo) or not _is_usable(center) or not _is_real_value(center):
+        raise ExpressionError("The point must be a real number, such as 0, 1 or pi/4.")
+    h = sp.Dummy("h", real=True)
+    shifted = function.subs(x, center + h)
+    count = degree + 1 + TAYLOR_LOOKAHEAD
+    right = _series_coefficients(shifted, h, count, "+")
+    # The left side to the order only, unless the function has a part that may break off
+    # beyond it (abs(x)^3 at 0 is smooth to order 2 only); the series is the slow step.
+    breaking = function.has(sp.Abs, sp.sign, sp.floor, sp.ceiling, sp.Min, sp.Max, sp.Mod)
+    left = _series_coefficients(shifted, h, count if breaking else degree + 1, "-")
+    if right is None or left is None or any(sp.simplify(right[k] - left[k]) != 0 for k in range(degree + 1)):
+        raise ExpressionError(
+            f"{expression} is not smooth at {variable} = {to_text(center)} (a corner, jump, pole, "
+            "fractional power or logarithm there), so it has no Taylor polynomial at that point."
+        )
+    one_sided = any(sp.simplify(right[k] - left[k]) != 0 for k in range(degree + 1, len(left)))
+    base = _power_base(variable, center)
+    later = [k for k in range(degree + 1, count) if right[k] != 0]
+    exact = bool(function.is_polynomial(x) and sp.degree(function, x) <= degree)
+    return {
+        "polynomial": _joined_terms([to_text(right[k] * base**k) for k in range(degree + 1) if right[k] != 0]),
+        "center": to_text(center),
+        "base": str(base),
+        "order": degree,
+        "next_term": to_text(right[later[0]] * base ** later[0]) if later and not one_sided else None,
+        "exact": exact,
+        "flat": not exact and not later and all(right[k] == 0 for k in range(count)) and function != 0,
+        "one_sided": one_sided,
+        "lookahead": degree + TAYLOR_LOOKAHEAD,
+    }
+
+
+def _taylor_order(order: str) -> int:
+    text = str(order).strip()
+    if not text.isdigit() or int(text) > MAX_TAYLOR_ORDER:
+        raise ExpressionError(f"The order must be a whole number from 0 to {MAX_TAYLOR_ORDER}.")
+    return int(text)
+
+
+def _series_coefficients(expression: Any, h: Any, count: int, direction: str) -> Optional[List[Any]]:
+    """The coefficients of h^0 .. h^(count-1) in expression's series at h = 0 from one side,
+    or None when the series is not a polynomial in h with real numbers as coefficients
+    (sqrt(h), 1/h, log(h)) or there is a pole."""
+    import sympy as sp
+
+    try:
+        series = sp.expand(expression.series(h, 0, count, dir=direction).removeO())
+    except sp.PoleError:
+        return None
+    if not series.is_polynomial(h):
+        return None
+    polynomial = sp.Poly(series, h)
+    coefficients = [polynomial.coeff_monomial(h**k) for k in range(count)]
+    for coefficient in coefficients:
+        if coefficient.free_symbols or not _is_usable(coefficient) or not _is_real_value(coefficient):
+            return None
+    return coefficients
+
+
+def _power_base(variable: str, center: Any) -> Any:
+    """The symbol printed as the base of the powers: x at 0, else (x-a), (x+1) or (x-(1-sqrt(2)))."""
+    import sympy as sp
+
+    if center == 0:
+        return sp.Symbol(variable)
+    if center.is_Add:
+        return sp.Symbol(f"({variable}-({to_text(center)}))")
+    text = to_text(center)
+    return sp.Symbol(f"({variable}+{text[1:]})" if text.startswith("-") else f"({variable}-{text})")
+
+
+def _joined_terms(texts: Sequence[str]) -> str:
+    """Terms joined as a sum, "1 + x - x^3/6"; "0" for none."""
+    if not texts:
+        return "0"
+    joined = texts[0]
+    for text in texts[1:]:
+        joined += f" - {text[1:]}" if text.startswith("-") else f" + {text}"
+    return joined
+
+
+# ----- partial fractions -----------------------------------------------------------------
+
+# Partial fractions are found for denominators of at most this degree.
+MAX_APART_DEGREE = 10
+
+
+def compute_apart(expression: str, variable: str) -> Dict[str, Any]:
+    """The partial fractions of a ratio of polynomials in variable, over the rationals.
+
+    Returns {"fractions": text, "unchanged": bool}: the polynomial part first, then the
+    fractions by their denominators ("x + 1 + 2/(x-1)", "1/(x-1) - 1/(x+1)"); irreducible
+    quadratics stay as they are, as calculators leave them, and "unchanged" says the result is
+    a single fraction (1/(x^2-2) over the rationals). {"fractions": None} when the expression
+    is not a ratio of polynomials in variable alone with variable in the denominator
+    (x^2 + 2x, sin(x)/x, (x+1)/(x*y)): the client expands it as usual. {"fractions": None,
+    "refusal": text} for a denominator of degree above MAX_APART_DEGREE.
+    """
+    import sympy as sp
+
+    x = _symbol(variable, real=True)
+    function = parse_expression(expression, real=True)
+    if function.free_symbols != {x} or not function.is_rational_function(x):
+        return {"fractions": None, "unchanged": False}
+    denominator = sp.denom(sp.cancel(sp.together(function)))
+    if not denominator.has(x):
+        return {"fractions": None, "unchanged": False}
+    if sp.degree(denominator, x) > MAX_APART_DEGREE:
+        refusal = f"partial fractions are found for denominators of degree up to {MAX_APART_DEGREE}."
+        return {"fractions": None, "unchanged": False, "refusal": refusal}
+    terms = sp.Add.make_args(sp.apart(function, x))
+    polynomial = sp.Add(*[term for term in terms if not sp.denom(term).has(x)])
+    powers = sp.Poly(polynomial, x).terms() if polynomial != 0 else []
+    fractions = sorted((term for term in terms if sp.denom(term).has(x)), key=lambda term: _fraction_key(term, x))
+    texts = [to_text(coefficient * x**k) for (k,), coefficient in powers] + [_fraction_text(term) for term in fractions]
+    return {"fractions": _joined_terms(texts), "unchanged": polynomial == 0 and len(fractions) == 1}
+
+
+def _fraction_key(term: Any, x: Any) -> Tuple[Any, ...]:
+    """Fractions ordered by their denominator's factor: its degree, then its monic
+    coefficients by size (x, x - 1, x + 1, x - 2), then the power (1/x before 1/x^2)."""
+    import sympy as sp
+
+    _, factors = sp.factor_list(sp.denom(term), x)
+    with_x = [(base, power) for base, power in factors if base.has(x)]
+    if len(with_x) != 1:
+        return (MAX_APART_DEGREE + 1, sp.default_sort_key(term))
+    base, power = with_x[0]
+    coefficients = sp.Poly(base, x).monic().all_coeffs()[1:]
+    sizes = tuple((abs(float(coefficient)), float(coefficient)) for coefficient in coefficients)
+    return (sp.degree(base, x), sizes, power)
+
+
+def _fraction_text(term: Any) -> str:
+    """A fraction as text, with 1/x^2 for x^(-2)."""
+    if term.is_Pow and term.exp.is_Integer and term.exp < -1:
+        return f"1/{to_text(term.base**-term.exp)}"
+    return to_text(term)
+
+
 # Every value in a response is text, a bool, a small int or None: Brython's json.loads
 # cannot read the exponent of a float such as 1e+16.
 OPERATIONS: Dict[str, Callable[..., Any]] = {
@@ -1018,6 +1197,8 @@ OPERATIONS: Dict[str, Callable[..., Any]] = {
     "solve": compute_solve,
     "solve_inequality": compute_solve_inequality,
     "equivalent": compute_equivalent,
+    "taylor": compute_taylor,
+    "apart": compute_apart,
 }
 
 
