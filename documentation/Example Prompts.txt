@@ -158,6 +158,12 @@ Solve the system y = x^3 and y = x and list every intersection point.
 Where does y = 1/x meet y = x?
 Simplify the expression (x^2 + 2x + 1)/(x+1).
 Expand (a+b)^3.
+Split 2/(x^2-1) into partial fractions. (expand with the variable x: 1/(x-1) - 1/(x+1).)
+Partial fractions of (3x+5)/((x+1)(x+2)).
+Expand (x^2+1)/(x-1) in partial fractions. (An improper fraction also gives its polynomial part: x + 1 + 2/(x-1).)
+Taylor polynomial of cos(x) at 0 to order 6, and plot it with cos(x).
+Find the Taylor polynomial of ln(x) at x = 1 to order 3 and say how large the error is near 1.
+What is the Maclaurin polynomial of e^x of order 4? (Orders 0 to 10; abs(x) or sqrt(x) at 0 is refused, since they are not smooth there.)
 Factorize x^2 - y^2.
 How many arrangements are there for 6 items taken 3 at a time?
 Calculate the number of combinations when choosing 4 items from 7.
