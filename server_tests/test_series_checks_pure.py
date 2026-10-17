@@ -64,6 +64,13 @@ class TestTaylorMatches(unittest.TestCase):
             # exact on the right; on the left the errors break off at x = 0, where abs turns
             ("abs(x)", "1 + (x-1)", 1.0, 3),
             ("max(x, 0)", "x", 1.0, 2),
+            # cancellation in f: e^h rounds to 1 + h at small h, after the errors settled
+            ("(e^x-1)/x", "1 + x/2", 0.0, 1),
+            ("(e^x-1)/x", "1 + x/2 + x^2/6 + x^3/24 + x^4/120 + x^5/720", 0.0, 5),
+            ("(1-cos(x))/x^2", "1/2 - x^2/24 + x^4/720", 0.0, 4),
+            ("x/(e^x-1)", "1 - x/2 + x^2/12", 0.0, 2),
+            ("(x^3-1)/(x-1)", "3 + 3*(x-1) + (x-1)^2", 1.0, 3),
+            ("(sqrt(1+x)-1)/x", "1/2 - x/8 + x^2/16", 0.0, 2),
         ):
             with self.subTest(function=function, center=center, order=order):
                 self.assertIs(_matches(function, polynomial, center, order), True)
@@ -79,6 +86,9 @@ class TestTaylorMatches(unittest.TestCase):
         self.assertIs(_matches("e^x", EXP_10.replace("x^10/3628800", "x^10/362880"), 0.0, 10), False)
         self.assertIs(_matches("ln(x)", "(x-1) - (x-1)^2/2 + (x-1)^3/4", 1.0, 3), False)
         self.assertIs(_matches("e^x", "2", 0.0, 0), False)
+        # wrong coefficients of a quotient with cancellation
+        self.assertIs(_matches("(e^x-1)/x", "1 + x/3", 0.0, 1), False)
+        self.assertIs(_matches("(1-cos(x))/x^2", "1/2 - x^2/12", 0.0, 2), False)
         # a polynomial at the wrong centre
         self.assertIs(_matches("sin(x)", "x - x^3/6", 1.0, 3), False)
 

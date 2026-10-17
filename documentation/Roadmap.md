@@ -168,6 +168,8 @@ Goal: one command (later one executable) opens a MatHud window; no separate serv
    - Order 10 of a product such as `exp(sin(x))*ln(1+x)` at 0 or `x^x` at 2 takes about 2 s; heavier inputs can run out of the 6 s worker time and ask for a lower order.
    - A fractional power smooth to the order is refused when it breaks within the lookahead (`x^(7/3)` at 0 to order 2), and `max(x, 0)` away from its corner gets SymPy's generic error (Max has no series); a point outside the domain (`ln(x)` at -1) is called "not smooth", and the refusal names "logarithm" for `ln` too.
    - Spelling hints for names such as `arctan`, `arcsin` and glued products (`x e^x`) are the app-wide input pipeline's, not specific to these tools.
+   - `x^(1/3)` at a negative point is refused as not smooth (the principal root is complex there); the refusal could suggest `cbrt(x)`. `(1+x)^(1/x)` at 1 past order 3 runs out of time.
+   - `expand` with a variable on a ratio with a parameter (`1/(x^2-a^2)`) expands as usual without saying that partial fractions need one variable; "apart 1/(x^2-1)" finds no tool.
    - Fractions are ordered by their denominators (x, x - 1, x + 1, x - 2), so `1/(t^2-t)` reads `-1/t + 1/(t-1)`; coefficients such as pi in `1/((x-pi)(x+1))` are kept, not refused.
    - Without SymPy, `expand` with a variable decides "ratio of polynomials" by math.js's `rationalize`.
 

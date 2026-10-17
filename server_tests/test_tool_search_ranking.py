@@ -539,6 +539,8 @@ def test_equivalent_units_and_fractions_are_not_derivations(
         "write cos(x) as a series around 0",
         "quadratic approximation of sqrt(x) near 4",
         "approximate sin(x) with a polynomial of degree 5",
+        "linear approximation of sqrt(x) near 4",
+        "find the linearization of f(x)=sqrt(x) at a=4",
     ],
 )
 def test_taylor_requests_rank_taylor_polynomial_first(service: ToolSearchService, query: str) -> None:
@@ -556,6 +558,7 @@ def test_a_convergence_question_is_not_a_taylor_polynomial(service: ToolSearchSe
         "Decompose 2/(x^2-1) into partial fractions.",
         "Partial fraction decomposition of (3x+5)/((x+1)(x+2))",
         "decompose 1/(x(x+1)) into simpler fractions",
+        "write 2/(x^2-1) as a sum of simpler fractions",
     ],
 )
 def test_partial_fractions_rank_expand_first(service: ToolSearchService, query: str) -> None:

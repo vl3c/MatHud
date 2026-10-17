@@ -226,11 +226,14 @@ _PARTIAL_FRACTION_WORDS = frozenset({"partial", "decompose", "decomposition", "d
 # Taylor polynomials: "Taylor polynomial of e^x at 0", "Maclaurin series of sin(x)", "the
 # power series of 1/(1-x)", "a polynomial approximation of cos(x) near 0"; "does the series
 # of 1/n^2 converge?" is a convergence test.
+# "write 2/(x^2-1) as a sum of simpler fractions"
+_SIMPLER_FRACTIONS_RE = re.compile(r"\bsum of (?:simpler |partial )?fractions\b")
 _TAYLOR_WORDS = frozenset({"taylor", "maclaurin"})
 _TAYLOR_PHRASE_RE = re.compile(
     r"\bpower series\b|\bseries expansion\b|\b(?:expand|write|express)\b.*\b(?:in|into|as) a series\b"
     r"|\bapproximating polynomial\b|\bpolynomial approximation\b|\b(?:quadratic|cubic) approximation\b"
     r"|\bapproximat\w*\b.*\b(?:with|by) a polynomial\b"
+    r"|\blineari[sz](?:ation|e)\b|\blinear approximation\b.*\b(?:near|at|around)\b"
 )
 # d/dx, d/dt (the tokens split it into d and dx)
 _D_BY_D_RE = re.compile(r"\bd/d[a-z]\b")
@@ -1104,7 +1107,9 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["factor"] += 6.0
         # Partial fractions come from expand(expr, x), as on calculators; "fractions" alone
         # still means an exact answer from simplify
-        if token_set & {"fraction", "fractions"} and token_set & _PARTIAL_FRACTION_WORDS:
+        if (
+            token_set & {"fraction", "fractions"} and token_set & _PARTIAL_FRACTION_WORDS
+        ) or _SIMPLER_FRACTIONS_RE.search(raw_lower) is not None:
             scores["expand"] += 10.0
             scores["simplify"] -= 6.0
         # Taylor and Maclaurin polynomials; a series to test for convergence is not one

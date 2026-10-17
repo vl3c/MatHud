@@ -359,6 +359,12 @@ class TestTaylor(unittest.TestCase):
         self.assertEqual(result["polynomial"], "0")
         self.assertTrue(result["flat"])
         self.assertFalse(result["exact"])
+        # 0 beside the point, though not written as 0: not flat
+        for expression, point in (("floor(x)", "0.5"), ("sin(x)^2+cos(x)^2-1", "0")):
+            with self.subTest(expression=expression):
+                result = self._taylor(expression, point, 2)
+                self.assertEqual(result["polynomial"], "0")
+                self.assertFalse(result["flat"])
         # cos(x^10) to order 5: 1, and no nonzero term within the lookahead
         result = self._taylor("cos(x^10)", "0", 5)
         self.assertEqual((result["polynomial"], result["next_term"]), ("1", None))
@@ -419,6 +425,9 @@ class TestTaylor(unittest.TestCase):
             ("tan(x)", "1", "tan(1) + (x-1)*(1+tan(1)^2)"),
             ("x^x", "1", "1 + (x-1) + (x-1)^2 + (x-1)^3/2"),
             ("e^(sin(x))", "pi/3", "exp(sqrt(3)/2) + (x-pi/3)*exp(sqrt(3)/2)/2"),
+            # the derivatives of roots and logarithms of quotients grow fast: the series takes over
+            ("sqrt((1-x)/(1+x))", "0", "1 - x + x^2/2 - x^3/2"),
+            ("ln((1+x)/(1-x))", "0", "2*x + 2*x^3/3 + 2*x^5/5"),
         ):
             with self.subTest(expression=expression):
                 started = time.monotonic()

@@ -1016,6 +1016,9 @@ MAX_TAYLOR_ORDER = 10
 # The coefficients are computed this many orders beyond the polynomial, for its first
 # omitted term (where the series is needed, 5 takes order 10 of abs(x)*e^x past the time limit).
 TAYLOR_LOOKAHEAD = 3
+# The derivatives are given up for the series once one has more operations than this: they
+# grow about tenfold per step on roots of quotients (sqrt((1-x)/(1+x))).
+MAX_DERIVATIVE_OPS = 2000
 # A polynomial up to this degree has its first omitted term found beyond the lookahead.
 MAX_TAIL_DEGREE = 100
 
@@ -1072,10 +1075,24 @@ def compute_taylor(expression: str, variable: str, point: str, order: str) -> Di
         "order": degree,
         "next_term": to_text(right[later[0]] * base ** later[0]) if later and not one_sided else None,
         "exact": exact,
-        "flat": not exact and not later and all(right[k] == 0 for k in range(len(right))) and function != 0,
+        "flat": not exact
+        and not later
+        and all(right[k] == 0 for k in range(len(right)))
+        and _nonzero_near(function, x, center),
         "one_sided": one_sided,
         "lookahead": degree + TAYLOR_LOOKAHEAD,
     }
+
+
+def _nonzero_near(function: Any, x: Any, center: Any) -> bool:
+    """Whether the function is not 0 beside the point: floor(x) at 1/2 and
+    sin(x)^2 + cos(x)^2 - 1 are 0 there, exp(-1/x^2) at 0 is not."""
+    import sympy as sp
+
+    if sp.simplify(function) == 0:
+        return False
+    step = sp.Rational(1, 1000)
+    return any(sp.N(function.subs(x, center + side * step)) != 0 for side in (1, -1))
 
 
 def _taylor_order(order: str) -> int:
@@ -1113,7 +1130,8 @@ def _two_sided_coefficients(
 
 def _derivative_coefficients(function: Any, x: Any, center: Any, count: int) -> Optional[List[Any]]:
     """f^(k)(a)/k! for k = 0 .. count-1, or None when one of them is not a finite real
-    number (0/0 in sin(x)/x at 0, a pole, sqrt(x) at 0)."""
+    number (0/0 in sin(x)/x at 0, a pole, sqrt(x) at 0) or a derivative grows past
+    MAX_DERIVATIVE_OPS."""
     import sympy as sp
 
     coefficients: List[Any] = []
@@ -1121,6 +1139,8 @@ def _derivative_coefficients(function: Any, x: Any, center: Any, count: int) -> 
     for k in range(count):
         if k:
             derivative = sp.expand_mul(sp.diff(derivative, x))
+            if sp.count_ops(derivative) > MAX_DERIVATIVE_OPS:
+                return None
         value = derivative.subs(x, center)
         if value.has(sp.nan, sp.zoo, sp.oo, -sp.oo) or value.free_symbols:
             return None

@@ -9,7 +9,10 @@ still well above rounding noise: closer to a the error is rounding, farther away
 terms (or a small radius of convergence, 1/(1+25x^2) at 0) still blur the ratio. Errors
 that break off from far above rounding to rounding in one halving tell nothing: no power
 of h falls that fast, so the function changes form beyond the centre (abs(x) at 1 is
-1 + (x - 1) right up to x = 0, where it turns).
+1 + (x - 1) right up to x = 0, where it turns). And once the errors have settled to
+rounding, signal closer to a is cancellation in f, not the remainder, which only shrinks
+toward a: (e^x - 1)/x rounds e^h to 1 + h at small h, an error like h that halving
+divides by 2 only. The errors are read up to that point.
 
 Evaluators take a float and return a float, or None where the function is not real or
 cannot be computed. Pure Python (no browser imports), so server-side pytest covers it.
@@ -32,6 +35,8 @@ SIGNAL = 100.0
 # An error this many times the rounding noise cannot reach rounding in one halving: a power
 # of h up to h^11 divides it by 2048 at most.
 BREAK_OFF = SIGNAL**3
+# The errors have settled when this many halvings in a row are rounding.
+SETTLED_STEPS = 2
 # The quick noise estimate: this many units in the last place of the largest value.
 NOISE_ULPS = 64
 EPSILON = 2.0**-52
@@ -57,7 +62,7 @@ def taylor_matches(function: RealFunction, polynomial: RealFunction, center: flo
 def _side_verdict(
     function: RealFunction, polynomial: RealFunction, center: float, order: int, side: float
 ) -> Optional[bool]:
-    errors = _errors(function, polynomial, center, side)
+    errors = _settled(_errors(function, polynomial, center, side))
     if not errors:
         return None
     run = _last_signal_run(errors)
@@ -72,6 +77,19 @@ def _side_verdict(
     if all(ratio > FAIL_SLACK * 2.0**-order for ratio in ratios):
         return False
     return None
+
+
+def _settled(errors: List[Tuple[int, float, float]]) -> List[Tuple[int, float, float]]:
+    """The errors up to the first signal after SETTLED_STEPS halvings of rounding in a row."""
+    quiet = 0
+    for index, (_, _, margin) in enumerate(errors):
+        if margin <= SIGNAL:
+            quiet += 1
+        elif quiet >= SETTLED_STEPS:
+            return errors[:index]
+        else:
+            quiet = 0
+    return errors
 
 
 def _breaks_off(errors: List[Tuple[int, float, float]]) -> bool:
