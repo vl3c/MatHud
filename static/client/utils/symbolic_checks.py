@@ -21,6 +21,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from browser import window
 
+from expression_functions import rename_for_mathjs
 from utils import equivalence
 from utils.cas_numeric import IntegralEstimate, adaptive_integral
 from utils.cas_text import rewrite_for_nerdamer, unknown_function_names
@@ -103,6 +104,65 @@ class SymbolicChecks:
             scope[variable] = point
             try:
                 value = compiled(scope)
+            except Exception:
+                return None
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                return None
+            return float(value)
+
+        return evaluate
+
+    # Names math.js reads as constants, never as variables.
+    _MATHJS_CONSTANTS = frozenset(
+        ("e", "E", "pi", "PI", "i", "Infinity", "NaN", "tau", "phi", "true", "false", "null", "undefined")
+        + ("LN2", "LN10", "LOG2E", "LOG10E", "SQRT1_2", "SQRT2")
+    )
+
+    @staticmethod
+    def expression_variables(expression: str) -> List[str]:
+        """The names math.js reads as variables in an expression, sorted.
+
+        Read from math.js's parse tree (SymbolNodes that are not the name of a called
+        function, nor a constant such as e, pi or i), so they are the names the evaluator
+        needs values for: xy is one name, 2x is 2*x.
+
+        Raises:
+            ValueError: when math.js cannot parse the expression.
+        """
+        try:
+            tree = window.math.parse(rename_for_mathjs(str(expression).replace("**", "^")))
+        except Exception as error:
+            message = str(getattr(error, "message", "") or error)
+            raise ValueError(f"math.js: {message}") from None
+        names: List[str] = []
+
+        def visit(node: Any, path: Any, parent: Any) -> None:
+            if str(node.type) != "SymbolNode" or str(path) == "fn":
+                return
+            name = str(node.name)
+            if name not in SymbolicChecks._MATHJS_CONSTANTS and name not in names:
+                names.append(name)
+
+        tree.traverse(visit)
+        return sorted(names)
+
+    @staticmethod
+    def scope_function(expression: str) -> Optional[Callable[[Dict[str, float]], Optional[float]]]:
+        """The expression as f({name: value, ...}) evaluated by math.js; None when it cannot be compiled.
+
+        f returns a float (inf or nan where the expression is infinite or 0/0), or None where
+        the value is not real (log(-1)) or math.js cannot evaluate it.
+        """
+        from utils.math_utils import MathUtils
+
+        try:
+            compiled = MathUtils._compiled_evaluator(str(expression).replace("**", "^"))
+        except Exception:
+            return None
+
+        def evaluate(values: Dict[str, float]) -> Optional[float]:
+            try:
+                value = compiled(dict(values))
             except Exception:
                 return None
             if isinstance(value, bool) or not isinstance(value, (int, float)):

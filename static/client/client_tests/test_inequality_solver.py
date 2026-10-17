@@ -156,6 +156,9 @@ class TestInequalitySolverSympy(unittest.TestCase):
             "x^2 + 1 < 0": "No real x satisfies x^2 + 1 < 0 (the solution set is empty).",
             "x^2 + 1 > 0": "Every real x satisfies x^2 + 1 > 0; interval notation: (-Infinity, Infinity)",
             "ln(x) < 2": "0 < x < exp(2); interval notation: (0, exp(2)); endpoints ≈ 7.38905609893",
+            # bars after ln: log(abs(x)) for math.js as well as SymPy
+            "ln|x| < 1": "-e < x < 0 or 0 < x < e; interval notation: (-e, 0) ∪ (0, e); "
+            "endpoints ≈ -2.71828182846, 2.71828182846",
             "x ≥ 2": "x >= 2; interval notation: [2, Infinity)",
         }
         for text, expected in cases.items():

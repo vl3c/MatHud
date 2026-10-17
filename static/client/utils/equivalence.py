@@ -2,10 +2,10 @@
 
 This is the numeric half of the step checker (check_steps), stricter than
 SymbolicChecks.equivalent (7 points, 2 agreeing, one variable): every variable varies at
-once, over three tiers of |values| up to 4, 40 and 400 with 24 points each, and
+once, over four tiers of |values| up to 1, 4, 40 and 400 with 24 points each, and
 "equivalent" needs no mismatch and at least MIN_AGREEING points where both sides are
 defined. A difference beyond |x| = 4 (abs(x - 5) against 5 - x) is seen, because every
-tier is sampled.
+tier is sampled, and a domain such as asin's [-1, 1] still has enough points.
 
 The points come from a Kronecker sequence, frac(k * alpha_j + beta_j) with irrational
 alpha_j, so they are deterministic and never land exactly on 0, +-1 or another integer,
@@ -45,7 +45,7 @@ UNDECIDED = "undecided"
 REL = 1e-8
 ABS = 1e-12
 # The sample tiers: the largest |value| of a variable, and the points in each tier.
-TIERS = (4.0, 40.0, 400.0)
+TIERS = (1.0, 4.0, 40.0, 400.0)
 POINTS_PER_TIER = 24
 # "equivalent" needs this many points where both sides are defined (1 without variables).
 MIN_AGREEING = 8

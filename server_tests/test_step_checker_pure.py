@@ -1,0 +1,296 @@
+"""Tests for utils.step_checker (check_steps) with Python stand-ins for the browser parts.
+
+The steps go through the real input pipeline (InequalitySolver.prepared, which runs under
+the browser stub). In the browser math.js then reads them and the SymPy engine is asked
+over /api/cas; here compile_expression's Python evaluators read them, and
+compute_equivalent (or a scripted answer) stands in for the server. Brython's own run is in
+static/client/client_tests/test_step_checker.py.
+"""
+
+from __future__ import annotations
+
+import math
+import unittest
+from typing import Any, Dict, List, Optional
+from unittest import mock
+
+from server_tests import client_renderer  # noqa: F401  (browser stub, so compiled_expression imports)
+from compiled_expression import compile_expression
+from utils import step_checker
+from utils.equivalence import Evaluator, Point
+from utils.step_checker import StepChecker
+
+try:
+    from static.sympy_cas import ExpressionError, compute_equivalent
+
+    HAVE_SYMPY = True
+except ImportError:  # pragma: no cover
+    HAVE_SYMPY = False
+
+
+def _variables(text: str) -> List[str]:
+    return list(compile_expression(text, ()).free_names)
+
+
+def _evaluator(text: str) -> Optional[Evaluator]:
+    try:
+        names = tuple(_variables(text))
+        bound = compile_expression(text, names).bind()
+    except Exception:
+        return None
+
+    def evaluate(point: Point) -> Optional[float]:
+        try:
+            value = bound(*[point[name] for name in names])
+        except OverflowError:
+            return math.inf
+        except (ArithmeticError, ValueError, TypeError, KeyError, NameError):
+            return None
+        return None if isinstance(value, complex) else float(value)
+
+    return evaluate
+
+
+def _sympy(first: str, second: str) -> Optional[Dict[str, Any]]:
+    if not HAVE_SYMPY:
+        return None
+    try:
+        return {"result": compute_equivalent(first, second)}
+    except ExpressionError as error:
+        return {"error": str(error)}
+
+
+class _Engines:
+    """Patches the browser parts; records the SymPy requests."""
+
+    def __init__(self, sympy: Any = _sympy) -> None:
+        self.requests: List[tuple] = []
+        self._sympy = sympy
+
+    def ask(self, first: str, second: str) -> Optional[Dict[str, Any]]:
+        self.requests.append((first, second))
+        return self._sympy(first, second)  # type: ignore[no-any-return]
+
+    def check(self, steps: Any) -> Any:
+        with mock.patch.multiple(
+            StepChecker,
+            _variables=staticmethod(_variables),
+            _evaluator=staticmethod(_evaluator),
+            _ask_sympy=staticmethod(self.ask),
+        ):
+            return StepChecker.check_steps(steps)
+
+
+def _check(steps: List[str]) -> Dict[str, Any]:
+    result = _Engines().check(steps)
+    assert isinstance(result, dict), result
+    return result
+
+
+class TestDerivations(unittest.TestCase):
+    def test_correct_derivation(self) -> None:
+        engines = _Engines()
+        result = engines.check(["(x+1)^2 - 1", "x^2 + 2x + 1 - 1", "x^2 + 2x", "x(x+2)"])
+        self.assertEqual(result["verdict"], "equivalent")
+        self.assertIsNone(result["first_wrong_step"])
+        self.assertEqual([record["step"] for record in result["steps"]], [2, 3, 4])
+        self.assertEqual({record["method"] for record in result["steps"]}, {"numeric"})
+        self.assertEqual(
+            result["summary"],
+            "Step 2 follows from step 1. Step 3 follows from step 2. Step 4 follows from step 3.",
+        )
+        self.assertEqual(engines.requests, [])  # the numeric check settles every step
+        self.assertNotIn("error", result)
+
+    @unittest.skipUnless(HAVE_SYMPY, "needs SymPy")
+    def test_first_wrong_step(self) -> None:
+        result = _check(["(x+1)^2 - 1", "x^2 + 1 - 1", "x^2"])
+        self.assertEqual(result["verdict"], "not_equivalent")
+        self.assertEqual(result["first_wrong_step"], 2)
+        wrong, right = result["steps"]
+        self.assertEqual(wrong["verdict"], "not_equivalent")
+        self.assertEqual(wrong["method"], "symbolic+numeric")
+        self.assertEqual(wrong["reason"], "step 2 - step 1 = -2*x (not 0); at x = 1, step 1 = 3 and step 2 = 1")
+        self.assertEqual(wrong["counterexample"], {"at": {"x": 1}, "previous": 3, "this": 1})
+        self.assertEqual(right, {"step": 3, "verdict": "equivalent", "method": "numeric"})
+        self.assertEqual(
+            result["summary"],
+            "Step 2 is not equivalent to step 1: step 2 - step 1 = -2*x (not 0); at x = 1, step 1 = 3 and "
+            "step 2 = 1. Step 3 follows from step 2.",
+        )
+
+    def test_wrong_without_sympy(self) -> None:
+        result = _Engines(sympy=lambda first, second: None).check(["(x+1)^2 - 1", "x^2 + 1 - 1", "x^2"])
+        wrong = result["steps"][0]
+        self.assertEqual((wrong["verdict"], wrong["method"]), ("not_equivalent", "numeric"))
+        self.assertEqual(wrong["reason"], "at x = 1, step 1 = 3 and step 2 = 1")
+        self.assertEqual(
+            result["notes"], ["SymPy was not available: from step 2 on, the steps were checked numerically only."]
+        )
+
+    def test_trig_identities_and_rational_cancellation(self) -> None:
+        for steps in (
+            ["sin(2x)/(2cos(x))", "2sin(x)cos(x)/(2cos(x))", "sin(x)"],
+            ["(1 - cos(x)^2)/sin(x)", "sin(x)^2/sin(x)", "sin(x)"],
+            ["sec(x)^2 - tan(x)^2", "1"],
+            ["cos(x)^4 - sin(x)^4", "(cos(x)^2 - sin(x)^2)(cos(x)^2 + sin(x)^2)", "cos(2x)"],
+            ["(x^2 - 1)/(x - 1)", "(x-1)(x+1)/(x-1)", "x + 1"],
+            ["(x^3 - 8)/(x^2 - 4)", "(x^2 + 2x + 4)/(x + 2)"],
+            ["1/(x-1) - 1/(x+1)", "((x+1) - (x-1))/((x-1)(x+1))", "2/(x^2 - 1)"],
+        ):
+            with self.subTest(steps=steps):
+                result = _check(steps)
+                self.assertEqual(result["verdict"], "equivalent", result["summary"])
+
+    @unittest.skipUnless(HAVE_SYMPY, "needs SymPy")
+    def test_wrong_trig_and_rational_steps(self) -> None:
+        for steps, wrong in (
+            (["sin(x)^2 + cos(x)^2", "2"], 2),
+            (["sin(2x)", "2sin(x)"], 2),
+            (["cos(2x)", "cos(x)^2 + sin(x)^2"], 2),
+            (["(x^2 - 4)/(x - 2)", "x - 2"], 2),
+            (["(x^2 + 1)/(x + 1)", "x + 1"], 2),
+            (["1/x + 1/y", "2/(x + y)"], 2),
+            (["(a + b)^2", "a^2 + 2a*b + b^2", "a^2 + b^2"], 3),
+        ):
+            with self.subTest(steps=steps):
+                result = _check(steps)
+                self.assertEqual(result["verdict"], "not_equivalent", result["summary"])
+                self.assertEqual(result["first_wrong_step"], wrong)
+
+    def test_several_variables(self) -> None:
+        result = _check(["(a + b)(a - b)", "a^2 - a*b + a*b - b^2", "a^2 - b^2"])
+        self.assertEqual(result["verdict"], "equivalent")
+        result = _check(["log(x*y)", "log(x) + log(y)"])
+        self.assertEqual(result["verdict"], "equivalent")
+        self.assertIn("note", result["steps"][0])
+
+
+class TestDomains(unittest.TestCase):
+    def test_log_of_a_square(self) -> None:
+        result = _check(["log(x^2)", "2log(x)"])
+        self.assertEqual(result["verdict"], "equivalent")
+        record = result["steps"][0]
+        self.assertEqual(record["note"], "equivalent where both are defined; step 2 is undefined at x = -1")
+        self.assertEqual(
+            result["summary"],
+            "Step 2 follows from step 1 (equivalent where both are defined; step 2 is undefined at x = -1).",
+        )
+
+    def test_bars_after_a_function(self) -> None:
+        # ln|x| is log(abs(x)) for both engines, so the steps are equivalent wherever x != 0
+        result = _check(["ln|x|^2", "(ln|x|)^2", "ln(|x|)*ln|x|"])
+        self.assertEqual(result["verdict"], "equivalent", result["summary"])
+        result = _check(["ln(x^2)", "2ln|x|"])
+        self.assertEqual(result["verdict"], "equivalent", result["summary"])
+        self.assertNotIn("note", result["steps"][0])
+
+    def test_sqrt_of_a_square(self) -> None:
+        result = _check(["sqrt(x^2)", "x"])
+        self.assertEqual(result["verdict"], "not_equivalent")
+        record = result["steps"][0]
+        self.assertEqual(record["counterexample"], {"at": {"x": -1}, "previous": 1, "this": -1})
+        if HAVE_SYMPY:
+            self.assertEqual(
+                record["reason"], "step 2 - step 1 = x-abs(x) (not 0); at x = -1, step 1 = 1 and step 2 = -1"
+            )
+
+    def test_absolute_value_beyond_small_values(self) -> None:
+        result = _check(["sqrt((x-5)^2)", "|x - 5|", "5 - x"])
+        self.assertEqual(result["first_wrong_step"], 3)
+        self.assertEqual(result["steps"][1]["counterexample"]["at"], {"x": 6})
+
+
+class TestGuards(unittest.TestCase):
+    def test_joined_letters(self) -> None:
+        engines = _Engines()
+        result = engines.check(["x^2 + 2xy + y^2", "(x + y)^2"])
+        record = result["steps"][0]
+        self.assertEqual((record["verdict"], record["method"]), ("undecided", "none"))
+        self.assertEqual(record["reason"], "xy is read as one variable, but the other step has x and y; write x*y")
+        self.assertEqual(result["verdict"], "undecided")
+        self.assertEqual(engines.requests, [])
+        # xy in both steps is one name, consistently
+        self.assertEqual(_check(["xy + xy", "2xy"])["verdict"], "equivalent")
+
+    def test_unreadable_step(self) -> None:
+        result = _Engines(sympy=lambda first, second: {"error": "Cannot read the expression."}).check(
+            ["x^2 + 1", "x^2 +* 1", "x^2 + 1"]
+        )
+        self.assertEqual(result["verdict"], "undecided")
+        first, second = result["steps"]
+        self.assertEqual(first["verdict"], "undecided")
+        self.assertTrue(first["reason"].startswith("step 2 cannot be read ("), first["reason"])
+        self.assertTrue(first["reason"].endswith("; SymPy: Cannot read the expression)"), first["reason"])
+        self.assertTrue(second["reason"].startswith("step 2 cannot be read ("), second["reason"])
+
+    def test_math_js_cannot_read_but_sympy_can(self) -> None:
+        answers = {"verdict": "equivalent", "difference": None}
+        with mock.patch.object(step_checker, "compare") as compare:
+            result = _Engines(sympy=lambda first, second: {"result": answers}).check(["x^2", "x*x +* 0"])
+            compare.assert_not_called()
+        self.assertEqual(result["steps"][0], {"step": 2, "verdict": "equivalent", "method": "symbolic"})
+
+    def test_checks_that_disagree(self) -> None:
+        sympy = {"result": {"verdict": "equivalent", "difference": None}}
+        result = _Engines(sympy=lambda first, second: sympy).check(["x^2", "x^2 + 1"])
+        record = result["steps"][0]
+        self.assertEqual(record["verdict"], "undecided")
+        self.assertEqual(
+            record["reason"],
+            "the checks disagree: SymPy finds the steps equivalent, but at x = 1, step 1 = 1 and step 2 = 2",
+        )
+
+    def test_sympy_settles_an_undecided_pair(self) -> None:
+        # sqrt(x-300) is defined at too few sample points for the numeric check
+        engines = _Engines()
+        result = engines.check(["sqrt(x-300)^2", "x - 300"])
+        if HAVE_SYMPY:
+            self.assertEqual(result["steps"][0]["method"], "symbolic")
+            self.assertEqual(result["verdict"], "equivalent")
+        self.assertEqual(len(engines.requests), 1)
+
+    def test_undecided_reasons_name_the_steps(self) -> None:
+        result = _Engines(sympy=lambda first, second: None).check(["sqrt(-x^2-1)", "sqrt(-x^2-2)"])
+        self.assertEqual(
+            result["steps"][0]["reason"],
+            "the numeric check could not decide (neither step has a real value at any sample point)",
+        )
+
+    def test_timeout_and_budget(self) -> None:
+        result = _Engines(sympy=lambda first, second: {"timeout": True}).check(["sqrt(x-300)", "sqrt(x-300)*1"])
+        self.assertEqual(result["steps"][0]["verdict"], "undecided")
+        self.assertIn("SymPy ran out of time", result["steps"][0]["reason"])
+        with mock.patch.object(step_checker, "SYMPY_BUDGET_S", 0.0):
+            engines = _Engines()
+            result = engines.check(["sqrt(x-300)", "sqrt(x-300)*1", "sqrt(x-300)"])
+        self.assertEqual(engines.requests, [])
+        self.assertEqual(
+            result["notes"],
+            ["SymPy's time budget (0 s) ran out: from step 2 on, the steps were checked numerically only."],
+        )
+
+
+class TestInput(unittest.TestCase):
+    def test_refusals(self) -> None:
+        engines = _Engines()
+        for steps, message in (
+            ("x + 1", "steps must be a list"),
+            (["x"], "at least 2 steps"),
+            ([f"x + {k}" for k in range(13)], "at most 12 steps"),
+            (["x", ""], "step 2 must be a non-empty expression"),
+            (["x", 3], "step 2 must be a non-empty expression"),
+            (["x", "x" * 1001], "longer than 1000 characters"),
+            (["2x + 1 = 5", "2x = 4"], "step 1 (2x + 1 = 5) is an equation or inequality"),
+            (["x", "x ≤ 2"], "step 2 (x ≤ 2) is an equation or inequality"),
+        ):
+            with self.subTest(steps=steps):
+                result = engines.check(steps)
+                self.assertIsInstance(result, str)
+                self.assertTrue(result.startswith("Error: "), result)
+                self.assertIn(message, result)
+        self.assertIn("For a chain a = b = c, pass a, b and c.", engines.check(["a", "b = c"]))
+
+
+if __name__ == "__main__":
+    unittest.main()

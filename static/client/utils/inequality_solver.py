@@ -93,14 +93,15 @@ class InequalitySolver:
 
     @staticmethod
     def prepared(text: str) -> str:
-        """text read the same way by SymPy and math.js: MathUtils._cas_input, bars as abs(), x(x+2) as
-        x*(x+2), and (x-1)(x+2), (x+1)2 and (x-2)^2 (x+1) as products."""
+        """text read the same way by SymPy and math.js: bars as abs(), MathUtils._cas_input (after
+        the bars, so ln|x| becomes log(abs(x))), x(x+2) as x*(x+2), and (x-1)(x+2), (x+1)2 and
+        (x-2)^2 (x+1) as products."""
         from expression_functions import BY_NAME, CALL_ALIASES, replace_absolute_bars
         from utils.math_utils import MathUtils
 
         if not isinstance(text, str):
-            raise ValueError("The inequality must be given as text.")
-        prepared = replace_absolute_bars(str(MathUtils._cas_input(text)))
+            raise ValueError("The expression must be given as text.")
+        prepared = str(MathUtils._cas_input(replace_absolute_bars(str(MathUtils._normalize_symbols(text)))))
         prepared = insert_letter_call_products(prepared, list(BY_NAME) + list(CALL_ALIASES))
         return str(insert_implicit_products(prepared))
 
