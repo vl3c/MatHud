@@ -13,6 +13,7 @@ sympy = pytest.importorskip("sympy")
 
 from static.sympy_cas import (  # noqa: E402
     MAX_APART_DEGREE,
+    MAX_EXACT_TERMS,
     MAX_TAYLOR_ORDER,
     TAYLOR_LOOKAHEAD,
     ExpressionError,
@@ -24,6 +25,7 @@ from static.sympy_cas import (  # noqa: E402
     compute_simplify,
     compute_solve,
     compute_solve_inequality,
+    compute_summation,
     compute_taylor,
     handle,
     parse_expression,
@@ -668,6 +670,218 @@ class TestInequalities(unittest.TestCase):
         self.assertEqual(parse_relation("1 <= x^2 < 4"), [sympy.Le(1, x**2), sympy.Lt(x**2, 4)])
 
 
+class TestSummation(unittest.TestCase):
+    """Closed forms of sums: summation(term, k, a, b) for simplify."""
+
+    def _value(self, term: str, lower: str, upper: str, index: str = "k") -> Any:
+        return compute_summation(term, index, lower, upper).get("value")
+
+    def test_symbolic_upper_bounds(self) -> None:
+        for term, lower, upper, value in (
+            ("k^2", "1", "n", "n*(n+1)*(2*n+1)/6"),  # factored, not n*(2*n^2+3*n+1)/6
+            ("k^3", "1", "n", "n^2*(n+1)^2/4"),
+            ("2k-1", "1", "n", "n^2"),
+            ("k", "1", "2n", "n*(2*n+1)"),
+            ("k^2", "1", "n-1", "n*(n-1)*(2*n-1)/6"),
+            ("k^2", "0", "n", "n*(n+1)*(2*n+1)/6"),
+            ("k^2", "n", "2n", "n*(n+1)*(14*n+1)/6"),
+            ("1/(k*(k+1))", "1", "n", "n/(n+1)"),
+            ("k*(k+1)", "1", "n", "n*(n+1)*(n+2)/3"),
+            ("1", "1", "n", "n"),
+            ("k/n", "1", "n", "(n+1)/2"),  # the bound symbol in the term
+        ):
+            with self.subTest(term=term, lower=lower, upper=upper):
+                self.assertEqual(compute_summation(term, "k", lower, upper), {"value": value})
+
+    def test_infinite_sums(self) -> None:
+        for term, lower, value, decimal in (
+            ("1/k^2", "1", "pi^2/6", "1.64493406684823"),
+            ("(-1)^(k+1)/k", "1", "log(2)", "0.693147180559945"),
+            ("(-1)^k/(2k+1)", "0", "pi/4", "0.785398163397448"),
+            ("1/factorial(k)", "0", "e", "2.71828182845905"),
+            ("e^(-k)", "0", "e/(-1+e)", "1.58197670686933"),
+        ):
+            with self.subTest(term=term):
+                self.assertEqual(compute_summation(term, "k", lower, "Infinity"), {"value": value, "decimal": decimal})
+        for term, lower, value in (("(1/2)^k", "0", "2"), ("3*(1/2)^(k-1)", "1", "6"), ("k/2^k", "1", "2")):
+            with self.subTest(term=term):
+                self.assertEqual(compute_summation(term, "k", lower, "Infinity"), {"value": value})
+        self.assertEqual(self._value("x^k/factorial(k)", "0", "Infinity"), "exp(x)")
+        for spelling in ("inf", "oo", "+Infinity"):
+            self.assertEqual(self._value("1/k^2", "1", spelling), "pi^2/6")
+
+    def test_geometric_sums_with_a_symbolic_ratio(self) -> None:
+        finite = compute_summation("r^k", "k", "0", "n")
+        self.assertEqual(finite["value"], "(r^(n+1)-1)/(r-1)")
+        self.assertEqual((finite["condition"], finite["condition_symbol"]), ("r != 1", "r"))
+        self.assertEqual(len(finite["condition_intervals"]), 2)
+        for term, lower, value, condition in (
+            ("r^k", "0", "1/(1-r)", "-1 < r < 1"),
+            ("3*r^(k-1)", "1", "3/(1-r)", "-1 < r < 1"),
+            ("(x/2)^k", "0", "2/(2-x)", "-2 < x < 2"),
+            ("k*x^k", "0", "x/(x-1)^2", "-1 < x < 1"),
+            ("x^k/k", "1", "-log(1-x)", "-1 <= x < 1"),
+        ):
+            with self.subTest(term=term):
+                result = compute_summation(term, "k", lower, "Infinity")
+                self.assertEqual((result["value"], result["condition"]), (value, condition))
+        self.assertEqual(
+            compute_summation("r^k", "k", "0", "Infinity")["condition_intervals"],
+            [{"lower": "-1", "upper": "1", "lower_closed": False, "upper_closed": False}],
+        )
+
+    def test_numeric_bounds(self) -> None:
+        self.assertEqual(compute_summation("k^2", "k", "1", "100"), {"value": "338350"})
+        self.assertEqual(compute_summation("k^2", "k", "-3", "3"), {"value": "28"})
+        self.assertEqual(compute_summation("1/factorial(k)", "k", "0", "10"), {"value": "9864101/3628800"})
+        self.assertEqual(
+            compute_summation("sqrt(k)", "k", "1", "5"),
+            {"value": "sqrt(2)+sqrt(3)+sqrt(5)+3", "decimal": "8.38233234744176"},
+        )
+        # a polynomial in another symbol stays expanded, as calculators give it
+        self.assertEqual(self._value("x^k", "0", "4"), "x^4+x^3+x^2+x+1")
+
+    def test_reversed_bounds_give_an_empty_sum(self) -> None:
+        # SymPy's Karr convention gives -29 for k^2 from 5 to 1; calculators give 0
+        self.assertEqual(compute_summation("k^2", "k", "5", "1"), {"value": "0", "empty": True})
+
+    def test_long_constants_are_given_in_decimals(self) -> None:
+        self.assertEqual(
+            compute_summation("1/k", "k", "1", "100"), {"value": None, "decimal": "5.18737751763962", "too_long": True}
+        )
+        start = time.monotonic()
+        result = compute_summation("sqrt(k)", "k", "1", "100")  # simplify would take 12 s
+        self.assertLess(time.monotonic() - start, 2.0)
+        self.assertEqual((result["decimal"], result["too_long"]), ("671.462947103148", True))
+
+    def test_many_terms_go_through_the_closed_form(self) -> None:
+        self.assertEqual(
+            compute_summation("k^2", "k", "1", "10^9"),
+            {"value": "333333333833333333500000000", "general": "N*(N+1)*(2*N+1)/6", "general_symbol": "N"},
+        )
+        # a constant closed form that is not a polynomial in N is evaluated in decimals: exactly,
+        # 2^(N+1) at N = 10^9 takes 6 s, and exp(-1000)*exp(1001) is 0 times infinity in math.js
+        for term, upper, decimal, general in (
+            ("2^k", "10^5", "1.99800418602877e+30103", "2*2^N-2"),
+            ("2^k", "10^9", "9.22595200233814e+301029995", "2*2^N-2"),
+            ("exp(-k)", "1000", "1.58197670686933", "(1-exp(N+1))*exp(-N)/(1-e)"),
+        ):
+            with self.subTest(term=term, upper=upper):
+                start = time.monotonic()
+                result = compute_summation(term, "k", "0" if term == "exp(-k)" else "1", upper)
+                self.assertLess(time.monotonic() - start, 2.0)
+                self.assertEqual(
+                    result,
+                    {"value": None, "decimal": decimal, "evaluated": True, "general": general, "general_symbol": "N"},
+                )
+        start = time.monotonic()
+        self.assertEqual(compute_summation("1/k", "k", "1", "10^6"), {"value": None, "reason": "too_many_terms"})
+        self.assertLess(time.monotonic() - start, 2.0)
+        # a term with another symbol takes the closed form from 51 terms on
+        self.assertEqual(self._value("(x+k)^2", "1", "100"), "100*x^2+10100*x+338350")
+        self.assertEqual(compute_summation("x^k", "k", "1", str(MAX_EXACT_TERMS + 1))["condition"], "x != 1")
+
+    def test_divergent_series(self) -> None:
+        self.assertEqual(compute_summation("1/k", "k", "1", "Infinity"), {"diverges": True, "limit": "Infinity"})
+        self.assertEqual(compute_summation("k^2", "k", "1", "Infinity"), {"diverges": True, "limit": "Infinity"})
+        self.assertEqual(compute_summation("-k", "k", "1", "Infinity"), {"diverges": True, "limit": "-Infinity"})
+        # left unevaluated by summation, shown divergent by is_convergent
+        for term in ("(-1)^k", "1/sqrt(k)"):
+            with self.subTest(term=term):
+                self.assertEqual(compute_summation(term, "k", "1", "Infinity"), {"diverges": True, "limit": None})
+
+    def test_no_closed_form_in_calculator_functions(self) -> None:
+        for term, upper, form in (("1/k", "n", "harmonic(n)"), ("1/k^2", "n", "harmonic(n,2)")):
+            with self.subTest(term=term, upper=upper):
+                self.assertEqual(
+                    compute_summation(term, "k", "1", upper),
+                    {"value": None, "reason": "no_closed_form", "sympy_form": form},
+                )
+        # a constant form comes with its decimal
+        for term, lower, form, decimal in (
+            ("1/k^3", "1", "zeta(3)", "1.20205690315959"),
+            ("(-1)^k/(2k+1)^2", "0", "Catalan", "0.915965594177219"),
+        ):
+            with self.subTest(term=term):
+                self.assertEqual(
+                    compute_summation(term, "k", lower, "Infinity"),
+                    {"value": None, "reason": "no_closed_form", "sympy_form": form, "decimal": decimal},
+                )
+        self.assertEqual(compute_summation("1/(2^k+1)", "k", "0", "Infinity"), {"value": None, "converges": True})
+        self.assertEqual(compute_summation("factorial(k)", "k", "1", "n"), {"value": None, "reason": "no_closed_form"})
+        # SymPy writes it with lerchphi and exp_polar
+        self.assertEqual(compute_summation("(-1)^(k+1)/k^2", "k", "1", "n")["reason"], "no_closed_form")
+
+    def test_undefined_terms(self) -> None:
+        undefined = {"value": None, "reason": "undefined_term"}
+        self.assertEqual(compute_summation("1/(k-3)", "k", "1", "5"), undefined)
+        # SymPy sums these as if every term were defined
+        self.assertEqual(compute_summation("1/(k-3)^2", "k", "1", "Infinity"), undefined)
+        self.assertEqual(compute_summation("1/k^2", "k", "0", "Infinity"), undefined)
+        self.assertEqual(compute_summation("1/(k-3)^2", "k", "4", "Infinity")["value"], "pi^2/6")
+
+    def test_oscillating_terms_get_no_convergence_verdict(self) -> None:
+        # SymPy's is_convergent calls these divergent, and takes 10 s on abs(sin(k))/k^2
+        for term in ("sin(k)/k", "cos(k)/k", "sin(pi*k/2)/k", "abs(sin(k))/k^2"):
+            with self.subTest(term=term):
+                started = time.monotonic()
+                self.assertEqual(
+                    compute_summation(term, "k", "1", "Infinity"), {"value": None, "reason": "no_closed_form"}
+                )
+                self.assertLess(time.monotonic() - started, 3.0)
+
+    def test_odd_sympy_results(self) -> None:
+        # SymPy gives nan for a sum of 1/2 - pi/8
+        self.assertEqual(
+            compute_summation("1/(16k^2-1)", "k", "1", "Infinity"), {"value": None, "reason": "no_closed_form"}
+        )
+        for term in ("x", "1/n^2"):
+            with self.subTest(term=term), self.assertRaisesRegex(ExpressionError, "does not contain the index k"):
+                compute_summation(term, "k", "1", "Infinity")
+        self.assertEqual(compute_summation("x", "k", "1", "n"), {"value": "n*x"})
+
+    def test_index_named_like_a_constant(self) -> None:
+        for index in ("i", "e", "pi"):
+            with self.subTest(index=index):
+                self.assertEqual(self._value(f"{index}^2", "1", "n", index=index), "n*(n+1)*(2*n+1)/6")
+
+    def test_refusals(self) -> None:
+        for term, index, lower, upper, message in (
+            ("k", "k", "1", "k", "cannot appear in a bound"),
+            ("k", "2k", "1", "n", "variable name"),
+            ("k", "sin", "1", "n", "variable name"),
+            ("k", "Infinity", "1", "n", "variable name"),
+            ("k", "k", "1", "1.5", "whole numbers"),
+            ("k", "k", "1", "n/2", "whole numbers"),
+            ("k", "k", "1", "n^2", "whole numbers"),
+            ("k", "k", "1", "-n", "whole numbers"),
+            ("k", "k", "-Infinity", "0", "cannot be infinite"),
+            ("k", "k", "1", "-Infinity", "cannot be infinite"),
+            ("k", "k", "m", "n", "more than one symbol"),
+            ("k", "k", "n", "10", "symbolic lower bound"),
+            ("k", "k", "1", "x+y", "more than one symbol"),
+            ("summation(j, j, 1, k)", "k", "1", "n", "Unknown function"),
+        ):
+            with self.subTest(term=term, index=index, lower=lower, upper=upper):
+                with self.assertRaises(ExpressionError) as raised:
+                    compute_summation(term, index, lower, upper)
+                self.assertIn(message, str(raised.exception))
+
+    def test_handle(self) -> None:
+        self.assertEqual(
+            handle({"operation": "summation", "args": {"term": "k", "index": "k", "lower": "1", "upper": "n"}}),
+            {"result": {"value": "n*(n+1)/2"}},
+        )
+        self.assertIn(
+            "error", handle({"operation": "summation", "args": {"term": "k", "index": "k", "lower": "1", "upper": "k"}})
+        )
+
+    def test_other_operations_do_not_read_summation(self) -> None:
+        with self.assertRaises(ExpressionError):
+            parse_expression("summation(k, k, 1, n)")
+        self.assertIn("error", handle({"operation": "simplify", "args": {"expression": "summation(k, k, 1, n)"}}))
+
+
 class TestResponsesAreBrythonSafe(unittest.TestCase):
     """Every number in an /api/cas response is text, a bool or a small int: Brython's json.loads
     cannot read a float's exponent (1e+16)."""
@@ -702,6 +916,10 @@ class TestResponsesAreBrythonSafe(unittest.TestCase):
             ("taylor", {"expression": "e^(40x)", "variable": "x", "point": "1e20", "order": "3"}),
             ("taylor", {"expression": "1/(1-x)", "variable": "x", "point": "0.5", "order": "10"}),
             ("apart", {"expression": "1e20/(x^2-1e-20)", "variable": "x"}),
+            ("summation", {"term": "1/k", "index": "k", "lower": "1", "upper": "100"}),
+            ("summation", {"term": "2^k", "index": "k", "lower": "1", "upper": "10^5"}),
+            ("summation", {"term": "1e20*r^k", "index": "k", "lower": "0", "upper": "Infinity"}),
+            ("summation", {"term": "1/k^2", "index": "k", "lower": "1", "upper": "Infinity"}),
         ]
         for operation, args in requests:
             with self.subTest(operation=operation, args=args):

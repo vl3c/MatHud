@@ -137,11 +137,12 @@ def _prepared_text(text: str) -> str:
     return prepared
 
 
-def parse_expression(text: str, real: bool = False) -> Any:
+def parse_expression(text: str, real: bool = False, names: Optional[Dict[str, Any]] = None) -> Any:
     """The SymPy expression for text, built from its syntax tree without evaluating it.
 
     Every name that is not a constant or a known function becomes a symbol (real when
-    real is True).
+    real is True); a name in names becomes the symbol it maps to, even a constant's name
+    (a summation index i).
 
     Raises:
         ExpressionError: for syntax errors and anything but numbers, names, arithmetic and
@@ -151,17 +152,18 @@ def parse_expression(text: str, real: bool = False) -> Any:
         tree = ast.parse(_prepared_text(str(text)).strip(), mode="eval")
     except SyntaxError as error:
         raise ExpressionError(f"Cannot read the expression {text!r}: {error.msg}.") from None
-    return _Builder(real).build(tree.body)
+    return _Builder(real, names).build(tree.body)
 
 
 class _Builder:
     """Turns an ast tree into a SymPy expression, refusing every node it does not know."""
 
-    def __init__(self, real: bool) -> None:
+    def __init__(self, real: bool, names: Optional[Dict[str, Any]] = None) -> None:
         import sympy as sp
 
         self.sp = sp
         self.real = real
+        self.names = names or {}
 
     def build(self, node: ast.AST) -> Any:
         if isinstance(node, ast.BinOp):
@@ -219,6 +221,8 @@ class _Builder:
 
     def _name(self, name: str) -> Any:
         sp = self.sp
+        if name in self.names:
+            return self.names[name]
         constants = {"e": sp.E, "E": sp.E, "pi": sp.pi, "i": sp.I, "Infinity": sp.oo, "inf": sp.oo, "oo": sp.oo}
         if name in constants:
             return constants[name]
@@ -1292,6 +1296,410 @@ def _fraction_text(term: Any) -> str:
     return to_text(term)
 
 
+# ----- sums ------------------------------------------------------------------------------
+
+# A sum with numeric bounds and more terms than this is summed to a symbol N first, and
+# the closed form evaluated at the upper bound: term by term, 1/k to 10^6 outlasts the
+# worker's time limit and 2^k to 10^5 is too long an integer to print.
+MAX_EXACT_TERMS = 1000
+# The same for a term with other symbols beyond this many terms: SymPy takes 3 s to add
+# k*x^k term by term up to 200.
+MAX_SYMBOLIC_TERMS = 50
+# A constant sum whose exact text is longer than this (1/k to 100, a 41-digit fraction) is
+# given in decimals.
+MAX_EXACT_SUM_LENGTH = 60
+# A closed form is simplified only up to this many operations (count_ops): simplify takes
+# 6 s on the 50 sines of sin(k*x) to 50, and 12 s on the 100 radicals of sqrt(k) to 100.
+MAX_SUM_SIMPLIFY_OPS = 60
+# A closed form with symbols whose text is longer than this is not given.
+MAX_SUM_FORM_LENGTH = 400
+# A form SymPy gives that calculators lack (harmonic(n), zeta(3)) is named up to this length.
+MAX_SYMPY_FORM_LENGTH = 80
+_INFINITY_NAMES = ("Infinity", "inf", "oo")
+
+
+def compute_summation(term: str, index: str, lower: str, upper: str) -> Dict[str, Any]:
+    """The closed form of the sum of term for index = lower .. upper.
+
+    The bounds are integers, Infinity (upper only), or c*n + d (c >= 1 and d integers) in
+    one symbol n other than the index; a symbolic lower bound needs a symbolic or infinite
+    upper one. The index is an integer and n an integer symbol, also in the term.
+
+    Returns a dict with only the keys that apply:
+
+    - "value": the closed form in the client's notation, with "decimal" (15 digits) when it
+      is a real constant that is not rational, and "condition" (text such as
+      "-1 < r < 1" or "r != 1"), "condition_symbol" and "condition_intervals" (records as
+      solve_inequality gives them) when it holds for those values of a symbol only
+      (a geometric sum with a symbolic ratio);
+    - "value": "0" and "empty": True for numeric bounds with lower > upper (calculators'
+      empty sum, not SymPy's Karr convention, which gives -29 for k^2 from 5 to 1);
+    - "general" and "general_symbol" for more than MAX_EXACT_TERMS terms: the closed form
+      in N, which "value" is at the upper bound, or which "decimal" is with "value": None and
+      "evaluated": True for a constant closed form that is not a polynomial in N;
+    - "value": None with "decimal" and "too_long": True for a constant whose text is longer
+      than MAX_EXACT_SUM_LENGTH;
+    - "diverges": True with "limit" ("Infinity", "-Infinity", or None when the partial
+      sums do not approach a value) for an infinite sum;
+    - "value": None with "converges": True (an infinite sum with no closed form that SymPy
+      shows converges), or "reason": "no_closed_form" (with "sympy_form" when SymPy's form
+      uses functions or constants calculators lack, harmonic(n) or zeta(3), and "decimal"
+      when that form is a real constant), "too_many_terms" or "undefined_term" (a term is
+      infinite or 0/0 in the range).
+
+    A term with other symbols but not the index, summed to Infinity, is refused:
+    summation(x, k, 1, Infinity) is most likely a typo for x^k.
+
+    Raises:
+        ExpressionError: for an index that is not a name, bounds of another form, or a term
+            the parser refuses.
+    """
+
+    import sympy as sp
+
+    k = _index_symbol(index)
+    low, high, bound = _sum_bounds(lower, upper, index)
+    names: Dict[str, Any] = {index: k}
+    if bound is not None:
+        names[str(bound)] = bound
+    function = parse_expression(term, real=True, names=names)
+    if high == sp.oo and k not in function.free_symbols and function.free_symbols - {bound}:
+        raise ExpressionError(
+            f"The term does not contain the index {index}, so the sum to Infinity has no value; "
+            f"write the term in {index}, as in x^{index}."
+        )
+    if _undefined_in_range(function, k, low, high):
+        return {"value": None, "reason": "undefined_term"}
+    if low.is_Integer and high.is_Integer:
+        if low > high:
+            return {"value": "0", "empty": True}
+        count = high - low + 1
+        if count > MAX_EXACT_TERMS or (count > MAX_SYMBOLIC_TERMS and function.free_symbols - {k}):
+            return _long_sum(function, k, low, high)
+    closed = _closed_form(function, k, low, high, bound)
+    if isinstance(closed, dict):
+        return closed
+    return _sum_record(closed[0], closed[1], bound, finite=bool(high.is_Integer))
+
+
+def _index_symbol(index: str) -> Any:
+    import sympy as sp
+
+    name = str(index).strip()
+    if not _is_name(name) or name in _INFINITY_NAMES or name in _functions():
+        raise ExpressionError(f"The index must be a variable name such as k, not {index!r}.")
+    return sp.Symbol(name, integer=True)
+
+
+_BOUND_RULE = "The bounds must be whole numbers, a symbol such as n (or 2n, n-1), or Infinity for the upper bound."
+
+
+def _sum_bounds(lower: str, upper: str, index: str) -> Tuple[Any, Any, Any]:
+    """(lower, upper, the bound symbol or None), with the bound symbol an integer."""
+    import sympy as sp
+
+    low, high = parse_expression(lower, real=True), parse_expression(upper, real=True)
+    symbols = low.free_symbols | high.free_symbols
+    if any(str(symbol) == index for symbol in symbols):
+        raise ExpressionError(f"The index {index} cannot appear in a bound.")
+    if len(symbols) > 1:
+        raise ExpressionError(f"{_BOUND_RULE} The bounds have more than one symbol: {_names(symbols)}.")
+    if low in (sp.oo, -sp.oo) or high == -sp.oo:
+        raise ExpressionError(f"{_BOUND_RULE} The lower bound cannot be infinite.")
+    if low.free_symbols and not (high.free_symbols or high == sp.oo):
+        raise ExpressionError("A symbolic lower bound needs a symbolic or infinite upper bound, as in k from n to 2n.")
+    bound = None
+    if symbols:
+        symbol = symbols.pop()
+        bound = sp.Symbol(str(symbol), integer=True)
+        low, high = low.subs(symbol, bound), high.subs(symbol, bound)
+    for end in (low, high):
+        if end != sp.oo and not _is_integer_bound(end, bound):
+            raise ExpressionError(_BOUND_RULE)
+    return low, high, bound
+
+
+def _is_integer_bound(end: Any, bound: Any) -> bool:
+    """Whether end is an integer, or c*n + d with integers c >= 1 and d."""
+    import sympy as sp
+
+    if not end.free_symbols:
+        return bool(end.is_Integer)
+    try:
+        polynomial = sp.Poly(end, bound)
+    except sp.PolynomialError:
+        return False
+    coefficients = polynomial.all_coeffs()
+    return polynomial.degree() == 1 and all(c.is_Integer for c in coefficients) and coefficients[0] >= 1
+
+
+def _undefined_in_range(function: Any, k: Any, low: Any, high: Any) -> bool:
+    """Whether the term's denominator, a polynomial in the index alone, vanishes at an
+    integer of the range (1/(k-3)^2 from 1 to Infinity, which SymPy sums as if it did not)."""
+    import sympy as sp
+
+    denominator = sp.denom(sp.together(function))
+    if denominator.free_symbols != {k} or not denominator.is_polynomial(k) or not low.is_Integer:
+        return False
+    try:
+        roots = sp.roots(sp.Poly(denominator, k), filter="Z")
+    except (sp.PolynomialError, NotImplementedError):
+        return False
+    return any(root >= low and (not high.is_Integer or root <= high) for root in roots)
+
+
+def _long_sum(function: Any, k: Any, low: Any, high: Any) -> Dict[str, Any]:
+    """A sum of more than MAX_EXACT_TERMS terms through its closed form in a symbol N.
+
+    The closed form is evaluated exactly at the upper bound when it is a polynomial in N
+    or has other symbols; a constant otherwise gets its decimal only ("value": None,
+    "decimal", "evaluated": True): 2^(N+1) at N = 10^9 takes seconds to compute exactly,
+    and exp(-N) at N = 1000 is 0 times infinity in math.js."""
+    import sympy as sp
+
+    taken = {str(symbol) for symbol in function.free_symbols}
+    name = next(candidate for candidate in ("N", "M", "L", "N1", "N2") if candidate not in taken)
+    count = sp.Symbol(name, integer=True)
+    closed = _closed_form(function, k, low, count, count)
+    if isinstance(closed, dict):
+        return {"value": None, "reason": "too_many_terms"}
+    expression, condition = closed
+    general = {"general": to_text(_sum_form(expression, count)), "general_symbol": name}
+    if expression.free_symbols - {count} or expression.is_polynomial(count):
+        try:
+            record = _sum_record(expression.subs(count, high), condition, None, finite=True)
+        except ValueError:  # an integer too long to print (x*2^k to 10^6)
+            return {"value": None, "reason": "too_long"}
+    else:
+        value = expression.evalf(15, subs={count: high})
+        if not _is_real_value(value):
+            return {"value": None, "reason": "no_closed_form"}
+        record = {"value": None, "decimal": _decimal(value), "evaluated": True}
+    record.update(general)
+    return record
+
+
+def _closed_form(function: Any, k: Any, low: Any, high: Any, bound: Any) -> Any:
+    """(closed form, condition or None) for the sum, or the record that says why there is none."""
+    import sympy as sp
+
+    result = sp.piecewise_fold(sp.summation(function, (k, low, high)))
+    condition = None
+    if result.has(sp.Piecewise):
+        result, condition = _generic_branch(result)
+        if result is None or (condition is not None and bound is not None and condition.has(bound)):
+            return {"value": None, "reason": "no_closed_form"}
+    if result.has(sp.Sum):  # before the test for oo, which an infinite Sum holds
+        if high == sp.oo:
+            convergent = _is_convergent(function, k, low)
+            if convergent is False:
+                return {"diverges": True, "limit": None}
+            if convergent:
+                return {"value": None, "converges": True}
+        return {"value": None, "reason": "no_closed_form"}
+    if high == sp.oo and result in (sp.oo, -sp.oo):
+        return {"diverges": True, "limit": to_text(result)}
+    if result.has(sp.zoo):
+        return {"value": None, "reason": "undefined_term"}
+    if result.has(sp.oo, -sp.oo, sp.nan):  # nan for 1/(16k^2-1) to Infinity, whose sum is 1/2 - pi/8
+        return {"value": None, "reason": "no_closed_form"}
+    if not _is_calculator_form(result):
+        record: Dict[str, Any] = {"value": None, "reason": "no_closed_form"}
+        text = to_text(result)
+        if len(text) <= MAX_SYMPY_FORM_LENGTH:
+            record["sympy_form"] = text
+        if not result.free_symbols and _is_real_value(result):
+            record["decimal"] = _decimal(result)  # zeta(3): exact to 15 digits, and checked in the browser
+        return record
+    return result, condition
+
+
+def _generic_branch(result: Any) -> Tuple[Any, Any]:
+    """The closed form of a Piecewise sum for the generic values of its symbol, with the
+    condition under which it holds, or (None, None):
+
+    - Piecewise((n+1, Eq(r, 1)), ((r^(n+1)-1)/(r-1), True)) gives the last branch, for r != 1;
+    - Piecewise((1/(1-r), (r > -1) & (r < 1)), (Sum(...), True)) gives the first, for -1 < r < 1.
+    """
+    import sympy as sp
+
+    if not isinstance(result, sp.Piecewise):
+        return None, None  # a Piecewise inside a larger expression
+    pieces = list(result.args)
+    expression, condition = pieces[-1]
+    if condition == sp.true and not expression.has(sp.Sum):
+        earlier = [sp.Not(earlier) for _, earlier in pieces[:-1]]
+        return expression, sp.And(*earlier) if earlier else None
+    for expression, condition in pieces:
+        if condition != sp.true and not isinstance(condition, sp.Eq) and not expression.has(sp.Sum):
+            return expression, condition
+    return None, None
+
+
+def _is_convergent(function: Any, k: Any, low: Any) -> Optional[bool]:
+    """SymPy's verdict on the infinite sum, None when it has none or cannot be trusted:
+    it calls sin(k)/k and cos(k)/k divergent, and takes 10 s on abs(sin(k))/k^2."""
+    import sympy as sp
+
+    oscillating = (sp.sin, sp.cos, sp.tan, sp.cot, sp.sec, sp.csc, sp.Abs, sp.sign, sp.floor, sp.ceiling, sp.Mod)
+    if any(applied.has(k) for applied in function.atoms(*oscillating)):
+        return None
+    try:
+        verdict = sp.Sum(function, (k, low, sp.oo)).is_convergent()
+    except Exception:  # SymPy's tests raise for terms they cannot classify
+        return None
+    if verdict == sp.true or verdict is True:
+        return True
+    if verdict == sp.false or verdict is False:
+        return False
+    return None
+
+
+def _calculator_functions() -> Tuple[Any, ...]:
+    """The SymPy function classes the client can evaluate: those the parser builds."""
+    import sympy as sp
+
+    table = {getattr(sp, name) for name in _functions() if isinstance(getattr(sp, name, None), type)}
+    return tuple(table | {sp.log, sp.exp, sp.Abs, sp.sign, sp.ceiling, sp.Mod, sp.conjugate, sp.Min, sp.Max})
+
+
+def _is_calculator_form(expression: Any) -> bool:
+    """Whether every function in expression is one calculators have and every constant is pi or e."""
+    import sympy as sp
+
+    if not _is_usable(expression):
+        return False
+    functions = _calculator_functions()
+    if not all(isinstance(applied, functions) for applied in expression.atoms(sp.Function)):
+        return False  # harmonic, zeta, lerchphi, exp_polar, besseli, ...
+    return all(constant in (sp.pi, sp.E) for constant in expression.atoms(sp.NumberSymbol))
+
+
+def _sum_form(expression: Any, bound: Any) -> Any:
+    """The shortest of the simplified closed form, its fraction with both signs flipped
+    (1/(1-r), not -1/(r-1); e/(-1+e), not -e/(1-e)) and, for a closed form in the bound
+    symbol, its factored form, which wins a tie (n*(n+1)*(2*n+1)/6, not n*(2*n^2+3*n+1)/6);
+    only forms in calculator functions count. Without a bound symbol a polynomial stays expanded, as calculators
+    give it (1 + x + ... + x^20, not a product of cyclotomic factors)."""
+    import sympy as sp
+
+    if sp.count_ops(expression) > MAX_SUM_SIMPLIFY_OPS:
+        return expression  # simplify takes seconds on 50 sines
+    simplified = sp.simplify(expression)
+    if not _is_calculator_form(simplified):
+        simplified = expression
+    factored = sp.factor(simplified) if bound is not None and simplified.has(bound) else None
+    candidates = [simplified]
+    numerator, denominator = sp.fraction(sp.together(simplified))
+    if denominator != 1:
+        candidates.append((-numerator) / (-denominator))
+    if factored is not None:
+        candidates.append(factored)
+
+    def rank(candidate: Any) -> Tuple[int, int, int]:
+        """The shortest text, the factored form on a tie, then the fewest minus signs."""
+        text = to_text(candidate)
+        return len(text), 0 if candidate is factored else 1, text.count("-")
+
+    return min((candidate for candidate in candidates if _is_calculator_form(candidate)), key=rank)
+
+
+def _sum_record(expression: Any, condition: Any, bound: Any, finite: bool = False) -> Dict[str, Any]:
+    """The response for a closed form (see compute_summation). The constant sum of finitely
+    many terms is not simplified: simplify takes over 10 s on sums such as sqrt(k) or sin(k)
+    to 100, and SymPy writes their terms out anyway."""
+    constant = not expression.free_symbols
+    if constant and _is_long_constant(expression):
+        return _too_long(expression)
+    form = expression if constant and finite else _sum_form(expression, bound)
+    record: Dict[str, Any] = {"value": to_text(form)}
+    if constant and len(record["value"]) > MAX_EXACT_SUM_LENGTH:
+        return _too_long(form)
+    if len(record["value"]) > MAX_SUM_FORM_LENGTH:
+        return {"value": None, "reason": "too_long"}
+    if constant and not form.is_Rational and _is_real_value(form):
+        record["decimal"] = _decimal(form)
+    if condition is not None:
+        described = _condition_record(condition)
+        if described is None:
+            return {"value": None, "reason": "no_closed_form"}
+        record.update(described)
+    return record
+
+
+def _is_long_constant(value: Any) -> bool:
+    """Whether a constant is too long to simplify or print exactly: a sum of hundreds of
+    radicals (simplify takes over 10 s on sqrt(k) to 100), or a fraction of hundreds of digits."""
+    import sympy as sp
+
+    if isinstance(value, sp.Rational):
+        return max(abs(int(value.p)).bit_length(), int(value.q).bit_length()) > 4 * MAX_EXACT_SUM_LENGTH
+    return bool(sp.count_ops(value) > MAX_SUM_SIMPLIFY_OPS)
+
+
+def _too_long(value: Any) -> Dict[str, Any]:
+    if not _is_real_value(value):
+        return {"value": None, "reason": "no_closed_form"}
+    return {"value": None, "decimal": _decimal(value), "too_long": True}
+
+
+def _decimal(value: Any) -> str:
+    """value to 15 significant digits; in SymPy's notation (1.99800206661008e+30103) beyond a float's range."""
+    import sympy as sp
+
+    number = sp.N(value, 15)
+    if math.isfinite(float(number)):
+        return to_text(sp.Float(number, 15))
+    return str(number)
+
+
+def _condition_record(condition: Any) -> Optional[Dict[str, Any]]:
+    """{"condition", "condition_symbol", "condition_intervals"} for a condition on one
+    symbol whose set is one interval or the reals but one point; None for any other."""
+
+    symbols = condition.free_symbols
+    if len(symbols) != 1:
+        return None
+    symbol = next(iter(symbols))
+    try:
+        region = condition.as_set()
+    except (NotImplementedError, TypeError, ValueError):
+        return None
+    text = _region_text(region, str(symbol))
+    intervals = _set_intervals(region)
+    if text is None or intervals is None:
+        return None
+    return {"condition": text, "condition_symbol": str(symbol), "condition_intervals": intervals}
+
+
+def _region_text(region: Any, name: str) -> Optional[str]:
+    """-1 < r < 1, -1 <= x < 1, r < 1, r != 1, ... for an interval or the reals but one point."""
+    import sympy as sp
+
+    if isinstance(region, sp.Union) and len(region.args) == 2:
+        first, second = sorted(region.args, key=lambda part: float(part.inf))
+        if (
+            isinstance(first, sp.Interval)
+            and isinstance(second, sp.Interval)
+            and first.inf == -sp.oo
+            and second.sup == sp.oo
+            and first.sup == second.inf
+            and first.right_open
+            and second.left_open
+        ):
+            return f"{name} != {to_text(first.sup)}"
+        return None
+    if not isinstance(region, sp.Interval):
+        return None
+    left = "<" if region.left_open else "<="
+    right = "<" if region.right_open else "<="
+    if region.inf == -sp.oo:
+        return f"{name} {right} {to_text(region.sup)}"
+    if region.sup == sp.oo:
+        return f"{name} {'>' if region.left_open else '>='} {to_text(region.inf)}"
+    return f"{to_text(region.inf)} {left} {name} {right} {to_text(region.sup)}"
+
+
 # Every value in a response is text, a bool, a small int or None: Brython's json.loads
 # cannot read the exponent of a float such as 1e+16.
 OPERATIONS: Dict[str, Callable[..., Any]] = {
@@ -1304,6 +1712,7 @@ OPERATIONS: Dict[str, Callable[..., Any]] = {
     "equivalent": compute_equivalent,
     "taylor": compute_taylor,
     "apart": compute_apart,
+    "summation": compute_summation,
 }
 
 

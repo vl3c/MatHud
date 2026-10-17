@@ -1482,7 +1482,7 @@ def register_routes(app: MatHudFlask) -> None:
 
         Request body:
             operation (str): limit, integrate, solve, solve_inequality, simplify, derive, equivalent,
-                taylor or apart
+                taylor, apart or summation
             args (dict): the operation's arguments, all strings (or null for an absent bound)
 
         Returns:
