@@ -4,12 +4,14 @@ The browser evaluates with math.js; here compile_expression's Python evaluators 
 with numpy float64 arithmetic so that an overflow is +-inf, inf - inf is NaN and 1/0 is inf
 as in math.js, and log, gamma, floor, ceil and sqrt as math.js has them (log(0) is
 -Infinity; floor(1.999999999998) is 2; sqrt(-1) and (-2)^(1/2) are complex, so not real). The relations are InequalitySolver._relations' own; the seeds (the real roots of the
-polynomial parts) are found as InequalitySolver._seeds finds them, with SymPy for nerdamer.
-Used by test_real_sets_battery.py.
+polynomial parts) are found as InequalitySolver._seeds finds them, with the same expander
+(utils.polynomials) on a tree built from Python's ast instead of math.js's parse tree.
+Used by test_real_sets_battery.py, test_polynomials.py and test_numeric_equations.py.
 """
 
 from __future__ import annotations
 
+import ast
 import contextlib
 import math
 import re
@@ -161,7 +163,7 @@ def relations(parts: Sequence[str], signs: Sequence[str], roots: Sequence[float]
 def seeds(parts: Sequence[str], signs: Sequence[str]) -> List[float]:
     """InequalitySolver._seeds: the real roots of lhs - rhs, of it with its denominators cleared
     and of the denominators (MathUtils._denominators), each when it is a polynomial of degree 40
-    at most, by cas_numeric.polynomial_roots. SymPy stands in for nerdamer's coefficients."""
+    at most, by cas_numeric.polynomial_roots."""
     from utils.math_utils import MathUtils
 
     found: List[float] = []
@@ -170,7 +172,7 @@ def seeds(parts: Sequence[str], signs: Sequence[str]) -> List[float]:
         denominators = MathUtils._denominators(difference)
         cleared = "*".join([f"({difference})"] + [f"({denominator})" for denominator in denominators])
         for polynomial in [difference, cleared] + list(denominators):
-            coefficients = _coefficients(polynomial)
+            coefficients = polynomial_coefficients(polynomial)
             if coefficients is None or not 1 <= len(coefficients) - 1 <= MAX_SEED_DEGREE:
                 continue
             found += [
@@ -181,24 +183,55 @@ def seeds(parts: Sequence[str], signs: Sequence[str]) -> List[float]:
     return sorted(set(found))
 
 
-def _coefficients(text: str) -> Optional[List[float]]:
-    """[c0, c1, ...] of text as a polynomial in x, or None."""
-    import sympy as sp
+_OPERATORS = {ast.Add: "add", ast.Sub: "subtract", ast.Mult: "multiply", ast.Div: "divide", ast.Pow: "pow"}
 
-    from static.sympy_cas import ExpressionError, parse_expression
 
-    x = sp.Symbol("x", real=True)
+def ast_tree(text: str, variable: str = "x") -> Any:
+    """text as the tuples utils.polynomials reads, built from Python's ast as MathUtils._math_tree
+    builds them from math.js's tree: a part without the variable is a "const" when it evaluates
+    to a finite real number."""
+    python_text = ce.compile_expression(text, (variable,), ce.FUNCTIONS_ALL).python_text
+    return _tree(ast.parse(python_text, mode="eval").body, variable)
+
+
+def _tree(node: ast.AST, variable: str) -> Any:
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) and not isinstance(node.value, bool):
+        return ("num", repr(node.value))
+    if isinstance(node, ast.Name) and node.id == variable:
+        return ("var",)
+    if isinstance(node, ast.BinOp) and type(node.op) in _OPERATORS:
+        return ("op", _OPERATORS[type(node.op)], [_tree(node.left, variable), _tree(node.right, variable)])
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+        name = "unaryMinus" if isinstance(node.op, ast.USub) else "unaryPlus"
+        return ("op", name, [_tree(node.operand, variable)])
+    if any(isinstance(inner, ast.Name) and inner.id == variable for inner in ast.walk(node)):
+        return ("other",)
     try:
-        expression = parse_expression(text, real=True)
-    except ExpressionError:
-        return None
-    expression = sp.expand(expression.subs({symbol: x for symbol in expression.free_symbols}))
-    if not expression.has(x) or not expression.is_polynomial(x):
-        return None
+        value = eval(compile(ast.Expression(node), "<const>", "eval"), _GLOBALS)
+        value = float(value)
+    except Exception:
+        return ("other",)
+    return ("const", value) if math.isfinite(value) else ("other",)
+
+
+def polynomial_coefficients(text: str) -> Optional[List[float]]:
+    """[c0, c1, ...] of text as a polynomial in x, as MathUtils._polynomial_coefficients finds them
+    (the expander, confirmed at sample points), or None."""
+    from utils.polynomials import coefficients
+
     try:
-        return [float(value) for value in reversed(sp.Poly(expression, x).all_coeffs())]
-    except (TypeError, ValueError, sp.PolynomialError):
+        found = coefficients(ast_tree(text))
+    except (SyntaxError, ValueError):
         return None
+    if found is None:
+        return None
+    function = evaluator(text)
+    for point in (0.5, -1.3, 2.7):
+        expected = function(point)
+        actual = sum(c * point**k for k, c in enumerate(found))
+        if expected is None or not math.isfinite(expected) or abs(expected - actual) > 1e-6 * max(1.0, abs(expected)):
+            return None
+    return found
 
 
 def prepared(text: str, interval: Optional[str]) -> Tuple[List[Relation], Optional[Window], List[float], str]:
@@ -277,3 +310,23 @@ def same_set(
 
 def pieces_of(expected: Sequence[Tuple[float, float, bool, bool]]) -> List[Piece]:
     return [Piece(lower, upper, lower_closed, upper_closed) for lower, upper, lower_closed, upper_closed in expected]
+
+
+def solve_equation(text: str, interval: Optional[str] = None, reason: str = "SymPy found no closed form") -> str:
+    """NumericEquations.solve for lhs = rhs (solve's answer without SymPy), with the evaluator for math.js."""
+    from utils.numeric_equations import NumericEquations
+
+    with _evaluated_here(), _seeded_here():
+        sides = InequalitySolver.prepared(text).split("=")
+        return str(NumericEquations.solve(sides, "x", InequalitySolver.window(interval), reason))
+
+
+@contextlib.contextmanager
+def _seeded_here() -> Iterator[None]:
+    """InequalitySolver._seeds through seeds() here (MathUtils' coefficients need math.js)."""
+    saved = InequalitySolver.__dict__["_seeds"]
+    InequalitySolver._seeds = staticmethod(lambda parts, signs, variable: seeds(parts, signs))  # type: ignore[method-assign]
+    try:
+        yield
+    finally:
+        InequalitySolver._seeds = saved  # type: ignore[method-assign]
