@@ -1145,6 +1145,13 @@ class TestConstraints(unittest.TestCase):
         self.assertFalse(result["valid"])
         self.assertTrue(any("at least 1" in e for e in result["errors"]))
 
+    def test_min_items_check_steps_needs_two_steps(self) -> None:
+        """check_steps with one step should fail (minItems: 2); two steps pass."""
+        result = ToolArgumentValidator.validate("check_steps", {"steps": ["x^2"]})
+        self.assertFalse(result["valid"])
+        self.assertTrue(any("at least 2" in e and "got 1" in e for e in result["errors"]))
+        self.assertTrue(ToolArgumentValidator.validate("check_steps", {"steps": ["x^2", "x*x"]})["valid"])
+
     def test_max_length_violation(self) -> None:
         """create_label with text exceeding maxLength should fail."""
         result = ToolArgumentValidator.validate(

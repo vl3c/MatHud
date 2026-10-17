@@ -183,6 +183,27 @@ _CONNECT_EXCLUDED_WORDS = frozenset(
     # another drawable named as the link: "connect P and Q with a vector", "join A and B with an arc"
     | {"vector", "vectors", "arc", "arcs", "circle", "circles", "ellipse", "ray", "rays", "angle", "polygons"}
 )
+# The step checker: "check my steps", "which step of this derivation is wrong", "is x^2 - 1
+# equivalent to (x-1)(x+1)?", "did I make a mistake going from (a+b)^2 to a^2 + b^2?".
+# Shapes, constructions, graphs and units keep their own tools ("is triangle ABC equivalent
+# to DEF?", "follow these steps to construct ...", "the equivalent of 5 miles in km").
+_DERIVATION_WORDS = frozenset({"derivation", "derivations"})
+_STEP_WORDS = frozenset({"step", "steps", "working", "workings", "algebra", "simplification"})
+_STEP_CHECK_WORDS = frozenset(
+    {"check", "checking", "verify", "verifying", "wrong", "mistake", "mistakes", "error", "errors"}
+    | {"correct", "valid", "follow", "follows", "right"}
+)
+_EQUIVALENCE_WORDS = frozenset({"equivalent", "equivalence"})
+_MISTAKE_WORDS = frozenset({"mistake", "mistakes", "wrong", "error"})
+_FROM_TO_RE = re.compile(r"\bfrom\b.+\bto\b")
+_MATH_NOTATION_RE = re.compile(r"[\^*/(]")
+_NOT_STEP_WORDS = frozenset(
+    {"triangle", "triangles", "polygon", "polygons", "rectangle", "square", "quadrilateral", "circle", "circles"}
+    | {"segment", "segments", "line", "lines", "vector", "vectors", "angle", "angles", "point", "points"}
+    | {"construct", "construction", "constructions", "congruent", "similar", "shape", "shapes"}
+    | {"graph", "graphs", "vertex", "vertices", "edge", "edges", "node", "nodes"}
+    | {"unit", "units", "miles", "km", "kilometers", "meters", "inches", "feet", "celsius", "fahrenheit"}
+)
 # Point names such as A, B or A' in the query as typed; "connect A and B" needs two of
 # them (the pronoun "I" is not one).
 _POINT_NAME_RE = re.compile(r"\b[A-Z]'*(?![\w'])")
@@ -309,7 +330,7 @@ TOOL_CATEGORIES: Dict[str, CategoryEntry] = {
             "evaluate_expression", "evaluate_linear_algebra_expression",
             "convert", "limit", "derive", "integrate", "numeric_integrate",
             "simplify", "expand", "factor", "solve",
-            "solve_system_of_equations", "solve_numeric",
+            "solve_system_of_equations", "solve_numeric", "check_steps",
         ],
         "keywords": [
             "calculate", "evaluate", "solve", "derivative", "integral",
@@ -1060,6 +1081,19 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["evaluate_expression"] += 12.0
         elif not only_exact and token_set & {"value", "values", "table", "plug", "substitute"}:
             scores["evaluate_expression"] += 8.0
+
+        # -- Step checker --
+        if not token_set & _NOT_STEP_WORDS and (
+            token_set & _DERIVATION_WORDS
+            or (token_set & _STEP_WORDS and token_set & _STEP_CHECK_WORDS)
+            or token_set & _EQUIVALENCE_WORDS
+            or (
+                token_set & _MISTAKE_WORDS
+                and _FROM_TO_RE.search(raw_lower) is not None
+                and _MATH_NOTATION_RE.search(raw_lower) is not None
+            )
+        ):
+            scores["check_steps"] += 10.0
 
         # -- Convert (unit vs coordinate) --
         if token_set & {"convert", "change"} and token_set & {

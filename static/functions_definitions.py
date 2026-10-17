@@ -1716,6 +1716,27 @@ FUNCTIONS: List[Dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "check_steps",
+            "description": "Checks a derivation: given the expressions of a worked solution in order, each a rewrite of the one before (e.g. ['(x+1)^2 - 1', 'x^2 + 2x + 1 - 1', 'x^2 + 2x', 'x(x+2)']), says for each step whether it is equivalent to the previous one and names the first wrong step with a reason (the difference SymPy finds, and a point where the two steps take different values). Verdicts: equivalent, not_equivalent, undecided; a step that holds only where both are defined (log(x^2) to 2*log(x)) is equivalent with a note. Expressions only, 2 to 12 steps; equations and inequalities are not supported yet. Use it to check a user's working, or your own multi-step algebra before presenting it.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "steps": {
+                        "type": "array",
+                        "minItems": 2,
+                        "description": "The steps in order, one expression per step, in calculator notation (x^2, 2x, sqrt(x), |x|). Write a chain a = b = c as the separate steps a, b, c. Example: ['(x+1)^2 - 1', 'x^2 + 2x', 'x(x+2)']",
+                        "items": {"type": "string"},
+                    }
+                },
+                "required": ["steps"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "translate_object",
             "description": "Moves/shifts/translates an existing drawable object or function by x and y offsets (dx, dy). A plot (bar chart or distribution) cannot be moved as a whole: plot it again at the new position.",
             "strict": True,

@@ -2,8 +2,8 @@
   "metadata": {
     "schema_version": 1,
     "description": "Tool discovery benchmark cases for search_tools semantic routing.",
-    "expected_tool_count": 94,
-    "expected_tool_hash": "46df085813a39f34ae443d6c2c04c20e8fa7d1da5825b6ddd86f21373aeba316",
+    "expected_tool_count": 95,
+    "expected_tool_hash": "df11f8c7f06e4fac36e62db1ce5569bc2777e73c0186b604572bd10cbb36637c",
     "confusion_clusters": {
       "convert_cluster": [
         "convert",
@@ -29,6 +29,12 @@
         "load_workspace",
         "list_workspaces",
         "delete_workspace"
+      ],
+      "rewrite_cluster": [
+        "simplify",
+        "expand",
+        "factor",
+        "check_steps"
       ]
     },
     "thresholds": {
@@ -2757,6 +2763,119 @@
       ],
       "forbidden": [
         "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard"
+    },
+    {
+      "id": "u_check_steps_1",
+      "query": "Check my steps: (x+1)^2 - 1, x^2 + 2x, x(x+2).",
+      "expected_any": [
+        "check_steps"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_check_steps_2",
+      "query": "Which step of this derivation is wrong?",
+      "expected_any": [
+        "check_steps"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_check_steps_3",
+      "query": "Is x^2 - 1 equivalent to (x - 1)(x + 1)?",
+      "expected_any": [
+        "check_steps"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_check_steps_4",
+      "query": "Verify each step of my working: 2(x+3) - 4, 2x + 6 - 4, 2x + 2.",
+      "expected_any": [
+        "check_steps"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_check_steps_5",
+      "query": "Did I make a mistake going from (a+b)^2 to a^2 + b^2?",
+      "expected_any": [
+        "check_steps"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "cf_perpendicular_not_steps",
+      "query": "Check whether AB and CD are perpendicular",
+      "expected_any": [
+        "inspect_relation"
+      ],
+      "forbidden": [
+        "search_tools",
+        "check_steps"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard"
+    },
+    {
+      "id": "cf_simplify_not_steps",
+      "query": "Simplify (x^2 - 1)/(x - 1).",
+      "expected_any": [
+        "simplify"
+      ],
+      "forbidden": [
+        "search_tools",
+        "check_steps"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "rewrite_cluster"
+    },
+    {
+      "id": "cf_solve_steps_not_check",
+      "query": "Show the steps to solve 2x + 3 = 7.",
+      "expected_any": [
+        "solve"
+      ],
+      "forbidden": [
+        "search_tools",
+        "check_steps"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard"
+    },
+    {
+      "id": "cf_construction_steps_not_check",
+      "query": "Follow these steps to construct the perpendicular bisector of AB.",
+      "expected_any": [
+        "construct_perpendicular_bisector"
+      ],
+      "forbidden": [
+        "search_tools",
+        "check_steps"
       ],
       "category": "confusion_probe",
       "difficulty": "hard"
