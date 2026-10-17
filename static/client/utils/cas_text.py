@@ -297,7 +297,8 @@ def ambiguous_division(text: str, function_names: Iterable[str]) -> Optional[str
     In 1/(x+1)(x+2), 1/x(x+1), sin(2x)/2x and x/2e^x the divisor is followed directly by
     another factor: SymPy reads (1/(x+1))*(x+2), math.js divides by the product, and a
     person may mean either. A divisor is a bracket, a number, a name or a call to one of
-    function_names, with any powers (1/(x-1)^2(x+1) is ambiguous too).
+    function_names (cos^2(x) included), with any powers (1/(x-1)^2(x+1) and 1/(x-1)²(x+1)
+    are ambiguous too).
     """
     functions = set(function_names)
     index = text.find("/")
@@ -312,18 +313,33 @@ def ambiguous_division(text: str, function_names: Iterable[str]) -> Optional[str
     return None
 
 
+# Superscript exponents, as the symbol palette inserts them: (x+1)², x⁻¹
+_SUPERSCRIPTS = "⁰¹²³⁴⁵⁶⁷⁸⁹⁻⁺"
+
+
 def _powered_operand_end(text: str, start: int, functions: Set[str]) -> Optional[int]:
-    """The end of the operand at start with its powers (x^2, (x+1)^-2), or None."""
+    """The end of the operand at start with its powers (x^2, (x+1)^-2, (x+1)²), or None."""
     end = _operand_end(text, start, functions)
-    while end is not None:
+    if end is None:
+        return None
+    return _powers_end(text, end, functions)
+
+
+def _powers_end(text: str, end: int, functions: Set[str]) -> Optional[int]:
+    """The end of the powers (^2, ^(n+1), ²) from end on: end itself when there are none."""
+    while True:
+        while end < len(text) and text[end] in _SUPERSCRIPTS:
+            end += 1
         caret = _next_non_space(text, end)
         if caret >= len(text) or text[caret] != "^":
             return end
         exponent = _next_non_space(text, caret + 1)
         if exponent < len(text) and text[exponent] in "+-":
             exponent = _next_non_space(text, exponent + 1)
-        end = _operand_end(text, exponent, functions)
-    return None
+        following = _operand_end(text, exponent, functions)
+        if following is None:
+            return None
+        end = following
 
 
 def _operand_end(text: str, start: int, functions: Set[str]) -> Optional[int]:
@@ -333,18 +349,28 @@ def _operand_end(text: str, start: int, functions: Set[str]) -> Optional[int]:
     if text[start] == "(":
         closing = find_closing_parenthesis(text, start)
         return closing + 1 if closing >= 0 else None
-    if text[start].isdigit() or text[start] == ".":
+    if text[start] in "0123456789.":
         end = start
-        while end < len(text) and (text[end].isdigit() or text[end] == "."):
+        while end < len(text) and text[end] in "0123456789.":
             end += 1
         return end
     if not _is_letter(text[start]) and text[start] != "_":
         return None
     end = start
-    while end < len(text) and _is_name_char(text[end]):
+    # "²".isdigit() is true, but a superscript is a power, not part of the name
+    while end < len(text) and _is_name_char(text[end]) and text[end] not in _SUPERSCRIPTS:
         end += 1
-    call = _next_non_space(text, end)
-    if text[start:end] in functions and call < len(text) and text[call] == "(":
+    if text[start:end] not in functions:
+        # a longer name before "(" is a call to a function the engines may not know
+        # (arctan(x)), not a product, which insert_letter_call_products reads only after one letter
+        if end - start > 1 and end < len(text) and text[end] == "(":
+            closing = find_closing_parenthesis(text, end)
+            return closing + 1 if closing >= 0 else None
+        return end
+    # a call, with any power of the function between its name and "(": cos^2(x), sin²(x)
+    powered = _powers_end(text, end, functions)
+    call = _next_non_space(text, powered) if powered is not None else len(text)
+    if call < len(text) and text[call] == "(":
         closing = find_closing_parenthesis(text, call)
         return closing + 1 if closing >= 0 else None
     return end

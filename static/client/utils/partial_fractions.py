@@ -97,8 +97,8 @@ class PartialFractions:
     def _refuse_unclear_input(expression: str, variable: str) -> None:
         from utils.inequality_solver import InequalitySolver
 
-        InequalitySolver.refuse_ambiguous_division(expression)
         InequalitySolver.refuse_misspellings(expression, variable, subject="expression")
+        InequalitySolver.refuse_ambiguous_division(expression)
 
     @staticmethod
     def _ask_sympy(expression: str, variable: str) -> Optional[Dict[str, Any]]:

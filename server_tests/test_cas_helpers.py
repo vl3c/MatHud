@@ -265,7 +265,7 @@ class TestMisspellings(unittest.TestCase):
 
 
 class TestAmbiguousDivision(unittest.TestCase):
-    FUNCTIONS = ("sin", "cos", "sqrt", "log", "exp")
+    FUNCTIONS = ("sin", "cos", "tan", "cosh", "sqrt", "log", "exp")
 
     def test_a_factor_after_the_divisor(self) -> None:
         for text, divisor in (
@@ -280,6 +280,10 @@ class TestAmbiguousDivision(unittest.TestCase):
             ("1/(x+1) (x+2)", "(x+1)"),
             ("1/sin(x)cos(x)", "sin(x)"),
             ("1/(x+1)^-2(x+2)", "(x+1)^-2"),
+            ("1/(x+1)²(x+2)", "(x+1)²"),
+            ("1/x²(x+1)", "x²"),
+            ("1/cos^2(x)sin(x)", "cos^2(x)"),
+            ("1/sin²(x)(x+1)", "sin²(x)"),
         ):
             with self.subTest(text=text):
                 self.assertEqual(ambiguous_division(text, self.FUNCTIONS), divisor)
@@ -299,6 +303,17 @@ class TestAmbiguousDivision(unittest.TestCase):
             "1/(x+1)^2",
             "x/2 - 1",
             "1/x",
+            "1/cos^2(x)",
+            "x/sin^2(x)",
+            "1/cosh^2(x) + 1",
+            "1/tan^3(x)",
+            "1/sin²(x)",
+            "1/(x-1)²",
+            "x/(1+x)² + 1",
+            "e^x/(1+x)³",
+            "1/x⁻¹",
+            "1/(x+1)^(2)",
+            "1/arctan(x)",
         ):
             with self.subTest(text=text):
                 self.assertIsNone(ambiguous_division(text, self.FUNCTIONS))
