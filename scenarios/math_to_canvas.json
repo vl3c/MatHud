@@ -302,6 +302,32 @@
           ]
         }
       ]
+    },
+    {
+      "id": "MC-11",
+      "title": "Closed-form sums",
+      "tags": ["math"],
+      "smoke": false,
+      "targets": "simplify of summation(term, k, a, b): the closed form of a sum with a symbolic bound and of an infinite series (needs the server's SymPy engine, which CI installs)",
+      "steps": [
+        {
+          "user": "Find a closed form for the sum of k^2 from k = 1 to n.",
+          "reference": [{"tool": "simplify", "args": {"expression": "summation(k^2, k, 1, n)"}}],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "tool_result", "tool": "simplify", "matches": "n\\*\\(n\\+1\\)\\*\\(2\\*n\\+1\\)/6"}
+          ]
+        },
+        {
+          "user": "And the sum of 1/k^2 from k = 1 to infinity?",
+          "reference": [{"tool": "simplify", "args": {"expression": "summation(1/k^2, k, 1, Infinity)"}}],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "tool_result", "tool": "simplify", "matches": "pi\\^2/6"},
+            {"check": "answer_mentions", "matches": "(?i)pi|π"}
+          ]
+        }
+      ]
     }
   ]
 }

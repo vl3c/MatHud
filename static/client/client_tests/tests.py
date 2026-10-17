@@ -61,6 +61,7 @@ from .test_inequality_solver import (
 from .test_step_checker import TestStepCheckerHelpers, TestStepCheckerSympy, TestStepCheckerWithoutSympy
 from .test_taylor import TestTaylorSympy, TestTaylorWithoutSympy
 from .test_partial_fractions import TestPartialFractionsSympy, TestPartialFractionsWithoutSympy
+from .test_closed_form_sums import TestClosedFormSumsSympy, TestClosedFormSumsWithoutSympy
 from .test_cas_known_answers import TestCasKnownAnswers, TestCasKnownAnswersNerdamer, TestCasSympyAnswers
 from .test_periodicity_detection import TestPeriodicityDetection, TestPeriodicityEdgeCases
 from .test_geometry_utils import TestGeometryUtils, TestConvexHull, TestPointInConvexHull
@@ -570,6 +571,8 @@ class Tests:
             TestTaylorWithoutSympy,
             TestPartialFractionsSympy,
             TestPartialFractionsWithoutSympy,
+            TestClosedFormSumsSympy,
+            TestClosedFormSumsWithoutSympy,
             TestCasKnownAnswers,
             TestCasKnownAnswersNerdamer,
             TestCasSympyAnswers,
