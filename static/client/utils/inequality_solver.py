@@ -181,9 +181,11 @@ class InequalitySolver:
 
         if not isinstance(text, str):
             return
-        # read as the engines will: 1/cos²x is 1/cos(x)^2, ÷ is /, and a tab or thin space is a space
+        # read as the engines will: 1/cos²x is 1/cos(x)^2, ÷ is /, and a tab or thin space is a
+        # space; without the * the rewrite puts after a call, so 1/sin²(x)(x+1) stays ambiguous
         spaced = "".join(" " if char.isspace() else char for char in text.replace("÷", "/"))
-        divisor = ambiguous_division(ExpressionValidator._convert_function_notation(spaced), ENGINE_FUNCTION_NAMES)
+        converted = ExpressionValidator._convert_function_notation(spaced, products=False)
+        divisor = ambiguous_division(converted, ENGINE_FUNCTION_NAMES)
         if divisor is not None:
             raise ValueError(
                 f"{text.strip()} is ambiguous: another factor follows the divisor {divisor} without *. "

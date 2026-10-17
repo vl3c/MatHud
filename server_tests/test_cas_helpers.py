@@ -286,6 +286,11 @@ class TestAmbiguousDivision(unittest.TestCase):
             ("1/sin²(x)(x+1)", "sin²(x)"),
             ("1/√(x+1)(x+2)", "√(x+1)"),
             ("1/√x(x+1)", "√x"),
+            ("1/2√x", "2"),
+            ("1/x√x", "x"),
+            ("1/(x+1)√x", "(x+1)"),
+            ("1/πx", "π"),
+            ("1/2πx", "2"),
         ):
             with self.subTest(text=text):
                 self.assertEqual(ambiguous_division(text, self.FUNCTIONS), divisor)
@@ -319,6 +324,8 @@ class TestAmbiguousDivision(unittest.TestCase):
             "x/1e3",
             "x/2.5e-3 + 1",
             "1/√(x+1)",
+            "1/π + x",
+            "x/(2√x)",
         ):
             with self.subTest(text=text):
                 self.assertIsNone(ambiguous_division(text, self.FUNCTIONS))

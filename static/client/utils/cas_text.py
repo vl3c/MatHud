@@ -307,7 +307,7 @@ def ambiguous_division(text: str, function_names: Iterable[str]) -> Optional[str
         end = _powered_operand_end(text, start, functions)
         if end is not None:
             after = _next_non_space(text, end)
-            if after < len(text) and (text[after] == "(" or text[after] == "." or _is_name_char(text[after])):
+            if after < len(text) and (text[after] in "(.√" or _is_name_char(text[after])):
                 return text[start:end]
         index = text.find("/", index + 1)
     return None
@@ -366,9 +366,12 @@ def _operand_end(text: str, start: int, functions: Set[str]) -> Optional[int]:
     if not _is_letter(text[start]) and text[start] != "_":
         return None
     end = start
-    # "²".isdigit() is true, but a superscript is a power, not part of the name
+    # "²".isdigit() is true, but a superscript is a power, not part of the name; π is a name
+    # of its own (πx is pi*x)
     while end < len(text) and _is_name_char(text[end]) and text[end] not in _SUPERSCRIPTS:
         end += 1
+        if text[end - 1] == "π" or (end < len(text) and text[end] == "π"):
+            break
     if text[start:end] not in functions:
         # a longer name before "(" is a call to a function the engines may not know
         # (arctan(x)), not a product, which insert_letter_call_products reads only after one letter
