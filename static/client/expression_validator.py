@@ -115,7 +115,7 @@ class ExpressionValidator(ast.NodeVisitor):
         "˚": "°",  # U+02DA ring above
         "º": "°",  # U+00BA masculine ordinal indicator
         # Greek look-alikes and variant forms. Python folds these into the plain letter
-        # (identifiers are NFKC-normalised) but math.js and nerdamer would not.
+        # (identifiers are NFKC-normalised) but math.js and SymPy's parser would not.
         "µ": "μ",  # U+00B5 micro sign
         "ϕ": "φ",  # U+03D5 phi symbol
         "ϵ": "ε",  # U+03F5 lunate epsilon
@@ -197,7 +197,7 @@ class ExpressionValidator(ast.NodeVisitor):
     _PI_SIGN = "π"  # U+03C0, rewritten to the constant name "pi"
     _SCRIPT_E = "ℯ"  # U+212F, rewritten to the constant name "e"
     _IMAGINARY_IOTA = "ί"  # U+03AF, GeoGebra's imaginary unit, rewritten to i (Python: 2j, or 1j alone)
-    _INFINITY_SIGN = "∞"  # U+221E, rewritten to inf (Python) or Infinity (math.js and nerdamer)
+    _INFINITY_SIGN = "∞"  # U+221E, rewritten to inf (Python) or Infinity (math.js and SymPy)
     _CONSTANT_SIGNS = _PI_SIGN + _SCRIPT_E + _INFINITY_SIGN + _IMAGINARY_IOTA
     _NOT_EQUAL_SIGN = "≠"  # U+2260
     # Δ and δ followed by ASCII letters or digits form one name (Δx, δt), not a product
@@ -462,10 +462,10 @@ class ExpressionValidator(ast.NodeVisitor):
         Covers the operator signs (× ÷ − ≤ ≥ ≠), superscript powers (x², x⁻¹, xⁿ, sin²(x),
         sin⁻¹x), the constants π, ℯ, ∞ and ί, √, degrees (30° -> (30*pi/180)), Greek letter
         variants and Unicode spaces. Greek letters stay as they are: Python, math.js and
-        nerdamer all accept them as variable names. ASCII input is returned unchanged.
+        SymPy all accept them as variable names. ASCII input is returned unchanged.
 
         fix_math_expression already does this; call it directly only for expressions that
-        go to nerdamer or math.js without passing through fix_math_expression.
+        go to SymPy or math.js without passing through fix_math_expression.
 
         Args:
             expression (str): Expression that may contain Unicode math notation

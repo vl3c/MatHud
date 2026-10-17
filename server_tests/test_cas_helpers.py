@@ -29,17 +29,14 @@ from utils.cas_text import (  # noqa: E402
     glued_index,
     insert_implicit_products,
     insert_letter_call_products,
-    is_unevaluated,
     misspellings,
     names_in,
     parse_interval,
     replace_name,
-    rewrite_for_nerdamer,
     split_relation,
     split_top_level_commas,
     split_top_level_terms,
     sum_call,
-    unknown_function_names,
 )
 
 
@@ -417,45 +414,11 @@ class TestSumCall(unittest.TestCase):
                 self.assertIsNone(glued_factorial(text))
 
 
-class TestRewriteForNerdamer(unittest.TestCase):
-    def test_renames_ln_and_sgn(self) -> None:
-        self.assertEqual(rewrite_for_nerdamer("ln(x)+sgn(x)"), "log(x)+sign(x)")
-
-    def test_log2_and_two_argument_log(self) -> None:
-        self.assertEqual(rewrite_for_nerdamer("log2(x)"), "(log(x)/log(2))")
-        self.assertEqual(rewrite_for_nerdamer("log(x, 10)"), "(log(x)/log(10))")
-
-    def test_one_argument_log_is_unchanged(self) -> None:
-        self.assertEqual(rewrite_for_nerdamer("log(x^2+1)"), "log(x^2+1)")
-
-    def test_nested_calls(self) -> None:
-        self.assertEqual(rewrite_for_nerdamer("ln(ln(x))"), "log(log(x))")
-        self.assertEqual(rewrite_for_nerdamer("log(ln(x), 2)"), "(log(log(x))/log(2))")
-
-    def test_names_containing_ln_are_untouched(self) -> None:
-        self.assertEqual(rewrite_for_nerdamer("kln(x)+x.ln(2)"), "kln(x)+x.ln(2)")
-
-    def test_unbalanced_text_is_returned_unchanged(self) -> None:
-        self.assertEqual(rewrite_for_nerdamer("ln(x"), "ln(x")
-
-
 class TestCasTextHelpers(unittest.TestCase):
-    def test_unknown_function_names(self) -> None:
-        known = ["sin", "log", "sqrt"]
-        self.assertEqual(unknown_function_names("gamma(x)+sin(x)+Si(x)+gamma(2)", known), ["gamma", "Si"])
-
-    def test_one_letter_names_are_products(self) -> None:
-        self.assertEqual(unknown_function_names("x(x+1)", []), [])
-
     def test_has_inequality(self) -> None:
         for text in ("x < 2", "x>=1", "x != 3", "x ≤ 2", "x ≠ 1"):
             self.assertTrue(has_inequality(text), text)
         self.assertFalse(has_inequality("x^2 = 4"))
-
-    def test_is_unevaluated(self) -> None:
-        self.assertTrue(is_unevaluated("integrate(sin(x^2),x)"))
-        self.assertTrue(is_unevaluated("2*limit(f,x,0)"))
-        self.assertFalse(is_unevaluated("-cos(x)"))
 
     def test_find_closing_parenthesis(self) -> None:
         self.assertEqual(find_closing_parenthesis("f(a(b)c)d", 1), 7)
@@ -484,7 +447,7 @@ class TestPolynomialRoots(unittest.TestCase):
         self.assert_roots([1, 0, 1], [1j, -1j])
 
     def test_cubic_with_three_real_roots(self) -> None:
-        # x^3 - 3x + 1 (roots 2cos(2pi/9), 2cos(4pi/9), 2cos(8pi/9)): nerdamer's closed form loses them
+        # x^3 - 3x + 1 (roots 2cos(2pi/9), 2cos(4pi/9), 2cos(8pi/9)): three real roots
         expected = [2 * math.cos(2 * math.pi * k / 9) for k in (1, 2, 4)]
         self.assert_roots([1, -3, 0, 1], expected)
         for root in polynomial_roots([1, -3, 0, 1]):

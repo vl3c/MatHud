@@ -651,4 +651,3 @@ class TestRendererPrimitives(unittest.TestCase):
         text_calls = [call for call in recorder.calls if call[0] == "draw_text"]
         self.assertTrue(any(call[1] == "O" for call in text_calls))
         self.assertTrue(any(call[1] != "O" for call in text_calls))
-

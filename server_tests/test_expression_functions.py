@@ -577,13 +577,13 @@ class TestSympyTable(unittest.TestCase):
         self.assertLessEqual(set(ef.CONSTANTS) | {"i"}, set(sympy_cas._CONSTANTS))
 
 
-class TestNerdamerRenames(unittest.TestCase):
-    def test_renamed_functions_target_known_names(self) -> None:
-        from utils.cas_text import _RENAMED_FUNCTIONS
-
-        for source, target in _RENAMED_FUNCTIONS.items():
+class TestMathjsAliases(unittest.TestCase):
+    def test_aliases_target_mathjs_names(self) -> None:
+        for source, target in ef.MATHJS_ALIASES.items():
             with self.subTest(source=source):
-                self.assertTrue(target in ef.BY_NAME or target in SYMPY_ONLY_NAMES, target)
+                self.assertIn(target, ef.BY_NAME)
+                self.assertIsNone(ef.MATHJS_RENAMES.get(target))
+        self.assertEqual(ef.rename_for_mathjs("ln(x)+sgn(x-1)+kln(x)"), "log(x)+sign(x-1)+kln(x)")
 
 
 if __name__ == "__main__":

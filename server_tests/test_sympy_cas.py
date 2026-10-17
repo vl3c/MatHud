@@ -14,17 +14,22 @@ sympy = pytest.importorskip("sympy")
 from static.sympy_cas import (  # noqa: E402
     MAX_APART_DEGREE,
     MAX_EXACT_TERMS,
+    MAX_REWRITE_LENGTH,
+    MAX_SYSTEM_EQUATIONS,
     MAX_TAYLOR_ORDER,
     TAYLOR_LOOKAHEAD,
     ExpressionError,
     compute_apart,
     compute_derivative,
     compute_equivalent,
+    compute_expand,
+    compute_factor,
     compute_integral,
     compute_limit,
     compute_simplify,
     compute_solve,
     compute_solve_inequality,
+    compute_solve_system,
     compute_summation,
     compute_taylor,
     handle,
@@ -125,6 +130,12 @@ class TestOperations(unittest.TestCase):
         self.assertEqual(compute_integral("1/(x^2-1)", "x", "2", "3"), "-log(2)/2+log(3)/2")
         self.assertIsNone(compute_integral("1/x", "x", "-Infinity", "-1"))  # SymPy: -Infinity + i*pi
 
+    def test_piecewise_antiderivatives_are_written_with_sign(self) -> None:
+        self.assertEqual(compute_integral("abs(x)", "x"), "x^2*sign(x)/2")
+        self.assertEqual(compute_integral("sign(x)", "x"), "x*sign(x)")
+        self.assertEqual(compute_integral("sqrt(x^2)", "x"), "x^2*sign(x)/2")
+        self.assertEqual(compute_integral("abs(x-1)", "x"), "(x-1)^2*sign(x-1)/2+1/2")
+
     def test_simplify(self) -> None:
         self.assertEqual(compute_simplify("sin(x)^2+cos(x)^2"), "1")
         self.assertEqual(compute_simplify("(x^3-8)/(x-2)"), "x^2+2*x+4")
@@ -176,6 +187,34 @@ class TestOperations(unittest.TestCase):
         self.assertIsNone(compute_solve("cos(x)=x", "x"))
         # A rational equation is solved over the complex numbers, like a polynomial
         self.assertEqual(compute_solve("1/x=-x", "x"), {"roots": ["-i", "i"]})
+
+    def test_roots_with_parameters(self) -> None:
+        self.assertEqual(compute_solve("e^(k*x)=2", "x"), {"roots": ["log(2)/k"]})
+        self.assertEqual(compute_solve("A*e^(r*t)=B", "t"), {"roots": ["log(B/A)/r"]})
+        self.assertEqual(compute_solve("log(x)=a", "x"), {"roots": ["exp(a)"]})
+        self.assertEqual(compute_solve("x^2=a", "x"), {"roots": ["sqrt(a)", "-sqrt(a)"]})
+        self.assertIsNone(compute_solve("sin(x)=a", "x"))  # periodic with a condition: not listed
+
+    def test_solve_a_formula_for_a_variable(self) -> None:
+        # solveset gives these as {root} \ {pole}, an image set or a condition set
+        self.assertEqual(compute_solve("R=V/I", "I"), {"roots": ["V/R"]})
+        self.assertEqual(compute_solve("1/x=a", "x"), {"roots": ["1/a"]})
+        self.assertEqual(compute_solve("1/R=1/R1+1/R2", "R2"), {"roots": ["-R*R1/(R-R1)"]})
+        self.assertEqual(compute_solve("P=V^2/R", "R"), {"roots": ["V^2/P"]})
+        self.assertEqual(compute_solve("T=2*pi*sqrt(L/g)", "g"), {"roots": ["4*pi^2*L/T^2"]})
+        self.assertEqual(compute_solve("sqrt(x)=a", "x"), {"roots": ["a^2"]})
+        self.assertEqual(compute_solve("a^x=b", "x"), {"roots": ["log(b)/log(a)"]})
+        self.assertEqual(compute_solve("P*(1+r)^t=A", "t"), {"roots": ["log(A/P)/log(r+1)"]})
+        self.assertEqual(compute_solve("d=sqrt((x-1)^2+4)", "x"), {"roots": ["sqrt(d^2-4)+1", "1-sqrt(d^2-4)"]})
+        self.assertEqual(compute_solve("abs(x)=a", "x"), {"roots": ["a", "-a"]})  # a ConditionSet on a
+        self.assertIsNone(compute_solve("abs(x)=-a^2-1", "x"))  # its condition never holds
+        self.assertEqual(compute_solve("A=P*(1-r)^t", "t"), {"roots": ["log(A/P)/log(1-r)"]})
+        self.assertEqual(compute_solve("sqrt(x)=a-5", "x"), {"roots": ["(a-5)^2"]})  # real roots for a >= 5
+        self.assertIsNone(compute_solve("sqrt(x)=-a", "x"))  # a^2 fails at every positive a
+        cubic = compute_solve("x^3+a*x=1", "x")
+        self.assertIsNotNone(cubic)
+        self.assertEqual(len((cubic or {})["roots"]), 3)  # Cardano's formula, kept exact
+        self.assertIsNone(compute_solve("sin(a*x)=1", "x"))  # sp.solve would give principal values only
 
     def test_cubic_roots_without_cardano_forms(self) -> None:
         solution = compute_solve("x^3+x+1=0", "x")
@@ -451,6 +490,113 @@ class TestTaylor(unittest.TestCase):
         self.assertEqual(response["result"]["polynomial"], "1 + x + x^2/2")
         args = {"expression": "abs(x)", "variable": "x", "point": "0", "order": "2"}
         self.assertIn("not smooth", handle({"operation": "taylor", "args": args})["error"])
+
+
+class TestExpandAndFactor(unittest.TestCase):
+    def test_expand(self) -> None:
+        self.assertEqual(compute_expand("(x+1)^2"), "x^2+2*x+1")
+        self.assertEqual(
+            compute_expand("(x-3)^8"), "x^8-24*x^7+252*x^6-1512*x^5+5670*x^4-13608*x^3+20412*x^2-17496*x+6561"
+        )
+        self.assertEqual(compute_expand("sin(x)*(x+1)"), "x*sin(x)+sin(x)")
+        self.assertEqual(compute_expand("(x+y)^2"), "x^2+2*x*y+y^2")
+
+    def test_factor(self) -> None:
+        self.assertEqual(compute_factor("x^2-1"), "(x-1)*(x+1)")
+        self.assertEqual(compute_factor("x^3-6*x^2+11*x-6"), "(x-3)*(x-2)*(x-1)")
+        self.assertEqual(compute_factor("x^2-2"), "x^2-2")  # over the rationals
+        self.assertEqual(compute_factor("x/(x+1)+1"), "(2*x+1)/(x+1)")
+
+    def test_factor_of_a_number_gives_its_prime_factors(self) -> None:
+        self.assertEqual(compute_factor("360"), "2^3*3^2*5")
+        self.assertEqual(compute_factor("-3/4"), "-3/2^2")
+        self.assertEqual(compute_factor("12/35"), "2^2*3/(5*7)")
+        self.assertEqual(compute_factor("1"), "1")
+        self.assertEqual(compute_factor("0"), "0")
+
+    def test_long_forms_are_refused(self) -> None:
+        with self.assertRaises(ExpressionError) as context:
+            compute_expand("(x+1)^200")
+        self.assertIn(str(MAX_REWRITE_LENGTH), str(context.exception))
+        self.assertIn("error", handle({"operation": "expand", "args": {"expression": "(x+1)^200"}}))
+
+    def test_operations_are_registered(self) -> None:
+        self.assertEqual(handle({"operation": "factor", "args": {"expression": "x^2-4"}}), {"result": "(x-2)*(x+2)"})
+
+
+class TestSolveSystem(unittest.TestCase):
+    def test_linear_systems(self) -> None:
+        self.assertEqual(compute_solve_system("x+y=4;x-y=2"), {"solutions": [{"x": "3", "y": "1"}]})
+        self.assertEqual(
+            compute_solve_system("x+y+z=6;x-y=0;z=2*x"), {"solutions": [{"x": "3/2", "y": "3/2", "z": "3"}]}
+        )
+        self.assertEqual(compute_solve_system("x+y=1;x+y=1;x-y=0"), {"solutions": [{"x": "1/2", "y": "1/2"}]})
+        self.assertEqual(compute_solve_system("x+y=2;x+y=3"), {"none": True})
+        self.assertEqual(
+            compute_solve_system("x+y=2;2*x+2*y=4"),
+            {"infinite": True, "general": {"x": "2-y"}, "free": ["y"], "rank": 1},
+        )
+        self.assertEqual(compute_solve_system("x+y=2;1=2"), {"none": True})
+
+    def test_an_equation_without_unknowns_is_refused(self) -> None:
+        # xy is one name and b a parameter: not a contradiction
+        for system in ("xy=6;x+y=5", "x+y=a;b=2"):
+            with self.subTest(system=system), self.assertRaisesRegex(ExpressionError, "none of the unknowns"):
+                compute_solve_system(system)
+
+    def test_polynomial_systems_list_every_real_solution(self) -> None:
+        result = compute_solve_system("x^2+y^2=25;y=x^2-5")
+        self.assertEqual(
+            result, {"solutions": [{"x": "-3", "y": "4"}, {"x": "0", "y": "-5"}, {"x": "3", "y": "4"}], "complex": 0}
+        )
+        result = compute_solve_system("y=x^2;y=3-x^2")
+        assert result is not None
+        self.assertEqual(result["solutions"], [{"x": "-sqrt(6)/2", "y": "3/2"}, {"x": "sqrt(6)/2", "y": "3/2"}])
+        # sp.solve takes minutes on this quintic; the Groebner shape basis does it at once
+        result = compute_solve_system("x^3+x-4=y;x^5-x^4+x^3-x^2+x-1=y")
+        self.assertEqual(result, {"solutions": [{"x": "-1", "y": "-6"}], "complex": 4})
+        self.assertEqual(
+            (compute_solve_system("y=1/x;y=x") or {})["solutions"], [{"x": "-1", "y": "-1"}, {"x": "1", "y": "1"}]
+        )
+        self.assertEqual(
+            compute_solve_system("x^2+y^2+z^2=3;x+y+z=3;x-y=0"),
+            {"solutions": [{"x": "1", "y": "1", "z": "1"}], "complex": 0},
+        )
+
+    def test_roots_of_cubics_are_decimals(self) -> None:
+        values = [float(solution["x"]) for solution in (compute_solve_system("y=x^3-3*x;y=1") or {})["solutions"]]
+        self.assertEqual(len(values), 3)
+        for value in values:
+            self.assertAlmostEqual(value**3 - 3 * value, 1.0, places=12)
+
+    def test_a_zero_denominator_is_not_a_solution(self) -> None:
+        self.assertEqual(compute_solve_system("y=1/(x-1);y=1/(x-1)+x-1"), {"solutions": [], "complex": 0})
+
+    def test_parameters_stay_parameters(self) -> None:
+        self.assertEqual(compute_solve_system("x+y=a;x-y=1"), {"solutions": [{"x": "a/2+1/2", "y": "a/2-1/2"}]})
+        self.assertEqual(compute_solve_system("x+k=3;x-k=1"), {"solutions": [{"x": "2", "k": "1"}]})
+
+    def test_curves_of_solutions(self) -> None:
+        self.assertEqual(
+            compute_solve_system("x^2+y^2=1;2*x^2+2*y^2=2"),
+            {"infinite": True, "curves": [{"x": "-sqrt(1-y^2)"}, {"x": "sqrt(1-y^2)"}], "free": ["y"]},
+        )
+
+    def test_no_real_solution(self) -> None:
+        self.assertEqual(compute_solve_system("y=x^2+1;y=-x^2"), {"solutions": [], "complex": 2})
+
+    def test_unlisted_solutions_are_left_to_the_client(self) -> None:
+        self.assertIsNone(compute_solve_system("sin(x)=y;0.5=y"))  # principal values only
+        self.assertIsNone(compute_solve_system("y=2^x;y=x^2"))  # sp.solve finds one of three
+
+    def test_given_unknowns(self) -> None:
+        self.assertEqual(compute_solve_system("a+b=3;a-b=1", "a, b"), {"solutions": [{"a": "2", "b": "1"}]})
+
+    def test_refusals(self) -> None:
+        for equations in ("x=1=2;y=1", "x+1;", "1=1;2=2", ";".join(["x=1"] * (MAX_SYSTEM_EQUATIONS + 1))):
+            with self.subTest(equations=equations):
+                with self.assertRaises(ExpressionError):
+                    compute_solve_system(equations)
 
 
 class TestApart(unittest.TestCase):
@@ -932,6 +1078,9 @@ class TestResponsesAreBrythonSafe(unittest.TestCase):
             ("solve", {"equation": "x^2=1e40", "variable": "x"}),
             ("solve", {"equation": "sin(x)=0", "variable": "x", "lower": "0", "upper": "1000", "bounds": "[)"}),
             ("simplify", {"expression": "2^60"}),
+            ("expand", {"expression": "(1e10*x+1)^3"}),
+            ("solve_system", {"equations": "x^2+y^2=25;x^2+y=7"}),
+            ("solve_system", {"equations": "x+y=1e20;x-y=1"}),
             ("integrate", {"expression": "x", "variable": "x", "lower": "0", "upper": "1e10"}),
             ("equivalent", {"first": "x^2", "second": "x^2 + 1e20"}),
             ("equivalent", {"first": "sqrt(x)", "second": "x^0.5 + 1e-30*x"}),
@@ -1016,12 +1165,20 @@ class TestRoute(unittest.TestCase):
         )
         self.assertEqual(response.get_json()["data"]["result"]["fractions"], "1/(x-1) - 1/(x+1)")
 
+    def test_cas_route_systems(self) -> None:
+        equations = ";".join(f"x+{'0+' * 290}{n}*y={n}" for n in range(1, 3))
+        self.assertGreater(len(equations), 1000)  # each equation is short enough
+        response = self.client.post("/api/cas", json={"operation": "solve_system", "args": {"equations": equations}})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["data"], {"result": {"solutions": [{"x": "0", "y": "1"}]}})
+
     def test_cas_route_refuses_bad_bodies(self) -> None:
         self.assertEqual(self.client.post("/api/cas", json=[1]).status_code, 400)
         response = self.client.post("/api/cas", json={"operation": "simplify", "args": {"expression": 3}})
         self.assertEqual(response.status_code, 400)
         response = self.client.post("/api/cas", json={"operation": "simplify", "args": {"expression": "x" * 5000}})
         self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["message"], "The expression argument is longer than 1000 characters")
 
     def test_cas_route_unavailable_answers(self) -> None:
         from unittest import mock

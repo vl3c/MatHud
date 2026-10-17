@@ -353,7 +353,7 @@
       "title": "A quotient with abs() draws and its limits answer",
       "tags": ["functions", "asymptotes", "limits"],
       "smoke": false,
-      "targets": "nerdamer's limit() never returning for abs(x)/x (K28): the draw analysis and the limit tool must finish",
+      "targets": "a limit never returning for abs(x)/x (K28, the old nerdamer engine): the draw analysis and the limit tool must finish",
       "steps": [
         {
           "user": "Plot the sign function as abs(x)/x from -5 to 5.",
@@ -411,7 +411,7 @@
       "title": "Asymptote lists without false or duplicate entries",
       "tags": ["functions", "asymptotes", "discontinuities"],
       "smoke": false,
-      "targets": "the tan rule marking every tan(), nerdamer's near-duplicate roots, asymptotes outside the bounds (K32)",
+      "targets": "the tan rule marking every tan(), near-duplicate roots, asymptotes outside the bounds (K32)",
       "steps": [
         {
           "user": "Plot x/tan(x) from -2 to 2.",

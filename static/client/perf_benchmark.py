@@ -112,6 +112,8 @@ def _per_drawable(build_ms: Dict[str, float], created: Dict[str, int]) -> Dict[s
 
 _FUNCTION_EXPRESSIONS: List[str] = ["sin(x)*x^2", "tan(x)", "1/(x^2 - 1)", "exp(-x^2/2)/sqrt(2*pi)"]
 _MATHJS_EXPRESSIONS: List[str] = ["2*sin(1) + sqrt(16)", "log(10)^2 / 3", "gcd(84, 36) + 5!"]
+# Denominators and log arguments without a polynomial form: their zeros are found by a scan
+_ANALYSIS_EXPRESSIONS: List[str] = ["1/sin(x)", "ln(sin(x))", "1/(e^x-2)"]
 # Numbers the uncached function_create appends, so its texts never repeat within a page
 _UNCACHED_TEXTS = {"next": 0}
 
@@ -195,6 +197,15 @@ def _expression_benchmarks(perf_api: Any, scale: int) -> Dict[str, Dict[str, flo
         counter["i"] += 1
 
     results["mathutils_evaluate"] = _time_loop(perf_api, 30 * scale, evaluate_mathjs)
+
+    def analyse_function() -> None:
+        # Asymptotes and discontinuities of a function drawn without bounds
+        MathUtils.calculate_asymptotes_and_discontinuities(
+            _ANALYSIS_EXPRESSIONS[counter["i"] % len(_ANALYSIS_EXPRESSIONS)]
+        )
+        counter["i"] += 1
+
+    results["function_analysis"] = _time_loop(perf_api, 3 * scale, analyse_function)
     return results
 
 

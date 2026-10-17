@@ -795,7 +795,7 @@ Added after the first live run (phase 6, item 10).
 - Checks:
   - after turn 1: no tool errors (before the fix the turn never finished); s(2) = 1, s(-3) = -1; horizontal asymptotes [-1, 1]; no vertical asymptote; a point discontinuity at 0
   - after turn 2: the limit at 0 is an error saying the two-sided limit does not exist; the limit at infinity says the expression approaches 1
-- Targets: nerdamer's `limit()` looping forever on quotients with `abs()`.
+- Targets: a `limit()` looping forever on quotients with `abs()` (the old nerdamer engine's).
 - Known bugs: K28, fixed on `claude/fix-batch-7`; the checks are regression guards.
 
 #### FN-11: Asymptote lists without false or duplicate entries
@@ -1108,7 +1108,7 @@ Added after the first live run (phase 6, item 10).
   - no tool errors; evaluate results include 2, 3*pi/4 (2.356194490192345), pi/4 (0.7853981633974483) and `3 - 4i`
   - simplify result is `7/12`; answer mentions 2 and 7/12
 - Targets: `mod`, `atan2` and the complex helpers in `evaluate_expression`; `simplify` for exact answers.
-- The `7/12` check needs the server's SymPy engine, which CI installs: without it nerdamer prints 0.583333333333333333, so the check fails in a local replay without SymPy.
+- The `7/12` check needs the server's SymPy engine, which CI installs: without it `simplify` gives an error, so the check fails in a local replay without SymPy.
 
 #### MC-06: Plots of the new functions
 

@@ -205,18 +205,18 @@ FUNCTIONS: Tuple[ExpressionFunction, ...] = (
     _elementary("log10", math.log10, aliases=("logarithm10",)),
     _elementary("log2", math.log2, aliases=("logarithm2",)),
     _F("factorial", math.factorial, _ONE, aliases=("fact",), curve_safe=True, sympy=True),
-    _elementary("asin", math.asin, aliases=("arcsine",)),
-    _elementary("acos", math.acos, aliases=("arccosine",)),
-    _elementary("atan", math.atan, aliases=("arctangent",)),
+    _elementary("asin", math.asin, aliases=("arcsine", "arcsin")),
+    _elementary("acos", math.acos, aliases=("arccosine", "arccos")),
+    _elementary("atan", math.atan, aliases=("arctangent", "arctan")),
     _elementary("sinh", math.sinh, aliases=("hyperbolic sine",), inverse="asinh"),
     _elementary("cosh", math.cosh, aliases=("hyperbolic cosine",), inverse="acosh"),
     _elementary("tanh", math.tanh, aliases=("hyperbolic tangent",), inverse="atanh"),
     _elementary("sec", _sec, inverse="asec"),
     _elementary("csc", _csc, inverse="acsc"),
     _elementary("cot", _cot, inverse="acot"),
-    _elementary("asec", _asec),
-    _elementary("acsc", _acsc),
-    _elementary("acot", _acot),
+    _elementary("asec", _asec, aliases=("arcsec",)),
+    _elementary("acsc", _acsc, aliases=("arccsc",)),
+    _elementary("acot", _acot, aliases=("arccot",)),
     _elementary("asinh", math.asinh),
     _elementary("acosh", math.acosh),
     _elementary("atanh", math.atanh),
@@ -342,6 +342,10 @@ MATHJS_RENAMES: Dict[str, str] = {
     row.name: row.mathjs for row in FUNCTIONS if row.mathjs is not None and row.mathjs != row.name
 }
 
+# Spellings the tools accept that math.js lacks, as calls (ln(x) -> log(x), sgn(x) -> sign(x)):
+# the CAS tools hand their input to math.js for the numeric checks without rewriting it
+MATHJS_ALIASES: Dict[str, str] = {"ln": "log", "sgn": "sign"}
+
 # Functions allowed in parametric curves
 CURVE_NAMES: FrozenSet[str] = frozenset(row.name for row in FUNCTIONS if row.curve_safe)
 
@@ -450,16 +454,25 @@ def replace_aliases(text: str) -> str:
     return _ALIAS_PATTERN.sub(_replace_alias, text)
 
 
+def replace_call_aliases(text: str) -> str:
+    """replace_aliases for call aliases only (arctan(x) -> atan(x)); word aliases such as ln stay."""
+    if not any(hint in text for hint in _ALIAS_HINTS):
+        return text
+    return _ALIAS_PATTERN.sub(
+        lambda match: match.group(0) if match.group(0) in WORD_ALIASES else _replace_alias(match), text
+    )
+
+
 # Identifiers and number literals, matched whole (also used for implicit multiplication)
 TOKEN_PATTERN = re.compile(_TOKEN)
 # Text that must occur for rename_for_mathjs or calls_python_only to find anything
-_RENAME_HINTS = tuple(sorted(name + "(" for name in MATHJS_RENAMES))
+_RENAME_HINTS = tuple(sorted(name + "(" for name in list(MATHJS_RENAMES) + list(MATHJS_ALIASES)))
 _PYTHON_ONLY_HINTS = _minimal_substrings(sorted(PYTHON_ONLY_NAMES))
 
 
 def _rename_call(match: re.Match[str]) -> str:
     token = match.group(0)
-    target = MATHJS_RENAMES.get(token)
+    target = MATHJS_RENAMES.get(token) or MATHJS_ALIASES.get(token)
     if target is not None and match.string[match.end() : match.end() + 1] == "(":
         return target
     return token
@@ -531,7 +544,8 @@ def replace_absolute_bars(text: str) -> str:
 
 def rename_for_mathjs(text: str) -> str:
     """Rewrite text for math.js: calls of functions it knows under another name (trunc(x) ->
-    fix(x)), |x| as abs(x) (math.js cannot read bars) and % as its mod operator.
+    fix(x), ln(x) -> log(x), sgn(x) -> sign(x)), |x| as abs(x) (math.js cannot read bars) and %
+    as its mod operator.
 
     Every place that hands expression text to math.js calls this. Names are matched as whole
     tokens followed by "(", like the aliases, so xtrunc(x) stays. % always means the remainder,

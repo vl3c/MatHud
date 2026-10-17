@@ -352,7 +352,7 @@ class TestFixMathExpressionUnicode(unittest.TestCase):
 
 
 class TestNormalizeUnicodeMath(unittest.TestCase):
-    """normalize_unicode_math prepares raw expressions for nerdamer and math.js."""
+    """normalize_unicode_math prepares raw expressions for SymPy and math.js."""
 
     def test_raw_expressions_for_math_engines(self) -> None:
         cases = {
@@ -431,7 +431,7 @@ class TestAsciiRegression(unittest.TestCase):
         self.assertEqual(mismatches, [])
 
     def test_random_ascii_is_left_to_the_ascii_steps(self) -> None:
-        # The Unicode step and the name and nerdamer normalisers are the identity on ASCII
+        # The Unicode step and the name and CAS normalisers are the identity on ASCII
         rng = random.Random(70)
         alphabet = "xyzeinfpiasoctlg0123456789.+-*/^()!|<>=, _jdr"
         for _ in range(20000):

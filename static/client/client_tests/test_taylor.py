@@ -1,8 +1,7 @@
 """Tests for the taylor_polynomial tool (utils.taylor, utils.series_checks in Brython).
 
-TestTaylorSympy pins the polynomials and notes, and skips without the server's SymPy engine;
-TestTaylorWithoutSympy pins the input refusals, which need no engine, and the error that
-says SymPy is needed.
+TestTaylorSympy pins the polynomials and notes; TestTaylorWithoutSympy pins the input
+refusals, which need no engine, and the error that says SymPy is needed.
 """
 
 from __future__ import annotations
@@ -14,7 +13,7 @@ from utils.series_checks import taylor_matches
 from utils.symbolic_checks import SymbolicChecks
 from utils.taylor import Taylor
 
-from .cas_engines import WithoutSympy, sympy_available
+from .cas_engines import WithoutSympy
 
 
 def _taylor(expression: str, point: Any, order: Any, variable: str = "x") -> Dict[str, Any]:
@@ -32,10 +31,6 @@ def _error(expression: Any, point: Any, order: Any, variable: Any = "x") -> str:
 
 
 class TestTaylorSympy(unittest.TestCase):
-    def setUp(self) -> None:
-        if not sympy_available():
-            self.skipTest("the server's SymPy engine is not available")
-
     def test_maclaurin_polynomial(self) -> None:
         self.assertEqual(
             _taylor("sin(x)", "0", 5),

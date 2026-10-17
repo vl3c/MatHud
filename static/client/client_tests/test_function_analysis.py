@@ -408,7 +408,7 @@ _SINGULARITY_CASES: List[Tuple[str, Optional[float], Optional[float], List[float
     ("x/tan(x)", -2, 2, [], [round(-math.pi / 2, 6), 0.0, round(math.pi / 2, 6)]),
     ("1/tan(x)", -2, 2, [0.0], [round(-math.pi / 2, 6), round(math.pi / 2, 6)]),
     ("tan(x)*cos(x)", -2, 2, [], [round(-math.pi / 2, 6), round(math.pi / 2, 6)]),
-    # nerdamer's near-duplicate roots of 1 - cos(x) (0, 1.4e-9, 6.2e-9, ...) count once
+    # Near-duplicate roots of 1 - cos(x) (0, 1.4e-9, 6.2e-9, ...) count once
     ("1/(1-cos(x))", -1, 1, [0.0], []),
     ("1/(tan(x)-x)", -1, 1, [0.0], []),
     # Only points within the bounds are listed
@@ -471,6 +471,19 @@ class TestRemovableDiscontinuities(_FunctionToolTestCase):
         self.assertGreater(len(vertical), 6000)
         self.assertLess(elapsed, 3.0, f"tan(10*x) took {elapsed:.2f} s")
 
+    def test_dense_denominator_zeros_near_zero_are_all_listed(self) -> None:
+        """Without bounds the zero scan keeps the zeros nearest 0, and rescans finely where they
+        are closer than its samples: every pole of 1/sin(10x) in [-5, 5] is listed."""
+        vertical, _, _ = MathUtils.calculate_asymptotes_and_discontinuities("1/sin(10*x)")
+
+        near = [point for point in vertical if -5 <= point <= 5]
+        self.assertEqual(len(near), 31)
+        for point in near:
+            self.assertAlmostEqual(point * 10 / math.pi, round(point * 10 / math.pi), places=6)
+        self.assertLessEqual(len(vertical), MathUtils._MAX_SCANNED_ZEROS)
+        sine_poles, _, _ = MathUtils.calculate_asymptotes_and_discontinuities("1/sin(x)")
+        self.assertAlmostEqual(min(sine_poles), -max(sine_poles), delta=math.pi + 1e-6)
+
     def test_merging_close_points_keeps_the_one_nearest_zero(self) -> None:
         points = [6.2e-9, 3.0, 1.4e-9, 0.0, 9.7e-9, 3.0 + 1e-8, -2.0, -2.0 - 1e-9]
 
@@ -496,13 +509,13 @@ def _now_seconds() -> float:
 
 # (expression, horizontal asymptotes: the limits at -inf and +inf that are finite)
 _HORIZONTAL_ASYMPTOTE_CASES: List[Tuple[str, List[float]]] = [
-    # nerdamer's limit() never returns for these (K28)
+    # The old nerdamer engine's limit() never returned for these (K28)
     ("abs(x)/x", [-1.0, 1.0]),
     ("sqrt(x^2)/x", [-1.0, 1.0]),
     ("x/(abs(x)+1)", [-1.0, 1.0]),
     ("abs(x^3)/x^3", [-1.0, 1.0]),
     ("(abs(x)+1)/x", [-1.0, 1.0]),
-    # nerdamer's limit() is wrong or unevaluated for these
+    # The old nerdamer engine's limit() was wrong or unevaluated for these
     ("floor(x)/x", [1.0, 1.0]),
     ("sqrt(x^2+1)/x", [-1.0, 1.0]),
     ("x/sqrt(x^2+1)", [-1.0, 1.0]),
@@ -555,9 +568,10 @@ _HORIZONTAL_ASYMPTOTE_CASES: List[Tuple[str, List[float]]] = [
 
 
 class TestLimitsCannotHang(_FunctionToolTestCase):
-    """K28: nerdamer's limit() loops forever on abs(x)/x; no draw or limit call may hang the tab."""
+    """K28: no draw or limit call may hang the tab (the old nerdamer engine's limit() looped
+    forever on abs(x)/x)."""
 
-    # Generous: a guarded limit is stopped soon after 1.5 s; a hang never returns at all.
+    # Generous: SymPy's worker is stopped after 6 s; a hang never returns at all.
     TIME_LIMIT_S = 10.0
 
     def assert_quick(self, started: float, what: str) -> None:
@@ -607,13 +621,14 @@ class TestLimitsCannotHang(_FunctionToolTestCase):
         self.assertNotIn("vertical_asymptotes", args)
         self.assertEqual(_rounded(args.get("point_discontinuities")), [0.0])
 
-    def test_limit_tool_answers_an_abandoned_limit_numerically(self) -> None:
+    def test_limit_tool_answers_numerically_without_sympy(self) -> None:
+        estimate = " (numeric estimate; the server's SymPy engine is not available"
         # (expression, value to approach, expected result)
         cases = [
-            ("abs(x)/x", "inf", "1 (numeric estimate; the symbolic engine gave no usable result)"),
-            ("abs(x)/x", "-inf", "-1 (numeric estimate; the symbolic engine gave no usable result)"),
-            ("sqrt(x^2)/x", "inf", "1 (numeric estimate; the symbolic engine gave no usable result)"),
-            ("x/(abs(x)+1)", "-inf", "-1 (numeric estimate; the symbolic engine gave no usable result)"),
+            ("abs(x)/x", "inf", "1" + estimate),
+            ("abs(x)/x", "-inf", "-1" + estimate),
+            ("sqrt(x^2)/x", "inf", "1" + estimate),
+            ("x/(abs(x)+1)", "-inf", "-1" + estimate),
             (
                 "abs(x)/x",
                 "0",
@@ -623,11 +638,11 @@ class TestLimitsCannotHang(_FunctionToolTestCase):
         for expression, target, expected in cases:
             with self.subTest(expression=expression, target=target):
                 started = _now_seconds()
-                with WithoutSympy():  # the nerdamer budget is what this pins
+                with WithoutSympy():
                     traced = self.run_call("limit", expression=expression, variable="x", value_to_approach=target)
                 self.assert_quick(started, f"limit({expression}, {target})")
                 self.assertFalse(traced["is_error"], traced["result"])
-                self.assertEqual(str(traced["result"]), expected)
+                self.assertTrue(str(traced["result"]).startswith(expected), traced["result"])
 
     def test_limit_tool_still_computes_ordinary_limits(self) -> None:
         cases = [
@@ -647,26 +662,20 @@ class TestLimitsCannotHang(_FunctionToolTestCase):
         self.assert_quick(started, "ratio_test(abs(n)/n)")
         self.assertIsInstance(result, str)
 
-    def test_a_limit_is_stopped_near_its_budget_whatever_step_it_is_in(self) -> None:
-        """This limit spent 37 s in expand/simplify between two derivative steps."""
+    def test_a_limit_with_abs_quotients_finishes(self) -> None:
+        """nerdamer spent 37 s on this limit between two derivative steps."""
         started = _now_seconds()
 
-        with WithoutSympy():
-            result = MathUtils.limit("x/(abs(x)/x+abs(sin(x))/sin(x))", "x", "0")
+        result = MathUtils.limit("x/(abs(x)/x+abs(sin(x))/sin(x))", "x", "0")
 
-        elapsed = _now_seconds() - started
-        self.assertLess(elapsed, MathUtils.NERDAMER_MAX_MS / 1000 + 2.0, f"took {elapsed:.1f} s")
-        self.assertEqual(result, "0 (numeric estimate; the symbolic engine gave no usable result)")
+        self.assert_quick(started, "the limit")
+        self.assertEqual(result.split(" (")[0], "0")
 
-    def test_symbolic_tools_are_stopped_instead_of_freezing(self) -> None:
+    def test_large_expansions_are_refused_quickly(self) -> None:
         started = _now_seconds()
 
         result = MathUtils.expand("(x+y+z)^25")
 
-        elapsed = _now_seconds() - started
-        self.assertLess(elapsed, MathUtils.NERDAMER_TOOL_MAX_MS / 1000 + 3.0, f"took {elapsed:.1f} s")
-        self.assertTrue(result.startswith("Error: Computing expand((x+y+z)^25) took too long"), result)
-        # nerdamer still works after the abort
-        self.assertEqual(MathUtils.derivative("x^3", "x"), "3*x^2")
-        self.assertEqual(MathUtils.expand("(x+1)^2"), "1+2*x+x^2")
-        self.assertEqual(MathUtils.limit("sin(x)/x", "x", "0"), "1")
+        self.assert_quick(started, "expand((x+y+z)^25)")
+        self.assertTrue(result.startswith("Error: "), result)
+        self.assertEqual(MathUtils.expand("(x+1)^2"), "x^2+2*x+1")

@@ -186,13 +186,19 @@ class _MathJsRecorder:
         return complex(real, imag)
 
 
+def _javascript_function(*_source: str) -> Callable[[Any, str, float], Any]:
+    """Stands in for window.Function building MathUtils' JavaScript probe: the probe evaluates
+    the compiled expression at x."""
+    return lambda compiled, name, x: compiled.evaluate({name: x})
+
+
 def _recorded(call: Callable[[], Any]) -> Dict[str, Any]:
     """Run call with window.math replaced by a recorder; return what math.js was given."""
     import numeric_solver.expression_utils as expression_utils
     import utils.math_utils as math_utils
 
     recorder = _MathJsRecorder()
-    fake_window = SimpleNamespace(math=recorder)
+    fake_window = SimpleNamespace(math=recorder, Function=_javascript_function)
     with (
         mock.patch.object(math_utils, "window", fake_window),
         mock.patch.object(expression_utils, "window", fake_window),
@@ -232,7 +238,6 @@ def _mathjs_bridge() -> Dict[str, Any]:
         "tangent_asymptotes": lambda text: MathUtils._tangent_asymptotes(text, -1, 1),
         "root_status": lambda text: MathUtils._root_status([text, "1"], "x", complex(1, 0)),
         "equation_holds": lambda text: MathUtils._equation_holds([text, "1"], {"x": 1.0}),
-        "degenerate_linear_system": lambda text: MathUtils._degenerate_linear_system([text + " = 1"]),
         "real_function": real_function,
         "numeric_value": SymbolicChecks.numeric_value,
         "evaluate_residuals": lambda text: evaluate_residuals([equation_to_residual(text)], ["x"], [1.0]),

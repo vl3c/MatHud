@@ -32,13 +32,37 @@
    "'2*acsc(x)'",
    "'2*acsc(x)'"
   ],
+  "2arccos(x)": [
+   "'2*acos(x)'",
+   "'2*acos(x)'"
+  ],
   "2arccosine(x)": [
    "'2*acos(x)'",
    "'2*acos(x)'"
   ],
+  "2arccot(x)": [
+   "'2*acot(x)'",
+   "'2*acot(x)'"
+  ],
+  "2arccsc(x)": [
+   "'2*acsc(x)'",
+   "'2*acsc(x)'"
+  ],
+  "2arcsec(x)": [
+   "'2*asec(x)'",
+   "'2*asec(x)'"
+  ],
+  "2arcsin(x)": [
+   "'2*asin(x)'",
+   "'2*asin(x)'"
+  ],
   "2arcsine(x)": [
    "'2*asin(x)'",
    "'2*asin(x)'"
+  ],
+  "2arctan(x)": [
+   "'2*atan(x)'",
+   "'2*atan(x)'"
   ],
   "2arctangent(x)": [
    "'2*atan(x)'",
@@ -504,13 +528,37 @@
    "'_acsc(x)'",
    "'_acsc(x)'"
   ],
+  "_arccos(x)": [
+   "'_arccos(x)'",
+   "'_arccos(x)'"
+  ],
   "_arccosine(x)": [
    "'_arccosine(x)'",
    "'_arccosine(x)'"
   ],
+  "_arccot(x)": [
+   "'_arccot(x)'",
+   "'_arccot(x)'"
+  ],
+  "_arccsc(x)": [
+   "'_arccsc(x)'",
+   "'_arccsc(x)'"
+  ],
+  "_arcsec(x)": [
+   "'_arcsec(x)'",
+   "'_arcsec(x)'"
+  ],
+  "_arcsin(x)": [
+   "'_arcsin(x)'",
+   "'_arcsin(x)'"
+  ],
   "_arcsine(x)": [
    "'_arcsine(x)'",
    "'_arcsine(x)'"
+  ],
+  "_arctan(x)": [
+   "'_arctan(x)'",
+   "'_arctan(x)'"
   ],
   "_arctangent(x)": [
    "'_arctangent(x)'",
@@ -1096,6 +1144,26 @@
    "'acscx'",
    "'acscx'"
   ],
+  "arccos": [
+   "'arccos'",
+   "'arccos'"
+  ],
+  "arccos (x)": [
+   "'arccos (x)'",
+   "'arccos (x)'"
+  ],
+  "arccos(x)": [
+   "'acos(x)'",
+   "'acos(x)'"
+  ],
+  "arccos(x)+arccos(y)": [
+   "'acos(x)+acos(y)'",
+   "'acos(x)+acos(y)'"
+  ],
+  "arccos2(x)": [
+   "'arccos2(x)'",
+   "'arccos2(x)'"
+  ],
   "arccosine": [
    "'arccosine'",
    "'arccosine'"
@@ -1119,6 +1187,102 @@
   "arccosinex": [
    "'arccosinex'",
    "'arccosinex'"
+  ],
+  "arccosx": [
+   "'arccosx'",
+   "'arccosx'"
+  ],
+  "arccot": [
+   "'arccot'",
+   "'arccot'"
+  ],
+  "arccot (x)": [
+   "'arccot (x)'",
+   "'arccot (x)'"
+  ],
+  "arccot(x)": [
+   "'acot(x)'",
+   "'acot(x)'"
+  ],
+  "arccot(x)+arccot(y)": [
+   "'acot(x)+acot(y)'",
+   "'acot(x)+acot(y)'"
+  ],
+  "arccot2(x)": [
+   "'arccot2(x)'",
+   "'arccot2(x)'"
+  ],
+  "arccotx": [
+   "'arccotx'",
+   "'arccotx'"
+  ],
+  "arccsc": [
+   "'arccsc'",
+   "'arccsc'"
+  ],
+  "arccsc (x)": [
+   "'arccsc (x)'",
+   "'arccsc (x)'"
+  ],
+  "arccsc(x)": [
+   "'acsc(x)'",
+   "'acsc(x)'"
+  ],
+  "arccsc(x)+arccsc(y)": [
+   "'acsc(x)+acsc(y)'",
+   "'acsc(x)+acsc(y)'"
+  ],
+  "arccsc2(x)": [
+   "'arccsc2(x)'",
+   "'arccsc2(x)'"
+  ],
+  "arccscx": [
+   "'arccscx'",
+   "'arccscx'"
+  ],
+  "arcsec": [
+   "'arcsec'",
+   "'arcsec'"
+  ],
+  "arcsec (x)": [
+   "'arcsec (x)'",
+   "'arcsec (x)'"
+  ],
+  "arcsec(x)": [
+   "'asec(x)'",
+   "'asec(x)'"
+  ],
+  "arcsec(x)+arcsec(y)": [
+   "'asec(x)+asec(y)'",
+   "'asec(x)+asec(y)'"
+  ],
+  "arcsec2(x)": [
+   "'arcsec2(x)'",
+   "'arcsec2(x)'"
+  ],
+  "arcsecx": [
+   "'arcsecx'",
+   "'arcsecx'"
+  ],
+  "arcsin": [
+   "'arcsin'",
+   "'arcsin'"
+  ],
+  "arcsin (x)": [
+   "'arcsin (x)'",
+   "'arcsin (x)'"
+  ],
+  "arcsin(x)": [
+   "'asin(x)'",
+   "'asin(x)'"
+  ],
+  "arcsin(x)+arcsin(y)": [
+   "'asin(x)+asin(y)'",
+   "'asin(x)+asin(y)'"
+  ],
+  "arcsin2(x)": [
+   "'arcsin2(x)'",
+   "'arcsin2(x)'"
   ],
   "arcsine": [
    "'arcsine'",
@@ -1144,6 +1308,30 @@
    "'arcsinex'",
    "'arcsinex'"
   ],
+  "arcsinx": [
+   "'arcsinx'",
+   "'arcsinx'"
+  ],
+  "arctan": [
+   "'arctan'",
+   "'arctan'"
+  ],
+  "arctan (x)": [
+   "'arctan (x)'",
+   "'arctan (x)'"
+  ],
+  "arctan(x)": [
+   "'atan(x)'",
+   "'atan(x)'"
+  ],
+  "arctan(x)+arctan(y)": [
+   "'atan(x)+atan(y)'",
+   "'atan(x)+atan(y)'"
+  ],
+  "arctan2(x)": [
+   "'arctan2(x)'",
+   "'arctan2(x)'"
+  ],
   "arctangent": [
    "'arctangent'",
    "'arctangent'"
@@ -1167,6 +1355,10 @@
   "arctangentx": [
    "'arctangentx'",
    "'arctangentx'"
+  ],
+  "arctanx": [
+   "'arctanx'",
+   "'arctanx'"
   ],
   "arg": [
    "'arg'",
@@ -2352,13 +2544,37 @@
    "'kacsc(x)'",
    "'kacsc(x)'"
   ],
+  "karccos(x)": [
+   "'karccos(x)'",
+   "'karccos(x)'"
+  ],
   "karccosine(x)": [
    "'karccosine(x)'",
    "'karccosine(x)'"
   ],
+  "karccot(x)": [
+   "'karccot(x)'",
+   "'karccot(x)'"
+  ],
+  "karccsc(x)": [
+   "'karccsc(x)'",
+   "'karccsc(x)'"
+  ],
+  "karcsec(x)": [
+   "'karcsec(x)'",
+   "'karcsec(x)'"
+  ],
+  "karcsin(x)": [
+   "'karcsin(x)'",
+   "'karcsin(x)'"
+  ],
   "karcsine(x)": [
    "'karcsine(x)'",
    "'karcsine(x)'"
+  ],
+  "karctan(x)": [
+   "'karctan(x)'",
+   "'karctan(x)'"
   ],
   "karctangent(x)": [
    "'karctangent(x)'",
@@ -4276,13 +4492,37 @@
    "'x*acsc'",
    "'x*acsc'"
   ],
+  "x*arccos": [
+   "'x*arccos'",
+   "'x*arccos'"
+  ],
   "x*arccosine": [
    "'x*arccosine'",
    "'x*arccosine'"
   ],
+  "x*arccot": [
+   "'x*arccot'",
+   "'x*arccot'"
+  ],
+  "x*arccsc": [
+   "'x*arccsc'",
+   "'x*arccsc'"
+  ],
+  "x*arcsec": [
+   "'x*arcsec'",
+   "'x*arcsec'"
+  ],
+  "x*arcsin": [
+   "'x*arcsin'",
+   "'x*arcsin'"
+  ],
   "x*arcsine": [
    "'x*arcsine'",
    "'x*arcsine'"
+  ],
+  "x*arctan": [
+   "'x*arctan'",
+   "'x*arctan'"
   ],
   "x*arctangent": [
    "'x*arctangent'",
@@ -5241,64 +5481,6 @@
    }
   },
   "sites": {
-   "degenerate_linear_system": {
-    "arrangements(x, 2)": {
-     "mathjs": [
-      "compile (permutations(x, 2) )-( 1)"
-     ],
-     "raised": "ValueError",
-     "returned_error": false
-    },
-    "nthroot(x, 3)": {
-     "mathjs": [
-      "compile (nthRoot(x, 3) )-( 1)"
-     ],
-     "raised": "ValueError",
-     "returned_error": false
-    },
-    "sin(x)": {
-     "mathjs": [
-      "compile (sin(x) )-( 1)"
-     ],
-     "raised": "ValueError",
-     "returned_error": false
-    },
-    "stdev([x, 1])": {
-     "mathjs": [
-      "compile (std([x, 1]) )-( 1)"
-     ],
-     "raised": "ValueError",
-     "returned_error": false
-    },
-    "trunc(x)": {
-     "mathjs": [
-      "compile (fix(x) )-( 1)"
-     ],
-     "raised": "ValueError",
-     "returned_error": false
-    },
-    "x % 2": {
-     "mathjs": [
-      "compile (x mod 2 )-( 1)"
-     ],
-     "raised": "ValueError",
-     "returned_error": false
-    },
-    "xtrunc(x)": {
-     "mathjs": [
-      "compile (xtrunc(x) )-( 1)"
-     ],
-     "raised": "ValueError",
-     "returned_error": false
-    },
-    "|x|": {
-     "mathjs": [
-      "compile (abs(x) )-( 1)"
-     ],
-     "raised": "ValueError",
-     "returned_error": false
-    }
-   },
    "equation_holds": {
     "arrangements(x, 2)": {
      "mathjs": [
@@ -6121,8 +6303,14 @@
   ],
   "call_aliases": {
    "absolute": "abs",
+   "arccos": "acos",
    "arccosine": "acos",
+   "arccot": "acot",
+   "arccsc": "acsc",
+   "arcsec": "asec",
+   "arcsin": "asin",
    "arcsine": "asin",
+   "arctan": "atan",
    "arctangent": "atan",
    "binary": "bin",
    "conjugate": "conj",

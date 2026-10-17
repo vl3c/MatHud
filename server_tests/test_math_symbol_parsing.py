@@ -3,7 +3,7 @@
 The symbol palette, Alt shortcuts and backslash completion insert the symbols of
 math_symbols.SYMBOLS. This file gives each of them an explicit expectation: the exact
 rewrite of a representative expression by fix_math_expression (Python and math.js modes)
-and normalize_unicode_math (nerdamer), and either its value in the Python plotting
+and normalize_unicode_math (the CAS tools' raw text), and either its value in the Python plotting
 namespace or the clean ValueError validation raises. Symbols with no arithmetic meaning
 (∈, ∪, ∠, ∫, ...) pass through unchanged and are rejected by validation, never crash.
 
@@ -27,7 +27,7 @@ class Expectation(NamedTuple):
     expression: str  # a representative expression using the symbol
     python: str  # fix_math_expression(expression, python_compatible=True)
     mathjs: str  # fix_math_expression(expression, python_compatible=False)
-    nerdamer: str  # normalize_unicode_math(expression)
+    cas: str  # normalize_unicode_math(expression)
     value: Optional[float] = None  # value in the Python namespace, when it evaluates
     variables: Optional[Dict[str, Any]] = None
     error: Optional[str] = None  # part of the ValueError validation raises, when it does not
@@ -122,7 +122,7 @@ CALCULUS: Dict[str, Expectation] = {
     "∏": _same("∏x", "invalid character '∏'"),
     "∂": _same("∂f", "invalid character '∂'"),
     "∇": _same("∇f", "invalid character '∇'"),
-    # "lim" is inserted as text; fix_math_expression spells it limit( for nerdamer
+    # "lim" is inserted as text; fix_math_expression spells it limit(
     "lim": Expectation("lim(sin(x)/x, x, 0)", "limit(sin(x)/x, x, 0)", "limit(sin(x)/x, x, 0)", "lim(sin(x)/x, x, 0)"),
 }
 
@@ -155,7 +155,7 @@ class TestMathSymbolParsing(unittest.TestCase):
             with self.subTest(symbol=symbol, expression=expected.expression):
                 self.assertEqual(ExpressionValidator.fix_math_expression(expected.expression, True), expected.python)
                 self.assertEqual(ExpressionValidator.fix_math_expression(expected.expression, False), expected.mathjs)
-                self.assertEqual(ExpressionValidator.normalize_unicode_math(expected.expression), expected.nerdamer)
+                self.assertEqual(ExpressionValidator.normalize_unicode_math(expected.expression), expected.cas)
 
     def test_evaluable_symbols_evaluate(self) -> None:
         for symbol, expected in EXPECTATIONS.items():
@@ -178,7 +178,7 @@ class TestMathSymbolParsing(unittest.TestCase):
                 self.assertIn(expected.error, str(context.exception))
 
     def test_every_symbol_is_evaluable_or_rejected(self) -> None:
-        # Only "lim" needs nerdamer, which the client tests exercise
+        # Only "lim" needs the CAS (the limit tool), which the client tests exercise
         undecided = [
             symbol for symbol, expected in EXPECTATIONS.items() if expected.value is None and not expected.error
         ]

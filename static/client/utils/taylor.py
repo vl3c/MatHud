@@ -10,7 +10,7 @@
 4. series_checks.taylor_matches checks it against the function's math.js values beside the
    point; a refuted polynomial is an error, one the check cannot judge is given.
 
-There is no nerdamer fallback: without SymPy the tool says so.
+Without SymPy the tool says so.
 
 The browser parts (math.js, SymPy requests) are imported when first used, so pytest
 covers the module's texts with Python stand-ins.

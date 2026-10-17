@@ -95,11 +95,6 @@ class TestTemplatesUseLocalAssets(unittest.TestCase):
             "vendor/inter/5.3.0/inter.css",
             "vendor/mathjax/3.2.2/es5/tex-mml-chtml.js",
             "vendor/mathjs/14.5.2/math.min.js",
-            "vendor/nerdamer/1.1.13/nerdamer.core.js",
-            "vendor/nerdamer/1.1.13/Algebra.js",
-            "vendor/nerdamer/1.1.13/Calculus.js",
-            "vendor/nerdamer/1.1.13/Solve.js",
-            "vendor/nerdamer/1.1.13/Extra.js",
             "vendor/brython/3.12.5/brython.min.js",
             "vendor/brython/3.12.5/brython_stdlib.min.js",
         ):
@@ -162,12 +157,12 @@ class TestVendorManifest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             vendor_copy = Path(tmp) / "vendor"
             shutil.copytree(vendor_js_libs.VENDOR_DIR, vendor_copy)
-            (vendor_copy / "nerdamer" / "1.1.13" / "license.txt").write_bytes(b"tampered")
+            (vendor_copy / "mathjs" / "14.5.2" / "LICENSE").write_bytes(b"tampered")
             (vendor_copy / "stray.js").write_text("// not pinned", encoding="utf-8")
             problems = vendor_js_libs.check(vendor_copy)
         self.assertEqual(
             problems,
-            ["hash mismatch: nerdamer/1.1.13/license.txt", "unexpected file: stray.js"],
+            ["hash mismatch: mathjs/14.5.2/LICENSE", "unexpected file: stray.js"],
         )
 
     def test_check_ignores_os_junk_files(self) -> None:

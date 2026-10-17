@@ -96,7 +96,9 @@ class TestRendererLogic(unittest.TestCase):
             for class_name in optimized._HELPERS:
                 drawable = SimpleNamespace(get_class_name=lambda name=class_name: name)
                 self.assertTrue(renderer.render(drawable, CoordinateMapperStub()), class_name)
-            self.assertFalse(renderer.render(SimpleNamespace(get_class_name=lambda: "Triangle"), CoordinateMapperStub()))
+            self.assertFalse(
+                renderer.render(SimpleNamespace(get_class_name=lambda: "Triangle"), CoordinateMapperStub())
+            )
             self.assertEqual(drawn, list(optimized._HELPERS))
 
     def test_a_handler_registered_for_a_type_runs_before_the_plan_helper(self) -> None:

@@ -362,8 +362,6 @@ class ProjectMetricsAnalyzer:
                         js_libs.add("brython")
                     if "mathjax" in content.lower():
                         js_libs.add("mathjax")
-                    if "nerdamer" in content.lower():
-                        js_libs.add("nerdamer")
 
                     self.metrics["javascript_libraries"] = len(js_libs)
             except Exception:

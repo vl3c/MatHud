@@ -205,7 +205,6 @@ class TestParametricFunctionManager(unittest.TestCase):
         # Archive should NOT be called since no changes were made
         self.canvas.undo_redo_manager.archive.assert_not_called()
 
-
     def test_draw_parametric_function_orders_a_reversed_range(self) -> None:
         func = self.manager.draw_parametric_function("cos(t)", "sin(t)", name="Back", t_min=3, t_max=1)
         self.assertEqual((func.t_min, func.t_max), (1.0, 3.0))
