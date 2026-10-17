@@ -320,7 +320,8 @@ static/client/
 │   ├── step_checker.py                # check_steps: each step of a derivation against the one before
 │   ├── equivalence.py                 # Numeric equivalence of two expressions in every variable
 │   ├── taylor.py                      # taylor_polynomial: SymPy's Taylor polynomial, checked numerically
-│   ├── series_checks.py               # Whether a polynomial is a function's Taylor polynomial (error ratios)
+│   ├── series_checks.py               # Taylor polynomials (error ratios) and sums (terms, partial sums) checked numerically
+│   ├── closed_form_sums.py            # simplify of summation(term, k, a, b): SymPy's closed form, checked
 │   ├── partial_fractions.py           # expand with a variable: SymPy's partial fractions, checked
 │   ├── computation_utils.py           # Computational helper functions
 │   ├── geometry_utils.py              # Geometric utility functions
