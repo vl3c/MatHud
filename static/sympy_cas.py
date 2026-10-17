@@ -1020,6 +1020,9 @@ TAYLOR_LOOKAHEAD = 3
 # grow about tenfold per step on roots of quotients (sqrt((1-x)/(1+x))), and steadily on
 # e^(-x^2)/(1+x), whose series is quicker; x^x at 2 needs about 600.
 MAX_DERIVATIVE_OPS = 1000
+# The derivatives are also given up after this many seconds: those of e^(x*sin(x)) at 0 stay
+# under the operation limit but take about 4 s to order 13, its series 0.3 s.
+DERIVATIVE_SECONDS = 2.0
 # A polynomial up to this degree has its first omitted term found beyond the lookahead.
 MAX_TAIL_DEGREE = 100
 
@@ -1149,16 +1152,19 @@ def _has_exponential_of_non_polynomial(function: Any, x: Any) -> bool:
 
 def _derivative_coefficients(function: Any, x: Any, center: Any, count: int, limit: int) -> Optional[List[Any]]:
     """f^(k)(a)/k! for k = 0 .. count-1, or None when one of them is not a finite real
-    number (0/0 in sin(x)/x at 0, a pole, sqrt(x) at 0) or a derivative has more than limit
-    operations."""
+    number (0/0 in sin(x)/x at 0, a pole, sqrt(x) at 0), a derivative has more than limit
+    operations, or they take more than DERIVATIVE_SECONDS."""
+    import time
+
     import sympy as sp
 
+    deadline = time.monotonic() + DERIVATIVE_SECONDS
     coefficients: List[Any] = []
     derivative = function
     for k in range(count):
         if k:
             derivative = sp.expand_mul(sp.diff(derivative, x))
-            if sp.count_ops(derivative) > limit:
+            if sp.count_ops(derivative) > limit or time.monotonic() > deadline:
                 return None
         value = derivative.subs(x, center)
         if value.has(sp.nan, sp.zoo, sp.oo, -sp.oo) or value.free_symbols:

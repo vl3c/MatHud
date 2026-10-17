@@ -47,9 +47,10 @@ class PartialFractions:
         except Exception:
             return PartialFractions._ordinary(expression)
         try:
-            PartialFractions._refuse_misspellings(expression, name)
+            PartialFractions._refuse_unclear_input(expression, name)
         except ValueError as error:
-            # a calculator spelling is refused (1/(sinx+1)); a variable the expression lacks is not
+            # a calculator spelling (1/(sinx+1)) or an ambiguous division (1/(x+1)(x+2)) is
+            # refused; a variable the expression lacks is not
             if str(error) != f"{name} does not appear in the expression.":
                 return f"Error: {error}"
         if name not in _names(prepared):
@@ -93,9 +94,10 @@ class PartialFractions:
         return str(InequalitySolver.prepared(expression))
 
     @staticmethod
-    def _refuse_misspellings(expression: str, variable: str) -> None:
+    def _refuse_unclear_input(expression: str, variable: str) -> None:
         from utils.inequality_solver import InequalitySolver
 
+        InequalitySolver.refuse_ambiguous_division(expression)
         InequalitySolver.refuse_misspellings(expression, variable, subject="expression")
 
     @staticmethod

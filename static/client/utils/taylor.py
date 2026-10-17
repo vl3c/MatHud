@@ -100,7 +100,8 @@ class Taylor:
         """The function as both engines read it.
 
         Raises:
-            ValueError: for a calculator spelling, an equation, or other variables.
+            ValueError: for a calculator spelling, an ambiguous division (1/(1-x)(1+x)), an
+                equation, or other variables.
         """
         from utils.inequality_solver import InequalitySolver
 
@@ -111,6 +112,7 @@ class Taylor:
         if "=" in expression or "<" in expression or ">" in expression:
             raise ValueError(f"give the function's expression alone, such as sin(x), not {expression.strip()!r}.")
         InequalitySolver.refuse_misspellings(expression, variable, subject="function")
+        InequalitySolver.refuse_ambiguous_division(expression)
         prepared = str(InequalitySolver.prepared(expression))
         try:
             others = InequalitySolver.other_names([prepared], variable, strict=True)

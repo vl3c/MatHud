@@ -63,6 +63,12 @@ class TestPartialFractionsWithoutSympy(unittest.TestCase):
         self.assertTrue(result.startswith("Error:"), result)
         self.assertIn("SymPy", result)
 
+    def test_refuses_an_ambiguous_division(self) -> None:
+        result = MathUtils.expand("(3x+5)/(x+1)(x+2)", "x")
+        self.assertTrue(result.startswith("Error:"), result)
+        self.assertIn("ambiguous", result)
+        self.assertIn("((x+1)(x+2))", result)
+
     def test_anything_else_is_expanded_as_usual(self) -> None:
         with WithoutSympy():
             self.assertEqual(MathUtils.expand("(x + 1)^2", "x"), "1+2*x+x^2")

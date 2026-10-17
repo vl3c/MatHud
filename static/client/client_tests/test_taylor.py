@@ -97,6 +97,10 @@ class TestTaylorWithoutSympy(unittest.TestCase):
         self.assertIn("sin(x)", _error("sinx", "0", 3))
         self.assertIn("sin(x)", _error("sin x", "0", 3))
 
+    def test_refuses_an_ambiguous_division(self) -> None:
+        self.assertIn("ambiguous", _error("1/(1-x)(1+x)", "0", 3))
+        self.assertIn("ambiguous", _error("1/2x", "0", 3))
+
     def test_refuses_bad_arguments(self) -> None:
         self.assertIn("order must be a whole number from 0 to 10", _error("e^x", "0", 11))
         self.assertIn("order must be", _error("e^x", "0", -1))

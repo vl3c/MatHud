@@ -167,6 +167,28 @@ class InequalitySolver:
             raise ValueError(f"{variable} does not appear in the {kind}.")
 
     @staticmethod
+    def refuse_ambiguous_division(text: str) -> None:
+        """Raise ValueError when a divisor in text is followed by another factor without "*"
+        (cas_text.ambiguous_division): 1/(x+1)(x+2) is 1/((x+1)(x+2)) to math.js but
+        (1/(x+1))*(x+2) to SymPy.
+
+        Raises:
+            ValueError: naming the divisor and the two ways to write it.
+        """
+        from expression_functions import ENGINE_FUNCTION_NAMES
+        from utils.cas_text import ambiguous_division
+
+        if not isinstance(text, str):
+            return
+        divisor = ambiguous_division(text, ENGINE_FUNCTION_NAMES)
+        if divisor is not None:
+            raise ValueError(
+                f"{text.strip()} is ambiguous: another factor follows the divisor {divisor} without *. "
+                "Put the whole denominator in parentheses to divide by the product, such as "
+                "1/((x+1)(x+2)), or write * to multiply after dividing, such as (1/(x+1))*(x+2)."
+            )
+
+    @staticmethod
     def window(interval: Optional[str]) -> Optional[Window]:
         """The interval argument as a Window ([0, 2*pi), ...), None when there is none.
 

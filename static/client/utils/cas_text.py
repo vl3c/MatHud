@@ -10,7 +10,8 @@ an inequality or a chain), parse_interval ("[0, 2*pi)" and the like),
 insert_letter_call_products (x(x+2) as x*(x+2), which SymPy and math.js read as a call),
 insert_implicit_products ((x-1)(x+2) and (x+1)2 as products, as SymPy reads them),
 split_top_level_terms (the signed terms of a sum), and misspellings (sin x, sinx and xe^x,
-which the tools refuse with the standard form to write).
+which the tools refuse with the standard form to write). taylor_polynomial and expand with
+a variable also refuse an ambiguous_division (1/(x+1)(x+2)).
 
 Pure Python (no browser imports), so server-side pytest covers it.
 """
@@ -288,6 +289,65 @@ def _number_end(text: str, start: int) -> int:
             while index < len(text) and text[index].isdigit():
                 index += 1
     return index
+
+
+def ambiguous_division(text: str, function_names: Iterable[str]) -> Optional[str]:
+    """The divisor of the first "/" that another factor follows without "*", or None.
+
+    In 1/(x+1)(x+2), 1/x(x+1), sin(2x)/2x and x/2e^x the divisor is followed directly by
+    another factor: SymPy reads (1/(x+1))*(x+2), math.js divides by the product, and a
+    person may mean either. A divisor is a bracket, a number, a name or a call to one of
+    function_names, with any powers (1/(x-1)^2(x+1) is ambiguous too).
+    """
+    functions = set(function_names)
+    index = text.find("/")
+    while index >= 0:
+        start = _next_non_space(text, index + 1)
+        end = _powered_operand_end(text, start, functions)
+        if end is not None:
+            after = _next_non_space(text, end)
+            if after < len(text) and (text[after] == "(" or text[after] == "." or _is_name_char(text[after])):
+                return text[start:end]
+        index = text.find("/", index + 1)
+    return None
+
+
+def _powered_operand_end(text: str, start: int, functions: Set[str]) -> Optional[int]:
+    """The end of the operand at start with its powers (x^2, (x+1)^-2), or None."""
+    end = _operand_end(text, start, functions)
+    while end is not None:
+        caret = _next_non_space(text, end)
+        if caret >= len(text) or text[caret] != "^":
+            return end
+        exponent = _next_non_space(text, caret + 1)
+        if exponent < len(text) and text[exponent] in "+-":
+            exponent = _next_non_space(text, exponent + 1)
+        end = _operand_end(text, exponent, functions)
+    return None
+
+
+def _operand_end(text: str, start: int, functions: Set[str]) -> Optional[int]:
+    """The end of the bracket, number, name or function call at start, or None."""
+    if start >= len(text):
+        return None
+    if text[start] == "(":
+        closing = find_closing_parenthesis(text, start)
+        return closing + 1 if closing >= 0 else None
+    if text[start].isdigit() or text[start] == ".":
+        end = start
+        while end < len(text) and (text[end].isdigit() or text[end] == "."):
+            end += 1
+        return end
+    if not _is_letter(text[start]) and text[start] != "_":
+        return None
+    end = start
+    while end < len(text) and _is_name_char(text[end]):
+        end += 1
+    call = _next_non_space(text, end)
+    if text[start:end] in functions and call < len(text) and text[call] == "(":
+        closing = find_closing_parenthesis(text, call)
+        return closing + 1 if closing >= 0 else None
+    return end
 
 
 # Inequality signs as split_relation reads them, longest first: "=<" and "=>" are aliases.

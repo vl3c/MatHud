@@ -1615,7 +1615,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "expand",
-            "description": "Expands a mathematical expression. Give variable to split a ratio of polynomials in that variable into partial fractions over the rationals, as calculators' expand(expr, x) does: 2/(x^2-1) gives 1/(x-1) - 1/(x+1), an improper fraction also gives its polynomial part ((x^2+1)/(x-1) gives x + 1 + 2/(x-1)), and a quadratic with no rational roots such as x^2+1 stays whole. Leave variable null for ordinary expansion.",
+            "description": "Expands a mathematical expression. Give variable to split a ratio of polynomials in that variable into partial fractions over the rationals, as calculators' expand(expr, x) does: 2/(x^2-1) gives 1/(x-1) - 1/(x+1), an improper fraction also gives its polynomial part ((x^2+1)/(x-1) gives x + 1 + 2/(x-1)), and a quadratic with no rational roots such as x^2+1 stays whole. Put a product in a denominator in parentheses, as in (3x+5)/((x+1)(x+2)); (3x+5)/(x+1)(x+2) is refused as ambiguous. Leave variable null for ordinary expansion.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -1749,7 +1749,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "properties": {
                     "expression": {
                         "type": "string",
-                        "description": "The function as an expression in the variable. Examples: 'e^x', 'sin(x)', 'ln(1+x)', '1/(1-x)'. Standard syntax only: call every function with parentheses (sin(x), ln(x)), write products with * or a number before a letter (2x, x*e^x), use e^x or exp(x), and |x| or abs(x); other spellings are refused with a hint.",
+                        "description": "The function as an expression in the variable. Examples: 'e^x', 'sin(x)', 'ln(1+x)', '1/(1-x)'. Standard syntax only: call every function with parentheses (sin(x), ln(x)), write products with * or a number before a letter (2x, x*e^x), use e^x or exp(x), and |x| or abs(x), and put a product in a denominator in parentheses (1/((1-x)(1+x)), as 1/(1-x)(1+x) is ambiguous); other spellings are refused with a hint.",
                     },
                     "variable": {"type": "string", "description": "The function's variable. Example: 'x'"},
                     "point": {
