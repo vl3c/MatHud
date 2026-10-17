@@ -45,12 +45,14 @@ class PartialFractions:
             prepared = PartialFractions._prepared(expression)
         except Exception:
             return PartialFractions._ordinary(expression)
-        if name not in _names(prepared):
-            return PartialFractions._ordinary(expression)
         try:
             PartialFractions._refuse_misspellings(expression, name)
         except ValueError as error:
-            return f"Error: {error}"
+            # a calculator spelling is refused (1/(sinx+1)); a variable the expression lacks is not
+            if str(error) != f"{name} does not appear in the expression.":
+                return f"Error: {error}"
+        if name not in _names(prepared):
+            return PartialFractions._ordinary(expression)
         response = PartialFractions._ask_sympy(prepared, name)
         if response is None:
             if PartialFractions._is_rational_in(prepared, name):
