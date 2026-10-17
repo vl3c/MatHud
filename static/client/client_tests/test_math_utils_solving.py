@@ -122,8 +122,9 @@ class TestMathUtilsSolving(unittest.TestCase):
     def test_glued_products_with_an_unknown_are_refused(self) -> None:
         glued = MathUtils.solve_system_of_equations(["y=mx+b", "y=-x+3"])
         self.assertEqual(glued, "Error: mx would be read as one name; write products with * (m*x), as in y = m*x + b.")
-        self.assertTrue(MathUtils.solve_system_of_equations(["y=ax^2", "y=4"]).startswith("Error: ax would be read"))
         self.assertTrue(MathUtils.solve_system_of_equations(["xy=6", "x+y=5"]).startswith("Error: xy would be read"))
+        # without x, y or z alone they are names: coordinates and components
+        self.assertEqual(MathUtils.solve_system_of_equations(["xA + xB = 10", "xA - xB = 2"]), "xA = 6, xB = 4")
 
     def test_a_kink_is_not_taken_for_a_line(self) -> None:
         self.assertEqual(MathUtils.solve_system_of_equations(["y = max(x,1)", "y=3"]).split(" (")[0], "x = 3, y = 3")

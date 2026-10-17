@@ -2227,8 +2227,10 @@ class MathUtils:
 
     @staticmethod
     def _glued_unknowns(equations: Sequence[str]) -> List[str]:
-        """Short names of letters that hold an unknown x, y or z, such as mx in y = mx + b or ax
-        in y = ax^2: solve refuses them, and a system would read them as parameters."""
+        """Short names of letters that hold an unknown x, y or z the system also uses on its own,
+        such as mx in y = mx + b beside y = -x + 3: solve refuses them, and a system would read
+        them as parameters. Names in a system without that letter alone (xA and xB, vx and vy)
+        are names."""
         from utils.symbolic_checks import SymbolicChecks
 
         names = {
@@ -2237,12 +2239,13 @@ class MathUtils:
             for side in equation.split("=")
             for name in SymbolicChecks.free_variables(side)
         }
+        unknowns = names & {"x", "y", "z"}
         return sorted(
             name
             for name in names
             if 1 < len(name) <= MathUtils._MAX_GLUED_LENGTH
             and name.isalpha()
-            and any(letter in name for letter in "xyz")
+            and any(unknown in name for unknown in unknowns)
         )
 
     # Longer names (area, years) are names, not glued products.

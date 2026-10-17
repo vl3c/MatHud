@@ -518,6 +518,7 @@ def compute_solve(
         isinstance(solutions, sp.ConditionSet)
         and isinstance(solutions.base_set, sp.FiniteSet)
         and x not in solutions.condition.free_symbols
+        and _possible(solutions.condition)
     ):
         # |x| = a gives {-a, a} for a >= 0: the condition is on the parameters
         solutions = solutions.base_set
@@ -555,6 +556,19 @@ def _formula_roots(difference: Any, x: Any) -> Any:
     parameters = sorted(difference.free_symbols - {x}, key=str)
     checked = [root for root in roots if _holds_for_samples(difference, x, root, parameters)]
     return sp.FiniteSet(*checked) if checked else None
+
+
+def _possible(condition: Any) -> bool:
+    """True when a condition on the parameters holds at one or more sample values (a >= 0 for
+    |x| = a; never -a^2 - 1 >= 0)."""
+    import sympy as sp
+
+    parameters = sorted(condition.free_symbols, key=str)
+    for sample in _PARAMETER_SAMPLES + tuple(-value for value in _PARAMETER_SAMPLES):
+        values = {name: sp.Float(sample + 0.37 * index) for index, name in enumerate(parameters)}
+        if condition.subs(values) == sp.true:
+            return True
+    return False
 
 
 def _holds_for_samples(difference: Any, x: Any, root: Any, parameters: Sequence[Any]) -> bool:
