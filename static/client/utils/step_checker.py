@@ -95,7 +95,28 @@ def _glued_names() -> List[str]:
     first."""
     from expression_functions import GLUED_CALL_NAMES
 
-    return sorted(set(GLUED_CALL_NAMES) | {"sech", "csch", "coth"}, key=len, reverse=True)
+    return sorted(GLUED_CALL_NAMES, key=len, reverse=True)
+
+
+def _has_word_names(names: Sequence[str]) -> bool:
+    """True when a name is written as a word (revenue): then cost beside it is a variable."""
+    from expression_functions import ENGINE_FUNCTION_NAMES, GLUED_CALL_NAMES
+    from utils.cas_text import has_word_names
+
+    return bool(has_word_names(names, GLUED_CALL_NAMES, set(ENGINE_FUNCTION_NAMES) | set(_calculator_spellings())))
+
+
+def _unread_call(name: str) -> Optional[str]:
+    """sin(x) for sinx, x*ln(x) for xlnx: a glued call the input pipeline left unread, as what
+    follows it was not clear (sinx(x+1), sinx^-1); None for other names."""
+    from expression_functions import ENGINE_FUNCTION_NAMES, GLUED_CALL_NAMES
+    from utils.cas_text import glued_call
+
+    parts = glued_call(name, GLUED_CALL_NAMES, set(ENGINE_FUNCTION_NAMES) | set(_calculator_spellings()))
+    if parts is None:
+        return None
+    prefix, function, operand = parts
+    return f"{prefix + '*' if prefix else ''}{function}({operand})"
 
 
 def _pieces(name: str, letters: Set[str]) -> Optional[List[str]]:
@@ -296,10 +317,11 @@ class StepChecker:
 
         Misread, as math.js and SymPy read each of them as one variable: a calculator function
         read as a variable (sin alone), another function name used as a variable (gamma, which
-        neither engine reads as one), a function glued to more than one letter (sinxy, sinxcosx), and a name
-        made of the other step's one-letter variables, e and pi (xy against x and y), x2 beside
-        x, and xy against yx. Names with "_" and longer names (costs, cos_theta, seconds) are
-        variables.
+        neither engine reads as one), a glued call the pipeline left unread (sinx(x+1)), a
+        function glued to more than one letter (sinxy, sinxcosx), and a name made of the other
+        step's one-letter variables, e and pi (xy against x and y), x2 beside x, and xy against
+        yx. Names with "_" and longer names (costs, cos_theta, seconds) are variables, and so is
+        cost beside a name written as a word (revenue - cost).
         """
         others = set(other.variables)
         letters = {name for name in others | set(step.variables) if _SINGLE_LETTER.match(name)}
@@ -308,6 +330,9 @@ class StepChecker:
                 return f"{name} is a function, but it is read as a variable here; write {name}(x) with parentheses"
             if name in _function_spellings():
                 return f"{name} is the name of a function, which the engines cannot read as a variable; rename it"
+            call = None if _has_word_names(step.variables) else _unread_call(name)
+            if call is not None:
+                return f"{name} is read as one variable here; write {call}"
             if len(name) < 2 or name in others or "_" in name:
                 continue
             log_digits = _LOG_DIGITS.match(name)

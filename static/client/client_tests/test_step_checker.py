@@ -195,8 +195,20 @@ class TestStepCheckerWithoutSympy(unittest.TestCase):
             ["coth x", "cosh(x)/sinh(x)"],
             ["csch x", "1/sinh(x)"],
             ["sinhx", "sinh(x)"],
+            ["asinhx", "asinh(x)"],
+            ["sechx", "sech(x)"],
+            ["cothx", "coth(x)"],
+            ["cschx", "csch(x)"],
+            ["sinx/x", "sin(x)/x"],
+            ["lnx / x", "ln(x)/x"],
+            ["sqrtx/x", "1/sqrtx"],
+            ["sinx*2", "2sin(x)"],
+            ["2cosx*x", "2x cos(x)"],
+            ["sinx/2", "sin(x)/2"],
+            ["sinhx/x", "sinh(x)/x"],
         ]
         wrong = [
+            ["asinhx", "a*sinh(x)"],
             ["sech x", "1/cos(x)"],
             ["coth x", "cosh(x)"],
             ["xlnx - x", "x(lnx + 1)"],
@@ -213,6 +225,7 @@ class TestStepCheckerWithoutSympy(unittest.TestCase):
             wrong_verdicts = [_check(steps)["verdict"] for steps in wrong]
             bare = _check(["sin", "sin(x)"])
             gamma = _check(["gamma*m*c^2", "m*gamma*c^2"])
+            unread = _check(["sinx^-1", "1/sin(x)"])
             unclear = [_check(steps)["verdict"] for steps in (["sin 2*x", "sin(2x)"], ["sin x y", "y sin x"])]
             spaced = _check(["sin x - 1", "sin(x) - 1"])
         self.assertEqual(verdicts, ["equivalent"] * len(equivalent))
@@ -226,4 +239,5 @@ class TestStepCheckerWithoutSympy(unittest.TestCase):
             gamma["steps"][0]["reason"],
             "gamma is the name of a function, which the engines cannot read as a variable; rename it",
         )
+        self.assertEqual(unread["steps"][0]["reason"], "sinx is read as one variable here; write sin(x)")
         self.assertEqual(unclear, ["undecided", "undecided"])

@@ -218,6 +218,14 @@ class TestInequalitySolverSympy(unittest.TestCase):
             ("csch x = 1", None): "[log(1+sqrt(2))]",
             ("sinhx = 1", None): "[log(1+sqrt(2))]",
             ("log2x = 3", None): "[]",
+            # a glued call before / or *; asinhx is asinh(x), not a*sinh(x)
+            ("sinx/x = 0", "[1, 4]"): "[pi] (the roots in [1, 4])",
+            ("lnx / x = 0", None): "[1]",
+            ("sinx*2 = 1", "[0, pi]"): "[pi/6,5*pi/6] (the roots in [0, pi])",
+            ("sqrtx/x = 2", None): "[1/4]",
+            ("asinhx = 1", None): "[sinh(1)]",
+            ("atanhx = 0.5", None): "[tanh(1/2)]",
+            ("sechx = 0.5", None): "[-asech(1/2),asech(1/2)]",
         }
         for (text, interval), expected in equations.items():
             self.assertEqual(_solve(text, interval), expected, f"{text} on {interval}")
@@ -227,6 +235,8 @@ class TestInequalitySolverSympy(unittest.TestCase):
         self.assertEqual(str(MathUtils.solve("ex > 1", "ex")), "ex > 1; interval notation: (1, Infinity)")
         self.assertEqual(str(MathUtils.solve("cost = 5", "cost")), "[5]")
         self.assertEqual(str(MathUtils.solve("costs > 5", "costs")), "costs > 5; interval notation: (5, Infinity)")
+        # beside names written as words, cost is a variable too
+        self.assertEqual(str(MathUtils.solve("profit = revenue - cost", "revenue")), "[cost+profit]")
 
     def test_identities_without_an_exact_answer(self) -> None:
         result = _solve("sin(x)^2 + cos(x)^2 > 1")

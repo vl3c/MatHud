@@ -23,6 +23,7 @@ from utils.cas_text import (  # noqa: E402
     find_closing_parenthesis,
     has_inequality,
     glued_call,
+    has_word_names,
     insert_calculator_calls,
     insert_implicit_products,
     insert_letter_call_products,
@@ -177,6 +178,13 @@ class TestCalculatorNotation(unittest.TestCase):
             "xsinx + cosx": "x*sin(x) + cos(x)",
             "tcost": "t*cos(t)",
             "nlogn": "n*log(n)",
+            # a glued operand ends with its letter, so / and * after it are clear
+            "sinx/x": "sin(x)/x",
+            "lnx / x": "ln(x) / x",
+            "sinx*2": "sin(x)*2",
+            "2cosx*x": "2cos(x)*x",
+            "sin2x/2": "sin(2x)/2",
+            "1/sqrtx": "1/sqrt(x)",
         }
         for text, expected in cases.items():
             with self.subTest(text=text):
@@ -204,6 +212,8 @@ class TestCalculatorNotation(unittest.TestCase):
             "sin x y",
             "sin x(x+1)",
             "sin x^-1",
+            "sinx(x+1)",
+            "sinx^-1",
             # descriptive names
             "revenue - costs",
             "seconds*1000",
@@ -231,15 +241,31 @@ class TestCalculatorNotation(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertIsNone(glued_call(name, ("sec", "csc", "cot", "sin"), functions))
         self.assertEqual(glued_call("sinhx", ("sin", "sinh")), ("", "sinh", "x"))
+        # the letter before is never the start of a function name: asinhx is not a*sinh(x)
+        self.assertIsNone(glued_call("asinhx", ("sinh",), ("asinh",)))
+        self.assertEqual(glued_call("asinhx", ("sinh", "asinh"), ("asinh",)), ("", "asinh", "x"))
+        self.assertEqual(glued_call("xasinhx", ("sinh", "asinh"), ("asinh",)), ("x", "asinh", "x"))
 
     def test_function_names_are_not_split(self) -> None:
         unary = self.UNARY + ("sech", "coth")
         glued = self.GLUED + ("sec", "cot")
-        functions = ("sech", "coth", "csch")
+        functions = ("sech", "coth", "csch", "acoth")
         cases = {"sech x": "sech(x)", "coth x = 2": "coth(x) = 2", "csch + 1": "csch + 1", "sechx": "sechx"}
+        cases.update({"acothx": "acothx", "acoth x": "acoth x"})
         for text, expected in cases.items():
             with self.subTest(text=text):
                 self.assertEqual(insert_calculator_calls(text, unary, glued, function_names=functions), expected)
+
+    def test_glued_calls_beside_names_written_as_words(self) -> None:
+        # beside profit and revenue, cost is a variable; Greek letters and xpi are not words
+        for text in ("profit = revenue - cost", "revenue - cost + sinx", "cos_theta + secs"):
+            with self.subTest(text=text):
+                self.assertEqual(insert_calculator_calls(text, self.UNARY, self.GLUED), text)
+        self.assertEqual(insert_calculator_calls("theta + sinx", self.UNARY, self.GLUED), "theta + sin(x)")
+        self.assertEqual(insert_calculator_calls("xpi + cosx", self.UNARY, self.GLUED), "xpi + cos(x)")
+        self.assertEqual(insert_calculator_calls("revenue + sin x", self.UNARY, self.GLUED), "revenue + sin(x)")
+        self.assertTrue(has_word_names(["profit", "cost"], self.GLUED, self.UNARY))
+        self.assertFalse(has_word_names(["cost", "x", "theta", "xpi", "sin"], self.GLUED, self.UNARY))
 
     def test_kept_names(self) -> None:
         self.assertEqual(insert_calculator_calls("cost < 1", self.UNARY, self.GLUED, keep=("cost",)), "cost < 1")

@@ -501,9 +501,13 @@ ENGINE_FUNCTION_NAMES: FrozenSet[str] = (
     | frozenset(_RECIPROCAL_HYPERBOLIC + ("asech", "acsch", "acoth", "sinc", "sgn", "ceil", "nthroot"))
 )
 # The ones that may also touch a one-letter operand, with one letter before them: sinx, lnx,
-# xlnx, sqrtx, sinhx
+# xlnx, sqrtx, sinhx, asinhx, sechx
 GLUED_CALL_NAMES: FrozenSet[str] = frozenset(
-    _TRIG_NAMES + tuple("a" + name for name in _TRIG_NAMES) + ("sinh", "cosh", "tanh") + ("ln", "log", "exp", "sqrt")
+    _TRIG_NAMES
+    + tuple("a" + name for name in _TRIG_NAMES)
+    + ("sinh", "cosh", "tanh", "asinh", "acosh", "atanh")
+    + _RECIPROCAL_HYPERBOLIC
+    + ("ln", "log", "exp", "sqrt")
 )
 
 

@@ -397,8 +397,10 @@ def glued_call(
     with at most one letter before it: sinx -> ("", "sin", "x"), sin2x -> ("", "sin", "2x"),
     xlnx -> ("x", "ln", "x"); None for any other name (costs, seconds, cos_theta), for a
     function name (sech is not sec(h)) and for a digit after a log (log2x: log2(x) or log(2x)?).
+    The letter before is never the start of a function name: asinhx is not a*sinh(x).
     """
-    if "_" in name or name in set(function_names) or len(name) > _MAX_GLUED_LENGTH:
+    known = set(function_names)
+    if "_" in name or name in known or len(name) > _MAX_GLUED_LENGTH:
         return None
     functions = sorted(glued_names, key=len, reverse=True)
     for prefix in ("", name[:1]):
@@ -409,10 +411,34 @@ def glued_call(
             operand = body[len(function) :]
             if not body.startswith(function) or not _GLUED_OPERAND.match(operand):
                 continue
+            if prefix and prefix + function in known:
+                continue  # asinhx: not a*sinh(x)
             if function in _LOGS and operand[0].isdigit():
                 return None
             return prefix, function, operand
     return None
+
+
+# Greek letters spelled out: one-letter variables, not names written as words
+_GREEK_NAMES = frozenset(
+    "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron rho sigma tau"
+    " upsilon phi chi psi omega".split()
+)
+
+
+def has_word_names(names: Iterable[str], glued_names: Iterable[str], function_names: Iterable[str] = ()) -> bool:
+    """True when a name is written as a word (profit, revenue, cos_theta): three letters or
+    more, and no function, Greek letter, glued call (cost) or constant product (xpi). Beside
+    such names cost and secs are variables too, so glued calls are not read."""
+    glued, functions = set(glued_names), set(function_names)
+    for name in names:
+        if sum(character.isalpha() for character in name) < 3 or name in functions or name in glued:
+            continue
+        if name in _GREEK_NAMES or _CONSTANT_PRODUCT.match(name) is not None:
+            continue
+        if glued_call(name, glued, functions) is None:
+            return True
+    return False
 
 
 def insert_calculator_calls(
@@ -428,10 +454,11 @@ def insert_calculator_calls(
     2 sin x cos x -> 2*sin(x)*cos(x), sin^2 x -> sin^2(x), sin^-1 x -> sin^-1(x) (asin),
     sin x^2 -> sin(x^2), x ln x -> x*ln(x), sin cos x -> sin(cos(x)). A name in glued_names
     may touch a one-letter operand, with one letter before it: sinx -> sin(x), sin2x ->
-    sin(2x), xlnx -> x*ln(x). The operand is an implicit product (numbers, pi, e and names),
-    with powers; it stops before another function. Where the textbook reading is not clear
-    the text is left as it is, for the engines to refuse: sin x y, sin 2*x, sin x/2,
-    sin x(x+1). So is text that already has its parentheses (sin(x), sin^2(x)), a name with
+    sin(2x), xlnx -> x*ln(x), sinx/x -> sin(x)/x (but sinx(x+1) and sinx^-1 are left), except
+    beside names written as words: in revenue - cost, cost is a variable (has_word_names). The
+    operand is an implicit product (numbers, pi, e and names), with powers; it stops before
+    another function. Where the textbook reading is not clear the text is left as it is, for
+    the engines to refuse: sin x y, sin 2*x, sin x/2, sin x(x+1). So is text that already has its parentheses (sin(x), sin^2(x)), a name with
     "_", names in keep (a variable such as cost) and, as a whole, function_names (sech, coth:
     never sec(h) or cot(h)).
     """
@@ -440,6 +467,8 @@ def insert_calculator_calls(
     if not any(name in text for name in unary | glued):
         return text
     tokens = [match for match in _TOKEN.finditer(text) if not match.group(0)[0].isdigit()]
+    if has_word_names([match.group(0) for match in tokens], glued, functions):
+        glued = set()  # revenue - cost: cost is a variable too
     for match in reversed(tokens):
         text = _calculator_call(text, match.start(), match.group(0), unary, glued, kept, functions)
     return text
@@ -472,7 +501,7 @@ def _calculator_call(
             return text
         prefix, function, glued_operand = parts
         operand_end = _power_end(text, end)
-        if _unclear_after(text, operand_end, unary):
+        if _unclear_after(text, operand_end, unary, glued=True):
             return text
         call = f"{function}({glued_operand}{text[end:operand_end]})"
         if prefix:
@@ -524,12 +553,13 @@ def _starts_factor(text: str, index: int, unary: Set[str]) -> bool:
     return token is not None and token.group(0) not in unary
 
 
-def _unclear_after(text: str, index: int, unary: Set[str]) -> bool:
-    """True when the operand ending at index could go on: sin 2*x, sin x/2, sin x(x+1), sin x^-1."""
+def _unclear_after(text: str, index: int, unary: Set[str], glued: bool = False) -> bool:
+    """True when the operand ending at index could go on: sin 2*x, sin x/2, sin x(x+1), sin x^-1.
+    A glued operand ends with its letter, so only ( and ^ make it unclear: sinx/x is sin(x)/x."""
     following = _next_non_space(text, index)
     if following < len(text) and text[following] in "(^":
         return True  # sin x(x+1), sin x^-1
-    if following >= len(text) or text[following] not in "*/":
+    if glued or following >= len(text) or text[following] not in "*/":
         return False
     after = _next_non_space(text, following + 1)
     return _starts_factor(text, after, unary) or text[after : after + 1] == "("

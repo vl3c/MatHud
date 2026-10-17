@@ -305,10 +305,25 @@ CALCULATOR_EQUIVALENT = [
     ["2*exponent", "exponent + exponent"],
     ["cos_theta^2", "cos_theta*cos_theta"],
     ["seconds*1000", "1000seconds"],
+    ["revenue - cost", "-(cost - revenue)"],
     ["sinhx", "sinh(x)"],
     ["coshx", "cosh x"],
+    ["asinhx", "asinh(x)"],
+    ["acoshx", "acosh(x)"],
+    ["atanhx", "atanh x"],
+    ["xasinhx", "x*asinh(x)"],
+    # a glued call before / or *
+    ["sinx/x", "sin(x)/x"],
+    ["lnx/x", "ln(x)/x"],
+    ["lnx / x", "ln(x)/x"],
+    ["sqrtx/x", "1/sqrtx"],
+    ["sinx*2", "2sin(x)"],
+    ["2cosx*x", "2x*cos(x)"],
+    ["sinx/2", "sin(x)/2"],
+    ["sinhx/x", "sinh(x)/x"],
 ]
 CALCULATOR_WRONG = [
+    ["revenue - cost", "revenue - cos(t)"],
     ["(x+1)e^x", "xe^x + 1"],
     ["2xe^(x^2)", "2e^(x^2)"],
     ["xpi", "pi + x"],
@@ -360,6 +375,8 @@ class TestCalculatorNotation(unittest.TestCase):
             (["xy", "yx"], "xy and yx are each read as one variable; write x*y"),
             (["log2x", "log2(x)"], "log2x is read as one variable; write log2(x) or log(2x)"),
             (["log10x", "log(10x)"], "log10x is read as one variable; write log10(x) or log(10x)"),
+            (["sinx^-1", "1/sin(x)"], "sinx is read as one variable here; write sin(x)"),
+            (["xlnx^-1", "x/ln(x)"], "xlnx is read as one variable here; write x*ln(x)"),
         ):
             with self.subTest(steps=steps):
                 record = engines.check(steps)["steps"][0]
