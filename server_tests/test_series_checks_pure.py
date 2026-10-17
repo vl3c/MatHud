@@ -71,6 +71,15 @@ class TestTaylorMatches(unittest.TestCase):
             ("x/(e^x-1)", "1 - x/2 + x^2/12", 0.0, 2),
             ("(x^3-1)/(x-1)", "3 + 3*(x-1) + (x-1)^2", 1.0, 3),
             ("(sqrt(1+x)-1)/x", "1/2 - x/8 + x^2/16", 0.0, 2),
+            # rounding in f that grows toward the centre, or a value that stops changing
+            ("(1-cos(x))/x^2", "1/2 - x^2/24", 0.0, 2),
+            ("(1-cos(x))/x^2", "1/2 - x^2/24", 0.0, 3),
+            ("(cosh(x)-1)/x^2", "1/2 + x^2/24", 0.0, 3),
+            ("(2^x-1)/x", "0.6931471805599453", 0.0, 0),
+            ("(2^x-1)/x", "0.6931471805599453 + 0.2402265069591007*x", 0.0, 1),
+            ("sin(x)/(x-pi)", "-1 + (x-pi)^2/6", math.pi, 1),
+            ("(1-cos(x^2))/x^4", "1/2 - x^4/24", 0.0, 4),
+            ("(sec(x)-1)/x^2", "1/2 + 5*x^2/24", 0.0, 3),
         ):
             with self.subTest(function=function, center=center, order=order):
                 self.assertIs(_matches(function, polynomial, center, order), True)
@@ -89,6 +98,9 @@ class TestTaylorMatches(unittest.TestCase):
         # wrong coefficients of a quotient with cancellation
         self.assertIs(_matches("(e^x-1)/x", "1 + x/3", 0.0, 1), False)
         self.assertIs(_matches("(1-cos(x))/x^2", "1/2 - x^2/12", 0.0, 2), False)
+        self.assertIs(_matches("(2^x-1)/x", "0.6931471805599453 + 0.3*x", 0.0, 1), False)
+        # a wrong constant whose error passes through 0 (|e^x - 1.1 - x|) is not passed
+        self.assertIsNot(_matches("e^x", "1.1 + x", 0.0, 1), True)
         # a polynomial at the wrong centre
         self.assertIs(_matches("sin(x)", "x - x^3/6", 1.0, 3), False)
 

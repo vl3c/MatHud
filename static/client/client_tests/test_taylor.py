@@ -63,6 +63,12 @@ class TestTaylorSympy(unittest.TestCase):
         self.assertEqual(_taylor("|x|", "1", 1)["polynomial"], "1 + (x-1)")
         self.assertEqual(_taylor("e^(2t)", "0", 2, variable="t")["polynomial"], "1 + 2*t + 2*t^2")
 
+    def test_quotients_that_lose_precision_near_the_point(self) -> None:
+        # math.js rounds cos(h) to 1 - h^2/2 and 2^h to 1 + h*ln(2) near 0: still checked as right
+        self.assertEqual(_taylor("(1-cos(x))/x^2", "0", 2)["polynomial"], "1/2 - x^2/24")
+        self.assertEqual(_taylor("(e^x-1)/x", "0", 1)["polynomial"], "1 + x/2")
+        self.assertTrue(_taylor("(2^x-1)/x", "0", 1)["polynomial"].startswith("log(2)"))
+
     def test_exact_flat_and_refused(self) -> None:
         result = _taylor("x^3+2x", "1", 5)
         self.assertEqual(result["remainder_note"], "Exact: the function is its own Taylor polynomial of this order.")

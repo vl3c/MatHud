@@ -1017,8 +1017,9 @@ MAX_TAYLOR_ORDER = 10
 # omitted term (where the series is needed, 5 takes order 10 of abs(x)*e^x past the time limit).
 TAYLOR_LOOKAHEAD = 3
 # The derivatives are given up for the series once one has more operations than this: they
-# grow about tenfold per step on roots of quotients (sqrt((1-x)/(1+x))).
-MAX_DERIVATIVE_OPS = 2000
+# grow about tenfold per step on roots of quotients (sqrt((1-x)/(1+x))), and steadily on
+# e^(-x^2)/(1+x), whose series is quicker; x^x at 2 needs about 600.
+MAX_DERIVATIVE_OPS = 1000
 # A polynomial up to this degree has its first omitted term found beyond the lookahead.
 MAX_TAIL_DEGREE = 100
 
@@ -1108,19 +1109,23 @@ def _two_sided_coefficients(
     """The coefficients of (x - a)^0 .. (x - a)^(count-1) from the right of a and from the
     left (the left ones up to the order only, unless the function may break off beyond it).
 
-    A function without abs, sign, floor and the like whose derivatives at a are all finite
-    real numbers takes its coefficients from them, one list for both sides: the series at
-    a point other than 0 can run past the time limit (e^(-x^2) at 1). Otherwise, as for
-    sin(x)/x at 0 or abs(x)^3 at 0, each side comes from its series."""
+    At a point other than 0, a function without abs, sign, floor and the like whose
+    derivatives at a are all finite real numbers takes its coefficients from them, one list
+    for both sides: the series there can run past the time limit (e^(sin(x)) at pi/3).
+    Otherwise, as at 0 (where the series is quick) or for abs(x)^3, each side comes from its
+    series."""
     import sympy as sp
 
     breaking = function.has(sp.Abs, sp.sign, sp.floor, sp.ceiling, sp.Min, sp.Max, sp.Mod)
-    if not breaking:
+    if not breaking and center != 0:
         coefficients = _derivative_coefficients(function, x, center, count)
         if coefficients is not None:
             return coefficients, coefficients
     h = sp.Dummy("h", real=True)
-    shifted = function.subs(x, center + h)
+    # e^(-(1+h)^2) as e^(-1) e^(-2h) e^(-h^2): SymPy's series of that is much quicker
+    shifted = function.subs(x, center + h).replace(
+        lambda part: isinstance(part, sp.exp), lambda part: sp.expand(sp.exp(sp.expand(part.args[0])))
+    )
     right = _series_coefficients(shifted, h, count, "+")
     # The left side to the order only, unless the function has a part that may break off
     # beyond it (abs(x)^3 at 0 is smooth to order 2 only); the series is the slow step.
