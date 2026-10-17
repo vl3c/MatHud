@@ -551,6 +551,37 @@ def test_a_convergence_question_is_not_a_taylor_polynomial(service: ToolSearchSe
     assert "taylor_polynomial" not in _names(service, "Does the series of 1/n^2 converge?")[:3]
 
 
+# Closed forms of sums come from simplify(summation(...)); a sum of numbers and a normal
+# distribution's sigma do not
+@pytest.mark.parametrize(
+    "query",
+    [
+        "Find a closed form for the sum of k^2 from 1 to n.",
+        "What is the sum of 1/k^2 from 1 to infinity?",
+        "Sum of the geometric series 3*(1/2)^k for k from 0 to infinity.",
+        "What is the formula for the sum of the first n odd numbers?",
+        "Does the series of 1/n^2 converge?",
+        "Is the infinite series of (-1)^k/k convergent?",
+        "sum of 1/2^k for k from 0 to ∞",
+    ],
+)
+def test_sums_rank_simplify_first(service: ToolSearchService, query: str) -> None:
+    assert _names(service, query)[0] == "simplify"
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "Plot a normal distribution with mean 0 and sigma 1, shade from 0 to infinity.",
+        "Sum of the values 3, 5, 9.",
+        "Maclaurin series of sin(x).",
+        "Compute the sum of k from 1 to 10",
+    ],
+)
+def test_other_sums_do_not_rank_simplify_first(service: ToolSearchService, query: str) -> None:
+    assert _names(service, query)[0] != "simplify"
+
+
 # Partial fractions rank expand first; an exact fraction stays with simplify
 @pytest.mark.parametrize(
     "query",

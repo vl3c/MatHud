@@ -1596,7 +1596,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "simplify",
-            "description": "Simplifies a mathematical expression. Numbers stay exact, so it also gives exact answers to arithmetic: '1/3 + 1/4' gives 7/12, 'sqrt(12)' gives 2*sqrt(3) and '0.1 + 0.2' gives 3/10. Use it when the user wants an exact fraction or radical rather than a decimal.",
+            "description": "Simplifies a mathematical expression. Numbers stay exact, so it also gives exact answers to arithmetic: '1/3 + 1/4' gives 7/12, 'sqrt(12)' gives 2*sqrt(3) and '0.1 + 0.2' gives 3/10. Use it when the user wants an exact fraction or radical rather than a decimal. For the closed form of a sum or series, give the sum alone as summation(term, k, a, b): 'summation(k^2, k, 1, n)' gives n*(n+1)*(2*n+1)/6, 'summation(1/k^2, k, 1, Infinity)' gives pi^2/6 and 'summation(r^k, k, 0, Infinity)' gives 1/(1-r) for -1 < r < 1; a divergent series is reported as such. The bounds are whole numbers, a symbol such as n (or 2n, n-1), or Infinity for the upper one. Write products with * (k*x, not kx) and factorials as k! or factorial(k).",
             "strict": True,
             "parameters": {
                 "type": "object",
