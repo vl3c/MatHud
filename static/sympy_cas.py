@@ -1311,6 +1311,8 @@ MAX_EXACT_SUM_LENGTH = 60
 # A closed form is simplified only up to this many operations (count_ops): simplify takes
 # 6 s on the 50 sines of sin(k*x) to 50, and 12 s on the 100 radicals of sqrt(k) to 100.
 MAX_SUM_SIMPLIFY_OPS = 60
+# A fraction longer than this comes with its decimal (6439880978201/512000000).
+MAX_PLAIN_FRACTION_LENGTH = 12
 # A closed form with symbols whose text is longer than this is not given.
 MAX_SUM_FORM_LENGTH = 400
 # A form SymPy gives that calculators lack (harmonic(n), zeta(3)) is named up to this length.
@@ -1402,6 +1404,8 @@ def _sum_bounds(lower: str, upper: str, index: str) -> Tuple[Any, Any, Any]:
     symbols = low.free_symbols | high.free_symbols
     if any(str(symbol) == index for symbol in symbols):
         raise ExpressionError(f"The index {index} cannot appear in a bound.")
+    if any(str(symbol).lower().startswith("inf") for symbol in symbols):
+        raise ExpressionError(f"{_BOUND_RULE} Write an infinite upper bound as Infinity.")
     if len(symbols) > 1:
         raise ExpressionError(f"{_BOUND_RULE} The bounds have more than one symbol: {_names(symbols)}.")
     if low in (sp.oo, -sp.oo) or high == -sp.oo:
@@ -1617,7 +1621,8 @@ def _sum_record(expression: Any, condition: Any, bound: Any, finite: bool = Fals
         return _too_long(form)
     if len(record["value"]) > MAX_SUM_FORM_LENGTH:
         return {"value": None, "reason": "too_long"}
-    if constant and not form.is_Rational and _is_real_value(form):
+    long_fraction = form.is_Rational and not form.is_Integer and len(record["value"]) > MAX_PLAIN_FRACTION_LENGTH
+    if constant and (long_fraction or not form.is_Rational) and _is_real_value(form):
         record["decimal"] = _decimal(form)
     if condition is not None:
         described = _condition_record(condition)
@@ -1673,24 +1678,24 @@ def _condition_record(condition: Any) -> Optional[Dict[str, Any]]:
 
 
 def _region_text(region: Any, name: str) -> Optional[str]:
-    """-1 < r < 1, -1 <= x < 1, r < 1, r != 1, ... for an interval or the reals but one point."""
+    """The condition as text: -1 < r < 1, -1 <= x < 1, r < 1 for an interval; r != -1 and
+    r != 0 for the reals but finitely many points; x < -1 or x > 1 for other unions of
+    intervals; None for any other set."""
     import sympy as sp
 
-    if isinstance(region, sp.Union) and len(region.args) == 2:
-        first, second = sorted(region.args, key=lambda part: float(part.inf))
-        if (
-            isinstance(first, sp.Interval)
-            and isinstance(second, sp.Interval)
-            and first.inf == -sp.oo
-            and second.sup == sp.oo
-            and first.sup == second.inf
-            and first.right_open
-            and second.left_open
-        ):
-            return f"{name} != {to_text(first.sup)}"
+    parts = sorted(region.args, key=lambda part: float(part.inf)) if isinstance(region, sp.Union) else [region]
+    if not all(isinstance(part, sp.Interval) for part in parts):
         return None
-    if not isinstance(region, sp.Interval):
-        return None
+    removed = [first.sup for first, second in zip(parts, parts[1:]) if first.sup == second.inf]
+    if len(parts) > 1 and len(removed) == len(parts) - 1 and parts[0].inf == -sp.oo and parts[-1].sup == sp.oo:
+        return " and ".join(f"{name} != {to_text(point)}" for point in removed)
+    return " or ".join(_condition_interval(part, name) for part in parts)
+
+
+def _condition_interval(region: Any, name: str) -> str:
+    """-1 < r < 1, -1 <= x < 1, r < 1, x >= 0 for one interval."""
+    import sympy as sp
+
     left = "<" if region.left_open else "<="
     right = "<" if region.right_open else "<="
     if region.inf == -sp.oo:

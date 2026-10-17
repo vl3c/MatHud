@@ -48,6 +48,14 @@ class TestClosedFormSumsSympy(unittest.TestCase):
             ("summation(1/2^k, k, 0, inf)", "2"),
             ("summation(1/k!, k, 0, Infinity)", "e (about 2.71828182846)"),
             ("summation(r^k, k, 0, Infinity)", "1/(1-r) (for -1 < r < 1)"),
+            # other spellings of infinity are never a bound symbol named so
+            ("summation(1/2^k, k, 1, infinity)", "1"),
+            ("summation(r^k, k, 0, Inf)", "1/(1-r) (for -1 < r < 1)"),
+            ("summation(1/k^2, k, 1, infty)", "pi^2/6 (about 1.64493406685)"),
+            ("summation(k^2, k, 1, +INFINITY)", "The series diverges: its partial sums tend to Infinity."),
+            # a condition that is a union of intervals
+            ("summation(1/x^k, k, 0, Infinity)", "x/(x-1) (for x < -1 or x > 1)"),
+            ("summation(C/(1+r)^k, k, 1, n)", "C/r-C/(r*(r+1)^n) (for r != -1 and r != 0)"),
         ):
             with self.subTest(text=text):
                 self.assertEqual(_simplify(text), expected)

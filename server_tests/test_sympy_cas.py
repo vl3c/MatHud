@@ -733,7 +733,10 @@ class TestSummation(unittest.TestCase):
     def test_numeric_bounds(self) -> None:
         self.assertEqual(compute_summation("k^2", "k", "1", "100"), {"value": "338350"})
         self.assertEqual(compute_summation("k^2", "k", "-3", "3"), {"value": "28"})
-        self.assertEqual(compute_summation("1/factorial(k)", "k", "0", "10"), {"value": "9864101/3628800"})
+        self.assertEqual(
+            compute_summation("1/factorial(k)", "k", "0", "10"),
+            {"value": "9864101/3628800", "decimal": "2.71828180114638"},
+        )
         self.assertEqual(
             compute_summation("sqrt(k)", "k", "1", "5"),
             {"value": "sqrt(2)+sqrt(3)+sqrt(5)+3", "decimal": "8.38233234744176"},
@@ -829,6 +832,25 @@ class TestSummation(unittest.TestCase):
                     compute_summation(term, "k", "1", "Infinity"), {"value": None, "reason": "no_closed_form"}
                 )
                 self.assertLess(time.monotonic() - started, 3.0)
+
+    def test_conditions_that_are_unions_of_intervals(self) -> None:
+        result = compute_summation("1/x^k", "k", "0", "Infinity")
+        self.assertEqual((result["value"], result["condition"]), ("x/(x-1)", "x < -1 or x > 1"))
+        self.assertEqual(len(result["condition_intervals"]), 2)
+        result = compute_summation("C/(1+r)^k", "k", "1", "n")  # an annuity's present value
+        self.assertEqual((result["value"], result["condition"]), ("C/r-C/(r*(r+1)^n)", "r != -1 and r != 0"))
+
+    def test_an_infinity_spelled_otherwise_is_not_a_bound_symbol(self) -> None:
+        for upper in ("infinity", "Inf", "infty", "INFINITY"):
+            with self.subTest(upper=upper), self.assertRaisesRegex(ExpressionError, "as Infinity"):
+                compute_summation("1/2^k", "k", "1", upper)
+
+    def test_long_fractions_come_with_their_decimal(self) -> None:
+        self.assertEqual(
+            compute_summation("1000*(21/20)^k", "k", "0", "9"),
+            {"value": "6439880978201/512000000", "decimal": "12577.8925355488"},
+        )
+        self.assertEqual(compute_summation("1/k", "k", "1", "10"), {"value": "7381/2520"})
 
     def test_odd_sympy_results(self) -> None:
         # SymPy gives nan for a sum of 1/2 - pi/8

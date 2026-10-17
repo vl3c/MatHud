@@ -40,6 +40,8 @@ MAX_EXPRESSION_LENGTH = 1000
 _CONSTANT_NAMES = ("i", "j", "e", "E", "pi")
 _INDEX_NAMES = ("k", "m", "p", "q", "t", "u", "v", "w")
 _INFINITY_NAMES = ("Infinity", "+Infinity", "inf", "+inf", "oo", "+oo")
+# Bounds read as Infinity, in any case and after an optional sign.
+_INFINITY_SPELLINGS = ("infinity", "inf", "infty", "infinite", "oo", "∞")
 # Values given to the other symbols of a term, one set per check (x^k/k! is checked at two x).
 SAMPLE_SETS = ((0.53, 1.27, 0.71), (-0.61, 0.29, 1.9))
 # A value inside a condition's interval keeps this share of a finite interval's width from its ends.
@@ -174,7 +176,10 @@ class ClosedFormSums:
         from utils.math_utils import MathUtils
 
         text = str(MathUtils._cas_input(str(bound).strip())).replace(" ", "")
-        return "Infinity" if text in _INFINITY_NAMES else text
+        sign, body = (text[0], text[1:]) if text[:1] in "+-" else ("", text)
+        if body.lower() in _INFINITY_SPELLINGS:  # infinity, Inf, infty: never a bound symbol named so
+            return f"{'-' if sign == '-' else ''}Infinity"
+        return text
 
     # ----- engines ------------------------------------------------------------------------
 
