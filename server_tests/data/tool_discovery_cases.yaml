@@ -2,8 +2,8 @@
   "metadata": {
     "schema_version": 1,
     "description": "Tool discovery benchmark cases for search_tools semantic routing.",
-    "expected_tool_count": 88,
-    "expected_tool_hash": "83e8adde606967b1d631a908ea6dd55c4a98ca7ae56ec0975027bf85d6332c3e",
+    "expected_tool_count": 94,
+    "expected_tool_hash": "46df085813a39f34ae443d6c2c04c20e8fa7d1da5825b6ddd86f21373aeba316",
     "confusion_clusters": {
       "convert_cluster": [
         "convert",
@@ -2610,6 +2610,156 @@
       ],
       "category": "unique_intent",
       "difficulty": "normal"
+    },
+    {
+      "id": "u_solve_inequality_1",
+      "query": "Solve x^2 - 5x + 6 < 0.",
+      "expected_any": [
+        "solve"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_solve_inequality_2",
+      "query": "For which x is |x - 1| >= 2?",
+      "expected_any": [
+        "solve"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_solve_inequality_3",
+      "query": "Solve sin(x) > 1/2 for x in [0, 2pi].",
+      "expected_any": [
+        "solve"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "cf_inequality_not_piecewise",
+      "query": "For which x is x >= 2 and x^2 < 9?",
+      "expected_any": [
+        "solve"
+      ],
+      "forbidden": [
+        "search_tools",
+        "draw_piecewise_function"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "solve_cluster"
+    },
+    {
+      "id": "cf_inequality_when",
+      "query": "When is x > 3 - x?",
+      "expected_any": [
+        "solve"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "solve_cluster"
+    },
+    {
+      "id": "cf_numeric_solve_not_symbolic",
+      "query": "Numerically solve cos(x)=x.",
+      "expected_any": [
+        "solve_numeric"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "solve_cluster"
+    },
+    {
+      "id": "cf_piecewise_definition_not_inequality",
+      "query": "Define f(x) = x for x<0 and x^2 when x>=0.",
+      "expected_any": [
+        "draw_piecewise_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "cf_piecewise_cases_not_inequality",
+      "query": "When x < 0 the function is -x, when x >= 0 it is x^2.",
+      "expected_any": [
+        "draw_piecewise_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "cf_area_over_range_not_inequality",
+      "query": "Find the area under x^2 for 0 < x < 2.",
+      "expected_any": [
+        "create_colored_area"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard"
+    },
+    {
+      "id": "cf_integral_over_range_not_inequality",
+      "query": "Find the integral of x^2 from 0 to 2 where x > 0.",
+      "expected_any": [
+        "integrate"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard"
+    },
+    {
+      "id": "cf_derivative_with_condition_not_inequality",
+      "query": "Find the derivative of f(x) = x^2 when x > 0.",
+      "expected_any": [
+        "derive"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard"
+    },
+    {
+      "id": "cf_maximum_on_range_not_inequality",
+      "query": "Find the maximum of f(x)=x^2 when 0<x<3.",
+      "expected_any": [
+        "find_function_features"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard"
     }
   ]
 }

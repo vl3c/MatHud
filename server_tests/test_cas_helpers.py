@@ -22,11 +22,115 @@ from utils.cas_numeric import (  # noqa: E402
 from utils.cas_text import (  # noqa: E402
     find_closing_parenthesis,
     has_inequality,
+    insert_implicit_products,
+    insert_letter_call_products,
     is_unevaluated,
+    parse_interval,
     rewrite_for_nerdamer,
+    split_relation,
     split_top_level_commas,
+    split_top_level_terms,
     unknown_function_names,
 )
+
+
+class TestInequalityText(unittest.TestCase):
+    FUNCTIONS = ("sin", "exp", "abs", "log", "sqrt")
+
+    def test_letter_call_products(self) -> None:
+        cases = {
+            "x(x+2)": "x*(x+2)",
+            "2a(b+1)": "2a*(b+1)",
+            "(x+1)x(x-1)": "(x+1)x*(x-1)",
+            "θ(θ+1)": "θ*(θ+1)",
+            "e(x+1)": "e*(x+1)",
+            "exp(x) + sin (x)": "exp(x) + sin (x)",
+            "x2(3)": "x2(3)",
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(insert_letter_call_products(text, self.FUNCTIONS), expected)
+
+    def test_implicit_products(self) -> None:
+        cases = {
+            "(x-1)(x+2)": "(x-1)*(x+2)",
+            "(x-2)^2 (x+1)": "(x-2)^2*(x+1)",
+            "abs(x-1)(x+1)": "abs(x-1)*(x+1)",
+            "(x+1)x": "(x+1)*x",
+            "(x+1)2": "(x+1)*2",
+            "(x+1) e^x": "(x+1)*e^x",
+            "1e5 x": "1e5*x",
+            "2.5 (x+1)": "2.5*(x+1)",
+            # unchanged: a number directly before a name, exponents, names with digits, operators
+            "2x": "2x",
+            "2(x+1)": "2(x+1)",
+            "1e-5": "1e-5",
+            "x2 + 1": "x2 + 1",
+            "(x+1) + 2": "(x+1) + 2",
+            "sin(x)^2": "sin(x)^2",
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(insert_implicit_products(text), expected)
+
+    def test_split_relation(self) -> None:
+        self.assertEqual(split_relation("x^2 - 5x + 6 < 0"), (["x^2 - 5x + 6", "0"], ["<"]))
+        self.assertEqual(split_relation("1 < 2x+1 <= 5"), (["1", "2x+1", "5"], ["<", "<="]))
+        self.assertEqual(split_relation("x => 2"), (["x", "2"], [">="]))
+        self.assertEqual(split_relation("x =< 2"), (["x", "2"], ["<="]))
+        self.assertEqual(split_relation("5 >= x > 1"), (["5", "x", "1"], [">=", ">"]))
+
+    def test_split_relation_refusals(self) -> None:
+        cases = {
+            "x != 2": "exclude its roots",
+            "x == 2": "single '='",
+            "x > 1 and x < 5": "on its own",
+            "x < 1 or x > 3": "on its own",
+            "1 < x > 0": "point the same way",
+            "1 < x < 2 < 3": "at most two signs",
+            "x = 2 < 3": "'='",
+            "< 2": "missing",
+            "x + 2": "needs one of",
+        }
+        for text, message in cases.items():
+            with self.subTest(text=text):
+                with self.assertRaises(ValueError) as caught:
+                    split_relation(text)
+                self.assertIn(message, str(caught.exception))
+
+    def test_split_top_level_terms(self) -> None:
+        cases = {
+            "x^3 - 2x^2 + x": [(1, "x^3"), (-1, "2x^2"), (1, "x")],
+            "exp(2x) - 3exp(x) + 2": [(1, "exp(2x)"), (-1, "3exp(x)"), (1, "2")],
+            "-x": [(-1, "x")],
+            "-(x) - -1": [(-1, "(x)"), (1, "1")],
+            "1e-10*(x-2)": [(1, "1e-10*(x-2)")],
+            "1.5e+3 - x": [(1, "1.5e+3"), (-1, "x")],
+            "2e-x": [(1, "2e"), (-1, "x")],
+            "x^-1 - 1": [(1, "x^-1"), (-1, "1")],
+            "2*-x+3": [(1, "2*-x"), (1, "3")],
+            "abs(x-1) + abs(x+1)": [(1, "abs(x-1)"), (1, "abs(x+1)")],
+            "x²-1": [(1, "x²"), (-1, "1")],
+            "5": [(1, "5")],
+            "x +": [(1, "x +")],
+            "(x - 1": [(1, "(x - 1")],
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(split_top_level_terms(text), expected)
+
+    def test_parse_interval(self) -> None:
+        self.assertEqual(parse_interval("[0, 2*pi]"), ("0", "2*pi", True, True))
+        self.assertEqual(parse_interval("(0, 2pi)"), ("0", "2pi", False, False))
+        self.assertEqual(parse_interval(" [0, 2*pi) "), ("0", "2*pi", True, False))
+        self.assertEqual(parse_interval("(0, 1]"), ("0", "1", False, True))
+        self.assertEqual(parse_interval("0, 1"), ("0", "1", True, True))
+        self.assertEqual(parse_interval("0, f(1)"), ("0", "f(1)", True, True))
+        self.assertEqual(parse_interval("(1+2), 3"), ("(1+2)", "3", True, True))
+        for text in ("[0, 1", "0", "[0, 1, 2]", "", "[, 1]"):
+            with self.subTest(text=text):
+                with self.assertRaises(ValueError):
+                    parse_interval(text)
 
 
 class TestRewriteForNerdamer(unittest.TestCase):

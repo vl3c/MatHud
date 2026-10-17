@@ -2042,30 +2042,43 @@ class MathUtils:
             return 0
 
     @staticmethod
-    def solve(equation: str, variable: str) -> str:
-        """Solve an equation for a specific variable.
+    def solve(equation: str, variable: str, interval: Optional[str] = None) -> str:
+        """Solve an equation, or an inequality (InequalitySolver), for a specific variable.
 
         Uses Nerdamer symbolic computation for equation solving, then checks each root by
         substituting it back: roots that fail the equation or make it undefined (x = 1 in
         x/(x-1) = 2) are dropped, numerically equal roots are listed once, and decimal roots
         are printed to 15 significant digits. For a polynomial, the roots nerdamer's closed
         forms lose (it finds none for x^3+x+1 = 0) are added from a numeric root finder.
+        With an interval, the server's SymPy engine lists the real roots in it (solveset over
+        the interval); nerdamer's roots are filtered to it.
 
         Args:
-            equation (str): Mathematical equation (e.g., "x^2 + 2*x - 3 = 0")
+            equation (str): Mathematical equation (e.g., "x^2 + 2*x - 3 = 0"), or an
+                inequality ("x^2 - 5x + 6 < 0", "1 < 2x+1 <= 5")
             variable (str): Variable to solve for (e.g., "x")
+            interval (str): The interval the roots, or an inequality's answer, are restricted
+                to ("[0, 2*pi]", brackets honoured), or None
 
         Returns:
             str: The roots as "[r1,r2,...]" ("[]" when there are none), a sentence for an
             identity, or an error message. When a periodic equation has many numeric roots,
-            only those in [-2*pi, 2*pi] are listed, with a note saying so.
+            only those in [-2*pi, 2*pi] are listed, with a note saying so; with an interval,
+            the real roots in it, with a note naming it. An inequality's solution set as
+            inequalities and in interval notation (InequalitySolver.solve).
         """
         from utils.cas_text import has_inequality
 
         if not isinstance(equation, str):
             return "Error: The equation must be given as text."
+        from utils.inequality_solver import InequalitySolver
+
         if has_inequality(MathUtils._normalize_symbols(equation)):
-            return "Error: solve handles equations (with '='), not inequalities."
+            return str(InequalitySolver.solve(equation, variable, interval))
+        try:
+            roots_window = InequalitySolver.window(interval)
+        except ValueError as e:
+            return f"Error: {e}"
         try:
             equation, variable = MathUtils._cas_input(equation), MathUtils._normalize_variable(variable)
         except Exception as e:
@@ -2073,9 +2086,20 @@ class MathUtils:
         sides = equation.split("=")
         if len(sides) > 2:
             return "Error: An equation has at most one '='."
-        answer = MathUtils._sympy_answer("solve", equation=equation, variable=variable)
+        if roots_window is not None:
+            try:
+                others = InequalitySolver.other_names([InequalitySolver.prepared(side) for side in sides], variable)
+            except ValueError:
+                others = []  # left to the engines, which say what they cannot read
+            if others:
+                return (
+                    f"Error: solve lists the roots in an interval for equations in one variable; "
+                    f"besides {variable} it also contains {', '.join(others)}."
+                )
+        interval_args = InequalitySolver.sympy_interval_args(roots_window)
+        answer = MathUtils._sympy_answer("solve", equation=equation, variable=variable, **interval_args)
         if answer is not None and answer["result"] is not None:
-            return MathUtils._sympy_roots(answer["result"], sides, variable)
+            return MathUtils._sympy_roots(answer["result"], sides, variable, roots_window)
         # SymPy found no closed form (cos(x) = x) or ran out of time: nerdamer may still find
         # numeric roots
         try:
@@ -2094,14 +2118,33 @@ class MathUtils:
             return "[]" if "does not equal" in str(e) else MathUtils._error_text(e)
         if raw_solutions is None:
             return MathUtils._took_too_long_message(f"the solutions of {equation} for {variable}")
+        if roots_window is not None and raw_solutions.startswith("["):
+            import re
+
+            roots = MathUtils._checked_roots(raw_solutions, sides, variable, roots_window)
+            # nerdamer's numeric roots of a periodic equation are a sample, not all of them
+            periodic = re.search(r"(?<![A-Za-z_])(?:sin|cos|tan|sec|csc|cot)\s*\(", equation) is not None
+            found = " that nerdamer found; an equation with trig functions may have more" if periodic else ""
+            return f"{roots} (the roots in {roots_window.text()}{found})"
         return MathUtils._checked_roots(raw_solutions, sides, variable)
 
     @staticmethod
-    def _sympy_roots(solution: Dict[str, Any], sides: Sequence[str], variable: str) -> str:
-        """SymPy's solution set as solve() reports it, its roots checked like nerdamer's."""
+    def _sympy_roots(solution: Dict[str, Any], sides: Sequence[str], variable: str, roots_window: Any = None) -> str:
+        """SymPy's solution set as solve() reports it, its roots checked like nerdamer's.
+
+        With roots_window (a real_sets.Window), SymPy listed the real roots in it: the checked
+        roots are filtered to it again, and a note names it ("total" counts the roots when
+        SymPy listed only the first ones).
+        """
         if solution.get("identity"):
             return f"Every value of {variable} satisfies the equation (it is an identity)."
-        roots = MathUtils._checked_roots("[" + ",".join(solution.get("roots") or []) + "]", sides, variable)
+        roots = MathUtils._checked_roots(
+            "[" + ",".join(solution.get("roots") or []) + "]", sides, variable, roots_window
+        )
+        if roots_window is not None:
+            total = solution.get("total")
+            listed = f"the first {len(solution.get('roots') or [])} of {total}" if total else "the"
+            return f"{roots} ({listed} roots in {roots_window.text()})"
         window = solution.get("window")
         if not window:
             return roots
@@ -2134,8 +2177,11 @@ class MathUtils:
         return "[]"
 
     @staticmethod
-    def _checked_roots(raw_solutions: str, sides: Sequence[str], variable: str) -> str:
-        """nerdamer's root list checked and tidied (see solve()); other text is returned unchanged."""
+    def _checked_roots(raw_solutions: str, sides: Sequence[str], variable: str, roots_window: Any = None) -> str:
+        """nerdamer's root list checked and tidied (see solve()); other text is returned unchanged.
+
+        With roots_window (a real_sets.Window), only the real roots in it are kept, in order.
+        """
         from utils.cas_numeric import format_complex
 
         if not (raw_solutions.startswith("[") and raw_solutions.endswith("]")):
@@ -2164,8 +2210,28 @@ class MathUtils:
                     text = format_complex(value)
             roots.append((text, value))
         roots.extend(MathUtils._missing_polynomial_roots(sides, variable, roots, numeric_roots))
+        if roots_window is not None:
+            return "[" + ",".join(text for text, _ in MathUtils._roots_in_window(roots, roots_window)) + "]"
         listed, note = MathUtils._roots_in_principal_window(roots, sides)
         return "[" + ",".join(text for text, _ in listed) + "]" + note
+
+    @staticmethod
+    def _roots_in_window(
+        roots: List[Tuple[str, Optional[complex]]], roots_window: Any
+    ) -> List[Tuple[str, Optional[complex]]]:
+        """The real roots in roots_window, sorted; a root within rounding of an end counts as that end."""
+        kept: List[Tuple[str, Optional[complex]]] = []
+        for text, value in roots:
+            if value is None or abs(value.imag) > 1e-12 * max(1.0, abs(value.real)):
+                continue
+            point = value.real
+            ends = ((roots_window.lower, roots_window.lower_closed), (roots_window.upper, roots_window.upper_closed))
+            for end, closed in ends:
+                if math.isfinite(end) and abs(point - end) <= 1e-9 * max(1.0, abs(end)):
+                    point = end if closed else math.nan
+            if not math.isnan(point) and roots_window.contains(point):
+                kept.append((text, value))
+        return sorted(kept, key=lambda item: item[1].real if item[1] is not None else 0.0)
 
     @staticmethod
     def _is_decimal_root(text: str) -> bool:

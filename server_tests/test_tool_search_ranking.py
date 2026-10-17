@@ -8,7 +8,7 @@ offered when the query is about tests.
 
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import pytest
 
@@ -359,3 +359,99 @@ def test_function_definition_with_points_mentioned_still_plots_the_function(
     service: ToolSearchService, query: str, expected: str
 ) -> None:
     assert _names(service, query)[0] == expected
+
+
+# The solution set of an inequality comes from solve; piecewise rules and shading keep their tools.
+@pytest.mark.parametrize(
+    "query",
+    [
+        "Solve x^2 - 5x + 6 < 0.",
+        "For which x is |x - 1| >= 2?",
+        "Solve sin(x) > 1/2 for x in [0, 2pi].",
+        "for which x is x >= 2 and x^2 < 9",
+        "when is x > 3 - x",
+        "solve the inequality 2x + 3 ≤ 7",
+        "when is 2x+1 > 7",
+        "find the zeros of sin(x) for 0 < x < 2pi",
+    ],
+)
+def test_inequalities_to_solve_rank_solve_first(service: ToolSearchService, query: str) -> None:
+    names = _names(service, query)
+    assert names[0] == "solve", names
+    assert "draw_piecewise_function" not in names, names
+
+
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("Graph f(x)=1 for x<0 and -1 for x>=0.", "draw_piecewise_function"),
+        ("Plot a piecewise function: x^2 for x<0 and 2x+1 for x>=0.", "draw_piecewise_function"),
+        ("Shade the region where y > x^2", "create_region_colored_area"),
+        ("Compute lim x->infinity (1+1/x)^x.", "limit"),
+    ],
+)
+def test_drawing_an_inequality_or_an_arrow_is_not_solving_one(
+    service: ToolSearchService, query: str, expected: str
+) -> None:
+    assert _names(service, query)[0] == expected
+
+
+# A condition on x that only qualifies another operation, or a function defined by cases,
+# is not an inequality to solve.
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("define f(x) = x for x<0 and x^2 when x>=0", "draw_piecewise_function"),
+        ("f(x) = x if x < 0, x^2 when x >= 0", "draw_piecewise_function"),
+        ("when x < 0 the function is -x, when x >= 0 it is x^2", "draw_piecewise_function"),
+        ("find the area under x^2 for 0 < x < 2", "create_colored_area"),
+        ("find the integral of x^2 from 0 to 2 where x > 0", "integrate"),
+        ("find the derivative of f(x) = x^2 when x > 0", "derive"),
+        ("find the maximum of f(x)=x^2 when 0<x<3", "find_function_features"),
+    ],
+)
+def test_conditions_that_qualify_another_operation_do_not_rank_solve_first(
+    service: ToolSearchService, query: str, expected: str
+) -> None:
+    assert _names(service, query)[0] == expected
+
+
+# A probability's condition and a condition on points are no inequalities to solve either
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("find P(X > 2) for a normal with mean 0 and sigma 1", "plot_distribution"),
+        ("find p(x < 3) for the normal distribution with mean 2", "plot_distribution"),
+        ("find the distance between points A and B where A.x < B.x", None),
+    ],
+)
+def test_probabilities_and_distances_do_not_rank_solve_first(
+    service: ToolSearchService, query: str, expected: Optional[str]
+) -> None:
+    names = _names(service, query)
+    assert names[0] != "solve", names
+    if expected is not None:
+        assert expected in names[:3], names
+
+
+# Statistics, geometric measurements and objects, a relation between two named objects (AB >
+# BC) and a value asked under a condition keep their own tools
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("find the standard deviation for values > 5", "compute_descriptive_statistics"),
+        ("find the median of data where x > 3", "compute_descriptive_statistics"),
+        ("find the angle ABC where AB > BC", "create_angle"),
+        ("find the length of segment AB when AB > 3", "create_segment"),
+        ("find the perimeter of triangle ABC if AB < 5", "create_polygon"),
+        ("which points have x > 3", None),
+        ("when x < 0 what is |x|", None),
+    ],
+)
+def test_measurements_and_named_relations_do_not_rank_solve_first(
+    service: ToolSearchService, query: str, expected: Optional[str]
+) -> None:
+    names = _names(service, query)
+    assert names[0] != "solve", names
+    if expected is not None:
+        assert expected in names[:3], names

@@ -1481,11 +1481,12 @@ def register_routes(app: MatHudFlask) -> None:
         """Run one SymPy computation for the CAS tools (static/sympy_cas.py).
 
         Request body:
-            operation (str): limit, integrate, solve, simplify or derive
+            operation (str): limit, integrate, solve, solve_inequality, simplify or derive
             args (dict): the operation's arguments, all strings (or null for an absent bound)
 
         Returns:
-            data {"result": ...} (null when SymPy has no answer), {"error": message} for an
+            data {"result": ...} (null when SymPy has no answer; its numbers are text, so
+            Brython's json.loads can read them), {"error": message} for an
             expression it refuses, {"timeout": true}, 503 when SymPy is not installed (the
             client then stops asking and uses nerdamer) or 502 when its worker did not answer.
         """
