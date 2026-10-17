@@ -490,3 +490,18 @@ def test_other_operations_do_not_rank_check_steps_first(service: ToolSearchServi
 
 def test_a_derivative_is_not_a_derivation(service: ToolSearchService) -> None:
     assert _names(service, "What is the derivative of x^3 + 2x - 1?")[0] == "derive"
+
+
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("What is the equivalent of 5 miles in kilometers?", "convert"),
+        ("equivalent fractions of 1/2", "simplify"),
+    ],
+)
+def test_equivalent_units_and_fractions_are_not_derivations(
+    service: ToolSearchService, query: str, expected: str
+) -> None:
+    names = _names(service, query)
+    assert names[0] == expected, names
+    assert "check_steps" not in names[:3], names

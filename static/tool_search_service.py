@@ -185,8 +185,9 @@ _CONNECT_EXCLUDED_WORDS = frozenset(
 )
 # The step checker: "check my steps", "which step of this derivation is wrong", "is x^2 - 1
 # equivalent to (x-1)(x+1)?", "did I make a mistake going from (a+b)^2 to a^2 + b^2?".
-# Shapes, constructions, graphs and units keep their own tools ("is triangle ABC equivalent
-# to DEF?", "follow these steps to construct ...", "the equivalent of 5 miles in km").
+# Shapes, constructions, graphs, units and fractions keep their own tools ("is triangle ABC
+# equivalent to DEF?", "follow these steps to construct ...", "the equivalent of 5 miles in
+# km", "equivalent fractions of 1/2").
 _DERIVATION_WORDS = frozenset({"derivation", "derivations"})
 _STEP_WORDS = frozenset({"step", "steps", "working", "workings", "algebra", "simplification"})
 _STEP_CHECK_WORDS = frozenset(
@@ -203,6 +204,7 @@ _NOT_STEP_WORDS = frozenset(
     | {"construct", "construction", "constructions", "congruent", "similar", "shape", "shapes"}
     | {"graph", "graphs", "vertex", "vertices", "edge", "edges", "node", "nodes"}
     | {"unit", "units", "miles", "km", "kilometers", "meters", "inches", "feet", "celsius", "fahrenheit"}
+    | {"fraction", "fractions"}
 )
 # Point names such as A, B or A' in the query as typed; "connect A and B" needs two of
 # them (the pronoun "I" is not one).
@@ -1094,9 +1096,11 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             )
         ):
             scores["check_steps"] += 10.0
+        elif token_set & _NOT_STEP_WORDS and token_set & _EQUIVALENCE_WORDS:
+            scores["check_steps"] -= 10.0  # the equivalent of 5 miles in km, equivalent fractions
 
         # -- Convert (unit vs coordinate) --
-        if token_set & {"convert", "change"} and token_set & {
+        if token_set & ({"convert", "change"} | _EQUIVALENCE_WORDS) and token_set & {
             "unit", "units", "temperature", "celsius", "fahrenheit",
             "miles", "km", "kilometers", "meters", "inches", "feet",
         }:
