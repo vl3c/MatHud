@@ -2452,7 +2452,27 @@ class TestSequencesAndSeries(unittest.TestCase):
 
     def test_summation_rejects_too_many_terms(self) -> None:
         with self.assertRaises(ValueError):
-            MathUtils.summation("n", "n", 0, 1000)  # 1001 terms
+            MathUtils.summation("n", "n", 0, 100000)  # 100001 terms
+
+    def test_summation_index_named_like_a_constant(self) -> None:
+        # math.js's scope overrides its constants i and e (nerdamer read i^2 as -1 here)
+        self.assertEqual(MathUtils.summation("i^2", "i", 1, 3), "14")
+        self.assertEqual(MathUtils.summation("e", "e", 1, 3), "6")
+        self.assertEqual(MathUtils.evaluate("summation('i^2','i',1,3)"), "14")
+
+    def test_summation_reads_python_powers(self) -> None:
+        # evaluate_expression passes the quoted term on in Python syntax
+        self.assertEqual(MathUtils.summation("k**2", "k", 1, 3), "14")
+
+    def test_summation_of_many_terms(self) -> None:
+        total = float(MathUtils.summation("1/k^2", "k", 1, 100000))
+        self.assertAlmostEqual(total, math.pi**2 / 6 - 1 / 100000, places=9)
+
+    def test_summation_rejects_terms_that_are_not_real(self) -> None:
+        with self.assertRaises(ValueError):
+            MathUtils.summation("sqrt(k)", "k", -1, 1)
+        with self.assertRaises(ValueError):
+            MathUtils.summation("1/k", "k", 0, 2)
 
     # ========== product tests ==========
     def test_product_factorial(self) -> None:
@@ -2475,7 +2495,10 @@ class TestSequencesAndSeries(unittest.TestCase):
 
     def test_product_rejects_too_many_terms(self) -> None:
         with self.assertRaises(ValueError):
-            MathUtils.product("n", "n", 0, 1000)  # 1001 terms
+            MathUtils.product("n", "n", 0, 100000)  # 100001 terms
+
+    def test_product_index_named_like_a_constant(self) -> None:
+        self.assertEqual(MathUtils.product("i+1", "i", 1, 3), "24")
 
     # ========== arithmetic_sum tests ==========
     def test_arithmetic_sum_basic(self) -> None:
