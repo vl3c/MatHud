@@ -13,7 +13,15 @@ from typing import Optional, cast
 
 from server_tests import client_renderer  # noqa: F401  (browser stub, so compiled_expression imports)
 from compiled_expression import compile_expression
-from utils.series_checks import RealFunction, taylor_matches
+from utils.series_checks import (
+    RealFunction,
+    divergence_verdict,
+    numeric_sum_verdict,
+    series_estimate,
+    series_verdict,
+    symbolic_sum_verdict,
+    taylor_matches,
+)
 from utils.taylor import remainder_note
 
 EXP_10 = "+".join(f"x^{k}/{math.factorial(k)}" for k in range(11))
@@ -114,6 +122,112 @@ class TestTaylorMatches(unittest.TestCase):
         # ln(x) is defined right of 1 to x = 9 and left of it down to 0: both sides run;
         # sqrt(x - 1) near 1 is undefined on the left, and the right side decides
         self.assertIs(_matches("sqrt(x-1)^2", "(x-1)", 1.0, 1), True)
+
+
+class TestSumChecks(unittest.TestCase):
+    """Closed forms of sums against the sums of their terms."""
+
+    def test_numeric_bounds(self) -> None:
+        self.assertTrue(numeric_sum_verdict(338350.0, lambda k: float(k * k), 1, 100))
+        self.assertFalse(numeric_sum_verdict(338351.0, lambda k: float(k * k), 1, 100))
+        self.assertTrue(numeric_sum_verdict(0.0, lambda k: float(k), 5, 4))  # empty
+        harmonic = math.fsum(1 / k for k in range(1, 100001))
+        self.assertTrue(numeric_sum_verdict(harmonic, lambda k: 1 / k, 1, 100000))
+        self.assertIsNone(numeric_sum_verdict(1.0, lambda k: None if k == 3 else 1.0, 1, 5))
+
+    def test_symbolic_bound(self) -> None:
+        def squares(n: int) -> float:
+            return n * (n + 1) * (2 * n + 1) / 6
+
+        def square(k: int, n: int) -> float:
+            return float(k * k)
+
+        def one(n: int) -> float:
+            return 1.0
+
+        def upper(n: int) -> float:
+            return float(n)
+
+        self.assertTrue(symbolic_sum_verdict(squares, square, one, upper))
+        self.assertFalse(symbolic_sum_verdict(lambda n: squares(n) + (n > 40), square, one, upper))
+        self.assertFalse(symbolic_sum_verdict(lambda n: n * (2 * n * n + 3 * n - 1) / 6, square, one, upper))
+        # n - 1 as the upper bound, and n/2, which is a whole number for even n only
+        self.assertTrue(symbolic_sum_verdict(lambda n: squares(n - 1), square, one, lambda n: float(n - 1)))
+        self.assertTrue(symbolic_sum_verdict(lambda n: squares(n / 2), square, one, lambda n: n / 2))
+        # the bound symbol in the term: k/n from 1 to n is (n + 1)/2
+        self.assertTrue(symbolic_sum_verdict(lambda n: (n + 1) / 2, lambda k, n: k / n, one, upper))
+        self.assertIsNone(symbolic_sum_verdict(lambda n: None, square, one, upper))
+
+    def test_infinite_sums(self) -> None:
+        for term, low, value in (
+            (lambda k: 1 / k**2, 1, math.pi**2 / 6),
+            (lambda k: 1 / k**4, 1, math.pi**4 / 90),
+            (lambda k: (-1) ** (k + 1) / k, 1, math.log(2)),
+            (lambda k: (-1) ** k / (2 * k + 1), 0, math.pi / 4),
+            (lambda k: 0.5**k, 0, 2.0),
+            (lambda k: k / 2**k, 1, 2.0),
+            (lambda k: 1 / (k * k + 1), 0, 0.5 + math.pi / (2 * math.tanh(math.pi))),
+            (lambda k: (-0.95) ** k / k, 1, -math.log(1.95)),
+        ):
+            estimate = series_estimate(term, low)
+            assert estimate is not None
+            with self.subTest(value=value):
+                self.assertTrue(series_verdict(value, estimate))
+                self.assertFalse(series_verdict(value * (1 + 1e-4), estimate))
+                self.assertFalse(series_verdict(value + 1e-3, estimate))
+                self.assertFalse(series_verdict(value + 1e-5, estimate))
+
+    def test_slowly_oscillating_series_are_not_refuted(self) -> None:
+        for term, low, value in (
+            (lambda k: math.sin(k) / k, 1, (math.pi - 1) / 2),
+            (lambda k: math.cos(k) / k**2, 1, math.pi**2 / 6 - math.pi / 2 + 0.25),
+            (lambda k: math.sin(k) / k**2, 1, 1.0139591323607685),
+            (lambda k: math.sin(math.pi * k / 2) / k, 1, math.pi / 4),
+            (lambda k: 0.999**k, 0, 1000.0),
+            (lambda k: (-1) ** k / math.sqrt(k), 1, -0.6048986434216303),
+        ):
+            estimate = series_estimate(term, low)
+            assert estimate is not None
+            with self.subTest(value=value):
+                self.assertIsNot(series_verdict(value, estimate), False)
+
+    def test_terms_that_overflow_after_the_sum_settled(self) -> None:
+        def term(k: int) -> float:  # 3.1^k/k! as math.js gives it: 0 once k! overflows, NaN past 3.1^k's overflow
+            if k > 600:
+                return math.nan
+            return 3.1**k / math.factorial(k) if k < 171 else 0.0
+
+        estimate = series_estimate(term, 0)
+        assert estimate is not None
+        self.assertTrue(series_verdict(math.exp(3.1), estimate))
+        self.assertIsNone(series_estimate(lambda k: math.inf if k == 5 else 1.0 / (k + 1) ** 2, 0))
+
+    def test_slow_series_are_not_judged(self) -> None:
+        # the extrapolated sum of 1/k^1.1 is still off by 6e-6
+        estimate = series_estimate(lambda k: k**-1.1, 1)
+        assert estimate is not None
+        self.assertIsNone(series_verdict(10.584448464950810, estimate))
+        self.assertIsNone(series_verdict(10.584448464950810 + 1e-5, estimate))
+
+    def test_divergence(self) -> None:
+        for term, low, limit in (
+            (lambda k: 1 / k, 1, "Infinity"),
+            (lambda k: float(k * k), 1, "Infinity"),
+            (lambda k: float((-1) ** k), 0, None),
+            (lambda k: float((-1) ** k * k), 0, None),
+            (lambda k: k**-0.5, 1, None),
+            (lambda k: 1 / (k * math.log(k)), 2, None),
+        ):
+            estimate = series_estimate(term, low)
+            assert estimate is not None
+            with self.subTest(limit=limit, low=low):
+                self.assertIsNone(divergence_verdict(limit, estimate))
+        converging = series_estimate(lambda k: 1 / k**2, 1)
+        assert converging is not None
+        self.assertFalse(divergence_verdict("Infinity", converging))
+        falling = series_estimate(lambda k: -float(k), 1)
+        assert falling is not None
+        self.assertFalse(divergence_verdict("Infinity", falling))
 
 
 class TestRemainderNote(unittest.TestCase):

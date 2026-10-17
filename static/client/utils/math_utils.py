@@ -1835,8 +1835,9 @@ class MathUtils:
     def simplify(expression: str) -> str:
         """Simplify a mathematical expression to its simplest form.
 
-        Uses Nerdamer symbolic computation for algebraic simplification.
-        Combines like terms, factors, and reduces expressions.
+        Uses the server's SymPy engine, else nerdamer, for algebraic simplification.
+        Combines like terms, factors, and reduces expressions. A sum written as the whole
+        expression, summation(term, k, a, b), gets its closed form (ClosedFormSums.simplify).
 
         Args:
             expression (str): Mathematical expression to simplify
@@ -1844,6 +1845,11 @@ class MathUtils:
         Returns:
             str: Simplified expression as string or error message
         """
+        from utils.closed_form_sums import ClosedFormSums
+
+        summed = ClosedFormSums.simplify(expression)
+        if summed is not None:
+            return str(summed)
         return MathUtils._checked_rewrite("simplify", expression)
 
     @staticmethod

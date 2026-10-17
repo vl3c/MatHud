@@ -11,7 +11,10 @@ insert_letter_call_products (x(x+2) as x*(x+2), which SymPy and math.js read as 
 insert_implicit_products ((x-1)(x+2) and (x+1)2 as products, as SymPy reads them),
 split_top_level_terms (the signed terms of a sum), and misspellings (sin x, sinx and xe^x,
 which the tools refuse with the standard form to write). taylor_polynomial and expand with
-a variable also refuse an ambiguous_division (1/(x+1)(x+2)).
+a variable also refuse an ambiguous_division (1/(x+1)(x+2)). simplify reads a sum with
+sum_call (summation(term, k, a, b) written alone, or an error for any other way of writing
+a sum), renames an index with replace_name and names_in, and refuses an index glued to
+letters (glued_index: kx) and a factorial after a number and a name (glued_factorial: 2k!).
 
 Pure Python (no browser imports), so server-side pytest covers it.
 """
@@ -688,3 +691,172 @@ def _glued_name(text: str, name: str, end: int, glued: Set[str], functions: Set[
     letter = second if first in ("e", "pi") else first
     reason = f"{name} is read as one variable; write {call}"
     return Misspelling(name, call, reason, False, (letter,), power is not None)
+
+
+# ----- sums --------------------------------------------------------------------------------
+
+SUM_HINT = (
+    "write the sum alone as summation(term, k, a, b), such as summation(k^2, k, 1, n) or "
+    "summation(1/k^2, k, 1, Infinity), with any other operation inside the term"
+)
+# Names that start a sum: summation and sum are read, Sum and Summation refused with SUM_HINT
+_SUM_NAMES = ("summation", "sum", "Sum", "Summation")
+
+
+class _Call(NamedTuple):
+    name: str
+    start: int
+    end: int  # the index of the closing parenthesis
+    arguments: List[str]
+
+
+def sum_call(text: str) -> Optional[Tuple[str, str, str, str]]:
+    """(term, index, lower, upper) when text is one sum and nothing else: summation(term, k, a, b),
+    or sum(term, k, a, b) with a name second (math.js's sum takes lists, so sum([1, 2]) is not
+    a sum here). Quotes around an argument are removed, as in summation('k^2', 'k', 1, n).
+    None when text holds no sum.
+
+    Raises:
+        ValueError: with SUM_HINT for a sum written another way: inside a larger expression
+            (2*summation(...)), several or nested sums, SymPy's Sum or tuple form
+            (summation(k^2, (k, 1, n))), another number of arguments, or the sign ∑ (or Σ
+            before a parenthesis, "_" or a space).
+    """
+    if not isinstance(text, str):
+        return None
+    stripped = text.strip()
+    sums = [call for call in _calls(stripped, _SUM_NAMES) if _is_sum(call)]
+    if "∑" in stripped:
+        raise ValueError(f"the sign ∑ is not read; {SUM_HINT}.")
+    for sign in ("Σ(", "Σ_", "Σ "):  # the Greek capital sigma, which the symbol palette offers
+        if sign in stripped:
+            raise ValueError(f"the sign Σ is not read; {SUM_HINT}.")
+    if not sums:
+        return None
+    if len(sums) > 1:
+        raise ValueError(f"simplify takes one sum at a time; {SUM_HINT}.")
+    call = sums[0]
+    if call.start != 0 or call.end != len(stripped) - 1:
+        raise ValueError(f"the sum is part of a larger expression; {SUM_HINT}.")
+    if call.name not in ("summation", "sum"):
+        raise ValueError(f"{call.name}(...) is not read; {SUM_HINT}.")
+    if len(call.arguments) == 2 and call.arguments[1].startswith("("):
+        raise ValueError(f"the form {call.name}(term, (k, a, b)) is not read; {SUM_HINT}.")
+    if len(call.arguments) != 4 or not all(call.arguments):
+        raise ValueError(f"summation takes four arguments; {SUM_HINT}.")
+    term, index, lower, upper = (_unquoted(argument) for argument in call.arguments)
+    return term, index, lower, upper
+
+
+def _is_sum(call: _Call) -> bool:
+    """Whether a call is a sum: any call of summation, Sum or Summation, and sum(...) with a
+    name second or SymPy's tuple form (sum([1, 2, 3]) and sum(1, 2) are math.js's sum)."""
+    if call.name != "sum":
+        return True
+    if len(call.arguments) == 4:
+        return _unquoted(call.arguments[1]).isidentifier()
+    return len(call.arguments) == 2 and call.arguments[1].startswith("(")
+
+
+def _calls(text: str, names: Sequence[str]) -> List[_Call]:
+    """Every call in text of one of names as a whole word, outermost and inner ones alike."""
+    calls: List[_Call] = []
+    for start, end in _name_spans(text):
+        name = text[start:end]
+        if name not in names:
+            continue
+        open_index = _next_non_space(text, end)
+        if open_index >= len(text) or text[open_index] != "(":
+            continue
+        close_index = find_closing_parenthesis(text, open_index)
+        if close_index < 0:
+            continue
+        arguments = split_top_level_commas(text[open_index + 1 : close_index])
+        calls.append(_Call(name, start, close_index, arguments))
+    return calls
+
+
+def _unquoted(argument: str) -> str:
+    """argument without the quotes around it ('k^2' -> k^2), as evaluate_expression's form writes them."""
+    stripped = argument.strip()
+    if len(stripped) >= 2 and stripped[0] == stripped[-1] and stripped[0] in "'\"":
+        return stripped[1:-1].strip()
+    return stripped
+
+
+def _name_spans(text: str) -> List[Tuple[int, int]]:
+    """(start, end) of every name in text, with a character scan: numbers are read whole, so
+    1e5 holds no name e5, and a name starts with a letter or "_" (x1, θ, k_2)."""
+    spans: List[Tuple[int, int]] = []
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if char.isdigit() or (char == "." and text[index + 1 : index + 2].isdigit()):
+            index = _number_end(text, index)
+        elif _is_letter(char) or char == "_":
+            end = index + 1
+            while end < len(text) and _is_name_char(text[end]):
+                end += 1
+            spans.append((index, end))
+            index = end
+        else:
+            index += 1
+    return spans
+
+
+def replace_name(text: str, name: str, replacement: str) -> str:
+    """text with every whole-word name replaced (i in i^2 + 2i, not in sin(i) or 1e5)."""
+    parts: List[str] = []
+    position = 0
+    for start, end in _name_spans(text):
+        if text[start:end] == name:
+            parts.append(text[position:start])
+            parts.append(replacement)
+            position = end
+    parts.append(text[position:])
+    return "".join(parts)
+
+
+def names_in(text: str) -> List[str]:
+    """The distinct names in text, in order of appearance."""
+    return list(dict.fromkeys(text[start:end] for start, end in _name_spans(text)))
+
+
+def glued_index(text: str, index: str, constants: Iterable[str] = ()) -> Optional[Tuple[str, str]]:
+    """(name, product) for the first name that is the index of a sum written together with
+    letters: kx as k*x, xk as x*k. Calls (kx(...)), names in constants (pi for an index p)
+    and names with digits or "_" (k2, k_max) are not."""
+    known = set(constants)
+    for start, end in _name_spans(text):
+        name = text[start:end]
+        if name == index or name in known or not name.isalpha() or (start > 0 and text[start - 1] == "."):
+            continue
+        if _next_character(text, end) == "(":
+            continue
+        if name.startswith(index):
+            return name, f"{index}*{name[len(index) :]}"
+        if name.endswith(index):
+            return name, f"{name[: -len(index)]}*{index}"
+    return None
+
+
+def glued_factorial(text: str) -> Optional[Tuple[str, str]]:
+    """(written, hint) for a factorial after a number and a name written together: 2k! is
+    2*k! to math.js and (2k)! to the factorial rewrite, so the writer says which."""
+    position = text.find("!")
+    while position != -1:
+        if text[position + 1 : position + 2] != "=":
+            start = position
+            while start > 0 and text[start - 1] == " ":
+                start -= 1
+            end = start
+            while start > 0 and (text[start - 1].isalnum() or text[start - 1] in "_."):
+                start -= 1
+            operand = text[start:end]
+            if operand[:1].isdigit() or operand[:1] == ".":
+                number_end = _number_end(operand, 0)
+                if number_end < len(operand):
+                    number, name = operand[:number_end], operand[number_end:]
+                    return f"{operand}!", f"write {number}*{name}! or ({number}{name})!"
+        position = text.find("!", position + 1)
+    return None
