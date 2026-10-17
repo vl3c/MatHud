@@ -112,9 +112,10 @@ class SymbolicChecks:
 
         return evaluate
 
-    # Names math.js reads as constants, never as variables.
+    # Names math.js reads as constants, never as variables. tau and phi are left out:
+    # people write them as variables (Greek letters), and a scope value overrides math.js's constant.
     _MATHJS_CONSTANTS = frozenset(
-        ("e", "E", "pi", "PI", "i", "Infinity", "NaN", "tau", "phi", "true", "false", "null", "undefined")
+        ("e", "E", "pi", "PI", "i", "Infinity", "NaN", "true", "false", "null", "undefined")
         + ("LN2", "LN10", "LOG2E", "LOG10E", "SQRT1_2", "SQRT2")
     )
 

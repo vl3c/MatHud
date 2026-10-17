@@ -38,6 +38,7 @@ class TestStepCheckerHelpers(unittest.TestCase):
         self.assertEqual(SymbolicChecks.expression_variables("sin(x)^2 + pi*e + i"), ["x"])
         self.assertEqual(SymbolicChecks.expression_variables("log(a*b)"), ["a", "b"])
         self.assertEqual(SymbolicChecks.expression_variables("2^3"), [])
+        self.assertEqual(SymbolicChecks.expression_variables("sin(2*tau) + phi^2"), ["phi", "tau"])
         with self.assertRaises(ValueError):
             SymbolicChecks.expression_variables("x +* 1")
 
@@ -116,6 +117,9 @@ class TestStepCheckerSympy(unittest.TestCase):
             (["1/2 + 1/3", "2/5"], 2),
             (["(x+1)e^x", "x*e^x + e^x", "x*e^x + 1"], 3),
             (["2sin(x)cos(x)", "sin(2x)", "2sin(x)"], 3),
+            (["sin(2*tau)", "2*sin(tau)"], 2),
+            (["phi^2", "phi + 1"], 2),
+            (["tau", "2*pi"], 2),
         ):
             result = _check(steps)
             self.assertEqual(result["first_wrong_step"], wrong, f"{steps}: {result['summary']}")

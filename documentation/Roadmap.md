@@ -157,7 +157,7 @@ Goal: one command (later one executable) opens a MatHud window; no separate serv
    - math.js's domain makes `x^(2/3)` undefined for x < 0.
    - The test harness re-implements `InequalitySolver._seeds` instead of calling it.
    - An implicit product after a space is refused, in equations too: `x sin(x) > 0`, `sin(pi x) > 0`.
-   - Absolute bars in equations are refused: `|x - 1| = 2`.
+   - `solve` gives wrong answers on main too for some equations with parameters: `exp(k*t) = 2` for t gives log(2) instead of log(2)/k, and `N = N0*e^(-k*t)` for t gives []. `5 = 5` now says the variable does not appear, where main said identity.
    - The decimal endpoints of `x^2 - 1e6 x + 1 > 0` lose precision through cancellation; the exact form is right.
    - A periodic inequality on a long interval is answered on one period: `sin(x) > 0` on [0, 1000].
    - High-degree polynomials and `exp(x) - x^100 > 0` take 5 to 8 s, and the call blocks the UI.
