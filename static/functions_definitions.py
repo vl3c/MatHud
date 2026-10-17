@@ -1615,17 +1615,21 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "expand",
-            "description": "Expands a mathematical expression.",
+            "description": "Expands a mathematical expression. Give variable to split a ratio of polynomials in that variable into partial fractions over the rationals, as calculators' expand(expr, x) does: 2/(x^2-1) gives 1/(x-1) - 1/(x+1), an improper fraction also gives its polynomial part ((x^2+1)/(x-1) gives x + 1 + 2/(x-1)), and a quadratic with no rational roots such as x^2+1 stays whole. Leave variable null for ordinary expansion.",
             "strict": True,
             "parameters": {
                 "type": "object",
                 "properties": {
                     "expression": {
                         "type": "string",
-                        "description": "The mathematical expression represented as a string. Example: '(x+1)^2'",
-                    }
+                        "description": "The mathematical expression represented as a string. Examples: '(x+1)^2', '2/(x^2-1)', '(3x+5)/((x+1)(x+2))'. Standard syntax: call every function with parentheses (sin(x), ln(x)) and write products with * or a number before a letter (2x, x*e^x).",
+                    },
+                    "variable": {
+                        "type": ["string", "null"],
+                        "description": "The variable of a rational function to split into partial fractions, e.g. 'x'; null for ordinary expansion.",
+                    },
                 },
-                "required": ["expression"],
+                "required": ["expression", "variable"],
                 "additionalProperties": False,
             },
         },
@@ -1730,6 +1734,31 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     }
                 },
                 "required": ["steps"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "taylor_polynomial",
+            "description": "Taylor polynomial of a function at a point up to a given order (a Maclaurin polynomial at 0), from the server's SymPy engine. Returns the polynomial in powers of (x - a), ready for draw_function (e.g. 'x - x^3/6 + x^5/120' for sin(x) at 0, order 5), the first omitted term (next_term) and a remainder_note on the size of the error. Refused where the function is not smooth at the point (abs(x), sqrt(x), 1/x or ln(x) at 0). Orders 0 to 10.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "expression": {
+                        "type": "string",
+                        "description": "The function as an expression in the variable. Examples: 'e^x', 'sin(x)', 'ln(1+x)', '1/(1-x)'. Standard syntax only: call every function with parentheses (sin(x), ln(x)), write products with * or a number before a letter (2x, x*e^x), use e^x or exp(x), and |x| or abs(x); other spellings are refused with a hint.",
+                    },
+                    "variable": {"type": "string", "description": "The function's variable. Example: 'x'"},
+                    "point": {
+                        "type": "string",
+                        "description": "The centre a: a real number or exact value such as '0', '1', '-2', '1/2' or 'pi/4'.",
+                    },
+                    "order": {"type": "integer", "description": "The highest power of (x - a), 0 to 10."},
+                },
+                "required": ["expression", "variable", "point", "order"],
                 "additionalProperties": False,
             },
         },

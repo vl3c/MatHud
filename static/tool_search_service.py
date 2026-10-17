@@ -221,6 +221,19 @@ _NOT_STEP_WORDS = frozenset(
     | {"unit", "units", "miles", "km", "kilometers", "meters", "inches", "feet", "celsius", "fahrenheit"}
     | {"fraction", "fractions"}
 )
+# Partial fractions: "partial fractions of 2/(x^2-1)", "decompose 1/(x(x+1)) into fractions".
+_PARTIAL_FRACTION_WORDS = frozenset({"partial", "decompose", "decomposition", "decomposing", "split"})
+# Taylor polynomials: "Taylor polynomial of e^x at 0", "Maclaurin series of sin(x)", "the
+# power series of 1/(1-x)", "a polynomial approximation of cos(x) near 0"; "does the series
+# of 1/n^2 converge?" is a convergence test.
+_TAYLOR_WORDS = frozenset({"taylor", "maclaurin"})
+_TAYLOR_PHRASE_RE = re.compile(
+    r"\bpower series\b|\bseries expansion\b|\bexpand\b.*\bin(?:to)? a series\b"
+    r"|\bapproximating polynomial\b|\bpolynomial approximation\b"
+)
+# d/dx, d/dt (the tokens split it into d and dx)
+_D_BY_D_RE = re.compile(r"\bd/d[a-z]\b")
+_CONVERGENCE_WORDS = frozenset({"converge", "converges", "convergent", "convergence", "diverge", "diverges"})
 # Point names such as A, B or A' in the query as typed; "connect A and B" needs two of
 # them (the pronoun "I" is not one).
 _POINT_NAME_RE = re.compile(r"\b[A-Z]'*(?![\w'])")
@@ -348,6 +361,7 @@ TOOL_CATEGORIES: Dict[str, CategoryEntry] = {
             "convert", "limit", "derive", "integrate", "numeric_integrate",
             "simplify", "expand", "factor", "solve",
             "solve_system_of_equations", "solve_numeric", "check_steps",
+            "taylor_polynomial",
         ],
         "keywords": [
             "calculate", "evaluate", "solve", "derivative", "integral",
@@ -357,6 +371,7 @@ TOOL_CATEGORIES: Dict[str, CategoryEntry] = {
             "matrix", "determinant", "eigenvalue", "inverse",
             "numeric", "numerical", "system", "simultaneous",
             "find", "root", "roots", "reduce", "multiply",
+            "taylor", "maclaurin",
         ],
     },
     "statistics": {
@@ -1063,7 +1078,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["solve"] += 3.0
 
         # -- Calculus --
-        if token_set & {"derivative", "differentiate", "diff", "d/dx"}:
+        if token_set & {"derivative", "differentiate", "diff"} or _D_BY_D_RE.search(raw_lower) is not None:
             scores["derive"] += 6.0
         if token_set & {"integral", "integrate", "integration"}:
             scores["integrate"] += 6.0
@@ -1086,6 +1101,17 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["expand"] += 6.0
         if token_set & {"factor", "factorize", "factorise", "factored"}:
             scores["factor"] += 6.0
+        # Partial fractions come from expand(expr, x), as on calculators; "fractions" alone
+        # still means an exact answer from simplify
+        if token_set & {"fraction", "fractions"} and token_set & _PARTIAL_FRACTION_WORDS:
+            scores["expand"] += 10.0
+            scores["simplify"] -= 6.0
+        # Taylor and Maclaurin polynomials; a series to test for convergence is not one
+        if token_set & _TAYLOR_WORDS or (
+            _TAYLOR_PHRASE_RE.search(raw_lower) is not None and not token_set & _CONVERGENCE_WORDS
+        ):
+            scores["taylor_polynomial"] += 10.0
+            scores["expand"] -= 20.0  # "Taylor expand ln(1+x) at 0", "expand e^x in a power series"
         if token_set & {"limit", "lim"}:
             scores["limit"] += 6.0
         if token_set & {"compute", "calculate", "evaluate"} and not (

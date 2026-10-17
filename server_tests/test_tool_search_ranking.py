@@ -522,3 +522,49 @@ def test_equivalent_units_and_fractions_are_not_derivations(
     names = _names(service, query)
     assert names[0] == expected, names
     assert "check_steps" not in names[:3], names
+
+
+# Taylor and Maclaurin polynomials rank taylor_polynomial first, also when "expand" or a
+# plot is asked alongside; a series to test for convergence does not
+@pytest.mark.parametrize(
+    "query",
+    [
+        "Taylor polynomial of e^x at 0 to order 4.",
+        "Maclaurin series of sin(x).",
+        "What is the power series of 1/(1-x) up to x^5?",
+        "Taylor expand ln(1+x) at 0",
+        "expand e^x in a power series",
+        "series expansion of tan(x) around 0",
+        "Plot e^x and its Taylor polynomial of order 3",
+    ],
+)
+def test_taylor_requests_rank_taylor_polynomial_first(service: ToolSearchService, query: str) -> None:
+    assert _names(service, query)[0] == "taylor_polynomial"
+
+
+def test_a_convergence_question_is_not_a_taylor_polynomial(service: ToolSearchService) -> None:
+    assert "taylor_polynomial" not in _names(service, "Does the series of 1/n^2 converge?")[:3]
+
+
+# Partial fractions rank expand first; an exact fraction stays with simplify
+@pytest.mark.parametrize(
+    "query",
+    [
+        "Decompose 2/(x^2-1) into partial fractions.",
+        "Partial fraction decomposition of (3x+5)/((x+1)(x+2))",
+        "split 1/(x(x+1)) into simpler fractions",
+    ],
+)
+def test_partial_fractions_rank_expand_first(service: ToolSearchService, query: str) -> None:
+    assert _names(service, query)[0] == "expand"
+
+
+@pytest.mark.parametrize("query", ["Give 1/3 + 1/4 as an exact fraction.", "write 0.75 as a fraction"])
+def test_exact_fractions_keep_simplify_first(service: ToolSearchService, query: str) -> None:
+    names = _names(service, query)
+    assert names[0] == "simplify", names
+    assert "expand" not in names[:3], names
+
+
+def test_d_by_dx_is_a_derivative(service: ToolSearchService) -> None:
+    assert _names(service, "Compute d/dx of ln(x^2+1).")[0] == "derive"

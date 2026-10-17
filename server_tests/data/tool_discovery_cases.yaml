@@ -2,8 +2,8 @@
   "metadata": {
     "schema_version": 1,
     "description": "Tool discovery benchmark cases for search_tools semantic routing.",
-    "expected_tool_count": 95,
-    "expected_tool_hash": "df11f8c7f06e4fac36e62db1ce5569bc2777e73c0186b604572bd10cbb36637c",
+    "expected_tool_count": 96,
+    "expected_tool_hash": "86fe5c1c6b1c06c0b41bde2983e771aa838afa5de13b6f8ca73ab201d122d973",
     "confusion_clusters": {
       "convert_cluster": [
         "convert",
@@ -34,7 +34,8 @@
         "simplify",
         "expand",
         "factor",
-        "check_steps"
+        "check_steps",
+        "taylor_polynomial"
       ]
     },
     "thresholds": {
@@ -2828,6 +2829,78 @@
       "difficulty": "normal"
     },
     {
+      "id": "u_taylor_1",
+      "query": "Taylor polynomial of e^x at 0 to order 4.",
+      "expected_any": [
+        "taylor_polynomial"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_taylor_2",
+      "query": "Maclaurin series of sin(x).",
+      "expected_any": [
+        "taylor_polynomial"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_taylor_3",
+      "query": "Approximate cos(x) near pi/4 with a degree 3 polynomial approximation.",
+      "expected_any": [
+        "taylor_polynomial"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_taylor_4",
+      "query": "What is the power series of 1/(1-x) up to x^5?",
+      "expected_any": [
+        "taylor_polynomial"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_partial_fractions_1",
+      "query": "Decompose 2/(x^2-1) into partial fractions.",
+      "expected_any": [
+        "expand"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_partial_fractions_2",
+      "query": "Partial fraction decomposition of (3x+5)/((x+1)(x+2))",
+      "expected_any": [
+        "expand"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
       "id": "cf_perpendicular_not_steps",
       "query": "Check whether AB and CD are perpendicular",
       "expected_any": [
@@ -2879,6 +2952,35 @@
       ],
       "category": "confusion_probe",
       "difficulty": "hard"
+    },
+    {
+      "id": "cf_simplify_not_expand_fraction",
+      "query": "Give 1/3 + 1/4 as an exact fraction.",
+      "expected_any": [
+        "simplify"
+      ],
+      "forbidden": [
+        "search_tools",
+        "expand"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "rewrite_cluster"
+    },
+    {
+      "id": "cf_series_convergence_not_taylor",
+      "query": "Does the series of 1/n^2 converge?",
+      "expected_any": [
+        "evaluate_expression",
+        "simplify"
+      ],
+      "forbidden": [
+        "search_tools",
+        "taylor_polynomial"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "rewrite_cluster"
     }
   ]
 }
