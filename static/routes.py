@@ -1481,17 +1481,18 @@ def register_routes(app: MatHudFlask) -> None:
         """Run one SymPy computation for the CAS tools (static/sympy_cas.py).
 
         Request body:
-            operation (str): limit, integrate, solve, solve_inequality, simplify, derive, equivalent,
-                taylor, apart or summation
+            operation (str): limit, integrate, solve, solve_system, solve_inequality, simplify,
+                expand, factor, derive, equivalent, taylor, apart or summation
             args (dict): the operation's arguments, all strings (or null for an absent bound)
 
         Returns:
             data {"result": ...} (null when SymPy has no answer; its numbers are text, so
             Brython's json.loads can read them), {"error": message} for an
             expression it refuses, {"timeout": true}, 503 when SymPy is not installed (the
-            client then stops asking and uses nerdamer) or 502 when its worker did not answer.
+            client then stops asking; its symbolic tools say so and its numeric ones still
+            answer) or 502 when its worker did not answer.
         """
-        from static.sympy_cas import MAX_EXPRESSION_LENGTH
+        from static.sympy_cas import MAX_EXPRESSION_LENGTH, MAX_SYSTEM_TEXT_LENGTH
         from static.sympy_engine import get_engine
 
         payload = request.get_json(silent=True)
@@ -1500,8 +1501,12 @@ def register_routes(app: MatHudFlask) -> None:
         args = payload.get("args")
         if not isinstance(args, dict) or not all(isinstance(value, (str, type(None))) for value in args.values()):
             return AppManager.make_response(message="args must map names to strings", status="error", code=400)
-        if any(value is not None and len(value) > MAX_EXPRESSION_LENGTH for value in args.values()):
-            return AppManager.make_response(message="The expression is too long", status="error", code=400)
+        for name, value in args.items():
+            limit = MAX_SYSTEM_TEXT_LENGTH if name == "equations" else MAX_EXPRESSION_LENGTH
+            if value is not None and len(value) > limit:
+                return AppManager.make_response(
+                    message=f"The {name} argument is longer than {limit} characters", status="error", code=400
+                )
         response = get_engine().compute(payload["operation"], cast(Dict[str, Optional[str]], args))
         if response.get("installed") is False:
             return AppManager.make_response(message="SymPy is not installed", status="error", code=503)

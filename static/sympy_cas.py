@@ -1,16 +1,16 @@
-"""SymPy computations for the CAS tools: limit, integrate, solve and simplify (and derive,
-where nerdamer has no answer), the solution sets of inequalities, whether two expressions
-are equivalent (for the step checker), Taylor polynomials and partial fractions.
+"""SymPy computations for the CAS tools: derive, limit, integrate, simplify, expand, factor,
+solve, systems of equations, the solution sets of inequalities, whether two expressions are
+equivalent (for the step checker), Taylor polynomials, partial fractions and sums.
 
-The browser's symbolic engine (nerdamer) is often wrong on these four (see
-documentation/Roadmap.md, CAS reliability), so the client asks the server first and keeps
-nerdamer as the fallback when the server or SymPy is unavailable.
+SymPy is the app's only symbolic engine: the client asks the server and checks every
+result numerically in the browser. Without SymPy the symbolic tools say so, and the numeric
+ones (quadrature, the limit verdict, numeric roots, sign charts) still answer.
 
 Expressions arrive as text in the client's notation (``^`` for powers, ``e``, ``pi``,
 ``i``, ``Infinity``). They are never evaluated: ``parse_expression`` reads them with
 Python's ``ast`` module, accepts only numbers, names, arithmetic and calls to the
 functions in ``_FUNCTIONS``, and builds the SymPy expression from that tree. Results are
-printed back in the same notation, so math.js and nerdamer can read them.
+printed back in the same notation, so math.js can read them.
 
 This module runs in a worker process (``python -m static.sympy_cas``, managed by
 ``static.sympy_engine``) that is killed when a computation runs too long; it reads one
@@ -410,7 +410,7 @@ def compute_integral(
     expr = parse_expression(expression, real=True)
     x = _symbol(variable, real=True)
     if lower is None or upper is None:
-        result = sp.integrate(expr, x, conds="none")
+        result = _without_piecewise(sp.integrate(expr, x, conds="none"), x)
     else:
         bounds = (x, parse_expression(lower, real=True), parse_expression(upper, real=True))
         result = sp.integrate(expr, bounds, conds="none")
@@ -421,6 +421,24 @@ def compute_integral(
     if not result.free_symbols:
         result = _shorter(result, sp.simplify(result))
     return to_text(result)
+
+
+def _without_piecewise(result: Any, x: Any) -> Any:
+    """A two-branch Piecewise split at x = c (the antiderivative of abs(x) or sign(x)) written
+    with sign: (A + B)/2 + sign(x - c)*(B - A)/2, which is A left of c and B right of it. Other
+    results are returned as they are."""
+    import sympy as sp
+
+    if not isinstance(result, sp.Piecewise) or len(result.args) != 2 or result.args[1].cond != sp.true:
+        return result
+    (left, condition), (right, _) = result.args
+    if not isinstance(condition, (sp.Le, sp.Lt)) or condition.lhs != x or condition.rhs.free_symbols:
+        return result
+    split = condition.rhs
+    if sp.simplify(left.subs(x, split) - right.subs(x, split)) != 0:
+        return result  # not continuous at the split: no single antiderivative
+    joined = sp.factor((left + right) / 2) + sp.sign(x - split) * sp.factor((right - left) / 2)
+    return _shorter(joined, sp.simplify(joined))
 
 
 def _shorter(expression: Any, alternative: Any) -> Any:
@@ -491,12 +509,28 @@ def compute_solve(
         return {"identity": True, "roots": []}
     if solutions == sp.S.EmptySet:
         return {"roots": []}
+    if _is_parameter_roots(solutions):
+        solutions = solutions.args[0] if isinstance(solutions.args[0], sp.FiniteSet) else solutions.args[1]
     if isinstance(solutions, sp.FiniteSet):
         listed = [_displayed_root(root) for root in solutions]
         if not all(_is_usable(root) for root in listed):
             return None
         return {"roots": [to_text(root) for root in _sorted_roots(listed)]}
     return _periodic_solution(solutions, variable)
+
+
+def _is_parameter_roots(solutions: Any) -> bool:
+    """True for {roots} ∩ Reals, solveset's answer when the roots hold other names (e^(k*x) = 2
+    gives {log(2)/k} ∩ Reals): the roots are complete, and real for the parameter values that
+    make them real."""
+    import sympy as sp
+
+    if not isinstance(solutions, sp.Intersection) or len(solutions.args) != 2:
+        return False
+    first, second = solutions.args
+    return sp.S.Reals in (first, second) and any(
+        isinstance(part, sp.FiniteSet) and part.free_symbols for part in (first, second)
+    )
 
 
 def _roots_in_interval(sides: Sequence[str], variable: str, domain: Any) -> Optional[Dict[str, Any]]:
@@ -1296,6 +1330,269 @@ def _fraction_text(term: Any) -> str:
     return to_text(term)
 
 
+# ----- expand and factor -----------------------------------------------------------------
+
+# An expanded or factored form longer than this is refused ((x+1)^200 has 201 long terms).
+MAX_REWRITE_LENGTH = 5000
+
+
+def compute_expand(expression: str) -> Optional[str]:
+    """The expanded form; None when it is not usable (NaN, an unevaluated limit).
+
+    Raises:
+        ExpressionError: when it is longer than MAX_REWRITE_LENGTH characters.
+    """
+    import sympy as sp
+
+    return _rewritten(sp.expand(parse_expression(expression, real=True)), "expanded")
+
+
+def compute_factor(expression: str) -> Optional[str]:
+    """The factored form over the rationals, as compute_expand gives the expanded one."""
+    import sympy as sp
+
+    parsed = parse_expression(expression, real=True)
+    if parsed.is_Rational and parsed != 0:
+        return _factored_number(parsed)
+    return _rewritten(sp.factor(parsed), "factored")
+
+
+def _factored_number(number: Any) -> str:
+    """360 as 2^3*3^2*5, -3/4 as -3/2^2, 1 as 1."""
+    import sympy as sp
+
+    def product(value: int) -> str:
+        factors = sp.factorint(value)
+        return "*".join(f"{p}^{e}" if e > 1 else str(p) for p, e in sorted(factors.items())) or "1"
+
+    numerator, denominator = abs(int(number.p)), int(number.q)
+    text = product(numerator)
+    if denominator != 1:
+        bottom = product(denominator)
+        text = f"{text}/({bottom})" if "*" in bottom else f"{text}/{bottom}"
+    return f"-{text}" if number < 0 else text
+
+
+def _rewritten(result: Any, form: str) -> Optional[str]:
+    if not _is_usable(result):
+        return None
+    text = to_text(result)
+    if len(text) > MAX_REWRITE_LENGTH:
+        raise ExpressionError(f"The {form} form has more than {MAX_REWRITE_LENGTH} characters.")
+    return text
+
+
+# ----- systems of equations --------------------------------------------------------------
+
+# A system has at most this many equations and unknowns.
+MAX_SYSTEM_EQUATIONS = 10
+MAX_SYSTEM_UNKNOWNS = 10
+# The equations of a system travel as one argument, each at most MAX_EXPRESSION_LENGTH long.
+MAX_SYSTEM_TEXT_LENGTH = MAX_SYSTEM_EQUATIONS * (MAX_EXPRESSION_LENGTH + 1)
+
+
+def compute_solve_system(equations: str, variables: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """The solutions of a system: equations separated by ";", each lhs = rhs or an expression = 0.
+
+    The unknowns are variables (comma-separated), else x, y, z and t where the equations use
+    them, plus other names (sorted) while there are fewer unknowns than equations; the other
+    names are parameters. Returns, for a linear system: {"none": True} when it is inconsistent,
+    {"solutions": [one {unknown: value}]} when the solution is unique, or {"infinite": True,
+    "general": {unknown: value in the free unknowns}, "free": [names], "rank": r} when the
+    equations are dependent. For any other system of ratios of polynomials: {"solutions":
+    [...], "complex": n}, the real solutions sorted by their values (exact when short, else
+    decimals) and the number of non-real ones left out, or {"infinite": True, "curves": [{unknown:
+    value}, ...], "free": [names]} when the solutions form curves. None for other systems
+    (sin(x) = y, where solve lists principal values only) and when SymPy cannot list the
+    solutions.
+    """
+    import sympy as sp
+
+    texts = str(equations).split(";")
+    if len(texts) > MAX_SYSTEM_EQUATIONS:
+        raise ExpressionError(f"A system has at most {MAX_SYSTEM_EQUATIONS} equations.")
+    differences = [_equation_difference(text) for text in texts]
+    unknowns = _system_unknowns(differences, variables)
+    if all(_is_linear(difference, unknowns) for difference in differences):
+        return _linear_system(sp.linsolve(differences, unknowns), unknowns)
+    if not all(difference.is_rational_function(*unknowns) for difference in differences):
+        return None  # sin(x) = y: solve lists principal values only, not every solution
+    shaped = _shape_basis_solutions(differences, unknowns)
+    if shaped is not None:
+        return _nonlinear_system(shaped, unknowns)
+    return _nonlinear_system(sp.solve(differences, unknowns, dict=True), unknowns)
+
+
+_PREFERRED_UNKNOWNS = ("x", "y", "z", "t")
+
+
+def _system_unknowns(differences: Sequence[Any], variables: Optional[str]) -> List[Any]:
+    if variables:
+        unknowns = [_symbol(name.strip(), real=False) for name in str(variables).split(",")]
+    else:
+        names = sorted(set().union(*(difference.free_symbols for difference in differences)), key=str)
+        preferred = [name for name in names if str(name) in _PREFERRED_UNKNOWNS]
+        others = [name for name in names if str(name) not in _PREFERRED_UNKNOWNS]
+        unknowns = preferred + others[: max(0, len(differences) - len(preferred))]
+    if not unknowns:
+        raise ExpressionError("The equations have no unknowns.")
+    if len(unknowns) > MAX_SYSTEM_UNKNOWNS:
+        raise ExpressionError(f"A system has at most {MAX_SYSTEM_UNKNOWNS} unknowns.")
+    return unknowns
+
+
+def _shape_basis_solutions(differences: Sequence[Any], unknowns: Sequence[Any]) -> Optional[List[Dict[Any, Any]]]:
+    """Every solution of a polynomial system whose lex Groebner basis has the shape u1 - g1(un),
+    ..., h(un) (the usual case for finitely many solutions), from the roots of h; None for other
+    systems. sp.solve takes minutes on a quintic intersection that this does at once."""
+    import sympy as sp
+
+    numerators = [sp.fraction(sp.together(difference))[0] for difference in differences]
+    if any(difference.free_symbols - set(unknowns) for difference in differences):
+        return None  # parameters
+    if not all(numerator.is_polynomial(*unknowns) for numerator in numerators):
+        return None
+    basis = list(sp.groebner(numerators, *unknowns, order="lex").exprs)
+    if basis == [1]:
+        return []
+    last = unknowns[-1]
+    if len(basis) != len(unknowns) or basis[-1].free_symbols - {last} or not basis[-1].free_symbols:
+        return None
+    explicit: Dict[Any, Any] = {}
+    for unknown, polynomial in zip(unknowns[:-1], basis[:-1]):
+        coefficient = sp.diff(polynomial, unknown)
+        if not coefficient.is_number or coefficient == 0 or polynomial.free_symbols - {unknown, last}:
+            return None
+        explicit[unknown] = sp.expand(unknown - polynomial / coefficient)
+        if explicit[unknown].has(unknown):
+            return None
+    solutions = []
+    for root in _polynomial_roots(sp.Poly(basis[-1], last)):
+        solution = {unknown: _value_at(value, last, root) for unknown, value in explicit.items()}
+        solution[last] = root
+        solutions.append(solution)
+    denominators = [sp.fraction(sp.together(difference))[1] for difference in differences]
+    return [solution for solution in solutions if all(_nonzero_at(d, solution) for d in denominators)]
+
+
+def _polynomial_roots(polynomial: Any) -> List[Any]:
+    """Every root of a polynomial: exact for factors of degree at most 2, else 20-digit decimals
+    (sp.N of a CRootOf takes about half a second)."""
+    import sympy as sp
+
+    roots: List[Any] = []
+    for factor, _ in polynomial.factor_list()[1]:
+        if factor.degree() <= 2:
+            roots.extend(sp.roots(factor, multiple=True))
+        else:
+            roots.extend(factor.nroots(n=20, maxsteps=200))
+    return roots
+
+
+def _value_at(value: Any, unknown: Any, root: Any) -> Any:
+    import sympy as sp
+
+    substituted = value.subs(unknown, root)
+    if root.has(sp.Float):
+        return sp.N(substituted, 20)
+    return _shorter(substituted, sp.radsimp(sp.expand(substituted)))
+
+
+def _nonzero_at(denominator: Any, solution: Dict[Any, Any]) -> bool:
+    import sympy as sp
+
+    if denominator.is_number:
+        return bool(denominator != 0)
+    value = complex(sp.N(denominator.subs(solution), 15))
+    return abs(value) > 1e-12
+
+
+def _equation_difference(text: str) -> Any:
+    if not text.strip():
+        raise ExpressionError("An equation of the system is empty.")
+    sides = text.split("=")
+    if len(sides) > 2:
+        raise ExpressionError("An equation has at most one '='.")
+    return parse_expression(sides[0]) - (parse_expression(sides[1]) if len(sides) == 2 else 0)
+
+
+def _is_linear(difference: Any, unknowns: Sequence[Any]) -> bool:
+    import sympy as sp
+
+    if not difference.is_polynomial(*unknowns):
+        return False
+    return bool(difference == 0 or sp.Poly(difference, *unknowns).total_degree() <= 1)
+
+
+def _linear_system(solution: Any, unknowns: Sequence[Any]) -> Dict[str, Any]:
+    import sympy as sp
+
+    if solution == sp.S.EmptySet:
+        return {"none": True}
+    values = list(solution)[0]
+    free = sorted(set().union(*(sp.sympify(value).free_symbols for value in values)) & set(unknowns), key=str)
+    if not free:
+        return {"solutions": [{str(name): to_text(value) for name, value in zip(unknowns, values)}]}
+    general = {str(name): to_text(value) for name, value in zip(unknowns, values) if value != name}
+    return {"infinite": True, "general": general, "free": [str(name) for name in free], "rank": len(general)}
+
+
+def _nonlinear_system(solutions: Any, unknowns: Sequence[Any]) -> Optional[Dict[str, Any]]:
+    curves = _solution_curves(solutions, unknowns)
+    if curves is not None:
+        return curves
+    found: List[Tuple[Tuple[float, ...], Dict[str, str]]] = []
+    non_real = 0
+    for solution in solutions:
+        if set(solution) != set(unknowns) or any(solution[name].free_symbols for name in unknowns):
+            return None
+        real = _real_solution(solution, unknowns)
+        if real is None:
+            non_real += 1
+        elif all(real[1] != texts for _, texts in found):
+            found.append(real)
+    found.sort(key=lambda item: item[0])
+    return {"solutions": [texts for _, texts in found], "complex": non_real}
+
+
+def _solution_curves(solutions: Any, unknowns: Sequence[Any]) -> Optional[Dict[str, Any]]:
+    """{"infinite": True, "curves": ..., "free": ...} when every solution leaves some unknowns
+    free (x^2 + y^2 = 1 twice gives x = ±sqrt(1 - y^2)), else None."""
+    if not solutions:
+        return None
+    free: set = set()
+    curves = []
+    for solution in solutions:
+        missing = set(unknowns) - set(solution)
+        named = set().union(*(value.free_symbols for value in solution.values()))
+        if not missing or named - set(unknowns) or not named <= missing:
+            return None
+        free |= missing
+        curves.append({str(name): to_text(value) for name, value in solution.items()})
+    return {"infinite": True, "curves": curves, "free": sorted(str(name) for name in free)}
+
+
+def _real_solution(
+    solution: Dict[Any, Any], unknowns: Sequence[Any]
+) -> Optional[Tuple[Tuple[float, ...], Dict[str, str]]]:
+    """(the values as floats, {unknown: text}) for a real solution, None for a non-real one.
+    A value written with i or as a CRootOf is given in decimals."""
+    import sympy as sp
+
+    values: List[float] = []
+    texts: Dict[str, str] = {}
+    for name in unknowns:
+        value = solution[name]
+        approximate = sp.N(value, 15)
+        real, imaginary = (float(part) for part in approximate.as_real_imag())
+        if not math.isfinite(real) or abs(imaginary) > 1e-12 * max(1.0, abs(real)):
+            return None
+        shown = sp.re(approximate) if value.has(sp.I, sp.Float) else _displayed_root(value)
+        values.append(real)
+        texts[str(name)] = to_text(shown)
+    return tuple(values), texts
+
+
 # ----- sums ------------------------------------------------------------------------------
 
 # A sum with numeric bounds and more terms than this is summed to a symbol N first, and
@@ -1712,7 +2009,10 @@ OPERATIONS: Dict[str, Callable[..., Any]] = {
     "limit": compute_limit,
     "integrate": compute_integral,
     "simplify": compute_simplify,
+    "expand": compute_expand,
+    "factor": compute_factor,
     "solve": compute_solve,
+    "solve_system": compute_solve_system,
     "solve_inequality": compute_solve_inequality,
     "equivalent": compute_equivalent,
     "taylor": compute_taylor,
@@ -1734,7 +2034,7 @@ def handle(request: Dict[str, Any]) -> Dict[str, Any]:
     except ExpressionError as error:
         return {"error": str(error)}
     except (NotImplementedError, ValueError, TypeError, ZeroDivisionError, RecursionError) as error:
-        # SymPy raises these for problems it cannot do; the caller falls back to nerdamer
+        # SymPy raises these for problems it cannot do; the caller answers numerically or says so
         return {"result": None, "note": f"{type(error).__name__}: {error}"[:300]}
 
 
