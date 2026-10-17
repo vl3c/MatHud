@@ -10,8 +10,7 @@
 3. The result is checked numerically (utils.equivalence.compare, the step checker's check);
    a refuted result is an error.
 
-There is no nerdamer fallback (its partfrac gives decimals): without SymPy a ratio of
-polynomials gets an error that says so, and anything else the usual expansion.
+Without SymPy a ratio of polynomials gets an error that says so.
 """
 
 from __future__ import annotations

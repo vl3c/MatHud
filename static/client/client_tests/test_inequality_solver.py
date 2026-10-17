@@ -1,9 +1,9 @@
 """Tests for inequalities in the solve tool (utils.inequality_solver, utils.real_sets in Brython).
 
-TestInequalitySolverSympy pins SymPy's exact answers and skips without the server's SymPy
-engine; TestInequalitySolverWithoutSympy pins the numeric sign chart, which answers when
-SymPy is unavailable. TestInequalityHelpers pins what Brython prints for numbers (CPython's
-pytest covers the same helpers) and the checks that refute a wrong set.
+TestInequalitySolverSympy pins SymPy's exact answers; TestInequalitySolverWithoutSympy pins
+the numeric sign chart, which answers when SymPy is unavailable. TestInequalityHelpers pins
+what Brython prints for numbers (CPython's pytest covers the same helpers) and the checks
+that refute a wrong set.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from utils.inequality_solver import InequalitySolver
 from utils.math_utils import MathUtils
 from utils.real_sets import Piece, format_solution, nice_number, number_text, verify_solution_set
 
-from .cas_engines import WithoutSympy, sympy_available
+from .cas_engines import WithoutSympy
 
 NUMERIC = "(found numerically because SymPy was not available"
 
@@ -141,10 +141,6 @@ class TestInequalityHelpers(unittest.TestCase):
 
 
 class TestInequalitySolverSympy(unittest.TestCase):
-    def setUp(self) -> None:
-        if not sympy_available():
-            self.skipTest("the server's SymPy engine is not available")
-
     def test_exact_sets(self) -> None:
         cases = {
             "x^2 - 5x + 6 < 0": "2 < x < 3; interval notation: (2, 3)",
@@ -235,9 +231,11 @@ class TestInequalitySolverSympy(unittest.TestCase):
             ("x*ln(x) < 0", None): "0 < x < 1; interval notation: (0, 1)",
             ("x*pi > 1", None): "x > 1/pi; interval notation: (1/pi, Infinity); endpoints ≈ 0.318309886184",
             ("sin(x) = 0.5", "[0, 2*pi]"): "[pi/6,5*pi/6] (the roots in [0, 2*pi])",
-            ("x*e^x = 1", None): "[0.5671432904098]",
+            ("x*e^x = 1", None): "[0.567143290409784] (the real roots found numerically for |x| up to 10^6, "
+            "because SymPy found no closed form)",
             ("ln(x) = 1", None): "[e]",
-            ("x*ln(x) = 1", "[0.5, 3]"): "[1.7632228343519] (the roots in [0.5, 3])",
+            ("x*ln(x) = 1", "[0.5, 3]"): "[1.7632228343519] (the real roots found numerically in [0.5, 3], "
+            "because SymPy found no closed form)",
             ("sech(x) = 0.5", None): "[-asech(1/2),asech(1/2)]",
             ("asinh(x) = 1", None): "[sinh(1)]",
             ("sin(x)/x = 0", "[1, 4]"): "[pi] (the roots in [1, 4])",
@@ -284,6 +282,7 @@ class TestInequalitySolverWithoutSympy(unittest.TestCase):
             "|x - 1| >= 2": "x <= -1 or x >= 3; interval notation: (-Infinity, -1] ∪ [3, Infinity)",
             "x^2 <= 0": "x = 0; interval notation: {0}",
             "(x-1)^2 > 0": "x < 1 or x > 1 (every real x except 1); interval notation: (-Infinity, 1) ∪ (1, Infinity)",
+            "ln(x) > 1": "x > 2.71828182846; interval notation: (2.71828182846, Infinity)",
         }
         with WithoutSympy():
             for text, expected in cases.items():

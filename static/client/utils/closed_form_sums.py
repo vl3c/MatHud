@@ -12,8 +12,8 @@
    for an infinite one, with the other symbols given sample values (inside the condition a
    geometric sum states). A refuted result is an error; one the check cannot judge is given.
 
-There is no nerdamer fallback (its sum is not exact): without SymPy, numeric bounds are
-summed numerically and other bounds get an error that says so.
+Without SymPy, numeric bounds are summed numerically and other bounds get an error that
+says so.
 
 The browser parts (math.js, SymPy requests) are imported when first used, so pytest
 covers the module's texts with Python stand-ins.

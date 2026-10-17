@@ -4,7 +4,7 @@ from typing import Dict, List, Tuple
 from utils.math_utils import MathUtils
 from drawables_aggregator import Position
 from .simple_mock import SimpleMock
-from .cas_engines import AnyEngine, WithoutSympy, real_roots, sympy_available, value_of
+from .cas_engines import WithoutSympy, real_roots, value_of
 import math  # Add import at the top of the method
 from rendering.renderables import FunctionRenderable
 
@@ -1148,14 +1148,10 @@ class TestMathFunctions(unittest.TestCase):
     def test_integral_indefinite(self) -> None:
         result = MathUtils.integral("x^2", "x")
         result = MathUtils.simplify(result)  # simplify the result
-        if sympy_available():
-            self.assertEqual(result, "x^3/3")
-        with WithoutSympy():
-            self.assertEqual(MathUtils.simplify(MathUtils.integral("x^2", "x")), "0.3333333333333333*x^3")
+        self.assertEqual(result, "x^3/3")
 
     def test_integral(self) -> None:
-        if sympy_available():
-            self.assertEqual(MathUtils.integral("x^2", "x", 0, 1), "1/3")
+        self.assertEqual(MathUtils.integral("x^2", "x", 0, 1), "1/3")
         with WithoutSympy():
             self.assertAlmostEqual(value_of(MathUtils.integral("x^2", "x", 0, 1)), 1 / 3, places=9)
 
@@ -1187,156 +1183,40 @@ class TestMathFunctions(unittest.TestCase):
         self.assertAlmostEqual(float(result["value"]), -1.0, places=2)
         self.assertIn("midpoint", result["warning"])
 
-    def test_numeric_integrate_error_leaves_exact_cas_output(self) -> None:
-        # nerdamer leaves its decimal mode on after log(0) fails; that must not leak out
-        MathUtils.numeric_integrate("log(x)", "x", 0, 1, "simpson", 200)
-        with WithoutSympy():  # the leak is nerdamer's, so solve with nerdamer
-            self.assertEqual(MathUtils.solve("x^2-2=0", "x"), "[sqrt(2),-sqrt(2)]")
-        self.assertEqual(MathUtils.summation("1/n", "n", 1, 2), 1.5)
+    def test_numeric_integrate_reads_what_the_other_tools_read(self) -> None:
+        # ln, x(x+1) and |x| as math.js cannot read them
+        for expression, expected in (("ln(x)", 2 * math.log(2) - 1), ("x(x+1)", 23 / 6), ("|x-2|", 0.5)):
+            with self.subTest(expression=expression):
+                result = MathUtils.numeric_integrate(expression, "x", 1, 2, "simpson", 200)
+                self.assertAlmostEqual(float(result["value"]), expected, places=8)
 
     def test_numeric_integrate_rejects_too_many_steps(self) -> None:
         with self.assertRaises(ValueError):
             MathUtils.numeric_integrate("x", "x", 0, 1, "midpoint", 10001)
 
     def test_simplify(self) -> None:
-        if sympy_available():
-            self.assertEqual(MathUtils.simplify("x^2 + 2*x + 1"), "x^2+2*x+1")
-        with WithoutSympy():
-            self.assertEqual(MathUtils.simplify("x^2 + 2*x + 1"), "(1+x)^2")
+        self.assertEqual(MathUtils.simplify("x^2 + 2*x + 1"), "x^2+2*x+1")
+        self.assertEqual(MathUtils.simplify("(n+1)!/n!"), "n+1")
 
     def test_simplify_gives_exact_arithmetic(self) -> None:
-        if sympy_available():
-            self.assertEqual(MathUtils.simplify("1/3 + 1/4"), "7/12")
-            self.assertEqual(MathUtils.simplify("sqrt(12)"), "2*sqrt(3)")
-            self.assertEqual(MathUtils.simplify("0.1 + 0.2"), "3/10")
-        with WithoutSympy():
-            # nerdamer's text() prints decimals (0.583333333333333333): exact only with SymPy
-            self.assertAlmostEqual(value_of(MathUtils.simplify("1/3 + 1/4")), 7 / 12)
-            self.assertEqual(MathUtils.simplify("sqrt(12)"), "2*sqrt(3)")
+        self.assertEqual(MathUtils.simplify("1/3 + 1/4"), "7/12")
+        self.assertEqual(MathUtils.simplify("sqrt(12)"), "2*sqrt(3)")
+        self.assertEqual(MathUtils.simplify("0.1 + 0.2"), "3/10")
 
     def test_simplify_remainder(self) -> None:
-        if sympy_available():
-            self.assertEqual(MathUtils.simplify("mod(-7, 3)"), "2")
-            self.assertEqual(MathUtils.simplify("17 % 5"), "2")
-        with WithoutSympy():
-            # nerdamer reads 7%-3 as a percentage and x%3 as its truncated mod, so it refuses %
-            result = MathUtils.simplify("17 % 5")
-            self.assertIn("Error", result)
-            self.assertIn("%", result)
+        self.assertEqual(MathUtils.simplify("mod(-7, 3)"), "2")
+        self.assertEqual(MathUtils.simplify("17 % 5"), "2")
 
     def test_expand(self) -> None:
-        result = MathUtils.expand("(x + 1)^2")
-        self.assertEqual(result, "1+2*x+x^2")
+        self.assertEqual(MathUtils.expand("(x + 1)^2"), "x^2+2*x+1")
+        self.assertEqual(MathUtils.expand("x(x+1)"), "x^2+x")
+        self.assertEqual(MathUtils.expand("(x-y)(x+y)"), "x^2-y^2")
 
     def test_factor(self) -> None:
-        result = MathUtils.factor("x^2 - 1")
-        self.assertEqual(result, "(-1+x)*(1+x)")
-
-    def test_get_equation_type_with_linear_equation(self) -> None:
-        equation = "x + 2"
-        result = MathUtils.get_equation_type(equation)
-        self.assertEqual(result, "Linear")
-
-    def test_get_equation_type_with_quadratic_equation(self) -> None:
-        equation = "x^2 + 2*x + 1"
-        result = MathUtils.get_equation_type(equation)
-        self.assertEqual(result, "Quadratic")  # Adjusted to expect "Quadratic"
-
-    def test_get_equation_type_with_cubic_equation(self) -> None:
-        equation = "x^3 + 3*x^2 + 3*x + 1"
-        result = MathUtils.get_equation_type(equation)
-        self.assertEqual(result, "Cubic")  # Testing for cubic equation
-
-    def test_get_equation_type_with_quartic_equation(self) -> None:
-        equation = "x^4 + 4*x^3 + 6*x^2 + 4*x + 1"
-        result = MathUtils.get_equation_type(equation)
-        self.assertEqual(result, "Quartic")  # Testing for quartic equation
-
-    def test_get_equation_type_with_higher_order_equation(self) -> None:
-        equation = "x^5 + 5*x^4 + 10*x^3 + 10*x^2 + 5*x + 1"
-        result = MathUtils.get_equation_type(equation)
-        self.assertTrue("Order" in result)  # Testing for higher order equation, expecting "Order 5"
-
-    def test_get_equation_type_with_trigonometric_equation1(self) -> None:
-        equation = "sin(x) + 2"
-        result = MathUtils.get_equation_type(equation)
-        self.assertEqual(result, "Trigonometric")
-
-    def test_get_equation_type_with_trigonometric_equation2(self) -> None:
-        equation = "cos(x + 3) - 2"
-        result = MathUtils.get_equation_type(equation)
-        self.assertEqual(result, "Trigonometric")
-
-    def test_get_equation_type_with_trigonometric_equation3(self) -> None:
-        equation = "tan(x * sin(24)) = 2"
-        result = MathUtils.get_equation_type(equation)
-        self.assertEqual(result, "Trigonometric")
-
-    def test_get_equation_type_with_non_linear_due_to_variable_multiplication1(self) -> None:
-        equation = "x*y + 2"
-        result = MathUtils.get_equation_type(equation)
-        self.assertEqual(result, "Other Non-linear")  # Adjusted to expect "Other Non-linear"
-
-    def test_get_equation_type_with_non_linear_due_to_variable_multiplication2(self) -> None:
-        equation = "xy - 5"
-        result = MathUtils.get_equation_type(equation)
-        self.assertEqual(result, "Other Non-linear")  # Adjusted to expect "Other Non-linear"
-
-    def test_get_equation_type_with_linear_after_expansion(self) -> None:
-        equation = "(x + 1)^2"
-        expanded = MathUtils.expand(equation)  # Assuming this correctly expands to "x^2 + 2*x + 1"
-        result = MathUtils.get_equation_type(expanded)
-        self.assertEqual(result, "Quadratic")  # Adjusted to expect "Quadratic"
-
-    def test_get_equation_type_with_implicit_multiplication_not_detected_as_non_linear(self) -> None:
-        equation = "2x + 3"
-        result = MathUtils.get_equation_type(equation)
-        self.assertEqual(result, "Linear")  # Assuming implicit multiplication by constants is handled as linear
-
-    def test_determine_max_number_of_solutions_linear_and_linear(self) -> None:
-        equations = ["2x + 3 = y", "5x - 2 = y"]
-        result = MathUtils.determine_max_number_of_solutions(equations)
-        self.assertEqual(result, 1, "Linear and linear should have exactly 1 solution.")
-
-    def test_determine_max_number_of_solutions_linear_and_quadratic(self) -> None:
-        equations = ["x + 2 = y", "x^2 - 4x + 3 = y"]
-        result = MathUtils.determine_max_number_of_solutions(equations)
-        self.assertEqual(result, 2, "Linear and quadratic should have at most 2 solutions.")
-
-    def test_determine_max_number_of_solutions_linear_and_cubic(self) -> None:
-        equations = ["3x + 1 = y", "x^3 - 6x^2 + 11x - 6 = y"]
-        result = MathUtils.determine_max_number_of_solutions(equations)
-        self.assertEqual(result, 3, "Linear and cubic should intersect in at most 3 points.")
-
-    def test_determine_max_number_of_solutions_quadratic_and_quartic(self) -> None:
-        equations = ["x^2 + x - 2 = y", "x^4 - 5x^2 + 4 = y"]
-        result = MathUtils.determine_max_number_of_solutions(equations)
-        self.assertEqual(result, 8, "Quadratic and quartic should intersect in at most 8 points.")
-
-    def test_determine_max_number_of_solutions_cubic_and_quartic_with_higher_order_count(self) -> None:
-        equations = ["x^3 + x - 4 = y", "x^5 - x^4 + x^3 - x^2 + x - 1 = y"]
-        result = MathUtils.determine_max_number_of_solutions(equations)
-        self.assertEqual(result, 15, "Cubic and quintic equations can theoretically intersect in at most 15 points.")
-
-    def test_determine_max_number_of_solutions_single_equation(self) -> None:
-        equations = ["x^2 + 4x + 4 = y"]
-        result = MathUtils.determine_max_number_of_solutions(equations)
-        self.assertEqual(result, 0, "Single equation should not determine a solution count between equations.")
-
-    def test_determine_max_number_of_solutions_no_equations(self) -> None:
-        equations: List[str] = []
-        result = MathUtils.determine_max_number_of_solutions(equations)
-        self.assertEqual(result, 0, "No equations should not determine a solution count.")
-
-    def test_determine_max_number_of_solutions_trigonometric(self) -> None:
-        equations = ["sin(x) = y", "cos(x) = y"]
-        result = MathUtils.determine_max_number_of_solutions(equations)
-        self.assertEqual(result, 0, "Trigonometric combinations should indicate complex or uncertain scenarios.")
-
-    def test_determine_max_number_of_solutions_other_non_linear(self) -> None:
-        equations = ["x*y - 2 = 0", "x^2 + y = 4"]  # Changed second equation to avoid using xy term twice
-        result = MathUtils.determine_max_number_of_solutions(equations)
-        self.assertEqual(result, 0, "Other non-linear equations should indicate complex or uncertain scenarios.")
+        self.assertEqual(MathUtils.factor("x^2 - 1"), "(x-1)*(x+1)")
+        self.assertEqual(MathUtils.factor("x^3 - x"), "x*(x-1)*(x+1)")
+        self.assertEqual(MathUtils.factor("360"), "2^3*3^2*5")
+        self.assertEqual(MathUtils.factor("-3/4"), "-3/2^2")
 
     def test_solve1(self) -> None:
         self.assertEqual(real_roots(MathUtils.solve("x^2 - 4", "x")), [-2.0, 2.0])
@@ -1347,15 +1227,15 @@ class TestMathFunctions(unittest.TestCase):
         self.assertAlmostEqual(roots[0], -34.7692307692308, places=5)
 
     def test_unicode_notation_reaches_math_engines(self) -> None:
-        # Symbols typed by users or copied by models are rewritten before nerdamer and math.js see them
+        # Symbols typed by users or copied by models are rewritten before SymPy and math.js see them
         self.assertAlmostEqual(MathUtils.evaluate("2πr", {"r": 1}), 2 * math.pi)
         self.assertAlmostEqual(MathUtils.evaluate("x² + 3×x − 1", {"x": 3}), 17)
         self.assertAlmostEqual(MathUtils.evaluate("2θ", {"θ": 1.5}), 3)
         self.assertAlmostEqual(MathUtils.evaluate("1/∞"), 0)
-        self.assertEqual(MathUtils.derivative("x³ − 2x", "x"), "-2+3*x^2")
-        self.assertEqual(MathUtils.derivative("sin²(θ)", "θ"), "2*cos(θ)*sin(θ)")
+        self.assertEqual(MathUtils.derivative("x³ − 2x", "x"), "3*x^2-2")
+        self.assertEqual(MathUtils.derivative("sin²(θ)", "θ"), "sin(2*θ)")
         self.assertEqual(MathUtils.simplify("sin²(x) + cos²(x)"), "1")
-        self.assertEqual(MathUtils.expand("(x+1)²"), "1+2*x+x^2")
+        self.assertEqual(MathUtils.expand("(x+1)²"), "x^2+2*x+1")
         self.assertEqual(MathUtils.limit("1/x", "x", "∞"), "0")
         self.assertEqual(MathUtils.integral("3x²", "x"), "x^3")
         self.assertAlmostEqual(value_of(MathUtils.integral("cos(x)", "x", 0, "π/2")), 1)
@@ -1369,7 +1249,7 @@ class TestMathFunctions(unittest.TestCase):
 
     def test_every_palette_symbol_through_the_engines(self) -> None:
         # Every symbol the chat input inserts, through Brython's Python evaluation, math.js
-        # and nerdamer; server_tests/test_math_symbol_parsing.py pins the exact rewrites
+        # and SymPy; server_tests/test_math_symbol_parsing.py pins the exact rewrites
         import ast
 
         from expression_validator import ExpressionValidator
@@ -1418,19 +1298,18 @@ class TestMathFunctions(unittest.TestCase):
             result = MathUtils.evaluate(expression, {"x": 1})
             self.assertTrue(str(result).startswith("Error"), msg=f"{symbol}: {result}")
 
-        # nerdamer receives the same rewrites
-        with WithoutSympy():
-            self.assertEqual(MathUtils.derivative("xⁿ", "x"), "n*x^(-1+n)")
-            self.assertEqual(MathUtils.derivative("x⁻¹", "x"), "-x^(-2)")
-            self.assertEqual(MathUtils.simplify("x²·x³"), "x^5")
-            self.assertEqual(MathUtils.integral("x⁴", "x"), "0.2*x^5")
-            self.assertEqual(MathUtils.derivative("sin(30°)·x", "x"), "0.5")
-            self.assertEqual(MathUtils.derivative("x√y", "y"), "0.5*x*y^(-0.5)")
-            self.assertEqual(MathUtils.simplify("6÷4"), "1.5")
-            self.assertEqual(MathUtils.simplify("2π/π"), "2")
-            self.assertEqual(MathUtils.derivative("2θ+1", "θ"), "2")
-            self.assertEqual(ExpressionValidator.fix_math_expression("lim(sin(x)/x, x, 0)"), "limit(sin(x)/x, x, 0)")
-            self.assertEqual(MathUtils.limit("sin(x)/x", "x", 0), "1")
+        # SymPy receives the same rewrites
+        self.assertEqual(MathUtils.derivative("xⁿ", "x"), "n*x^n/x")
+        self.assertEqual(MathUtils.derivative("x⁻¹", "x"), "-1/x^2")
+        self.assertEqual(MathUtils.simplify("x²·x³"), "x^5")
+        self.assertEqual(MathUtils.integral("x⁴", "x"), "x^5/5")
+        self.assertEqual(MathUtils.derivative("sin(30°)·x", "x"), "1/2")
+        self.assertEqual(MathUtils.derivative("x√y", "y"), "x/(2*sqrt(y))")
+        self.assertEqual(MathUtils.simplify("6÷4"), "3/2")
+        self.assertEqual(MathUtils.simplify("2π/π"), "2")
+        self.assertEqual(MathUtils.derivative("2θ+1", "θ"), "2")
+        self.assertEqual(ExpressionValidator.fix_math_expression("lim(sin(x)/x, x, 0)"), "limit(sin(x)/x, x, 0)")
+        self.assertEqual(MathUtils.limit("sin(x)/x", "x", 0), "1")
 
     def test_evaluate_reciprocal_and_inverse_hyperbolic_functions(self) -> None:
         # Regression: these passed math.js but failed the Python validation step first
@@ -1439,8 +1318,8 @@ class TestMathFunctions(unittest.TestCase):
         self.assertAlmostEqual(MathUtils.evaluate("acot(-1)"), -math.pi / 4)
         self.assertAlmostEqual(MathUtils.evaluate("sec(0)"), 1)
 
-    def test_functions_without_parentheses_reach_nerdamer_as_calls(self) -> None:
-        # Regression: sin²x reached nerdamer as sin^2*x
+    def test_functions_without_parentheses_reach_sympy_as_calls(self) -> None:
+        # Regression: sin²x reached the CAS as sin^2*x
         self.assertEqual(MathUtils.simplify("sin²x + cos²x"), "1")
         self.assertEqual(MathUtils.derivative("sin⁻¹x", "x"), MathUtils.derivative("asin(x)", "x"))
         self.assertAlmostEqual(MathUtils.evaluate("cos⁻¹0.5"), math.pi / 3)
@@ -1459,70 +1338,47 @@ class TestMathFunctions(unittest.TestCase):
         self.assertAlmostEqual(float(MathUtils.evaluate("tan^(-1)(1)")), math.pi / 4)
         self.assertAlmostEqual(float(MathUtils.evaluate("log^-1(x)", {"x": 2})), 1 / math.log(2))
         # The CAS tools read them the same way: derive("sin^2(x)") answered for sin^2*x before
-        for engines in (WithoutSympy(), AnyEngine()):
-            with engines:
-                caret = MathUtils.derivative("sin^2(x)", "x")
-                plain = MathUtils.derivative("sin(x)^2", "x")
-                self.assertNotIn("Error", caret)
-                for point in (0.3, 1.1):
-                    self.assertAlmostEqual(
-                        float(MathUtils.evaluate(caret, {"x": point})), float(MathUtils.evaluate(plain, {"x": point}))
-                    )
-                self.assertNotIn("Error", MathUtils.derivative("sin^-1(x)", "x"))
+        caret = MathUtils.derivative("sin^2(x)", "x")
+        plain = MathUtils.derivative("sin(x)^2", "x")
+        self.assertNotIn("Error", caret)
+        for point in (0.3, 1.1):
+            self.assertAlmostEqual(
+                float(MathUtils.evaluate(caret, {"x": point})), float(MathUtils.evaluate(plain, {"x": point}))
+            )
+        self.assertNotIn("Error", MathUtils.derivative("sin^-1(x)", "x"))
 
-    def test_degrees_reach_nerdamer_as_radians(self) -> None:
-        # Regression: nerdamer received the ° sign itself
-        for engines in (WithoutSympy(), AnyEngine()):
-            with engines:
-                self.assertAlmostEqual(value_of(MathUtils.simplify("sin(30°)")), 0.5)
-                self.assertAlmostEqual(value_of(MathUtils.integral("1", "x", 0, "180°")), math.pi)
-
-    def test_delta_names_stay_whole_in_nerdamer(self) -> None:
-        # Regression: "Δx" was split into Δ*x, even in the variable argument
-        if sympy_available():
-            self.assertEqual(MathUtils.simplify("Δx/Δt"), "Δx/Δt")
-            self.assertEqual(MathUtils.integral("Δx", "Δx"), "Δx^2/2")
+    def test_degrees_reach_sympy_as_radians(self) -> None:
+        # Regression: the CAS received the ° sign itself
+        self.assertAlmostEqual(value_of(MathUtils.simplify("sin(30°)")), 0.5)
+        self.assertAlmostEqual(value_of(MathUtils.integral("1", "x", 0, "180°")), math.pi)
         with WithoutSympy():
-            self._assert_delta_names_in_nerdamer()
+            self.assertAlmostEqual(value_of(MathUtils.integral("1", "x", 0, "180°")), math.pi)
 
-    def _assert_delta_names_in_nerdamer(self) -> None:
-        self.assertEqual(MathUtils.simplify("Δx/Δt"), "Δt^(-1)*Δx")
+    def test_delta_names_stay_whole(self) -> None:
+        # Regression: "Δx" was split into Δ*x, even in the variable argument
+        self.assertEqual(MathUtils.simplify("Δx/Δt"), "Δx/Δt")
+        self.assertEqual(MathUtils.integral("Δx", "Δx"), "Δx^2/2")
         self.assertEqual(MathUtils.derivative("Δx^2", "Δx"), "2*Δx")
         self.assertEqual(MathUtils.derivative("δt²", "δt"), "2*δt")
-        self.assertEqual(MathUtils.integral("Δx", "Δx"), "0.5*Δx^2")
         self.assertEqual(real_roots(MathUtils.solve("Δx² = 4", "Δx")), [-2.0, 2.0])
         self.assertEqual(MathUtils.derivative("ϕ²", "ϕ"), "2*φ")
         # Other Greek letters are still single-letter factors
-        self.assertEqual(MathUtils.derivative("sin(ωt)", "t"), "cos(t*ω)*ω")
+        self.assertEqual(MathUtils.derivative("sin(ωt)", "t"), "ω*cos(t*ω)")
 
-    def test_solve_linear_quadratic_invalid_input(self) -> None:
-        equations = ["y = 2*x + 3"]  # Not enough equations
+    def test_solve_system_needs_a_list_of_equations(self) -> None:
         with self.assertRaises(ValueError):
-            MathUtils.solve_linear_quadratic_system(equations)
+            MathUtils.solve_system_of_equations("y = 2*x + 3")
 
-    def test_solve_linear_quadratic_no_real_solution(self) -> None:
-        equations = ["y = 2*x + 3", "y = x^2 + 4*x + 5"]
-        with self.assertRaises(ValueError):
-            MathUtils.solve_linear_quadratic_system(equations)
+    def test_solve_system_line_and_parabola_without_real_intersection(self) -> None:
+        result = MathUtils.solve_system_of_equations(["y = 2*x + 3", "y = x^2 + 4*x + 5"])
+        self.assertEqual(result, "No real solution (the equations have 2 complex solutions).")
 
-    def test_solve_linear_quadratic_returns_string(self) -> None:
-        equations = ["2x + 3 = y", "x^2 + 4x + 3 = y"]
-        result = MathUtils.solve_linear_quadratic_system(equations)
-        self.assertTrue(isinstance(result, str))  # Check if the result is correctly formatted as a string
+    def test_solve_system_line_tangent_to_parabola(self) -> None:
+        self.assertEqual(MathUtils.solve_system_of_equations(["y = 2x - 1", "y = x^2"]), "x = 1, y = 1")
 
-    def test_solve_linear_quadratic_one_real_solution(self) -> None:
-        equations = ["y = 2x - 1", "y = x^2"]
-        result = MathUtils.solve_linear_quadratic_system(equations)
-        result = dict(item.split(" = ") for item in result.split(", "))  # parse result from string to dictionary
-        result = {k: float(v) for k, v in result.items()}  # convert results to floats
-        self.assertEqual(result, {"x": 1.0, "y": 1.0})
-
-    def test_solve_linear_quadratic_two_real_solutions(self) -> None:
-        equations = ["y = x + 1", "y = x^2 + 2x + 1"]
-        result = MathUtils.solve_linear_quadratic_system(equations)
-        result = dict(item.split(" = ") for item in result.split(", "))  # parse result from string to dictionary
-        result = {k: float(v) for k, v in result.items()}  # convert results to floats
-        self.assertEqual(result, {"x1": 0.0, "y1": 1.0, "x2": -1.0, "y2": 0.0})
+    def test_solve_system_line_and_parabola(self) -> None:
+        result = MathUtils.solve_system_of_equations(["y = x + 1", "y = x^2 + 2x + 1"])
+        self.assertEqual(result, "x1 = -1, y1 = 0, x2 = 0, y2 = 1")
 
     def test_solve_system_of_equations_linear(self) -> None:
         result = MathUtils.solve_system_of_equations(["x + y = 4", "x - y = 2"])
@@ -1534,12 +1390,7 @@ class TestMathFunctions(unittest.TestCase):
         result = MathUtils.solve_system_of_equations(["x^2 = y", "-x + 2 = y"])
         result = dict(item.split(" = ") for item in result.split(", "))  # parse result from string to dictionary
         result = {k: float(v) for k, v in result.items()}  # convert results to floats
-        self.assertEqual(result, {"x1": 1.0, "y1": 1.0, "x2": -2.0, "y2": 4.0})
-
-    def test_determine_max_number_of_solutions_cubic_and_quintic(self) -> None:
-        equations = ["x^3 + x - 4 = y", "x^5 - x^4 + x^3 - x^2 + x - 1 = y"]
-        result = MathUtils.determine_max_number_of_solutions(equations)
-        self.assertEqual(result, 15, "Cubic and quintic equations can theoretically intersect in at most 15 points.")
+        self.assertEqual(result, {"x1": -2.0, "y1": 4.0, "x2": 1.0, "y2": 1.0})
 
     def test_solve_system_of_equations_with_high_order(self) -> None:
         equations = ["x^3 + x - 4 = y", "x^5 - x^4 + x^3 - x^2 + x - 1 = y"]
@@ -2455,7 +2306,7 @@ class TestSequencesAndSeries(unittest.TestCase):
             MathUtils.summation("n", "n", 0, 100000)  # 100001 terms
 
     def test_summation_index_named_like_a_constant(self) -> None:
-        # math.js's scope overrides its constants i and e (nerdamer read i^2 as -1 here)
+        # math.js's scope overrides its constants i and e (a CAS reads i^2 as -1)
         self.assertEqual(MathUtils.summation("i^2", "i", 1, 3), 14)
         self.assertEqual(MathUtils.summation("e", "e", 1, 3), 6)
         self.assertEqual(str(MathUtils.evaluate("summation('i^2','i',1,3)")), "14")
@@ -2613,7 +2464,7 @@ class TestSequencesAndSeries(unittest.TestCase):
         self.assertIn("Diverges", result)
 
     def test_root_test_reports_numeric_limit(self) -> None:
-        """Test root_test evaluates nerdamer's symbolic limit (e.g. e^(-0.69...)) to a number."""
+        """Test root_test evaluates a symbolic limit (e.g. e^(-0.69...)) to a number."""
         result = MathUtils.root_test("(1/2)^n", "n")
         self.assertEqual(result, "Converges (L = 0.5)")
 
@@ -2627,6 +2478,7 @@ class TestSequencesAndSeries(unittest.TestCase):
         self.assertIn("Diverges", MathUtils.root_test("3^n/n", "n"))
         self.assertIn("Inconclusive", MathUtils.ratio_test("1/n^2", "n"))
         self.assertIn("Inconclusive", MathUtils.root_test("1/n", "n"))
+        self.assertEqual(MathUtils.ratio_test("1/n!", "n"), "Converges (L = 0)")
 
     # ========== p_series_test tests ==========
     def test_p_series_test_converges(self) -> None:

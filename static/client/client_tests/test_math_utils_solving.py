@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import math
-import re
 import unittest
 from typing import List, Tuple
 
@@ -12,26 +11,27 @@ from browser import window
 
 from utils.math_utils import MathUtils
 
-from .cas_engines import AnyEngine, WithoutSympy, real_roots, sympy_available, value_of
+from .cas_engines import WithoutSympy, real_roots, value_of
 
 
-def _parse_point_pairs(result: str) -> List[Tuple[float, float]]:
-    """Parse '(x = a, y = b), ...' strings into sorted (x, y) tuples."""
-    pairs = re.findall(r"\(x = ([^,]+), y = ([^)]+)\)", result)
-    return sorted((float(x), float(y)) for x, y in pairs)
-
-
-def _parse_indexed_solutions(result: str) -> List[Tuple[float, float]]:
-    """Parse 'x1 = a, y1 = b, x2 = c, y2 = d' (or 'x = a, y = b') into sorted (x, y) tuples."""
-    values = dict(item.split(" = ") for item in result.split(", "))
+def _solution_points(result: str) -> List[Tuple[float, float]]:
+    """'x1 = a, y1 = b, x2 = c, y2 = d' (or 'x = a, y = b') as sorted (x, y) tuples, the values
+    evaluated by math.js (1/2-sqrt(73)/2)."""
+    values = dict(item.split(" = ") for item in result.split(" (")[0].split(", "))
     xs = sorted(key for key in values if key.startswith("x"))
-    return sorted((float(values[key]), float(values["y" + key[1:]])) for key in xs)
+    return sorted(
+        (float(window.math.evaluate(values[key])), float(window.math.evaluate(values["y" + key[1:]]))) for key in xs
+    )
 
 
-def _parse_numeric_solutions(result: str) -> List[Tuple[float, float]]:
-    """Parse the numeric solver JSON output into sorted (x, y) tuples."""
-    data = json.loads(result)
-    return sorted((float(s["x"]), float(s["y"])) for s in data["solutions"])
+class _WithSympy:
+    """Context manager that changes nothing: the block uses the server's SymPy engine."""
+
+    def __enter__(self) -> "_WithSympy":
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        return None
 
 
 class TestMathUtilsSolving(unittest.TestCase):
@@ -42,81 +42,84 @@ class TestMathUtilsSolving(unittest.TestCase):
             self.assertAlmostEqual(ay, ey, places=6)
 
     # ------------------------------------------------------------------
-    # get_equation_type
+    # solve_system_of_equations
     # ------------------------------------------------------------------
-    def test_equation_type_reciprocal_is_not_linear(self) -> None:
-        self.assertNotEqual(MathUtils.get_equation_type("y = 1/x"), "Linear")
-
-    def test_equation_type_exponential_is_not_linear(self) -> None:
-        self.assertNotEqual(MathUtils.get_equation_type("y = e^x"), "Linear")
-        self.assertNotEqual(MathUtils.get_equation_type("y = 2^x"), "Linear")
-
-    def test_equation_type_fractional_power_is_not_linear(self) -> None:
-        self.assertNotEqual(MathUtils.get_equation_type("y = x^0.5"), "Linear")
-
-    def test_equation_type_quadratic_plus_reciprocal_is_not_quadratic(self) -> None:
-        self.assertNotEqual(MathUtils.get_equation_type("y = x^2 + 1/x"), "Quadratic")
-
-    def test_equation_type_keeps_linear_with_constant_fraction(self) -> None:
-        self.assertEqual(MathUtils.get_equation_type("y = x/2 + 1"), "Linear")
-        self.assertEqual(MathUtils.get_equation_type("2*y = x + 1"), "Linear")
-
     def test_solve_system_reciprocal_and_line_finds_both_intersections(self) -> None:
         result = MathUtils.solve_system_of_equations(["y = 1/x", "y = x"])
-        self.assert_points_close(_parse_numeric_solutions(result), [(-1.0, -1.0), (1.0, 1.0)])
+        self.assertEqual(result, "x1 = -1, y1 = -1, x2 = 1, y2 = 1")
 
-    # ------------------------------------------------------------------
-    # solve_linear_quadratic_system
-    # ------------------------------------------------------------------
-    def test_linear_quadratic_with_scaled_y(self) -> None:
-        result = MathUtils.solve_linear_quadratic_system(["2*y = x + 1", "y = x^2"])
-        self.assert_points_close(_parse_indexed_solutions(result), [(-0.5, 0.25), (1.0, 1.0)])
-
-    def test_linear_quadratic_with_vertical_line(self) -> None:
-        result = MathUtils.solve_linear_quadratic_system(["x = 3", "y = x^2"])
-        self.assert_points_close(_parse_indexed_solutions(result), [(3.0, 9.0)])
+    def test_line_and_parabola_with_scaled_y(self) -> None:
+        result = MathUtils.solve_system_of_equations(["2*y = x + 1", "y = x^2"])
+        self.assertEqual(result, "x1 = -1/2, y1 = 1/4, x2 = 1, y2 = 1")
 
     def test_solve_system_with_vertical_line_and_parabola(self) -> None:
-        result = MathUtils.solve_system_of_equations(["x = 3", "y = x^2"])
-        self.assert_points_close(_parse_indexed_solutions(result), [(3.0, 9.0)])
+        self.assertEqual(MathUtils.solve_system_of_equations(["x = 3", "y = x^2"]), "x = 3, y = 9")
 
-    def test_linear_quadratic_fast_path_unchanged(self) -> None:
-        result = MathUtils.solve_linear_quadratic_system(["y = x + 2", "y = x^2"])
-        self.assertEqual(_parse_indexed_solutions(result), [(-1.0, 1.0), (2.0, 4.0)])
+    def test_line_and_parabola(self) -> None:
+        result = MathUtils.solve_system_of_equations(["y = x + 2", "y = x^2"])
+        self.assertEqual(result, "x1 = -1, y1 = 1, x2 = 2, y2 = 4")
 
-    # ------------------------------------------------------------------
-    # solve_quadratic_system
-    # ------------------------------------------------------------------
-    def test_quadratic_system_with_irrational_roots(self) -> None:
-        result = MathUtils.solve_quadratic_system(["y = x^2", "y = 3 - x^2"])
+    def test_two_parabolas_with_irrational_roots(self) -> None:
+        result = MathUtils.solve_system_of_equations(["y = x^2", "y = 3 - x^2"])
         root = math.sqrt(1.5)
-        self.assert_points_close(_parse_point_pairs(result), [(-root, 1.5), (root, 1.5)])
+        self.assert_points_close(_solution_points(result), [(-root, 1.5), (root, 1.5)])
 
-    def test_quadratic_system_circle_and_parabola(self) -> None:
+    def test_circle_and_parabola(self) -> None:
         result = MathUtils.solve_system_of_equations(["x^2 + y^2 = 25", "y = x^2 - 5"])
-        self.assert_points_close(_parse_point_pairs(result), [(-3.0, 4.0), (0.0, -5.0), (3.0, 4.0)])
+        self.assertEqual(result, "x1 = -3, y1 = 4, x2 = 0, y2 = -5, x3 = 3, y3 = 4")
 
-    def test_quadratic_system_without_explicit_y_uses_numeric_solver(self) -> None:
-        result = MathUtils.solve_quadratic_system(["x^2 + y^2 = 25", "x^2 + y = 7"])
-        points = _parse_numeric_solutions(result)
-        self.assertGreater(len(points), 0)
+    def test_system_without_explicit_y(self) -> None:
+        result = MathUtils.solve_system_of_equations(["x^2 + y^2 = 25", "x^2 + y = 7"])
+        points = _solution_points(result)
+        self.assertEqual(len(points), 4, result)
         for x, y in points:
-            self.assertAlmostEqual(x * x + y * y, 25.0, places=6)
-            self.assertAlmostEqual(x * x + y, 7.0, places=6)
+            self.assertAlmostEqual(x * x + y * y, 25.0, places=9)
+            self.assertAlmostEqual(x * x + y, 7.0, places=9)
+
+    def test_two_circles(self) -> None:
+        result = MathUtils.solve_system_of_equations(["x^2 + y^2 = 25", "(x-6)^2 + y^2 = 25"])
+        self.assertEqual(result, "x1 = 3, y1 = -4, x2 = 3, y2 = 4")
 
     def test_solve_system_cubic_and_line_returns_all_intersections(self) -> None:
         result = MathUtils.solve_system_of_equations(["y = x^3", "y = x"])
-        self.assert_points_close(_parse_indexed_solutions(result), [(-1.0, -1.0), (0.0, 0.0), (1.0, 1.0)])
+        self.assertEqual(result, "x1 = -1, y1 = -1, x2 = 0, y2 = 0, x3 = 1, y3 = 1")
 
     def test_solve_system_high_order_single_intersection_keeps_plain_format(self) -> None:
         result = MathUtils.solve_system_of_equations(["x^3 + x - 4 = y", "x^5 - x^4 + x^3 - x^2 + x - 1 = y"])
-        self.assertNotIn("x1", result)
-        self.assert_points_close(_parse_indexed_solutions(result), [(-1.0, -6.0)])
+        self.assertEqual(result, "x = -1, y = -6")
 
-    def test_quadratic_system_no_real_intersection_is_not_empty(self) -> None:
-        result = MathUtils.solve_quadratic_system(["y = x^2 + 1", "y = -x^2"])
-        self.assertNotEqual(result, "")
-        self.assertEqual(_parse_numeric_solutions(result), [])
+    def test_no_real_intersection(self) -> None:
+        result = MathUtils.solve_system_of_equations(["y = x^2 + 1", "y = -x^2"])
+        self.assertEqual(result, "No real solution (the equations have 2 complex solutions).")
+
+    def test_three_unknowns(self) -> None:
+        result = MathUtils.solve_system_of_equations(["x + y + z = 6", "x - y = 0", "x + z = 5"])
+        self.assertEqual(result, "x = 1, y = 1, z = 4")
+
+    def test_parameters_are_not_unknowns(self) -> None:
+        result = MathUtils.solve_system_of_equations(["x + y = a", "x - y = 1"])
+        self.assertEqual(result, "x = a/2+1/2, y = a/2-1/2")
+
+    def test_dependent_systems_have_infinitely_many_solutions(self) -> None:
+        linear = MathUtils.solve_system_of_equations(["x + y = 2", "2*x + 2*y = 4"])
+        self.assertTrue(linear.startswith("Infinitely many solutions: the equations are dependent"), linear)
+        curves = MathUtils.solve_system_of_equations(["x^2 + y^2 = 1", "2*x^2 + 2*y^2 = 2"])
+        self.assertTrue(curves.startswith("Infinitely many solutions (whole curves of them)"), curves)
+
+    def test_transcendental_system_by_substitution(self) -> None:
+        # SymPy's solve finds one of the three; substitution lists every real root
+        result = MathUtils.solve_system_of_equations(["y = 2^x", "y = x^2"])
+        self.assertTrue(result.startswith("x1 = -0.766664695962123, y1 = 0.587774756034695, x2 = 2, y2 = 4,"), result)
+        self.assertIn("x3 = 4, y3 = 16 (the real roots found numerically", result)
+
+    def test_single_equation_is_two_curves(self) -> None:
+        self.assertEqual(MathUtils.solve_system_of_equations(["x^2 = x + 2"]), "x1 = -1, y1 = 1, x2 = 2, y2 = 4")
+
+    def test_other_systems_go_to_the_numeric_solver(self) -> None:
+        data = json.loads(MathUtils.solve_system_of_equations(["sin(x) + y = 1", "x - y = 0"]))
+        self.assertEqual(data["method"], "newton_raphson")
+        for solution in data["solutions"]:
+            self.assertAlmostEqual(math.sin(solution["x"]) + solution["y"], 1.0, places=6)
 
     # ------------------------------------------------------------------
     # integral (definite)
@@ -135,7 +138,7 @@ class TestMathUtilsSolving(unittest.TestCase):
         self.assertTrue(result.startswith("Error"), result)
 
     def test_integral_regular_cases_unchanged(self) -> None:
-        for engines in (AnyEngine(), WithoutSympy()):
+        for engines in (_WithSympy(), WithoutSympy()):
             with engines:
                 self.assertAlmostEqual(value_of(MathUtils.integral("x^2", "x", 0, 3)), 9.0, places=9)
                 self.assertAlmostEqual(value_of(MathUtils.integral("sin(x)", "x", 0, "pi")), 2.0, places=9)
@@ -222,56 +225,41 @@ class TestMathUtilsSolving(unittest.TestCase):
             self.assertAlmostEqual(roots[1] / coefficient, 1.0, places=6)
 
     def test_solve_keeps_valid_complex_roots(self) -> None:
-        if sympy_available():
-            self.assertEqual(MathUtils.solve("x^2+1=0", "x"), "[-i,i]")
-        with WithoutSympy():
-            self.assertEqual(MathUtils.solve("x^2+1=0", "x"), "[i,-i]")
+        self.assertEqual(MathUtils.solve("x^2+1=0", "x"), "[-i,i]")
 
     def test_solve_keeps_regular_output(self) -> None:
-        if sympy_available():
-            self.assertEqual(MathUtils.solve("x^2 - 4", "x"), "[-2,2]")
-            self.assertEqual(MathUtils.solve("x^2-2=0", "x"), "[-sqrt(2),sqrt(2)]")
-        with WithoutSympy():
-            self.assertEqual(MathUtils.solve("x^2 - 4", "x"), "[2,-2]")
-            self.assertEqual(MathUtils.solve("x^2-2=0", "x"), "[sqrt(2),-sqrt(2)]")
+        self.assertEqual(MathUtils.solve("x^2 - 4", "x"), "[-2,2]")
+        self.assertEqual(MathUtils.solve("x^2-2=0", "x"), "[-sqrt(2),sqrt(2)]")
 
     def test_solve_keeps_symbolic_roots_it_cannot_check(self) -> None:
-        if sympy_available():
-            self.assertEqual(MathUtils.solve("x + y = 3", "x"), "[3-y]")
-        with WithoutSympy():
-            self.assertEqual(MathUtils.solve("x + y = 3", "x"), "[-(-3+y)]")
+        self.assertEqual(MathUtils.solve("x + y = 3", "x"), "[3-y]")
 
     def test_solve_lists_the_roots_in_an_interval(self) -> None:
-        if sympy_available():
-            self.assertEqual(
-                MathUtils.solve("tan(x) = 1", "x", "[0, 20]"),
-                "[pi/4,5*pi/4,9*pi/4,13*pi/4,17*pi/4,21*pi/4,25*pi/4] (the roots in [0, 20])",
-            )
-            self.assertEqual(MathUtils.solve("sin(x) = 0", "x", "[0, 2pi)"), "[0,pi] (the roots in [0, 2*pi))")
-            self.assertEqual(MathUtils.solve("sin(x) = 0", "x", "[0, 2pi]"), "[0,pi,2*pi] (the roots in [0, 2*pi])")
-            many = MathUtils.solve("sin(x) = 0", "x", "[0, 1000]")
-            self.assertTrue(many.endswith(",59*pi] (the first 60 of 319 roots in [0, 1000])"), many)
-        with WithoutSympy():
-            # nerdamer's roots are filtered to the interval, open ends left out
-            self.assertEqual(MathUtils.solve("x^2 = 4", "x", "[-2, 2)"), "[-2] (the roots in [-2, 2))")
-            self.assertEqual(
-                MathUtils.solve("sin(x) = 0", "x", "[0, 2pi)"),
-                "[0,3.1415926535898] (the roots in [0, 2*pi) that nerdamer found; "
-                "an equation with trig functions may have more)",
-            )
-        for engine in (AnyEngine, WithoutSympy):
+        self.assertEqual(
+            MathUtils.solve("tan(x) = 1", "x", "[0, 20]"),
+            "[pi/4,5*pi/4,9*pi/4,13*pi/4,17*pi/4,21*pi/4,25*pi/4] (the roots in [0, 20])",
+        )
+        self.assertEqual(MathUtils.solve("sin(x) = 0", "x", "[0, 2pi)"), "[0,pi] (the roots in [0, 2*pi))")
+        self.assertEqual(MathUtils.solve("sin(x) = 0", "x", "[0, 2pi]"), "[0,pi,2*pi] (the roots in [0, 2*pi])")
+        many = MathUtils.solve("sin(x) = 0", "x", "[0, 1000]")
+        self.assertTrue(many.endswith(",59*pi] (the first 60 of 319 roots in [0, 1000])"), many)
+        self.assertEqual(MathUtils.solve("x^2 = 4", "x", "[-2, 2)"), "[-2] (the roots in [-2, 2))")
+        self.assertEqual(MathUtils.solve("x^2 = 2", "x", "[0, 5]"), "[sqrt(2)] (the roots in [0, 5])")
+        self.assertEqual(MathUtils.solve("x^2 + 1 = 0", "x", "[0, 5]"), "[] (the roots in [0, 5])")
+        self.assertEqual(MathUtils.solve("x^2 = 4", "x", "(-Infinity, 0]"), "[-2] (the roots in (-Infinity, 0])")
+        self.assertEqual(real_roots(MathUtils.solve("(x-1)(x+2) = 0", "x", "[-5, 5]")), [-2.0, 1.0])
+        for engine in (_WithSympy, WithoutSympy):
             with engine():
-                self.assertEqual(MathUtils.solve("x^2 = 2", "x", "[0, 5]"), "[sqrt(2)] (the roots in [0, 5])")
-                self.assertEqual(MathUtils.solve("x^2 + 1 = 0", "x", "[0, 5]"), "[] (the roots in [0, 5])")
-                self.assertEqual(
-                    MathUtils.solve("x^2 = 4", "x", "(-Infinity, 0]"), "[-2] (the roots in (-Infinity, 0])"
-                )
                 self.assertTrue(MathUtils.solve("x^2 = 4", "x", "[2, 1]").startswith("Error:"))
                 self.assertEqual(MathUtils.solve("x^2 = 4", "x", None), MathUtils.solve("x^2 = 4", "x"))
-                # One variable only, as for inequalities; implicit products as SymPy reads them
+                # One variable only, as for inequalities
                 self.assertEqual(
                     MathUtils.solve("x + y = 3", "x", "[0, 5]"),
                     "Error: solve lists the roots in an interval for equations in one variable; "
                     "besides x it also contains y.",
                 )
-                self.assertEqual(real_roots(MathUtils.solve("(x-1)(x+2) = 0", "x", "[-5, 5]")), [-2.0, 1.0])
+        with WithoutSympy():
+            # The numeric root finder honours the interval's ends
+            self.assertEqual(MathUtils.solve("x^2 = 4", "x", "[-2, 2)").split(" (")[0], "[-2]")
+            self.assertEqual(MathUtils.solve("x^2 = 4", "x", "(-Infinity, 0]").split(" (")[0], "[-2]")
+            self.assertEqual(MathUtils.solve("x^2 + 1 = 0", "x", "[0, 5]").split(" (")[0], "[]")

@@ -1,8 +1,7 @@
 """Tests for partial fractions in the expand tool (MathUtils.expand with a variable, utils.partial_fractions).
 
-TestPartialFractionsSympy pins SymPy's decompositions and skips without the server's SymPy
-engine; TestPartialFractionsWithoutSympy pins what happens with no engine: an error for a
-ratio of polynomials, the ordinary expansion for anything else.
+TestPartialFractionsSympy pins SymPy's decompositions; TestPartialFractionsWithoutSympy pins
+what happens with no engine: an error.
 """
 
 from __future__ import annotations
@@ -12,14 +11,10 @@ import unittest
 from utils.math_utils import MathUtils
 from utils.partial_fractions import UNCHANGED_NOTE, PartialFractions
 
-from .cas_engines import WithoutSympy, sympy_available
+from .cas_engines import WithoutSympy
 
 
 class TestPartialFractionsSympy(unittest.TestCase):
-    def setUp(self) -> None:
-        if not sympy_available():
-            self.skipTest("the server's SymPy engine is not available")
-
     def test_partial_fractions(self) -> None:
         self.assertEqual(MathUtils.expand("2/(x^2-1)", "x"), "1/(x-1) - 1/(x+1)")
         self.assertEqual(MathUtils.expand("(3x+5)/((x+1)(x+2))", "x"), "2/(x+1) + 1/(x+2)")
@@ -70,10 +65,15 @@ class TestPartialFractionsWithoutSympy(unittest.TestCase):
         self.assertIn("((x+1)(x+2))", result)
 
     def test_anything_else_is_expanded_as_usual(self) -> None:
+        self.assertEqual(MathUtils.expand("(x + 1)^2", "x"), "x^2+2*x+1")
+        self.assertEqual(MathUtils.expand("(x+1)/(x*y)", "x"), MathUtils.expand("(x+1)/(x*y)"))
+        self.assertEqual(MathUtils.expand("(x + 1)^2", None), "x^2+2*x+1")
+
+    def test_expansion_needs_sympy(self) -> None:
         with WithoutSympy():
-            self.assertEqual(MathUtils.expand("(x + 1)^2", "x"), "1+2*x+x^2")
-            self.assertEqual(MathUtils.expand("(x+1)/(x*y)", "x"), MathUtils.expand("(x+1)/(x*y)"))
-            self.assertEqual(MathUtils.expand("(x + 1)^2", None), "1+2*x+x^2")
+            result = MathUtils.expand("(x + 1)^2", "x")
+        self.assertTrue(result.startswith("Error: expand("), result)
+        self.assertIn("needs SymPy, and the server's SymPy engine is not available", result)
 
     def test_rationalize_reads_ratios_of_polynomials(self) -> None:
         self.assertTrue(PartialFractions._is_rational_in("2/(x^2-1)", "x"))

@@ -1,8 +1,8 @@
-"""Helpers for CAS tests: run a block on the nerdamer path, and read results by value.
+"""Helpers for CAS tests: run a block as on a server without SymPy, and read results by value.
 
-The CAS tools ask the server's SymPy engine first (utils/sympy_client.py) and use nerdamer
-when it is unavailable. ``WithoutSympy`` makes it unavailable for a block, so a test can
-pin nerdamer's behaviour whatever the server has.
+The CAS tools ask the server's SymPy engine (utils/sympy_client.py). ``WithoutSympy`` makes
+it unavailable for a block, so a test can pin what the tools do without it: the symbolic
+ones give an error, the numeric ones still answer.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from utils.sympy_client import SympyClient
 
 
 class WithoutSympy:
-    """Context manager: the CAS tools use nerdamer inside the block."""
+    """Context manager: inside the block the CAS tools act as on a server without SymPy."""
 
     def __enter__(self) -> "WithoutSympy":
         self._saved = SympyClient._unavailable
@@ -25,11 +25,6 @@ class WithoutSympy:
 
     def __exit__(self, *exc_info: Any) -> None:
         SympyClient._unavailable = self._saved
-
-
-def sympy_available() -> bool:
-    """True when the server's SymPy engine answers (tests of its exact output skip otherwise)."""
-    return SympyClient.compute("simplify", expression="x") is not None
 
 
 def value_of(result: Any) -> float:
@@ -58,13 +53,3 @@ def real_roots(result: str, digits: Optional[int] = 9) -> List[float]:
     """The real roots of a solve() result, sorted (rounded to digits)."""
     values = [root.real for root in roots_of(result) if abs(root.imag) < 1e-12]
     return sorted(round(value, digits) if digits is not None else value for value in values)
-
-
-class AnyEngine:
-    """Context manager that changes nothing: the block uses whichever engine is available."""
-
-    def __enter__(self) -> "AnyEngine":
-        return self
-
-    def __exit__(self, *exc_info: Any) -> None:
-        return None

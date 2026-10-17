@@ -62,7 +62,7 @@ from .test_step_checker import TestStepCheckerHelpers, TestStepCheckerSympy, Tes
 from .test_taylor import TestTaylorSympy, TestTaylorWithoutSympy
 from .test_partial_fractions import TestPartialFractionsSympy, TestPartialFractionsWithoutSympy
 from .test_closed_form_sums import TestClosedFormSumsSympy, TestClosedFormSumsWithoutSympy
-from .test_cas_known_answers import TestCasKnownAnswers, TestCasKnownAnswersNerdamer, TestCasSympyAnswers
+from .test_cas_known_answers import TestCasKnownAnswers, TestCasSympyAnswers, TestCasWithoutSympy
 from .test_periodicity_detection import TestPeriodicityDetection, TestPeriodicityEdgeCases
 from .test_geometry_utils import TestGeometryUtils, TestConvexHull, TestPointInConvexHull
 from .test_graph_layout import TestGraphLayout, TestGraphLayoutVisibility
@@ -574,7 +574,7 @@ class Tests:
             TestClosedFormSumsSympy,
             TestClosedFormSumsWithoutSympy,
             TestCasKnownAnswers,
-            TestCasKnownAnswersNerdamer,
+            TestCasWithoutSympy,
             TestCasSympyAnswers,
             TestSequencesAndSeries,
             TestSequencesAndSeriesEvaluate,

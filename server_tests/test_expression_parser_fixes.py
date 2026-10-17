@@ -79,7 +79,7 @@ class TestCaretFunctionPowers(unittest.TestCase):
                 self.assertAlmostEqual(ExpressionValidator.parse_function_string(expression)(0.5), expected)
 
     def test_cas_input_reads_the_same_forms(self) -> None:
-        # The CAS tools get raw text: derive("sin^2(x)") used to reach nerdamer as sin^2*x
+        # The CAS tools get raw text: derive("sin^2(x)") used to reach the CAS as sin^2*x
         from utils.math_utils import MathUtils
 
         self.assertEqual(MathUtils._cas_input("sin^2(x)"), "sin(x)^2")

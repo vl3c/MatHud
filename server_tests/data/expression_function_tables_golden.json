@@ -5241,64 +5241,6 @@
    }
   },
   "sites": {
-   "degenerate_linear_system": {
-    "arrangements(x, 2)": {
-     "mathjs": [
-      "compile (permutations(x, 2) )-( 1)"
-     ],
-     "raised": "ValueError",
-     "returned_error": false
-    },
-    "nthroot(x, 3)": {
-     "mathjs": [
-      "compile (nthRoot(x, 3) )-( 1)"
-     ],
-     "raised": "ValueError",
-     "returned_error": false
-    },
-    "sin(x)": {
-     "mathjs": [
-      "compile (sin(x) )-( 1)"
-     ],
-     "raised": "ValueError",
-     "returned_error": false
-    },
-    "stdev([x, 1])": {
-     "mathjs": [
-      "compile (std([x, 1]) )-( 1)"
-     ],
-     "raised": "ValueError",
-     "returned_error": false
-    },
-    "trunc(x)": {
-     "mathjs": [
-      "compile (fix(x) )-( 1)"
-     ],
-     "raised": "ValueError",
-     "returned_error": false
-    },
-    "x % 2": {
-     "mathjs": [
-      "compile (x mod 2 )-( 1)"
-     ],
-     "raised": "ValueError",
-     "returned_error": false
-    },
-    "xtrunc(x)": {
-     "mathjs": [
-      "compile (xtrunc(x) )-( 1)"
-     ],
-     "raised": "ValueError",
-     "returned_error": false
-    },
-    "|x|": {
-     "mathjs": [
-      "compile (abs(x) )-( 1)"
-     ],
-     "raised": "ValueError",
-     "returned_error": false
-    }
-   },
    "equation_holds": {
     "arrangements(x, 2)": {
      "mathjs": [

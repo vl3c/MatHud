@@ -1,9 +1,8 @@
 """Tests for closed forms of sums in the simplify tool (MathUtils.simplify of summation(term, k, a, b)).
 
-TestClosedFormSumsSympy pins SymPy's closed forms and the numeric checks of them, and skips
-without the server's SymPy engine; TestClosedFormSumsWithoutSympy pins the refusals, which
-come before any engine, and what happens with no engine: numeric bounds are summed term by
-term, other bounds get an error.
+TestClosedFormSumsSympy pins SymPy's closed forms and the numeric checks of them;
+TestClosedFormSumsWithoutSympy pins the refusals, which come before any engine, and what
+happens with no engine: numeric bounds are summed term by term, other bounds get an error.
 """
 
 from __future__ import annotations
@@ -14,7 +13,7 @@ from typing import Any, Dict
 from utils.closed_form_sums import ClosedFormSums
 from utils.math_utils import MathUtils
 
-from .cas_engines import WithoutSympy, sympy_available
+from .cas_engines import WithoutSympy
 
 
 def _simplify(text: str) -> str:
@@ -22,10 +21,6 @@ def _simplify(text: str) -> str:
 
 
 class TestClosedFormSumsSympy(unittest.TestCase):
-    def setUp(self) -> None:
-        if not sympy_available():
-            self.skipTest("the server's SymPy engine is not available")
-
     def test_symbolic_bounds(self) -> None:
         for text, expected in (
             ("summation(k^2, k, 1, n)", "n*(n+1)*(2*n+1)/6"),

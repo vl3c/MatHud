@@ -249,8 +249,6 @@ class TestExportCompleteness(unittest.TestCase):
             "_LocalStorage",
             "_Performance",
             "_MathJS",
-            "_NerdamerExpr",
-            "_Nerdamer",
             "_Date",
             "_URL",
         }
@@ -505,7 +503,6 @@ class TestWindowStructure(unittest.TestCase):
             "localStorage",
             "performance",
             "math",
-            "nerdamer",
             "Date",
             "URL",
         }
@@ -1005,18 +1002,6 @@ class TestMyPyWindowOperations(unittest.TestCase):
         stdout, stderr, exit_code = _run_mypy_snippet(snippet)
         self.assertEqual(exit_code, 0, f"MyPy failed:\nstdout: {stdout}\nstderr: {stderr}")
 
-    def test_mypy_window_nerdamer(self) -> None:
-        """window.nerdamer operations must type-check."""
-        snippet = (
-            "from browser import window\n"
-            "expr = window.nerdamer('x^2 + 1')\n"
-            "text: str = expr.text()\n"
-            "evald = expr.evaluate()\n"
-            "subbed = expr.sub('x', 2)\n"
-        )
-        stdout, stderr, exit_code = _run_mypy_snippet(snippet)
-        self.assertEqual(exit_code, 0, f"MyPy failed:\nstdout: {stdout}\nstderr: {stderr}")
-
     def test_mypy_window_dynamic_attribute_access(self) -> None:
         """Window __getattr__/__setattr__ escape hatch must type-check."""
         snippet = (
@@ -1267,20 +1252,6 @@ class TestMyPyIntegrationPatterns(unittest.TestCase):
             "    formatted: str = window.math.format(result)\n"
             "    type_name: str = window.math.typeOf(result)\n"
             "    return formatted\n"
-        )
-        stdout, stderr, exit_code = _run_mypy_snippet(snippet)
-        self.assertEqual(exit_code, 0, f"MyPy failed:\nstdout: {stdout}\nstderr: {stderr}")
-
-    def test_mypy_nerdamer_solve_pattern(self) -> None:
-        """Nerdamer symbolic math pattern from math_utils.py."""
-        snippet = (
-            "from browser import window\n"
-            "def solve_equation(eq: str) -> str:\n"
-            "    expr = window.nerdamer(eq)\n"
-            "    result = expr.evaluate()\n"
-            "    text: str = result.text()\n"
-            "    subbed = expr.sub('x', 5)\n"
-            "    return text\n"
         )
         stdout, stderr, exit_code = _run_mypy_snippet(snippet)
         self.assertEqual(exit_code, 0, f"MyPy failed:\nstdout: {stdout}\nstderr: {stderr}")

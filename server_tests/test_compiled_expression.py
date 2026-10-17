@@ -49,7 +49,7 @@ class TestFreeNames(unittest.TestCase):
 
     def test_free_names_in_x_and_y(self) -> None:
         self.assertEqual(_free("x^2 + y^2 - 1", ("x", "y")), ())
-        # ASCII runs stay one name, as in math.js and nerdamer
+        # ASCII runs stay one name, as in math.js and SymPy
         self.assertEqual(_free("xy", ("x", "y")), ("xy",))
         self.assertEqual(_free("ax + y", ("x", "y")), ("ax",))
 

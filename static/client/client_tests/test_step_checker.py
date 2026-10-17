@@ -1,9 +1,9 @@
 """Tests for the check_steps tool (utils.step_checker, utils.equivalence in Brython).
 
-TestStepCheckerSympy pins the reasons with SymPy's difference and skips without the server's
-SymPy engine; TestStepCheckerWithoutSympy pins the numeric verdicts, which answer when SymPy
-is unavailable. TestStepCheckerHelpers pins what Brython reads (math.js variables and
-values) and prints (CPython's pytest covers the same helpers).
+TestStepCheckerSympy pins the reasons with SymPy's difference; TestStepCheckerWithoutSympy
+pins the numeric verdicts, which answer when SymPy is unavailable. TestStepCheckerHelpers
+pins what Brython reads (math.js variables and values) and prints (CPython's pytest covers
+the same helpers).
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from utils.equivalence import distinct_value_texts, json_number, point_text, val
 from utils.step_checker import StepChecker
 from utils.symbolic_checks import SymbolicChecks
 
-from .cas_engines import WithoutSympy, sympy_available
+from .cas_engines import WithoutSympy
 
 
 def _check(steps: List[str]) -> Dict[str, Any]:
@@ -74,10 +74,6 @@ class TestStepCheckerHelpers(unittest.TestCase):
 
 
 class TestStepCheckerSympy(unittest.TestCase):
-    def setUp(self) -> None:
-        if not sympy_available():
-            self.skipTest("the server's SymPy engine is not available")
-
     def test_first_wrong_step(self) -> None:
         result = _check(WRONG_SECOND_STEP)
         self.assertEqual(result["verdict"], "not_equivalent")

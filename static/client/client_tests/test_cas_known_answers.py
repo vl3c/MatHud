@@ -1,14 +1,15 @@
 """Known-answer tests for the CAS tools (derive, integrate, limit, solve, simplify, systems).
 
-TestCasKnownAnswers runs with whichever engine is available (the server's SymPy, else
-nerdamer); TestCasKnownAnswersNerdamer runs the same cases on the nerdamer path, whose
-results utils.symbolic_checks verifies numerically. Each case is one nerdamer got wrong
-before: a misread function name, a wrong antiderivative or limit, a lost or spurious root.
-Answers are compared by value, not by spelling.
+TestCasKnownAnswers runs on the server's SymPy engine, each result checked numerically by
+utils.symbolic_checks. Many cases are ones the earlier nerdamer engine got wrong: a misread
+function name, a wrong antiderivative or limit, a lost or spurious root. Answers are compared
+by value, not by spelling. TestCasWithoutSympy pins a server without SymPy: the symbolic
+tools give an error, the numeric ones still answer.
 """
 
 from __future__ import annotations
 
+import json
 import math
 import unittest
 from typing import Any, Dict, List, Optional
@@ -53,6 +54,14 @@ class TestCasKnownAnswers(unittest.TestCase):
         self.assert_same_function(MathUtils.derivative("ln(sin(x))", "x"), "cos(x)/sin(x)", [0.5, 1.2])
         self.assert_same_function(MathUtils.derivative("sgn(x)*x^2", "x"), "2*abs(x)", [-1.5, 0.7, 2.0])
 
+    def test_checks_read_ln_and_sgn(self) -> None:
+        # math.js has no ln or sgn; the numeric checks of every tool must still read them
+        from utils.symbolic_checks import SymbolicChecks
+
+        self.assertIs(SymbolicChecks.equivalent("x*ln(x)", "x*log(x)"), True)
+        self.assertIs(SymbolicChecks.equivalent("sgn(x)*x", "abs(x)"), True)
+        self.assertIs(SymbolicChecks.equivalent("ln(x)", "log(x, 10)"), False)
+
     def test_unknown_function_is_refused(self) -> None:
         result = MathUtils.derivative("foo(x)", "x")
         self.assertTrue(result.startswith("Error"), result)
@@ -79,7 +88,7 @@ class TestCasKnownAnswers(unittest.TestCase):
         self.assert_number(MathUtils.integral("1/(x^2-1)", "x", -0.5, 0.5), -math.log(3), places=9)
 
     def test_definite_integrals_without_elementary_values(self) -> None:
-        # SymPy gives Si, fresnels or Ei forms with the numeric value; nerdamer the numeric value
+        # SymPy gives Si, fresnels or Ei forms with the numeric value
         for expression, lower, upper, expected in (
             ("sin(x^2)", 0, 1, 0.3102683017233811),
             ("(e^x-1)/x", -1, 1, 2.1145017507435094),
@@ -203,17 +212,17 @@ class TestCasKnownAnswers(unittest.TestCase):
     def test_simplify_with_ln(self) -> None:
         self.assert_number(MathUtils.simplify("ln(e^2)"), 2.0)
 
-    def test_linear_systems_without_a_distinct_solution(self) -> None:
-        dependent = MathUtils.solve_linear_system(["x+y=2", "2*x+2*y=4"])
+    def test_systems_without_a_distinct_solution(self) -> None:
+        dependent = MathUtils.solve_system_of_equations(["x+y=2", "2*x+2*y=4"])
         self.assertTrue(dependent.startswith("Infinitely many solutions"), dependent)
-        inconsistent = MathUtils.solve_linear_system(["x+y=2", "x+y=3"])
+        inconsistent = MathUtils.solve_system_of_equations(["x+y=2", "x+y=3"])
         self.assertTrue(inconsistent.startswith("No solution"), inconsistent)
-        overdetermined = MathUtils.solve_linear_system(["x+y=1", "x+y=1", "x-y=0"])
-        self.assertEqual(overdetermined, "x = 0.5, y = 0.5")
+        overdetermined = MathUtils.solve_system_of_equations(["x+y=1", "x+y=1", "x-y=0"])
+        self.assertEqual(overdetermined, "x = 1/2, y = 1/2")
 
 
-class TestCasKnownAnswersNerdamer(TestCasKnownAnswers):
-    """The same cases with SymPy unavailable, plus the nerdamer results the checks refuse."""
+class TestCasWithoutSympy(unittest.TestCase):
+    """A server without SymPy: the symbolic tools say so, the numeric ones still answer."""
 
     def setUp(self) -> None:
         self._saved = SympyClient._unavailable
@@ -222,42 +231,61 @@ class TestCasKnownAnswersNerdamer(TestCasKnownAnswers):
     def tearDown(self) -> None:
         SympyClient._unavailable = self._saved
 
-    def test_cancellation_noise_is_not_oscillation(self) -> None:
-        # nerdamer has no answer and the samples cannot settle it, but they do not claim oscillation
-        result = MathUtils.limit("(e^x-e^(-x)-2*x)/x^3", "x", "0")
-        self.assertNotIn("does not exist", result)
+    def assert_needs_sympy(self, result: str) -> None:
+        self.assertTrue(result.startswith("Error: "), result)
+        self.assertIn("needs SymPy, and the server's SymPy engine is not available", result)
 
-    def test_unknown_function_is_refused(self) -> None:
-        result = MathUtils.derivative("gamma(x)", "x")
-        self.assertTrue(result.startswith("Error"), result)
-        self.assertIn("gamma()", result)
+    def assert_numeric(self, result: str, expected: float) -> None:
+        self.assertFalse(result.startswith("Error"), result)
+        self.assertIn("SymPy engine is not available", result)
+        self.assertAlmostEqual(value_of(result), expected, places=9, msg=result)
 
-    def test_wrong_derivative_is_refused(self) -> None:
-        # nerdamer answers 0
-        result = MathUtils.derivative("atan2(y,x)", "x")
-        self.assertTrue(result.startswith("Error"), result)
+    def test_symbolic_tools_need_sympy(self) -> None:
+        self.assert_needs_sympy(MathUtils.derivative("x^2", "x"))
+        self.assert_needs_sympy(MathUtils.simplify("ln(e^2)"))
+        self.assert_needs_sympy(MathUtils.expand("(x+1)^2"))
+        self.assert_needs_sympy(MathUtils.factor("x^2-1"))
+        self.assert_needs_sympy(MathUtils.integral("x^2", "x"))
 
-    def test_wrong_antiderivatives_are_refused(self) -> None:
-        for expression in ("1/(x^3+1)", "1/(x^2+2*x+5)", "sin(x^2)"):
-            result = MathUtils.integral(expression, "x")
-            self.assertTrue(result.startswith("Error"), f"{expression}: {result}")
+    def test_definite_integrals_are_computed_numerically(self) -> None:
+        self.assert_numeric(MathUtils.integral("x^2", "x", 0, 3), 9.0)
+        self.assert_numeric(MathUtils.integral("ln(x)", "x", 1, 2), 2 * math.log(2) - 1)
+        self.assert_numeric(MathUtils.integral("sin(x^2)", "x", 0, 1), 0.3102683017233811)
 
-    def test_definite_integrals_without_elementary_values(self) -> None:
-        for expression, lower, upper, expected in (
-            ("sin(x^2)", 0, 1, 0.3102683017233811),
-            ("(e^x-1)/x", -1, 1, 2.1145017507435094),
-        ):
-            result = MathUtils.integral(expression, "x", lower, upper)
-            self.assertIn("computed numerically", result)
-            self.assertAlmostEqual(value_of(result), expected, places=9, msg=result)
+    def test_limits_are_estimated_numerically(self) -> None:
+        self.assert_numeric(MathUtils.limit("sin(x)/x", "x", "0"), 1.0)
+        self.assert_numeric(MathUtils.limit("ln(x)/x", "x", "inf"), 0.0)
+
+    def test_equations_are_solved_numerically(self) -> None:
+        result = MathUtils.solve("x^2-4=0", "x")
+        self.assertTrue(result.startswith("[-2,2] (the real roots found numerically"), result)
+        self.assertEqual(real_roots(MathUtils.solve("ln(x)=2", "x")), [round(math.exp(2), 9)])
+        self.assertEqual(real_roots(MathUtils.solve("(1-x)*e^(-x)=0", "x")), [1.0])
+        self.assertTrue(MathUtils.solve("x^2+1=0", "x").startswith("[] (no real root was found numerically"))
+        self.assertTrue(MathUtils.solve("x=x", "x").startswith("Every real x satisfies x = x"))
+        self.assertEqual(MathUtils.solve("1e-8*x=2e-8", "x").split(" (")[0], "[2]")
+        with_parameter = MathUtils.solve("x + y = 3", "x")
+        self.assertTrue(with_parameter.startswith("Error: "), with_parameter)
+        self.assertIn("needs an equation in x alone; besides x it contains y", with_parameter)
+
+    def test_roots_in_an_interval_are_found_numerically(self) -> None:
+        self.assertEqual(MathUtils.solve("sin(x) = 0", "x", "[0, 2pi)").split(" (")[0], "[0,pi]")
+        self.assertEqual(MathUtils.solve("x^2 = 4", "x", "[-2, 2)").split(" (")[0], "[-2]")
+        self.assertEqual(MathUtils.solve("(x-1)(x+2) = 0", "x", "[-5, 5]").split(" (")[0], "[-2,1]")
+
+    def test_systems_are_solved_numerically(self) -> None:
+        result = MathUtils.solve_system_of_equations(["y = x^2 - 5", "x^2 + y^2 = 25"])
+        self.assertTrue(result.startswith("x1 = -3, y1 = 4, x2 = 0, y2 = -5, x3 = 3, y3 = 4 ("), result)
+        data = json.loads(MathUtils.solve_system_of_equations(["x+y=2", "x-y=0"]))
+        self.assertEqual([(round(s["x"], 9), round(s["y"], 9)) for s in data["solutions"]], [(1.0, 1.0)])
+
+    def test_numeric_integrate_reads_ln(self) -> None:
+        result = MathUtils.numeric_integrate("ln(x)", "x", 1, 2)
+        self.assertAlmostEqual(result["value"], 2 * math.log(2) - 1, places=9)
 
 
 class TestCasSympyAnswers(unittest.TestCase):
-    """Answers only the server's SymPy engine gives exactly (skipped when it is unavailable)."""
-
-    def setUp(self) -> None:
-        if SympyClient.compute("simplify", expression="x") is None:
-            self.skipTest("the server has no SymPy")
+    """SymPy's exact answers."""
 
     def test_exact_results(self) -> None:
         self.assertEqual(MathUtils.limit("sqrt(x^2+x)-x", "x", "inf"), "1/2")

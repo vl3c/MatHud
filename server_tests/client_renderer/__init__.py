@@ -10,22 +10,6 @@ def _install_browser_stub() -> None:
     if "browser" in sys.modules:
         return
 
-    class _NerdamerStub:
-        def __call__(self, *_args: object, **_kwargs: object) -> "_NerdamerStub":
-            return self
-
-        def text(self) -> str:
-            return ""
-
-        def evaluate(self) -> "_NerdamerStub":
-            return self
-
-        def coeffs(self, *_args: object, **_kwargs: object) -> "_NerdamerStub":
-            return self
-
-        def solveEquations(self, *_args: object, **_kwargs: object):  # pragma: no cover - only used for compatibility
-            return []
-
     class _DocumentStub:
         def __init__(self) -> None:
             self._store: dict[str, SimpleNamespace] = {}
@@ -71,8 +55,6 @@ def _install_browser_stub() -> None:
 
         warn = error = info = debug = log
 
-    nerdamer_stub = _NerdamerStub()
-
     class _WindowStub:
         def __init__(self) -> None:
             self.performance = SimpleNamespace(now=lambda: 0.0)
@@ -86,7 +68,6 @@ def _install_browser_stub() -> None:
                 det=lambda _matrix: 0.0,
                 evaluate=lambda _expr, _vars=None: 0.0,
             )
-            self.nerdamer = nerdamer_stub
 
     browser = ModuleType("browser")
     browser.document = _DocumentStub()

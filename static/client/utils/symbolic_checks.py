@@ -1,9 +1,7 @@
-"""Numeric checks on nerdamer's symbolic results, and numeric answers where it has none.
+"""Numeric checks on symbolic results, and numeric answers where there are none.
 
-nerdamer (the symbolic engine) is often confidently wrong: it reads unknown function names
-as variables (ln(x) -> ln*x), returns limits such as lim sqrt(x^2+x)-x = -Infinity, loses
-real roots of cubics, and hands back garbage antiderivatives. Every CAS tool therefore
-checks its result with math.js before returning it:
+Every CAS tool checks the server's SymPy result with math.js before returning it, so a
+wrong symbolic answer (a parsing slip, an engine bug) is refused rather than reported:
 
 - derivatives against central differences, antiderivatives by differentiating them back,
   simplify/expand/factor by comparing values at sample points;
@@ -24,7 +22,6 @@ from browser import window
 from expression_functions import rename_for_mathjs
 from utils import equivalence
 from utils.cas_numeric import IntegralEstimate, adaptive_integral
-from utils.cas_text import rewrite_for_nerdamer, unknown_function_names
 
 RealFunction = Callable[[float], Optional[float]]
 
@@ -45,39 +42,12 @@ LIMIT_AGREEMENT = 1e-4
 class SymbolicChecks:
     """Numeric checks on symbolic results; every method is static."""
 
-    _nerdamer_functions: Optional[List[str]] = None
-
-    @staticmethod
-    def nerdamer_input(expression: str) -> str:
-        """Rewrite an expression for nerdamer and refuse function names it would misread.
-
-        Raises:
-            ValueError: if the expression calls a function nerdamer does not define (it
-                would read gamma(x) as gamma*x and answer for that instead), or holds % (it
-                reads 7%-3 as a percentage and x%3 as its own mod, which truncates).
-        """
-        if "%" in expression:
-            raise ValueError("The symbolic engine cannot read the remainder operator %.")
-        rewritten = rewrite_for_nerdamer(expression)
-        unknown = unknown_function_names(rewritten, SymbolicChecks._known_functions())
-        if unknown:
-            names = ", ".join(f"{name}()" for name in unknown)
-            raise ValueError(f"The symbolic engine has no function named {names}.")
-        return rewritten
-
-    @staticmethod
-    def _known_functions() -> List[str]:
-        if SymbolicChecks._nerdamer_functions is None:
-            functions = window.nerdamer.getCore().PARSER.functions
-            SymbolicChecks._nerdamer_functions = [str(name) for name in window.Object.keys(functions)]
-        return SymbolicChecks._nerdamer_functions
-
     @staticmethod
     def free_variables(expression: str) -> List[str]:
-        """nerdamer's free variables of an expression (constants e and pi excluded); [] on error."""
+        """The names math.js reads as variables in an expression (expression_variables); [] when it cannot parse it."""
         try:
-            return [str(name) for name in window.nerdamer(expression).variables()]
-        except Exception:
+            return SymbolicChecks.expression_variables(expression)
+        except ValueError:
             return []
 
     @staticmethod

@@ -1,9 +1,9 @@
-"""Numeric algorithms that check and complete results from nerdamer, the symbolic engine.
+"""Numeric algorithms for the CAS tools.
 
 - adaptive_integral: adaptive Gauss-Kronrod (7/15) quadrature, used to check a definite
   integral computed from an antiderivative and to stand in when there is no antiderivative.
-- polynomial_roots: every complex root of a polynomial (Aberth-Ehrlich iteration), used
-  when nerdamer's closed forms for a cubic or higher lose roots.
+- polynomial_roots: every complex root of a polynomial (Aberth-Ehrlich iteration), used for
+  the asymptote analysis and the inequality sign chart's seeds.
 - format_number / format_complex / distinct_values: tidy numeric roots for display.
 
 Pure Python (no browser imports), so server-side pytest covers it.
@@ -371,7 +371,7 @@ def format_number(value: float) -> str:
 
 
 def format_complex(value: complex) -> str:
-    """A complex root as nerdamer-style text: 0.5+1.2*i, -0.5-i, 2*i, or a real number."""
+    """A complex root as text: 0.5+1.2*i, -0.5-i, 2*i, or a real number."""
     real, imag = snap(value.real), snap(value.imag)
     if imag == 0:
         return format_number(real)

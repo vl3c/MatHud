@@ -232,7 +232,6 @@ def _mathjs_bridge() -> Dict[str, Any]:
         "tangent_asymptotes": lambda text: MathUtils._tangent_asymptotes(text, -1, 1),
         "root_status": lambda text: MathUtils._root_status([text, "1"], "x", complex(1, 0)),
         "equation_holds": lambda text: MathUtils._equation_holds([text, "1"], {"x": 1.0}),
-        "degenerate_linear_system": lambda text: MathUtils._degenerate_linear_system([text + " = 1"]),
         "real_function": real_function,
         "numeric_value": SymbolicChecks.numeric_value,
         "evaluate_residuals": lambda text: evaluate_residuals([equation_to_residual(text)], ["x"], [1.0]),
