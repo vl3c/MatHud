@@ -2088,7 +2088,9 @@ class MathUtils:
             return "Error: An equation has at most one '='."
         if roots_window is not None:
             try:
-                others = InequalitySolver.other_names([InequalitySolver.prepared(side) for side in sides], variable)
+                others = InequalitySolver.other_names(
+                    [InequalitySolver.prepared(side, keep=(variable,)) for side in sides], variable
+                )
             except ValueError:
                 others = []  # left to the engines, which say what they cannot read
             if others:

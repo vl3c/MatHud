@@ -1,13 +1,13 @@
 """The check_steps tool: is each step of a derivation equivalent to the one before?
 
 Each step is an expression. Steps go through the input pipeline the solve tool uses for
-inequalities (InequalitySolver.prepared: Unicode notation, sin^2(x), ln, |x| bars, x(x+2)
-and (x-1)(x+2) as products), so SymPy and math.js read the same text. Then, for each pair
-of neighbouring steps:
+inequalities (InequalitySolver.prepared: Unicode notation, sin^2(x), ln, |x| bars, sin x,
+sinx and xe^x as calculators read them, x(x+2) and (x-1)(x+2) as products), so SymPy and
+math.js read the same text. Then, for each pair of neighbouring steps:
 
 1. A step neither engine can read makes the pair undecided, with the parse message.
-2. A pair where one step has a name such as xy and the other has x and y is undecided:
-   math.js and SymPy read xy as one variable.
+2. A pair with a name the engines misread is undecided, with a hint: a function name read
+   as a variable, a name that starts with one (sinxy), or xy against x and y.
 3. The numeric check (utils.equivalence.compare, every variable varied) decides most
    pairs. "equivalent" is the answer, with a note when one step is undefined where the
    other is defined (log(x^2) and 2*log(x)), and SymPy is not asked.
@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import re
 import time
-from typing import Any, Dict, List, Optional, Sequence, Tuple, cast
+from typing import Any, Dict, FrozenSet, List, Optional, Sequence, Set, Tuple, cast
 
 from utils.cas_text import has_inequality, split_top_level_terms
 from utils.equivalence import (
@@ -63,6 +63,36 @@ _EQUATION_REFUSAL = (
     "check_steps takes expressions; equations and inequalities come next. For a chain a = b = c, pass a, b and c."
 )
 _SINGLE_LETTER = re.compile(r"^[A-Za-zͰ-Ͽ]$")
+
+
+_CONSTANTS = ("e", "pi")
+
+
+def _function_spellings() -> FrozenSet[str]:
+    """Every spelling of a function (sin, ln, sine): never a variable."""
+    from expression_functions import BY_NAME, CALCULATOR_SPELLINGS, CALL_ALIASES, WORD_ALIASES
+
+    names: Set[str] = set(BY_NAME) | set(CALCULATOR_SPELLINGS) | set(CALL_ALIASES) | set(WORD_ALIASES)
+    return frozenset(names)
+
+
+def _call_prefixes() -> List[str]:
+    """The calculator functions a variable name may start with (sinxy, lnxy), longest first."""
+    from expression_functions import CALCULATOR_SPELLINGS
+
+    return sorted((f for f in CALCULATOR_SPELLINGS if len(f) > 1), key=len, reverse=True)
+
+
+def _pieces(name: str, letters: Set[str]) -> Optional[List[str]]:
+    """name split into two or more of letters, e and pi (xye -> [x, y, e]), or None."""
+    if not name:
+        return []
+    for piece in sorted(letters | set(_CONSTANTS), key=len, reverse=True):
+        if name.startswith(piece):
+            rest = _pieces(name[len(piece) :], letters)
+            if rest is not None:
+                return [piece] + rest
+    return None
 
 
 class PreparedStep:
@@ -199,17 +229,13 @@ class StepChecker:
     @staticmethod
     def _check_pair(previous: PreparedStep, step: PreparedStep, budget: _Budget) -> Dict[str, Any]:
         record: Dict[str, Any] = {"step": step.number}
-        joined = StepChecker._joined_name(previous, step) or StepChecker._joined_name(step, previous)
-        if joined is not None:
-            name, letters = joined
-            reason = (
-                f"{name} is read as one variable, but the other step has {' and '.join(letters)}; "
-                f"write {'*'.join(letters)}"
-            )
-            return dict(record, verdict=UNDECIDED, method=NEITHER, reason=reason)
+        misread = StepChecker._misread_name(previous, step) or StepChecker._misread_name(step, previous)
+        if misread is not None:
+            return dict(record, verdict=UNDECIDED, method=NEITHER, reason=misread)
         numeric: Optional[EquivalenceReport] = None
         if previous.evaluator is not None and step.evaluator is not None:
-            variables = sorted(set(previous.variables) | set(step.variables))
+            # a function name is never bound as a variable (it would hide the function)
+            variables = sorted((set(previous.variables) | set(step.variables)) - _function_spellings())
             numeric = compare(previous.evaluator, step.evaluator, variables, previous.scale, step.scale)
             if numeric.verdict == EQUIVALENT:
                 return StepChecker._equivalent(record, previous, step, numeric, NUMERIC)
@@ -219,16 +245,37 @@ class StepChecker:
         return StepChecker._combined(record, previous, step, numeric, sympy)
 
     @staticmethod
-    def _joined_name(step: PreparedStep, other: PreparedStep) -> Optional[Tuple[str, List[str]]]:
-        """(xy, [x, y]) when step has a longer name whose letters are all variables of other and
-        other does not have the name itself."""
+    def _misread_name(step: PreparedStep, other: PreparedStep) -> Optional[str]:
+        """Why a name in step is not what the writer meant, or None.
+
+        A function name read as a variable (sin), a name that starts with a calculator function
+        (sinxy), and a name made of the other step's one-letter variables, e and pi (xy against
+        x and y, xye against x and y) are misread: math.js and SymPy would read them as one
+        variable.
+        """
+        functions = _function_spellings()
         others = set(other.variables)
         for name in step.variables:
+            if name in functions:
+                return f"{name} is a function, but it is read as a variable here; write {name}(x) with parentheses"
+            prefix = next((f for f in _call_prefixes() if name.startswith(f)), "")
+            if prefix:
+                rest = name[len(prefix) :]
+                pieces = _pieces(rest, {letter for letter in others if _SINGLE_LETTER.match(letter)})
+                operand = "*".join(pieces) if pieces else rest
+                return f"{name} is read as one variable; write {prefix}({operand})"
             if len(name) < 2 or name in others:
                 continue
-            letters = list(name)
-            if all(_SINGLE_LETTER.match(letter) and letter in others for letter in letters):
-                return name, letters
+            pieces = _pieces(name, {letter for letter in others if _SINGLE_LETTER.match(letter)})
+            if pieces is None:
+                continue
+            letters = [piece for piece in pieces if piece not in _CONSTANTS]
+            if len(letters) == len(pieces):
+                return (
+                    f"{name} is read as one variable, but the other step has {' and '.join(letters)}; "
+                    f"write {'*'.join(pieces)}"
+                )
+            return f"{name} is read as one variable; write {'*'.join(pieces)}"
         return None
 
     @staticmethod

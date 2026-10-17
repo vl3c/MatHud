@@ -271,6 +271,76 @@ class TestGuards(unittest.TestCase):
         )
 
 
+# Steps written as on a calculator: functions without parentheses, and e or pi glued to a letter
+CALCULATOR_EQUIVALENT = [
+    ["(x+1)e^x", "xe^x + e^x"],
+    ["2xe^(x^2)", "2x*exp(x^2)"],
+    ["xpi", "pi*x"],
+    ["2 sin x cos x", "sin 2x"],
+    ["ln x + ln y", "ln(x*y)"],
+    ["sin^2 x + cos^2 x", "1"],
+    ["sec x", "1/cos(x)"],
+    ["x ln x", "x*ln(x)"],
+    ["sinx", "sin(x)"],
+    ["sin x", "sin(x)"],
+    ["cos x", "cos(x)"],
+    ["log x^2", "log(x^2)"],
+    ["log x^2", "2log(x)"],
+    ["cos^2 x - sin^2 x", "cos 2x"],
+]
+CALCULATOR_WRONG = [
+    ["(x+1)e^x", "xe^x + 1"],
+    ["2xe^(x^2)", "2e^(x^2)"],
+    ["xpi", "pi + x"],
+    ["xe^x", "x + e^x"],
+    ["2 sin x cos x", "sin x"],
+    ["sin 2x", "2 sin x"],
+    ["ln x + ln y", "ln(x + y)"],
+    ["sin^2 x + cos^2 x", "2"],
+    ["sec x", "1/sin x"],
+    ["x ln x", "ln(x)"],
+    ["sinx", "cos x"],
+    ["sin x^2", "sin(x)^2"],
+    ["ln x^2", "(ln x)^2"],
+]
+
+
+class TestCalculatorNotation(unittest.TestCase):
+    def _verdicts(self, cases: List[List[str]], sympy: bool) -> List[str]:
+        engines = _Engines() if sympy else _Engines(sympy=lambda first, second: None)
+        return [engines.check(steps)["verdict"] for steps in cases]
+
+    def test_correct_steps_are_equivalent_without_sympy(self) -> None:
+        self.assertEqual(self._verdicts(CALCULATOR_EQUIVALENT, False), ["equivalent"] * len(CALCULATOR_EQUIVALENT))
+
+    def test_wrong_steps_stay_wrong_without_sympy(self) -> None:
+        self.assertEqual(self._verdicts(CALCULATOR_WRONG, False), ["not_equivalent"] * len(CALCULATOR_WRONG))
+
+    @unittest.skipUnless(HAVE_SYMPY, "needs SymPy")
+    def test_with_sympy(self) -> None:
+        self.assertEqual(self._verdicts(CALCULATOR_EQUIVALENT, True), ["equivalent"] * len(CALCULATOR_EQUIVALENT))
+        self.assertEqual(self._verdicts(CALCULATOR_WRONG, True), ["not_equivalent"] * len(CALCULATOR_WRONG))
+        reason = _check(["(x+1)e^x", "xe^x + 1"])["steps"][0]["reason"]
+        self.assertEqual(reason, "step 2 - step 1 = 1-exp(x) (not 0); at x = 1, step 1 = 5.43656 and step 2 = 3.71828")
+
+    def test_misread_names_are_undecided_with_a_hint(self) -> None:
+        # a function name math.js reads as a variable (sin alone) is in the Brython test
+        engines = _Engines()
+        for steps, reason in (
+            (["sinxy", "sin(x*y)"], "sinxy is read as one variable; write sin(x*y)"),
+            (["xye^x", "x*y*e^x"], "xye is read as one variable; write x*y*e"),
+        ):
+            with self.subTest(steps=steps):
+                record = engines.check(steps)["steps"][0]
+                self.assertEqual((record["verdict"], record["method"], record["reason"]), ("undecided", "none", reason))
+        self.assertEqual(engines.requests, [])
+
+    def test_function_names_are_never_bound_as_variables(self) -> None:
+        with mock.patch.object(step_checker, "compare", wraps=step_checker.compare) as spy:
+            _Engines(sympy=lambda first, second: None).check(["x + sin(x)", "sin(x) + x"])
+        self.assertEqual(spy.call_args[0][2], ["x"])
+
+
 class TestInput(unittest.TestCase):
     def test_refusals(self) -> None:
         engines = _Engines()

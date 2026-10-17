@@ -22,11 +22,13 @@ from utils.cas_numeric import (  # noqa: E402
 from utils.cas_text import (  # noqa: E402
     find_closing_parenthesis,
     has_inequality,
+    insert_calculator_calls,
     insert_implicit_products,
     insert_letter_call_products,
     is_unevaluated,
     parse_interval,
     rewrite_for_nerdamer,
+    split_constant_products,
     split_relation,
     split_top_level_commas,
     split_top_level_terms,
@@ -131,6 +133,85 @@ class TestInequalityText(unittest.TestCase):
             with self.subTest(text=text):
                 with self.assertRaises(ValueError):
                     parse_interval(text)
+
+
+class TestCalculatorNotation(unittest.TestCase):
+    """Functions without parentheses and e or pi glued to a letter, read as calculators do."""
+
+    UNARY = ("sin", "cos", "tan", "sec", "ln", "log", "exp", "sqrt", "abs")
+    GLUED = ("sin", "cos", "ln", "log", "sqrt")
+
+    def test_function_calls(self) -> None:
+        cases = {
+            "sin x": "sin(x)",
+            "sin 2x": "sin(2x)",
+            "2 sin x cos x": "2*sin(x)*cos(x)",
+            "ln x + ln y": "ln(x) + ln(y)",
+            "sin^2 x + cos^2 x": "sin^2(x) + cos^2(x)",
+            "sin^2x": "sin^2(x)",
+            "sin x^2": "sin(x^2)",
+            "log x^2": "log(x^2)",
+            "sin x^(2y)": "sin(x^(2y))",
+            "x ln x": "x*ln(x)",
+            "(x+1) ln x": "(x+1)*ln(x)",
+            "sin cos x": "sin(cos(x))",
+            "sin 30": "sin(30)",
+            "sin 2pi": "sin(2pi)",
+            "sec x": "sec(x)",
+            "tan x/cos x": "tan(x)/cos(x)",
+            "sinx": "sin(x)",
+            "sin2x": "sin(2x)",
+            "lnx^2": "ln(x^2)",
+            "cost": "cos(t)",
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(insert_calculator_calls(text, self.UNARY, self.GLUED), expected)
+
+    def test_text_that_is_left_alone(self) -> None:
+        for text in (
+            "sin(x)",
+            "sin (x)",
+            "sin^2(x)",
+            "2sin(x)cos(x)",
+            "sin",
+            "sin + 1",
+            "sin -x",
+            "x sin(x)",
+            "time + rate",
+            "sine",
+            "sinh x2",
+            "secret",
+            "1e5x",
+            "a.sin x",
+        ):
+            with self.subTest(text=text):
+                expected = "sinh(x2)" if text == "sinh x2" else text
+                unary = self.UNARY + ("sinh", "sine")
+                self.assertEqual(insert_calculator_calls(text, unary, self.GLUED), expected)
+
+    def test_kept_names(self) -> None:
+        self.assertEqual(insert_calculator_calls("cost < 1", self.UNARY, self.GLUED, keep=("cost",)), "cost < 1")
+        self.assertEqual(insert_calculator_calls("sin cost", self.UNARY, self.GLUED, keep=("cost",)), "sin(cost)")
+
+    def test_constant_products(self) -> None:
+        reserved = ("re", "im", "exp", "e", "pi")
+        cases = {
+            "xe^x": "x*e^x",
+            "(x+1)e^x": "(x+1)e^x",
+            "2xe^(x^2)": "2x*e^(x^2)",
+            "xpi": "x*pi",
+            "pix + ex": "pi*x + e*x",
+            "re(z) + ie": "re(z) + ie",
+            "time + rate + xye": "time + rate + xye",
+            "ex(2)": "ex(2)",
+            "1e5 + 2.5e-3": "1e5 + 2.5e-3",
+            "a.xe": "a.xe",
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(split_constant_products(text, reserved), expected)
+        self.assertEqual(split_constant_products("ex > 1", reserved, keep=("ex",)), "ex > 1")
 
 
 class TestRewriteForNerdamer(unittest.TestCase):

@@ -113,6 +113,8 @@ class TestStepCheckerSympy(unittest.TestCase):
             (["(a + b)^2", "a^2 + 2a*b + b^2", "a^2 + b^2"], 3),
             (["sqrt((x-5)^2)", "|x - 5|", "5 - x"], 3),
             (["1/2 + 1/3", "2/5"], 2),
+            (["(x+1)e^x", "xe^x + e^x", "xe^x + 1"], 3),
+            (["2 sin x cos x", "sin 2x", "2 sin x"], 3),
         ):
             result = _check(steps)
             self.assertEqual(result["first_wrong_step"], wrong, f"{steps}: {result['summary']}")
@@ -161,3 +163,39 @@ class TestStepCheckerWithoutSympy(unittest.TestCase):
         self.assertEqual(unreadable["verdict"], "undecided")
         self.assertTrue(unreadable["steps"][0]["reason"].startswith("step 2 cannot be read (math.js: "))
         self.assertEqual(domain["steps"][0]["note"], "equivalent where both are defined; step 2 is undefined at x = -1")
+
+    def test_calculator_notation(self) -> None:
+        equivalent = [
+            ["(x+1)e^x", "xe^x + e^x"],
+            ["2xe^(x^2)", "2x*exp(x^2)"],
+            ["xpi", "pi*x"],
+            ["2 sin x cos x", "sin 2x"],
+            ["ln x + ln y", "ln(x*y)"],
+            ["sin^2 x + cos^2 x", "1"],
+            ["sec x", "1/cos(x)"],
+            ["x ln x", "x*ln(x)"],
+            ["sinx", "sin(x)"],
+            ["sin x", "sin(x)"],
+            ["cos x", "cos(x)"],
+            ["log x^2", "log(x^2)"],
+        ]
+        wrong = [
+            ["(x+1)e^x", "xe^x + 1"],
+            ["xpi", "pi + x"],
+            ["sin 2x", "2 sin x"],
+            ["ln x + ln y", "ln(x + y)"],
+            ["sec x", "1/sin x"],
+            ["sin x^2", "sin(x)^2"],
+        ]
+        with WithoutSympy():
+            verdicts = [_check(steps)["verdict"] for steps in equivalent]
+            wrong_verdicts = [_check(steps)["verdict"] for steps in wrong]
+            bare = _check(["sin", "sin(x)"])
+            spaced = _check(["sin x - 1", "sin(x) - 1"])
+        self.assertEqual(verdicts, ["equivalent"] * len(equivalent))
+        self.assertEqual(wrong_verdicts, ["not_equivalent"] * len(wrong))
+        self.assertEqual(
+            bare["steps"][0]["reason"],
+            "sin is a function, but it is read as a variable here; write sin(x) with parentheses",
+        )
+        self.assertEqual(spaced["steps"][0], {"step": 2, "verdict": "equivalent", "method": "numeric"})

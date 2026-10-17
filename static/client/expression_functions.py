@@ -476,6 +476,22 @@ _UNARY_SPELLINGS: FrozenSet[str] = frozenset(
 )
 
 
+# The one-argument calculator functions, in every one-word spelling: written without
+# parentheses (sin x, ln x) they take the operand that follows (cas_text.insert_calculator_calls)
+CALCULATOR_SPELLINGS: FrozenSet[str] = frozenset(
+    spelling
+    for row in FUNCTIONS
+    if row.arity[0] == 1 and row.curve_safe
+    for spelling in (row.name,) + row.aliases + row.word_aliases
+    if " " not in spelling
+)
+# The ones that may also touch a one-letter operand: sinx, lnx, sqrtx
+GLUED_CALL_NAMES: FrozenSet[str] = frozenset(
+    ("sin", "cos", "tan", "sec", "csc", "cot", "asin", "acos", "atan", "sinh", "cosh", "tanh")
+    + ("ln", "log", "exp", "sqrt", "abs")
+)
+
+
 def _absolute_value(match: re.Match[str]) -> str:
     before = match.string[: match.start()].rstrip()
     tokens = list(TOKEN_PATTERN.finditer(before))

@@ -185,6 +185,27 @@ class TestInequalitySolverSympy(unittest.TestCase):
         for (text, interval), expected in REVIEW_EXACT.items():
             self.assertEqual(_solve(text, interval), expected, f"{text} on {interval}")
 
+    def test_calculator_notation(self) -> None:
+        # functions without parentheses and e or pi glued to x, read as calculators do
+        cases = {
+            ("sin x > 1/2", "[0, 2*pi]"): "pi/6 < x < 5*pi/6 (on [0, 2*pi]); interval notation: (pi/6, 5*pi/6); "
+            "endpoints ≈ 0.523598775598, 2.61799387799",
+            ("sinx > 1/2", "[0, 2*pi]"): "pi/6 < x < 5*pi/6 (on [0, 2*pi]); interval notation: (pi/6, 5*pi/6); "
+            "endpoints ≈ 0.523598775598, 2.61799387799",
+            ("2 sin x cos x > 0", "[0, pi]"): "0 < x < pi/2 (on [0, pi]); interval notation: (0, pi/2); "
+            "endpoints ≈ 1.57079632679",
+            ("xe^x > 0", None): "x > 0; interval notation: (0, Infinity)",
+            ("x ln x < 0", None): "0 < x < 1; interval notation: (0, 1)",
+            ("ln x < 1", None): "0 < x < e; interval notation: (0, e); endpoints ≈ 2.71828182846",
+            ("xpi > 1", None): "x > 1/pi; interval notation: (1/pi, Infinity); endpoints ≈ 0.318309886184",
+            ("sqrt x < 2", None): "0 <= x < 4; interval notation: [0, 4)",
+        }
+        for (text, interval), expected in cases.items():
+            self.assertEqual(_solve(text, interval), expected, text)
+        # the variable being solved for is never split: cost is not cos(t), ex is not e*x
+        self.assertEqual(str(MathUtils.solve("cost < 1", "cost")), "cost < 1; interval notation: (-Infinity, 1)")
+        self.assertEqual(str(MathUtils.solve("ex > 1", "ex")), "ex > 1; interval notation: (1, Infinity)")
+
     def test_identities_without_an_exact_answer(self) -> None:
         result = _solve("sin(x)^2 + cos(x)^2 > 1")
         self.assertTrue(

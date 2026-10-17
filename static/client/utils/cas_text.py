@@ -5,11 +5,12 @@ derivative is "ln"; log(x, 2) keeps only the natural log when differentiated. Th
 helpers rewrite the common spellings nerdamer lacks into ones it knows, and list the
 function names it would misread so the caller can refuse them with a clear message.
 
-The solve tool's inequalities use five more: split_relation (the expressions and signs of
+The solve tool's inequalities and check_steps use seven more: split_relation (the expressions and signs of
 an inequality or a chain), parse_interval ("[0, 2*pi)" and the like),
 insert_letter_call_products (x(x+2) as x*(x+2), which SymPy and math.js read as a call),
-insert_implicit_products ((x-1)(x+2) and (x+1)2 as products, as SymPy reads them) and
-split_top_level_terms (the signed terms of a sum).
+insert_implicit_products ((x-1)(x+2) and (x+1)2 as products, as SymPy reads them),
+split_top_level_terms (the signed terms of a sum), and insert_calculator_calls and
+split_constant_products (sin x, sinx and xe^x read as calculators read them).
 
 Pure Python (no browser imports), so server-side pytest covers it.
 """
@@ -17,7 +18,7 @@ Pure Python (no browser imports), so server-side pytest covers it.
 from __future__ import annotations
 
 import re
-from typing import Iterable, List, Tuple
+from typing import Iterable, List, Optional, Set, Tuple
 
 # A name followed by "(". A digit may come before it (2ln(x) is 2*ln(x)); a letter, "_" or "."
 # may not, and since matches are found left to right, a name with digits inside (log10, x2ln)
@@ -369,3 +370,143 @@ def parse_interval(text: str) -> Tuple[str, str, bool, bool]:
     if len(ends) != 2 or not all(ends):
         raise ValueError(f"an interval has two ends separated by a comma, such as [0, 2*pi], not {text!r}.")
     return ends[0], ends[1], lower_closed, upper_closed
+
+
+# Identifiers and numbers, matched whole (expression_functions.TOKEN_PATTERN)
+_TOKEN = re.compile(r"[a-zA-Z_][a-zA-Z_0-9]*|(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?")
+# A power on a function name before its operand (sin^2 x) or on the operand (sin x^2)
+_OPERAND_POWER = re.compile(r"\^(?:\d+(?:\.\d+)?|[A-Za-z_][A-Za-z_0-9]*|(?=\())")
+# What may follow a function name glued to its operand: sinx, sin2x, ln2.5t
+_GLUED_OPERAND = re.compile(r"(?:\d+(?:\.\d+)?)?[A-Za-z]$")
+# One letter and e or pi written together: xe, ex, xpi, pix (not i, the imaginary unit)
+_CONSTANT_PRODUCT = re.compile(r"(?:([a-df-hj-zA-Z])(e|pi)|(e|pi)([a-df-hj-zA-Z]))$")
+
+
+def insert_calculator_calls(
+    text: str, unary_names: Iterable[str], glued_names: Iterable[str], keep: Iterable[str] = ()
+) -> str:
+    """Read a one-argument function written without parentheses as calculators do.
+
+    sin x -> sin(x), sin 2x -> sin(2x), 2 sin x cos x -> 2 sin(x)*cos(x), sin^2 x -> sin^2(x),
+    sin x^2 -> sin(x^2), x ln x -> x*ln(x), sin cos x -> sin(cos(x)). A name in glued_names
+    may also touch a one-letter operand: sinx -> sin(x), sin2x -> sin(2x), lnx -> ln(x). The
+    operand is a number, a name or both (2x), with a power, or a call (cos(x)); it stops at a
+    space, so sin x cos x is two calls. Text that already has its parentheses (sin(x),
+    sin (x), sin^2(x)) and names in keep (a variable such as cost) are left as they are.
+    """
+    unary, glued, kept = set(unary_names), set(glued_names), set(keep)
+    if not any(name in text for name in unary):
+        return text
+    tokens = [match for match in _TOKEN.finditer(text) if not match.group(0)[0].isdigit()]
+    for match in reversed(tokens):
+        text = _calculator_call(text, match.start(), match.group(0), unary, glued, kept)
+    return text
+
+
+def _calculator_call(text: str, start: int, name: str, unary: Set[str], glued: Set[str], kept: Set[str]) -> str:
+    """text with the function name at start applied to its operand, or text unchanged."""
+    if name in kept or (start > 0 and text[start - 1] == "."):
+        return text
+    end = start + len(name)
+    if name in unary:
+        function, glued_operand = name, ""
+    else:
+        function = next((f for f in sorted(glued, key=len, reverse=True) if name.startswith(f)), "")
+        glued_operand = name[len(function) :]
+        if not function or not _GLUED_OPERAND.match(glued_operand):
+            return text
+    power, operand_start = "", end
+    if not glued_operand:
+        power_match = _OPERAND_POWER.match(text, end)
+        if power_match is not None and power_match.group(0)[1:2].isdigit():
+            power, operand_start = power_match.group(0), power_match.end()
+        spaced = _next_non_space(text, operand_start)
+        if spaced < len(text) and text[spaced] == "(":
+            return text  # sin(x), sin (x), sin^2(x): already a call
+        if spaced == operand_start and not power:
+            return text  # sin, sin+1, sin*x: not a call
+        operand_start = spaced
+    operand_end = _operand_end(text, operand_start, unary, bool(glued_operand))
+    if operand_end is None:
+        return text
+    call = f"{function}{power}({glued_operand}{text[operand_start:operand_end]})"
+    return _joined_before(text, start, unary) + call + text[operand_end:]
+
+
+def _joined_before(text: str, start: int, unary: Set[str]) -> str:
+    """text before start, with the spaces before it written as "*" after a factor: x ln x ->
+    x*ln(x). After a function name (sin cos x) or an operator the text is kept."""
+    before = start
+    while before > 0 and text[before - 1] == " ":
+        before -= 1
+    if before == start or before == 0 or not (_is_name_char(text[before - 1]) or text[before - 1] == ")"):
+        return text[:start]
+    previous = [match.group(0) for match in _TOKEN.finditer(text, 0, before)]
+    if previous and text[before - 1] != ")" and previous[-1] in unary:
+        return text[:start]
+    return text[:before] + "*"
+
+
+def _operand_end(text: str, position: int, unary: Set[str], glued: bool) -> Optional[int]:
+    """The end of the operand starting at position, or None when there is none.
+
+    Glued, the operand's number and letter are in the name already, so only a power may follow.
+    """
+    index = position
+    if not glued:
+        if index < len(text) and (text[index].isdigit() or text[index] == "."):
+            index = _number_end(text, index)
+        match = _TOKEN.match(text, index)
+        if match is not None and not match.group(0)[0].isdigit():
+            index = match.end()
+            if match.group(0) in unary and index < len(text) and text[index] == "(":
+                close = _closing(text, index)
+                if close < 0:
+                    return None
+                index = close + 1
+        if index == position:
+            return None
+    power = _OPERAND_POWER.match(text, index)
+    if power is not None and power.group(0) != "^":
+        return power.end()
+    if power is not None:  # ^( ... )
+        close = _closing(text, index + 1)
+        return index if close < 0 else close + 1
+    return index
+
+
+def _closing(text: str, open_index: int) -> int:
+    depth = 0
+    for index in range(open_index, len(text)):
+        if text[index] == "(":
+            depth += 1
+        elif text[index] == ")":
+            depth -= 1
+            if depth == 0:
+                return index
+    return -1
+
+
+def split_constant_products(text: str, reserved: Iterable[str], keep: Iterable[str] = ()) -> str:
+    """Write a letter and e or pi written together as a product, as calculators read them.
+
+    xe^x -> x*e^x, 2xe^(x^2) -> 2x*e^(x^2), xpi -> x*pi, pix -> pi*x. Only two-part names
+    (one letter other than e or i, and e or pi) change; reserved names (re), names in keep,
+    longer names (time, rate) and calls (ex(2)) stay.
+    """
+    if "e" not in text and "pi" not in text:
+        return text
+    skip = set(reserved) | set(keep)
+    output: List[str] = []
+    last = 0
+    for match in _TOKEN.finditer(text):
+        token = match.group(0)
+        parts = _CONSTANT_PRODUCT.match(token)
+        if parts is None or token in skip or text[match.end() : match.end() + 1] == "(":
+            continue
+        if match.start() > 0 and text[match.start() - 1] == ".":
+            continue
+        first, second = (parts.group(1), parts.group(2)) if parts.group(1) else (parts.group(3), parts.group(4))
+        output.append(text[last : match.start()] + f"{first}*{second}")
+        last = match.end()
+    return "".join(output) + text[last:]
