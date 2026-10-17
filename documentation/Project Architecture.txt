@@ -317,6 +317,8 @@ static/client/
 │   ├── math_utils.py                  # Mathematical utility functions
 │   ├── inequality_solver.py           # Inequalities in solve: SymPy's set checked, else a numeric sign chart
 │   ├── real_sets.py                   # Real solution sets: checks, the sign chart, interval notation
+│   ├── step_checker.py                # check_steps: each step of a derivation against the one before
+│   ├── equivalence.py                 # Numeric equivalence of two expressions in every variable
 │   ├── computation_utils.py           # Computational helper functions
 │   ├── geometry_utils.py              # Geometric utility functions
 │   ├── graph_utils.py                 # Graph theory algorithms and helpers
