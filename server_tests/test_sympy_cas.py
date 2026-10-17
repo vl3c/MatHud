@@ -430,6 +430,10 @@ class TestTaylor(unittest.TestCase):
             ("ln((1+x)/(1-x))", "0", "2*x + 2*x^3/3 + 2*x^5/5"),
             ("e^(-x^2)/(1+x)", "1", "exp(-1)/2 - 5*(x-1)*exp(-1)/4"),
             ("e^(-x)/(1+x^2)", "0", "1 - x - x^2/2 + 5*x^3/6"),
+            # SymPy's series of an exponential of a non-polynomial is slow at 0 too
+            ("e^(e^x)", "0", "e + e*x + e*x^2 + 5*e*x^3/6"),
+            ("e^(sin(x))", "0", "1 + x + x^2/2 - x^4/8"),
+            ("e^(tan(x))", "0", "1 + x + x^2/2 + x^3/2"),
         ):
             with self.subTest(expression=expression):
                 started = time.monotonic()

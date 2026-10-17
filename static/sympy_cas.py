@@ -1036,10 +1036,11 @@ def compute_taylor(expression: str, variable: str, point: str, order: str) -> Di
     whether the two sides' series differ beyond the order (abs(x)^3 at 0 to order 2), and
     order + TAYLOR_LOOKAHEAD.
 
-    The coefficients come from the derivatives at a when they are all finite real numbers
-    and the function has no abs, sign, floor or the like; otherwise from the series on both
-    sides of a, because a one-sided series hides a corner or a jump (abs(x) is x right of 0
-    and -x left of it).
+    The coefficients come from the derivatives at a when the series would be slow (a point
+    other than 0, or an exponential of a non-polynomial), the derivatives are all finite
+    real numbers and the function has no abs, sign, floor or the like; otherwise from the
+    series on both sides of a, because a one-sided series hides a corner or a jump (abs(x)
+    is x right of 0 and -x left of it). See _two_sided_coefficients.
 
     Raises:
         ExpressionError: for other variables, a point that is not a real number, an order
@@ -1109,16 +1110,20 @@ def _two_sided_coefficients(
     """The coefficients of (x - a)^0 .. (x - a)^(count-1) from the right of a and from the
     left (the left ones up to the order only, unless the function may break off beyond it).
 
-    At a point other than 0, a function without abs, sign, floor and the like whose
-    derivatives at a are all finite real numbers takes its coefficients from them, one list
-    for both sides: the series there can run past the time limit (e^(sin(x)) at pi/3).
-    Otherwise, as at 0 (where the series is quick) or for abs(x)^3, each side comes from its
+    A function without abs, sign, floor and the like whose derivatives at a are all finite
+    real numbers takes its coefficients from them, one list for both sides, where SymPy's
+    series is slow: at a point other than 0 (e^(sin(x)) at pi/3), and for an exponential of
+    a non-polynomial (e^(e^x), e^(sin(x))) at 0 too, where the derivatives may grow
+    twice as large. Otherwise, as for most functions at 0 (where the series is quick, and
+    the derivatives of e^(-x^2)/(1-x) grow steadily) or abs(x)^3, each side comes from its
     series."""
     import sympy as sp
 
     breaking = function.has(sp.Abs, sp.sign, sp.floor, sp.ceiling, sp.Min, sp.Max, sp.Mod)
-    if not breaking and center != 0:
-        coefficients = _derivative_coefficients(function, x, center, count)
+    exponential = _has_exponential_of_non_polynomial(function, x)
+    if not breaking and (center != 0 or exponential):
+        limit = 2 * MAX_DERIVATIVE_OPS if exponential else MAX_DERIVATIVE_OPS
+        coefficients = _derivative_coefficients(function, x, center, count, limit)
         if coefficients is not None:
             return coefficients, coefficients
     h = sp.Dummy("h", real=True)
@@ -1133,10 +1138,19 @@ def _two_sided_coefficients(
     return right, left
 
 
-def _derivative_coefficients(function: Any, x: Any, center: Any, count: int) -> Optional[List[Any]]:
+def _has_exponential_of_non_polynomial(function: Any, x: Any) -> bool:
+    """Whether function has e^g or b^g with g not a polynomial in x (e^(sin(x)), 2^(1/x))."""
+    import sympy as sp
+
+    if any(not part.args[0].is_polynomial(x) for part in function.atoms(sp.exp)):
+        return True
+    return any(part.exp.has(x) and not part.exp.is_polynomial(x) for part in function.atoms(sp.Pow))
+
+
+def _derivative_coefficients(function: Any, x: Any, center: Any, count: int, limit: int) -> Optional[List[Any]]:
     """f^(k)(a)/k! for k = 0 .. count-1, or None when one of them is not a finite real
-    number (0/0 in sin(x)/x at 0, a pole, sqrt(x) at 0) or a derivative grows past
-    MAX_DERIVATIVE_OPS."""
+    number (0/0 in sin(x)/x at 0, a pole, sqrt(x) at 0) or a derivative has more than limit
+    operations."""
     import sympy as sp
 
     coefficients: List[Any] = []
@@ -1144,7 +1158,7 @@ def _derivative_coefficients(function: Any, x: Any, center: Any, count: int) -> 
     for k in range(count):
         if k:
             derivative = sp.expand_mul(sp.diff(derivative, x))
-            if sp.count_ops(derivative) > MAX_DERIVATIVE_OPS:
+            if sp.count_ops(derivative) > limit:
                 return None
         value = derivative.subs(x, center)
         if value.has(sp.nan, sp.zoo, sp.oo, -sp.oo) or value.free_symbols:
