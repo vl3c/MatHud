@@ -206,6 +206,10 @@ class TestOperations(unittest.TestCase):
         self.assertEqual(compute_solve("a^x=b", "x"), {"roots": ["log(b)/log(a)"]})
         self.assertEqual(compute_solve("P*(1+r)^t=A", "t"), {"roots": ["log(A/P)/log(r+1)"]})
         self.assertEqual(compute_solve("d=sqrt((x-1)^2+4)", "x"), {"roots": ["sqrt(d^2-4)+1", "1-sqrt(d^2-4)"]})
+        self.assertEqual(compute_solve("abs(x)=a", "x"), {"roots": ["a", "-a"]})  # a ConditionSet on a
+        self.assertEqual(compute_solve("A=P*(1-r)^t", "t"), {"roots": ["log(A/P)/log(1-r)"]})
+        self.assertEqual(compute_solve("sqrt(x)=a-5", "x"), {"roots": ["(a-5)^2"]})  # real roots for a >= 5
+        self.assertIsNone(compute_solve("sqrt(x)=-a", "x"))  # a^2 fails at every positive a
         cubic = compute_solve("x^3+a*x=1", "x")
         self.assertIsNotNone(cubic)
         self.assertEqual(len((cubic or {})["roots"]), 3)  # Cardano's formula, kept exact

@@ -23,14 +23,18 @@ class TestBaseTelemetryInit(unittest.TestCase):
 
     def test_init_phase_totals_zero(self) -> None:
         tel = BaseRendererTelemetry()
-        for key in ("plan_build_ms", "plan_apply_ms",
-                     "cartesian_plan_build_ms", "cartesian_plan_apply_ms"):
+        for key in ("plan_build_ms", "plan_apply_ms", "cartesian_plan_build_ms", "cartesian_plan_apply_ms"):
             self.assertEqual(tel._phase_totals[key], 0.0, f"{key} should be 0.0")
 
     def test_init_phase_counts_zero(self) -> None:
         tel = BaseRendererTelemetry()
-        for key in ("plan_build_count", "plan_apply_count",
-                     "cartesian_plan_count", "plan_miss_count", "plan_skip_count"):
+        for key in (
+            "plan_build_count",
+            "plan_apply_count",
+            "cartesian_plan_count",
+            "plan_miss_count",
+            "plan_skip_count",
+        ):
             self.assertEqual(tel._phase_counts[key], 0, f"{key} should be 0")
 
     def test_init_per_drawable_empty(self) -> None:

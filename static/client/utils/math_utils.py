@@ -34,6 +34,7 @@ Dependencies:
     - drawables.position: Coordinate container for geometric calculations
 """
 
+import bisect
 import json
 import math
 import random
@@ -2201,11 +2202,17 @@ class MathUtils:
             ]
             if any(len(eq.split("=")) > 2 for eq in equations):
                 return "Error: An equation has at most one '='."
+            glued = MathUtils._glued_unknowns(equations)
+            if glued:
+                return (
+                    f"Error: {', '.join(glued)} would be read as one name; write products with * "
+                    f"({glued[0][0]}*{glued[0][1:]}), as in y = m*x + b."
+                )
             answer = MathUtils._sympy_answer("solve_system", equations=";".join(equations))
             if answer is not None and "error" in answer:
                 return f"Error: {answer['error']}"
             result = answer.get("result") if answer is not None else None
-            if result is None:
+            if answer is None:  # SymPy unavailable: SymPy itself solves the linear systems it is asked
                 result = MathUtils._numeric_linear_system(equations)
             if isinstance(result, dict):
                 text = MathUtils._system_answer(result, equations)
@@ -2217,6 +2224,29 @@ class MathUtils:
             return MathUtils.solve_numeric(equations)
         except Exception as e:
             return f"Error: {e}"
+
+    @staticmethod
+    def _glued_unknowns(equations: Sequence[str]) -> List[str]:
+        """Short names of letters that hold an unknown x, y or z, such as mx in y = mx + b or ax
+        in y = ax^2: solve refuses them, and a system would read them as parameters."""
+        from utils.symbolic_checks import SymbolicChecks
+
+        names = {
+            name
+            for equation in equations
+            for side in equation.split("=")
+            for name in SymbolicChecks.free_variables(side)
+        }
+        return sorted(
+            name
+            for name in names
+            if 1 < len(name) <= MathUtils._MAX_GLUED_LENGTH
+            and name.isalpha()
+            and any(letter in name for letter in "xyz")
+        )
+
+    # Longer names (area, years) are names, not glued products.
+    _MAX_GLUED_LENGTH = 3
 
     @staticmethod
     def _numeric_linear_system(equations: Sequence[str]) -> Optional[Dict[str, Any]]:
@@ -2247,9 +2277,13 @@ class MathUtils:
 
         origin = [0.0] * len(names)
         units = [[1.0 if other == column else 0.0 for other in range(len(names))] for column in range(len(names))]
+        # spread out, so a kink (max(x, 1)) or a jump between them is noticed
         checks = [
             [0.37 + 0.71 * column for column in range(len(names))],
             [-1.3 + 0.53 * column for column in range(len(names))],
+            [7.3 - 2.9 * column for column in range(len(names))],
+            [-23.1 + 9.7 * column for column in range(len(names))],
+            [101.7 * (-1) ** column for column in range(len(names))],
         ]
         coefficients: List[List[float]] = []
         constants: List[float] = []
@@ -3231,8 +3265,6 @@ class MathUtils:
         Points within _PROBE_SAME_POINT of x0 count as x0 and are skipped, unless include_same,
         in which case finding one returns 0.0. Returns inf when there is no other point.
         """
-        import bisect
-
         index = bisect.bisect_left(sorted_points, x0)
         nearest = math.inf
         # Merged points are never the same point as each other, so at most one neighbour on
@@ -3281,16 +3313,21 @@ class MathUtils:
     @staticmethod
     def _quick_pole_verdict(evaluate: Callable[[float], Optional[float]], x0: float, start: float) -> Optional[bool]:
         """True (asymptote), False (point discontinuity) or None (not clear: use the full classifier)."""
+        # written out without generators or casts: it runs for each of thousands of tan() poles
+        steep, shrink, isfinite = MathUtils._STEEP_GROWTH, MathUtils._QUICK_SHRINK, math.isfinite
         converging_sides = 0
-        for side in (1.0, -1.0):
-            samples = [evaluate(x0 + side * start / 8.0**k) for k in range(3)]
-            if any(sample is None or not math.isfinite(sample) for sample in samples):
+        for offset in (start, -start):
+            far = evaluate(x0 + offset)
+            middle = evaluate(x0 + offset / 8.0)
+            near = evaluate(x0 + offset / 64.0)
+            if far is None or middle is None or near is None:
                 return None
-            far, middle, near = cast(List[float], samples)
+            if not (isfinite(far) and isfinite(middle) and isfinite(near)):
+                return None
             first, second = middle - far, near - middle
-            if first != 0 and (first > 0) == (second > 0) and abs(second) >= MathUtils._STEEP_GROWTH * abs(first):
+            if first != 0 and (first > 0) == (second > 0) and abs(second) >= steep * abs(first):
                 return True
-            if abs(second) <= MathUtils._QUICK_SHRINK * abs(first):
+            if abs(second) <= shrink * abs(first):
                 converging_sides += 1
         return False if converging_sides == 2 else None
 

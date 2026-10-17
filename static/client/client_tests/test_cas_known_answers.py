@@ -286,6 +286,8 @@ class TestCasWithoutSympy(unittest.TestCase):
             "Infinitely many solutions: the equations are dependent (1 independent equation for 2 unknowns): "
             "x = 1-y, for any y.",
         )
+        kink = MathUtils.solve_system_of_equations(["y = max(x,1)", "y=3"])
+        self.assertTrue(kink.startswith("x = 3, y = 3 ("), kink)
         inconsistent = MathUtils.solve_system_of_equations(["x+y=1", "x+y=2"])
         self.assertEqual(inconsistent, "No solution: the equations are inconsistent (they contradict each other).")
 

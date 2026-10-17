@@ -119,9 +119,14 @@ class TestMathUtilsSolving(unittest.TestCase):
         self.assertEqual(MathUtils.solve_system_of_equations(["y=|x|", "y=2"]), "x1 = -2, y1 = 2, x2 = 2, y2 = 2")
         self.assertEqual(MathUtils.solve_system_of_equations(["2x(x+1)=y", "y=4"]), "x1 = -2, y1 = 4, x2 = 1, y2 = 4")
 
-    def test_an_equation_without_unknowns_is_no_contradiction(self) -> None:
-        glued = MathUtils.solve_system_of_equations(["xy=6", "x+y=5"])
-        self.assertTrue(glued.startswith("Error: The equation xy=6 has none of the unknowns (x, y)"), glued)
+    def test_glued_products_with_an_unknown_are_refused(self) -> None:
+        glued = MathUtils.solve_system_of_equations(["y=mx+b", "y=-x+3"])
+        self.assertEqual(glued, "Error: mx would be read as one name; write products with * (m*x), as in y = m*x + b.")
+        self.assertTrue(MathUtils.solve_system_of_equations(["y=ax^2", "y=4"]).startswith("Error: ax would be read"))
+        self.assertTrue(MathUtils.solve_system_of_equations(["xy=6", "x+y=5"]).startswith("Error: xy would be read"))
+
+    def test_a_kink_is_not_taken_for_a_line(self) -> None:
+        self.assertEqual(MathUtils.solve_system_of_equations(["y = max(x,1)", "y=3"]).split(" (")[0], "x = 3, y = 3")
 
     def test_line_and_sine_list_every_intersection(self) -> None:
         result = MathUtils.solve_system_of_equations(["y=sin(x)", "y=x/10"])

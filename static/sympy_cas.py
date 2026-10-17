@@ -514,6 +514,13 @@ def compute_solve(
         return {"roots": []}
     if _is_parameter_roots(solutions):
         solutions = solutions.args[0] if isinstance(solutions.args[0], sp.FiniteSet) else solutions.args[1]
+    if (
+        isinstance(solutions, sp.ConditionSet)
+        and isinstance(solutions.base_set, sp.FiniteSet)
+        and x not in solutions.condition.free_symbols
+    ):
+        # |x| = a gives {-a, a} for a >= 0: the condition is on the parameters
+        solutions = solutions.base_set
     if isinstance(solutions, sp.Complement) and isinstance(solutions.args[0], sp.FiniteSet):
         # {V/R} \ {0} for R = V/I: the poles left out are ones the roots avoid (the client drops poles)
         solutions = solutions.args[0]
@@ -529,7 +536,7 @@ def compute_solve(
 
 # Values given to the parameters when a formula's roots are checked: positive, as in most formulas
 # (T = 2*pi*sqrt(L/g)), small and large (d = sqrt((x-1)^2+4) has real roots only for d >= 2).
-_PARAMETER_SAMPLES = (1.3, 6.7, 0.45)
+_PARAMETER_SAMPLES = (1.3, 6.7, 0.45, 0.1)
 
 
 def _formula_roots(difference: Any, x: Any) -> Any:
@@ -552,10 +559,9 @@ def _formula_roots(difference: Any, x: Any) -> Any:
 
 def _holds_for_samples(difference: Any, x: Any, root: Any, parameters: Sequence[Any]) -> bool:
     """True when the equation holds at the root for some sample parameter values that make the root
-    real, and fails for none."""
+    real (sqrt(x) = a - 5 has the root (a-5)^2 only for a >= 5)."""
     import sympy as sp
 
-    held = False
     for sample in _PARAMETER_SAMPLES:
         values = {name: sp.Float(sample + 0.37 * index) for index, name in enumerate(parameters)}
         try:
@@ -565,10 +571,9 @@ def _holds_for_samples(difference: Any, x: Any, root: Any, parameters: Sequence[
             residual = complex(sp.N(difference.subs(values).subs(x, point.real), 15))
         except (TypeError, ValueError, ZeroDivisionError):
             continue
-        if not cmath.isfinite(residual) or abs(residual) > 1e-8 * max(1.0, abs(point.real)):
-            return False
-        held = True
-    return held
+        if cmath.isfinite(residual) and abs(residual) <= 1e-8 * max(1.0, abs(point.real)):
+            return True
+    return False
 
 
 def _is_parameter_roots(solutions: Any) -> bool:
