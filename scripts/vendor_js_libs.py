@@ -1,6 +1,6 @@
 """Download and verify the third-party browser libraries served from static/vendor/.
 
-MatHud serves Brython, math.js, nerdamer, MathJax and the Inter font from the
+MatHud serves Brython, math.js, MathJax and the Inter font from the
 repository so the app works fully offline (for example with LocalAgent).
 Every file is pinned below by version, upstream URL and SHA-256.
 
@@ -93,23 +93,6 @@ LIBRARIES: tuple[VendorLibrary, ...] = (
             {
                 "LICENSE": "3b0f65a9308588e12b619b2f05c788b4a5f41220006ce563b826b0feb489fd26",
                 "NOTICE": "4ffe61bf0e3474513ef782fc9678d83325120eab1ddfa0dc375f89dfa38f1b68",
-            },
-        ),
-    ),
-    VendorLibrary(
-        name="nerdamer",
-        version="1.1.13",
-        license="MIT",
-        files=_files(
-            "https://cdn.jsdelivr.net/npm/nerdamer@1.1.13",
-            "nerdamer/1.1.13",
-            {
-                "nerdamer.core.js": "cfabae9fd3adc5e751d42f6614c677c147a09947f84155722f27399462b9607d",
-                "Algebra.js": "b5d74ec1c6269f0c08cf3b61f37fa8ba2e9969f49a81468871deafad2b435435",
-                "Calculus.js": "5a606f0cb473cc68fbccb707d59d08bd17e94bfe01d1b20e2be935ce367e88d7",
-                "Solve.js": "9f13af4aba5e85127cfe1ee304dd1497db2aa1a148e81dc956d621a15f8dbd26",
-                "Extra.js": "39c68d04fd6de1bc0ff241bb882584a483855191a5104a198d85908b61c2393f",
-                "license.txt": "45bf0020b3c5923c88528825462bdf1edc9bc8ed53a87a00f71ff92969d721a6",
             },
         ),
     ),

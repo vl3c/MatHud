@@ -9,7 +9,6 @@ Each library's own license file is kept next to it.
 |---|---|---|---|---|
 | Brython | 3.12.5 | BSD-3-Clause (bundled CPython stdlib: PSF-2.0, see below) | https://brython.info (cdnjs `brython/3.12.5`) | `brython/3.12.5/LICENCE.txt` |
 | math.js | 14.5.2 | Apache-2.0 | https://mathjs.org (cdnjs `mathjs/14.5.2`) | `mathjs/14.5.2/LICENSE`, `mathjs/14.5.2/NOTICE` |
-| nerdamer | 1.1.13 | MIT | https://nerdamer.com (npm `nerdamer@1.1.13`) | `nerdamer/1.1.13/license.txt` |
 | MathJax | 3.2.2 | Apache-2.0 | https://www.mathjax.org (npm `mathjax@3.2.2`) | `mathjax/3.2.2/LICENSE` |
 | Inter font | 4.x (Fontsource 5.3.0) | SIL OFL 1.1 | https://rsms.me/inter (npm `@fontsource-variable/inter@5.3.0`) | `inter/5.3.0/LICENSE` |
 
@@ -23,7 +22,6 @@ Each library's own license file is kept next to it.
   https://docs.python.org/3/license.html and in the `LICENSE` file of every
   CPython distribution.
 - **math.js**: `math.min.js`.
-- **nerdamer**: `nerdamer.core.js` plus the `Algebra`, `Calculus`, `Solve` and `Extra` add-ons.
 - **MathJax**: only the `es5/tex-mml-chtml.js` combined component, the `es5/ui/safe.js`
   component (loaded by the page's `loader.load` to filter unsafe href, style, class and id
   values in typeset math), the TeX
