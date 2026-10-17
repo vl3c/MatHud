@@ -20,6 +20,7 @@ from utils.cas_numeric import (  # noqa: E402
     snap,
 )
 from utils.cas_text import (  # noqa: E402
+    ambiguous_division,
     decomposes,
     find_closing_parenthesis,
     has_inequality,
@@ -261,6 +262,73 @@ class TestMisspellings(unittest.TestCase):
         self.assertIsNone(glued_call("asinhx", ("sinh",), ("asinh",)))
         self.assertEqual(glued_call("asinhx", ("sinh", "asinh"), ("asinh",)), ("", "asinh", "x"))
         self.assertEqual(glued_call("xasinhx", ("sinh", "asinh"), ("asinh",)), ("x", "asinh", "x"))
+
+
+class TestAmbiguousDivision(unittest.TestCase):
+    FUNCTIONS = ("sin", "cos", "tan", "cosh", "sqrt", "log", "exp")
+
+    def test_a_factor_after_the_divisor(self) -> None:
+        for text, divisor in (
+            ("(3x+5)/(x+1)(x+2)", "(x+1)"),
+            ("1/x(x+1)", "x"),
+            ("1/(1-x)(1+x)", "(1-x)"),
+            ("x/(x-1)^2(x+1)", "(x-1)^2"),
+            ("1/x^2(x+1)", "x^2"),
+            ("sin(2*x)/2x", "2"),
+            ("x/2e^x", "2"),
+            ("1/2x", "2"),
+            ("1/(x+1) (x+2)", "(x+1)"),
+            ("1/sin(x)cos(x)", "sin(x)"),
+            ("1/(x+1)^-2(x+2)", "(x+1)^-2"),
+            ("1/(x+1)²(x+2)", "(x+1)²"),
+            ("1/x²(x+1)", "x²"),
+            ("1/cos^2(x)sin(x)", "cos^2(x)"),
+            ("1/sin²(x)(x+1)", "sin²(x)"),
+            ("1/√(x+1)(x+2)", "√(x+1)"),
+            ("1/√x(x+1)", "√x"),
+            ("1/2√x", "2"),
+            ("1/x√x", "x"),
+            ("1/(x+1)√x", "(x+1)"),
+            ("1/πx", "π"),
+            ("1/2πx", "2"),
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(ambiguous_division(text, self.FUNCTIONS), divisor)
+
+    def test_clear_divisions(self) -> None:
+        for text in (
+            "(3x+5)/((x+1)(x+2))",
+            "(1/(x+1))*(x+2)",
+            "1/(x+1) + 1/(x+2)",
+            "sin(x)/x",
+            "e^x/x^2",
+            "1/sqrt(x+1)",
+            "1/2*x",
+            "x/(2*e^x)",
+            "(x^2+1)/(x-1)",
+            "2/(x^2-1)",
+            "1/(x+1)^2",
+            "x/2 - 1",
+            "1/x",
+            "1/cos^2(x)",
+            "x/sin^2(x)",
+            "1/cosh^2(x) + 1",
+            "1/tan^3(x)",
+            "1/sin²(x)",
+            "1/(x-1)²",
+            "x/(1+x)² + 1",
+            "e^x/(1+x)³",
+            "1/x⁻¹",
+            "1/(x+1)^(2)",
+            "1/arctan(x)",
+            "x/1e3",
+            "x/2.5e-3 + 1",
+            "1/√(x+1)",
+            "1/π + x",
+            "x/(2√x)",
+        ):
+            with self.subTest(text=text):
+                self.assertIsNone(ambiguous_division(text, self.FUNCTIONS))
 
 
 class TestRewriteForNerdamer(unittest.TestCase):

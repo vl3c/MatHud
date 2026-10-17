@@ -562,7 +562,7 @@ class ExpressionValidator(ast.NodeVisitor):
         return f"({exponent})"
 
     @staticmethod
-    def _convert_function_notation(expression: str) -> str:
+    def _convert_function_notation(expression: str, products: bool = True) -> str:
         """Rewrite known functions written with a superscript or without parentheses.
 
         A superscript moves after the call and ⁻¹ names the inverse: sin²(x) -> sin(x)^2,
@@ -591,7 +591,7 @@ class ExpressionValidator(ast.NodeVisitor):
                 replacement = f"{name}{arguments}^{exponent}"
             else:
                 replacement = name + arguments
-            if ExpressionValidator._starts_operand(expression[end : end + 1]):
+            if products and ExpressionValidator._starts_operand(expression[end : end + 1]):
                 replacement += "*"  # sin²x cosθ -> sin(x)^2*cos(θ)
             expression = expression[: match.start()] + replacement + expression[end:]
             search_start = match.start() + 1  # nested calls such as sin²(cos²(x)) are handled next

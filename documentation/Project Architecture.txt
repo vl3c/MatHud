@@ -319,6 +319,9 @@ static/client/
 │   ├── real_sets.py                   # Real solution sets: checks, the sign chart, interval notation
 │   ├── step_checker.py                # check_steps: each step of a derivation against the one before
 │   ├── equivalence.py                 # Numeric equivalence of two expressions in every variable
+│   ├── taylor.py                      # taylor_polynomial: SymPy's Taylor polynomial, checked numerically
+│   ├── series_checks.py               # Whether a polynomial is a function's Taylor polynomial (error ratios)
+│   ├── partial_fractions.py           # expand with a variable: SymPy's partial fractions, checked
 │   ├── computation_utils.py           # Computational helper functions
 │   ├── geometry_utils.py              # Geometric utility functions
 │   ├── graph_utils.py                 # Graph theory algorithms and helpers

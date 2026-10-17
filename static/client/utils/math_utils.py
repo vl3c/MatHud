@@ -1847,18 +1847,24 @@ class MathUtils:
         return MathUtils._checked_rewrite("simplify", expression)
 
     @staticmethod
-    def expand(expression: str) -> str:
+    def expand(expression: str, variable: Optional[str] = None) -> str:
         """Expand a mathematical expression by distributing operations.
 
         Uses Nerdamer symbolic computation for algebraic expansion.
-        Expands products, powers, and nested expressions.
+        Expands products, powers, and nested expressions. With a variable, a ratio of
+        polynomials in it is split into partial fractions instead (PartialFractions.expand).
 
         Args:
             expression (str): Mathematical expression to expand
+            variable (str, optional): The variable of a rational function to split
 
         Returns:
             str: Expanded expression as string or error message
         """
+        if isinstance(variable, str) and variable.strip():
+            from utils.partial_fractions import PartialFractions
+
+            return str(PartialFractions.expand(expression, variable))
         return MathUtils._checked_rewrite("expand", expression)
 
     @staticmethod

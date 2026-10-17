@@ -118,6 +118,7 @@ VALUE_TOOLS: Tuple[str, ...] = (
     "solve_system_of_equations",
     "solve_numeric",
     "check_steps",
+    "taylor_polynomial",
     "analyze_graph",
     "inspect_relation",
     "find_intersections",

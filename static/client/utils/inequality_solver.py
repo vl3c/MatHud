@@ -123,7 +123,7 @@ class InequalitySolver:
         return list(misspellings(normalized, CALCULATOR_SPELLINGS, GLUED_CALL_NAMES, ENGINE_FUNCTION_NAMES, keep))
 
     @staticmethod
-    def refuse_misspellings(text: str, variable: str) -> None:
+    def refuse_misspellings(text: str, variable: str, subject: Optional[str] = None) -> None:
         """Raise ValueError with the standard form to write when text has:
 
         - a function without parentheses (sin x), or a function and digits (sin2, sqrt2);
@@ -131,7 +131,8 @@ class InequalitySolver:
           or e glued to a letter and raised to a power (ke^x);
         - a name made of calculator keys, e and pi, with variable and digits (sinxe, sinxcosx,
           exe, sin2);
-        - no variable at all once it is prepared (y = mx + b solved for x).
+        - no variable at all once it is prepared (y = mx + b solved for x); the message calls
+          text the subject ("function"), or else the equation or inequality.
 
         Other names are variables: cost in profit = revenue - cost, solved for revenue, x0 and
         xmax, and costs or revenue, though they start with a function name.
@@ -162,8 +163,35 @@ class InequalitySolver:
         except Exception:
             return  # the engines say what they cannot read
         if variable not in _names(prepared):
-            kind = "inequality" if has_inequality(prepared) else "equation"
+            kind = subject or ("inequality" if has_inequality(prepared) else "equation")
             raise ValueError(f"{variable} does not appear in the {kind}.")
+
+    @staticmethod
+    def refuse_ambiguous_division(text: str) -> None:
+        """Raise ValueError when a divisor in text is followed by another factor without "*"
+        (cas_text.ambiguous_division): 1/(x+1)(x+2) is 1/((x+1)(x+2)) to math.js but
+        (1/(x+1))*(x+2) to SymPy.
+
+        Raises:
+            ValueError: naming the divisor and the two ways to write it.
+        """
+        from expression_functions import ENGINE_FUNCTION_NAMES
+        from expression_validator import ExpressionValidator
+        from utils.cas_text import ambiguous_division
+
+        if not isinstance(text, str):
+            return
+        # read as the engines will: 1/cos²x is 1/cos(x)^2, ÷ is /, and a tab or thin space is a
+        # space; without the * the rewrite puts after a call, so 1/sin²(x)(x+1) stays ambiguous
+        spaced = "".join(" " if char.isspace() else char for char in text.replace("÷", "/"))
+        converted = ExpressionValidator._convert_function_notation(spaced, products=False)
+        divisor = ambiguous_division(converted, ENGINE_FUNCTION_NAMES)
+        if divisor is not None:
+            raise ValueError(
+                f"{text.strip()} is ambiguous: another factor follows the divisor {divisor} without *. "
+                "Put the whole denominator in parentheses to divide by the product, such as "
+                "1/((x+1)(x+2)), or write * to multiply after dividing, such as (1/(x+1))*(x+2)."
+            )
 
     @staticmethod
     def window(interval: Optional[str]) -> Optional[Window]:

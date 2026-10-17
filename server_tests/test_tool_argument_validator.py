@@ -1152,6 +1152,13 @@ class TestConstraints(unittest.TestCase):
         self.assertTrue(any("at least 2" in e and "got 1" in e for e in result["errors"]))
         self.assertTrue(ToolArgumentValidator.validate("check_steps", {"steps": ["x^2", "x*x"]})["valid"])
 
+    def test_taylor_polynomial_order_is_an_integer(self) -> None:
+        """taylor_polynomial's order must be an integer; every argument is required."""
+        args = {"expression": "e^x", "variable": "x", "point": "0", "order": 3}
+        self.assertTrue(ToolArgumentValidator.validate("taylor_polynomial", args)["valid"])
+        self.assertFalse(ToolArgumentValidator.validate("taylor_polynomial", dict(args, order=2.5))["valid"])
+        self.assertFalse(ToolArgumentValidator.validate("taylor_polynomial", {"expression": "e^x"})["valid"])
+
     def test_max_length_violation(self) -> None:
         """create_label with text exceeding maxLength should fail."""
         result = ToolArgumentValidator.validate(

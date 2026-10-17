@@ -252,6 +252,56 @@
           ]
         }
       ]
+    },
+    {
+      "id": "MC-09",
+      "title": "A Taylor polynomial plotted with its function",
+      "tags": ["math"],
+      "smoke": false,
+      "targets": "taylor_polynomial: the polynomial of e^x at 0 to order 3, ready for draw_function, and plotted beside e^x (needs the server's SymPy engine, which CI installs)",
+      "steps": [
+        {
+          "user": "Find the Taylor polynomial of e^x at 0 to order 3, and plot it together with e^x.",
+          "reference": [
+            {"tool": "taylor_polynomial", "args": {"expression": "e^x", "variable": "x", "point": "0", "order": 3}},
+            {
+              "tool": "draw_function",
+              "args": {"function_string": "e^x", "name": "f", "left_bound": -3, "right_bound": 3}
+            },
+            {
+              "tool": "draw_function",
+              "args": {"function_string": "1 + x + x^2/2 + x^3/6", "name": "p", "left_bound": -3, "right_bound": 3}
+            }
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "tool_result", "tool": "taylor_polynomial", "path": "order", "eq": 3},
+            {"check": "tool_result", "tool": "taylor_polynomial", "path": "polynomial", "eq": "1 + x + x^2/2 + x^3/6"},
+            {"check": "count", "select": {"type": "Function"}, "eq": 2},
+            {"check": "exists", "select": {"type": "Function", "samples": [[1, 2.6666666666666665], [2, 6.333333333333333]]}},
+            {"check": "exists", "select": {"type": "Function", "samples": [[0, 1], [1, 2.718281828459045]]}}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "MC-10",
+      "title": "Partial fractions",
+      "tags": ["math"],
+      "smoke": false,
+      "targets": "expand with a variable: a rational function split into partial fractions over the rationals (needs the server's SymPy engine, which CI installs)",
+      "steps": [
+        {
+          "user": "Split 2/(x^2-1) into partial fractions.",
+          "reference": [{"tool": "expand", "args": {"expression": "2/(x^2-1)", "variable": "x"}}],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "tool_result", "tool": "expand", "matches": "1/\\(x-1\\)"},
+            {"check": "tool_result", "tool": "expand", "matches": "1/\\(x\\+1\\)"},
+            {"check": "answer_mentions", "matches": "x\\s*-\\s*1"}
+          ]
+        }
+      ]
     }
   ]
 }
