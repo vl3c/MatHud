@@ -130,12 +130,14 @@ Goal: one command (later one executable) opens a MatHud window; no separate serv
    - `xy` against `x` and `y` is undecided (with a hint to write `x*y`) rather than read as a product.
    - Real cube roots of negatives follow math.js's principal root: `x^(1/3)` has no value for negative x (a step to `cbrt(x)` gets a domain note), and `(-8)^(1/3)` is not `-2`.
    - Not read yet: `arcsin`/`arccos`, `x|x|`, `∛`, `½` and `log_2(8)`.
-   - Calculator notation reads a function glued to one letter as a call, with at most one letter before it: `cost` is cos(t) and `secs` sec(s), except for the variable `solve` is solving for. Longer names (`costs`, `seconds`) and names with `_` stay variables.
+   - Calculator notation reads a function glued to one letter as a call, with at most one letter before it: `cost` is cos(t), `secs` sec(s) and `sinx/x` sin(x)/x, except for the variable `solve` is solving for and beside names written as words (in `revenue - cost`, cost is a variable). Longer names (`costs`, `seconds`) and names with `_` stay variables; `sinx(x+1)` and `sinx^-1` are left unread, and check_steps gives a hint.
    - Not read yet in calculator notation: `ln√x` and `sin√x`; a space between two names inside or after a call (`θ ln θ`, `x sin|x|`, `sin(pi x)`) is read by math.js but not by SymPy, so only the numeric check decides; `pi r^2` likewise; `sine x` is not read, and `d/dx x^2` is read as the variables d and dx.
-   - `costheta^2 + sintheta^2` is read with the variables costheta and sintheta (a glued call takes a one-letter operand); `log2x` and `log10x` are left unread (log2(x) or log(2x)?).
+   - `costheta^2 + sintheta^2` is read with the variables costheta and sintheta (a glued call takes a one-letter operand); `log2x`, `log10x` and `ln2x` are left unread (log2(x) or log(2x)?); `acothx`, `asechx` and `acschx` stay one variable (the server's SymPy table lacks those functions), and `sech^2 x` is undecided (the power form is rewritten only for the expression table's functions).
    - `x/2y` is x/(2y) to math.js and (x/2)*y to SymPy.
    - `E` is read as e.
    - `derive` (nerdamer) still reads `xe^x` as one name; only `solve` and `check_steps` use the calculator reading.
+   - Without SymPy, `Ae^(kt) = 2A` solved for t gives [0]; `ke^x = 2` gives [].
+   - `insert_calculator_calls` takes quadratic time on very long input.
    - The sampling range is not widened when too few points are defined: without SymPy, `sqrt(x-300)^2` to `x - 300` is undecided.
    - A step that overflows at the sample points is reported as "never both defined".
    - The worst-case wait is about 12 + 6 s (the budget, then one last SymPy request).
