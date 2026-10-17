@@ -13,6 +13,7 @@ import math
 import unittest
 from typing import Any, Dict, List
 
+from utils.cas_text import NAME_HINT
 from utils.equivalence import distinct_value_texts, json_number, point_text, value_text
 from utils.step_checker import StepChecker
 from utils.symbolic_checks import SymbolicChecks
@@ -184,6 +185,10 @@ class TestStepCheckerWithoutSympy(unittest.TestCase):
             ["revenue - costs", "-(costs - revenue)"],
             ["cos_theta^2", "cos_theta*cos_theta"],
             ["seconds*1000", "1000seconds"],
+            ["sqrt(2)/2", "1/sqrt(2)"],
+            ["e^(x*ln(2))", "2^x"],
+            ["sin(x)*e^x", "e^x*sin(x)"],
+            ["x0 + xmax", "xmax + x0"],
         ]
         wrong = [
             ["sech(x)", "1/cos(x)"],
@@ -194,6 +199,9 @@ class TestStepCheckerWithoutSympy(unittest.TestCase):
             ["sin(2x)", "2sin(x)"],
             ["ln(x) + ln(y)", "ln(x + y)"],
             ["sin(x^2)", "sin(x)^2"],
+            ["sqrt(2)/2", "sqrt(2)"],
+            ["a*x + b", "a*x"],
+            ["theta + 1", "theta"],
         ]
         misspelled = {
             ("sin x", "sin(x)"): "sin needs parentheses; write sin(x)",
@@ -214,6 +222,22 @@ class TestStepCheckerWithoutSympy(unittest.TestCase):
             ("(x+1)e^x", "xe^x + 1"): "xe is read as one variable; write x*e^x",
             ("xpi", "pi + x"): "xpi is read as one variable; write x*pi",
             ("2cosx*x", "2x cos(x)"): "cosx is read as one variable; write cos(x)",
+            # names no shape rule knows: a name only one step has never makes a step wrong
+            ("sqrt2/2", "1/sqrt(2)"): "sqrt2 is read as one variable; write sqrt(2)",
+            ("sqrt2", "sqrt(2)"): "sqrt2 is read as one variable; write sqrt(2)",
+            ("ln2", "ln(2)"): "ln2 is read as one variable; write ln(2)",
+            ("sin2", "sin(2)"): "sin2 is read as one variable; write sin(2)",
+            ("e^(x*ln2)", "2^x"): "ln2 is read as one variable; write ln(2)",
+            ("sinxe^x", "sin(x)*e^x"): f"sinxe is read as one variable; {NAME_HINT}",
+            ("lnxe^x", "ln(x)*e^x"): f"lnxe is read as one variable; {NAME_HINT}",
+            ("cosxe^x", "cos(x)*e^x"): f"cosxe is read as one variable; {NAME_HINT}",
+            ("sinhxe^x", "sinh(x)*e^x"): f"sinhxe is read as one variable; {NAME_HINT}",
+            ("sin2xe^x", "sin(2x)*e^x"): f"sin2xe is read as one variable; {NAME_HINT}",
+            ("xsinxe^x", "x*sin(x)*e^x"): f"xsinxe is read as one variable; {NAME_HINT}",
+            ("sinpix", "sin(pi*x)"): f"sinpix is read as one variable; {NAME_HINT}",
+            ("sinxpi", "sin(x)*pi"): f"sinxpi is read as one variable; {NAME_HINT}",
+            ("sinx2", "sin(x)*2"): f"sinx2 is read as one variable; {NAME_HINT}",
+            ("y", "mx + b"): f"mx is read as one variable; {NAME_HINT}",
         }
         with WithoutSympy():
             verdicts = [_check(steps)["verdict"] for steps in equivalent]
@@ -221,6 +245,7 @@ class TestStepCheckerWithoutSympy(unittest.TestCase):
             reasons = {steps: _check(list(steps))["steps"][0] for steps in misspelled}
             gamma = _check(["gamma*m*c^2", "m*gamma*c^2"])
             agreed = _check(["revenue - cost", "-(cost - revenue)"])["steps"][0]
+            chain = _check(["sin(x)", "sin(x)", "sinxe"])
         self.assertEqual(verdicts, ["equivalent"] * len(equivalent))
         self.assertEqual(wrong_verdicts, ["not_equivalent"] * len(wrong))
         for steps, reason in misspelled.items():
@@ -233,3 +258,5 @@ class TestStepCheckerWithoutSympy(unittest.TestCase):
         self.assertEqual(
             agreed["note"], "cost is read as one variable (for the function, write cos(t)); the steps agree either way"
         )
+        self.assertEqual([step["verdict"] for step in chain["steps"]], ["equivalent", "undecided"])
+        self.assertEqual(chain["steps"][1]["reason"], f"sinxe is read as one variable; {NAME_HINT}")

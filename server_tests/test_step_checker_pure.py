@@ -374,6 +374,49 @@ class TestCalculatorSpellings(unittest.TestCase):
             record["note"], "cost is read as one variable (for the function, write cos(t)); the steps agree either way"
         )
 
+    def test_any_name_one_step_lacks_never_makes_a_step_wrong(self) -> None:
+        # misspellings no rule names (exe, sinxe), and names that start with a function name
+        hint = "write it in standard syntax (e.g. sqrt(2), sin(x)*e^x) or rename it"
+        cases = {
+            ("sqrt2/2", "1/sqrt(2)"): "sqrt2 is read as one variable; write sqrt(2)",
+            ("sqrt2", "sqrt(2)"): "sqrt2 is read as one variable; write sqrt(2)",
+            ("ln2", "ln(2)"): "ln2 is read as one variable; write ln(2)",
+            ("sin2", "sin(2)"): "sin2 is read as one variable; write sin(2)",
+            ("e^(x*ln2)", "2^x"): "ln2 is read as one variable; write ln(2)",
+            ("sinxe^x", "sin(x)*e^x"): f"sinxe is read as one variable; {hint}",
+            ("lnxe^x", "ln(x)*e^x"): f"lnxe is read as one variable; {hint}",
+            ("cosxe^x", "cos(x)*e^x"): f"cosxe is read as one variable; {hint}",
+            ("sinhxe^x", "sinh(x)*e^x"): f"sinhxe is read as one variable; {hint}",
+            ("sin2xe^x", "sin(2x)*e^x"): f"sin2xe is read as one variable; {hint}",
+            ("xsinxe^x", "x*sin(x)*e^x"): f"xsinxe is read as one variable; {hint}",
+            ("sinpix", "sin(pi*x)"): f"sinpix is read as one variable; {hint}",
+            ("sinxpi", "sin(x)*pi"): f"sinxpi is read as one variable; {hint}",
+            ("sinx2", "sin(x)*2"): f"sinx2 is read as one variable; {hint}",
+            ("mx + b", "x + b"): f"mx is read as one variable; {hint}",
+            ("seconds*60", "61*seconds"): f"seconds is read as one variable; {hint}",
+        }
+        for steps, reason in cases.items():
+            with self.subTest(steps=steps):
+                record = _check(list(steps))["steps"][0]
+                self.assertEqual((record["verdict"], record["reason"]), ("undecided", reason))
+        chain = _check(["sin(x)", "sin(x)", "sinxe"])
+        self.assertEqual([record["verdict"] for record in chain["steps"]], ["equivalent", "undecided"])
+        self.assertEqual(chain["steps"][1]["reason"], f"sinxe is read as one variable; {hint}")
+        # standard syntax and names both steps share keep their verdicts
+        for standard, verdict in (
+            (["sqrt(2)/2", "1/sqrt(2)"], "equivalent"),
+            (["e^(x*ln(2))", "2^x"], "equivalent"),
+            (["sin(x)*e^x", "e^x*sin(x)"], "equivalent"),
+            (["revenue - cost", "-(cost - revenue)"], "equivalent"),
+            (["seconds*60", "60*seconds"], "equivalent"),
+            (["sqrt(2)/2", "sqrt(2)"], "not_equivalent"),
+            (["x_1 + x_2", "x_1"], "not_equivalent"),
+            (["theta + 1", "theta"], "not_equivalent"),
+            (["a*x + b", "a*x"], "not_equivalent"),
+        ):
+            with self.subTest(steps=standard):
+                self.assertEqual(_check(standard)["verdict"], verdict)
+
     def test_misread_names_are_undecided_with_a_hint(self) -> None:
         # function names math.js reads as variables (gamma) are in the Brython test
         engines = _Engines()

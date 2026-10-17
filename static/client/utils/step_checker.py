@@ -11,10 +11,12 @@ are never rewritten. Then, for each pair of neighbouring steps:
 3. A pair with a name the engines misread is undecided, with a hint: another function name
    used as a variable (gamma), a function glued to more than one letter (sinxy, sinxcosx),
    or xy against x and y.
-4. A name that looks like a glued call or constant (sinx, xlnx, xe, xpi, cost) is read as
-   one variable. If the steps are equivalent that way they are equivalent however it is
-   read, and the answer says so in a note; otherwise the pair is undecided with the form to
-   write (sin(x), x*ln(x), x*e^x). Such a pair is never not_equivalent.
+4. A name that looks like a glued call or constant (sinx, xlnx, xe, xpi, cost) or starts
+   with a function name (sqrt2, sinxe, costs) is read as one variable. If the steps are
+   equivalent that way they are equivalent however it is read, with a note for a glued
+   call; otherwise the pair is undecided with the form to write (sin(x), x*ln(x), x*e^x,
+   sqrt(2)). Such a pair is never not_equivalent, and neither is one with a name of two
+   letters or more that only one step has (exe, mx): it is undecided with a hint.
 5. The numeric check (utils.equivalence.compare, every variable varied) decides most
    pairs. "equivalent" is the answer, with a note when one step is undefined where the
    other is defined (log(x^2) and 2*log(x)), and SymPy is not asked.
@@ -40,7 +42,7 @@ import re
 import time
 from typing import Any, Dict, FrozenSet, List, Optional, Sequence, Set, Tuple, cast
 
-from utils.cas_text import has_inequality, split_top_level_terms
+from utils.cas_text import NAME_HINT, has_inequality, split_top_level_terms
 from utils.equivalence import (
     EQUIVALENT,
     NOT_EQUIVALENT,
@@ -75,6 +77,11 @@ _SINGLE_LETTER = re.compile(r"^[A-Za-zͰ-Ͽ]$")
 _CONSTANTS = ("e", "pi")
 # Longer names are never split into factors or calls
 _MAX_SPLIT_LENGTH = 40
+# Greek letters spelled out: one-letter variables
+_GREEK_NAMES = frozenset(
+    "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron rho sigma tau"
+    " upsilon phi chi psi omega".split()
+)
 # A letter and digits, such as x2: x squared or 2x when x is a variable too
 _INDEXED = re.compile(r"^([A-Za-z])(\d+)$")
 
@@ -305,16 +312,42 @@ class StepChecker:
         )
         if misread:
             return dict(record, verdict=UNDECIDED, method=NEITHER, reason=misread)
-        glued = (previous.glued + step.glued)[:1]
+        # the glued calls first: their hint names the call (cost: write cos(t))
+        glued = sorted(previous.glued + step.glued, key=lambda misspelling: not misspelling.call)
         result = StepChecker._verdict(record, previous, step, budget, numeric_only=bool(glued))
-        if not glued:
-            return result
-        if result.get("verdict") != EQUIVALENT:
+        if result.get("verdict") == EQUIVALENT:
+            return StepChecker._noted(result, [misspelling for misspelling in glued if misspelling.call])
+        if glued:
             # sinx read as a variable: a spelling never makes a step wrong
             return dict(record, verdict=UNDECIDED, method=NEITHER, reason=glued[0].reason)
-        name, call = glued[0].name, glued[0].call
+        lone = StepChecker._lone_name(previous, step)
+        if lone is not None and result.get("verdict") == NOT_EQUIVALENT:
+            # a name only one step has may be a spelling the checks do not know (exe, mx)
+            return dict(
+                record, verdict=UNDECIDED, method=NEITHER, reason=f"{lone} is read as one variable; {NAME_HINT}"
+            )
+        return result
+
+    @staticmethod
+    def _noted(result: Dict[str, Any], called: List[Any]) -> Dict[str, Any]:
+        """An equivalent result, with a note on the first glued call read as a variable (sinx)."""
+        if not called:
+            return result
+        name, call = called[0].name, called[0].call
         note = f"{name} is read as one variable (for the function, write {call}); the steps agree either way"
         return dict(result, note=f"{result['note']}; {note}" if result.get("note") else note)
+
+    @staticmethod
+    def _lone_name(previous: PreparedStep, step: PreparedStep) -> Optional[str]:
+        """A name of two letters or more, without "_", that one step has and the other has not
+        and that is no function or Greek letter (exe, mx, sqrt2), or None."""
+        for first, second in ((previous, step), (step, previous)):
+            for name in first.variables:
+                if name in second.variables or "_" in name or name in _GREEK_NAMES:
+                    continue
+                if sum(character.isalpha() for character in name) >= 2 and name not in _function_spellings():
+                    return str(name)
+        return None
 
     @staticmethod
     def _verdict(
@@ -349,10 +382,10 @@ class StepChecker:
         """
         others = set(other.variables)
         letters = {name for name in others | set(step.variables) if _SINGLE_LETTER.match(name)}
-        glued = {misspelling.name for misspelling in step.glued}
+        glued = {misspelling.name for misspelling in step.glued if misspelling.call}
         for name in step.variables:
             if name in glued:
-                continue  # the caller decides (sinx, xe)
+                continue  # the caller decides (sinx, xe, sqrt2)
             if name in _calculator_spellings():
                 return f"{name} is a function, but it is read as a variable here; write {name}(x) with parentheses"
             if name in _function_spellings():

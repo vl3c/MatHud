@@ -20,6 +20,7 @@ from utils.cas_numeric import (  # noqa: E402
     snap,
 )
 from utils.cas_text import (  # noqa: E402
+    decomposes,
     find_closing_parenthesis,
     has_inequality,
     glued_call,
@@ -204,13 +205,38 @@ class TestMisspellings(unittest.TestCase):
             "re(x)",
             "ex(2)",
             "A.x + 1",
-            "costs - revenue",
             "cos_theta^2",
-            "seconds*1000",
             "log2(x)",
+            "x0 + xmax",
         ):
             with self.subTest(text=text):
                 self.assertEqual(self._reasons(text), [])
+
+    def test_names_that_start_with_a_function_name(self) -> None:
+        hint = "write it in standard syntax (e.g. sqrt(2), sin(x)*e^x) or rename it"
+        cases = {
+            "sqrt2/2": ["sqrt2 is read as one variable; write sqrt(2)"],
+            "e^(x*ln2)": ["ln2 is read as one variable; write ln(2)"],
+            "sin2": ["sin2 is read as one variable; write sin(2)"],
+            "sinxe^x": [f"sinxe is read as one variable; {hint}"],
+            "sinpix": [f"sinpix is read as one variable; {hint}"],
+            "sinx2": [f"sinx2 is read as one variable; {hint}"],
+            # descriptive names too: check_steps and solve decide what they mean
+            "costs - revenue": [f"costs is read as one variable; {hint}", f"revenue is read as one variable; {hint}"],
+            "seconds*1000": [f"seconds is read as one variable; {hint}"],
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(self._reasons(text), expected)
+
+    def test_decomposes(self) -> None:
+        keys = ("sin", "cos", "ln", "e", "pi")
+        for name in ("sinxe", "sinxcosx", "exe", "sin2", "sinpix"):
+            with self.subTest(name=name):
+                self.assertTrue(decomposes(name, keys + ("x",), keys))
+        for name in ("costs", "x0", "xx", "revenue", "sin", "pex"):
+            with self.subTest(name=name):
+                self.assertFalse(decomposes(name, keys + ("x",), keys))
 
     def test_kept_names(self) -> None:
         self.assertEqual(self._reasons("cost < 1", keep=("cost",)), [])

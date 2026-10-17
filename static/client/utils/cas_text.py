@@ -18,7 +18,7 @@ Pure Python (no browser imports), so server-side pytest covers it.
 from __future__ import annotations
 
 import re
-from typing import Iterable, List, NamedTuple, Optional, Set, Tuple
+from typing import Dict, Iterable, List, NamedTuple, Optional, Sequence, Set, Tuple
 
 # A name followed by "(". A digit may come before it (2ln(x) is 2*ln(x)); a letter, "_" or "."
 # may not, and since matches are found left to right, a name with digits inside (log10, x2ln)
@@ -394,6 +394,8 @@ _LOG_DIGITS = re.compile(r"^(log|ln)(\d+)([A-Za-z])$")
 _LOGS = ("log", "ln")
 # One letter, the longest function name (asinh), a number and one letter: longer names are words
 _MAX_GLUED_LENGTH = 16
+# Longer names are never split into pieces
+_MAX_SPLIT_LENGTH = 40
 
 
 class Misspelling(NamedTuple):
@@ -455,12 +457,14 @@ def misspellings(
     """The spellings in text the tools refuse, in order: a function in unary_names written
     without parentheses (sin x, sin 2x, x ln x, sin^2 x, sin alone), a name that looks like a
     function glued to a letter (sinx, sin2x, xlnx, asinhx), a letter and e or pi written
-    together (xe^x, xpi) and a log glued to digits (log2x). Names in keep (the variable being
-    solved for), in function_names and after a "." are never misspellings; ln|x| and sin (x)
-    are standard.
+    together (xe^x, xpi), a log glued to digits (log2x), and any other name that starts with
+    a function name (sqrt2, ln2, sinxe, sinpix, costs). Names in keep (the variable being
+    solved for), in function_names, with "_" and after a "." are never misspellings; ln|x| and
+    sin (x) are standard.
     """
     unary, glued, kept = set(unary_names), set(glued_names), set(keep)
     functions = set(function_names) | unary
+    prefixes = sorted(functions | glued, key=len, reverse=True)
     found: List[Misspelling] = []
     for match in _TOKEN.finditer(text):
         name = match.group(0)
@@ -472,6 +476,8 @@ def misspellings(
             continue
         else:
             misspelling = _glued_name(text, name, match.end(), glued, functions)
+            if misspelling is None:
+                misspelling = _function_prefix(name, prefixes)
         if misspelling is not None:
             found.append(misspelling)
     return found
@@ -511,6 +517,53 @@ def _next_character(text: str, index: int) -> str:
 def _is_coefficient(factor: str) -> bool:
     """True for a number or pi, which come first in a product (sin 2 x, sin pi x)."""
     return factor == "pi" or factor[0].isdigit()
+
+
+# The hint for a name that starts with a function name and is no glued call
+NAME_HINT = "write it in standard syntax (e.g. sqrt(2), sin(x)*e^x) or rename it"
+
+
+def _function_prefix(name: str, prefixes: Sequence[str]) -> Optional[Misspelling]:
+    """sqrt2 (write sqrt(2)), sinxe, sinpix, costs: a name that starts with a function name in
+    prefixes (longest first), as a Misspelling with no letters; None for other names. A call
+    with digits after it (sqrt2) has its call in the hint; any other has call "" (costs may be
+    a variable)."""
+    if "_" in name:
+        return None
+    function = next((prefix for prefix in prefixes if len(name) > len(prefix) and name.startswith(prefix)), None)
+    if function is None:
+        return None
+    rest = name[len(function) :]
+    if rest.isdigit():
+        call = f"{function}({rest})"
+        return Misspelling(name, call, f"{name} is read as one variable; write {call}", False, (), False)
+    return Misspelling(name, "", f"{name} is read as one variable; {NAME_HINT}", False, (), False)
+
+
+def decomposes(name: str, pieces: Iterable[str], required: Iterable[str]) -> bool:
+    """True when name is two or more of pieces and digit runs written together, at least one
+    of them in required: sinxe (sin, x, e), sin2, exe, sinxcosx."""
+    if len(name) > _MAX_SPLIT_LENGTH:
+        return False
+    parts, needed = sorted(set(pieces), key=len, reverse=True), set(required)
+    # found[i]: (pieces in name[i:], whether one is required), or None; from the end
+    found: Dict[int, Optional[Tuple[int, bool]]] = {len(name): (0, False)}
+    for start in range(len(name) - 1, -1, -1):
+        found[start] = None
+        candidates = [part for part in parts if name.startswith(part, start)]
+        digits = re.match(r"\d+", name[start:])
+        if digits is not None:
+            candidates.append(digits.group(0))
+        for part in candidates:
+            rest = found.get(start + len(part))
+            if rest is None:
+                continue
+            option = (rest[0] + 1, rest[1] or part in needed)
+            current = found[start]
+            if current is None or (option[1] and not current[1]):
+                found[start] = option
+    result = found[0]
+    return result is not None and result[0] >= 2 and result[1]
 
 
 def _glued_name(text: str, name: str, end: int, glued: Set[str], functions: Set[str]) -> Optional[Misspelling]:

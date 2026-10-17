@@ -126,7 +126,7 @@ class TestInequalityHelpers(unittest.TestCase):
             "a*x > 2": "also contains a",
             "x > 1 and x < 5": "on its own",
             "1 < x > 0": "point the same way",
-            "y > 2": "also contains y",
+            "y > 2": "x does not appear in the inequality",
         }
         for text, message in cases.items():
             result = _solve(text)
@@ -187,28 +187,43 @@ class TestInequalitySolverSympy(unittest.TestCase):
 
     def test_calculator_spellings_are_refused_with_a_hint(self) -> None:
         # sin x, sinx, xlnx, xe^x and xpi are never guessed: an error names the form to write
+        rename = ", or rename the variable"
+        hint = "write it in standard syntax (e.g. sqrt(2), sin(x)*e^x) or rename it"
         refused = {
             ("sin x > 1/2", "[0, 2*pi]", "x"): "sin needs parentheses; write sin(x)",
-            ("sinx > 1/2", "[0, 2*pi]", "x"): "sinx is read as one variable; write sin(x)",
+            ("sinx > 1/2", "[0, 2*pi]", "x"): "sinx is read as one variable; write sin(x)" + rename,
             ("2 sin x cos x > 0", "[0, pi]", "x"): "sin needs parentheses; write sin(x)",
             ("xe^x > 0", None, "x"): "xe is read as one variable; write x*e^x",
             ("x ln x < 0", None, "x"): "ln needs parentheses; write ln(x)",
-            ("xpi > 1", None, "x"): "xpi is read as one variable; write x*pi",
-            ("sinx = 0.5", "[0, 2*pi]", "x"): "sinx is read as one variable; write sin(x)",
-            ("sinx = 0.5", None, "x"): "sinx is read as one variable; write sin(x)",
+            ("xpi > 1", None, "x"): "xpi is read as one variable; write x*pi" + rename,
+            ("sinx = 0.5", "[0, 2*pi]", "x"): "sinx is read as one variable; write sin(x)" + rename,
+            ("sinx = 0.5", None, "x"): "sinx is read as one variable; write sin(x)" + rename,
             ("xe^x = 1", None, "x"): "xe is read as one variable; write x*e^x",
-            ("xe = 1", None, "x"): "xe is read as one variable; write x*e",
-            ("lnx = 1", "[0, 5]", "x"): "lnx is read as one variable; write ln(x)",
+            ("xe = 1", None, "x"): "xe is read as one variable; write x*e" + rename,
+            ("lnx = 1", "[0, 5]", "x"): "lnx is read as one variable; write ln(x)" + rename,
             ("ln x = 1", None, "x"): "ln needs parentheses; write ln(x)",
-            ("xlnx = 1", "[0.5, 3]", "x"): "xlnx is read as one variable; write x*ln(x)",
+            ("xlnx = 1", "[0.5, 3]", "x"): "xlnx is read as one variable; write x*ln(x)" + rename,
             ("sech x = 0.5", None, "x"): "sech needs parentheses; write sech(x)",
-            ("sinhx = 1", None, "x"): "sinhx is read as one variable; write sinh(x)",
-            ("asinhx = 1", None, "x"): "asinhx is read as one variable; write asinh(x)",
-            ("log2x = 3", None, "x"): "log2x is read as one variable; write log2(x) or log(2x)",
-            ("sinx/x = 0", "[1, 4]", "x"): "sinx is read as one variable; write sin(x)",
+            ("sinhx = 1", None, "x"): "sinhx is read as one variable; write sinh(x)" + rename,
+            ("asinhx = 1", None, "x"): "asinhx is read as one variable; write asinh(x)" + rename,
+            ("log2x = 3", None, "x"): "log2x is read as one variable; write log2(x) or log(2x)" + rename,
+            ("sinx/x = 0", "[1, 4]", "x"): "sinx is read as one variable; write sin(x)" + rename,
             ("ke^x = 2", None, "x"): "ke is read as one variable; write k*e^x",
             ("Ae^(kt) = 2A", None, "t"): "Ae is read as one variable; write A*e^(kt)",
-            ("cost = 0.5", None, "t"): "cost is read as one variable; write cos(t)",
+            ("cost = 0.5", None, "t"): "cost is read as one variable; write cos(t)" + rename,
+            ("cost = 5t + 100", None, "t"): "cost is read as one variable; write cos(t)" + rename,
+            # names no shape rule knows, and a variable that is not there
+            ("sinxe^x = 1", None, "x"): f"sinxe is read as one variable; {hint}",
+            ("lnxe^x = 1", None, "x"): f"lnxe is read as one variable; {hint}",
+            ("cosxe^x = 1", None, "x"): f"cosxe is read as one variable; {hint}",
+            ("exe^x = 1", None, "x"): f"exe is read as one variable; {hint}",
+            ("sinxcosx = x", None, "x"): f"sinxcosx is read as one variable; {hint}",
+            ("sinpix = 0", None, "x"): f"sinpix is read as one variable; {hint}",
+            ("e^(x*ln2) = 8", None, "x"): "ln2 is read as one variable; write ln(2)",
+            ("sin2 = x", None, "x"): "sin2 is read as one variable; write sin(2)",
+            ("y = mx + b", None, "x"): "x does not appear in the equation",
+            ("pex = 1", None, "x"): "x does not appear in the equation",
+            ("y > 2", None, "x"): "x does not appear in the inequality",
         }
         for (text, interval, variable), reason in refused.items():
             self.assertEqual(str(MathUtils.solve(text, variable, interval)), f"Error: {reason}.", text)
@@ -226,11 +241,16 @@ class TestInequalitySolverSympy(unittest.TestCase):
             ("sech(x) = 0.5", None): "[-asech(1/2),asech(1/2)]",
             ("asinh(x) = 1", None): "[sinh(1)]",
             ("sin(x)/x = 0", "[1, 4]"): "[pi] (the roots in [1, 4])",
+            ("e^(x*ln(2)) = 8", None): "[log(8)/log(2)]",
         }
         for (text, interval), expected in cases.items():
             self.assertEqual(_solve(text, interval), expected, f"{text} on {interval}")
         # a glued name holding no variable of the equation is a variable, as on main
         self.assertEqual(str(MathUtils.solve("profit = revenue - cost", "revenue")), "[cost+profit]")
+        self.assertEqual(str(MathUtils.solve("profit = revenue - costs", "revenue")), "[costs+profit]")
+        self.assertEqual(str(MathUtils.solve("x = x0 + v*t", "x")), "[t*v+x0]")
+        self.assertEqual(str(MathUtils.solve("y = m*x + b", "x")), "[-(b-y)/m]")
+        self.assertTrue(_solve("sin(x)*e^x = 1", "[0, 1]").startswith("[0.5885327439"))
         self.assertEqual(str(MathUtils.solve("cost < 1", "cost")), "cost < 1; interval notation: (-Infinity, 1)")
         self.assertEqual(str(MathUtils.solve("ex > 1", "ex")), "ex > 1; interval notation: (1, Infinity)")
         self.assertEqual(str(MathUtils.solve("cost = 5", "cost")), "[5]")
