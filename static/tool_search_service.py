@@ -238,6 +238,17 @@ _TAYLOR_PHRASE_RE = re.compile(
 # d/dx, d/dt (the tokens split it into d and dx)
 _D_BY_D_RE = re.compile(r"\bd/d[a-z]\b")
 _CONVERGENCE_WORDS = frozenset({"converge", "converges", "convergent", "convergence", "diverge", "diverges"})
+# Closed forms of sums come from simplify(summation(...)): "a closed form for the sum of k^2
+# from 1 to n", "the sum of 1/k^2 from 1 to infinity", "does the series of 1/n^2 converge";
+# not a sum of numbers ("add up 1 to 100", "the sum of the data") and not a bare "sigma",
+# which is also a normal distribution's ("sigma 1, shade from 0 to infinity").
+_SUM_WORDS = frozenset({"sum", "sums", "summation", "series"})
+_SUM_PHRASE_RE = re.compile(
+    r"\bclosed[- ]form\b|\bformula\b|\bto (?:n|infinity)\b|\binfinite\b|\bgeometric\b|\bsigma notation\b"
+)
+_NOT_SUM_WORDS = frozenset(
+    {"data", "dataset", "values", "list", "mean", "average", "statistics", "taylor", "maclaurin"}
+)
 # Point names such as A, B or A' in the query as typed; "connect A and B" needs two of
 # them (the pronoun "I" is not one).
 _POINT_NAME_RE = re.compile(r"\b[A-Z]'*(?![\w'])")
@@ -1118,6 +1129,13 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         ):
             scores["taylor_polynomial"] += 10.0
             scores["expand"] -= 20.0  # "Taylor expand ln(1+x) at 0", "expand e^x in a power series"
+        sum_named = bool(token_set & _SUM_WORDS) or "∑" in raw_lower or "sigma notation" in raw_lower
+        if (
+            sum_named
+            and (_SUM_PHRASE_RE.search(raw_lower) is not None or token_set & _CONVERGENCE_WORDS or "∞" in raw_lower)
+            and not token_set & (_NOT_SUM_WORDS | _NOT_STEP_WORDS)  # "a series of circles"
+        ):
+            scores["simplify"] += 8.0
         if token_set & {"limit", "lim"}:
             scores["limit"] += 6.0
         if token_set & {"compute", "calculate", "evaluate"} and not (

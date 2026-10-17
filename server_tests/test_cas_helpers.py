@@ -25,15 +25,20 @@ from utils.cas_text import (  # noqa: E402
     find_closing_parenthesis,
     has_inequality,
     glued_call,
+    glued_factorial,
+    glued_index,
     insert_implicit_products,
     insert_letter_call_products,
     is_unevaluated,
     misspellings,
+    names_in,
     parse_interval,
+    replace_name,
     rewrite_for_nerdamer,
     split_relation,
     split_top_level_commas,
     split_top_level_terms,
+    sum_call,
     unknown_function_names,
 )
 
@@ -329,6 +334,87 @@ class TestAmbiguousDivision(unittest.TestCase):
         ):
             with self.subTest(text=text):
                 self.assertIsNone(ambiguous_division(text, self.FUNCTIONS))
+
+
+class TestSumCall(unittest.TestCase):
+    """cas_text.sum_call: the one sum simplify reads, and the other ways of writing one it refuses."""
+
+    def test_sums(self) -> None:
+        for text, parts in (
+            ("summation(k^2, k, 1, n)", ("k^2", "k", "1", "n")),
+            ("  summation (k^2,k,1,n) ", ("k^2", "k", "1", "n")),
+            ("summation('k^2', 'k', 1, n)", ("k^2", "k", "1", "n")),
+            ('summation("1/k^2", "k", 1, Infinity)', ("1/k^2", "k", "1", "Infinity")),
+            ("sum(k^2, k, 1, n)", ("k^2", "k", "1", "n")),
+            ("sum(f(k, 2), k, 0, 2n)", ("f(k, 2)", "k", "0", "2n")),
+            ("summation(max(k, 2), k, 1, 5)", ("max(k, 2)", "k", "1", "5")),
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(sum_call(text), parts)
+
+    def test_not_sums(self) -> None:
+        for text in (
+            "x^2+1",
+            "sum([1, 2, 3])",
+            "sum(1, 2)",
+            "sum(a, 2, 3, 4)",
+            "summations",
+            "x*summand",
+            "total_sum_2 + 1",
+        ):
+            with self.subTest(text=text):
+                self.assertIsNone(sum_call(text))
+
+    def test_refusals(self) -> None:
+        for text, reason in (
+            ("2*summation(k, k, 1, n)", "part of a larger expression"),
+            ("summation(k, k, 1, n)^2", "part of a larger expression"),
+            ("summation(k, k, 1, n) + summation(k^2, k, 1, n)", "one sum at a time"),
+            ("summation(summation(j, j, 1, k), k, 1, n)", "one sum at a time"),
+            ("Sum(k^2, (k, 1, n))", "Sum(...) is not read"),
+            ("Sum(k^2, k, 1, n)", "Sum(...) is not read"),
+            ("summation(k^2, (k, 1, n))", "summation(term, (k, a, b))"),
+            ("sum(k^2, (k, 1, n))", "sum(term, (k, a, b))"),
+            ("summation(k^2, k=1..n)", "four arguments"),
+            ("summation(k^2, k, 1)", "four arguments"),
+            ("summation(k^2, k, , n)", "four arguments"),
+            ("∑(k^2, k, 1, n)", "∑"),
+            ("Σ(k^2, k, 1, n)", "Σ"),
+            ("Σ_(k=1)^n k^2", "Σ"),
+            ("Σk^2", "Σ"),
+            ("\\sum_{k=1}^{n} k^2", "sum notation with limits"),
+            ("sum_{k=1}^{\\infty} 1/k^2", "sum notation with limits"),
+            ("\\prod_{k=1}^n k", "sum notation with limits"),
+        ):
+            with self.subTest(text=text):
+                with self.assertRaises(ValueError) as raised:
+                    sum_call(text)
+                self.assertIn(reason, str(raised.exception))
+                self.assertIn("summation(term, k, a, b)", str(raised.exception))
+
+    def test_replace_name(self) -> None:
+        self.assertEqual(replace_name("i^2 + 2i - sin(i)", "i", "k"), "k^2 + 2k - sin(k)")
+        self.assertEqual(replace_name("e^(-e) + 1e5 + exp(e)", "e", "m"), "m^(-m) + 1e5 + exp(m)")
+        self.assertEqual(replace_name("pi*k + pix", "pi", "m"), "m*k + pix")
+        self.assertEqual(names_in("x1*θ + 2e3 - k_2"), ["x1", "θ", "k_2"])
+
+    def test_glued_index(self) -> None:
+        self.assertEqual(glued_index("kx^k", "k"), ("kx", "k*x"))
+        self.assertEqual(glued_index("2xk + 1", "k"), ("xk", "x*k"))
+        self.assertEqual(glued_index("a*r^n", "n"), None)
+        for text in ("k*x^k", "k2 + k_max", "sin(k)", "kf(k)", "factorial(k)", "x.k"):
+            with self.subTest(text=text):
+                self.assertIsNone(glued_index(text, "k"))
+        self.assertIsNone(glued_index("pi*p^2", "p", ("pi",)))
+        self.assertEqual(glued_index("pi*p^2", "p"), ("pi", "p*i"))
+
+    def test_glued_factorial(self) -> None:
+        self.assertEqual(glued_factorial("x^k/2k!"), ("2k!", "write 2*k! or (2k)!"))
+        self.assertEqual(glued_factorial("1/0.5k!"), ("0.5k!", "write 0.5*k! or (0.5k)!"))
+        # 3 n! is 3*n! to both readers
+        for text in ("1/k!", "x^k/(2k)!", "2*k!", "3!", "k != 2", "1/(3 n!)"):
+            with self.subTest(text=text):
+                self.assertIsNone(glued_factorial(text))
 
 
 class TestRewriteForNerdamer(unittest.TestCase):

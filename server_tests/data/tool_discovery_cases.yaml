@@ -2981,6 +2981,83 @@
       "category": "confusion_probe",
       "difficulty": "hard",
       "cluster": "rewrite_cluster"
+    },
+    {
+      "id": "u_sum_1",
+      "query": "Find a closed form for the sum of k^2 from 1 to n.",
+      "expected_any": [
+        "simplify"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_sum_2",
+      "query": "What is the sum of 1/k^2 from 1 to infinity?",
+      "expected_any": [
+        "simplify"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_sum_3",
+      "query": "Sum of the geometric series 3*(1/2)^k for k from 0 to infinity.",
+      "expected_any": [
+        "simplify"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_sum_4",
+      "query": "What is the formula for the sum of the first n odd numbers?",
+      "expected_any": [
+        "simplify"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "cf_sigma_normal_not_sum",
+      "query": "Plot a normal distribution with mean 0 and sigma 1, shade from 0 to infinity.",
+      "expected_any": [
+        "plot_distribution"
+      ],
+      "forbidden": [
+        "search_tools",
+        "simplify"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "stats_cluster"
+    },
+    {
+      "id": "cf_sum_of_values_not_closed_form",
+      "query": "Sum of the values 3, 5, 9.",
+      "expected_any": [
+        "evaluate_expression",
+        "compute_descriptive_statistics"
+      ],
+      "forbidden": [
+        "search_tools",
+        "simplify"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "rewrite_cluster"
     }
   ]
 }

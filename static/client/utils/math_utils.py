@@ -62,7 +62,7 @@ class MathUtils:
 
     # Epsilon (tolerance)
     EPSILON = 1e-9
-    MAX_SERIES_TERMS = 1000
+    MAX_SERIES_TERMS = 100000
     MAX_NUMERIC_INTEGRATION_STEPS = 10000
 
     @staticmethod
@@ -1835,8 +1835,9 @@ class MathUtils:
     def simplify(expression: str) -> str:
         """Simplify a mathematical expression to its simplest form.
 
-        Uses Nerdamer symbolic computation for algebraic simplification.
-        Combines like terms, factors, and reduces expressions.
+        Uses the server's SymPy engine, else nerdamer, for algebraic simplification.
+        Combines like terms, factors, and reduces expressions. A sum written as the whole
+        expression, summation(term, k, a, b), gets its closed form (ClosedFormSums.simplify).
 
         Args:
             expression (str): Mathematical expression to simplify
@@ -1844,6 +1845,11 @@ class MathUtils:
         Returns:
             str: Simplified expression as string or error message
         """
+        from utils.closed_form_sums import ClosedFormSums
+
+        summed = ClosedFormSums.simplify(expression)
+        if summed is not None:
+            return str(summed)
         return MathUtils._checked_rewrite("simplify", expression)
 
     @staticmethod
@@ -3120,10 +3126,12 @@ class MathUtils:
     # ========== Sequence and Series Functions ==========
 
     @staticmethod
-    def summation(expression: str, variable: str, start: int, end: int) -> str:
+    def summation(expression: str, variable: str, start: int, end: int) -> Number:
         """Compute sum of expression for integer values from start to end.
 
-        Calculates Σ expression for variable = start to end.
+        Calculates Σ expression for variable = start to end with math.js, adding the terms
+        with math.fsum. The variable is passed in math.js's scope, which overrides its
+        constants, so an index named i or e works.
 
         Args:
             expression: Mathematical expression containing the variable
@@ -3132,26 +3140,51 @@ class MathUtils:
             end: Ending integer value (inclusive)
 
         Returns:
-            str: Sum result as string
+            The sum, an int when it is whole (0 for an empty range, start > end); a number, not
+            text, so 3*summation(...) multiplies it
 
         Raises:
-            ValueError: If start or end are not valid integers
+            ValueError: If there are more than MAX_SERIES_TERMS terms, or a term is not a finite real number
         """
+        terms = MathUtils._series_terms("summation", expression, variable, start, end)
+        return MathUtils._series_value(math.fsum(terms))
+
+    @staticmethod
+    def _series_terms(name: str, expression: str, variable: str, start: int, end: int) -> List[float]:
+        """The values of expression (math.js, or Python's ** spelling) for variable = start .. end."""
         start = int(start)
         end = int(end)
         if start > end:
-            return "0"
+            return []
         term_count = end - start + 1
         if term_count > MathUtils.MAX_SERIES_TERMS:
-            raise ValueError(f"summation supports at most {MathUtils.MAX_SERIES_TERMS} terms")
-        total = 0.0
-        for i in range(start, end + 1):
-            value = MathUtils._nerdamer_number(window.nerdamer(expression).sub(variable, i))
-            total += value
-        # Return integer if it's a whole number
-        if total == int(total):
-            return str(int(total))
-        return str(total)
+            raise ValueError(f"{name} supports at most {MathUtils.MAX_SERIES_TERMS} terms")
+        from utils.inequality_solver import InequalitySolver
+
+        # evaluate_expression hands the quoted term over in Python syntax (k**2); k(k+1) is a
+        # product, not a call, as simplify's sums read it
+        text = str(expression).replace("**", "^")
+        try:
+            text = str(InequalitySolver.prepared(text))
+        except Exception:
+            pass  # math.js says what it cannot read
+        evaluate = MathUtils._compiled_evaluator(text)
+        terms: List[float] = []
+        for index in range(start, end + 1):
+            value = evaluate({variable: index})
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+                raise ValueError(f"{expression} is not a finite real number at {variable} = {index}")
+            terms.append(float(value))
+        return terms
+
+    @staticmethod
+    def _series_value(total: float) -> Number:
+        """A sum or product: an int when it is whole and exact in a float."""
+        if not math.isfinite(total):
+            raise ValueError("the result is too large to represent")
+        if total.is_integer() and abs(total) < 2.0**53:
+            return int(total)
+        return total
 
     @staticmethod
     def _nerdamer_number(parsed: Any) -> float:
@@ -3170,10 +3203,10 @@ class MathUtils:
             settings.PARSE2NUMBER = saved
 
     @staticmethod
-    def product(expression: str, variable: str, start: int, end: int) -> str:
+    def product(expression: str, variable: str, start: int, end: int) -> Number:
         """Compute product of expression for integer values from start to end.
 
-        Calculates Π expression for variable = start to end.
+        Calculates Π expression for variable = start to end with math.js (see summation).
 
         Args:
             expression: Mathematical expression containing the variable
@@ -3182,26 +3215,15 @@ class MathUtils:
             end: Ending integer value (inclusive)
 
         Returns:
-            str: Product result as string
+            The product, an int when it is whole (1 for an empty range, start > end)
 
         Raises:
-            ValueError: If start or end are not valid integers
+            ValueError: If there are more than MAX_SERIES_TERMS terms, or a term is not a finite real number
         """
-        start = int(start)
-        end = int(end)
-        if start > end:
-            return "1"
-        term_count = end - start + 1
-        if term_count > MathUtils.MAX_SERIES_TERMS:
-            raise ValueError(f"product supports at most {MathUtils.MAX_SERIES_TERMS} terms")
         total = 1.0
-        for i in range(start, end + 1):
-            value = MathUtils._nerdamer_number(window.nerdamer(expression).sub(variable, i))
+        for value in MathUtils._series_terms("product", expression, variable, start, end):
             total *= value
-        # Return integer if it's a whole number
-        if total == int(total):
-            return str(int(total))
-        return str(total)
+        return MathUtils._series_value(total)
 
     @staticmethod
     def arithmetic_sum(first: Number, diff: Number, n: int) -> Number:

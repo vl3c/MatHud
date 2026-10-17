@@ -5210,10 +5210,12 @@
     "returned_error": false
    },
    "summation('n','n',0,3)": {
-    "mathjs": [],
-    "path": "none",
+    "mathjs": [
+     "compile n"
+    ],
+    "path": "mathjs",
     "raised": null,
-    "returned_error": true
+    "returned_error": false
    },
    "trunc(2.5)": {
     "mathjs": [
