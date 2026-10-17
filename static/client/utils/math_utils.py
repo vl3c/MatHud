@@ -3122,14 +3122,10 @@ class MathUtils:
         vertical_asymptotes: List[float] = list(log_zeros)
         discontinuities: List[float] = []
         evaluate = MathUtils._singularity_probe_evaluator(function_string)
-        for zero in denominator_zeros:
-            if evaluate is None or MathUtils._is_asymptote_at_denominator_zero(evaluate, zero, singular_points):
-                vertical_asymptotes.append(zero)
-            else:
-                discontinuities.append(zero)
-        tangent_asymptotes, tangent_holes = MathUtils._classify_tangent_poles(evaluate, tangent_poles, singular_points)
-        vertical_asymptotes.extend(tangent_asymptotes)
-        discontinuities.extend(tangent_holes)
+        for points in (denominator_zeros, tangent_poles):
+            asymptotes_found, holes_found = MathUtils._classify_poles(evaluate, points, singular_points)
+            vertical_asymptotes.extend(asymptotes_found)
+            discontinuities.extend(holes_found)
 
         def within_bounds(x: float) -> bool:
             return (left_bound is None or x >= left_bound) and (right_bound is None or x <= right_bound)
@@ -3187,15 +3183,16 @@ class MathUtils:
         return nearest
 
     @staticmethod
-    def _classify_tangent_poles(
+    def _classify_poles(
         evaluate: Optional[Callable[[float], Optional[float]]],
         poles: List[float],
         singular_points: List[float],
     ) -> Tuple[List[float], List[float]]:
-        """Split tan() poles into (asymptotes, point discontinuities) by sampling f beside each one.
+        """Split denominator zeros or tan() poles into (asymptotes, point discontinuities) by
+        sampling f beside each one (the quick verdict, else the full classifier).
 
-        A pole where f stays bounded is not an asymptote: x/tan(x) and 1/tan(x) tend to 0 at
-        pi/2, and tan(x)*(x - 101*pi/2) tends to -1 at 101*pi/2 only.
+        A pole where f stays bounded is not an asymptote: (x^2-1)/(x-1) at 1, x/tan(x) and
+        1/tan(x) at pi/2, and tan(x)*(x - 101*pi/2) at 101*pi/2 only.
         """
         if evaluate is None or not poles:
             return list(poles), []
@@ -3326,21 +3323,36 @@ class MathUtils:
         from expression_validator import ExpressionValidator
 
         try:
-            # _compiled_evaluator renames trunc() to math.js's fix() and the like
-            compiled = MathUtils._compiled_evaluator(ExpressionValidator.fix_math_expression(str(expression)))
+            compiled = window.math.compile(rename_for_mathjs(ExpressionValidator.fix_math_expression(str(expression))))
         except Exception:
             return None
+        probe = MathUtils._javascript_probe()
 
         def evaluate(point: float) -> Optional[float]:
-            try:
-                value = compiled({variable: point})
-            except Exception:
-                return None
-            if isinstance(value, bool) or not isinstance(value, (int, float)):
-                return None
+            value = probe(compiled, variable, point)
+            if isinstance(value, str):
+                return float(value) if value else None  # "" for no real value
             return float(value)
 
         return evaluate
+
+    # The probe runs in JavaScript: a value of 2^53 or more comes back as text, since Brython
+    # turns a whole JavaScript number into an int and raises "not a big int" past 2^53 (the
+    # exception made sampling e^x up to x = 700 take 0.3 s); failures and non-real values are
+    # "" (Brython does not read a returned null as None).
+    _PROBE_SOURCE = (
+        "var scope = {}; scope[name] = x; var v;"
+        " try { v = compiled.evaluate(scope); } catch (e) { return ''; }"
+        " if (typeof v !== 'number') return '';"
+        " return (isFinite(v) && Math.abs(v) >= 9007199254740992) ? String(v) : v;"
+    )
+    _probe_function: List[Any] = []
+
+    @staticmethod
+    def _javascript_probe() -> Any:
+        if not MathUtils._probe_function:
+            MathUtils._probe_function.append(window.Function("compiled", "name", "x", MathUtils._PROBE_SOURCE))
+        return MathUtils._probe_function[0]
 
     @staticmethod
     def _is_asymptote_at_denominator_zero(
@@ -3504,7 +3516,7 @@ class MathUtils:
     @staticmethod
     def _scanned_zeros(evaluate: Callable[[float], Optional[float]], left: float, right: float) -> List[float]:
         """The zeros of f in [left, right]: exact zeros at samples, sign changes between
-        neighbouring samples bisected to 1e-12 (relative), and touching zeros (1 - cos(x) at 0)
+        neighbouring samples narrowed to 1e-12 (relative), and touching zeros (1 - cos(x) at 0)
         at small local minima of |f| (_touching_zeros). A sign change where |f| does not shrink
         towards it is a pole or a jump, not a zero; a run of zero samples (an underflow such as
         e^(-x) far out, or a stretch where f is 0) gives no zeros."""
@@ -3526,7 +3538,7 @@ class MathUtils:
             following = values[index + 1] if index + 1 < count else None
             if value is None or following is None or following == 0 or (value < 0) == (following < 0):
                 continue
-            zero = MathUtils._bisected_zero(evaluate, xs[index], xs[index + 1], value)
+            zero = MathUtils._sign_change_zero(evaluate, xs[index], xs[index + 1], value)
             if zero is not None:
                 zeros.append(zero)
         return sorted(zeros + MathUtils._touching_zeros(evaluate, xs, values))[: MathUtils._MAX_SCANNED_ZEROS]
@@ -3595,28 +3607,51 @@ class MathUtils:
         return middle if math.isfinite(size(middle)) else None
 
     @staticmethod
-    def _bisected_zero(
+    def _sign_change_zero(
         evaluate: Callable[[float], Optional[float]], low: float, high: float, low_value: float
     ) -> Optional[float]:
-        """The sign change between low and high bisected to 1e-12 (relative); None when |f| there
-        is not far below its values at low and high (a pole or a jump)."""
+        """The sign change between low and high narrowed to 1e-12 (relative); None when |f| there
+        is not far below its values at low and high (a pole or a jump).
+
+        Illinois false position, with a bisection step whenever three steps have not halved
+        the bracket, so a smooth zero takes about 10 evaluations instead of 40 and a pole
+        still narrows like bisection.
+        """
         high_value = evaluate(high)
         if high_value is None:
             return None
         edge = max(abs(low_value), abs(high_value))
+        weighted_low, weighted_high = low_value, high_value
+        last_side = 0
+        checkpoint, steps_since = high - low, 0
         for _ in range(200):
-            if high - low <= 1e-12 * max(1.0, abs(low), abs(high)):
+            width = high - low
+            if width <= 1e-12 * max(1.0, abs(low), abs(high)):
                 break
-            middle = (low + high) / 2
+            if steps_since >= 3 and width > checkpoint / 2:
+                middle = (low + high) / 2
+            else:
+                middle = high - weighted_high * width / (weighted_high - weighted_low)
+                if not low < middle < high:
+                    middle = (low + high) / 2
+            steps_since += 1
             value = evaluate(middle)
             if value is None:
                 return None
             if value == 0:
                 return middle
             if (value < 0) == (low_value < 0):
-                low, low_value = middle, value
+                low, low_value, weighted_low = middle, value, value
+                if last_side == -1:
+                    weighted_high /= 2
+                last_side = -1
             else:
-                high = middle
+                high, high_value, weighted_high = middle, value, value
+                if last_side == 1:
+                    weighted_low /= 2
+                last_side = 1
+            if high - low <= checkpoint / 2:
+                checkpoint, steps_since = high - low, 0
         middle = (low + high) / 2
         value = evaluate(middle)
         if value is None or abs(value) > 1e-6 * edge:
