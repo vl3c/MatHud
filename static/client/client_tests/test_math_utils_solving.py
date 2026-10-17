@@ -115,6 +115,18 @@ class TestMathUtilsSolving(unittest.TestCase):
     def test_single_equation_is_two_curves(self) -> None:
         self.assertEqual(MathUtils.solve_system_of_equations(["x^2 = x + 2"]), "x1 = -1, y1 = 1, x2 = 2, y2 = 4")
 
+    def test_systems_read_input_as_solve_does(self) -> None:
+        self.assertEqual(MathUtils.solve_system_of_equations(["y=|x|", "y=2"]), "x1 = -2, y1 = 2, x2 = 2, y2 = 2")
+        self.assertEqual(MathUtils.solve_system_of_equations(["2x(x+1)=y", "y=4"]), "x1 = -2, y1 = 4, x2 = 1, y2 = 4")
+
+    def test_an_equation_without_unknowns_is_no_contradiction(self) -> None:
+        glued = MathUtils.solve_system_of_equations(["xy=6", "x+y=5"])
+        self.assertTrue(glued.startswith("Error: The equation xy=6 has none of the unknowns (x, y)"), glued)
+
+    def test_line_and_sine_list_every_intersection(self) -> None:
+        result = MathUtils.solve_system_of_equations(["y=sin(x)", "y=x/10"])
+        self.assertIn("x7 = 8.42320393236049", result)
+
     def test_other_systems_go_to_the_numeric_solver(self) -> None:
         data = json.loads(MathUtils.solve_system_of_equations(["sin(x) + y = 1", "x - y = 0"]))
         self.assertEqual(data["method"], "newton_raphson")
@@ -233,6 +245,24 @@ class TestMathUtilsSolving(unittest.TestCase):
 
     def test_solve_keeps_symbolic_roots_it_cannot_check(self) -> None:
         self.assertEqual(MathUtils.solve("x + y = 3", "x"), "[3-y]")
+
+    def test_solve_a_formula_for_a_variable(self) -> None:
+        self.assertEqual(MathUtils.solve("R = V/I", "I"), "[V/R]")
+        self.assertEqual(MathUtils.solve("T = 2*pi*sqrt(L/g)", "g"), "[4*pi^2*L/T^2]")
+        self.assertEqual(MathUtils.solve("a^x = b", "x"), "[log(b)/log(a)]")
+
+    def test_solve_reads_arc_names(self) -> None:
+        self.assertEqual(MathUtils.solve("arctan(x) = 1", "x"), "[tan(1)]")
+        self.assertEqual(MathUtils.derivative("arcsin(x)", "x"), "1/sqrt(1-x^2)")
+
+    def test_trig_equations_that_are_not_periodic_are_solved_on_the_whole_line(self) -> None:
+        result = MathUtils.solve("x + sin(x) = 10", "x")
+        self.assertTrue(result.startswith("[10.9999902496552] (the real roots found numerically for |x| up to"), result)
+        self.assertEqual(len(MathUtils.solve("sin(x) = x/10", "x").split(" (")[0].split(",")), 7)
+        # roots without end: those in [-2*pi, 2*pi], saying there are more
+        crossing = MathUtils.solve("x*sin(x) = 1", "x")
+        self.assertIn("in [-2*pi, 2*pi] (it has more beyond, as |x| grows)", crossing)
+        self.assertEqual(len(crossing.split(" (")[0].split(",")), 4)
 
     def test_solve_lists_the_roots_in_an_interval(self) -> None:
         self.assertEqual(

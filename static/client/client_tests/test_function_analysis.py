@@ -471,6 +471,19 @@ class TestRemovableDiscontinuities(_FunctionToolTestCase):
         self.assertGreater(len(vertical), 6000)
         self.assertLess(elapsed, 3.0, f"tan(10*x) took {elapsed:.2f} s")
 
+    def test_dense_denominator_zeros_near_zero_are_all_listed(self) -> None:
+        """Without bounds the zero scan keeps the zeros nearest 0, and rescans finely where they
+        are closer than its samples: every pole of 1/sin(10x) in [-5, 5] is listed."""
+        vertical, _, _ = MathUtils.calculate_asymptotes_and_discontinuities("1/sin(10*x)")
+
+        near = [point for point in vertical if -5 <= point <= 5]
+        self.assertEqual(len(near), 31)
+        for point in near:
+            self.assertAlmostEqual(point * 10 / math.pi, round(point * 10 / math.pi), places=6)
+        self.assertLessEqual(len(vertical), MathUtils._MAX_SCANNED_ZEROS)
+        sine_poles, _, _ = MathUtils.calculate_asymptotes_and_discontinuities("1/sin(x)")
+        self.assertAlmostEqual(min(sine_poles), -max(sine_poles), delta=math.pi + 1e-6)
+
     def test_merging_close_points_keeps_the_one_nearest_zero(self) -> None:
         points = [6.2e-9, 3.0, 1.4e-9, 0.0, 9.7e-9, 3.0 + 1e-8, -2.0, -2.0 - 1e-9]
 

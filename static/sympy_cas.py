@@ -20,6 +20,7 @@ JSON request per line on stdin and writes one JSON response per line on stdout.
 from __future__ import annotations
 
 import ast
+import cmath
 import json
 import math
 import re
@@ -347,9 +348,11 @@ def _has_nested_radical(expression: Any) -> bool:
 
 
 def _displayed_root(root: Any) -> Any:
-    """root, or its decimal value when it is a CRootOf or a long radical expression."""
+    """root, or its decimal value when it is a CRootOf or a long radical expression without parameters."""
     import sympy as sp
 
+    if root.free_symbols:
+        return root  # Cardano's formula in a parameter has no decimal value
     if not root.has(sp.CRootOf) and len(to_text(root)) <= MAX_EXACT_ROOT_LENGTH and not _has_nested_radical(root):
         return root
     value = sp.N(root, 15)
@@ -511,12 +514,61 @@ def compute_solve(
         return {"roots": []}
     if _is_parameter_roots(solutions):
         solutions = solutions.args[0] if isinstance(solutions.args[0], sp.FiniteSet) else solutions.args[1]
+    if isinstance(solutions, sp.Complement) and isinstance(solutions.args[0], sp.FiniteSet):
+        # {V/R} \ {0} for R = V/I: the poles left out are ones the roots avoid (the client drops poles)
+        solutions = solutions.args[0]
+    if not isinstance(solutions, sp.FiniteSet) and difference.free_symbols - {x}:
+        solutions = _formula_roots(difference, x) or solutions
     if isinstance(solutions, sp.FiniteSet):
         listed = [_displayed_root(root) for root in solutions]
         if not all(_is_usable(root) for root in listed):
             return None
         return {"roots": [to_text(root) for root in _sorted_roots(listed)]}
     return _periodic_solution(solutions, variable)
+
+
+# Values given to the parameters when a formula's roots are checked: positive, as in most formulas
+# (T = 2*pi*sqrt(L/g)), small and large (d = sqrt((x-1)^2+4) has real roots only for d >= 2).
+_PARAMETER_SAMPLES = (1.3, 6.7, 0.45)
+
+
+def _formula_roots(difference: Any, x: Any) -> Any:
+    """The roots sp.solve gives for an equation with parameters that solveset cannot list as a
+    set (sqrt(x) = a, a^x = b), each checked at sample parameter values; None when there are none
+    or the equation is periodic in x (sp.solve gives sin(x) = a its principal values only)."""
+    import sympy as sp
+    from sympy.functions.elementary.trigonometric import TrigonometricFunction
+
+    if any(node.has(x) for node in difference.atoms(TrigonometricFunction)):
+        return None
+    try:
+        roots = sp.solve(difference, x)
+    except (NotImplementedError, ValueError, TypeError):
+        return None
+    parameters = sorted(difference.free_symbols - {x}, key=str)
+    checked = [root for root in roots if _holds_for_samples(difference, x, root, parameters)]
+    return sp.FiniteSet(*checked) if checked else None
+
+
+def _holds_for_samples(difference: Any, x: Any, root: Any, parameters: Sequence[Any]) -> bool:
+    """True when the equation holds at the root for some sample parameter values that make the root
+    real, and fails for none."""
+    import sympy as sp
+
+    held = False
+    for sample in _PARAMETER_SAMPLES:
+        values = {name: sp.Float(sample + 0.37 * index) for index, name in enumerate(parameters)}
+        try:
+            point = complex(sp.N(root.subs(values), 15))
+            if not (cmath.isfinite(point) and abs(point.imag) <= 1e-9 * max(1.0, abs(point.real))):
+                continue
+            residual = complex(sp.N(difference.subs(values).subs(x, point.real), 15))
+        except (TypeError, ValueError, ZeroDivisionError):
+            continue
+        if not cmath.isfinite(residual) or abs(residual) > 1e-8 * max(1.0, abs(point.real)):
+            return False
+        held = True
+    return held
 
 
 def _is_parameter_roots(solutions: Any) -> bool:
@@ -1413,6 +1465,14 @@ def compute_solve_system(equations: str, variables: Optional[str] = None) -> Opt
         raise ExpressionError(f"A system has at most {MAX_SYSTEM_EQUATIONS} equations.")
     differences = [_equation_difference(text) for text in texts]
     unknowns = _system_unknowns(differences, variables)
+    for text, difference in zip(texts, differences):
+        if difference.free_symbols and not difference.free_symbols & set(unknowns):
+            # xy = 6 beside x + y = 5: not a contradiction, but a name the unknowns do not include
+            names = ", ".join(sorted(str(name) for name in difference.free_symbols))
+            raise ExpressionError(
+                f"The equation {text.strip()} has none of the unknowns ({', '.join(map(str, unknowns))}), "
+                f"only {names}; write products with * (x*y), or name the unknowns."
+            )
     if all(_is_linear(difference, unknowns) for difference in differences):
         return _linear_system(sp.linsolve(differences, unknowns), unknowns)
     if not all(difference.is_rational_function(*unknowns) for difference in differences):

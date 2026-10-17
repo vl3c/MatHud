@@ -848,6 +848,20 @@ def chart(
     return pieces, _checked_range(points, kept)
 
 
+def keeps_changing(relations: Sequence[Relation], seeds: Sequence[float] = ()) -> bool:
+    """True when the samples on the whole grid hold in more than MAX_PIECES runs or change state
+    near its ends (x*sin(x) <= 1): chart without a window would fail, found before any bisection."""
+    points = sample_grid(None, seeds)
+    _, states, settled = _grid_states(relations, points)
+    kept = [states[index] for index in range(len(points)) if settled[index]]
+    try:
+        _check_tails(kept)
+        _check_piece_count(kept)
+    except SignChartFailure:
+        return True
+    return False
+
+
 def _checked_range(points: List[float], kept: List[int]) -> Optional[Tuple[float, float]]:
     """(lowest, highest) settled sample when at least ZERO_RUN samples beyond one of them are
     unknown (overflow, underflow or rounding), else None: how far the chart read the inequality."""

@@ -205,18 +205,18 @@ FUNCTIONS: Tuple[ExpressionFunction, ...] = (
     _elementary("log10", math.log10, aliases=("logarithm10",)),
     _elementary("log2", math.log2, aliases=("logarithm2",)),
     _F("factorial", math.factorial, _ONE, aliases=("fact",), curve_safe=True, sympy=True),
-    _elementary("asin", math.asin, aliases=("arcsine",)),
-    _elementary("acos", math.acos, aliases=("arccosine",)),
-    _elementary("atan", math.atan, aliases=("arctangent",)),
+    _elementary("asin", math.asin, aliases=("arcsine", "arcsin")),
+    _elementary("acos", math.acos, aliases=("arccosine", "arccos")),
+    _elementary("atan", math.atan, aliases=("arctangent", "arctan")),
     _elementary("sinh", math.sinh, aliases=("hyperbolic sine",), inverse="asinh"),
     _elementary("cosh", math.cosh, aliases=("hyperbolic cosine",), inverse="acosh"),
     _elementary("tanh", math.tanh, aliases=("hyperbolic tangent",), inverse="atanh"),
     _elementary("sec", _sec, inverse="asec"),
     _elementary("csc", _csc, inverse="acsc"),
     _elementary("cot", _cot, inverse="acot"),
-    _elementary("asec", _asec),
-    _elementary("acsc", _acsc),
-    _elementary("acot", _acot),
+    _elementary("asec", _asec, aliases=("arcsec",)),
+    _elementary("acsc", _acsc, aliases=("arccsc",)),
+    _elementary("acot", _acot, aliases=("arccot",)),
     _elementary("asinh", math.asinh),
     _elementary("acosh", math.acosh),
     _elementary("atanh", math.atanh),
@@ -452,6 +452,15 @@ def replace_aliases(text: str) -> str:
     if not any(hint in text for hint in _ALIAS_HINTS):
         return text
     return _ALIAS_PATTERN.sub(_replace_alias, text)
+
+
+def replace_call_aliases(text: str) -> str:
+    """replace_aliases for call aliases only (arctan(x) -> atan(x)); word aliases such as ln stay."""
+    if not any(hint in text for hint in _ALIAS_HINTS):
+        return text
+    return _ALIAS_PATTERN.sub(
+        lambda match: match.group(0) if match.group(0) in WORD_ALIASES else _replace_alias(match), text
+    )
 
 
 # Identifiers and number literals, matched whole (also used for implicit multiplication)

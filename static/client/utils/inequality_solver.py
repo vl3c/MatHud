@@ -98,16 +98,17 @@ class InequalitySolver:
 
     @staticmethod
     def prepared(text: str) -> str:
-        """text read the same way by SymPy and math.js: bars as abs(), MathUtils._cas_input
-        (after the bars, so ln|x| becomes log(abs(x))), x(x+2) as x*(x+2), and (x-1)(x+2), (x+1)2
-        and (x-2)^2 (x+1) as products. Calculator spellings (sin x, sinx, xe^x) are not
-        rewritten; refuse_misspellings refuses them."""
-        from expression_functions import BY_NAME, CALL_ALIASES, replace_absolute_bars
+        """text read the same way by SymPy and math.js: call aliases as their names (arctan(x)
+        as atan(x)), bars as abs(), MathUtils._cas_input (after the bars, so ln|x| becomes
+        log(abs(x))), x(x+2) as x*(x+2), and (x-1)(x+2), (x+1)2 and (x-2)^2 (x+1) as products.
+        Calculator spellings (sin x, sinx, xe^x) are not rewritten; refuse_misspellings refuses
+        them."""
+        from expression_functions import BY_NAME, CALL_ALIASES, replace_absolute_bars, replace_call_aliases
         from utils.math_utils import MathUtils
 
         if not isinstance(text, str):
             raise ValueError("The expression must be given as text.")
-        prepared = replace_absolute_bars(str(MathUtils._normalize_symbols(text)))
+        prepared = replace_absolute_bars(replace_call_aliases(str(MathUtils._normalize_symbols(text))))
         prepared = str(MathUtils._cas_input(prepared))
         prepared = insert_letter_call_products(prepared, list(BY_NAME) + list(CALL_ALIASES))
         return str(insert_implicit_products(prepared))
@@ -485,12 +486,22 @@ class InequalitySolver:
         seeds: Sequence[float],
         reason: str,
     ) -> str:
-        if window is None and any(_TRIG_CALL.search(part) for part in parts):
-            window = Window(_TRIG_WINDOW[0], _TRIG_WINDOW[1], True, True, _TRIG_WINDOW[2], _TRIG_WINDOW[3])
+        trig_window = Window(_TRIG_WINDOW[0], _TRIG_WINDOW[1], True, True, _TRIG_WINDOW[2], _TRIG_WINDOW[3])
+        has_trig = window is None and any(_TRIG_CALL.search(part) for part in parts)
+        if has_trig and only_in_trig_calls(parts, variable):
+            window = trig_window
         try:
             pieces, checked = chart(relations, window, seeds)
         except SignChartFailure as error:
-            return f"Error: could not solve {relation_text} reliably ({error})."
+            if not has_trig or window is not None:
+                return f"Error: could not solve {relation_text} reliably ({error})."
+            # x*sin(x) > 1 keeps changing far from 0: its answer in the window is given
+            window = trig_window
+            reason += f", and it keeps changing far from 0, so only {window.text()} is covered"
+            try:
+                pieces, checked = chart(relations, window, seeds)
+            except SignChartFailure as second:
+                return f"Error: could not solve {relation_text} reliably ({second})."
         unbounded = window is None or not (math.isfinite(window.lower) and math.isfinite(window.upper))
         reach = f"; checked out to |{variable}| = {reach_text(grid_reach(seeds))}" if unbounded else ""
         if checked is not None:
@@ -498,6 +509,44 @@ class InequalitySolver:
             reach = f"; checked for {_checked_end(checked[0])} <= {variable} <= {_checked_end(checked[1])}"
         note = f"found numerically because {reason}{reach}"
         return str(format_solution(variable, pieces, relation_text, window, period, note))
+
+
+def only_in_trig_calls(parts: Sequence[str], variable: str) -> bool:
+    """True when the variable occurs, and only inside the arguments of trig calls: sin(x) = 1/2
+    and tan(2x) > 1 have roots or stretches without end, so the numeric answer covers
+    [-2*pi, 2*pi]; x + sin(x) = 10 and sin(x) = x/10 have finitely many, found on the full grid."""
+    found = False
+    for part in parts:
+        outside = []
+        index = 0
+        for match in _TRIG_CALL.finditer(part):
+            if match.start() < index:
+                continue  # inside an argument already masked
+            outside.append(part[index : match.start()])
+            end = _closing_parenthesis(part, match.end() - 1)
+            found = found or _has_name(part[match.end() : end], variable)
+            index = end + 1
+        outside.append(part[index:])
+        if _has_name(" ".join(outside), variable):
+            return False
+    return found
+
+
+def _closing_parenthesis(text: str, opening: int) -> int:
+    """The index of the ")" closing the "(" at text[opening] (the end of text when none does)."""
+    depth = 0
+    for index in range(opening, len(text)):
+        if text[index] == "(":
+            depth += 1
+        elif text[index] == ")":
+            depth -= 1
+            if depth == 0:
+                return index
+    return len(text)
+
+
+def _has_name(text: str, name: str) -> bool:
+    return name in _names(text)
 
 
 def _constant_side_magnitude(constant: float, constant_sign: float) -> Magnitude:

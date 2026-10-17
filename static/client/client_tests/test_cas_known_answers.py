@@ -276,12 +276,26 @@ class TestCasWithoutSympy(unittest.TestCase):
     def test_systems_are_solved_numerically(self) -> None:
         result = MathUtils.solve_system_of_equations(["y = x^2 - 5", "x^2 + y^2 = 25"])
         self.assertTrue(result.startswith("x1 = -3, y1 = 4, x2 = 0, y2 = -5, x3 = 3, y3 = 4 ("), result)
-        data = json.loads(MathUtils.solve_system_of_equations(["x+y=2", "x-y=0"]))
-        self.assertEqual([(round(s["x"], 9), round(s["y"], 9)) for s in data["solutions"]], [(1.0, 1.0)])
+        self.assertEqual(MathUtils.solve_system_of_equations(["x+y=2", "x-y=0"]), "x = 1, y = 1")
+
+    def test_linear_systems_are_solved_by_elimination(self) -> None:
+        self.assertEqual(MathUtils.solve_system_of_equations(["x/3+y/7=1", "x-y=2"]), "x = 2.7, y = 0.7")
+        dependent = MathUtils.solve_system_of_equations(["x+y=1", "2x+2y=2"])
+        self.assertEqual(
+            dependent,
+            "Infinitely many solutions: the equations are dependent (1 independent equation for 2 unknowns): "
+            "x = 1-y, for any y.",
+        )
+        inconsistent = MathUtils.solve_system_of_equations(["x+y=1", "x+y=2"])
+        self.assertEqual(inconsistent, "No solution: the equations are inconsistent (they contradict each other).")
 
     def test_numeric_integrate_reads_ln(self) -> None:
         result = MathUtils.numeric_integrate("ln(x)", "x", 1, 2)
         self.assertAlmostEqual(result["value"], 2 * math.log(2) - 1, places=9)
+
+    def test_numeric_integrate_names_other_names(self) -> None:
+        with self.assertRaisesRegex(ValueError, "may contain only x; it also contains a"):
+            MathUtils.numeric_integrate("a*x", "x", 0, 1)
 
 
 class TestCasSympyAnswers(unittest.TestCase):

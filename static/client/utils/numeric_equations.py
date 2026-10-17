@@ -7,8 +7,10 @@ samples that are rounding noise or underflowed to 0, tells poles from roots, fin
 roots (x^2 = 0) and snaps ends to nice numbers (1/2, pi/4) when the equation holds there no
 worse.
 
-Without an interval, an equation with trig functions is solved on [-2*pi, 2*pi] (as SymPy's
-periodic answers list their roots), any other on the sign chart's grid out to |x| = 10^6.
+Without an interval, an equation whose variable occurs only inside trig calls (sin(x) = 1/2),
+or one with trig calls that keeps changing sign far from 0 (x*sin(x) = 1), is solved on
+[-2*pi, 2*pi] (as SymPy's periodic answers list their roots), any other (x + sin(x) = 10) on the
+sign chart's grid out to |x| = 10^6.
 Roots closer together than the grid without a sign change between samples, and roots
 beyond the grid's reach, can be missed; the answer says the roots were found numerically.
 """
@@ -33,7 +35,13 @@ class NumericEquations:
         """solve()'s answer for lhs = rhs from the sign chart, its note naming how the roots
         were found and why (reason: "SymPy found no closed form", ...); "Error: ..." when the
         equation has other names or the chart fails."""
-        from utils.inequality_solver import _TRIG_CALL, _TRIG_WINDOW, InequalitySolver, _checked_end
+        from utils.inequality_solver import (
+            _TRIG_CALL,
+            _TRIG_WINDOW,
+            InequalitySolver,
+            _checked_end,
+            only_in_trig_calls,
+        )
 
         parts = [sides[0], sides[1] if len(sides) == 2 else "0"]
         try:
@@ -45,12 +53,26 @@ class NumericEquations:
                 f"Error: {reason}, and the numeric root finder needs an equation in {variable} alone; "
                 f"besides {variable} it contains {', '.join(others)}."
             )
-        if window is None and any(_TRIG_CALL.search(part) for part in parts):
-            window = Window(_TRIG_WINDOW[0], _TRIG_WINDOW[1], True, True, _TRIG_WINDOW[2], _TRIG_WINDOW[3])
+        trig_window = Window(_TRIG_WINDOW[0], _TRIG_WINDOW[1], True, True, _TRIG_WINDOW[2], _TRIG_WINDOW[3])
+        has_trig = window is None and bool(_TRIG_CALL.search(" ".join(parts)))
+        # x*sin(x) = 1 keeps crossing far from 0: its roots in the window are listed
+        more = f" (it has more beyond, as |{variable}| grows)"
+        if has_trig and only_in_trig_calls(parts, variable):
+            window, more = trig_window, ""
+        elif has_trig and NumericEquations._oscillates(parts, variable):
+            window = trig_window
         try:
-            pieces, checked, seeds = NumericEquations._chart(parts, variable, window)
+            try:
+                pieces, checked, seeds = NumericEquations._chart(parts, variable, window)
+            except SignChartFailure:
+                if not has_trig or window is not None:
+                    raise
+                window = trig_window
+                pieces, checked, seeds = NumericEquations._chart(parts, variable, window)
         except (ValueError, SignChartFailure) as error:
             return f"Error: {reason}, and the numeric root finder could not solve the equation reliably ({error})."
+        if window is None or not has_trig:
+            more = ""
         if window is not None and math.isfinite(window.lower) and math.isfinite(window.upper):
             where = f" in {window.text()}"
         else:
@@ -60,7 +82,7 @@ class NumericEquations:
         if checked is not None:
             # Overflow, underflow or rounding left the values unknown beyond these samples
             where = f" for {_checked_end(checked[0])} <= {variable} <= {_checked_end(checked[1])}"
-        note = f"found numerically{where}, because {reason}"
+        note = f"found numerically{where}{more}, because {reason}"
         if all(piece.is_point for piece in pieces):
             roots = ",".join(NumericEquations._root_text(piece) for piece in pieces)
             kind = "the real roots" if pieces else "no real root was"
@@ -87,6 +109,18 @@ class NumericEquations:
         if not all(piece.is_point for piece in pieces):
             return None
         return [piece.lower for piece in pieces]
+
+    @staticmethod
+    def _oscillates(parts: Sequence[str], variable: str) -> bool:
+        """True when lhs - rhs keeps changing sign far from 0 (x*sin(x) = 1, tan(x) = x)."""
+        from utils.inequality_solver import InequalitySolver
+        from utils.real_sets import keeps_changing
+
+        try:
+            seeds = InequalitySolver._seeds(parts, ["="], variable)
+            return bool(keeps_changing(InequalitySolver._relations(parts, ["<="], variable, seeds), seeds))
+        except (ValueError, SignChartFailure):
+            return False
 
     @staticmethod
     def _chart(

@@ -186,13 +186,19 @@ class _MathJsRecorder:
         return complex(real, imag)
 
 
+def _javascript_function(*_source: str) -> Callable[[Any, str, float], Any]:
+    """Stands in for window.Function building MathUtils' JavaScript probe: the probe evaluates
+    the compiled expression at x."""
+    return lambda compiled, name, x: compiled.evaluate({name: x})
+
+
 def _recorded(call: Callable[[], Any]) -> Dict[str, Any]:
     """Run call with window.math replaced by a recorder; return what math.js was given."""
     import numeric_solver.expression_utils as expression_utils
     import utils.math_utils as math_utils
 
     recorder = _MathJsRecorder()
-    fake_window = SimpleNamespace(math=recorder)
+    fake_window = SimpleNamespace(math=recorder, Function=_javascript_function)
     with (
         mock.patch.object(math_utils, "window", fake_window),
         mock.patch.object(expression_utils, "window", fake_window),

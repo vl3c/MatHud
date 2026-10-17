@@ -1720,9 +1720,13 @@ class MathUtils:
             raise ValueError(f"steps cannot exceed {MathUtils.MAX_NUMERIC_INTEGRATION_STEPS}")
 
         # read as the symbolic tools read it: ln, n!, x(x+1) and |x| as math.js has them
-        integrand = MathUtils._compiled_evaluator(
-            ExpressionValidator.fix_math_expression(MathUtils._symbolic_input(expression))
-        )
+        text = ExpressionValidator.fix_math_expression(MathUtils._symbolic_input(expression))
+        from utils.symbolic_checks import SymbolicChecks
+
+        others = [name for name in SymbolicChecks.free_variables(text) if name != variable]
+        if others:
+            raise ValueError(f"the integrand may contain only {variable}; it also contains {', '.join(others)}")
+        integrand = MathUtils._compiled_evaluator(text)
 
         def eval_fn(x: float) -> float:
             return cast(float, integrand({variable: x}))
@@ -2171,8 +2175,9 @@ class MathUtils:
         ratios (every solution, exact when short); each solution is checked by substituting
         it into every equation. Two equations where one gives y explicitly are solved by
         substituting it into the other (solve's one-variable path, numeric when SymPy has no
-        closed form). Anything else, or a system SymPy cannot answer, goes to the numeric
-        solver (solve_numeric).
+        closed form). Without SymPy, a linear system is solved by elimination
+        (_numeric_linear_system). Anything else, or a system SymPy cannot answer, goes to the
+        numeric solver (solve_numeric).
 
         Returns:
             "x = 3, y = 1"; "x1 = .., y1 = .., x2 = .., y2 = .." for several solutions; a
@@ -2187,9 +2192,11 @@ class MathUtils:
                 equations = [eq1 + "= y", eq2 + "= y"]
 
             from expression_validator import ExpressionValidator
+            from utils.inequality_solver import InequalitySolver
 
+            # read as solve reads an equation: |x| bars, x(x+1) as a product
             equations = [
-                ExpressionValidator.fix_math_expression(MathUtils._normalize_symbols(eq), python_compatible=False)
+                ExpressionValidator.fix_math_expression(InequalitySolver.prepared(eq), python_compatible=False)
                 for eq in equations
             ]
             if any(len(eq.split("=")) > 2 for eq in equations):
@@ -2198,6 +2205,8 @@ class MathUtils:
             if answer is not None and "error" in answer:
                 return f"Error: {answer['error']}"
             result = answer.get("result") if answer is not None else None
+            if result is None:
+                result = MathUtils._numeric_linear_system(equations)
             if isinstance(result, dict):
                 text = MathUtils._system_answer(result, equations)
                 if text is not None:
@@ -2208,6 +2217,60 @@ class MathUtils:
             return MathUtils.solve_numeric(equations)
         except Exception as e:
             return f"Error: {e}"
+
+    @staticmethod
+    def _numeric_linear_system(equations: Sequence[str]) -> Optional[Dict[str, Any]]:
+        """The answer of a linear system without SymPy (utils.linear_systems.solve_linear), every
+        name an unknown; None unless each equation is linear, checked at sample points."""
+        from utils.linear_systems import solve_linear
+        from utils.symbolic_checks import SymbolicChecks
+
+        differences = [MathUtils._equation_difference(equation.split("=")) for equation in equations]
+        names = sorted({name for difference in differences for name in SymbolicChecks.free_variables(difference)})
+        if not names or len(names) > MathUtils._MAX_LINEAR_UNKNOWNS:
+            return None
+        if any(name in ("x", "y", "z", "t") for name in names) and not set(names) <= {"x", "y", "z", "t"}:
+            return None  # parameters (x + y = a) or a glued product (xy = 6): not for elimination
+        try:
+            compiled = [window.math.compile(rename_for_mathjs(difference)) for difference in differences]
+        except Exception:
+            return None
+
+        def value(index: int, point: Sequence[float]) -> Optional[float]:
+            try:
+                result = compiled[index].evaluate({name: coordinate for name, coordinate in zip(names, point)})
+            except Exception:
+                return None
+            if isinstance(result, bool) or not isinstance(result, (int, float)) or not math.isfinite(result):
+                return None
+            return float(result)
+
+        origin = [0.0] * len(names)
+        units = [[1.0 if other == column else 0.0 for other in range(len(names))] for column in range(len(names))]
+        checks = [
+            [0.37 + 0.71 * column for column in range(len(names))],
+            [-1.3 + 0.53 * column for column in range(len(names))],
+        ]
+        coefficients: List[List[float]] = []
+        constants: List[float] = []
+        for index in range(len(differences)):
+            at_origin = value(index, origin)
+            at_units = [value(index, unit) for unit in units]
+            if at_origin is None or any(item is None for item in at_units):
+                return None
+            row = [cast(float, item) - at_origin for item in at_units]
+            for point in checks:
+                expected = at_origin + sum(a * p for a, p in zip(row, point))
+                actual = value(index, point)
+                size = max(1.0, abs(at_origin), sum(abs(a * p) for a, p in zip(row, point)))
+                if actual is None or abs(actual - expected) > 1e-9 * size:
+                    return None  # not linear
+            coefficients.append(row)
+            constants.append(-at_origin)
+        return dict(solve_linear(coefficients, constants, names))
+
+    # A system with more names than this is not tried as a linear system without SymPy.
+    _MAX_LINEAR_UNKNOWNS = 6
 
     @staticmethod
     def _system_answer(result: Dict[str, Any], equations: Sequence[str]) -> Optional[str]:
@@ -3509,9 +3572,13 @@ class MathUtils:
             return []
         return MathUtils._scanned_zeros(evaluate, float(left), float(right))
 
-    # The zero scan samples this many points and lists at most this many zeros.
+    # The zero scan samples this many points and lists at most this many zeros, those nearest 0 first.
     _ZERO_SCAN_POINTS = 4001
     _MAX_SCANNED_ZEROS = 500
+    # Zeros closer than this many sample steps mean the scan may skip some (sin(10x) sampled every
+    # 0.5): the middle 1/_FINE_SCAN_RATIO of the range is scanned again, that much finer.
+    _CLOSE_ZEROS_STEPS = 4
+    _FINE_SCAN_RATIO = 40
 
     @staticmethod
     def _scanned_zeros(evaluate: Callable[[float], Optional[float]], left: float, right: float) -> List[float]:
@@ -3519,17 +3586,38 @@ class MathUtils:
         neighbouring samples narrowed to 1e-12 (relative), and touching zeros (1 - cos(x) at 0)
         at small local minima of |f| (_touching_zeros). A sign change where |f| does not shrink
         towards it is a pole or a jump, not a zero; a run of zero samples (an underflow such as
-        e^(-x) far out, or a stretch where f is 0) gives no zeros."""
+        e^(-x) far out, or a stretch where f is 0) gives no zeros.
+
+        At most _MAX_SCANNED_ZEROS, those nearest 0 (or the end of the range nearest it). When
+        zeros lie closer together than the samples resolve, the middle of the range is scanned
+        again, finer, so the zeros there are all listed (1/sin(10x) on [-1000, 1000]).
+        """
         if not (math.isfinite(left) and math.isfinite(right)) or left >= right:
             return []
+        center = min(max(0.0, left), right)
+        zeros = MathUtils._grid_zeros(evaluate, left, right, center)
+        step = (right - left) / (MathUtils._ZERO_SCAN_POINTS - 1)
+        if any(b - a < MathUtils._CLOSE_ZEROS_STEPS * step for a, b in zip(zeros, zeros[1:])):
+            half = (right - left) / MathUtils._FINE_SCAN_RATIO / 2
+            inner_left, inner_right = max(left, center - half), min(right, center + half)
+            inner = MathUtils._grid_zeros(evaluate, inner_left, inner_right, center)
+            zeros = inner + [zero for zero in zeros if not inner_left <= zero <= inner_right]
+        nearest = sorted(zeros, key=lambda zero: abs(zero - center))[: MathUtils._MAX_SCANNED_ZEROS]
+        return sorted(nearest)
+
+    @staticmethod
+    def _grid_zeros(
+        evaluate: Callable[[float], Optional[float]], left: float, right: float, center: float
+    ) -> List[float]:
+        """The zeros _scanned_zeros finds on one grid of [left, right], sorted; the sign changes
+        nearest center are narrowed first, up to _MAX_SCANNED_ZEROS."""
         count = MathUtils._ZERO_SCAN_POINTS
         step = (right - left) / (count - 1)
         xs = [left + index * step for index in range(count - 1)] + [right]
         values = [evaluate(x) for x in xs]
         zeros: List[float] = []
+        changes: List[int] = []
         for index, value in enumerate(values):
-            if len(zeros) >= MathUtils._MAX_SCANNED_ZEROS:
-                break
             if value == 0:
                 neighbours = values[max(0, index - 1) : index] + values[index + 1 : index + 2]
                 if all(other is not None and other != 0 for other in neighbours):
@@ -3538,10 +3626,15 @@ class MathUtils:
             following = values[index + 1] if index + 1 < count else None
             if value is None or following is None or following == 0 or (value < 0) == (following < 0):
                 continue
-            zero = MathUtils._sign_change_zero(evaluate, xs[index], xs[index + 1], value)
+            changes.append(index)
+        changes.sort(key=lambda index: abs(xs[index] - center))
+        for index in changes:
+            if len(zeros) >= MathUtils._MAX_SCANNED_ZEROS:
+                break
+            zero = MathUtils._sign_change_zero(evaluate, xs[index], xs[index + 1], cast(float, values[index]))
             if zero is not None:
                 zeros.append(zero)
-        return sorted(zeros + MathUtils._touching_zeros(evaluate, xs, values))[: MathUtils._MAX_SCANNED_ZEROS]
+        return sorted(zeros + MathUtils._touching_zeros(evaluate, xs, values, center))
 
     # A local minimum of |f| below this fraction of the median |f| is searched for a touching zero
     _TOUCHING_FRACTION = 1e-2
@@ -3551,18 +3644,22 @@ class MathUtils:
 
     @staticmethod
     def _touching_zeros(
-        evaluate: Callable[[float], Optional[float]], xs: Sequence[float], values: Sequence[Optional[float]]
+        evaluate: Callable[[float], Optional[float]],
+        xs: Sequence[float],
+        values: Sequence[Optional[float]],
+        center: float = 0.0,
     ) -> List[float]:
         """Zeros where f touches 0 without changing sign between samples: the minimum of |f|
         found by golden-section search beside a small local minimum of the samples, kept when
-        |f| there is rounding noise (below 1e-10 of the neighbouring samples)."""
+        |f| there is rounding noise (below 1e-10 of the neighbouring samples). The minima
+        nearest center are searched first, up to _MAX_TOUCHING_SEARCHES."""
         sizes = sorted(abs(value) for value in values if value is not None and value != 0)
         if not sizes:
             return []
         small = MathUtils._TOUCHING_FRACTION * sizes[len(sizes) // 2]
         found: List[float] = []
         searched = 0
-        for index in range(1, len(values) - 1):
+        for index in sorted(range(1, len(values) - 1), key=lambda index: abs(xs[index] - center)):
             before, value, after = values[index - 1], values[index], values[index + 1]
             if before is None or value is None or after is None or value == 0 or abs(value) > small:
                 continue

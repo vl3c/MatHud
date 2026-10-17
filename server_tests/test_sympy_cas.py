@@ -195,6 +195,20 @@ class TestOperations(unittest.TestCase):
         self.assertEqual(compute_solve("x^2=a", "x"), {"roots": ["sqrt(a)", "-sqrt(a)"]})
         self.assertIsNone(compute_solve("sin(x)=a", "x"))  # periodic with a condition: not listed
 
+    def test_solve_a_formula_for_a_variable(self) -> None:
+        # solveset gives these as {root} \ {pole}, an image set or a condition set
+        self.assertEqual(compute_solve("R=V/I", "I"), {"roots": ["V/R"]})
+        self.assertEqual(compute_solve("1/x=a", "x"), {"roots": ["1/a"]})
+        self.assertEqual(compute_solve("1/R=1/R1+1/R2", "R2"), {"roots": ["-R*R1/(R-R1)"]})
+        self.assertEqual(compute_solve("P=V^2/R", "R"), {"roots": ["V^2/P"]})
+        self.assertEqual(compute_solve("T=2*pi*sqrt(L/g)", "g"), {"roots": ["4*pi^2*L/T^2"]})
+        self.assertEqual(compute_solve("sqrt(x)=a", "x"), {"roots": ["a^2"]})
+        self.assertEqual(compute_solve("a^x=b", "x"), {"roots": ["log(b)/log(a)"]})
+        self.assertEqual(compute_solve("P*(1+r)^t=A", "t"), {"roots": ["log(A/P)/log(r+1)"]})
+        self.assertEqual(compute_solve("d=sqrt((x-1)^2+4)", "x"), {"roots": ["sqrt(d^2-4)+1", "1-sqrt(d^2-4)"]})
+        self.assertEqual(len(compute_solve("x^3+a*x=1", "x")["roots"]), 3)  # Cardano's formula, kept exact
+        self.assertIsNone(compute_solve("sin(a*x)=1", "x"))  # sp.solve would give principal values only
+
     def test_cubic_roots_without_cardano_forms(self) -> None:
         solution = compute_solve("x^3+x+1=0", "x")
         assert solution is not None
@@ -515,6 +529,13 @@ class TestSolveSystem(unittest.TestCase):
             compute_solve_system("x+y=2;2*x+2*y=4"),
             {"infinite": True, "general": {"x": "2-y"}, "free": ["y"], "rank": 1},
         )
+        self.assertEqual(compute_solve_system("x+y=2;1=2"), {"none": True})
+
+    def test_an_equation_without_unknowns_is_refused(self) -> None:
+        # xy is one name and b a parameter: not a contradiction
+        for system in ("xy=6;x+y=5", "x+y=a;b=2"):
+            with self.subTest(system=system), self.assertRaisesRegex(ExpressionError, "none of the unknowns"):
+                compute_solve_system(system)
 
     def test_polynomial_systems_list_every_real_solution(self) -> None:
         result = compute_solve_system("x^2+y^2=25;y=x^2-5")
