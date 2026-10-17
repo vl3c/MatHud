@@ -7,7 +7,8 @@ math.js read the same text. Then, for each pair of neighbouring steps:
 
 1. A step neither engine can read makes the pair undecided, with the parse message.
 2. A pair with a name the engines misread is undecided, with a hint: a function name read
-   as a variable, a name that starts with one (sinxy), or xy against x and y.
+   as a variable (sin alone), a function glued to more letters than the pipeline splits
+   (sinxy, sinxcosx), or xy against x and y.
 3. The numeric check (utils.equivalence.compare, every variable varied) decides most
    pairs. "equivalent" is the answer, with a note when one step is undefined where the
    other is defined (log(x^2) and 2*log(x)), and SymPy is not asked.
@@ -66,25 +67,34 @@ _SINGLE_LETTER = re.compile(r"^[A-Za-zͰ-Ͽ]$")
 
 
 _CONSTANTS = ("e", "pi")
+# A letter and digits, such as x2: x squared or 2x when x is a variable too
+_INDEXED = re.compile(r"^([A-Za-z])(\d+)$")
+
+
+def _calculator_spellings() -> FrozenSet[str]:
+    """The functions calculators apply without parentheses (sin, ln, sqrt): never a variable."""
+    from expression_functions import CALCULATOR_SPELLINGS
+
+    return frozenset(CALCULATOR_SPELLINGS)
 
 
 def _function_spellings() -> FrozenSet[str]:
-    """Every spelling of a function (sin, ln, sine): never a variable."""
-    from expression_functions import BY_NAME, CALCULATOR_SPELLINGS, CALL_ALIASES, WORD_ALIASES
+    """Every spelling of a function (sin, ln, sine, gamma, max)."""
+    from expression_functions import BY_NAME, CALL_ALIASES, WORD_ALIASES
 
-    names: Set[str] = set(BY_NAME) | set(CALCULATOR_SPELLINGS) | set(CALL_ALIASES) | set(WORD_ALIASES)
+    names: Set[str] = set(BY_NAME) | set(_calculator_spellings()) | set(CALL_ALIASES) | set(WORD_ALIASES)
     return frozenset(names)
 
 
-def _call_prefixes() -> List[str]:
-    """The calculator functions a variable name may start with (sinxy, lnxy), longest first."""
-    from expression_functions import CALCULATOR_SPELLINGS
+def _glued_names() -> List[str]:
+    """The calculator functions a name may be glued to (sinx, sinxy, sinxcosx), longest first."""
+    from expression_functions import GLUED_CALL_NAMES
 
-    return sorted((f for f in CALCULATOR_SPELLINGS if len(f) > 1), key=len, reverse=True)
+    return sorted(GLUED_CALL_NAMES, key=len, reverse=True)
 
 
 def _pieces(name: str, letters: Set[str]) -> Optional[List[str]]:
-    """name split into two or more of letters, e and pi (xye -> [x, y, e]), or None."""
+    """name split into letters, e and pi (xye -> [x, y, e]), or None."""
     if not name:
         return []
     for piece in sorted(letters | set(_CONSTANTS), key=len, reverse=True):
@@ -92,6 +102,23 @@ def _pieces(name: str, letters: Set[str]) -> Optional[List[str]]:
             rest = _pieces(name[len(piece) :], letters)
             if rest is not None:
                 return [piece] + rest
+    return None
+
+
+def _call_pieces(name: str, letters: Set[str]) -> Optional[List[str]]:
+    """name split into glued calls and letters, with a call among them (sinxcosx ->
+    [sin(x), cos(x)], xsinxcosx -> [x, sin(x), cos(x)]), or None."""
+    if not name:
+        return []
+    for function in _glued_names():
+        if name.startswith(function) and name[len(function) : len(function) + 1].isalpha():
+            rest = _call_pieces(name[len(function) + 1 :], letters)
+            if rest is not None:
+                return [f"{function}({name[len(function)]})"] + rest
+    if name[0] in letters:
+        rest = _call_pieces(name[1:], letters)
+        if rest is not None and any("(" in piece for piece in rest):
+            return [name[0]] + rest
     return None
 
 
@@ -235,7 +262,7 @@ class StepChecker:
         numeric: Optional[EquivalenceReport] = None
         if previous.evaluator is not None and step.evaluator is not None:
             # a function name is never bound as a variable (it would hide the function)
-            variables = sorted((set(previous.variables) | set(step.variables)) - _function_spellings())
+            variables = sorted((set(previous.variables) | set(step.variables)) - _calculator_spellings())
             numeric = compare(previous.evaluator, step.evaluator, variables, previous.scale, step.scale)
             if numeric.verdict == EQUIVALENT:
                 return StepChecker._equivalent(record, previous, step, numeric, NUMERIC)
@@ -248,34 +275,56 @@ class StepChecker:
     def _misread_name(step: PreparedStep, other: PreparedStep) -> Optional[str]:
         """Why a name in step is not what the writer meant, or None.
 
-        A function name read as a variable (sin), a name that starts with a calculator function
-        (sinxy), and a name made of the other step's one-letter variables, e and pi (xy against
-        x and y, xye against x and y) are misread: math.js and SymPy would read them as one
-        variable.
+        Misread, as math.js and SymPy read each of them as one variable: a calculator function
+        read as a variable (sin alone), another function name used as a variable (gamma, which
+        neither engine reads as one), a function glued to more than one letter (sinxy, sinxcosx), and a name
+        made of the other step's one-letter variables, e and pi (xy against x and y), x2 beside
+        x, and xy against yx. Names with "_" and longer names (costs, cos_theta, seconds) are
+        variables.
         """
-        functions = _function_spellings()
         others = set(other.variables)
+        letters = {name for name in others | set(step.variables) if _SINGLE_LETTER.match(name)}
         for name in step.variables:
-            if name in functions:
+            if name in _calculator_spellings():
                 return f"{name} is a function, but it is read as a variable here; write {name}(x) with parentheses"
-            prefix = next((f for f in _call_prefixes() if name.startswith(f)), "")
-            if prefix:
-                rest = name[len(prefix) :]
-                pieces = _pieces(rest, {letter for letter in others if _SINGLE_LETTER.match(letter)})
-                operand = "*".join(pieces) if pieces else rest
-                return f"{name} is read as one variable; write {prefix}({operand})"
-            if len(name) < 2 or name in others:
+            if name in _function_spellings():
+                return f"{name} is the name of a function, which the engines cannot read as a variable; rename it"
+            if len(name) < 2 or name in others or "_" in name:
                 continue
+            indexed = _INDEXED.match(name)
+            if indexed is not None and indexed.group(1) in letters:
+                letter, digits = indexed.groups()
+                return f"{name} is read as one variable; write {letter}^{digits} or {digits}*{letter}"
+            reordered = next((o for o in others if o != name and sorted(o) == sorted(name)), None)
+            if reordered is not None and name.isalpha() and len(name) <= 4:
+                return f"{name} and {reordered} are each read as one variable; write {'*'.join(name)}"
+            hint = StepChecker._glued_hint(name, letters)
+            if hint is not None:
+                return f"{name} is read as one variable; write {hint}"
             pieces = _pieces(name, {letter for letter in others if _SINGLE_LETTER.match(letter)})
             if pieces is None:
                 continue
-            letters = [piece for piece in pieces if piece not in _CONSTANTS]
-            if len(letters) == len(pieces):
+            factors = [piece for piece in pieces if piece not in _CONSTANTS]
+            if len(factors) == len(pieces):
                 return (
-                    f"{name} is read as one variable, but the other step has {' and '.join(letters)}; "
+                    f"{name} is read as one variable, but the other step has {' and '.join(factors)}; "
                     f"write {'*'.join(pieces)}"
                 )
             return f"{name} is read as one variable; write {'*'.join(pieces)}"
+        return None
+
+    @staticmethod
+    def _glued_hint(name: str, letters: Set[str]) -> Optional[str]:
+        """sin(x*y) for sinxy, sin(x)*cos(x) for sinxcosx: a calculator function glued to more
+        letters than the input pipeline splits; None for other names."""
+        calls = _call_pieces(name, letters | {name[-1]})
+        if calls is not None and len(calls) > 1:
+            return "*".join(calls)
+        for function in _glued_names():
+            if name.startswith(function):
+                pieces = _pieces(name[len(function) :], letters)
+                if pieces and len(pieces) > 1 and not set(pieces) & set(_CONSTANTS):
+                    return f"{function}({'*'.join(pieces)})"
         return None
 
     @staticmethod

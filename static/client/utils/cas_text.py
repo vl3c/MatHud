@@ -374,12 +374,33 @@ def parse_interval(text: str) -> Tuple[str, str, bool, bool]:
 
 # Identifiers and numbers, matched whole (expression_functions.TOKEN_PATTERN)
 _TOKEN = re.compile(r"[a-zA-Z_][a-zA-Z_0-9]*|(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?")
-# A power on a function name before its operand (sin^2 x) or on the operand (sin x^2)
-_OPERAND_POWER = re.compile(r"\^(?:\d+(?:\.\d+)?|[A-Za-z_][A-Za-z_0-9]*|(?=\())")
-# What may follow a function name glued to its operand: sinx, sin2x, ln2.5t
-_GLUED_OPERAND = re.compile(r"(?:\d+(?:\.\d+)?)?[A-Za-z]$")
+_NUMBER = re.compile(r"\d+(?:\.\d+)?|\.\d+")
+# A power on a function name before its operand: sin^2 x, sin^-1 x (asin x)
+_FUNCTION_POWER = re.compile(r"\^(?:\d+|-1|\(-1\))")
+# A power on a factor of the operand: sin x^2, sin x^y, sin x^(2y)
+_FACTOR_POWER = re.compile(r"\^(?:\d+(?:\.\d+)?|[A-Za-z][A-Za-z0-9]*|(?=\())")
+# A function glued to a one-letter operand, with an optional coefficient: sinx, sin2x
+_GLUED_OPERAND = re.compile(r"(\d+(?:\.\d+)?)?([A-Za-z])$")
 # One letter and e or pi written together: xe, ex, xpi, pix (not i, the imaginary unit)
 _CONSTANT_PRODUCT = re.compile(r"(?:([a-df-hj-zA-Z])(e|pi)|(e|pi)([a-df-hj-zA-Z]))$")
+_COEFFICIENTS = ("pi", "e")
+
+
+def glued_call(name: str, glued_names: Iterable[str]) -> Optional[Tuple[str, str, str]]:
+    """(prefix, function, operand) when name is a function glued to a one-letter operand,
+    with at most one letter before it: sinx -> ("", "sin", "x"), sin2x -> ("", "sin", "2x"),
+    xlnx -> ("x", "ln", "x"); None for any other name (costs, seconds, cos_theta)."""
+    if "_" in name:
+        return None
+    functions = sorted(glued_names, key=len, reverse=True)
+    for prefix in ("", name[:1]):
+        if prefix and not prefix.isalpha():
+            break
+        body = name[len(prefix) :]
+        for function in functions:
+            if body.startswith(function) and _GLUED_OPERAND.match(body[len(function) :]):
+                return prefix, function, body[len(function) :]
+    return None
 
 
 def insert_calculator_calls(
@@ -387,15 +408,18 @@ def insert_calculator_calls(
 ) -> str:
     """Read a one-argument function written without parentheses as calculators do.
 
-    sin x -> sin(x), sin 2x -> sin(2x), 2 sin x cos x -> 2 sin(x)*cos(x), sin^2 x -> sin^2(x),
+    sin x -> sin(x), sin 2x -> sin(2x), sin pi x -> sin(pi*x), sin 2.5 x -> sin(2.5*x),
+    2 sin x cos x -> 2*sin(x)*cos(x), sin^2 x -> sin^2(x), sin^-1 x -> sin^-1(x) (asin),
     sin x^2 -> sin(x^2), x ln x -> x*ln(x), sin cos x -> sin(cos(x)). A name in glued_names
-    may also touch a one-letter operand: sinx -> sin(x), sin2x -> sin(2x), lnx -> ln(x). The
-    operand is a number, a name or both (2x), with a power, or a call (cos(x)); it stops at a
-    space, so sin x cos x is two calls. Text that already has its parentheses (sin(x),
-    sin (x), sin^2(x)) and names in keep (a variable such as cost) are left as they are.
+    may touch a one-letter operand, with one letter before it: sinx -> sin(x), sin2x ->
+    sin(2x), xlnx -> x*ln(x). The operand is an implicit product (numbers, pi, e and names),
+    with powers; it stops before another function. Where the textbook reading is not clear
+    the text is left as it is, for the engines to refuse: sin x y, sin 2*x, sin x/2,
+    sin x(x+1). So is text that already has its parentheses (sin(x), sin^2(x)), a name with
+    "_" and names in keep (a variable such as cost).
     """
     unary, glued, kept = set(unary_names), set(glued_names), set(keep)
-    if not any(name in text for name in unary):
+    if not any(name in text for name in unary | glued):
         return text
     tokens = [match for match in _TOKEN.finditer(text) if not match.group(0)[0].isdigit()]
     for match in reversed(tokens):
@@ -405,32 +429,114 @@ def insert_calculator_calls(
 
 def _calculator_call(text: str, start: int, name: str, unary: Set[str], glued: Set[str], kept: Set[str]) -> str:
     """text with the function name at start applied to its operand, or text unchanged."""
-    if name in kept or (start > 0 and text[start - 1] == "."):
+    if name in kept or "_" in name or (start > 0 and text[start - 1] == "."):
         return text
     end = start + len(name)
     if name in unary:
-        function, glued_operand = name, ""
-    else:
-        function = next((f for f in sorted(glued, key=len, reverse=True) if name.startswith(f)), "")
-        glued_operand = name[len(function) :]
-        if not function or not _GLUED_OPERAND.match(glued_operand):
-            return text
-    power, operand_start = "", end
-    if not glued_operand:
-        power_match = _OPERAND_POWER.match(text, end)
-        if power_match is not None and power_match.group(0)[1:2].isdigit():
+        power, operand_start = "", end
+        power_match = _FUNCTION_POWER.match(text, end)
+        if power_match is not None:
             power, operand_start = power_match.group(0), power_match.end()
         spaced = _next_non_space(text, operand_start)
         if spaced < len(text) and text[spaced] == "(":
             return text  # sin(x), sin (x), sin^2(x): already a call
         if spaced == operand_start and not power:
             return text  # sin, sin+1, sin*x: not a call
-        operand_start = spaced
-    operand_end = _operand_end(text, operand_start, unary, bool(glued_operand))
-    if operand_end is None:
-        return text
-    call = f"{function}{power}({glued_operand}{text[operand_start:operand_end]})"
+        operand = _operand(text, spaced, unary)
+        if operand is None:
+            return text
+        call, operand_end = f"{name}{power}({operand[0]})", operand[1]
+    else:
+        parts = glued_call(name, glued)
+        if parts is None:
+            return text
+        prefix, function, glued_operand = parts
+        operand_end = _power_end(text, end)
+        if _unclear_after(text, operand_end, unary):
+            return text
+        call = f"{function}({glued_operand}{text[end:operand_end]})"
+        if prefix:
+            call = f"{prefix}*{call}"
     return _joined_before(text, start, unary) + call + text[operand_end:]
+
+
+def _operand(text: str, position: int, unary: Set[str]) -> Optional[Tuple[str, int]]:
+    """(operand, end) for the implicit product at position, or None when there is none or its
+    end is not clear (sin x y, sin 2*x). Factors after a space join with "*": sin pi x -> pi*x."""
+    factors: List[str] = []
+    index = position
+    while True:
+        factor_start = index
+        number = _NUMBER.match(text, index)
+        if number is not None:
+            index = number.end()
+        token = _TOKEN.match(text, index)
+        name = token.group(0) if token is not None and not token.group(0)[0].isdigit() else ""
+        name_end = token.end() if token is not None else index
+        if name in unary:
+            if index > factor_start or factors or text[name_end : name_end + 1] != "(":
+                break  # a function: the operand ends before it (sin x cos x)
+            index = _closing_index(text, name_end)
+            if index < 0:
+                return None
+        elif name:
+            index = name_end
+        if index == factor_start:
+            break
+        index = _power_end(text, index)
+        factors.append(text[factor_start:index])
+        following = _next_non_space(text, index)
+        if following == index or following >= len(text):
+            break
+        if not _starts_factor(text, following, unary):
+            break
+        if not (name in _COEFFICIENTS or (number is not None and not name)):
+            return None  # sin x y: x times y, or sin(x) times y?
+        index = following
+    if not factors or _unclear_after(text, index, unary):
+        return None
+    return "*".join(factors), index
+
+
+def _starts_factor(text: str, index: int, unary: Set[str]) -> bool:
+    """True when a number or a name that is not a function starts at index."""
+    token = _TOKEN.match(text, index)
+    return token is not None and token.group(0) not in unary
+
+
+def _unclear_after(text: str, index: int, unary: Set[str]) -> bool:
+    """True when the operand ending at index could go on: sin 2*x, sin x/2, sin x(x+1), sin x^-1."""
+    following = _next_non_space(text, index)
+    if following < len(text) and text[following] in "(^":
+        return True  # sin x(x+1), sin x^-1
+    if following >= len(text) or text[following] not in "*/":
+        return False
+    after = _next_non_space(text, following + 1)
+    return _starts_factor(text, after, unary) or text[after : after + 1] == "("
+
+
+def _power_end(text: str, index: int) -> int:
+    """The end of a power at index (x^2, x^y, x^(2y)), or index when there is none."""
+    power = _FACTOR_POWER.match(text, index)
+    if power is None:
+        return index
+    if power.group(0) != "^":
+        return power.end()
+    close = _closing_index(text, index + 1)
+    return index if close < 0 else close
+
+
+def _closing_index(text: str, open_index: int) -> int:
+    """The index after the ")" matching the "(" at open_index, or -1."""
+    depth = 0
+    for index in range(open_index, len(text)):
+        if text[index] == "(":
+            depth += 1
+        elif text[index] == ")":
+            depth -= 1
+            if depth == 0:
+                return index + 1
+    return -1
 
 
 def _joined_before(text: str, start: int, unary: Set[str]) -> str:
@@ -445,46 +551,6 @@ def _joined_before(text: str, start: int, unary: Set[str]) -> str:
     if previous and text[before - 1] != ")" and previous[-1] in unary:
         return text[:start]
     return text[:before] + "*"
-
-
-def _operand_end(text: str, position: int, unary: Set[str], glued: bool) -> Optional[int]:
-    """The end of the operand starting at position, or None when there is none.
-
-    Glued, the operand's number and letter are in the name already, so only a power may follow.
-    """
-    index = position
-    if not glued:
-        if index < len(text) and (text[index].isdigit() or text[index] == "."):
-            index = _number_end(text, index)
-        match = _TOKEN.match(text, index)
-        if match is not None and not match.group(0)[0].isdigit():
-            index = match.end()
-            if match.group(0) in unary and index < len(text) and text[index] == "(":
-                close = _closing(text, index)
-                if close < 0:
-                    return None
-                index = close + 1
-        if index == position:
-            return None
-    power = _OPERAND_POWER.match(text, index)
-    if power is not None and power.group(0) != "^":
-        return power.end()
-    if power is not None:  # ^( ... )
-        close = _closing(text, index + 1)
-        return index if close < 0 else close + 1
-    return index
-
-
-def _closing(text: str, open_index: int) -> int:
-    depth = 0
-    for index in range(open_index, len(text)):
-        if text[index] == "(":
-            depth += 1
-        elif text[index] == ")":
-            depth -= 1
-            if depth == 0:
-                return index
-    return -1
 
 
 def split_constant_products(text: str, reserved: Iterable[str], keep: Iterable[str] = ()) -> str:

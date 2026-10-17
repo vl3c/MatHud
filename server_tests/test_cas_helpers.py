@@ -22,6 +22,7 @@ from utils.cas_numeric import (  # noqa: E402
 from utils.cas_text import (  # noqa: E402
     find_closing_parenthesis,
     has_inequality,
+    glued_call,
     insert_calculator_calls,
     insert_implicit_products,
     insert_letter_call_products,
@@ -163,6 +164,19 @@ class TestCalculatorNotation(unittest.TestCase):
             "sin2x": "sin(2x)",
             "lnx^2": "ln(x^2)",
             "cost": "cos(t)",
+            # the operand is a whole implicit product
+            "sin pi x": "sin(pi*x)",
+            "sin 2pi x": "sin(2pi*x)",
+            "sin 2 pi x": "sin(2*pi*x)",
+            "sin 2.5 x": "sin(2.5*x)",
+            "sin^-1 x": "sin^-1(x)",
+            # a letter before a glued call
+            "xlnx - x": "x*ln(x) - x",
+            "2xsinx": "2x*sin(x)",
+            "e^xsinx": "e^x*sin(x)",
+            "xsinx + cosx": "x*sin(x) + cos(x)",
+            "tcost": "t*cos(t)",
+            "nlogn": "n*log(n)",
         }
         for text, expected in cases.items():
             with self.subTest(text=text):
@@ -184,11 +198,33 @@ class TestCalculatorNotation(unittest.TestCase):
             "secret",
             "1e5x",
             "a.sin x",
+            # not clear: left for the engines to refuse
+            "sin 2*x",
+            "sin x/2",
+            "sin x y",
+            "sin x(x+1)",
+            "sin x^-1",
+            # descriptive names
+            "revenue - costs",
+            "seconds*1000",
+            "cos_theta^2",
+            "sinxcosx",
+            "xsinxy",
         ):
             with self.subTest(text=text):
                 expected = "sinh(x2)" if text == "sinh x2" else text
                 unary = self.UNARY + ("sinh", "sine")
                 self.assertEqual(insert_calculator_calls(text, unary, self.GLUED), expected)
+
+    def test_glued_calls(self) -> None:
+        glued = ("sin", "asin", "ln", "log", "cos")
+        self.assertEqual(glued_call("sinx", glued), ("", "sin", "x"))
+        self.assertEqual(glued_call("asinx", glued), ("", "asin", "x"))
+        self.assertEqual(glued_call("sin2x", glued), ("", "sin", "2x"))
+        self.assertEqual(glued_call("xlnx", glued), ("x", "ln", "x"))
+        for name in ("costs", "cos_t", "xycosx", "sin", "seconds", "logs2"):
+            with self.subTest(name=name):
+                self.assertIsNone(glued_call(name, glued))
 
     def test_kept_names(self) -> None:
         self.assertEqual(insert_calculator_calls("cost < 1", self.UNARY, self.GLUED, keep=("cost",)), "cost < 1")

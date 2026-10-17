@@ -179,7 +179,22 @@ class TestStepCheckerWithoutSympy(unittest.TestCase):
             ["cos x", "cos(x)"],
             ["log x^2", "log(x^2)"],
         ]
+        equivalent += [
+            ["xlnx - x", "x(lnx - 1)"],
+            ["2xsinx", "2x sin x"],
+            ["e^xsinx", "e^x sin x"],
+            ["tcost", "t cos t"],
+            ["nlogn", "n log n"],
+            ["sin pi x", "sin(pi x)"],
+            ["sin 2.5 x", "sin(2.5x)"],
+            ["sin^-1 x", "asin(x)"],
+            ["revenue - costs", "-(costs - revenue)"],
+            ["cos_theta^2", "cos_theta*cos_theta"],
+            ["seconds*1000", "1000seconds"],
+        ]
         wrong = [
+            ["xlnx - x", "x(lnx + 1)"],
+            ["sin pi x", "sin(pi)*x"],
             ["(x+1)e^x", "xe^x + 1"],
             ["xpi", "pi + x"],
             ["sin 2x", "2 sin x"],
@@ -191,6 +206,8 @@ class TestStepCheckerWithoutSympy(unittest.TestCase):
             verdicts = [_check(steps)["verdict"] for steps in equivalent]
             wrong_verdicts = [_check(steps)["verdict"] for steps in wrong]
             bare = _check(["sin", "sin(x)"])
+            gamma = _check(["gamma*m*c^2", "m*gamma*c^2"])
+            unclear = [_check(steps)["verdict"] for steps in (["sin 2*x", "sin(2x)"], ["sin x y", "y sin x"])]
             spaced = _check(["sin x - 1", "sin(x) - 1"])
         self.assertEqual(verdicts, ["equivalent"] * len(equivalent))
         self.assertEqual(wrong_verdicts, ["not_equivalent"] * len(wrong))
@@ -199,3 +216,8 @@ class TestStepCheckerWithoutSympy(unittest.TestCase):
             "sin is a function, but it is read as a variable here; write sin(x) with parentheses",
         )
         self.assertEqual(spaced["steps"][0], {"step": 2, "verdict": "equivalent", "method": "numeric"})
+        self.assertEqual(
+            gamma["steps"][0]["reason"],
+            "gamma is the name of a function, which the engines cannot read as a variable; rename it",
+        )
+        self.assertEqual(unclear, ["undecided", "undecided"])

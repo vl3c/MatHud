@@ -202,9 +202,25 @@ class TestInequalitySolverSympy(unittest.TestCase):
         }
         for (text, interval), expected in cases.items():
             self.assertEqual(_solve(text, interval), expected, text)
+        # equations, with an interval and without, read the same text
+        equations = {
+            ("sinx = 0.5", "[0, 2*pi]"): "[pi/6,5*pi/6] (the roots in [0, 2*pi])",
+            ("xe^x = 1", "[0, 2]"): "[0.5671432904098] (the roots in [0, 2])",
+            ("lnx = 1", "[0, 5]"): "[e] (the roots in [0, 5])",
+            ("x ln x = 1", "[0.5, 3]"): "[1.7632228343519] (the roots in [0.5, 3])",
+            ("sin 2x = 1", "[0, pi]"): "[pi/4] (the roots in [0, pi])",
+            ("xe^x = 1", None): "[0.5671432904098]",
+            ("ln x = 1", None): "[e]",
+            ("xpi = 1", None): "[1/pi]",
+        }
+        for (text, interval), expected in equations.items():
+            self.assertEqual(_solve(text, interval), expected, f"{text} on {interval}")
+        self.assertTrue(_solve("cosx = x", "[0, 2]").startswith("[0.739085133215191] (the roots in [0, 2]"))
         # the variable being solved for is never split: cost is not cos(t), ex is not e*x
         self.assertEqual(str(MathUtils.solve("cost < 1", "cost")), "cost < 1; interval notation: (-Infinity, 1)")
         self.assertEqual(str(MathUtils.solve("ex > 1", "ex")), "ex > 1; interval notation: (1, Infinity)")
+        self.assertEqual(str(MathUtils.solve("cost = 5", "cost")), "[5]")
+        self.assertEqual(str(MathUtils.solve("costs > 5", "costs")), "costs > 5; interval notation: (5, Infinity)")
 
     def test_identities_without_an_exact_answer(self) -> None:
         result = _solve("sin(x)^2 + cos(x)^2 > 1")

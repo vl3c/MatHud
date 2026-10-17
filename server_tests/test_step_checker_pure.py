@@ -287,6 +287,23 @@ CALCULATOR_EQUIVALENT = [
     ["log x^2", "log(x^2)"],
     ["log x^2", "2log(x)"],
     ["cos^2 x - sin^2 x", "cos 2x"],
+    ["xlnx - x", "x(lnx - 1)"],
+    ["2xsinx", "2x sin x"],
+    ["e^xsinx", "e^x sin x"],
+    ["xsinx + cosx", "x sin x + cos x"],
+    ["tcost", "t cos t"],
+    ["nlogn", "n log n"],
+    ["sin 2pi x", "sin(2pi*x)"],
+    ["sin 2.5 x", "sin(2.5x)"],
+    ["sin^-1 x", "asin(x)"],
+    # descriptive names stay variables
+    ["revenue - costs", "-(costs - revenue)"],
+    ["max_height/2", "0.5*max_height"],
+    ["signal + noise", "noise + signal"],
+    ["minutes/60", "minutes*(1/60)"],
+    ["2*exponent", "exponent + exponent"],
+    ["cos_theta^2", "cos_theta*cos_theta"],
+    ["seconds*1000", "1000seconds"],
 ]
 CALCULATOR_WRONG = [
     ["(x+1)e^x", "xe^x + 1"],
@@ -302,6 +319,12 @@ CALCULATOR_WRONG = [
     ["sinx", "cos x"],
     ["sin x^2", "sin(x)^2"],
     ["ln x^2", "(ln x)^2"],
+    ["xlnx - x", "x(lnx + 1)"],
+    ["2xsinx", "2x cos x"],
+    ["e^xsinx", "e^x + sin x"],
+    ["tcost", "cos t"],
+    ["nlogn", "log n"],
+    ["sin pi x", "sin(pi)*x"],
 ]
 
 
@@ -324,11 +347,14 @@ class TestCalculatorNotation(unittest.TestCase):
         self.assertEqual(reason, "step 2 - step 1 = 1-exp(x) (not 0); at x = 1, step 1 = 5.43656 and step 2 = 3.71828")
 
     def test_misread_names_are_undecided_with_a_hint(self) -> None:
-        # a function name math.js reads as a variable (sin alone) is in the Brython test
+        # function names math.js reads as variables (sin alone, gamma) are in the Brython test
         engines = _Engines()
         for steps, reason in (
             (["sinxy", "sin(x*y)"], "sinxy is read as one variable; write sin(x*y)"),
             (["xye^x", "x*y*e^x"], "xye is read as one variable; write x*y*e"),
+            (["sinxcosx", "sin(x)cos(x)"], "sinxcosx is read as one variable; write sin(x)*cos(x)"),
+            (["sin x2", "sin(2x)"], "x2 is read as one variable; write x^2 or 2*x"),
+            (["xy", "yx"], "xy and yx are each read as one variable; write x*y"),
         ):
             with self.subTest(steps=steps):
                 record = engines.check(steps)["steps"][0]

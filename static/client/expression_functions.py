@@ -476,19 +476,26 @@ _UNARY_SPELLINGS: FrozenSet[str] = frozenset(
 )
 
 
-# The one-argument calculator functions, in every one-word spelling: written without
-# parentheses (sin x, ln x) they take the operand that follows (cas_text.insert_calculator_calls)
+# The trig, inverse trig and hyperbolic functions, logs, exp and roots: calculator keys that
+# take the operand written after them without parentheses (sin x, ln x), in every one-word
+# spelling (cas_text.insert_calculator_calls). Other functions (gamma, max, sign) need "(".
+_TRIG_NAMES = ("sin", "cos", "tan", "sec", "csc", "cot")
+_CALCULATOR_NAMES = (
+    _TRIG_NAMES
+    + tuple("a" + name for name in _TRIG_NAMES)
+    + ("sinh", "cosh", "tanh", "asinh", "acosh", "atanh")
+    + ("log", "log10", "log2", "exp", "sqrt", "cbrt", "abs")
+)
 CALCULATOR_SPELLINGS: FrozenSet[str] = frozenset(
     spelling
-    for row in FUNCTIONS
-    if row.arity[0] == 1 and row.curve_safe
-    for spelling in (row.name,) + row.aliases + row.word_aliases
+    for name in _CALCULATOR_NAMES
+    for spelling in (name,) + BY_NAME[name].aliases + BY_NAME[name].word_aliases
     if " " not in spelling
 )
-# The ones that may also touch a one-letter operand: sinx, lnx, sqrtx
+# The ones that may also touch a one-letter operand, with one letter before them: sinx, lnx,
+# xlnx, sqrtx
 GLUED_CALL_NAMES: FrozenSet[str] = frozenset(
-    ("sin", "cos", "tan", "sec", "csc", "cot", "asin", "acos", "atan", "sinh", "cosh", "tanh")
-    + ("ln", "log", "exp", "sqrt", "abs")
+    _TRIG_NAMES + tuple("a" + name for name in _TRIG_NAMES) + ("ln", "log", "exp", "sqrt")
 )
 
 
