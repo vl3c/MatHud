@@ -1,5 +1,6 @@
 """SymPy computations for the CAS tools: limit, integrate, solve and simplify (and derive,
-where nerdamer has no answer), and the solution sets of inequalities.
+where nerdamer has no answer), the solution sets of inequalities, and whether two
+expressions are equivalent (for the step checker).
 
 The browser's symbolic engine (nerdamer) is often wrong on these four (see
 documentation/Roadmap.md, CAS reliability), so the client asks the server first and keeps
@@ -930,6 +931,83 @@ def _decimal_text(numerator: int, denominator: int) -> Optional[str]:
     return f"{sign}{digits[: len(digits) - places]}.{digits[len(digits) - places :]}"
 
 
+# ----- equivalence ----------------------------------------------------------------------
+
+# simplify runs only on a difference with at most this many operations (count_ops).
+MAX_SIMPLIFY_OPS = 300
+# A difference is returned only when its text has at most this many characters.
+MAX_DIFFERENCE_LENGTH = 80
+# A constant difference smaller than this (in 30-digit arithmetic) may be 0 SymPy cannot show.
+ZERO_DIFFERENCE = 1e-25
+
+
+def compute_equivalent(first: str, second: str) -> Dict[str, Optional[str]]:
+    """Whether second - first is 0 for every real value of the variables (where both are defined).
+
+    Returns {"verdict": "equivalent" | "not_equivalent" | "unknown", "difference": text or None}:
+
+    - equivalent when cancel(together(second - first)) or expand(second - first) is 0, or
+      else (for a difference of at most MAX_SIMPLIFY_OPS operations) simplify gives 0;
+    - not_equivalent when the difference is a rational function with rational coefficients
+      that does not cancel to 0, or simplifies to a nonzero number, with that difference;
+    - unknown otherwise, with the simplified difference when its text has at most
+      MAX_DIFFERENCE_LENGTH characters (x - abs(x) for x against sqrt(x^2)).
+
+    The variables are real, so sqrt(x^2) is abs(x); a step that holds only where both sides
+    are defined (log(x^2) and 2*log(x)) comes out unknown, which the client's numeric check
+    decides.
+    """
+    import sympy as sp
+
+    difference = parse_expression(second, real=True) - parse_expression(first, real=True)
+    if difference == 0:
+        return {"verdict": "equivalent", "difference": None}
+    cancelled = sp.cancel(sp.together(difference))
+    if cancelled == 0 or sp.expand(difference) == 0:
+        return {"verdict": "equivalent", "difference": None}
+    if _is_rational_over_q(cancelled) and _is_usable(cancelled):
+        return {"verdict": "not_equivalent", "difference": _difference_text(cancelled)}
+    simplified = sp.simplify(difference) if sp.count_ops(difference) <= MAX_SIMPLIFY_OPS else None
+    if simplified is not None and simplified == 0:
+        return {"verdict": "equivalent", "difference": None}
+    shortest = cancelled if simplified is None else _shorter(cancelled, simplified)
+    if not _is_usable(shortest):
+        return {"verdict": "unknown", "difference": None}
+    if shortest.is_number and _is_nonzero_number(shortest):
+        return {"verdict": "not_equivalent", "difference": _difference_text(shortest)}
+    return {"verdict": "unknown", "difference": _difference_text(shortest)}
+
+
+def _is_rational_over_q(expression: Any) -> bool:
+    """True for a ratio of polynomials in its variables with rational coefficients (x/2 - 1/x),
+    where cancel is canonical: a nonzero result is a nonzero function."""
+    import sympy as sp
+
+    symbols = sorted(expression.free_symbols, key=str)
+    if not symbols or expression.has(sp.I) or expression.atoms(sp.NumberSymbol):
+        return False
+    if not all(number.is_Rational for number in expression.atoms(sp.Number)):
+        return False
+    numerator, denominator = sp.fraction(expression)
+    return bool(numerator.is_polynomial(*symbols) and denominator.is_polynomial(*symbols))
+
+
+def _is_nonzero_number(value: Any) -> bool:
+    """True when a number's 30-digit value is clearly not 0 (sqrt(2) - 1.41421356, not a zero simplify missed)."""
+    import sympy as sp
+
+    try:
+        approximate = complex(sp.N(value, 30))
+    except (TypeError, ValueError):
+        return False
+    return abs(approximate) > ZERO_DIFFERENCE
+
+
+def _difference_text(difference: Any) -> Optional[str]:
+    text = to_text(difference)
+    return text if len(text) <= MAX_DIFFERENCE_LENGTH else None
+
+
 # Every value in a response is text, a bool, a small int or None: Brython's json.loads
 # cannot read the exponent of a float such as 1e+16.
 OPERATIONS: Dict[str, Callable[..., Any]] = {
@@ -939,6 +1017,7 @@ OPERATIONS: Dict[str, Callable[..., Any]] = {
     "simplify": compute_simplify,
     "solve": compute_solve,
     "solve_inequality": compute_solve_inequality,
+    "equivalent": compute_equivalent,
 }
 
 

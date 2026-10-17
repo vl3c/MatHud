@@ -58,6 +58,7 @@ from .test_inequality_solver import (
     TestInequalitySolverSympy,
     TestInequalitySolverWithoutSympy,
 )
+from .test_step_checker import TestStepCheckerHelpers, TestStepCheckerSympy, TestStepCheckerWithoutSympy
 from .test_cas_known_answers import TestCasKnownAnswers, TestCasKnownAnswersNerdamer, TestCasSympyAnswers
 from .test_periodicity_detection import TestPeriodicityDetection, TestPeriodicityEdgeCases
 from .test_geometry_utils import TestGeometryUtils, TestConvexHull, TestPointInConvexHull
@@ -560,6 +561,9 @@ class Tests:
             TestInequalityHelpers,
             TestInequalitySolverSympy,
             TestInequalitySolverWithoutSympy,
+            TestStepCheckerHelpers,
+            TestStepCheckerSympy,
+            TestStepCheckerWithoutSympy,
             TestCasKnownAnswers,
             TestCasKnownAnswersNerdamer,
             TestCasSympyAnswers,

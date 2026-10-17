@@ -2080,7 +2080,10 @@ class MathUtils:
         except ValueError as e:
             return f"Error: {e}"
         try:
-            equation, variable = MathUtils._cas_input(equation), MathUtils._normalize_variable(variable)
+            variable = MathUtils._normalize_variable(variable)
+            InequalitySolver.refuse_misspellings(equation, variable)
+            # the text the inequalities get: |x| bars, ln|x| and x(x+2) as products
+            equation = InequalitySolver.prepared(equation)
         except Exception as e:
             return MathUtils._error_text(e)
         sides = equation.split("=")
@@ -2088,7 +2091,7 @@ class MathUtils:
             return "Error: An equation has at most one '='."
         if roots_window is not None:
             try:
-                others = InequalitySolver.other_names([InequalitySolver.prepared(side) for side in sides], variable)
+                others = InequalitySolver.other_names(sides, variable)
             except ValueError:
                 others = []  # left to the engines, which say what they cannot read
             if others:

@@ -20,11 +20,14 @@ from utils.cas_numeric import (  # noqa: E402
     snap,
 )
 from utils.cas_text import (  # noqa: E402
+    decomposes,
     find_closing_parenthesis,
     has_inequality,
+    glued_call,
     insert_implicit_products,
     insert_letter_call_products,
     is_unevaluated,
+    misspellings,
     parse_interval,
     rewrite_for_nerdamer,
     split_relation,
@@ -131,6 +134,133 @@ class TestInequalityText(unittest.TestCase):
             with self.subTest(text=text):
                 with self.assertRaises(ValueError):
                     parse_interval(text)
+
+
+class TestMisspellings(unittest.TestCase):
+    """Calculator spellings the tools refuse, with the standard form to write; never rewritten."""
+
+    UNARY = ("sin", "cos", "tan", "sec", "ln", "log", "exp", "sqrt", "abs", "sech", "sine")
+    GLUED = ("sin", "cos", "ln", "log", "sqrt", "sinh", "asinh", "sec", "cot")
+    FUNCTIONS = ("sech", "coth", "csch", "asinh", "re", "sinc")
+
+    def _reasons(self, text: str, keep: Sequence[str] = ()) -> List[str]:
+        return [m.reason for m in misspellings(text, self.UNARY, self.GLUED, self.FUNCTIONS, keep)]
+
+    def test_functions_without_parentheses(self) -> None:
+        cases = {
+            "sin x": ["sin needs parentheses; write sin(x)"],
+            "sin 2x": ["sin needs parentheses; write sin(2x)"],
+            "sin pi x": ["sin needs parentheses; write sin(pi*x)"],
+            "x ln x": ["ln needs parentheses; write ln(x)"],
+            "sin^2 x": ["sin needs parentheses; write sin^2(x)"],
+            "sin^-1 x": ["sin needs parentheses; write sin^-1(x)"],
+            "sin": ["sin needs parentheses; write sin(x)"],
+            "sin*x": ["sin needs parentheses; write sin(x)"],
+            "sech x": ["sech needs parentheses; write sech(x)"],
+            "sine x": ["sine needs parentheses; write sine(x)"],
+            "sin 2 x": ["sin needs parentheses; write sin(2*x)"],
+            "sin x/2": ["sin needs parentheses around its argument; write sin(...)"],
+            "sin 2*x": ["sin needs parentheses around its argument; write sin(...)"],
+            "sin x y": ["sin needs parentheses around its argument; write sin(...)"],
+            "sin x(x+1)": ["sin needs parentheses around its argument; write sin(...)"],
+            "2 sin x cos x": ["sin needs parentheses; write sin(x)", "cos needs parentheses; write cos(x)"],
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(self._reasons(text), expected)
+                self.assertTrue(all(m.bare for m in misspellings(text, self.UNARY, self.GLUED, self.FUNCTIONS)))
+
+    def test_glued_names(self) -> None:
+        cases = {
+            "sinx": ("sinx is read as one variable; write sin(x)", ("x",), False),
+            "sin2x/2": ("sin2x is read as one variable; write sin(2x)", ("x",), False),
+            "xlnx - x": ("xlnx is read as one variable; write x*ln(x)", ("x",), False),
+            "asinhx": ("asinhx is read as one variable; write asinh(x)", ("x",), False),
+            "cost": ("cost is read as one variable; write cos(t)", ("t",), False),
+            "xe^x": ("xe is read as one variable; write x*e^x", ("x",), True),
+            "Ae^(kt)": ("Ae is read as one variable; write A*e^(kt)", ("A",), True),
+            "xpi": ("xpi is read as one variable; write x*pi", ("x",), False),
+            "pix": ("pix is read as one variable; write pi*x", ("x",), False),
+            "log2x": ("log2x is read as one variable; write log2(x) or log(2x)", ("x",), False),
+            "ln2x": ("ln2x is read as one variable; write ln(2)*x or ln(2x)", ("x",), False),
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                found = misspellings(text, self.UNARY, self.GLUED, self.FUNCTIONS)
+                self.assertEqual([(m.reason, m.letters, m.powered, m.bare) for m in found], [expected + (False,)])
+
+    def test_standard_syntax_has_none(self) -> None:
+        for text in (
+            "sin(x)",
+            "sin (x)",
+            "sin^2(x) + cos^2(x)",
+            "ln|x|",
+            "x*ln(x)",
+            "x*e^x",
+            "e^x",
+            "exp(x)",
+            "2x*sin(x)",
+            "pi*r^2",
+            "sech(x)",
+            "re(x)",
+            "ex(2)",
+            "A.x + 1",
+            "cos_theta^2",
+            "log2(x)",
+            "x0 + xmax",
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(self._reasons(text), [])
+
+    def test_names_that_start_with_a_function_name(self) -> None:
+        hint = "write it in standard syntax (e.g. sqrt(2), sin(x)*e^x) or rename it"
+        cases = {
+            "sqrt2/2": ["sqrt2 is read as one variable; write sqrt(2)"],
+            "e^(x*ln2)": ["ln2 is read as one variable; write ln(2)"],
+            "sin2": ["sin2 is read as one variable; write sin(2)"],
+            "sinxe^x": [f"sinxe is read as one variable; {hint}"],
+            "sinpix": [f"sinpix is read as one variable; {hint}"],
+            "sinx2": [f"sinx2 is read as one variable; {hint}"],
+            # descriptive names too: check_steps and solve decide what they mean
+            "costs - revenue": [f"costs is read as one variable; {hint}", f"revenue is read as one variable; {hint}"],
+            "seconds*1000": [f"seconds is read as one variable; {hint}"],
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(self._reasons(text), expected)
+
+    def test_decomposes(self) -> None:
+        keys = ("sin", "cos", "ln", "e", "pi")
+        for name in ("sinxe", "sinxcosx", "exe", "sin2", "sinpix"):
+            with self.subTest(name=name):
+                self.assertTrue(decomposes(name, keys + ("x",), keys))
+        for name in ("costs", "x0", "xx", "revenue", "sin", "pex"):
+            with self.subTest(name=name):
+                self.assertFalse(decomposes(name, keys + ("x",), keys))
+
+    def test_kept_names(self) -> None:
+        self.assertEqual(self._reasons("cost < 1", keep=("cost",)), [])
+        self.assertEqual(self._reasons("ex = 1", keep=("ex",)), [])
+
+    def test_glued_calls(self) -> None:
+        glued = ("sin", "asin", "ln", "log", "cos")
+        self.assertEqual(glued_call("sinx", glued), ("", "sin", "x"))
+        self.assertEqual(glued_call("asinx", glued), ("", "asin", "x"))
+        self.assertEqual(glued_call("sin2x", glued), ("", "sin", "2x"))
+        self.assertEqual(glued_call("xlnx", glued), ("x", "ln", "x"))
+        for name in ("costs", "cos_t", "xycosx", "sin", "seconds", "logs2", "log2x", "log10x", "ln2x"):
+            with self.subTest(name=name):
+                self.assertIsNone(glued_call(name, glued))
+        # a function name is never taken for a glued call: sech is not sec(h)
+        functions = ("sech", "csch", "coth", "sinc")
+        for name in functions:
+            with self.subTest(name=name):
+                self.assertIsNone(glued_call(name, ("sec", "csc", "cot", "sin"), functions))
+        self.assertEqual(glued_call("sinhx", ("sin", "sinh")), ("", "sinh", "x"))
+        # the letter before is never the start of a function name: asinhx is not a*sinh(x)
+        self.assertIsNone(glued_call("asinhx", ("sinh",), ("asinh",)))
+        self.assertEqual(glued_call("asinhx", ("sinh", "asinh"), ("asinh",)), ("", "asinh", "x"))
+        self.assertEqual(glued_call("xasinhx", ("sinh", "asinh"), ("asinh",)), ("x", "asinh", "x"))
 
 
 class TestRewriteForNerdamer(unittest.TestCase):

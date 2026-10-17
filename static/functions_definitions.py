@@ -1660,7 +1660,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "properties": {
                     "equation": {
                         "type": "string",
-                        "description": "The equation or inequality as a string. Examples: 'x^2 - 1 = 0', 'x^2 - 5x + 6 < 0', '|x - 1| >= 2', '(x-1)/(x+2) > 0'",
+                        "description": "The equation or inequality as a string. Examples: 'x^2 - 1 = 0', 'x^2 - 5x + 6 < 0', '|x - 1| >= 2', '(x-1)/(x+2) > 0'. Standard syntax only: call every function with parentheses (sin(x), ln(x)), write products with * or a number before a letter (2x, x*e^x), use e^x or exp(x), and |x| or abs(x); other spellings are refused with a hint.",
                     },
                     "variable": {"type": "string", "description": "The variable to solve for. Example: 'x'"},
                     "interval": {
@@ -1709,6 +1709,27 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     }
                 },
                 "required": ["equations"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "check_steps",
+            "description": "Checks a derivation: given the expressions of a worked solution in order, each a rewrite of the one before (e.g. ['(x+1)^2 - 1', 'x^2 + 2x + 1 - 1', 'x^2 + 2x', 'x(x+2)']), says for each step whether it is equivalent to the previous one and names the first wrong step with a reason (the difference SymPy finds, and a point where the two steps take different values). Verdicts: equivalent, not_equivalent, undecided; a step that holds only where both are defined (log(x^2) to 2*log(x)) is equivalent with a note. Expressions only, 2 to 12 steps; equations and inequalities are not supported yet. Use it to check a user's working, or your own multi-step algebra before presenting it.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "steps": {
+                        "type": "array",
+                        "minItems": 2,
+                        "description": "The steps in order, one expression per step. Write a chain a = b = c as the separate steps a, b, c. Example: ['(x+1)^2 - 1', 'x^2 + 2x', 'x(x+2)']. Standard syntax only: call every function with parentheses (sin(x), ln(x)), write products with * or a number before a letter (2x, x*e^x), use e^x or exp(x), and |x| or abs(x); other spellings are refused with a hint.",
+                        "items": {"type": "string"},
+                    }
+                },
+                "required": ["steps"],
                 "additionalProperties": False,
             },
         },

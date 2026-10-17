@@ -1481,7 +1481,7 @@ def register_routes(app: MatHudFlask) -> None:
         """Run one SymPy computation for the CAS tools (static/sympy_cas.py).
 
         Request body:
-            operation (str): limit, integrate, solve, solve_inequality, simplify or derive
+            operation (str): limit, integrate, solve, solve_inequality, simplify, derive or equivalent
             args (dict): the operation's arguments, all strings (or null for an absent bound)
 
         Returns:

@@ -5,11 +5,12 @@ derivative is "ln"; log(x, 2) keeps only the natural log when differentiated. Th
 helpers rewrite the common spellings nerdamer lacks into ones it knows, and list the
 function names it would misread so the caller can refuse them with a clear message.
 
-The solve tool's inequalities use five more: split_relation (the expressions and signs of
+The solve tool and check_steps use six more: split_relation (the expressions and signs of
 an inequality or a chain), parse_interval ("[0, 2*pi)" and the like),
 insert_letter_call_products (x(x+2) as x*(x+2), which SymPy and math.js read as a call),
-insert_implicit_products ((x-1)(x+2) and (x+1)2 as products, as SymPy reads them) and
-split_top_level_terms (the signed terms of a sum).
+insert_implicit_products ((x-1)(x+2) and (x+1)2 as products, as SymPy reads them),
+split_top_level_terms (the signed terms of a sum), and misspellings (sin x, sinx and xe^x,
+which the tools refuse with the standard form to write).
 
 Pure Python (no browser imports), so server-side pytest covers it.
 """
@@ -17,7 +18,7 @@ Pure Python (no browser imports), so server-side pytest covers it.
 from __future__ import annotations
 
 import re
-from typing import Iterable, List, Tuple
+from typing import Dict, Iterable, List, NamedTuple, Optional, Sequence, Set, Tuple
 
 # A name followed by "(". A digit may come before it (2ln(x) is 2*ln(x)); a letter, "_" or "."
 # may not, and since matches are found left to right, a name with digits inside (log10, x2ln)
@@ -369,3 +370,223 @@ def parse_interval(text: str) -> Tuple[str, str, bool, bool]:
     if len(ends) != 2 or not all(ends):
         raise ValueError(f"an interval has two ends separated by a comma, such as [0, 2*pi], not {text!r}.")
     return ends[0], ends[1], lower_closed, upper_closed
+
+
+# ----- Spellings the tools refuse --------------------------------------------------------
+# The tools take standard syntax only (sin(x), x*ln(x), x*e^x). Spellings a reader could take
+# two ways (sin x, sinx, xlnx, xe^x) are never rewritten: misspellings finds them, so the
+# caller can refuse them with the standard form to write.
+
+# Identifiers and numbers, matched whole (expression_functions.TOKEN_PATTERN)
+_TOKEN = re.compile(r"[a-zA-Z_][a-zA-Z_0-9]*|(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?")
+# A power on a function name before its "(": sin^2(x), sin^-1(x)
+_FUNCTION_POWER = re.compile(r"\^(?:\d+|-1|\(-1\))")
+# The factors written after a function name without parentheses: sin x, sin 2x, sin pi x
+_SPACED_OPERAND = re.compile(r"(?:\s*(?:\d+(?:\.\d+)?[A-Za-z]*|[A-Za-z][A-Za-z0-9]*))+")
+# A power after e: xe^x, xe^(kt)
+_POWER = re.compile(r"\^(?:\([^()]*\)|-?[A-Za-z0-9.]+)")
+# A function glued to a one-letter operand, with an optional coefficient: sinx, sin2x
+_GLUED_OPERAND = re.compile(r"(\d+(?:\.\d+)?)?([A-Za-z])$")
+# One letter and e or pi written together: xe, ex, xpi, pix (not i, the imaginary unit)
+_CONSTANT_PRODUCT = re.compile(r"(?:([a-df-hj-zA-Z])(e|pi)|(e|pi)([a-df-hj-zA-Z]))$")
+# log2x and log10x: log2(x) or log(2x)?
+_LOG_DIGITS = re.compile(r"^(log|ln)(\d+)([A-Za-z])$")
+_LOGS = ("log", "ln")
+# One letter, the longest function name (asinh), a number and one letter: longer names are words
+_MAX_GLUED_LENGTH = 16
+# Longer names are never split into pieces
+_MAX_SPLIT_LENGTH = 40
+
+
+class Misspelling(NamedTuple):
+    """A spelling the tools refuse.
+
+    Attributes:
+        name: the name as written (sin, sinx, xlnx, xe).
+        call: the standard form to write instead (sin(x), x*ln(x), x*e^x).
+        reason: a sentence naming both.
+        bare: True for a function written without parentheses (sin x, sin alone).
+        letters: the one-letter variables a glued name holds (x for sinx, xlnx and xe).
+        powered: True for e glued to a letter and raised to a power (xe^x).
+    """
+
+    name: str
+    call: str
+    reason: str
+    bare: bool
+    letters: Tuple[str, ...]
+    powered: bool
+
+
+def glued_call(
+    name: str, glued_names: Iterable[str], function_names: Iterable[str] = ()
+) -> Optional[Tuple[str, str, str]]:
+    """(prefix, function, operand) when name looks like a function glued to a one-letter
+    operand, with at most one letter before it: sinx -> ("", "sin", "x"), sin2x -> ("", "sin",
+    "2x"), xlnx -> ("x", "ln", "x"); None for any other name (costs, seconds, cos_theta), for a
+    function name (sech is not sec(h)) and for a digit after a log (log2x). The letter before is
+    never the start of a function name (asinhx is asinh and x).
+    """
+    known = set(function_names)
+    if "_" in name or name in known or len(name) > _MAX_GLUED_LENGTH:
+        return None
+    functions = sorted(glued_names, key=len, reverse=True)
+    for prefix in ("", name[:1]):
+        if prefix and not prefix.isalpha():
+            break
+        body = name[len(prefix) :]
+        for function in functions:
+            operand = body[len(function) :]
+            if not body.startswith(function) or not _GLUED_OPERAND.match(operand):
+                continue
+            if prefix and prefix + function in known:
+                continue
+            if function in _LOGS and operand[0].isdigit():
+                return None
+            return prefix, function, operand
+    return None
+
+
+def misspellings(
+    text: str,
+    unary_names: Iterable[str],
+    glued_names: Iterable[str],
+    function_names: Iterable[str] = (),
+    keep: Iterable[str] = (),
+) -> List[Misspelling]:
+    """The spellings in text the tools refuse, in order: a function in unary_names written
+    without parentheses (sin x, sin 2x, x ln x, sin^2 x, sin alone), a name that looks like a
+    function glued to a letter (sinx, sin2x, xlnx, asinhx), a letter and e or pi written
+    together (xe^x, xpi), a log glued to digits (log2x), and any other name that starts with
+    a function name (sqrt2, ln2, sinxe, sinpix, costs). Names in keep (the variable being
+    solved for), in function_names, with "_" and after a "." are never misspellings; ln|x| and
+    sin (x) are standard.
+    """
+    unary, glued, kept = set(unary_names), set(glued_names), set(keep)
+    functions = set(function_names) | unary
+    prefixes = sorted(functions | glued, key=len, reverse=True)
+    found: List[Misspelling] = []
+    for match in _TOKEN.finditer(text):
+        name = match.group(0)
+        if name[0].isdigit() or name in kept or (match.start() > 0 and text[match.start() - 1] == "."):
+            continue
+        if name in unary:
+            misspelling = _bare_call(text, name, match.end(), functions)
+        elif name in functions or text[match.end() : match.end() + 1] == "(":
+            continue
+        else:
+            misspelling = _glued_name(text, name, match.end(), glued, functions)
+            if misspelling is None:
+                misspelling = _function_prefix(name, prefixes)
+        if misspelling is not None:
+            found.append(misspelling)
+    return found
+
+
+def _bare_call(text: str, name: str, end: int, functions: Set[str]) -> Optional[Misspelling]:
+    """sin x, sin^2 x, sin alone: name, ending at end, has no "(" (or the bar of ln|x|) after
+    it. The call in the hint takes the factors after it, up to the next function."""
+    power = _FUNCTION_POWER.match(text, end)
+    power_text = power.group(0) if power is not None else ""
+    after = power.end() if power is not None else end
+    if _next_character(text, after) in ("(", "|"):
+        return None
+    operand = _SPACED_OPERAND.match(text, after)
+    factors: List[str] = []
+    # re.findall, not str.split(): Brython's split() keeps a leading space here
+    for factor in re.findall(r"[^\s]+", operand.group(0)) if operand is not None else []:
+        if factor in functions:
+            break
+        factors.append(factor)
+    following = _next_character(text, operand.end() if operand is not None else after)
+    unclear = following in ("*", "/", "^", "(") or (len(factors) > 1 and not _is_coefficient(factors[0]))
+    if factors and unclear:
+        # sin x/2, sin 2*x, sin x y: sin(x)/2 or sin(x/2)? The writer says.
+        call = f"{name}{power_text}(...)"
+        return Misspelling(name, call, f"{name} needs parentheses around its argument; write {call}", True, (), False)
+    call = f"{name}{power_text}({'*'.join(factors[:2]) or 'x'})"
+    return Misspelling(name, call, f"{name} needs parentheses; write {call}", True, (), False)
+
+
+def _next_character(text: str, index: int) -> str:
+    """The first character at or after index that is not a space ("" at the end)."""
+    rest = text[index:].lstrip()
+    return rest[:1]
+
+
+def _is_coefficient(factor: str) -> bool:
+    """True for a number or pi, which come first in a product (sin 2 x, sin pi x)."""
+    return factor == "pi" or factor[0].isdigit()
+
+
+# The hint for a name that starts with a function name and is no glued call
+NAME_HINT = "write it in standard syntax (e.g. sqrt(2), sin(x)*e^x) or rename it"
+
+
+def _function_prefix(name: str, prefixes: Sequence[str]) -> Optional[Misspelling]:
+    """sqrt2 (write sqrt(2)), sinxe, sinpix, costs: a name that starts with a function name in
+    prefixes (longest first), as a Misspelling with no letters; None for other names. A call
+    with digits after it (sqrt2) has its call in the hint; any other has call "" (costs may be
+    a variable)."""
+    if "_" in name:
+        return None
+    function = next((prefix for prefix in prefixes if len(name) > len(prefix) and name.startswith(prefix)), None)
+    if function is None:
+        return None
+    rest = name[len(function) :]
+    if rest.isdigit():
+        call = f"{function}({rest})"
+        return Misspelling(name, call, f"{name} is read as one variable; write {call}", False, (), False)
+    return Misspelling(name, "", f"{name} is read as one variable; {NAME_HINT}", False, (), False)
+
+
+def decomposes(name: str, pieces: Iterable[str], required: Iterable[str]) -> bool:
+    """True when name is two or more of pieces and digit runs written together, at least one
+    of them in required: sinxe (sin, x, e), sin2, exe, sinxcosx."""
+    if len(name) > _MAX_SPLIT_LENGTH:
+        return False
+    parts, needed = sorted(set(pieces), key=len, reverse=True), set(required)
+    # found[i]: (pieces in name[i:], whether one is required), or None; from the end
+    found: Dict[int, Optional[Tuple[int, bool]]] = {len(name): (0, False)}
+    for start in range(len(name) - 1, -1, -1):
+        found[start] = None
+        candidates = [part for part in parts if name.startswith(part, start)]
+        digits = re.match(r"\d+", name[start:])
+        if digits is not None:
+            candidates.append(digits.group(0))
+        for part in candidates:
+            rest = found.get(start + len(part))
+            if rest is None:
+                continue
+            option = (rest[0] + 1, rest[1] or part in needed)
+            current = found[start]
+            if current is None or (option[1] and not current[1]):
+                found[start] = option
+    result = found[0]
+    return result is not None and result[0] >= 2 and result[1]
+
+
+def _glued_name(text: str, name: str, end: int, glued: Set[str], functions: Set[str]) -> Optional[Misspelling]:
+    """sinx, xlnx, xe^x, xpi, log2x as Misspellings; None for other names."""
+    parts = glued_call(name, glued, functions)
+    if parts is not None:
+        prefix, function, operand = parts
+        call = f"{prefix + '*' if prefix else ''}{function}({operand})"
+        letters = tuple(dict.fromkeys(prefix + operand[-1]))
+        return Misspelling(name, call, f"{name} is read as one variable; write {call}", False, letters, False)
+    logs = _LOG_DIGITS.match(name)
+    if logs is not None:
+        function, digits, letter = logs.groups()
+        # log2 and log10 are functions, ln2 is not
+        second = f"ln({digits})*{letter}" if function == "ln" else f"{function}{digits}({letter})"
+        call = f"{second} or {function}({digits}{letter})"
+        return Misspelling(name, call, f"{name} is read as one variable; write {call}", False, (letter,), False)
+    constant = _CONSTANT_PRODUCT.match(name)
+    if constant is None:
+        return None
+    first, second = (constant.group(1), constant.group(2)) if constant.group(1) else constant.group(3, 4)
+    power = _POWER.match(text, end) if second == "e" else None
+    call = f"{first}*{second}{power.group(0) if power is not None else ''}"
+    letter = second if first in ("e", "pi") else first
+    reason = f"{name} is read as one variable; write {call}"
+    return Misspelling(name, call, reason, False, (letter,), power is not None)

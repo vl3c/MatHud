@@ -455,3 +455,70 @@ def test_measurements_and_named_relations_do_not_rank_solve_first(
     assert names[0] != "solve", names
     if expected is not None:
         assert expected in names[:3], names
+
+
+# A derivation to check ranks check_steps first; a step-by-step request for another operation,
+# a simplification and a construction keep their own tools
+@pytest.mark.parametrize(
+    "query",
+    [
+        "Check my steps: (x+1)^2 - 1, x^2 + 2x, x(x+2).",
+        "Which step of this derivation is wrong?",
+        "Is x^2 - 1 equivalent to (x - 1)(x + 1)?",
+        "find the mistake in my algebra: 2(x+3) = 2x+3",
+        "is my simplification of (x^2-4)/(x-2) to x+2 correct?",
+    ],
+)
+def test_derivations_to_check_rank_check_steps_first(service: ToolSearchService, query: str) -> None:
+    assert _names(service, query)[0] == "check_steps"
+
+
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("Check whether AB and CD are perpendicular", "inspect_relation"),
+        ("simplify (x^2-4)/(x-2)", "simplify"),
+        ("Solve x^2 - 5x + 6 = 0 step by step.", "solve"),
+        ("Follow these steps to construct the perpendicular bisector of AB.", "construct_perpendicular_bisector"),
+    ],
+)
+def test_other_operations_do_not_rank_check_steps_first(service: ToolSearchService, query: str, expected: str) -> None:
+    names = _names(service, query)
+    assert names[0] == expected, names
+    assert "check_steps" not in names[:3], names
+
+
+# A request that names another operation keeps its tool, though it says step, check or working
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("follow these steps: plot sin(x), then plot cos(x)", "draw_function"),
+        ("follow the steps below and plot the function x^3", "draw_function"),
+        ("the plot is not working correctly, please check", "draw_function"),
+        ("plot the function step by step and check", "draw_function"),
+        ("evaluate sin(pi/4) step by step and check", "evaluate_expression"),
+        ("compute the mean step by step and verify", "compute_descriptive_statistics"),
+        ("evaluate the integral of x^2 from 0 to 1, check each step", "evaluate_expression"),
+    ],
+)
+def test_named_operations_keep_their_tools(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected
+
+
+def test_a_derivative_is_not_a_derivation(service: ToolSearchService) -> None:
+    assert _names(service, "What is the derivative of x^3 + 2x - 1?")[0] == "derive"
+
+
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("What is the equivalent of 5 miles in kilometers?", "convert"),
+        ("equivalent fractions of 1/2", "simplify"),
+    ],
+)
+def test_equivalent_units_and_fractions_are_not_derivations(
+    service: ToolSearchService, query: str, expected: str
+) -> None:
+    names = _names(service, query)
+    assert names[0] == expected, names
+    assert "check_steps" not in names[:3], names

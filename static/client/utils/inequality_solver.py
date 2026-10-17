@@ -22,6 +22,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, ca
 from utils.cas_text import (
     insert_implicit_products,
     insert_letter_call_products,
+    misspellings,
     parse_interval,
     split_relation,
     split_top_level_terms,
@@ -47,6 +48,9 @@ _TRIG_CALL = re.compile(r"(?<![A-Za-z_])(?:sin|cos|tan|sec|csc|cot)\s*\(")
 _TRIG_WINDOW = (-2 * math.pi, 2 * math.pi, "-2*pi", "2*pi")
 # A number written before a name or "(" (2pi, 3(x+1)), but not an exponent (1e5)
 _IMPLICIT_PRODUCT = re.compile(r"(?<![A-Za-z_\d.])(\d+\.?\d*)(?![eE][-+]?\d)\s*(?=[A-Za-z(])")
+# A number (2, 1.5, 1e20, kept whole so e20 is no name) or a name (x, cost, θ), as the
+# misspelling checks read them
+_NUMBER_OR_NAME = re.compile(r"(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?|([^\W\d]\w*)")
 # Spellings of an infinite interval end (any case, with an optional sign)
 _INFINITE_ENDS = ("inf", "infinity", "oo", "∞")
 
@@ -60,8 +64,9 @@ class InequalitySolver:
         from utils.math_utils import MathUtils
 
         try:
-            parts, signs = split_relation(InequalitySolver.prepared(inequality))
             variable = str(MathUtils._normalize_variable(variable))
+            InequalitySolver.refuse_misspellings(inequality, variable)
+            parts, signs = split_relation(InequalitySolver.prepared(inequality))
             window = InequalitySolver.window(interval)
             InequalitySolver._check_variable(parts, variable)
             seeds = InequalitySolver._seeds(parts, signs, variable)
@@ -93,16 +98,72 @@ class InequalitySolver:
 
     @staticmethod
     def prepared(text: str) -> str:
-        """text read the same way by SymPy and math.js: MathUtils._cas_input, bars as abs(), x(x+2) as
-        x*(x+2), and (x-1)(x+2), (x+1)2 and (x-2)^2 (x+1) as products."""
+        """text read the same way by SymPy and math.js: bars as abs(), MathUtils._cas_input
+        (after the bars, so ln|x| becomes log(abs(x))), x(x+2) as x*(x+2), and (x-1)(x+2), (x+1)2
+        and (x-2)^2 (x+1) as products. Calculator spellings (sin x, sinx, xe^x) are not
+        rewritten; refuse_misspellings refuses them."""
         from expression_functions import BY_NAME, CALL_ALIASES, replace_absolute_bars
         from utils.math_utils import MathUtils
 
         if not isinstance(text, str):
-            raise ValueError("The inequality must be given as text.")
-        prepared = replace_absolute_bars(str(MathUtils._cas_input(text)))
+            raise ValueError("The expression must be given as text.")
+        prepared = replace_absolute_bars(str(MathUtils._normalize_symbols(text)))
+        prepared = str(MathUtils._cas_input(prepared))
         prepared = insert_letter_call_products(prepared, list(BY_NAME) + list(CALL_ALIASES))
         return str(insert_implicit_products(prepared))
+
+    @staticmethod
+    def misspellings(text: str, keep: Sequence[str] = ()) -> List[Any]:
+        """The calculator spellings in text that the tools refuse (cas_text.misspellings):
+        sin x, sinx, xlnx, xe^x, xpi, log2x. Names in keep are never misspellings."""
+        from expression_functions import CALCULATOR_SPELLINGS, ENGINE_FUNCTION_NAMES, GLUED_CALL_NAMES
+        from utils.math_utils import MathUtils
+
+        normalized = str(MathUtils._normalize_symbols(text))
+        return list(misspellings(normalized, CALCULATOR_SPELLINGS, GLUED_CALL_NAMES, ENGINE_FUNCTION_NAMES, keep))
+
+    @staticmethod
+    def refuse_misspellings(text: str, variable: str) -> None:
+        """Raise ValueError with the standard form to write when text has:
+
+        - a function without parentheses (sin x), or a function and digits (sin2, sqrt2);
+        - a glued name (sinx, xlnx, xe^x, xpi) that holds variable or another variable of text,
+          or e glued to a letter and raised to a power (ke^x);
+        - a name made of calculator keys, e and pi, with variable and digits (sinxe, sinxcosx,
+          exe, sin2);
+        - no variable at all once it is prepared (y = mx + b solved for x).
+
+        Other names are variables: cost in profit = revenue - cost, solved for revenue, x0 and
+        xmax, and costs or revenue, though they start with a function name.
+
+        Raises:
+            ValueError: naming the misspelling and what to write instead.
+        """
+        from expression_functions import CALCULATOR_SPELLINGS, ENGINE_FUNCTION_NAMES, GLUED_CALL_NAMES
+        from utils.cas_text import NAME_HINT, decomposes, has_inequality
+
+        if not isinstance(text, str):
+            return
+        tokens = list(dict.fromkeys(_names(text)))
+        names = set(tokens) | {variable}
+        for misspelling in InequalitySolver.misspellings(text, keep=(variable,)):
+            if misspelling.bare or misspelling.powered or (misspelling.call and not misspelling.letters):
+                raise ValueError(f"{misspelling.reason}.")
+            if set(misspelling.letters) & names:
+                raise ValueError(f"{misspelling.reason}, or rename the variable.")
+        # calculator keys, e and pi, with variable and digits between them: xmax and x0 are names
+        keys = set(CALCULATOR_SPELLINGS) | set(GLUED_CALL_NAMES) | {"e", "pi"}
+        functions = set(ENGINE_FUNCTION_NAMES) | keys
+        for token in tokens:
+            if token != variable and token not in functions and decomposes(token, keys | {variable}, keys):
+                raise ValueError(f"{token} is read as one variable; {NAME_HINT}.")
+        try:
+            prepared = InequalitySolver.prepared(text)
+        except Exception:
+            return  # the engines say what they cannot read
+        if variable not in _names(prepared):
+            kind = "inequality" if has_inequality(prepared) else "equation"
+            raise ValueError(f"{variable} does not appear in the {kind}.")
 
     @staticmethod
     def window(interval: Optional[str]) -> Optional[Window]:
@@ -458,3 +519,8 @@ def _end_text(text: str, value: float) -> str:
     if re.search(r"[A-Za-z]", compact):
         return compact
     return str(number_text(value))
+
+
+def _names(text: str) -> List[str]:
+    """The names in text, in order (2x has x; 1e20 has none)."""
+    return [name for name in _NUMBER_OR_NAME.findall(text) if name]

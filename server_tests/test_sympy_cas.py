@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import unittest
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 
 import pytest
 
@@ -13,6 +13,7 @@ sympy = pytest.importorskip("sympy")
 from static.sympy_cas import (  # noqa: E402
     ExpressionError,
     compute_derivative,
+    compute_equivalent,
     compute_integral,
     compute_limit,
     compute_simplify,
@@ -234,6 +235,68 @@ class TestOperations(unittest.TestCase):
         self.assertIsNone(handle({"operation": "limit", "args": {"expression": "x"}})["result"])
 
 
+class TestEquivalent(unittest.TestCase):
+    """The step checker's symbolic half: is second - first 0 for every real value?"""
+
+    def _verdict(self, first: str, second: str) -> Tuple[Optional[str], Optional[str]]:
+        result = compute_equivalent(first, second)
+        return result["verdict"], result["difference"]
+
+    def test_proved(self) -> None:
+        for first, second in (
+            ("(x+1)^2 - 1", "x^2 + 2x + 1 - 1"),
+            ("x^2 + 2x", "x*(x+2)"),
+            ("(x^2-1)/(x-1)", "x+1"),
+            ("1/x + 1/y", "(x+y)/(x*y)"),
+            ("(a+b)^2", "a^2 + 2a*b + b^2"),
+            ("x/(sqrt(2)-1)", "(sqrt(2)+1)*x"),
+            ("x^2/2", "0.5x^2"),
+            # simplify proves these
+            ("sin(x)^2", "1 - cos(x)^2"),
+            ("sin(2x)", "2sin(x)cos(x)"),
+            ("cos(x)^4 - sin(x)^4", "cos(2x)"),
+            ("sec(x)^2 - 1", "tan(x)^2"),
+            ("sqrt(2) + sqrt(3)", "sqrt(5 + 2*sqrt(6))"),
+            # for real x, sqrt(x)^2 is x and e^(2*log(x)) is x^2 (the numeric check notes the domain)
+            ("e^(2*log(x))", "x^2"),
+        ):
+            with self.subTest(first=first, second=second):
+                self.assertEqual(self._verdict(first, second), ("equivalent", None))
+
+    def test_not_equivalent(self) -> None:
+        # A rational difference that does not cancel, or a nonzero constant
+        self.assertEqual(self._verdict("(x+1)^2 - 1", "x^2 + 1 - 1"), ("not_equivalent", "-2*x"))
+        self.assertEqual(self._verdict("(x^3-8)/(x-2)", "x^2+4x+4"), ("not_equivalent", "2*x"))
+        self.assertEqual(self._verdict("(a+b)^2", "a^2 + b^2"), ("not_equivalent", "-2*a*b"))
+        self.assertEqual(self._verdict("2+3", "6"), ("not_equivalent", "1"))
+        self.assertEqual(self._verdict("sin(x)^2 + cos(x)^2", "2"), ("not_equivalent", "1"))
+        self.assertEqual(self._verdict("pi", "3.14159"), ("not_equivalent", "314159/100000-pi"))
+
+    def test_unknown(self) -> None:
+        # Not proved either way: the difference, when it is short, explains the numeric verdict
+        self.assertEqual(self._verdict("sqrt(x^2)", "x"), ("unknown", "x-abs(x)"))
+        self.assertEqual(self._verdict("log(x^2)", "2log(x)"), ("unknown", "2*log(x)-log(x^2)"))
+        self.assertEqual(self._verdict("sin(x)", "cos(x)"), ("unknown", "-sin(x)+cos(x)"))
+        self.assertEqual(self._verdict("1/0", "1"), ("unknown", None))
+        long_terms = "+".join(f"x^{k}*sin(x)" for k in range(1, 40))
+        self.assertEqual(self._verdict(long_terms, long_terms + "+cos(x)")[0], "unknown")
+
+    def test_size_guard(self) -> None:
+        # More than MAX_SIMPLIFY_OPS operations: simplify is not tried, so this identity is unknown
+        first = "+".join(f"sin({k}*x)^2" for k in range(1, 60))
+        second = "+".join(f"(1-cos({k}*x)^2)" for k in range(1, 60))
+        self.assertEqual(self._verdict(first, second)[0], "unknown")
+        self.assertEqual(self._verdict("sin(3*x)^2", "1-cos(3*x)^2")[0], "equivalent")
+
+    def test_handle(self) -> None:
+        self.assertEqual(
+            handle({"operation": "equivalent", "args": {"first": "x^2-1", "second": "(x-1)(x+1)"}}),
+            {"result": {"verdict": "equivalent", "difference": None}},
+        )
+        self.assertIn("error", handle({"operation": "equivalent", "args": {"first": "x(", "second": "x"}}))
+        self.assertIn("error", handle({"operation": "equivalent", "args": {"first": "f(x)", "second": "x"}}))
+
+
 def _ends(solution: Any) -> List[Tuple[str, str, bool, bool]]:
     """The intervals of a solve_inequality result as (lower, upper, lower_closed, upper_closed)."""
     assert solution is not None
@@ -428,6 +491,8 @@ class TestResponsesAreBrythonSafe(unittest.TestCase):
             ("solve", {"equation": "sin(x)=0", "variable": "x", "lower": "0", "upper": "1000", "bounds": "[)"}),
             ("simplify", {"expression": "2^60"}),
             ("integrate", {"expression": "x", "variable": "x", "lower": "0", "upper": "1e10"}),
+            ("equivalent", {"first": "x^2", "second": "x^2 + 1e20"}),
+            ("equivalent", {"first": "sqrt(x)", "second": "x^0.5 + 1e-30*x"}),
         ]
         for operation, args in requests:
             with self.subTest(operation=operation, args=args):
@@ -484,6 +549,13 @@ class TestRoute(unittest.TestCase):
             response.get_json()["data"]["result"]["intervals"],
             [{"lower": "-2", "upper": "2", "lower_closed": False, "upper_closed": False}],
         )
+
+    def test_cas_route_equivalent(self) -> None:
+        response = self.client.post(
+            "/api/cas", json={"operation": "equivalent", "args": {"first": "(x+1)^2", "second": "x^2+1"}}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["data"], {"result": {"verdict": "not_equivalent", "difference": "-2*x"}})
 
     def test_cas_route_refuses_bad_bodies(self) -> None:
         self.assertEqual(self.client.post("/api/cas", json=[1]).status_code, 400)

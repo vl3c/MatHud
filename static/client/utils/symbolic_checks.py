@@ -21,6 +21,8 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from browser import window
 
+from expression_functions import rename_for_mathjs
+from utils import equivalence
 from utils.cas_numeric import IntegralEstimate, adaptive_integral
 from utils.cas_text import rewrite_for_nerdamer, unknown_function_names
 
@@ -102,6 +104,66 @@ class SymbolicChecks:
             scope[variable] = point
             try:
                 value = compiled(scope)
+            except Exception:
+                return None
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                return None
+            return float(value)
+
+        return evaluate
+
+    # Names math.js reads as constants, never as variables. tau and phi are left out:
+    # people write them as variables (Greek letters), and a scope value overrides math.js's constant.
+    _MATHJS_CONSTANTS = frozenset(
+        ("e", "E", "pi", "PI", "i", "Infinity", "NaN", "true", "false", "null", "undefined")
+        + ("LN2", "LN10", "LOG2E", "LOG10E", "SQRT1_2", "SQRT2")
+    )
+
+    @staticmethod
+    def expression_variables(expression: str) -> List[str]:
+        """The names math.js reads as variables in an expression, sorted.
+
+        Read from math.js's parse tree (SymbolNodes that are not the name of a called
+        function, nor a constant such as e, pi or i), so they are the names the evaluator
+        needs values for: xy is one name, 2x is 2*x.
+
+        Raises:
+            ValueError: when math.js cannot parse the expression.
+        """
+        try:
+            tree = window.math.parse(rename_for_mathjs(str(expression).replace("**", "^")))
+        except Exception as error:
+            message = str(getattr(error, "message", "") or error)
+            raise ValueError(f"math.js: {message}") from None
+        names: List[str] = []
+
+        def visit(node: Any, path: Any, parent: Any) -> None:
+            if str(node.type) != "SymbolNode" or str(path) == "fn":
+                return
+            name = str(node.name)
+            if name not in SymbolicChecks._MATHJS_CONSTANTS and name not in names:
+                names.append(name)
+
+        tree.traverse(visit)
+        return sorted(names)
+
+    @staticmethod
+    def scope_function(expression: str) -> Optional[Callable[[Dict[str, float]], Optional[float]]]:
+        """The expression as f({name: value, ...}) evaluated by math.js; None when it cannot be compiled.
+
+        f returns a float (inf or nan where the expression is infinite or 0/0), or None where
+        the value is not real (log(-1)) or math.js cannot evaluate it.
+        """
+        from utils.math_utils import MathUtils
+
+        try:
+            compiled = MathUtils._compiled_evaluator(str(expression).replace("**", "^"))
+        except Exception:
+            return None
+
+        def evaluate(values: Dict[str, float]) -> Optional[float]:
+            try:
+                value = compiled(dict(values))
             except Exception:
                 return None
             if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -198,28 +260,15 @@ class SymbolicChecks:
             return False
         return True if matches >= MIN_CHECKED_POINTS and mismatches == 0 else None
 
-    # Rounding noise is estimated from f at point * (1 + k * 2^-52) for these k, and scaled up
-    # by _NOISE_FACTOR, since a few nudges only sample it.
-    _NOISE_NUDGES = (-8, -4, -2, -1, 1, 2, 4, 8)
-    _NOISE_FACTOR = 4.0
-
     @staticmethod
     def rounding_noise(function: RealFunction, point: float) -> float:
         """How much f's floating-point value at point is off by rounding, estimated from its scatter.
 
         An expanded polynomial near a root ((x-3)^15 expanded, at 2.2) cancels terms much larger
         than its value, so its computed values scatter far beyond a relative tolerance on the value.
+        See utils.equivalence.rounding_noise, which does it for any number of variables.
         """
-        centre = function(point)
-        if centre is None or not math.isfinite(centre):
-            return math.inf
-        largest = 0.0
-        for nudge in SymbolicChecks._NOISE_NUDGES:
-            value = function(point * (1 + nudge * 2.0**-52) if point != 0 else nudge * 2.0**-1074)
-            if value is None or not math.isfinite(value):
-                return math.inf
-            largest = max(largest, abs(value - centre))
-        return SymbolicChecks._NOISE_FACTOR * largest
+        return equivalence.rounding_noise(lambda values: function(values["x"]), {"x": point})
 
     @staticmethod
     def _difference_quotient(function: RealFunction, point: float) -> Optional[List[float]]:

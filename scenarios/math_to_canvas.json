@@ -222,6 +222,36 @@
           ]
         }
       ]
+    },
+    {
+      "id": "MC-08",
+      "title": "Check the steps of a derivation",
+      "tags": ["math"],
+      "smoke": false,
+      "targets": "check_steps: the first wrong step of a derivation named (SymPy's difference and a counterexample, or the numeric check without SymPy), and a correct derivation passed",
+      "steps": [
+        {
+          "user": "Which step is wrong: (x+1)^2 - 1, x^2 + 1 - 1, x^2",
+          "reference": [
+            {"tool": "check_steps", "args": {"steps": ["(x+1)^2 - 1", "x^2 + 1 - 1", "x^2"]}}
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "tool_result", "tool": "check_steps", "path": "first_wrong_step", "eq": 2},
+            {"check": "tool_result", "tool": "check_steps", "path": "verdict", "eq": "not_equivalent"}
+          ]
+        },
+        {
+          "user": "And this one: (x+1)^2 - 1, x^2 + 2x + 1 - 1, x^2 + 2x, x(x+2)",
+          "reference": [
+            {"tool": "check_steps", "args": {"steps": ["(x+1)^2 - 1", "x^2 + 2x + 1 - 1", "x^2 + 2x", "x(x+2)"]}}
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "tool_result", "tool": "check_steps", "path": "verdict", "eq": "equivalent"}
+          ]
+        }
+      ]
     }
   ]
 }
