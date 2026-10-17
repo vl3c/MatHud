@@ -123,7 +123,7 @@ class InequalitySolver:
         return list(misspellings(normalized, CALCULATOR_SPELLINGS, GLUED_CALL_NAMES, ENGINE_FUNCTION_NAMES, keep))
 
     @staticmethod
-    def refuse_misspellings(text: str, variable: str) -> None:
+    def refuse_misspellings(text: str, variable: str, subject: Optional[str] = None) -> None:
         """Raise ValueError with the standard form to write when text has:
 
         - a function without parentheses (sin x), or a function and digits (sin2, sqrt2);
@@ -131,7 +131,8 @@ class InequalitySolver:
           or e glued to a letter and raised to a power (ke^x);
         - a name made of calculator keys, e and pi, with variable and digits (sinxe, sinxcosx,
           exe, sin2);
-        - no variable at all once it is prepared (y = mx + b solved for x).
+        - no variable at all once it is prepared (y = mx + b solved for x); the message calls
+          text the subject ("function"), or else the equation or inequality.
 
         Other names are variables: cost in profit = revenue - cost, solved for revenue, x0 and
         xmax, and costs or revenue, though they start with a function name.
@@ -162,7 +163,7 @@ class InequalitySolver:
         except Exception:
             return  # the engines say what they cannot read
         if variable not in _names(prepared):
-            kind = "inequality" if has_inequality(prepared) else "equation"
+            kind = subject or ("inequality" if has_inequality(prepared) else "equation")
             raise ValueError(f"{variable} does not appear in the {kind}.")
 
     @staticmethod

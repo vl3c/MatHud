@@ -27,6 +27,7 @@ from no_change_result import NoChangeResult
 from utils.math_utils import MathUtils
 from utils.statistics.tool import compute_descriptive_statistics_tool
 from utils.step_checker import StepChecker
+from utils.taylor import Taylor
 from process_function_calls import ProcessFunctionCalls
 from tool_kinds import UNDOABLE_TOOLS
 
@@ -301,6 +302,7 @@ class FunctionRegistry:
             "solve_system_of_equations": MathUtils.solve_system_of_equations,
             "solve_numeric": MathUtils.solve_numeric,
             "check_steps": StepChecker.check_steps,
+            "taylor_polynomial": Taylor.taylor_polynomial,
             # ===== CANVAS HISTORY =====
             "undo": canvas.undo,
             "redo": canvas.redo,
