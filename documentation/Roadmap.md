@@ -136,6 +136,12 @@ Goal: one command (later one executable) opens a MatHud window; no separate serv
    - Nested absolute bars `||x|-1|` are misread.
    - math.js's domain makes `x^(2/3)` undefined for x < 0.
    - The test harness re-implements `InequalitySolver._seeds` instead of calling it.
+   - An implicit product after a space is refused, in equations too: `x sin(x) > 0`, `sin(pi x) > 0`.
+   - Absolute bars in equations are refused: `|x - 1| = 2`.
+   - The decimal endpoints of `x^2 - 1e6 x + 1 > 0` lose precision through cancellation; the exact form is right.
+   - A periodic inequality on a long interval is answered on one period: `sin(x) > 0` on [0, 1000].
+   - High-degree polynomials and `exp(x) - x^100 > 0` take 5 to 8 s, and the call blocks the UI.
+   - Tool search still misses `solve` for "for what values of x is x^2 - 4 >= 0", and ranks it first for "find out if 2^10 > 10^3".
 
 ### Conversation persistence
 ~~Save and restore the chat transcript with the workspace (truncate older turns on restore).~~ Done: workspaces (schema version 2) carry the user and assistant messages as markdown, with image counts and compact tool-call entries, capped at 200 messages / 400k characters. `/load` replaces the chat and rebuilds a plain-text AI history from it (newest 40 turns, about 10k tokens) through `/restore_conversation`; the AI's `load_workspace` tool restores the canvas only, so it never replaces the chat mid-turn. Older workspaces load with an empty chat. See `static/workspace_chat.py` and `static/client/chat_persistence_manager.py`. Still open: summarize dropped turns instead of only noting them; a provider created after the restore (switching to another provider) starts without the restored history, as it does for any conversation today.
