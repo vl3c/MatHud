@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import time
 import unittest
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -346,6 +347,12 @@ class TestTaylor(unittest.TestCase):
         result = self._taylor("x^3+2x", "1", 2)
         self.assertFalse(result["exact"])
         self.assertEqual(result["next_term"], "(x-1)^3")
+        # the omitted term of a polynomial is found beyond the lookahead
+        for expression, order, next_term in (("x^5", 1, "x^5"), ("x^14", MAX_TAYLOR_ORDER, "x^14")):
+            with self.subTest(expression=expression):
+                result = self._taylor(expression, "0", order)
+                self.assertEqual((result["polynomial"], result["next_term"]), ("0", next_term))
+                self.assertFalse(result["exact"] or result["flat"])
 
     def test_flat_and_vanishing_terms_are_not_exact(self) -> None:
         result = self._taylor("exp(-1/x^2)", "0", 4)
@@ -403,6 +410,23 @@ class TestTaylor(unittest.TestCase):
         self.assertTrue(result["polynomial"].startswith("x + x^2/2 + x^3/3 - x^4/6"))
         self.assertEqual(result["next_term"], "59077*x^11/1596672")
 
+    def test_order_ten_away_from_zero_is_quick(self) -> None:
+        # The series at a point other than 0 runs past the worker's limit on these; the
+        # derivatives at the point do not
+        for expression, point, start in (
+            ("e^(-x^2)", "1", "exp(-1) - 2*(x-1)*exp(-1) + (x-1)^2*exp(-1)"),
+            ("e^(x^3)", "1", "e + 3*e*(x-1) + 15*e*(x-1)^2/2"),
+            ("tan(x)", "1", "tan(1) + (x-1)*(1+tan(1)^2)"),
+            ("x^x", "1", "1 + (x-1) + (x-1)^2 + (x-1)^3/2"),
+            ("e^(sin(x))", "pi/3", "exp(sqrt(3)/2) + (x-pi/3)*exp(sqrt(3)/2)/2"),
+        ):
+            with self.subTest(expression=expression):
+                started = time.monotonic()
+                result = self._taylor(expression, point, MAX_TAYLOR_ORDER)
+                self.assertLess(time.monotonic() - started, 4.0)
+                self.assertTrue(result["polynomial"].startswith(start), result["polynomial"])
+                self.assertIsNotNone(result["next_term"])
+
     def test_handle(self) -> None:
         response = handle(
             {"operation": "taylor", "args": {"expression": "e^x", "variable": "x", "point": "0", "order": "2"}}
@@ -438,6 +462,12 @@ class TestApart(unittest.TestCase):
     def test_single_fractions_are_unchanged(self) -> None:
         self.assertEqual(compute_apart("1/(x^2-2)", "x"), {"fractions": "1/(x^2-2)", "unchanged": True})
         self.assertEqual(compute_apart("3/(x-1)^2", "x"), {"fractions": "3/(x-1)^2", "unchanged": True})
+        # a fraction that cancels to a single one
+        self.assertEqual(compute_apart("(x-1)/(x^2-1)", "x"), {"fractions": "1/(x+1)", "unchanged": True})
+
+    def test_complex_coefficients(self) -> None:
+        self.assertEqual(compute_apart("1/(x-i)", "x"), {"fractions": "1/(x-i)", "unchanged": True})
+        self.assertIsNotNone(compute_apart("1/((x^2+1)(x-i))", "x")["fractions"])
 
     def test_other_inputs_are_left_to_ordinary_expansion(self) -> None:
         for expression in ("x^2+2x", "(x+1)^2/2", "sin(x)/(x+1)", "(x+1)/(x*y)", "2^x/(x+1)", "1/y", "5"):

@@ -61,6 +61,9 @@ class TestTaylorMatches(unittest.TestCase):
             ("x^3+2x", "3 + 5*(x-1) + 3*(x-1)^2 + (x-1)^3", 1.0, 5),
             # smooth to the order only
             ("abs(x)^3", "0", 0.0, 2),
+            # exact on the right; on the left the errors break off at x = 0, where abs turns
+            ("abs(x)", "1 + (x-1)", 1.0, 3),
+            ("max(x, 0)", "x", 1.0, 2),
         ):
             with self.subTest(function=function, center=center, order=order):
                 self.assertIs(_matches(function, polynomial, center, order), True)
@@ -110,7 +113,9 @@ class TestRemainderNote(unittest.TestCase):
         )
 
     def test_flat_and_one_sided(self) -> None:
-        self.assertIn("flat at x = 0", remainder_note(dict(self.BASE, flat=True, next_term=None), "x"))
+        self.assertIn(
+            "near x = 0 it is smaller than any", remainder_note(dict(self.BASE, flat=True, next_term=None), "x")
+        )
         self.assertIn("not smooth", remainder_note(dict(self.BASE, one_sided=True, next_term=None), "x"))
 
 

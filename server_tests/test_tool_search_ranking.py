@@ -536,6 +536,9 @@ def test_equivalent_units_and_fractions_are_not_derivations(
         "expand e^x in a power series",
         "series expansion of tan(x) around 0",
         "Plot e^x and its Taylor polynomial of order 3",
+        "write cos(x) as a series around 0",
+        "quadratic approximation of sqrt(x) near 4",
+        "approximate sin(x) with a polynomial of degree 5",
     ],
 )
 def test_taylor_requests_rank_taylor_polynomial_first(service: ToolSearchService, query: str) -> None:
@@ -552,11 +555,15 @@ def test_a_convergence_question_is_not_a_taylor_polynomial(service: ToolSearchSe
     [
         "Decompose 2/(x^2-1) into partial fractions.",
         "Partial fraction decomposition of (3x+5)/((x+1)(x+2))",
-        "split 1/(x(x+1)) into simpler fractions",
+        "decompose 1/(x(x+1)) into simpler fractions",
     ],
 )
 def test_partial_fractions_rank_expand_first(service: ToolSearchService, query: str) -> None:
     assert _names(service, query)[0] == "expand"
+
+
+def test_splitting_a_number_fraction_is_not_partial_fractions(service: ToolSearchService) -> None:
+    assert _names(service, "split the fraction 5/6 into a sum of unit fractions")[0] != "expand"
 
 
 @pytest.mark.parametrize("query", ["Give 1/3 + 1/4 as an exact fraction.", "write 0.75 as a fraction"])

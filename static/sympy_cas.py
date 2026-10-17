@@ -1013,9 +1013,11 @@ def _difference_text(difference: Any) -> Optional[str]:
 # The highest order taylor_polynomial gives: higher orders run past the worker's time limit
 # on ordinary products such as exp(sin(x))*ln(1+x).
 MAX_TAYLOR_ORDER = 10
-# The series is computed this many orders beyond the polynomial, for its first omitted term
-# (3 keeps order 10 of exp(sin(x))*ln(1+x) near 2 s; 5 takes over 10 s).
+# The coefficients are computed this many orders beyond the polynomial, for its first
+# omitted term (where the series is needed, 5 takes order 10 of abs(x)*e^x past the time limit).
 TAYLOR_LOOKAHEAD = 3
+# A polynomial up to this degree has its first omitted term found beyond the lookahead.
+MAX_TAIL_DEGREE = 100
 
 
 def compute_taylor(expression: str, variable: str, point: str, order: str) -> Dict[str, Any]:
@@ -1030,8 +1032,10 @@ def compute_taylor(expression: str, variable: str, point: str, order: str) -> Di
     whether the two sides' series differ beyond the order (abs(x)^3 at 0 to order 2), and
     order + TAYLOR_LOOKAHEAD.
 
-    The series is taken from both sides of a, because a one-sided series hides a corner or a
-    jump (abs(x) is x right of 0 and -x left of it).
+    The coefficients come from the derivatives at a when they are all finite real numbers
+    and the function has no abs, sign, floor or the like; otherwise from the series on both
+    sides of a, because a one-sided series hides a corner or a jump (abs(x) is x right of 0
+    and -x left of it).
 
     Raises:
         ExpressionError: for other variables, a point that is not a real number, an order
@@ -1049,22 +1053,17 @@ def compute_taylor(expression: str, variable: str, point: str, order: str) -> Di
     center = parse_expression(point, real=True)
     if center.free_symbols or center in (sp.oo, -sp.oo) or not _is_usable(center) or not _is_real_value(center):
         raise ExpressionError("The point must be a real number, such as 0, 1 or pi/4.")
-    h = sp.Dummy("h", real=True)
-    shifted = function.subs(x, center + h)
     count = degree + 1 + TAYLOR_LOOKAHEAD
-    right = _series_coefficients(shifted, h, count, "+")
-    # The left side to the order only, unless the function has a part that may break off
-    # beyond it (abs(x)^3 at 0 is smooth to order 2 only); the series is the slow step.
-    breaking = function.has(sp.Abs, sp.sign, sp.floor, sp.ceiling, sp.Min, sp.Max, sp.Mod)
-    left = _series_coefficients(shifted, h, count if breaking else degree + 1, "-")
+    right, left = _two_sided_coefficients(function, x, center, degree, count)
     if right is None or left is None or any(sp.simplify(right[k] - left[k]) != 0 for k in range(degree + 1)):
         raise ExpressionError(
             f"{expression} is not smooth at {variable} = {to_text(center)} (a corner, jump, pole, "
             "fractional power or logarithm there), so it has no Taylor polynomial at that point."
         )
     one_sided = any(sp.simplify(right[k] - left[k]) != 0 for k in range(degree + 1, len(left)))
+    right = right + _polynomial_tail(function, x, center, count)
     base = _power_base(variable, center)
-    later = [k for k in range(degree + 1, count) if right[k] != 0]
+    later = [k for k in range(degree + 1, len(right)) if right[k] != 0]
     exact = bool(function.is_polynomial(x) and sp.degree(function, x) <= degree)
     return {
         "polynomial": _joined_terms([to_text(right[k] * base**k) for k in range(degree + 1) if right[k] != 0]),
@@ -1073,7 +1072,7 @@ def compute_taylor(expression: str, variable: str, point: str, order: str) -> Di
         "order": degree,
         "next_term": to_text(right[later[0]] * base ** later[0]) if later and not one_sided else None,
         "exact": exact,
-        "flat": not exact and not later and all(right[k] == 0 for k in range(count)) and function != 0,
+        "flat": not exact and not later and all(right[k] == 0 for k in range(len(right))) and function != 0,
         "one_sided": one_sided,
         "lookahead": degree + TAYLOR_LOOKAHEAD,
     }
@@ -1084,6 +1083,67 @@ def _taylor_order(order: str) -> int:
     if not text.isdigit() or int(text) > MAX_TAYLOR_ORDER:
         raise ExpressionError(f"The order must be a whole number from 0 to {MAX_TAYLOR_ORDER}.")
     return int(text)
+
+
+def _two_sided_coefficients(
+    function: Any, x: Any, center: Any, degree: int, count: int
+) -> Tuple[Optional[List[Any]], Optional[List[Any]]]:
+    """The coefficients of (x - a)^0 .. (x - a)^(count-1) from the right of a and from the
+    left (the left ones up to the order only, unless the function may break off beyond it).
+
+    A function without abs, sign, floor and the like whose derivatives at a are all finite
+    real numbers takes its coefficients from them, one list for both sides: the series at
+    a point other than 0 can run past the time limit (e^(-x^2) at 1). Otherwise, as for
+    sin(x)/x at 0 or abs(x)^3 at 0, each side comes from its series."""
+    import sympy as sp
+
+    breaking = function.has(sp.Abs, sp.sign, sp.floor, sp.ceiling, sp.Min, sp.Max, sp.Mod)
+    if not breaking:
+        coefficients = _derivative_coefficients(function, x, center, count)
+        if coefficients is not None:
+            return coefficients, coefficients
+    h = sp.Dummy("h", real=True)
+    shifted = function.subs(x, center + h)
+    right = _series_coefficients(shifted, h, count, "+")
+    # The left side to the order only, unless the function has a part that may break off
+    # beyond it (abs(x)^3 at 0 is smooth to order 2 only); the series is the slow step.
+    left = _series_coefficients(shifted, h, count if breaking else degree + 1, "-")
+    return right, left
+
+
+def _derivative_coefficients(function: Any, x: Any, center: Any, count: int) -> Optional[List[Any]]:
+    """f^(k)(a)/k! for k = 0 .. count-1, or None when one of them is not a finite real
+    number (0/0 in sin(x)/x at 0, a pole, sqrt(x) at 0)."""
+    import sympy as sp
+
+    coefficients: List[Any] = []
+    derivative = function
+    for k in range(count):
+        if k:
+            derivative = sp.expand_mul(sp.diff(derivative, x))
+        value = derivative.subs(x, center)
+        if value.has(sp.nan, sp.zoo, sp.oo, -sp.oo) or value.free_symbols:
+            return None
+        if not _is_usable(value) or not _is_real_value(value):
+            return None
+        coefficients.append(sp.expand(value / sp.factorial(k)))
+    return coefficients
+
+
+def _polynomial_tail(function: Any, x: Any, center: Any, count: int) -> List[Any]:
+    """For a polynomial of degree at most MAX_TAIL_DEGREE, its coefficients of
+    (x - a)^count .. (x - a)^degree, so the first omitted term of x^14 to order 10 is found;
+    [] for anything else."""
+    import sympy as sp
+
+    if not function.is_polynomial(x):
+        return []
+    polynomial = sp.Poly(function, x)
+    if polynomial.degree() < count or polynomial.degree() > MAX_TAIL_DEGREE:
+        return []
+    h = sp.Dummy("h")
+    shifted = sp.Poly(sp.expand(function.subs(x, center + h)), h)
+    return [sp.expand(shifted.coeff_monomial(h**k)) for k in range(count, polynomial.degree() + 1)]
 
 
 def _series_coefficients(expression: Any, h: Any, count: int, direction: str) -> Optional[List[Any]]:
@@ -1175,8 +1235,8 @@ def _fraction_key(term: Any, x: Any) -> Tuple[Any, ...]:
     if len(with_x) != 1:
         return (MAX_APART_DEGREE + 1, sp.default_sort_key(term))
     base, power = with_x[0]
-    coefficients = sp.Poly(base, x).monic().all_coeffs()[1:]
-    sizes = tuple((abs(float(coefficient)), float(coefficient)) for coefficient in coefficients)
+    coefficients = [complex(sp.N(coefficient)) for coefficient in sp.Poly(base, x).monic().all_coeffs()[1:]]
+    sizes = tuple((abs(value), value.real, value.imag) for value in coefficients)
     return (sp.degree(base, x), sizes, power)
 
 

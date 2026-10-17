@@ -67,7 +67,9 @@ class TestTaylorSympy(unittest.TestCase):
         result = _taylor("x^3+2x", "1", 5)
         self.assertEqual(result["remainder_note"], "Exact: the function is its own Taylor polynomial of this order.")
         self.assertIsNone(result["next_term"])
-        self.assertIn("flat at x = 0", _taylor("exp(-1/x^2)", "0", 4)["remainder_note"])
+        self.assertIn(
+            "near x = 0 it is smaller than any of those powers", _taylor("exp(-1/x^2)", "0", 4)["remainder_note"]
+        )
         self.assertIn("not smooth at x = 0", _error("abs(x)", "0", 2))
         self.assertIn("not smooth at x = 0", _error("sqrt(x)", "0", 2))
 

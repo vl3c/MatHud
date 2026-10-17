@@ -222,14 +222,15 @@ _NOT_STEP_WORDS = frozenset(
     | {"fraction", "fractions"}
 )
 # Partial fractions: "partial fractions of 2/(x^2-1)", "decompose 1/(x(x+1)) into fractions".
-_PARTIAL_FRACTION_WORDS = frozenset({"partial", "decompose", "decomposition", "decomposing", "split"})
+_PARTIAL_FRACTION_WORDS = frozenset({"partial", "decompose", "decomposition", "decomposing"})
 # Taylor polynomials: "Taylor polynomial of e^x at 0", "Maclaurin series of sin(x)", "the
 # power series of 1/(1-x)", "a polynomial approximation of cos(x) near 0"; "does the series
 # of 1/n^2 converge?" is a convergence test.
 _TAYLOR_WORDS = frozenset({"taylor", "maclaurin"})
 _TAYLOR_PHRASE_RE = re.compile(
-    r"\bpower series\b|\bseries expansion\b|\bexpand\b.*\bin(?:to)? a series\b"
-    r"|\bapproximating polynomial\b|\bpolynomial approximation\b"
+    r"\bpower series\b|\bseries expansion\b|\b(?:expand|write|express)\b.*\b(?:in|into|as) a series\b"
+    r"|\bapproximating polynomial\b|\bpolynomial approximation\b|\b(?:quadratic|cubic) approximation\b"
+    r"|\bapproximat\w*\b.*\b(?:with|by) a polynomial\b"
 )
 # d/dx, d/dt (the tokens split it into d and dx)
 _D_BY_D_RE = re.compile(r"\bd/d[a-z]\b")

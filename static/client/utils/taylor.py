@@ -185,7 +185,7 @@ def remainder_note(result: Dict[str, Any], variable: str) -> str:
     power = f"{base}^{result.get('lookahead')}"
     if result.get("flat"):
         return (
-            f"Every Taylor coefficient up to {power} is 0, though the function is not 0: it is flat at {where}, "
-            "so the polynomial says little about it away from that point."
+            f"Every Taylor coefficient up to {power} is 0, though the function is not 0: near {where} it is "
+            "smaller than any of those powers, and the polynomial says little about it away from that point."
         )
     return f"There are no further nonzero terms up to {power}, so near {where} the error is smaller than that power."

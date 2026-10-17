@@ -21,8 +21,9 @@ from typing import Any, Dict, List, Optional, cast
 
 from utils.equivalence import NOT_EQUIVALENT, compare
 
-# Appended when the result is a single fraction: x^2 - 2 does not split over the rationals.
-UNCHANGED_NOTE = " (already in partial fractions over the rationals)"
+# Appended when the result is a single fraction: 1/(x^2 - 2) does not split over the
+# rationals, and (x-1)/(x^2-1) cancels to 1/(x+1).
+UNCHANGED_NOTE = " (a single fraction: it does not split further over the rationals)"
 # Names math.js's rationalize lists as variables although they are constants
 _CONSTANTS = frozenset({"e", "pi"})
 # A number (kept whole, so 1e20 holds no name e20) or a name (x, cost, θ), as the solve tool reads them
@@ -67,7 +68,7 @@ class PartialFractions:
             return PartialFractions._ordinary(expression)  # SymPy cannot read it: not a ratio of polynomials
         result = response.get("result")
         if not isinstance(result, dict):
-            return f"Error: SymPy found no partial fractions for {expression}."
+            return PartialFractions._ordinary(expression)  # SymPy could not do it
         fractions = result.get("fractions")
         if not isinstance(fractions, str):
             refusal = result.get("refusal")
