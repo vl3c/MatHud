@@ -11,7 +11,7 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
   - Tool contract: `static/functions_definitions.py` holds the JSON-schema tool definitions from which every provider's tool list is built; the model's whole vocabulary is defined here, independent of the UI.
   - Math-only models: drawables in `static/client/drawables/` hold geometry and state (labels also keep a screen-space render mode), and renderers (`static/client/rendering/`, chosen by `factory.create_renderer`) turn them into screen primitives. A 3D, mobile or AR display is another renderer over the models (3D also needs 3D models, which do not exist yet).
   - Scene state for the model: `static/canvas_state_formatter.py` renders the canvas as compact text in every prompt and as `[canvas changes]` after each tool batch, so the model reasons over exact state rather than pixels.
-  - Checked math: SymPy on the server (`static/sympy_cas.py`, `/api/cas`), with numeric checks of symbolic results in the client (`static/client/utils/symbolic_checks.py`).
+  - Checked math: SymPy on the server (`static/sympy_cas.py`, `/api/cas`) is the only symbolic engine, with numeric checks of symbolic results in the client (`static/client/utils/symbolic_checks.py`).
   - Saved state: workspace JSON with a schema version (`CURRENT_WORKSPACE_SCHEMA_VERSION` in `static/config.py`).
   - Behavior specification: the scenario catalogue in `scenarios/*.json` (prompts, reference tool calls and geometric checks) describes correct behavior in data, not in code.
 
@@ -194,10 +194,9 @@ static/
 ├── canvas2d_paths.js                  # JavaScript path-tracing helpers for the Canvas2D renderer
 ├── sympy_cas.py                       # SymPy CAS operations behind /api/cas, with a safe ast parser (run as a worker process)
 ├── sympy_engine.py                    # Runs the sympy_cas worker with a per-request time limit
-├── nerdamer_guard.js                  # Step and time budget for nerdamer's limit() (its L'Hopital loop can run forever)
 ├── style.css                          # Frontend CSS styling
 └── client/                           # Custom Python modules for Brython (moved from Brython-3.11.3/Lib/site-packages/)
-    # Note: Brython core (3.12.5), Math.js (14.5.2), and Nerdamer (1.1.13) now loaded from CDN
+    # Note: Brython core (3.12.5), Math.js (14.5.2) and MathJax are served from static/vendor/
 ```
 
 ## Frontend Structure (`templates/` and Brython Client-Side)
@@ -314,7 +313,10 @@ static/client/
 │   ├── statistics_manager.py          # Distribution and regression plotting
 │   └── polygon_type.py                # Polygon type enumeration
 ├── utils/                             # Utility modules
-│   ├── math_utils.py                  # Mathematical utility functions
+│   ├── math_utils.py                  # Mathematical utility functions (the CAS tools ask the server's SymPy)
+│   ├── sympy_client.py                # Synchronous POST /api/cas requests to the server's SymPy engine
+│   ├── numeric_equations.py           # solve without a closed form: real roots from the sign chart
+│   ├── polynomials.py                 # Polynomial coefficients read exactly from math.js's parse tree
 │   ├── inequality_solver.py           # Inequalities in solve: SymPy's set checked, else a numeric sign chart
 │   ├── real_sets.py                   # Real solution sets: checks, the sign chart, interval notation
 │   ├── step_checker.py                # check_steps: each step of a derivation against the one before

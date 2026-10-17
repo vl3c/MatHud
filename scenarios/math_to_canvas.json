@@ -128,7 +128,7 @@
       "title": "Calculator functions and an exact fraction",
       "tags": ["math"],
       "smoke": false,
-      "targets": "mod, atan2 and the complex helpers in evaluate_expression; simplify for exact answers (its 7/12 needs the server's SymPy engine, which CI installs: nerdamer alone prints 0.583333333333333333)",
+      "targets": "mod, atan2 and the complex helpers in evaluate_expression; simplify for exact answers (its 7/12 comes from the server's SymPy engine, which CI installs)",
       "steps": [
         {
           "user": "Work out -7 mod 3, atan2(1, -1), the argument of 1 + i and the conjugate of 3 + 4i. Then give 1/3 + 1/4 as an exact fraction.",
@@ -149,7 +149,7 @@
               "check": "tool_result",
               "tool": "simplify",
               "eq": "7/12",
-              "note": "exact with the server's SymPy engine (CI installs it); nerdamer alone prints 0.583333333333333333"
+              "note": "exact with the server's SymPy engine (CI installs it)"
             },
             {"check": "answer_mentions", "numbers": [2], "matches": "7\\s*/\\s*12"}
           ]

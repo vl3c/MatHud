@@ -13,7 +13,7 @@ ruff==0.16.8
 kokoro==0.9.4
 soundfile==0.14.0
 numpy==2.4.6
-# Computer algebra for the CAS tools (static/sympy_cas.py); without it they use nerdamer in the browser
+# Computer algebra for the CAS tools (static/sympy_cas.py); without it they give an error and only the numeric tools answer
 sympy==1.14.0
 # CLI dependencies
 click==8.5.0

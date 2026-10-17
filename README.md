@@ -122,7 +122,7 @@ Text-to-speech (Kokoro) is not loaded at startup; its model loads on the first r
 
 ### 4.4 Offline / vendored libraries
 
-The page loads no scripts, stylesheets or fonts from the internet. Brython 3.12.5, math.js 14.5.2, nerdamer 1.1.13, MathJax 3.2.2 and the Inter font are committed under `static/vendor/`, so MatHud runs fully offline with LocalAgent. Versions, source URLs and SHA-256 hashes are pinned in `scripts/vendor_js_libs.py`:
+The page loads no scripts, stylesheets or fonts from the internet. Brython 3.12.5, math.js 14.5.2, MathJax 3.2.2 and the Inter font are committed under `static/vendor/`, so MatHud runs fully offline with LocalAgent. Versions, source URLs and SHA-256 hashes are pinned in `scripts/vendor_js_libs.py`:
 
 ```sh
 python scripts/vendor_js_libs.py --check   # verify the committed files (no network)
