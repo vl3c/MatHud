@@ -719,18 +719,18 @@ def sum_call(text: str) -> Optional[Tuple[str, str, str, str]]:
     Raises:
         ValueError: with SUM_HINT for a sum written another way: inside a larger expression
             (2*summation(...)), several or nested sums, SymPy's Sum or tuple form
-            (summation(k^2, (k, 1, n))), another number of arguments, or the sign ∑ (or Σ
-            before a parenthesis, "_" or a space).
+            (summation(k^2, (k, 1, n))), another number of arguments, the sign ∑ or Σ, or
+            notation with limits (\\sum_{k=1}^{n}).
     """
     if not isinstance(text, str):
         return None
     stripped = text.strip()
     sums = [call for call in _calls(stripped, _SUM_NAMES) if _is_sum(call)]
-    if "∑" in stripped:
-        raise ValueError(f"the sign ∑ is not read; {SUM_HINT}.")
-    for sign in ("Σ(", "Σ_", "Σ "):  # the Greek capital sigma, which the symbol palette offers
+    for sign in ("∑", "Σ"):  # Σ is the Greek capital sigma, which the symbol palette offers
         if sign in stripped:
-            raise ValueError(f"the sign Σ is not read; {SUM_HINT}.")
+            raise ValueError(f"the sign {sign} is not read; {SUM_HINT}.")
+    if _has_sum_notation(stripped):
+        raise ValueError(f"sum notation with limits (\\sum_{{k=1}}^{{n}}) is not read; {SUM_HINT}.")
     if not sums:
         return None
     if len(sums) > 1:
@@ -746,6 +746,21 @@ def sum_call(text: str) -> Optional[Tuple[str, str, str, str]]:
         raise ValueError(f"summation takes four arguments; {SUM_HINT}.")
     term, index, lower, upper = (_unquoted(argument) for argument in call.arguments)
     return term, index, lower, upper
+
+
+def _has_sum_notation(text: str) -> bool:
+    """Whether text writes a sum or product with limits, as LaTeX does: \\sum_{k=1}^{n},
+    sum_{k=1}^n, \\prod_..."""
+    for name in ("sum", "prod"):
+        position = text.find(name)
+        while position != -1:
+            before = text[position - 1 : position]
+            following = text[position + len(name) :].lstrip()[:1]
+            starts_name = not (before.isalnum() or before == "_")  # not total_sum_2
+            if before == "\\" or (starts_name and following in ("_", "^")):
+                return True
+            position = text.find(name, position + 1)
+    return False
 
 
 def _is_sum(call: _Call) -> bool:

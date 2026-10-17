@@ -1133,7 +1133,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         if (
             sum_named
             and (_SUM_PHRASE_RE.search(raw_lower) is not None or token_set & _CONVERGENCE_WORDS or "∞" in raw_lower)
-            and not token_set & _NOT_SUM_WORDS
+            and not token_set & (_NOT_SUM_WORDS | _NOT_STEP_WORDS)  # "a series of circles"
         ):
             scores["simplify"] += 8.0
         if token_set & {"limit", "lim"}:

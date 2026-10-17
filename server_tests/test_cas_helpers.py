@@ -353,7 +353,15 @@ class TestSumCall(unittest.TestCase):
                 self.assertEqual(sum_call(text), parts)
 
     def test_not_sums(self) -> None:
-        for text in ("x^2+1", "sum([1, 2, 3])", "sum(1, 2)", "sum(a, 2, 3, 4)", "summations", "x*summand"):
+        for text in (
+            "x^2+1",
+            "sum([1, 2, 3])",
+            "sum(1, 2)",
+            "sum(a, 2, 3, 4)",
+            "summations",
+            "x*summand",
+            "total_sum_2 + 1",
+        ):
             with self.subTest(text=text):
                 self.assertIsNone(sum_call(text))
 
@@ -373,6 +381,10 @@ class TestSumCall(unittest.TestCase):
             ("∑(k^2, k, 1, n)", "∑"),
             ("Σ(k^2, k, 1, n)", "Σ"),
             ("Σ_(k=1)^n k^2", "Σ"),
+            ("Σk^2", "Σ"),
+            ("\\sum_{k=1}^{n} k^2", "sum notation with limits"),
+            ("sum_{k=1}^{\\infty} 1/k^2", "sum notation with limits"),
+            ("\\prod_{k=1}^n k", "sum notation with limits"),
         ):
             with self.subTest(text=text):
                 with self.assertRaises(ValueError) as raised:

@@ -135,6 +135,8 @@ class TestClosedFormSumsWithoutSympy(unittest.TestCase):
             ("2*summation(k, k, 1, n)", "summation(term, k, a, b)"),
             ("Sum(k^2, (k, 1, n))", "summation(term, k, a, b)"),
             ("∑(k^2, k, 1, n)", "summation(term, k, a, b)"),
+            ("\\sum_{k=1}^{n} k^2", "summation(term, k, a, b)"),
+            ("Σk^2", "summation(term, k, a, b)"),
             ("summation(k^2, k=1..n)", "four arguments"),
         ):
             with self.subTest(text=text):

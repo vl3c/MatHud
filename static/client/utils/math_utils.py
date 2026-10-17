@@ -3126,7 +3126,7 @@ class MathUtils:
     # ========== Sequence and Series Functions ==========
 
     @staticmethod
-    def summation(expression: str, variable: str, start: int, end: int) -> str:
+    def summation(expression: str, variable: str, start: int, end: int) -> Number:
         """Compute sum of expression for integer values from start to end.
 
         Calculates Σ expression for variable = start to end with math.js, adding the terms
@@ -3140,13 +3140,14 @@ class MathUtils:
             end: Ending integer value (inclusive)
 
         Returns:
-            str: Sum result as string ("0" for an empty range, start > end)
+            The sum, an int when it is whole (0 for an empty range, start > end); a number, not
+            text, so 3*summation(...) multiplies it
 
         Raises:
             ValueError: If there are more than MAX_SERIES_TERMS terms, or a term is not a finite real number
         """
         terms = MathUtils._series_terms("summation", expression, variable, start, end)
-        return MathUtils._series_text(math.fsum(terms))
+        return MathUtils._series_value(math.fsum(terms))
 
     @staticmethod
     def _series_terms(name: str, expression: str, variable: str, start: int, end: int) -> List[float]:
@@ -3158,8 +3159,16 @@ class MathUtils:
         term_count = end - start + 1
         if term_count > MathUtils.MAX_SERIES_TERMS:
             raise ValueError(f"{name} supports at most {MathUtils.MAX_SERIES_TERMS} terms")
-        # evaluate_expression hands the quoted term over in Python syntax (k**2)
-        evaluate = MathUtils._compiled_evaluator(str(expression).replace("**", "^"))
+        from utils.inequality_solver import InequalitySolver
+
+        # evaluate_expression hands the quoted term over in Python syntax (k**2); k(k+1) is a
+        # product, not a call, as simplify's sums read it
+        text = str(expression).replace("**", "^")
+        try:
+            text = str(InequalitySolver.prepared(text))
+        except Exception:
+            pass  # math.js says what it cannot read
+        evaluate = MathUtils._compiled_evaluator(text)
         terms: List[float] = []
         for index in range(start, end + 1):
             value = evaluate({variable: index})
@@ -3169,13 +3178,13 @@ class MathUtils:
         return terms
 
     @staticmethod
-    def _series_text(total: float) -> str:
-        """A sum or product as text: an integer when it is whole."""
+    def _series_value(total: float) -> Number:
+        """A sum or product: an int when it is whole and exact in a float."""
         if not math.isfinite(total):
             raise ValueError("the result is too large to represent")
-        if total == int(total):
-            return str(int(total))
-        return str(total)
+        if total.is_integer() and abs(total) < 2.0**53:
+            return int(total)
+        return total
 
     @staticmethod
     def _nerdamer_number(parsed: Any) -> float:
@@ -3194,7 +3203,7 @@ class MathUtils:
             settings.PARSE2NUMBER = saved
 
     @staticmethod
-    def product(expression: str, variable: str, start: int, end: int) -> str:
+    def product(expression: str, variable: str, start: int, end: int) -> Number:
         """Compute product of expression for integer values from start to end.
 
         Calculates Π expression for variable = start to end with math.js (see summation).
@@ -3206,7 +3215,7 @@ class MathUtils:
             end: Ending integer value (inclusive)
 
         Returns:
-            str: Product result as string ("1" for an empty range, start > end)
+            The product, an int when it is whole (1 for an empty range, start > end)
 
         Raises:
             ValueError: If there are more than MAX_SERIES_TERMS terms, or a term is not a finite real number
@@ -3214,7 +3223,7 @@ class MathUtils:
         total = 1.0
         for value in MathUtils._series_terms("product", expression, variable, start, end):
             total *= value
-        return MathUtils._series_text(total)
+        return MathUtils._series_value(total)
 
     @staticmethod
     def arithmetic_sum(first: Number, diff: Number, n: int) -> Number:

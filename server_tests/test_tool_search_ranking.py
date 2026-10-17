@@ -576,6 +576,7 @@ def test_sums_rank_simplify_first(service: ToolSearchService, query: str) -> Non
         "Sum of the values 3, 5, 9.",
         "Maclaurin series of sin(x).",
         "Compute the sum of k from 1 to 10",
+        "Draw a series of circles with radius from 1 to n",
     ],
 )
 def test_other_sums_do_not_rank_simplify_first(service: ToolSearchService, query: str) -> None:

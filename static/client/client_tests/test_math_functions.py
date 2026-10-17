@@ -1192,7 +1192,7 @@ class TestMathFunctions(unittest.TestCase):
         MathUtils.numeric_integrate("log(x)", "x", 0, 1, "simpson", 200)
         with WithoutSympy():  # the leak is nerdamer's, so solve with nerdamer
             self.assertEqual(MathUtils.solve("x^2-2=0", "x"), "[sqrt(2),-sqrt(2)]")
-        self.assertEqual(MathUtils.summation("1/n", "n", 1, 2), "1.5")
+        self.assertEqual(MathUtils.summation("1/n", "n", 1, 2), 1.5)
 
     def test_numeric_integrate_rejects_too_many_steps(self) -> None:
         with self.assertRaises(ValueError):
@@ -2430,25 +2430,25 @@ class TestSequencesAndSeries(unittest.TestCase):
     def test_summation_basic(self) -> None:
         """Test summation with basic cases."""
         # Sum of n from 1 to 5 = 1+2+3+4+5 = 15
-        self.assertEqual(MathUtils.summation("n", "n", 1, 5), "15")
+        self.assertEqual(MathUtils.summation("n", "n", 1, 5), 15)
 
     def test_summation_squares(self) -> None:
         """Test summation of squares."""
         # Sum of n^2 from 1 to 5 = 1+4+9+16+25 = 55
-        self.assertEqual(MathUtils.summation("n^2", "n", 1, 5), "55")
+        self.assertEqual(MathUtils.summation("n^2", "n", 1, 5), 55)
 
     def test_summation_empty_range(self) -> None:
         """Test summation with start > end returns 0."""
-        self.assertEqual(MathUtils.summation("n", "n", 5, 1), "0")
+        self.assertEqual(MathUtils.summation("n", "n", 5, 1), 0)
 
     def test_summation_single_term(self) -> None:
         """Test summation with single term."""
-        self.assertEqual(MathUtils.summation("n^2", "n", 3, 3), "9")
+        self.assertEqual(MathUtils.summation("n^2", "n", 3, 3), 9)
 
     def test_summation_geometric(self) -> None:
         """Test summation with geometric terms."""
         # Sum of 2^n from 0 to 4 = 1+2+4+8+16 = 31
-        self.assertEqual(MathUtils.summation("2^n", "n", 0, 4), "31")
+        self.assertEqual(MathUtils.summation("2^n", "n", 0, 4), 31)
 
     def test_summation_rejects_too_many_terms(self) -> None:
         with self.assertRaises(ValueError):
@@ -2456,13 +2456,17 @@ class TestSequencesAndSeries(unittest.TestCase):
 
     def test_summation_index_named_like_a_constant(self) -> None:
         # math.js's scope overrides its constants i and e (nerdamer read i^2 as -1 here)
-        self.assertEqual(MathUtils.summation("i^2", "i", 1, 3), "14")
-        self.assertEqual(MathUtils.summation("e", "e", 1, 3), "6")
-        self.assertEqual(MathUtils.evaluate("summation('i^2','i',1,3)"), "14")
+        self.assertEqual(MathUtils.summation("i^2", "i", 1, 3), 14)
+        self.assertEqual(MathUtils.summation("e", "e", 1, 3), 6)
+        self.assertEqual(str(MathUtils.evaluate("summation('i^2','i',1,3)")), "14")
+        # numbers, not text: 3*summation(...) is not "555555"
+        self.assertEqual(str(MathUtils.evaluate("3*summation('k','k',1,10)")), "165")
+        self.assertEqual(str(MathUtils.evaluate("summation('k','k',1,10) + product('k','k',1,3)")), "61")
 
     def test_summation_reads_python_powers(self) -> None:
         # evaluate_expression passes the quoted term on in Python syntax
-        self.assertEqual(MathUtils.summation("k**2", "k", 1, 3), "14")
+        self.assertEqual(MathUtils.summation("k**2", "k", 1, 3), 14)
+        self.assertEqual(MathUtils.summation("k(k+1)", "k", 1, 3), 20)
 
     def test_summation_of_many_terms(self) -> None:
         total = float(MathUtils.summation("1/k^2", "k", 1, 100000))
@@ -2478,27 +2482,27 @@ class TestSequencesAndSeries(unittest.TestCase):
     def test_product_factorial(self) -> None:
         """Test product to compute factorial."""
         # Product of n from 1 to 5 = 5! = 120
-        self.assertEqual(MathUtils.product("n", "n", 1, 5), "120")
+        self.assertEqual(MathUtils.product("n", "n", 1, 5), 120)
 
     def test_product_empty_range(self) -> None:
         """Test product with start > end returns 1."""
-        self.assertEqual(MathUtils.product("n", "n", 5, 1), "1")
+        self.assertEqual(MathUtils.product("n", "n", 5, 1), 1)
 
     def test_product_powers(self) -> None:
         """Test product of powers."""
         # Product of 2^n from 1 to 3 = 2 * 4 * 8 = 64
-        self.assertEqual(MathUtils.product("2^n", "n", 1, 3), "64")
+        self.assertEqual(MathUtils.product("2^n", "n", 1, 3), 64)
 
     def test_product_single_term(self) -> None:
         """Test product with single term."""
-        self.assertEqual(MathUtils.product("n", "n", 5, 5), "5")
+        self.assertEqual(MathUtils.product("n", "n", 5, 5), 5)
 
     def test_product_rejects_too_many_terms(self) -> None:
         with self.assertRaises(ValueError):
             MathUtils.product("n", "n", 0, 100000)  # 100001 terms
 
     def test_product_index_named_like_a_constant(self) -> None:
-        self.assertEqual(MathUtils.product("i+1", "i", 1, 3), "24")
+        self.assertEqual(MathUtils.product("i+1", "i", 1, 3), 24)
 
     # ========== arithmetic_sum tests ==========
     def test_arithmetic_sum_basic(self) -> None:
@@ -2645,12 +2649,12 @@ class TestSequencesAndSeriesEvaluate(unittest.TestCase):
     def test_evaluate_summation(self) -> None:
         """Test summation is accessible via MathUtils.evaluate()."""
         result = MathUtils.evaluate("summation('n^2', 'n', 1, 5)")
-        self.assertEqual(result, "55", "summation('n^2', 'n', 1, 5) via evaluate()")
+        self.assertEqual(str(result), "55", "summation('n^2', 'n', 1, 5) via evaluate()")
 
     def test_evaluate_product(self) -> None:
         """Test product is accessible via MathUtils.evaluate()."""
         result = MathUtils.evaluate("product('n', 'n', 1, 5)")
-        self.assertEqual(result, "120", "product('n', 'n', 1, 5) via evaluate()")
+        self.assertEqual(str(result), "120", "product('n', 'n', 1, 5) via evaluate()")
 
     def test_evaluate_arithmetic_sum(self) -> None:
         """Test arithmetic_sum is accessible via MathUtils.evaluate()."""
