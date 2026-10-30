@@ -270,7 +270,7 @@ class AppManager:
             if manager.is_available():
                 print("TTS: Kokoro available (model loads on first use)")
             else:
-                print("TTS: Kokoro not available (install with: pip install kokoro)")
+                print('TTS: Kokoro not available (see "Environment Setup" in README.md)')
         except SystemExit as e:
             # Some third-party imports can call sys.exit() in unsupported
             # environments; only suppress the known externally-managed error.

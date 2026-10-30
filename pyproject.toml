@@ -19,7 +19,7 @@ dependencies = [
     "python-dotenv",
     "selenium",
     "requests",
-    "kokoro>=0.9.4",
+    "kokoro>=0.9.4; python_version < '3.13'",
     "soundfile",
     "numpy",
     "click>=8.0.0",

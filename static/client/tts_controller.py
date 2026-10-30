@@ -205,7 +205,7 @@ class TTSController:
 
         # Handle common HTTP status codes with helpful messages
         if status == 503:
-            return "TTS service is not available. Please install Kokoro: pip install kokoro"
+            return 'TTS service is not available. To install Kokoro, see "Environment Setup" in README.md'
         elif status == 400:
             pass  # Try to get message from response
         elif status == 500:
