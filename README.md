@@ -76,9 +76,9 @@ The app may be rewritten in another language or stack along the way. What has to
    ```sh
    pip install -r requirements.txt
    ```
-   On Python 3.13 and newer this skips text-to-speech, because `kokoro` and `misaki` declare `Requires-Python <3.13`. To enable it, also run:
+   On Python 3.13 and 3.14 this (and `pip install .`) skips text-to-speech, because `kokoro` and `misaki` declare `Requires-Python <3.13`. To enable it, also run:
    ```sh
-   pip install --ignore-requires-python kokoro==0.9.4 misaki==0.9.4 spacy==3.8.18 spacy-curated-transformers==0.3.1
+   pip install --ignore-requires-python -r requirements-tts.txt -c requirements.txt
    ```
 4. Provide at least one AI provider API key by setting environment variables or creating `.env` in the project root:
    ```env

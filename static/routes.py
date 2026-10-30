@@ -1553,7 +1553,7 @@ def register_routes(app: MatHudFlask) -> None:
 
         if not tts_manager.is_available():
             return AppManager.make_response(
-                message="TTS service is not available. Kokoro may not be installed.",
+                message='TTS service is not available. Kokoro is not installed or failed to load (see "Environment Setup" in README.md).',
                 status="error",
                 code=503,
             )
