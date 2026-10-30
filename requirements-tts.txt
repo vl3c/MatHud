@@ -1,0 +1,8 @@
+# Text-to-speech on Python 3.13 and 3.14, where requirements.txt skips kokoro. Install requirements.txt first, then:
+#   pip install --ignore-requires-python -r requirements-tts.txt -c requirements.txt
+# kokoro, misaki and spacy-curated-transformers declare a lower Python limit but work on these versions.
+# spaCy 3.8.11 fails to load on 3.14, and without these pins pip backtracks into a failing source build.
+kokoro==0.9.4
+misaki==0.9.4
+spacy==3.8.18
+spacy-curated-transformers==0.3.1

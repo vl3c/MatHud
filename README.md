@@ -76,6 +76,10 @@ The app may be rewritten in another language or stack along the way. What has to
    ```sh
    pip install -r requirements.txt
    ```
+   On Python 3.13 and 3.14 this (and `pip install .`) skips text-to-speech, because `kokoro` and `misaki` declare `Requires-Python <3.13`. To enable it, also run:
+   ```sh
+   pip install --ignore-requires-python -r requirements-tts.txt -c requirements.txt
+   ```
 4. Provide at least one AI provider API key by setting environment variables or creating `.env` in the project root:
    ```env
    OPENAI_API_KEY=sk-...          # OpenAI models (GPT-6 Sol/Astra/Luna, GPT-5.6 Sol)

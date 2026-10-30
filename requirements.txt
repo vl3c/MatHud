@@ -10,7 +10,8 @@ requests==2.34.2
 types-requests==2.33.0.20260906
 mypy==2.3.1
 ruff==0.16.8
-kokoro==0.9.4
+# kokoro and misaki declare Requires-Python <3.13; Python 3.13 and 3.14 install them from requirements-tts.txt
+kokoro==0.9.4; python_version < "3.13"
 soundfile==0.14.0
 numpy==2.4.6
 # Computer algebra for the CAS tools (static/sympy_cas.py); without it they give an error and only the numeric tools answer
