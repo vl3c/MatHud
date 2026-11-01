@@ -32,6 +32,8 @@ class ParametricFunctionRenderable:
     DEFAULT_SAMPLES: int = 400
     # Pixels beyond a screen edge that still count as on screen
     OFF_SCREEN_MARGIN: float = 50.0
+    # Bisection steps locating where the curve's domain ends between two samples
+    DOMAIN_EDGE_BISECTIONS: int = 30
 
     def __init__(self, parametric_model: Any, coordinate_mapper: Any) -> None:
         """
@@ -111,8 +113,13 @@ class ParametricFunctionRenderable:
         Returns (None, None) if evaluation fails or produces invalid values.
         """
         try:
-            x_val = self.func.evaluate_x(t)
-            y_val = self.func.evaluate_y(t)
+            evaluate = getattr(self.func, "evaluate", None)
+            if callable(evaluate):
+                # One call for both coordinates (a polar curve evaluates r once)
+                x_val, y_val = evaluate(t)
+            else:
+                x_val = self.func.evaluate_x(t)
+                y_val = self.func.evaluate_y(t)
 
             # Check for invalid values
             if not self._is_valid_number(x_val) or not self._is_valid_number(y_val):
@@ -134,6 +141,11 @@ class ParametricFunctionRenderable:
         except (TypeError, ValueError):
             return False
 
+    def _model_min_samples(self) -> int:
+        """The sample count the model asks for at least (a polar curve: per turn of its range), else 0."""
+        value = getattr(self.func, "min_samples", 0)
+        return value if isinstance(value, int) and not isinstance(value, bool) else 0
+
     def _generate_sample_points(self) -> List[float]:
         """Generate uniform sample points for the parameter t."""
         t_min, t_max = self._get_t_range()
@@ -143,7 +155,7 @@ class ParametricFunctionRenderable:
 
         # Calculate number of samples based on screen width for smooth curves
         screen_width, screen_height = self._get_screen_signature()
-        num_samples = max(self.DEFAULT_SAMPLES, min(screen_width, 800))
+        num_samples = max(self.DEFAULT_SAMPLES, min(screen_width, 800), self._model_min_samples())
 
         # Generate uniform samples
         step = (t_max - t_min) / num_samples
@@ -213,6 +225,38 @@ class ParametricFunctionRenderable:
             return True
         return not (self._follows(mid_x, prev[0], point[0]) and self._follows(mid_y, prev[1], point[1]))
 
+    def _domain_edge(
+        self,
+        valid_t: float,
+        valid_point: Tuple[float, float],
+        invalid_t: float,
+        width: float,
+        height: float,
+    ) -> Optional[Tuple[float, float]]:
+        """The curve's last point before an undefined stretch, between a defined and an undefined sample.
+
+        Bisects the parameter (DOMAIN_EDGE_BISECTIONS steps) toward the undefined side, so a
+        curve whose domain ends between samples (the lobes of r = sqrt(cos(2θ)) at the pole)
+        is drawn up to its end. Returns None when no closer defined point is found, or when
+        the edge is farther from the defined sample than a screen size: the curve runs off
+        to infinity there (a pole such as r = 1/(1 - cos(θ)) at θ = 0), not to an end point.
+        """
+        edge: Optional[Tuple[float, float]] = None
+        good_t, bad_t = valid_t, invalid_t
+        for _ in range(self.DOMAIN_EDGE_BISECTIONS):
+            probe_t = (good_t + bad_t) / 2.0
+            probe = self._evaluate_point(probe_t)
+            if probe[0] is None or probe[1] is None:
+                bad_t = probe_t
+            else:
+                good_t, edge = probe_t, (probe[0], probe[1])
+        if edge is None:
+            return None
+        reach = max(width, height)
+        if reach > 0 and math.hypot(edge[0] - valid_point[0], edge[1] - valid_point[1]) > reach:
+            return None
+        return edge
+
     def build_screen_paths(self) -> ScreenPolyline:
         """
         Build screen-space paths for rendering the parametric curve.
@@ -238,20 +282,31 @@ class ParametricFunctionRenderable:
         current_path: List[Tuple[float, float]] = []
         prev_t: Optional[float] = None
         prev_point: Optional[Tuple[float, float]] = None
+        invalid_t: Optional[float] = None
 
         for t in sample_points:
             sx, sy = self._evaluate_point(t)
 
             if sx is None or sy is None:
-                # Invalid point - break the path
+                # Invalid point - end the path at the domain edge, then break it
+                if current_path and prev_t is not None and prev_point is not None:
+                    edge = self._domain_edge(prev_t, prev_point, t, width, height)
+                    if edge is not None:
+                        current_path.append(edge)
                 if current_path:
                     paths.append(current_path)
                     current_path = []
                 prev_t = None
                 prev_point = None
+                invalid_t = t
                 continue
 
             point = (sx, sy)
+            if prev_t is None and invalid_t is not None:
+                # Back in the domain: start the path at its edge
+                edge = self._domain_edge(t, point, invalid_t, width, height)
+                if edge is not None:
+                    current_path.append(edge)
             if prev_t is not None and prev_point is not None:
                 if self._is_break_between(prev_t, prev_point, t, point, width, height):
                     if current_path:
@@ -261,6 +316,7 @@ class ParametricFunctionRenderable:
             current_path.append(point)
             prev_t = t
             prev_point = point
+            invalid_t = None
 
         # Add the final path segment
         if current_path:
