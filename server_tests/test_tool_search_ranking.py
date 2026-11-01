@@ -926,3 +926,17 @@ def test_inference_review_round_seven(service: ToolSearchService, query: str, ex
 )
 def test_inference_review_round_eight(service: ToolSearchService, query: str, expected: str) -> None:
     assert _names(service, query)[0] == expected
+
+
+# Review round 9: TI-84 braces and parentheses around a sample are data too.
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("2-SampTTest with x = {5, 6, 7, 8} and y = {6, 7, 9, 10}", "hypothesis_test"),
+        ("test whether mu = 12 at alpha 0.05 for y = (12, 15, 11, 14, 13)", "hypothesis_test"),
+        ("t-interval for y = {3, 5, 7, 9}", "confidence_interval"),
+        ("plot y = (x + 1)^2", "draw_function"),
+    ],
+)
+def test_inference_review_round_nine(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected

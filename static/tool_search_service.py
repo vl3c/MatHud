@@ -203,7 +203,7 @@ _CHI_SQUARED_TEST_RE = re.compile(
 )
 _CONFIDENCE_INTERVAL_RE = re.compile(
     r"\bconfidence\s+(?:intervals?|levels?|bounds?)\b|\bmargin\s+of\s+error\b|\b[tz]-?intervals?\b(?!\s*\[)"
-    r"|\b[tz]\s+intervals?\b(?!\s*(?:[\[(]|-?\d|to\b|from\b))|\bcis?\s+(?:for|of)\b"
+    r"|\b[tz]\s+intervals?\b(?!\s*(?:[\[(]|-?\d|to\b|from\b))|\bci\s+(?:for|of)\b"
     r"|\b[12]-?propzint\b|\b(?:2-?)?samp[tz]int\b|\b\d+(?:\.\d+)?\s*%\s*(?:ci|intervals?|confiden)"
     r"|\binterval\s+estimates?\b"
 )
@@ -236,8 +236,9 @@ _STATISTICS_CONTEXT_RE = re.compile(
     r"|\bsamples?\b|significan|\bconfidence\b|\bmargin\s+of\s+error\b|\bci\b"
 )
 _FUNCTION_CONTEXT_RE = re.compile(r"\b[a-z]\(\s*[a-z]\s*\)|\by\s*=|\bfunction\b")
-# Values named like a variable ("x = 5, 6, 7 and y = 6, 7, 9", "y = [3, 5]", "y = 52, s = 6"): data, not a function.
-_DATA_VALUES_RE = re.compile(r"\b[a-z]\s*=\s*\[?\s*-?(?:\d+(?:\.\d+)?|\.\d+)\s*(?:[,;\]]|$)")
+# Values named like a variable ("x = 5, 6, 7 and y = 6, 7, 9", "y = [3, 5]", "y = {3, 5}", "y = 52, s = 6"):
+# data, not a function.
+_DATA_VALUES_RE = re.compile(r"\b[a-z]\s*=\s*(?:[\[{(]|c\()?\s*-?(?:\d+(?:\.\d+)?|\.\d+)\s*(?:[,;\]})]|\s+-?\.?\d|$)")
 _TEST_WORD_RE = re.compile(r"\btest(?:s|ed|ing)?\b|\bp[- ]?values?\b|\bhypothes[ie]s\b")
 # A picture of a distribution ("shade the p-value on a normal curve") is plot_distribution's.
 _DISTRIBUTION_PICTURE_WORDS = frozenset({"distribution", "curve", "normal", "bell", "gaussian", "density"})
