@@ -521,6 +521,82 @@
           ]
         }
       ]
+    },
+    {
+      "id": "FN-13",
+      "title": "Explicit sequence: a term and the trend",
+      "tags": ["functions", "sequences"],
+      "smoke": false,
+      "targets": "plot_sequence draws one SequencePlot and reports its terms and trend",
+      "steps": [
+        {
+          "user": "Plot the sequence u(n) = (n+1)/n for n from 1 to 20. What is the 20th term, and is the sequence increasing or decreasing?",
+          "reference": [
+            {
+              "tool": "plot_sequence",
+              "args": {"name": null, "expression": "(n+1)/n", "start": 1, "end": 20, "initial_terms": null, "color": null}
+            }
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "count", "select": {"type": "SequencePlot"}, "eq": 1},
+            {"check": "tool_result", "tool": "plot_sequence", "path": "trend", "eq": "decreasing"},
+            {"check": "tool_result", "tool": "plot_sequence", "path": "terms", "has_numbers": [2, 1.05], "tol": 1e-9},
+            {"check": "answer_mentions", "numbers": [1.05], "words": ["decreasing"]}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "FN-14",
+      "title": "Recursive sequence: the 10th Fibonacci number",
+      "tags": ["functions", "sequences"],
+      "smoke": false,
+      "targets": "plot_sequence with u(n-1) and u(n-2) and two initial terms",
+      "steps": [
+        {
+          "user": "Plot the Fibonacci sequence u(n) = u(n-1) + u(n-2) with u(1) = u(2) = 1 for n from 1 to 10. What is the 10th term?",
+          "reference": [
+            {
+              "tool": "plot_sequence",
+              "args": {"name": null, "expression": "u(n-1) + u(n-2)", "start": 1, "end": 10, "initial_terms": [1, 1], "color": null}
+            }
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "count", "select": {"type": "SequencePlot"}, "eq": 1},
+            {"check": "tool_result", "tool": "plot_sequence", "path": "kind", "eq": "recursive"},
+            {"check": "tool_result", "tool": "plot_sequence", "path": "terms", "has_numbers": [34, 55]},
+            {"check": "answer_mentions", "numbers": [55]}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "FN-15",
+      "title": "Cobweb of cos(x): where the orbit settles",
+      "tags": ["functions", "sequences", "cobweb"],
+      "smoke": false,
+      "targets": "plot_cobweb draws one CobwebPlot and reports a stable fixed point",
+      "steps": [
+        {
+          "user": "Draw a cobweb diagram of g(x) = cos(x) starting at x0 = 1. Where does the orbit settle, and is that point stable?",
+          "reference": [
+            {
+              "tool": "plot_cobweb",
+              "args": {"name": null, "function": "cos(x)", "x0": 1, "steps": null, "color": null}
+            }
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "count", "select": {"type": "CobwebPlot"}, "eq": 1},
+            {"check": "tool_result", "tool": "plot_cobweb", "path": "behaviour", "eq": "fixed_point"},
+            {"check": "tool_result", "tool": "plot_cobweb", "path": "fixed_point", "eq": 0.739085133215, "tol": 1e-6},
+            {"check": "tool_result", "tool": "plot_cobweb", "path": "stable", "eq": true},
+            {"check": "answer_mentions", "numbers": [0.739]}
+          ]
+        }
+      ]
     }
   ]
 }

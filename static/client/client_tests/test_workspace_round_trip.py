@@ -47,6 +47,8 @@ EXPECTED_DRAWABLE_KEYS: Tuple[str, ...] = (
     "HistogramPlots",
     "BoxPlots",
     "ScatterPlots",
+    "SequencePlots",
+    "CobwebPlots",
     "UndirectedGraphs",
     "DirectedGraphs",
     "Trees",
@@ -161,6 +163,9 @@ def _build_plots(c: Canvas) -> None:
     data_plots.plot_histogram(name="Hist", data=[1e-05, 0.3, 0.3, 0.7, 1.0], bin_width=0.25, bin_start=0.0)
     data_plots.plot_box(name="Box", data=[2.5, 3.0, 4.0, 9.0, 40.0], y_position=70.0, show_outliers=True)
     data_plots.plot_scatter(name="Dots", x_data=[1.5, 2e-07, 3e20], y_data=[-4.0, 5.25, 6.0], color="red")
+    sequences = c.drawable_manager.sequence_plot_manager
+    sequences.plot_sequence(name="Fib", expression="u(n-1) + u(n-2)", start=1, end=10, initial_terms=[1, 1])
+    sequences.plot_cobweb(name="Web", function="3.2*x*(1-x)", x0=0.1, steps=60, color="green")
 
 
 def _build_graphs(c: Canvas) -> None:
