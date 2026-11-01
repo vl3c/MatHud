@@ -765,3 +765,31 @@ def test_inference_review_round_two(service: ToolSearchService, query: str, expe
 def test_theorem_hypotheses_are_not_a_hypothesis_test(service: ToolSearchService) -> None:
     names = _names(service, "verify the hypotheses of the mean value theorem for f(x) = x^2 on [0, 2]")
     assert names[0] != "hypothesis_test", names
+
+
+# Review round 3: p-values of a known statistic or a named distribution, regression significance, sample size.
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("p-value for a chi-squared statistic of 7.8 with 3 degrees of freedom", "compute_distribution"),
+        ("p-value when chi-square is 7.8 with 3 df", "compute_distribution"),
+        ("the chi-square statistic is 11.2 with 4 df; find the p-value", "compute_distribution"),
+        ("the test statistic is t = 2.3 with 12 df, find the p-value", "compute_distribution"),
+        (
+            "using the binomial distribution, find the p-value of getting 15 or more heads in 20 flips",
+            "compute_distribution",
+        ),
+        ("find the p-value P(X >= 15) for a binomial with n=20 p=0.5", "compute_distribution"),
+        ("is the slope of the regression line significantly different from 0", "fit_regression"),
+        ("test whether the regression slope is zero at alpha 0.05", "fit_regression"),
+        ("what is the p-value of the regression", "fit_regression"),
+        ("find the critical t value for 95% confidence and 10 df", "compute_distribution"),
+    ],
+)
+def test_inference_review_round_three(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected
+
+
+def test_sample_size_planning_is_not_an_interval(service: ToolSearchService) -> None:
+    names = _names(service, "what sample size is needed for a margin of error of 3 with sigma 15 at 95% confidence")
+    assert not {"confidence_interval", "hypothesis_test"} & set(names), names

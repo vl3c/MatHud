@@ -185,7 +185,13 @@ _CONFIDENCE_INTERVAL_RE = re.compile(
 )
 # A p-value of a statistic already computed ("p-value for t = 2.1 with 15 df"): compute_distribution.
 _STATISTIC_VALUE_RE = re.compile(
-    r"(?:\b[tz]|\bchi[- ]?(?:squared?|sq)?|χ²|χ2)\s*(?:score|statistic|stat)?\s*=\s*-?\.?\d"
+    r"(?:\b[tz]|\bchi[- ]?(?:squared?|sq)?|χ²|χ2)(?:\s*\(\s*\d+\s*\))?[- ]?(?:\s*(?:score|statistic|stat|value))?"
+    r"\s*(?:=|\bis\b|\bof\b|\bequals\b)\s*-?\.?\d|\bstatistic\s+(?:of|is|=|equals)\s*-?\.?\d"
+)
+# A p-value from a named distribution ("using the binomial distribution, the p-value of 15 or more heads").
+_NAMED_DISTRIBUTION_RE = re.compile(
+    r"\b(?:binomial|poisson|geometric)\b|\b(?:normal|t|chi[- ]?squared?|exponential|uniform)\s+distribution\b"
+    r"|\bp\s*\(\s*x\b"
 )
 _STATISTIC_P_VALUE_RE = re.compile(r"\bp[- ]?values?\b|\bcritical\s+values?\b")
 # "critical value of t with 5 df", "z* for 90% confidence": a quantile, also without a statistic's value.
@@ -197,13 +203,19 @@ _CRITICAL_CONTEXT_RE = re.compile(
     r"confiden|\balpha\b|α|\bdf\b|degrees?\s+of\s+freedom|significan|\d\s*%|\b(?:one|two|left|right|upper|lower)[- ]tail"
 )
 _FUNCTION_CONTEXT_RE = re.compile(r"\b[a-z]\(\s*x\s*\)|\by\s*=|\bfunction\b")
+_TEST_NAME_RE = re.compile(r"\btest(?:s|ed|ing)?\b|\bhypothes[ie]s\b")
 _TEST_WORD_RE = re.compile(r"\btest(?:s|ed|ing)?\b|\bp[- ]?values?\b|\bhypothes[ie]s\b")
 # A picture of a distribution ("shade the p-value on a normal curve") is plot_distribution's.
 _DISTRIBUTION_PICTURE_WORDS = frozenset({"distribution", "curve", "normal", "bell", "gaussian", "density"})
 # Words that make "test" a statistics request even without a test pattern.
 _SAMPLE_WORDS = frozenset({"mean", "means", "proportion", "proportions", "sample", "samples", "population", "sigma"})
-# A confidence interval of a regression slope or intercept (LinRegTInt) belongs to fit_regression.
-_REGRESSION_WORDS = frozenset({"regression", "slope", "intercept", "fit", "fitting"})
+# A test or interval of a regression slope, intercept or correlation (LinRegTTest, LinRegTInt) is out of
+# scope: those requests stay with fit_regression and compute_descriptive_statistics.
+_REGRESSION_WORDS = frozenset(
+    {"regression", "slope", "intercept", "fit", "fitting", "correlation", "correlated", "correlate"}
+)
+# Sample-size planning ("how large a sample for a margin of error of 3") is not an interval.
+_SAMPLE_SIZE_RE = re.compile(r"\bsample\s+size\b|\bhow\s+(?:large|big)\s+(?:a\s+|the\s+)?sample\b")
 _DESCRIPTIVE_WORDS = frozenset({"descriptive", "stats", "statistics", "mean", "median", "stdev", "quartile", "average"})
 # Words that ask for the test suite even next to a test word.
 _TEST_SUITE_WORDS = frozenset({"run", "suite", "client", "server", "unit", "brython"})
@@ -1026,12 +1038,11 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         p-values and hypotheses for hypothesis_test, and confidence intervals or margins of
         error for confidence_interval.
         """
-        if (
-            _STATISTIC_P_VALUE_RE.search(raw_lower)
-            and _STATISTIC_VALUE_RE.search(raw_lower)
-            and not _NUMBER_LIST_RE.search(raw_lower)
-        ):
-            return {"compute_distribution"}
+        if _STATISTIC_P_VALUE_RE.search(raw_lower) and not _NUMBER_LIST_RE.search(raw_lower):
+            if _STATISTIC_VALUE_RE.search(raw_lower):
+                return {"compute_distribution"}
+            if _NAMED_DISTRIBUTION_RE.search(raw_lower) and not _TEST_NAME_RE.search(raw_lower):
+                return {"compute_distribution"}
         tools: set[str] = set()
         if (
             _CRITICAL_VALUE_RE.search(raw_lower)
@@ -1055,7 +1066,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
 
         A picture of a distribution ("plot a normal and shade the p-value") gets no boost and
         ranks below plot_distribution, which draws it; "show the p-value of a t test" is not one. A critical value asked next to a test ranks behind the test, and a confidence
-        interval of a regression slope stays with fit_regression.
+        interval of a regression slope or correlation stays with fit_regression.
         """
         drawing = scores.get("plot_distribution", 0.0)
         draws_distribution = token_set & _PICTURE_WORDS and token_set & (
@@ -1067,14 +1078,14 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
                     scores[tool] = drawing - 0.5
             return
         for tool in tools:
-            if tool == "confidence_interval" and token_set & _REGRESSION_WORDS:
+            if tool in ("confidence_interval", "hypothesis_test") and token_set & _REGRESSION_WORDS:
                 scores.pop(tool, None)
                 continue
             boost = 14.0
             if tool == "compute_distribution" and tools & {"hypothesis_test", "chi_squared_test"}:
                 boost = 10.0  # a test's critical value: the test first
             if tool == "confidence_interval" and "compute_distribution" in tools:
-                boost = 10.0  # "critical z value for 95% confidence": the quantile first
+                boost = 4.0  # "critical z value for 95% confidence": the quantile first
             scores[tool] += boost
 
     @staticmethod
@@ -1151,6 +1162,10 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
                 scores.pop("run_tests", None)
         else:
             ToolSearchService._quiet_inference_tools(token_set, scores)
+        if _SAMPLE_SIZE_RE.search(raw_lower):
+            # Planning n for a margin of error is arithmetic the inference tools cannot do.
+            scores.pop("confidence_interval", None)
+            scores.pop("hypothesis_test", None)
         if token_set & {"bar", "bars"}:
             scores["plot_bars"] += 6.0
         if token_set & {"regression", "fit", "fitting"}:
