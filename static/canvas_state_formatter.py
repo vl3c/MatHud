@@ -917,9 +917,11 @@ def _orbit_behaviour_text(summary: Mapping[str, Any]) -> str:
     behaviour = summary.get("behaviour")
     after = f" after {format_number(summary.get('iterations'))} iterations"
     if behaviour == "fixed_point":
+        slope = summary.get("slope")
+        slope_text = "" if slope is None else f", slope {format_number(slope)}"
         return (
             f"fixed point {format_number(summary.get('fixed_point'))} "
-            f"({_stability_word(summary.get('stable'))}, slope {format_number(summary.get('slope'))})"
+            f"({_stability_word(summary.get('stable'))}{slope_text})"
         )
     if behaviour == "cycle":
         cycle = _as_list(summary.get("cycle"))

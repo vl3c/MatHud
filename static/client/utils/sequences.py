@@ -52,6 +52,10 @@ DIVERGENCE_WINDOW = 20
 # Relative tolerance for "equal" orbit values, and for trend ties.
 ORBIT_TOLERANCE = 1e-9
 TREND_TOLERANCE = 1e-12
+# Points of a cycle are at least this far apart (relative); closer last values are a slow
+# approach to a fixed point. Slopes and cycle multipliers below SLOPE_ZERO are reported as 0.
+CYCLE_SEPARATION = 1e-6
+SLOPE_ZERO = 1e-8
 # Undefined indices listed in a result (the count says how many there are).
 MAX_LISTED_UNDEFINED = 10
 
@@ -95,11 +99,17 @@ def _read_call_argument(text: str, open_index: int) -> Optional[Tuple[str, int]]
     return None
 
 
+def _plain_minus(text: str) -> str:
+    """The text with the Unicode minus sign (U+2212) written as '-'."""
+    return text.replace("\u2212", "-")
+
+
 def _strip_prefix(text: str, names: Sequence[str]) -> str:
     """Drop a leading ``<name> =`` (one reading: the right-hand side follows)."""
     stripped = text.strip()
+    compact = stripped.replace(" ", "").lower()
     for name in names:
-        if stripped.replace(" ", "").startswith(name + "=") and not stripped.replace(" ", "").startswith(name + "=="):
+        if compact.startswith(name + "=") and not compact.startswith(name + "=="):
             return stripped[stripped.index("=") + 1 :].strip()
     return stripped
 
@@ -176,7 +186,7 @@ def _other_notation_hint(text: str) -> Optional[str]:
         rest = compact[index + 1 :]
         if rest[:1] in ("_", "[") and "n" in rest[:4]:
             return f"Write the previous terms as u(n-1) and u(n-2), not '{char}{rest[:6]}', {_SEQUENCE_EXAMPLE}."
-        if char != "u" and (rest.startswith("(n-") or rest.startswith("(n+")):
+        if char not in ("u", INDEX, "e") and (rest.startswith("(n-") or rest.startswith("(n+")):
             return (
                 f"Name the sequence u: write the previous terms as u(n-1) and u(n-2), not "
                 f"'{char}{rest[:5]}', {_SEQUENCE_EXAMPLE}."
@@ -251,6 +261,7 @@ def parse_sequence(text: Any) -> SequenceRule:
     """
     if not isinstance(text, str) or not text.strip():
         raise ValueError(f"The sequence is empty. Give u(n), {_SEQUENCE_EXAMPLE}.")
+    text = _plain_minus(text)
     forward = _forward_rule_hint(text)
     if forward is not None:
         raise ValueError(forward)
@@ -258,7 +269,17 @@ def parse_sequence(text: Any) -> SequenceRule:
     if not expression:
         raise ValueError(f"The sequence is empty. Give the right-hand side of u(n) = ..., {_SEQUENCE_EXAMPLE}.")
     if "=" in expression.replace("==", ""):
-        raise ValueError(f"'{text}' has an '='. Give only the right-hand side of u(n) = ..., {_SEQUENCE_EXAMPLE}.")
+        # a_n = a_{n-1} + 2: both hints at once, so one retry is enough
+        notation = _other_notation_hint(expression[expression.index("=") + 1 :])
+        raise ValueError(
+            f"'{text}' has an '='. Give only the right-hand side of u(n) = ..., {_SEQUENCE_EXAMPLE}."
+            + ("" if notation is None else " " + notation)
+        )
+    if "summation" in expression.lower():
+        raise ValueError(
+            "For partial sums S(n) = a(start) + ... + a(n), write the recursion u(n-1) + a(n) with "
+            "initial_terms [a(start)], as in u(n-1) + 1/n^2 with initial_terms [1] from n = 1."
+        )
     hint = _other_notation_hint(expression)
     if hint is not None:
         raise ValueError(hint)
@@ -462,7 +483,7 @@ def parse_iteration_function(text: Any) -> IterationFunction:
     """Parse g(x): an expression in x; a leading ``y =``, ``g(x) =`` or ``f(x) =`` is dropped."""
     if not isinstance(text, str) or not text.strip():
         raise ValueError(f"The function is empty. Give g(x), {_FUNCTION_EXAMPLE}.")
-    expression = _strip_prefix(text, ("g(x)", "f(x)", "y"))
+    expression = _strip_prefix(_plain_minus(text), ("g(x)", "f(x)", "y"))
     if not expression or "=" in expression.replace("==", ""):
         raise ValueError(f"Give only the right-hand side of g(x) = ..., in x, {_FUNCTION_EXAMPLE}.")
     try:
@@ -531,13 +552,19 @@ def _close(a: float, b: float) -> bool:
     return abs(a - b) <= ORBIT_TOLERANCE * max(1.0, abs(a), abs(b))
 
 
+def _near(a: float, b: float) -> bool:
+    """Within CYCLE_SEPARATION: too close to be two points of a cycle."""
+    return abs(a - b) <= CYCLE_SEPARATION * max(1.0, abs(a), abs(b))
+
+
 def _slope(g: Callable[[float], float], x: float) -> Optional[float]:
     h = 1e-6 * max(1.0, abs(x))
     right = _real_value(g, x + h)
     left = _real_value(g, x - h)
     if right is None or left is None:
         return None
-    return (right - left) / (2.0 * h)
+    slope = (right - left) / (2.0 * h)
+    return 0.0 if abs(slope) < SLOPE_ZERO else slope
 
 
 def _stability(multiplier: Optional[float]) -> Optional[bool]:
@@ -572,10 +599,13 @@ def classify_orbit(g: Callable[[float], float], orbit: Orbit) -> Dict[str, Any]:
 
 def _settled(g: Callable[[float], float], values: List[float]) -> Optional[Dict[str, Any]]:
     """A fixed point or cycle the last values have settled on, or None."""
-    if len(values) >= 2 and _close(values[-1], values[-2]):
-        image = _real_value(g, values[-1])
-        if image is not None and _close(image, values[-1]):
-            return _fixed_point(g, _refined_fixed_point(g, values[-2], values[-1]))
+    if len(values) >= 2 and _near(values[-1], values[-2]):
+        # A slow approach (2.97*x*(1-x)) moves by more than the tolerance per step; the secant
+        # solve of g(x) = x from the last two values tells it from a cycle of close points.
+        point = _refined_fixed_point(g, values[-2], values[-1])
+        image = _real_value(g, point)
+        if image is not None and _close(image, point):
+            return _fixed_point(g, point)
     cycle = _cycle(g, values)
     if cycle is None:
         return None
@@ -583,6 +613,8 @@ def _settled(g: Callable[[float], float], values: List[float]) -> Optional[Dict[
     for value in cycle:
         slope = _slope(g, value)
         multiplier = None if slope is None or multiplier is None else multiplier * slope
+    if multiplier is not None and abs(multiplier) < SLOPE_ZERO:
+        multiplier = 0.0  # not -0.0 or 1e-17 from a slope snapped to 0
     return {
         "behaviour": "cycle",
         "period": len(cycle),
@@ -604,12 +636,14 @@ def _unsettled(values: List[float]) -> Dict[str, Any]:
         return {"behaviour": "none", "pattern": "irregular", "last_change": change}
     sizes = [abs(v) for v in tail]
     growth = [b - a for a, b in zip(sizes, sizes[1:])]
-    if all(g > 0 for g in growth) and all(b >= a * (1 - 1e-9) for a, b in zip(growth, growth[1:])):
+    steady = all(g > 0 for g in growth) and all(b >= a * (1 - 1e-9) for a, b in zip(growth, growth[1:]))
+    if steady and sizes[-1] > max(1.0, abs(values[0])):
         return {"behaviour": "diverges", "last_change": change}
     diffs = [b - a for a, b in zip(tail, tail[1:])]
     if all(d > 0 for d in diffs) or all(d < 0 for d in diffs):
         return {"behaviour": "none", "pattern": "monotone", "last_change": change}
-    if abs(diffs[-1]) < 0.5 * abs(diffs[0]):
+    steps = [abs(d) for d in diffs]
+    if steps[-1] < steps[0] and all(b <= a * (1 + 1e-9) for a, b in zip(steps, steps[1:])):
         return {"behaviour": "none", "pattern": "shrinking", "last_change": change}
     return {"behaviour": "none", "pattern": "irregular", "last_change": change}
 
@@ -658,8 +692,8 @@ def _cycle(g: Callable[[float], float], values: List[float]) -> Optional[List[fl
         earlier = values[-2 * period : -period]
         if not all(_close(a, b) for a, b in zip(tail, earlier)):
             continue
-        if any(_close(tail[i], tail[j]) for i in range(period) for j in range(i + 1, period)):
-            continue  # a shorter cycle (or a fixed point) repeated
+        if any(_near(tail[i], tail[j]) for i in range(period) for j in range(i + 1, period)):
+            continue  # a shorter cycle repeated, or a slow approach to a fixed point
         image = _real_value(g, tail[-1])
         if image is None or not _close(image, tail[0]):
             continue

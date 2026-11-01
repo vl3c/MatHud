@@ -200,7 +200,12 @@ def _listed(key: str, values: Sequence[float]) -> Dict[str, List[Optional[float]
     }
 
 
-def _stability_text(stable: Optional[bool], quantity: str) -> str:
+def _stability_text(stable: Optional[bool], quantity: str, known: bool = True) -> str:
+    if not known:
+        return (
+            "; the slope of g cannot be computed there (g is not defined on both sides), so it does not "
+            "tell whether nearby orbits are attracted"
+        )
     if stable is None:
         return f"; |{quantity}| is about 1 there, so it does not tell whether nearby orbits are attracted"
     if stable:
@@ -218,7 +223,7 @@ def _behaviour_note(summary: Dict[str, Any], result: Dict[str, Any]) -> str:
         result["slope"] = _rounded(summary["slope"], 6)
         result["stable"] = summary["stable"]
         return f"{after} the orbit has settled on x = {result['fixed_point']}, where g(x) = x" + _stability_text(
-            summary["stable"], f"g'(x) = {result['slope']}"
+            summary["stable"], f"g'(x) = {result['slope']}", summary["slope"] is not None
         )
     if behaviour == "cycle":
         result["period"] = summary["period"]
@@ -226,7 +231,9 @@ def _behaviour_note(summary: Dict[str, Any], result: Dict[str, Any]) -> str:
         result["multiplier"] = _rounded(summary["multiplier"], 6)
         result["stable"] = summary["stable"]
         return f"{after} the orbit repeats with period {summary['period']}" + _stability_text(
-            summary["stable"], f"product of g' over the cycle = {result['multiplier']}"
+            summary["stable"],
+            f"product of g' over the cycle = {result['multiplier']}",
+            summary["multiplier"] is not None,
         )
     if behaviour == "escapes":
         result["escaped_at"] = summary["escaped_at"]

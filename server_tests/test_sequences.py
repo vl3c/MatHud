@@ -67,6 +67,8 @@ class TestParseSequence(unittest.TestCase):
                 self.assertEqual(parse_sequence(text).order, order)
 
     def test_leading_u_of_n_is_dropped(self) -> None:
+        self.assertEqual(parse_sequence("U(n) = 1/n").expression, "1/n")
+        self.assertEqual(parse_sequence("u(n\u22121) + 1").order, 1)  # the Unicode minus
         self.assertEqual(parse_sequence("u(n) = 1/n").expression, "1/n")
         self.assertEqual(parse_sequence("u (n)= u(n-1)/2").expression, "u(n-1)/2")
 
@@ -87,6 +89,10 @@ class TestParseSequence(unittest.TestCase):
             ("a_n = 1/n", "has an '='"),
             ("x = 1/n", "has an '='"),
             ("3.2u(n-1)(1-u(n-1))", "Write every product with *"),
+            ("n(n+1)/2", "Write every product with *"),
+            ("2n(n-1)", "Write every product with *"),
+            ("a_n = a_{n-1} + 2", "not 'a_{n-1"),
+            ("summation(1/k^2, k, 1, n)", "u(n-1) + 1/n^2 with initial_terms [1]"),
         ]
         for text, hint in cases:
             with self.subTest(text=text):
@@ -211,6 +217,36 @@ class TestOrbits(unittest.TestCase):
         chaotic = _behaviour("3.9*x*(1-x)", 0.2)
         self.assertEqual((chaotic["behaviour"], chaotic["pattern"]), ("none", "irregular"))
         self.assertEqual(chaotic["iterations"], CLASSIFY_STEPS)
+
+    def test_chaos_and_slow_convergence_are_told_apart(self) -> None:
+        # Review of #137: comparing two changes of a chaotic orbit called a third of starts
+        # "shrinking", and the slow approach at the r = 3 bifurcation "irregular".
+        for r in (3.7, 3.85, 3.9):
+            g = parse_iteration_function(f"{r}*x*(1-x)").evaluate
+            for start in (0.05, 0.2, 0.37, 0.61, 0.88):
+                with self.subTest(r=r, x0=start):
+                    behaviour = orbit_until_settled(g, start, 20)[1]
+                    self.assertEqual((behaviour["behaviour"], behaviour["pattern"]), ("none", "irregular"))
+        for text, x0 in (("3*x*(1-x)", 0.2), ("2.999*x*(1-x)", 0.2), ("-0.999*x+1", 0.0)):
+            with self.subTest(g=text):
+                behaviour = _behaviour(text, x0)
+                self.assertEqual((behaviour["behaviour"], behaviour["pattern"]), ("none", "shrinking"))
+
+    def test_a_slow_approach_is_a_fixed_point_not_a_cycle(self) -> None:
+        for text, x0, point in (("2.97*x*(1-x)", 0.2, 1 - 1 / 2.97), ("1-0.99*x", 0.0, 1 / 1.99)):
+            with self.subTest(g=text):
+                behaviour = _behaviour(text, x0)
+                self.assertEqual(behaviour["behaviour"], "fixed_point")
+                self.assertAlmostEqual(behaviour["fixed_point"], point, places=10)
+                self.assertTrue(behaviour["stable"])
+
+    def test_slow_drift_is_not_divergence_and_zero_slopes_are_exact(self) -> None:
+        self.assertEqual(_behaviour("tan(x)", 1.0)["behaviour"], "none")
+        self.assertEqual(_behaviour("x + 1", 0.0)["behaviour"], "diverges")
+        self.assertEqual(_behaviour("2*x*(1-x)", 0.1)["slope"], 0.0)
+        self.assertEqual(_behaviour("x^3", 0.5)["slope"], 0.0)
+        multiplier = _behaviour("x^2 - 1", 0.5)["multiplier"]
+        self.assertEqual((multiplier, math.copysign(1.0, multiplier)), (0.0, 1.0))
 
     def test_drawn_orbit_and_range(self) -> None:
         g = parse_iteration_function("2x").evaluate
@@ -343,6 +379,12 @@ class TestSequencePlotManager(unittest.TestCase):
             [d.name for d in self.drawables.get_by_class_name("CobwebPlot")],
             ["cobweb", "cobweb_1", "cobweb_2", "cobweb_3"],
         )
+
+    def test_an_unknown_slope_is_worded_as_unknown(self) -> None:
+        result = self.manager.plot_cobweb(function="sqrt(x)", x0=0)
+        self.assertEqual((result["fixed_point"], result["slope"], result["stable"]), (0.0, None, None))
+        self.assertIn("slope of g cannot be computed there", result["note"])
+        self.assertNotIn("None", result["note"])
 
     def test_errors_add_nothing(self) -> None:
         for call in (

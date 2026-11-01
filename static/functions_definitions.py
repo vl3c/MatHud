@@ -2817,7 +2817,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "properties": {
                     "name": {
                         "type": ["string", "null"],
-                        "description": "Optional plot name. If null, 'sequence' (with a number when taken) is used.",
+                        "description": "Optional plot name. If null, 'sequence' is used ('sequence_1' and so on when that name is in use).",
                     },
                     "expression": {
                         "type": "string",
@@ -2844,14 +2844,14 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "plot_cobweb",
-            "description": "Iterates x(k+1) = g(x(k)) from x0 and draws its cobweb (web) diagram: the curve y = g(x), the line y = x, and the path from (x0, 0) up to the curve, across to the line, and so on, as a single plot object. g is an expression in x, such as cos(x) or 3.2*x*(1-x) (plain numbers, like 3.2, in place of parameters). steps: the iterations drawn, 1 to 500 (default 20). Returns plot_name, steps, orbit (x0, x1, ... as drawn; first and last values beyond 50) and behaviour, judged on up to 2000 iterations (iterations says how many): fixed_point (fixed_point, slope g'(x) there, stable: true when |slope| < 1), cycle (period, cycle, multiplier, stable), escapes (escaped_at), diverges (steady growth), undefined (g undefined at undefined_input, at iteration undefined_at) or none (pattern: monotone, shrinking or irregular), with a note to report. To plot the orbit against k, use plot_sequence with the recursion g(u(n-1)). Delete it with delete_plot.",
+            "description": "Iterates x(k+1) = g(x(k)) from x0 and draws its cobweb (web) diagram: the curve y = g(x), the line y = x, and the path from (x0, 0) up to the curve, across to the line, and so on, as a single plot object. g is an expression in x, such as cos(x) or 3.2*x*(1-x) (plain numbers, like 3.2, in place of parameters). steps: the iterations drawn, 1 to 500 (default 20). Returns plot_name, steps, orbit (x0, x1, ... as drawn; first and last values beyond 50) and behaviour, judged on up to 2000 iterations (iterations gives the count): fixed_point (fixed_point, slope g'(x) at it, stable: true when |slope| < 1), cycle (period, cycle, multiplier, stable), escapes (escaped_at), diverges (steady growth), undefined (g undefined at undefined_input, at iteration undefined_at) or none (pattern: monotone, shrinking or irregular), with a note to report. To plot the orbit against k, use plot_sequence with the recursion g(u(n-1)). Delete it with delete_plot.",
             "strict": True,
             "parameters": {
                 "type": "object",
                 "properties": {
                     "name": {
                         "type": ["string", "null"],
-                        "description": "Optional plot name. If null, 'cobweb' (with a number when taken) is used.",
+                        "description": "Optional plot name. If null, 'cobweb' is used ('cobweb_1' and so on when that name is in use).",
                     },
                     "function": {
                         "type": "string",

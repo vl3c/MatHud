@@ -162,6 +162,8 @@ _PREVIOUS_TERM_RE = re.compile(r"\b[a-z]\s*\(\s*n\s*-\s*[12]\s*\)")
 # x(n+1) = ..., x_{n+1}: a first-order iteration, drawn as a cobweb
 _NEXT_TERM_RE = re.compile(r"\b[a-z]\s*\(\s*n\s*\+\s*1\s*\)|\b[a-z]_[({]?n\s*\+\s*1")
 _PLOT_NOUN_WORDS = frozenset({"diagram", "diagrams", "plot", "plots", "chart", "picture"})
+# "plot the convergent sequence 1/n": a plot request, whatever else it asks about the sequence
+_SEQUENCE_PLOT_VERBS = frozenset({"plot", "plots", "plotting", "graph", "draw", "sketch", "visualize", "visualise"})
 # Data-plot words: histograms, box plots and scatter plots; fit words send a scatter request
 # to fit_regression.
 _HISTOGRAM_WORDS = frozenset({"histogram", "histograms", "bin", "bins", "binned", "binning"})
@@ -1142,8 +1144,11 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         """
         if token_set & _SEQUENCE_REQUEST_EXCLUDED_WORDS:
             if token_set & DESTRUCTIVE_QUERY_WORDS:
-                # "remove the cobweb diagram": delete_plot, not a new plot
+                # "remove the cobweb diagram", "delete the sequence": delete_plot, not a new plot
                 ToolSearchService._penalize(scores, ("plot_sequence", "plot_cobweb"), 6.0)
+                named = token_set & (_SEQUENCE_WORDS | _COBWEB_WORDS)
+                if named and not token_set & (_NOT_NUMBER_SEQUENCE_WORDS - {"named"}):
+                    scores["delete_plot"] += 8.0
             return
         partial_sums = "partial sum" in raw_lower
         time_series = "time series" in raw_lower
@@ -1159,7 +1164,14 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             # A named web or cobweb outranks the curve words it is drawn with ("a web plot for the logistic map")
             scores["plot_cobweb"] += 12.0 if web else 10.0
             return
-        if token_set & _SEQUENCE_LIMIT_WORDS or _ORDINAL_TERM_RE.search(raw_lower):
+        terms_named = bool(
+            token_set & _SEQUENCE_WORDS
+            or _SEQUENCE_TERM_RE.search(raw_lower)
+            or _FIRST_TERMS_RE.search(raw_lower)
+            or partial_sums
+        )
+        plotted = bool(token_set & _SEQUENCE_PLOT_VERBS) and terms_named
+        if (token_set & _SEQUENCE_LIMIT_WORDS or _ORDINAL_TERM_RE.search(raw_lower)) and not plotted:
             ToolSearchService._penalize(scores, ("plot_sequence", "plot_cobweb"), 8.0)
             return
         if token_set & _NOT_NUMBER_SEQUENCE_WORDS:
@@ -1168,12 +1180,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         if _PREVIOUS_TERM_RE.search(raw_lower):
             # u(n-1) only appears in a recursion; it outranks the "u(n) =" read as a function
             scores["plot_sequence"] += 14.0
-        elif (
-            token_set & _SEQUENCE_WORDS
-            or _SEQUENCE_TERM_RE.search(raw_lower)
-            or _FIRST_TERMS_RE.search(raw_lower)
-            or partial_sums
-        ):
+        elif terms_named:
             scores["plot_sequence"] += 10.0
 
     @staticmethod
