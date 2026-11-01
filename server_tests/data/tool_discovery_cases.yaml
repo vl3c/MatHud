@@ -2347,6 +2347,68 @@
       "difficulty": "normal"
     },
     {
+      "id": "u_data_plot_regress_1",
+      "query": "Make a bar chart of the bin counts 4, 9, 6.",
+      "expected_any": [
+        "plot_bars"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_data_plot_regress_2",
+      "query": "Draw a bar graph of the histogram counts 3, 5, 2.",
+      "expected_any": [
+        "plot_bars"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_data_plot_regress_3",
+      "query": "Compute the median and quartiles, then draw a box plot.",
+      "expected_any": [
+        "compute_descriptive_statistics",
+        "plot_box"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_data_plot_regress_4",
+      "query": "Show summary statistics and a box plot for 1,2,3,4,50.",
+      "expected_any": [
+        "compute_descriptive_statistics",
+        "plot_box"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_data_plot_regress_5",
+      "query": "Plot the function inside the box from -2 to 2.",
+      "expected_any": [
+        "draw_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
       "id": "u_plot_distribution_1",
       "query": "Plot a normal distribution with mean 0 and std dev 1.",
       "expected_any": [

@@ -21,6 +21,7 @@ from utils.statistics.data_plots import (
     box_summary,
     resolve_bins,
     resolve_normalize,
+    round_significant,
     validate_plot_data,
     validate_scatter_data,
 )
@@ -138,7 +139,7 @@ class DataPlotManager:
             "plot_type": "histogram",
             "n": len(plot.data),
             "bin_start": plot.bins.edge(0),
-            "bin_width": plot.bins.width,
+            "bin_width": round_significant(plot.bins.width),
             "bin_count": plot.bins.count,
             "normalize": plot.normalize,
             "edges": plot.edges(),

@@ -933,10 +933,13 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
     @staticmethod
     def _asks_for_box_plot(token_set: set[str]) -> bool:
         """Whether a query asks for a box plot: "boxplot", whiskers, or "box" with plot or chart
-        (a bare "box" is a rectangle)."""
+        and no function words (a bare "box" is a rectangle)."""
         if token_set & _BOX_PLOT_WORDS:
             return True
-        return "box" in token_set and bool(token_set & {"plot", "plots", "chart", "diagram"})
+        if "box" not in token_set or not token_set & {"plot", "plots", "chart", "diagram"}:
+            return False
+        # "plot the function inside the box": a function plot, not a box plot
+        return not token_set & {"function", "functions", "curve", "graph", "equation"}
 
     @staticmethod
     def _apply_intent_boosts(
@@ -977,10 +980,11 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["plot_distribution"] += 4.0
         histogram = ToolSearchService._asks_for_histogram(token_set)
         box_plot = ToolSearchService._asks_for_box_plot(token_set)
-        if token_set & {"bar", "bars"} and not histogram:
+        if token_set & {"bar", "bars"}:
             scores["plot_bars"] += 6.0
         if histogram:
-            scores["plot_histogram"] += 8.0
+            # "a bar chart of the bin counts": the bar chart that was named wins
+            scores["plot_histogram"] += 3.0 if token_set & {"bar", "bars"} else 8.0
         if box_plot:
             scores["plot_box"] += 10.0
         # A scatter plot asked for its fit or trend line is a regression ("best-fit line for this scatter data")
@@ -988,11 +992,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["plot_scatter"] += 8.0
         if token_set & {"regression", "fit", "fitting"}:
             scores["fit_regression"] += 6.0
-        if (
-            token_set & {"descriptive", "stats", "statistics", "mean", "median", "stdev", "quartile", "average"}
-            and not box_plot
-            and not histogram
-        ):
+        if token_set & {"descriptive", "stats", "statistics", "mean", "median", "stdev", "quartile", "average"}:
             scores["compute_descriptive_statistics"] += 6.0
         if {"five", "summary"} <= token_set and not box_plot:
             # "the five-number summary of 4, 8, 15": statistics, not an expression to evaluate

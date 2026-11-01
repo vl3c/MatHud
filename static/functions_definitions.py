@@ -2597,7 +2597,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "normalize": {
                         "type": ["string", "null"],
                         "enum": ["count", "density", None],
-                        "description": "Bar height: 'count' (default when null) or 'density' (count / (n * bin_width), so the bars' area is 1 and a normal curve from plot_distribution overlays them).",
+                        "description": "Bar height: 'count' (default when null) or 'density' (count / (n * bin_width), so the bars' area is 1 when every value falls in a bin and a normal curve from plot_distribution overlays them).",
                     },
                     "color": {
                         "type": ["string", "null"],

@@ -318,6 +318,10 @@ class TestDataPlotManager(unittest.TestCase):
         self.assertIn("2 of the 4 values lie outside the bins", result["note"])
         self.assertEqual(result["heights"], [0.1])
 
+    def test_reported_bin_width_is_rounded(self) -> None:
+        result = self.manager.plot_histogram(data=[0.1, 0.7], bin_count=2)
+        self.assertEqual(result["bin_width"], 0.3)
+
     def test_errors_add_nothing(self) -> None:
         with self.assertRaises(ValueError):
             self.manager.plot_histogram(data=[1, 2], bin_width=-1)
