@@ -398,7 +398,7 @@ _MEASURES: Tuple[Tuple[str, _Measure], ...] = (
     ("ScatterPlots", _scatter_plot),
 ) + tuple((bucket, _polygon) for bucket in _POLYGON_BUCKETS)
 _GRAPH_BUCKETS = ("Functions", "PiecewiseFunctions")
-_CURVE_BUCKETS = _GRAPH_BUCKETS + ("ParametricFunctions",)
+_CURVE_BUCKETS = _GRAPH_BUCKETS + ("ParametricFunctions", "PolarFunctions")
 
 
 def _curve_shapes(state: Mapping[str, Any]) -> Dict[Key, Shape]:

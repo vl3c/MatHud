@@ -36,6 +36,7 @@ EXPECTED_DRAWABLE_KEYS: Tuple[str, ...] = (
     "Functions",
     "PiecewiseFunctions",
     "ParametricFunctions",
+    "PolarFunctions",
     "FunctionsBoundedColoredAreas",
     "SegmentsBoundedColoredAreas",
     "FunctionSegmentBoundedColoredAreas",
@@ -128,6 +129,9 @@ def _build_functions_and_areas(c: Canvas) -> None:
         name="pw",
     )
     c.draw_parametric_function("cos(t)", "sin(t)", name="pc", t_min=0.0, t_max=6.0)
+    c.drawable_manager.polar_function_manager.draw_polar_function(
+        "1 + cos(θ)", name="card", theta_min=0.0, theta_max=4.0, color="red"
+    )
     s1 = c.create_segment(-4, 1, 4, 2, extra_graphics=False)
     s2 = c.create_segment(-4, -1, 4, -2, extra_graphics=False)
     c.create_colored_area("f", "g", left_bound=-1, right_bound=1)

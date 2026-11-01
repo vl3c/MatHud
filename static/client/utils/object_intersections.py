@@ -52,11 +52,19 @@ from utils.curve_pair_intersections import intersect_curves
 from utils.function_features import MAX_SAMPLES, scan_roots, sample_count
 
 DEFAULT_MAX_RESULTS = 50
+# A hit closer than this share of the pair's size to a curve's pole is the pole
+_POLE_TOLERANCE = 1e-7
+# Finding where a polar curve reaches its pole: samples, refinement steps, minima refined
+_POLE_SAMPLES = 2048
+_POLE_BISECTIONS = 60
+_POLE_CANDIDATES = 16
+# Samples for a curve's typical distance from its pole (the scale of the pole tolerance)
+_POLE_SCALE_SAMPLES = 64
 # Always given for two parametric curves whose search finished: they are intersected by
 # sampling, which cannot guarantee every crossing
 CURVE_PAIR_SAMPLING_NOTE = (
-    "Two parametric curves are intersected by sampling them: on long or intricate curves a crossing can "
-    "occasionally be missed. Narrow a curve's t range to check a region."
+    "Two parametric or polar curves are intersected by sampling them: on long or intricate curves a crossing "
+    "can occasionally be missed. Narrow a curve's t (or θ) range to check a region."
 )
 
 # Rounding units (of every term of a computation) within which a gap is zero: a line or
@@ -425,7 +433,13 @@ class FunctionShape:
 
 
 class ParametricShape:
-    """The curve (x(t), y(t)) for t in [t_min, t_max]."""
+    """The curve (x(t), y(t)) for t in [t_min, t_max].
+
+    ``parameter_name`` is the key hits report the parameter under ("t", or "theta" for a
+    polar curve r(θ), whose points are (r·cos θ, r·sin θ)). ``pole`` is a point the curve
+    reaches with only about half the digits, as r = sqrt(cos(2θ)) reaches the origin at the
+    edge of its domain; hits that close to it are the pole itself (see _snap_to_poles).
+    """
 
     rank = 5
     note: Optional[str] = None
@@ -438,8 +452,12 @@ class ParametricShape:
         t_min: float,
         t_max: float,
         pixels_per_unit: Optional[float] = None,
+        parameter_name: str = "t",
+        pole: Optional[Point2] = None,
     ) -> None:
         self.name = name
+        self.parameter_name = parameter_name
+        self.pole = pole
         self.x_of_t = x_of_t
         self.y_of_t = y_of_t
         self.t_min = float(t_min)
@@ -456,7 +474,7 @@ class ParametricShape:
         return ((x1 - x0) / (2.0 * step), (y1 - y0) / (2.0 * step))
 
     def params(self, t: float) -> Params:
-        return {"t": t}
+        return {self.parameter_name: t}
 
     def extent(self) -> float:
         """Diagonal of the box around a coarse sampling of the curve (its size for tolerances)."""
@@ -631,6 +649,8 @@ def find_object_intersections(
         found = _polygon_hits(first, second)
     else:
         found = _ordered_dispatch(first, second)
+    _add_shared_pole(found, first, second)
+    _snap_to_poles(found, first, second)
     found.notes[:0] = [shape.note for shape in (first, second) if shape.note]
     return _report(found, max_results, _pair_size(first, second))
 
@@ -1267,12 +1287,22 @@ def _parametric_pair(a: ParametricShape, b: ParametricShape) -> _Found:
     for curve, period in zip((first, second), result.periods):
         if period is not None:
             end = curve.t_min + period
+            symbol = "θ" if curve.parameter_name == "theta" else curve.parameter_name
             found.notes.append(
-                f"{curve.name} retraces itself every {_round(period)} in t (checked at every sample of its "
-                f"range), so one period, t in [{_round(curve.t_min)}, {_round(end)}], was searched; its "
+                f"{curve.name} retraces itself every {_round(period)} in {symbol} (checked at every sample of its "
+                f"range), so one period, {symbol} in [{_round(curve.t_min)}, {_round(end)}], was searched; its "
                 "parameters are given in that period."
             )
-            curve = ParametricShape(curve.name, curve.x_of_t, curve.y_of_t, curve.t_min, end, curve.pixels_per_unit)
+            curve = ParametricShape(
+                curve.name,
+                curve.x_of_t,
+                curve.y_of_t,
+                curve.t_min,
+                end,
+                curve.pixels_per_unit,
+                parameter_name=curve.parameter_name,
+                pole=curve.pole,
+            )
         windowed.append(curve)
     first, second = windowed[0], windowed[1]
     for hit in result.hits:
@@ -1494,7 +1524,7 @@ def _curve_probes(
     corner, the curve is taken to run on straight (as a segment's line is), so the one probe
     there is and its opposite direction are used.
     """
-    s = record.params.get(curve.name, {}).get("t")
+    s = record.params.get(curve.name, {}).get(curve.parameter_name)
     if s is None:
         return None
     speed = math.hypot(*curve.derivative(s))
@@ -1591,6 +1621,155 @@ def _report(found: _Found, max_results: int, size: float) -> IntersectionReport:
         "truncated": len(points) > limit,
         "notes": list(found.notes),
     }
+
+
+def _add_shared_pole(found: _Found, first: Shape, second: Shape) -> None:
+    """Add a polar curve's pole when the other object also passes through it and no hit is there yet.
+
+    The sampled search often misses the pole: a polar curve reaches it at an end of its range
+    (the spiral r = θ from 0), at a domain edge (the lobes of r = sqrt(sin(2θ)) and
+    r = sqrt(cos(2θ))) or at a cusp (the cardioid 1 + cos(θ)), and another polar curve may
+    reach it at a different θ.
+    """
+    if found.overlaps or isinstance(first, PolygonShape) or isinstance(second, PolygonShape):
+        return
+    polar = first if getattr(first, "pole", None) is not None else second
+    pole = getattr(polar, "pole", None)
+    if pole is None:
+        return
+    if any(math.hypot(hit.x - pole[0], hit.y - pole[1]) <= _pole_reach(polar, pole) for hit in found.hits):
+        return
+    params: Dict[str, Params] = {}
+    # The cheap checks of a segment, circle or graph first; a curve is searched for its pole
+    for shape in sorted((first, second), key=lambda shape: isinstance(shape, ParametricShape)):
+        shape_params = _params_at_pole(shape, pole, _pole_reach(shape, pole))
+        if shape_params is None:
+            return
+        if shape_params:
+            params[shape.name] = shape_params
+    found.hits.append(_Hit(float(pole[0]), float(pole[1]), params))
+
+
+def _params_at_pole(shape: Shape, pole: Point2, reach: float) -> Optional[Params]:
+    """The shape's parameters at the pole when it passes within ``reach`` of it, else None."""
+    if isinstance(shape, ParametricShape):
+        t = _pole_parameter(shape, pole, reach)
+        return None if t is None else shape.params(t)
+    implicit = getattr(shape, "implicit", None)
+    if implicit is None:
+        return None
+    value = implicit(pole[0], pole[1])
+    if not (math.isfinite(value) and abs(value) <= reach):
+        return None
+    params: Optional[Params] = shape.accepts(pole[0], pole[1])  # type: ignore[union-attr]
+    return params
+
+
+def _pole_parameter(curve: ParametricShape, pole: Point2, reach: float) -> Optional[float]:
+    """A parameter where the curve is within ``reach`` of the pole, or None.
+
+    The curve is sampled; each local minimum of the distance to the pole is refined by a
+    golden-section search between its neighbours, and each domain edge by bisection.
+    """
+    count = _POLE_SAMPLES
+    span = curve.t_max - curve.t_min
+    ts = [curve.t_min + span * i / count for i in range(count + 1)]
+
+    def distance(t: float) -> float:
+        x, y = curve.point(t)
+        value = math.hypot(x - pole[0], y - pole[1])
+        return value if math.isfinite(value) else math.inf
+
+    values = [distance(t) for t in ts]
+    candidates: List[Tuple[float, float, float]] = []
+    for i, value in enumerate(values):
+        if not math.isfinite(value):
+            continue
+        left = values[i - 1] if i > 0 else math.inf
+        right = values[i + 1] if i < count else math.inf
+        if value <= left and value <= right:
+            candidates.append((value, ts[max(i - 1, 0)], ts[min(i + 1, count)]))
+        for neighbour in (i - 1, i + 1):
+            if not 0 <= neighbour <= count or math.isfinite(values[neighbour]):
+                continue
+            # A domain edge between this sample and its neighbour: bisect toward the undefined side
+            good, bad = ts[i], ts[neighbour]
+            for _ in range(_POLE_BISECTIONS):
+                middle = (good + bad) / 2.0
+                if math.isfinite(distance(middle)):
+                    good = middle
+                else:
+                    bad = middle
+            if distance(good) <= reach:
+                return good
+    for _, low, high in sorted(candidates)[:_POLE_CANDIDATES]:
+        t = _golden_minimum(distance, low, high)
+        if distance(t) <= reach:
+            return t
+    return None
+
+
+def _golden_minimum(f: Callable[[float], float], low: float, high: float) -> float:
+    """Where f is least on [low, high] (golden-section search; f is unimodal there)."""
+    ratio = (math.sqrt(5.0) - 1.0) / 2.0
+    a, b = low, high
+    c, d = b - ratio * (b - a), a + ratio * (b - a)
+    fc, fd = f(c), f(d)
+    for _ in range(_POLE_BISECTIONS * 2):
+        if fc <= fd:
+            b, d, fd = d, c, fc
+            c = b - ratio * (b - a)
+            fc = f(c)
+        else:
+            a, c, fc = c, d, fd
+            d = a + ratio * (b - a)
+            fd = f(d)
+    candidates = [(f(a), a), (fc, c), (fd, d), (f(b), b)]
+    return min(candidates)[1]
+
+
+def _snap_to_poles(found: _Found, first: Shape, second: Shape) -> None:
+    """Put hits within _POLE_TOLERANCE (of the polar curve's size) of its pole exactly on it.
+
+    A polar curve whose r is a square root reaches the pole at the edge of its domain, where
+    a rounding unit of θ moves the point by about the square root of one: the lobes of
+    r = sqrt(4cos(2θ)) meet a line through the origin at points 1e-8 apart, which would be
+    reported as several points instead of one.
+    """
+    if not found.hits:
+        return
+    poles: List[Tuple[Point2, float]] = []
+    for shape in (first, second):
+        pole: Optional[Point2] = getattr(shape, "pole", None)
+        if pole is not None:
+            poles.append((pole, _pole_reach(shape, pole)))
+    for hit in found.hits:
+        for (px, py), reach in poles:
+            if math.hypot(hit.x - px, hit.y - py) <= reach:
+                hit.x, hit.y = float(px), float(py)
+                break
+
+
+def _pole_reach(shape: Shape, pole: Point2) -> float:
+    """How close to the pole a point of this object is on it: _POLE_TOLERANCE of its typical size.
+
+    A curve's size is its median distance from the pole over a coarse sampling, not its
+    extent, which a sample next to an asymptote (r = sec(θ) at θ = π/2) makes huge. The error
+    near the pole comes from the polar curve (about 1e-8 of its size), however small the
+    other object is.
+    """
+    if isinstance(shape, ParametricShape):
+        distances = []
+        for i in range(_POLE_SCALE_SAMPLES + 1):
+            x, y = shape.point(shape.t_min + (shape.t_max - shape.t_min) * i / _POLE_SCALE_SAMPLES)
+            distance = math.hypot(x - pole[0], y - pole[1])
+            if math.isfinite(distance):
+                distances.append(distance)
+        distances.sort()
+        size = distances[len(distances) // 2] if distances else 0.0
+    else:
+        size = _shape_size(shape)
+    return _POLE_TOLERANCE * (size if math.isfinite(size) and size > 0.0 else 1.0)
 
 
 def _merged_hits(hits: List[_Hit], size: float) -> List[_Hit]:

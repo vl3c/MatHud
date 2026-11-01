@@ -1200,19 +1200,90 @@ FUNCTIONS: List[Dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "draw_polar_function",
+            "description": "Plots a polar curve r = f(θ): the points (r*cos(θ), r*sin(θ)) for θ from theta_min to theta_max, in radians, like a graphing calculator's polar mode. Use it for cardioids (1 + cos(θ)), roses (2*sin(3*θ)), limaçons (1 + 2*cos(θ)), spirals (θ or e^(0.1*θ)), lemniscates (sqrt(4*cos(2*θ))), circles (2*cos(θ)) and polar conics (1/(1 - 0.5*cos(θ))). A negative r is plotted on the opposite ray, as on calculators; where r is not real (a square root of a negative) the curve has a gap. The default range is 0 to 2π, which closes most curves; r = cos(p/q*θ) closes only after 2*q*π, so cos(θ/2) and sin(3*θ/2) need 0 to 4π and cos(2*θ/3) needs 0 to 6π, and a spiral needs as many turns as wanted (θ from 0 to 6π is three turns, at most 50π). This only draws the curve; set_coordinate_system with mode 'polar' shows a polar grid. The enclosed area is numeric_integrate of 0.5*r^2 over a θ interval that traces the region exactly once, which is not always the curve's full range: 0 to 2π for a cardioid (for a limaçon with an inner loop, such as 1 + 2*cos(θ), 0 to 2π adds the inner loop's area to the outer region's), 0 to π for the circle 2*cos(θ) and for the rose 2*sin(3*θ) (whose 0 to 2π traces it twice), -π/4 to π/4 for one lobe of the lemniscate sqrt(4*cos(2*θ)) (double it for both). For r^2 = f(θ) give r_expression sqrt(f(θ)); that is the whole curve when f(θ + π) = f(θ), as for cos(2*θ) or sin(2*θ), otherwise also draw -sqrt(f(θ)) for the other half. Polar curves cannot be moved with translate_object; draw a new one instead.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "r_expression": {
+                        "type": "string",
+                        "description": "Only the right-hand side of r = ..., in θ (or the word theta), with every function in parentheses and products written explicitly: '1 + cos(θ)', '2*sin(3*θ)', 'e^(0.1*θ)', 'sqrt(4*cos(2*θ))' (the lemniscate r^2 = 4cos(2θ)), '2/(1 - cos(θ))'. Write sin(θ)^2, not sin^2θ. No other variable may appear.",
+                    },
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional name for the curve. Null generates one (f_polar, g_polar, ...).",
+                    },
+                    "theta_min": {
+                        "type": ["number", "null"],
+                        "description": "Start of the θ range in radians. Null means 0.",
+                    },
+                    "theta_max": {
+                        "type": ["number", "null"],
+                        "description": "End of the θ range in radians. Null means theta_min + 2π (2π ~ 6.283 when theta_min is null).",
+                    },
+                    "color": {"type": ["string", "null"], "description": "Optional color for the curve."},
+                },
+                "required": ["r_expression", "name", "theta_min", "theta_max", "color"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_polar_function",
+            "description": "Removes the polar curve r(θ) with the given name from the canvas.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {"name": {"type": "string", "description": "The name of the polar curve to delete."}},
+                "required": ["name"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_polar_function",
+            "description": "Updates editable properties of an existing polar curve r(θ): its color and its θ range (radians, at most 50π long). Provide null for fields to leave them unchanged. To change r(θ) itself, delete the curve and draw a new one.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Existing name of the polar curve to edit."},
+                    "new_color": {"type": ["string", "null"], "description": "Optional new color for the curve."},
+                    "new_theta_min": {
+                        "type": ["number", "null"],
+                        "description": "Optional new start of the θ range, in radians.",
+                    },
+                    "new_theta_max": {
+                        "type": ["number", "null"],
+                        "description": "Optional new end of the θ range, in radians.",
+                    },
+                },
+                "required": ["name", "new_color", "new_theta_min", "new_theta_max"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "draw_tangent_line",
-            "description": "Draws a tangent line segment to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For circles, it's the angle in radians from the positive x-axis. For ellipses, it's the parametric angle t in radians, measured from the ellipse's own (rotated) x-axis: point = center + R(rotation) * (radius_x*cos(t), radius_y*sin(t)). For a function it fails, creating nothing, where the function is undefined, infinite or at a vertical asymptote, or where the line would be too large (|f(x)| above 1e12) or too steep (slope above 1e12 next to a vertical asymptote) to draw.",
+            "description": "Draws a tangent line segment to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For polar curves r(θ), it's θ in radians. For circles, it's the angle in radians from the positive x-axis. For ellipses, it's the parametric angle t in radians, measured from the ellipse's own (rotated) x-axis: point = center + R(rotation) * (radius_x*cos(t), radius_y*sin(t)). For a function it fails, creating nothing, where the function is undefined, infinite or at a vertical asymptote, or where the line would be too large (|f(x)| above 1e12) or too steep (slope above 1e12 next to a vertical asymptote) to draw.",
             "strict": True,
             "parameters": {
                 "type": "object",
                 "properties": {
                     "curve_name": {
                         "type": "string",
-                        "description": "Name of the curve to draw tangent to (function, parametric function, circle, or ellipse)",
+                        "description": "Name of the curve to draw tangent to (function, parametric function, polar function, circle, or ellipse)",
                     },
                     "parameter": {
                         "type": "number",
-                        "description": "Position on curve: x-coordinate for functions, t-value for parametric curves, angle (radians) for circles, or parametric angle t (radians, in the ellipse's rotated frame) for ellipses",
+                        "description": "Position on curve: x-coordinate for functions, t-value for parametric curves, θ (radians) for polar curves, angle (radians) for circles, or parametric angle t (radians, in the ellipse's rotated frame) for ellipses",
                     },
                     "name": {"type": ["string", "null"], "description": "Optional name for the tangent line segment"},
                     "length": {
@@ -1233,18 +1304,18 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "draw_normal_line",
-            "description": "Draws a normal line segment (perpendicular to tangent) to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For circles, it's the angle in radians from the positive x-axis. For ellipses, it's the parametric angle t in radians, measured from the ellipse's own (rotated) x-axis: point = center + R(rotation) * (radius_x*cos(t), radius_y*sin(t)). For a function it fails, creating nothing, where the function is undefined, infinite or at a vertical asymptote, or where the line would be too large (|f(x)| above 1e12) or too steep (slope above 1e12 next to a vertical asymptote) to draw.",
+            "description": "Draws a normal line segment (perpendicular to tangent) to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For polar curves r(θ), it's θ in radians. For circles, it's the angle in radians from the positive x-axis. For ellipses, it's the parametric angle t in radians, measured from the ellipse's own (rotated) x-axis: point = center + R(rotation) * (radius_x*cos(t), radius_y*sin(t)). For a function it fails, creating nothing, where the function is undefined, infinite or at a vertical asymptote, or where the line would be too large (|f(x)| above 1e12) or too steep (slope above 1e12 next to a vertical asymptote) to draw.",
             "strict": True,
             "parameters": {
                 "type": "object",
                 "properties": {
                     "curve_name": {
                         "type": "string",
-                        "description": "Name of the curve to draw normal to (function, parametric function, circle, or ellipse)",
+                        "description": "Name of the curve to draw normal to (function, parametric function, polar function, circle, or ellipse)",
                     },
                     "parameter": {
                         "type": "number",
-                        "description": "Position on curve: x-coordinate for functions, t-value for parametric curves, angle (radians) for circles, or parametric angle t (radians, in the ellipse's rotated frame) for ellipses",
+                        "description": "Position on curve: x-coordinate for functions, t-value for parametric curves, θ (radians) for polar curves, angle (radians) for circles, or parametric angle t (radians, in the ellipse's rotated frame) for ellipses",
                     },
                     "name": {"type": ["string", "null"], "description": "Optional name for the normal line segment"},
                     "length": {
@@ -2427,14 +2498,14 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "find_intersections",
-            "description": "Finds the intersection points of two objects on the canvas: any mix of segments, vectors, circles, circle arcs, ellipses (rotated too), functions, piecewise functions, parametric curves (two of them too) and polygons (triangles, rectangles, any polygon, as one object made of its edges). Exact formulas for lines, circles and line/ellipse; a numeric search otherwise. Two parametric curves are intersected by sampling, which can occasionally miss a crossing on long or intricate curves (the result always says so); narrow a curve's t range to check a region. Returns each point's x and y (about 10 significant digits, sorted by x then y), params telling where it lies on each object (t on a segment or vector: 0 at its first point, 1 at its second; t on a parametric curve; angle in radians on a circle, arc or ellipse, the parameter draw_tangent_line takes; edge index and t on a polygon), on a polygon the edges (segment names) it lies on and the vertex when it is one (a crossing at a vertex is one point), tangent=true where the objects touch (at a polygon vertex: the polygon stays on one side, e.g. a line touching a corner from outside), and count. Objects that coincide over a stretch (collinear overlapping segments, identical circles, arcs of one circle, a function along a segment, a segment along a polygon edge, one curve drawn twice) are reported in overlaps, not as points. A function counts only where it is plotted (its bounds, else the visible x range, reported as x_range). At most 50 points; truncated=true means there were more. Optionally places a labelled point at each intersection (one undo step); the result then lists point_names, created_point_names (points this call added) and reused_point_names (points that already existed there and belong to the user's drawing: never delete those to undo this call). For two plotted functions only, find_function_features works too.",
+            "description": "Finds the intersection points of two objects on the canvas: any mix of segments, vectors, circles, circle arcs, ellipses (rotated too), functions, piecewise functions, parametric and polar curves (two of them too) and polygons (triangles, rectangles, any polygon, as one object made of its edges). Exact formulas for lines, circles and line/ellipse; a numeric search otherwise. Two parametric or polar curves are intersected by sampling, which can occasionally miss a crossing on long or intricate curves (the result always says so); narrow a curve's t or θ range to check a region. Returns each point's x and y (about 10 significant digits, sorted by x then y), params telling where it lies on each object (t on a segment or vector: 0 at its first point, 1 at its second; t on a parametric curve; theta on a polar curve; angle in radians on a circle, arc or ellipse, the parameter draw_tangent_line takes; edge index and t on a polygon), on a polygon the edges (segment names) it lies on and the vertex when it is one (a crossing at a vertex is one point), tangent=true where the objects touch (at a polygon vertex: the polygon stays on one side, e.g. a line touching a corner from outside), and count. Objects that coincide over a stretch (collinear overlapping segments, identical circles, arcs of one circle, a function along a segment, a segment along a polygon edge, one curve drawn twice) are reported in overlaps, not as points. A function counts only where it is plotted (its bounds, else the visible x range, reported as x_range). At most 50 points; truncated=true means there were more. Optionally places a labelled point at each intersection (one undo step); the result then lists point_names, created_point_names (points this call added) and reused_point_names (points that already existed there and belong to the user's drawing: never delete those to undo this call). For two plotted functions only, find_function_features works too.",
             "strict": True,
             "parameters": {
                 "type": "object",
                 "properties": {
                     "object_names": {
                         "type": "array",
-                        "description": "Names of exactly two objects to intersect (segments, vectors, circles, circle arcs, ellipses, functions, piecewise functions, parametric curves or polygons).",
+                        "description": "Names of exactly two objects to intersect (segments, vectors, circles, circle arcs, ellipses, functions, piecewise functions, parametric or polar curves or polygons).",
                         "items": {"type": "string"},
                     },
                     "extend_lines": {

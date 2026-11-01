@@ -478,6 +478,49 @@
           ]
         }
       ]
+    },
+    {
+      "id": "FN-12",
+      "title": "Polar curves: a cardioid and a circle, where they meet",
+      "tags": ["functions", "polar", "intersections"],
+      "smoke": false,
+      "targets": "draw_polar_function, the PolarFunctions bucket and polar intersections reported in theta",
+      "steps": [
+        {
+          "user": "Plot the cardioid r = 1 + cos(θ) and the circle r = 3cos(θ) in red, then find where they meet.",
+          "reference": [
+            {
+              "tool": "draw_polar_function",
+              "args": {"r_expression": "1 + cos(θ)", "name": "c", "theta_min": null, "theta_max": null, "color": null}
+            },
+            {
+              "tool": "draw_polar_function",
+              "args": {"r_expression": "3*cos(θ)", "name": "k", "theta_min": null, "theta_max": null, "color": "red"}
+            },
+            {
+              "tool": "find_intersections",
+              "args": {"object_names": ["c", "k"], "extend_lines": null, "place_points": null}
+            }
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "count", "select": {"type": "PolarFunction"}, "eq": 2},
+            {
+              "check": "exists",
+              "select": {"type": "PolarFunction", "where": {"args.color": "red"}}
+            },
+            {"check": "tool_result", "tool": "find_intersections", "path": "count", "eq": 3},
+            {
+              "check": "tool_result",
+              "tool": "find_intersections",
+              "path": "intersections",
+              "has_numbers": [0.75, 1.299038, -1.299038],
+              "tol": 1e-6
+            },
+            {"check": "answer_mentions", "numbers": [0.75]}
+          ]
+        }
+      ]
     }
   ]
 }

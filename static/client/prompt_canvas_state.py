@@ -72,7 +72,10 @@ _CURVE_CLASSES = (
     ("Function", "Functions"),
     ("PiecewiseFunction", "PiecewiseFunctions"),
     ("ParametricFunction", "ParametricFunctions"),
+    ("PolarFunction", "PolarFunctions"),
 )
+# Buckets of curves traced over a parameter range (t_min..t_max), measured by sampling it
+_TRACED_BUCKETS = frozenset(("ParametricFunctions", "PolarFunctions"))
 
 
 class _TimeUp(Exception):
@@ -137,7 +140,7 @@ def curve_extents(
                 if name not in names or measured >= MAX_MEASURED_CURVES:
                     continue
                 measured += 1
-                entry = _curve_extent(drawable) if bucket == "ParametricFunctions" else _graph_extent(drawable, view)
+                entry = _curve_extent(drawable) if bucket in _TRACED_BUCKETS else _graph_extent(drawable, view)
                 if clock() > deadline:
                     raise _TimeUp()
                 if entry is not None:

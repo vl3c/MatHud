@@ -222,6 +222,18 @@ class FunctionNameGenerator(NameGenerator):
         # Preferred name taken, generate a unique one
         return self._generate_unique_parametric_function_name()
 
+    def generate_polar_function_name(self, preferred_name: Optional[str]) -> str:
+        """Generate a unique polar function name: preferred_name if free, else f_polar, g_polar, ..., f1_polar."""
+        polar_names: List[str] = self.taken_names("PolarFunction")
+        if preferred_name and preferred_name not in polar_names:
+            return preferred_name
+        for number in count():
+            for letter in "fghijklmnopqrstuvwxyzabcde":
+                name = f"{letter}{number if number > 0 else ''}_polar"
+                if name not in polar_names:
+                    return name
+        raise ValueError("All polar function names are taken")
+
     def reset_state(self) -> None:
         """Reset any internal state for function naming (if any in the future)."""
         # No complex state like used_letters_from_names currently, but good to have for consistency.
