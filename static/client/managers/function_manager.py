@@ -412,7 +412,7 @@ class FunctionManager:
         See utils.arc_length_tool.arc_length_tool; a name is looked up among the plotted
         functions, piecewise functions, parametric and polar curves, circles, circle arcs and ellipses.
         """
-        return arc_length_tool(
+        result: Dict[str, Any] = arc_length_tool(
             curve_name=curve_name,
             function_string=function_string,
             x_expression=x_expression,
@@ -422,6 +422,7 @@ class FunctionManager:
             upper_bound=upper_bound,
             resolve=lambda name: resolve_plotted_curve(self.drawables, name),
         )
+        return result
 
     def _feature_curves(self, function_names: Sequence[str]) -> List[Any]:
         """Look up one or two plotted functions (plain or piecewise) by name."""
