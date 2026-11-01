@@ -1053,6 +1053,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             if tool == "confidence_interval" and "compute_distribution" in tools:
                 boost = 10.0  # "critical z value for 95% confidence": the quantile first
             scores[tool] += boost
+
     @staticmethod
     def _quiet_inference_tools(token_set: set[str], scores: Dict[str, float]) -> None:
         """No inference intent: the tool names' "test" and "interval" do not make a ratio test,
