@@ -314,6 +314,39 @@ class TestCreativePrompts:
         assert "simplify" in _top_n(self.service, "distance between (1,2) and (4,6) as a radical")
         assert "simplify" in _top_n(self.service, "give the angle in radians as an exact multiple of pi")
 
+    def test_curve_length_goes_to_arc_length(self) -> None:
+        """A curve's length is arc_length's; a segment's or a side's is not."""
+        for query in (
+            "arc length of y = x^2 from 0 to 1",
+            "how long is the curve y = ln(x) from 1 to e",
+            "length of the parametric curve x = cos(t)^3, y = sin(t)^3",
+            "perimeter of the cardioid r = 1 + cos(theta)",
+            "length of the spiral r = theta from 0 to 2pi",
+            "distance traveled by a particle at (t^2, t^3) from t = 0 to 2",
+            "length of one arch of the cycloid x = t - sin(t), y = 1 - cos(t)",
+            "plot the cardioid r = 1 + cos(θ) and compute its perimeter",
+            "perimeter of an ellipse with semi-axes 3 and 1",
+            "length of sin(x) from 0 to pi",
+        ):
+            assert _top_n(self.service, query)[0] == "arc_length", query
+        for query in ("what is the length of segment AB", "length of vector v", "perimeter of polygon ABCD"):
+            assert "arc_length" not in _top_n(self.service, query)[:3], query
+
+    def test_exact_arc_length_keeps_arc_length_first(self) -> None:
+        """The exact form is the integral of the speed: integrate and simplify follow arc_length."""
+        top = _top_n(self.service, "exact arc length of y = x^(3/2) from 0 to 4")
+        assert top[0] == "arc_length"
+        assert {"integrate", "simplify"} <= set(top)
+
+    def test_distance_travelled_from_a_velocity_is_an_integral(self) -> None:
+        """Along a line, the distance travelled is the integral of |v(t)|."""
+        top = _top_n(self.service, "total distance traveled with velocity v(t) = t^2 - 4 on [0, 3]")
+        assert top[0] == "integrate"
+
+    def test_draw_and_measure_keeps_the_draw_tool(self) -> None:
+        top = _top_n(self.service, "draw y = x^2 and find its arc length from 0 to 1")
+        assert top[:2] == ["arc_length", "draw_function"]
+
     # -- Math class homework scenarios --
 
     def test_homework_quadratic(self) -> None:
