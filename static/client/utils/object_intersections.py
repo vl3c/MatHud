@@ -425,7 +425,11 @@ class FunctionShape:
 
 
 class ParametricShape:
-    """The curve (x(t), y(t)) for t in [t_min, t_max]."""
+    """The curve (x(t), y(t)) for t in [t_min, t_max].
+
+    ``parameter_name`` is the key hits report the parameter under ("t", or "theta" for a
+    polar curve r(θ), whose points are (r·cos θ, r·sin θ)).
+    """
 
     rank = 5
     note: Optional[str] = None
@@ -438,8 +442,10 @@ class ParametricShape:
         t_min: float,
         t_max: float,
         pixels_per_unit: Optional[float] = None,
+        parameter_name: str = "t",
     ) -> None:
         self.name = name
+        self.parameter_name = parameter_name
         self.x_of_t = x_of_t
         self.y_of_t = y_of_t
         self.t_min = float(t_min)
@@ -456,7 +462,7 @@ class ParametricShape:
         return ((x1 - x0) / (2.0 * step), (y1 - y0) / (2.0 * step))
 
     def params(self, t: float) -> Params:
-        return {"t": t}
+        return {self.parameter_name: t}
 
     def extent(self) -> float:
         """Diagonal of the box around a coarse sampling of the curve (its size for tolerances)."""
