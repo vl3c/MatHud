@@ -826,3 +826,37 @@ def test_inference_review_round_four(service: ToolSearchService, query: str, exp
 def test_survey_size_planning_is_not_an_interval(service: ToolSearchService) -> None:
     names = _names(service, "how many people must be surveyed for a margin of error of 3%?")
     assert "confidence_interval" not in names, names
+
+
+# Review round 5: "geometric", p(x) and "test" in algebra stay with their tools; a binomial p-value from a sample
+# is an exact tail; "test whether p > 0.5 at alpha 0.05" crosses the decimal point.
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("use the ratio test on the geometric series sum (1/2)^n", "simplify"),
+        ("test whether the geometric series 1 + 2 + 4 + ... converges", "simplify"),
+        ("use the rational root test on p(x) = x^3 - 6x^2 + 11x - 6", "evaluate_expression"),
+        ("if alpha and beta are the roots of p(x) = x^2 + 3x + 2, find alpha^2 + beta^2", "solve"),
+        ("geometric construction: bisect angle alpha", "construct_angle_bisector"),
+        ("goodness of fit test: do the observed counts 30, 50, 20 follow a binomial distribution", "chi_squared_test"),
+        ("in a sample of 30 with p = 0.5, find the binomial p-value of 21 or more successes", "compute_distribution"),
+        (
+            "a random sample of 15 is binomial with p = 0.4; find the p-value of 10 or more successes",
+            "compute_distribution",
+        ),
+        (
+            "the number of defects follows a poisson distribution; 15 defects observed; test whether the mean is 10",
+            "compute_distribution",
+        ),
+        ("a survey of 500 voters finds 270 support the measure; test whether p > 0.5 at alpha 0.05", "hypothesis_test"),
+        ("test whether mu > 3.5 at alpha 0.05 given x̄ = 3.8, s = 0.9, n = 40", "hypothesis_test"),
+        ("test whether p differs from 0.4 at alpha = 0.01; 52 of 150 said yes", "hypothesis_test"),
+        ("test mu = 2.5 at alpha 0.05 with mean 2.7, sd 0.4, n 20", "hypothesis_test"),
+        (
+            "using the normal approximation to the binomial, test whether p = 0.5 when 60 of 100 are heads",
+            "hypothesis_test",
+        ),
+    ],
+)
+def test_inference_review_round_five(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected

@@ -180,10 +180,11 @@ _HYPOTHESIS_TEST_RE = re.compile(
     r"|\breject(?:s|ed|ing)?\s+(?:the\s+)?(?:null|h[_ ]?0)\b"
     r"|\b(?:2-?)?samp[tz]test\b|\b[12]-?propztest\b|\bpaired\b[^.]*\btests?\b"
     r"|\b(?:one|two|1|2)[- ]?(?:sample|proportion|prop)s?\b[^.]*\btests?\b|\bproportion\s+tests?\b"
-    r"|\btest(?:s|ed)?\s+(?:whether|if|that)\s+(?:the\s+)?(?:population\s+)?(?:means?|proportions?|averages?)\b"
-    r"|\btest(?:s|ed)?\b[^.]*(?:\balpha\b|α)\s*(?:=|of|level)?\s*0?\.\d|(?:\balpha\b|α)\s*=?\s*0?\.\d[^.]*\btest"
+    r"|\btest(?:s|ed)?\s+(?:whether|if|that)\s+(?:the\s+)?(?:population\s+)?(?:means?|proportions?|averages?|p|mu|μ)\b"
+    r"|\bh[_ ]?[1a]\s*:"
+    r"|\btest(?:s|ed)?\b(?:[^.;?]|\.\d)*(?:\balpha\b|α)\s*(?:=|of|level)?\s*0?\.\d|(?:\balpha\b|α)\s*=?\s*0?\.\d(?:[^.;?]|\.\d)*\btest"
     r"|\btest\s+(?:the\s+|this\s+)?claim\b|\b(?:evidence|claim)\s+that\s+(?:the\s+)?(?:population\s+)?(?:mean|proportion)"
-    r"|\btest\b[^.]*\bat\s+(?:the\s+)?\d+(?:\.\d+)?\s*%|\b(?:at|with)\s+(?:the\s+)?\d+(?:\.\d+)?\s*%\s+(?:significance\s+)?level"
+    r"|\btest\b(?:[^.;?]|\.\d)*\bat\s+(?:the\s+)?\d+(?:\.\d+)?\s*%|\b(?:at|with)\s+(?:the\s+)?\d+(?:\.\d+)?\s*%\s+(?:significance\s+)?level"
 )
 _CHI_SQUARED_TEST_RE = re.compile(
     r"(?:χ²|χ2|\bchi[- ]?(?:squared?|sq|2)?)[- ]?(?:gof[- ]?)?(?:tests?\b|goodness\b)"
@@ -204,7 +205,7 @@ _STATISTIC_VALUE_RE = re.compile(
 # distribution, is 15 or more heads significant?"): its exact tail is compute_distribution's, not a
 # normal-approximation test.
 _NAMED_DISTRIBUTION_RE = re.compile(
-    r"\b(?:binomial|poisson|geometric)\b|\bp\s*\(\s*x\b"
+    r"\b(?:binomial|poisson)\b|\bgeometric\s+(?:distribution|random|probability|model)|\bp\s*\(\s*x\s*(?:[<>=≤≥]|!=)"
     r"|\bprobability\b[^.;?]*\b(?:or\s+(?:more|fewer|less)|at\s+(?:least|most))\b"
 )
 # A named distribution routes to compute_distribution only next to a test word ("geometric series" does not).
@@ -234,8 +235,10 @@ _SAMPLE_SIZE_RE = re.compile(
     r"\b(?:what|which|minimum|smallest|required|needed)\s+sample\s+size\b|\bsample\s+size\s+(?:is\s+)?(?:needed|required)\b"
     r"|\bhow\s+(?:large|big)\s+(?:a\s+|the\s+)?sample\b|\bhow\s+many\b[^.?]*\b(?:surveyed|sampled|needed|required)\b"
 )
-# Sample figures that make a named binomial question a test of data after all.
-_SAMPLE_SUMMARY_WORDS = frozenset({"mean", "sd", "sigma", "sample", "samples", "data"})
+# Summary figures, or a normal-approximation test asked by name, that make a named binomial question a
+# test of data after all ("a sample of 30", "test whether the mean is 10" stay exact tails).
+_SAMPLE_SUMMARY_WORDS = frozenset({"sd", "sigma", "approximation", "proportion", "proportions"})
+_Z_TEST_RE = re.compile(r"\bz[- ]?tests?\b|\b1-?propztest\b|\bstandard\s+deviation\b")
 # Words that ask for the test suite even next to a test word.
 _TEST_SUITE_WORDS = frozenset({"run", "suite", "client", "server", "unit", "brython"})
 _FUNCTION_NAME_WORDS = frozenset({"sin", "cos", "exp", "ln", "log", "squared", "cubed"})
@@ -1182,6 +1185,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         if (
             _NAMED_DISTRIBUTION_RE.search(raw_lower)
             and _INFERENCE_SIGNAL_RE.search(raw_lower)
+            and not (function or _CHI_SQUARED_TEST_RE.search(raw_lower) or _Z_TEST_RE.search(raw_lower))
             and not set(re.findall(r"[a-z]+", raw_lower)) & _SAMPLE_SUMMARY_WORDS
         ):
             return {"compute_distribution"}
