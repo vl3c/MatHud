@@ -35,6 +35,19 @@ Create a figure-eight curve (lemniscate) with x(t) = cos(t)/(1+sin(t)^2) and y(t
 Update the parametric function named "Circle" to use a blue color.
 Delete the parametric function named "Spiral".
 
+# Polar Curves
+Plot the cardioid r = 1 + cos(θ).
+Draw the rose r = 2*sin(3*θ) in red.
+Plot the spiral r = θ for θ from 0 to 6*pi.
+Draw the lemniscate r = sqrt(4*cos(2*θ)).
+Plot r = cos(θ/2) over its full period (θ from 0 to 4*pi).
+Plot the limaçon r = 1 + 2*cos(theta) and switch to a polar grid.
+Draw the cardioid r = 1 + cos(θ) and the circle r = 3*cos(θ), and find where they meet.
+Draw the tangent to the polar curve f_polar at θ = pi/4.
+Find the area enclosed by r = 1 + cos(θ) (integrate 0.5*r^2 over θ from 0 to 2*pi).
+Change the θ range of f_polar to 0 to 4*pi and make it blue.
+Delete the polar curve f_polar.
+
 # Tangent and Normal Lines
 Plot y = x^2 and draw its tangent line at x = 2.
 Draw the tangent and normal lines to y = sin(x) at x = pi/4, both in red.

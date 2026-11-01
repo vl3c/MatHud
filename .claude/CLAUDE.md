@@ -21,7 +21,7 @@ The long-term goal is a mathematical heads-up display: an AI that looks at a rea
 
 ## Core Capabilities
 1. Canvas control: reset, clear, undo, redo, zoom, grid toggles, and math-bounds fitting.
-2. Geometry primitives: create, edit, and relate points, segments, vectors, triangles, rectangles, circles, ellipses, and angles.
+2. Geometry primitives: create, edit, and relate points, segments, vectors, triangles, rectangles, circles, ellipses, and angles; plot functions, piecewise functions, parametric curves and polar curves r(θ) (`draw_polar_function`).
 3. Mathematics: evaluate expressions, solve equations and inequalities (optionally on an interval), differentiate, integrate, check the steps of a derivation (`check_steps`), give Taylor polynomials (`taylor_polynomial`), partial fractions (`expand` with a variable) and closed forms of sums (`simplify` of `summation(term, k, a, b)`), work with complex numbers, and run statistical routines.
 4. Graph theory: create graphs, trees, DAGs; run analyses (shortest path, MST, topological sort, BFS/DFS).
 5. Statistics: plot probability distributions (normal, discrete) and bar charts; compute descriptive statistics (mean, median, mode, quartiles, etc.).
@@ -408,8 +408,9 @@ Add one row to `FUNCTIONS` in `static/client/expression_functions.py` (callable 
 - `plot a bar chart with values [10, 20, 5] and labels ["A", "B", "C"]`
 - `compute descriptive statistics for [10, 20, 30, 40, 50]`
 
-## Parametric Curves
+## Parametric and Polar Curves
 - `draw a parametric circle with x(t) = cos(t) and y(t) = sin(t)`
+- `plot the cardioid r = 1 + cos(θ)` (polar curves take θ or theta; `r = θ` from 0 to 6*pi is a spiral)
 - `plot a spiral using x(t) = t*cos(t) and y(t) = t*sin(t) with t from 0 to 6*pi`
 - `create a Lissajous curve with x(t) = sin(3*t) and y(t) = sin(2*t)`
 

@@ -46,7 +46,7 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
 - Statistical Functions: mean, median, mode, standard deviation, variance
 - Calculus Operations: derivatives, integrals, limits
 - Complex Numbers: operations with real and imaginary components
-- Graphing Functions: plot functions, parametric equations, polar coordinates
+- Graphing Functions: plot functions, piecewise functions, parametric curves x(t), y(t) and polar curves r(θ) (`drawables/polar_function.py`, drawn by the parametric renderer, which ends a path where the curve's domain ends between samples), and switch to a polar grid
 - Geometric Calculations: distance, angle, area, volume, intersections
 - Coordinate Conversion: rectangular to polar and polar to rectangular transformations
 - Equation Solving: linear equations, quadratic equations, systems of equations (two-equation x/y systems report every intersection, found by substitution with numeric root checks), numeric solving for transcendental/nonlinear systems via multi-start Newton-Raphson (Gauss-Newton or minimum-norm steps for over/underdetermined systems)
