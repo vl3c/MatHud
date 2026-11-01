@@ -2,8 +2,8 @@
   "metadata": {
     "schema_version": 1,
     "description": "Tool discovery benchmark cases for search_tools semantic routing.",
-    "expected_tool_count": 96,
-    "expected_tool_hash": "86fe5c1c6b1c06c0b41bde2983e771aa838afa5de13b6f8ca73ab201d122d973",
+    "expected_tool_count": 97,
+    "expected_tool_hash": "88cbb9c28fbc02701c994daa4f8830fe44c702c0196953a84370ad14efc402d6",
     "confusion_clusters": {
       "convert_cluster": [
         "convert",
@@ -22,7 +22,8 @@
       "stats_cluster": [
         "plot_distribution",
         "plot_bars",
-        "fit_regression"
+        "fit_regression",
+        "compute_distribution"
       ],
       "workspace_cluster": [
         "save_workspace",
@@ -3058,6 +3059,141 @@
       "category": "confusion_probe",
       "difficulty": "hard",
       "cluster": "rewrite_cluster"
+    },
+    {
+      "id": "u_compute_distribution_1",
+      "query": "What is P(X <= 3) for a binomial distribution with n = 10 and p = 0.3?",
+      "expected_any": [
+        "compute_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_compute_distribution_2",
+      "query": "Find the probability that a normal variable with mean 100 and standard deviation 15 is below 85.",
+      "expected_any": [
+        "compute_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_compute_distribution_3",
+      "query": "Critical value of the t distribution with 12 degrees of freedom at 95% confidence.",
+      "expected_any": [
+        "compute_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_compute_distribution_4",
+      "query": "invNorm(0.975)",
+      "expected_any": [
+        "compute_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_compute_distribution_5",
+      "query": "Poisson with mean 4: probability of exactly 2 events?",
+      "expected_any": [
+        "compute_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_compute_distribution_6",
+      "query": "What's the 90th percentile of a chi-squared distribution with 5 df?",
+      "expected_any": [
+        "compute_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_distribution_7",
+      "query": "Plot a binomial distribution with n = 10 and p = 0.3 and shade P(2 <= X <= 5).",
+      "expected_any": [
+        "plot_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_distribution_8",
+      "query": "Draw the exponential distribution with rate 0.5.",
+      "expected_any": [
+        "plot_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_distribution_9",
+      "query": "Shade the area to the right of 2.1 under a t distribution with 15 degrees of freedom.",
+      "expected_any": [
+        "plot_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "c_exponential_function_not_distribution",
+      "query": "Plot the exponential function y = 2^x.",
+      "expected_any": [
+        "draw_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "normal",
+      "cluster": "stats_cluster"
+    },
+    {
+      "id": "c_geometric_series_not_distribution",
+      "query": "Sum the geometric series 1/2^k for k from 0 to infinity.",
+      "expected_any": [
+        "simplify",
+        "evaluate_expression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "normal",
+      "cluster": "stats_cluster"
     }
   ]
 }
