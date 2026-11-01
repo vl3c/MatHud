@@ -326,6 +326,9 @@ class FunctionRegistry:
             # ===== PLOT OPERATIONS =====
             "plot_distribution": canvas.plot_distribution,
             "plot_bars": canvas.plot_bars,
+            "plot_histogram": canvas.drawable_manager.data_plot_manager.plot_histogram,
+            "plot_box": canvas.drawable_manager.data_plot_manager.plot_box,
+            "plot_scatter": canvas.drawable_manager.data_plot_manager.plot_scatter,
             "delete_plot": canvas.delete_plot,
             "fit_regression": canvas.fit_regression,
             "compute_descriptive_statistics": compute_descriptive_statistics_tool,

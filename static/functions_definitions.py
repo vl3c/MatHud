@@ -2567,8 +2567,143 @@ FUNCTIONS: List[Dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "plot_histogram",
+            "description": "Draws a histogram of raw data values: the values are counted into equal-width bins and each bin is drawn as a bar standing on y = 0 (for counts already grouped into categories, use plot_bars). Bins are [a, b), as on a graphing calculator: a value on an edge belongs to the bin it starts (only the right end of the last of a fixed number of bins counts in that bin). Give any of bin_start, bin_width and bin_count; missing ones come from the data: Sturges' rule (ceil(log2 n) + 1 bins) with a round width (1, 2, 2.5 or 5 times a power of ten), the start a multiple of the width at or below the smallest value, and enough bins to hold the largest value. For calculator-style bins (Xmin, Xscl) give bin_start and bin_width. At most 1000 values and 200 bins. Bar heights are in y units on the canvas's single scale (count, or density = count / (n * bin_width) for overlaying plot_distribution). Returns plot_name, n, bin_start, bin_width, bin_count, edges (bin_count + 1 numbers), counts, heights (density only), and excluded_count with a note when fixed bins leave values out. Delete it with delete_plot.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional plot name. If null, 'histogram' (with a number when taken) is used.",
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "description": "The raw values, finite numbers, 1 to 1000 of them; each value counts once (not a frequency table).",
+                    },
+                    "bin_start": {
+                        "type": ["number", "null"],
+                        "description": "Left edge of the first bin. Null: a multiple of the bin width at or below the smallest value (the smallest value itself when only bin_count is given). Values below it are not counted.",
+                    },
+                    "bin_width": {
+                        "type": ["number", "null"],
+                        "description": "Width of every bin, > 0. Null: from bin_count, or a round width from Sturges' rule.",
+                    },
+                    "bin_count": {
+                        "type": ["integer", "null"],
+                        "description": "Number of bins, 1 to 200. Null: enough bins to reach the largest value. With bin_width also given the bins are fixed and values beyond them are not counted.",
+                    },
+                    "normalize": {
+                        "type": ["string", "null"],
+                        "enum": ["count", "density", None],
+                        "description": "Bar height: 'count' (default when null) or 'density' (count / (n * bin_width), so the bars' area is 1 and a normal curve from plot_distribution overlays them).",
+                    },
+                    "color": {
+                        "type": ["string", "null"],
+                        "description": "Optional bar fill color. Defaults to light blue; bars are always outlined.",
+                    },
+                    "fill_opacity": {
+                        "type": ["number", "null"],
+                        "description": "Optional bar fill opacity, 0 to 1. Defaults to 0.6.",
+                    },
+                },
+                "required": [
+                    "name",
+                    "data",
+                    "bin_start",
+                    "bin_width",
+                    "bin_count",
+                    "normalize",
+                    "color",
+                    "fill_opacity",
+                ],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "plot_box",
+            "description": "Draws a horizontal box-and-whisker plot of raw data values along the x axis. The quartiles are the same as compute_descriptive_statistics gives (median of each half, the half excluding the median when n is odd). With show_outliers (default), values more than 1.5 * IQR below Q1 or above Q3 are outliers drawn as dots and the whiskers reach the most extreme values inside those fences (a value on a fence is inside); otherwise the whiskers reach the minimum and maximum. At most 1000 values. By default the box is 0.2 times the whisker span tall and is placed below the x axis and below any existing box plot, so box plots of several data sets stack. Returns plot_name, n, min, q1, median, q3, max, iqr, whisker_low, whisker_high, y_position, box_height and, with outliers shown, lower_fence, upper_fence, outlier_count and outliers (the 20 smallest). Delete it with delete_plot.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional plot name. If null, 'box_plot' (with a number when taken) is used.",
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "description": "The raw values, finite numbers, 1 to 1000 of them.",
+                    },
+                    "y_position": {
+                        "type": ["number", "null"],
+                        "description": "y of the box's centre line. Null: just below the x axis and below every existing box plot.",
+                    },
+                    "box_height": {
+                        "type": ["number", "null"],
+                        "description": "Box height in y units, > 0. Null: 0.2 times the whisker span (1 when all values are equal).",
+                    },
+                    "show_outliers": {
+                        "type": ["boolean", "null"],
+                        "description": "Whether to mark values beyond the 1.5 * IQR fences as outliers. Null means true.",
+                    },
+                    "color": {
+                        "type": ["string", "null"],
+                        "description": "Optional color of the outline, median, whiskers and outliers. The box fill uses it too, at fill_opacity (light blue when null).",
+                    },
+                    "fill_opacity": {
+                        "type": ["number", "null"],
+                        "description": "Optional box fill opacity, 0 to 1. Defaults to 0.3.",
+                    },
+                },
+                "required": ["name", "data", "y_position", "box_height", "show_outliers", "color", "fill_opacity"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "plot_scatter",
+            "description": "Draws a scatter plot: one dot per (x_data[i], y_data[i]) pair, as a single plot object rather than named points (use create_point for points to build on). At most 1000 pairs. x and y share the canvas's single scale. Returns plot_name, n, x_min, x_max, y_min, y_max and r (Pearson's correlation, null for one pair or a constant list). For a trend line, call fit_regression on the same data with show_points false. Delete it with delete_plot.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional plot name. If null, 'scatter_plot' (with a number when taken) is used.",
+                    },
+                    "x_data": {
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "description": "The x values, finite numbers, 1 to 1000 of them.",
+                    },
+                    "y_data": {
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "description": "The y values, as many as x_data.",
+                    },
+                    "color": {
+                        "type": ["string", "null"],
+                        "description": "Optional dot color. Defaults to the point color.",
+                    },
+                },
+                "required": ["name", "x_data", "y_data", "color"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "delete_plot",
-            "description": "Deletes a previously created plot composite by name, including any underlying components (curve and filled area, or derived bars).",
+            "description": "Deletes a previously created plot by name (distribution, bar chart, histogram, box plot or scatter plot), including any underlying components (curve and filled area, or derived bars).",
             "strict": True,
             "parameters": {
                 "type": "object",
