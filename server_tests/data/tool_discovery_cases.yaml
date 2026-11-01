@@ -2409,6 +2409,54 @@
       "difficulty": "normal"
     },
     {
+      "id": "u_stats_standard_deviation_1",
+      "query": "Standard deviation of 2, 4, 4, 4, 5, 5, 7, 9.",
+      "expected_any": [
+        "compute_descriptive_statistics"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_stats_interquartile_range_1",
+      "query": "What is the interquartile range of 3, 5, 9, 12?",
+      "expected_any": [
+        "compute_descriptive_statistics"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_stats_standard_deviation_2",
+      "query": "Find the standard deviation of the data and plot it.",
+      "expected_any": [
+        "compute_descriptive_statistics"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_stats_standard_deviation_3",
+      "query": "Find the standard deviation of the data and make a scatter plot.",
+      "expected_any": [
+        "compute_descriptive_statistics"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
       "id": "u_plot_distribution_1",
       "query": "Plot a normal distribution with mean 0 and std dev 1.",
       "expected_any": [

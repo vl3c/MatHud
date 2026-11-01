@@ -22,6 +22,7 @@ from managers.drawables_container import DrawablesContainer
 from managers.statistics_manager import StatisticsManager
 from plot_kinds import build_saved_plot, plot_kind
 from static.canvas_state_formatter import render_state
+from static.canvas_view_note import Box, measure_shapes
 from utils.statistics.data_plots import (
     MAX_HISTOGRAM_BINS,
     MAX_PLOT_DATA_POINTS,
@@ -443,6 +444,29 @@ class TestDataPlotCanvasText(unittest.TestCase):
         self.assertIn("200 bins of width 1 from 0", text)
         self.assertIn("... (150 more)", text)
         self.assertIn("... (5 more)", text)
+
+    def test_one_bin_is_singular(self) -> None:
+        histogram = HistogramPlot("H", data=[1.0, 2.0], bins=resolve_bins([1.0, 2.0], bin_count=1))
+        self.assertIn("H = Histogram(n 2; 1 bin of width", render_state(self.state(histogram), "text", None))
+
+
+class TestDataPlotViewBoxes(unittest.TestCase):
+    """The view note measures data plots, so one drawn off screen gets a note."""
+
+    def boxes(self, *plots: Any) -> Dict[str, Box]:
+        state: Dict[str, Any] = {"Points": []}
+        for plot in plots:
+            state.setdefault(plot.get_class_name() + "s", []).append(plot.get_state())
+        return {key[1]: shape.box for key, shape in measure_shapes(state).items()}
+
+    def test_each_kind_has_its_drawn_box(self) -> None:
+        histogram = HistogramPlot("H", data=[150, 155, 172], bins=resolve_bins([150.0, 155.0, 172.0], bin_width=10))
+        box = BoxPlot("B", data=[1, 2, 3, 4, 40], y_position=-2, box_height=2)
+        scatter = ScatterPlot("S", x_data=[-1, 4], y_data=[3, -5])
+        boxes = self.boxes(histogram, box, scatter)
+        self.assertEqual((boxes["H"].left, boxes["H"].right, boxes["H"].bottom, boxes["H"].top), (150, 180, 0, 2))
+        self.assertEqual((boxes["B"].left, boxes["B"].right, boxes["B"].bottom, boxes["B"].top), (1, 40, -3, -1))
+        self.assertEqual((boxes["S"].left, boxes["S"].right, boxes["S"].bottom, boxes["S"].top), (-1, 4, -5, 3))
 
 
 if __name__ == "__main__":

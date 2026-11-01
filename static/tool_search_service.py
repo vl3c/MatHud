@@ -120,6 +120,11 @@ _HISTOGRAM_WORDS = frozenset({"histogram", "histograms", "bin", "bins", "binned"
 _BOX_PLOT_WORDS = frozenset({"boxplot", "boxplots", "whisker", "whiskers"})
 _SCATTER_WORDS = frozenset({"scatter", "scatterplot", "scatterplots"})
 _FIT_WORDS = frozenset({"fit", "fitting", "fitted", "regression", "trend", "best"})
+# Words that ask for descriptive statistics ("the standard deviation of the data and a histogram").
+_DESCRIPTIVE_STATISTICS_WORDS = frozenset(
+    {"descriptive", "stats", "statistics", "mean", "median", "average", "stdev", "std", "sd", "deviation"}
+    | {"quartile", "quartiles", "iqr", "interquartile"}
+)
 # Function notation such as "f(x)", "y = ...", "x^2", "x > 3", "1/x".
 _FUNCTION_NOTATION_RE = re.compile(r"\b[a-z]\(\s*[a-z]\s*\)|[=^<>/+*]")
 # "create a graph", "build graph G1", "make a new graph called net": nothing but the request.
@@ -992,8 +997,8 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["plot_scatter"] += 8.0
         if token_set & {"regression", "fit", "fitting"}:
             scores["fit_regression"] += 6.0
-        if token_set & {"descriptive", "stats", "statistics", "mean", "median", "stdev", "quartile", "average"}:
-            scores["compute_descriptive_statistics"] += 6.0
+        if token_set & _DESCRIPTIVE_STATISTICS_WORDS:
+            scores["compute_descriptive_statistics"] += 7.0
         if {"five", "summary"} <= token_set and not box_plot:
             # "the five-number summary of 4, 8, 15": statistics, not an expression to evaluate
             scores["compute_descriptive_statistics"] += 8.0

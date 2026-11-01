@@ -801,7 +801,8 @@ def _render_histogram_plot(scene: _Scene, item: JsonDict) -> str:
     data = _as_list(args.get("data"))
     counts = _as_list(_summary(args).get("counts"))
     head = (
-        f"Histogram(n {len(data)}; {format_number(args.get('bin_count'))} bins of width "
+        f"Histogram(n {len(data)}; {format_number(args.get('bin_count'))} "
+        f"{'bin' if args.get('bin_count') == 1 else 'bins'} of width "
         f"{format_number(args.get('bin_width'))} from {format_number(args.get('bin_start'))}; "
         f"counts {_numbers_text(counts, MAX_LISTED_BIN_COUNTS, '/')}"
     )
