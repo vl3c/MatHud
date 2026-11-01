@@ -906,3 +906,23 @@ def test_inference_review_round_six(service: ToolSearchService, query: str, expe
 )
 def test_inference_review_round_seven(service: ToolSearchService, query: str, expected: str) -> None:
     assert _names(service, query)[0] == expected
+
+
+# Review round 8: samples named x and y are data, not functions; "t interval" with a space is an interval;
+# CI as an abbreviation only before "for" or "of".
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("2-SampTTest on x = 5, 6, 7, 8 and y = 6, 7, 9, 10", "hypothesis_test"),
+        ("test whether mu = 12 at alpha 0.05 for y = 12, 15, 11, 14, 13", "hypothesis_test"),
+        ("t-interval for y = 3, 5, 7, 9", "confidence_interval"),
+        ("find a z-interval with y = 52, sigma = 6, n = 25", "confidence_interval"),
+        ("construct a one-sample t interval for the mean of 12, 15, 11, 14, 13", "confidence_interval"),
+        ("find a 90% z interval for the mean with xbar 50, sigma 4, n 25", "confidence_interval"),
+        ("find a CI for the mean of 5, 7, 9", "confidence_interval"),
+        ("run the CI tests", "run_tests"),
+        ("plot y = 2x + 3", "draw_function"),
+    ],
+)
+def test_inference_review_round_eight(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected
