@@ -44,7 +44,7 @@ COLORED_AREA_TYPES = frozenset(
     }
 )
 GRAPH_TYPES = frozenset({"UndirectedGraph", "DirectedGraph", "Tree"})
-PLOT_TYPES = frozenset({"ContinuousPlot", "DiscretePlot", "BarsPlot"})
+PLOT_TYPES = frozenset({"ContinuousPlot", "DiscretePlot", "BarsPlot", "HistogramPlot", "BoxPlot", "ScatterPlot"})
 # Selector type names that match a family of types.
 TYPE_FAMILIES: dict[str, frozenset[str]] = {
     "Polygon": POLYGON_TYPES,

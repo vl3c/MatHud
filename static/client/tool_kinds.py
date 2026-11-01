@@ -5,8 +5,9 @@ Every tool in ``static/functions_definitions.py`` sits on exactly one list
 - ``UNDOABLE_TOOLS`` change the canvas; a tool batch containing one is one undo step,
   and their results are reported with a standard success message.
 - ``VALUE_TOOLS`` compute a value the model must see. Some also draw (``fit_regression``
-  plots its curve and data, ``find_function_features`` and ``find_intersections`` may
-  place points); those group their changes into an undo step of their own.
+  plots its curve and data, the data plots draw a histogram, box or scatter plot,
+  ``find_function_features`` and ``find_intersections`` may place points); those group
+  their changes into an undo step of their own.
 - ``META_TOOLS`` act on the history, workspaces or tests rather than on the canvas
   content: they are not undoable, and their results are not computations.
 """
@@ -124,10 +125,24 @@ VALUE_TOOLS: Tuple[str, ...] = (
     "find_intersections",
     "fit_regression",
     "compute_descriptive_statistics",
+    "plot_histogram",
+    "plot_box",
+    "plot_scatter",
     "compute_distribution",
     "calculate_area",
     "convert_coordinates",
     "search_tools",
+)
+
+# Value tools that can change the canvas: a tool batch holding one is one undo step, as a
+# batch holding an undoable tool is (their own undo grouping then nests in the batch's).
+DRAWING_VALUE_TOOLS: Tuple[str, ...] = (
+    "find_function_features",
+    "find_intersections",
+    "fit_regression",
+    "plot_histogram",
+    "plot_box",
+    "plot_scatter",
 )
 
 META_TOOLS: Tuple[str, ...] = (

@@ -356,6 +356,126 @@
           ]
         }
       ]
+    },
+    {
+      "id": "ST-10",
+      "title": "Histogram with calculator-style bins",
+      "tags": ["statistics", "plots"],
+      "smoke": false,
+      "targets": "binning ([a, b) bins: the two 90s start the bin [90, 100)) and the counts in the result and in the plot's summary",
+      "steps": [
+        {
+          "user": "Draw a histogram of the test scores 55, 62, 70, 71, 78, 85, 90, 90 with bins of width 10 starting at 50.",
+          "reference": [
+            {
+              "tool": "plot_histogram",
+              "args": {
+                "name": null,
+                "data": [55, 62, 70, 71, 78, 85, 90, 90],
+                "bin_start": 50,
+                "bin_width": 10,
+                "bin_count": null,
+                "normalize": null,
+                "color": null,
+                "fill_opacity": null
+              }
+            }
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "count", "select": {"type": "HistogramPlot"}, "eq": 1},
+            {"check": "tool_result", "tool": "plot_histogram", "path": "counts", "eq": [1, 1, 3, 1, 2]},
+            {"check": "tool_result", "tool": "plot_histogram", "path": "edges", "eq": [50, 60, 70, 80, 90, 100]},
+            {
+              "check": "attribute",
+              "path": "args.summary.counts",
+              "select": {"type": "HistogramPlot", "only": true},
+              "eq": [1, 1, 3, 1, 2]
+            },
+            {"check": "absent", "select": {"type": "Bar"}}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ST-11",
+      "title": "Box plot with an outlier",
+      "tags": ["statistics", "plots"],
+      "smoke": false,
+      "targets": "median-of-halves quartiles shared with compute_descriptive_statistics, 1.5 IQR fences and the whiskers",
+      "steps": [
+        {
+          "user": "Make a box plot of the waiting times 4, 6, 6, 7, 9, 10, 12, 40 and tell me whether any are outliers.",
+          "reference": [
+            {
+              "tool": "plot_box",
+              "args": {
+                "name": null,
+                "data": [4, 6, 6, 7, 9, 10, 12, 40],
+                "y_position": null,
+                "box_height": null,
+                "show_outliers": null,
+                "color": null,
+                "fill_opacity": null
+              }
+            }
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "count", "select": {"type": "BoxPlot"}, "eq": 1},
+            {"check": "tool_result", "tool": "plot_box", "path": "q1", "eq": 6},
+            {"check": "tool_result", "tool": "plot_box", "path": "median", "eq": 8},
+            {"check": "tool_result", "tool": "plot_box", "path": "q3", "eq": 11},
+            {"check": "tool_result", "tool": "plot_box", "path": "outliers", "eq": [40]},
+            {"check": "tool_result", "tool": "plot_box", "path": "whisker_high", "eq": 12},
+            {
+              "check": "attribute",
+              "path": "args.summary.outliers",
+              "select": {"type": "BoxPlot", "only": true},
+              "eq": [40]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ST-12",
+      "title": "Scatter plot then a trend line",
+      "tags": ["statistics", "plots", "regression"],
+      "smoke": false,
+      "targets": "plot_scatter draws one plot (no points) and reports r; fit_regression with show_points false adds only the line",
+      "steps": [
+        {
+          "user": "Make a scatter plot of hours studied 1, 2, 3, 4, 5 against scores 52, 60, 71, 80, 86, then add a linear trend line without extra points.",
+          "reference": [
+            {
+              "tool": "plot_scatter",
+              "args": {"name": null, "x_data": [1, 2, 3, 4, 5], "y_data": [52, 60, 71, 80, 86], "color": null}
+            },
+            {
+              "tool": "fit_regression",
+              "args": {
+                "name": null,
+                "x_data": [1, 2, 3, 4, 5],
+                "y_data": [52, 60, 71, 80, 86],
+                "model_type": "linear",
+                "degree": null,
+                "plot_bounds": null,
+                "curve_color": null,
+                "show_points": false,
+                "point_color": null
+              }
+            }
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "count", "select": {"type": "ScatterPlot"}, "eq": 1},
+            {"check": "count", "select": {"type": "Function"}, "eq": 1},
+            {"check": "absent", "select": {"type": "Point"}},
+            {"check": "tool_result", "tool": "plot_scatter", "path": "n", "eq": 5}
+          ]
+        }
+      ]
     }
   ]
 }

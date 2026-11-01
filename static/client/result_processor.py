@@ -40,7 +40,7 @@ from constants import (
 from creation_report import CreationReport, CreationSnapshot
 from json_safe import ensure_json_safe, is_json_plain, to_json_safe
 from no_change_result import NoChangeResult
-from tool_kinds import META_TOOLS
+from tool_kinds import DRAWING_VALUE_TOOLS, META_TOOLS
 
 # Largest JSON-serialized return value of a canvas-mutating tool passed back to the model;
 # larger values are replaced by the success message to keep token usage bounded.
@@ -137,8 +137,11 @@ class ResultProcessor:
 
     @staticmethod
     def _contains_undoable_function(calls: List[Dict[str, Any]], undoable_functions: Tuple[str, ...]) -> bool:
-        """Return True when any call in the batch can change the canvas."""
-        return any(call.get("function_name", "") in undoable_functions for call in calls)
+        """Return True when any call in the batch can change the canvas (an undoable or a drawing value tool)."""
+        return any(
+            call.get("function_name", "") in undoable_functions or call.get("function_name", "") in DRAWING_VALUE_TOOLS
+            for call in calls
+        )
 
     @staticmethod
     def _run_traced_call(
