@@ -105,7 +105,8 @@ class PolarFunction(Drawable):
         if _R_SQUARED_PREFIX.match(source):
             raise ValueError(
                 f"r(θ) = '{text}' gives r^2, not r. For r^2 = f(θ) (a lemniscate), give sqrt(f(θ)), "
-                f"such as sqrt(4*cos(2*θ)) for r^2 = 4cos(2θ)."
+                f"such as sqrt(4*cos(2*θ)) for r^2 = 4cos(2θ). That is the whole curve when f(θ + π) = f(θ), "
+                f"as for cos(2θ) or sin(2θ); otherwise also draw -sqrt(f(θ)) for the other half."
             )
         source = _R_PREFIX.sub("", source, count=1)
         if not source:
@@ -159,7 +160,8 @@ class PolarFunction(Drawable):
             low, high = high, low
         if high - low > cls.MAX_SPAN:
             raise ValueError(
-                f"The θ range [{low:g}, {high:g}] is longer than 50π (~157.08, 25 turns); use a shorter range."
+                f"The θ range [{low:g}, {high:g}] is longer than 50π (~157.08, 25 turns); use a shorter range. "
+                f"θ is in radians: 360° is 2π (~6.283)."
             )
         return low, high
 

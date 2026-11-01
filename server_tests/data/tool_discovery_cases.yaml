@@ -3262,6 +3262,59 @@
       "cluster": "function_cluster"
     },
     {
+      "id": "polar_make_new_curve",
+      "query": "Make a cardioid.",
+      "expected_any": [
+        "draw_polar_function"
+      ],
+      "forbidden": [
+        "search_tools",
+        "update_polar_function"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "medium",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "parametric_cardioid_not_polar",
+      "query": "Plot a cardioid using x(t) = (1-cos(t))*cos(t) and y(t) = (1-cos(t))*sin(t).",
+      "expected_any": [
+        "draw_parametric_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "parametric_lemniscate_not_polar",
+      "query": "Create a figure-eight curve (lemniscate) with x(t) = cos(t)/(1+sin(t)^2) and y(t) = sin(t)*cos(t)/(1+sin(t)^2).",
+      "expected_any": [
+        "draw_parametric_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "parametric_ellipse_spaced",
+      "query": "Draw an ellipse parametrically: x(t) = 3*cos(t), y(t) = 2*sin(t).",
+      "expected_any": [
+        "draw_parametric_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
       "id": "polar_vector_not_curve",
       "query": "Draw a vector with magnitude r = 5 at angle θ = 30°.",
       "expected_any": [

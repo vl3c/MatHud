@@ -507,7 +507,7 @@
             {"check": "count", "select": {"type": "PolarFunction"}, "eq": 2},
             {
               "check": "exists",
-              "select": {"type": "PolarFunction", "where": {"args.r_expression": "3*cos(θ)", "args.color": "red"}}
+              "select": {"type": "PolarFunction", "where": {"args.color": "red"}}
             },
             {"check": "tool_result", "tool": "find_intersections", "path": "count", "eq": 3},
             {

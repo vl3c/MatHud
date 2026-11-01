@@ -247,6 +247,48 @@ class TestPolarIntersections(unittest.TestCase):
         self.assertEqual(len(parabola["points"]), 3)
         self.assertIn((0.0, 0.0), _points(parabola))
 
+    def test_curves_reaching_the_pole_at_domain_edges_meet_there(self) -> None:
+        # Both lobes end at the pole, where each r is a square root of zero; sin(2θ) = cos(2θ)
+        # gives the other two points, at θ = π/8 and its opposite ray
+        first = PolarFunction("sqrt(sin(2θ))", name="a")
+        second = PolarFunction("sqrt(cos(2θ))", name="b")
+        report = find_object_intersections(_shape(first), _shape(second))
+        r = math.sqrt(math.sin(math.pi / 4))
+        x, y = round(r * math.cos(math.pi / 8), 6), round(r * math.sin(math.pi / 8), 6)
+        self.assertEqual(_points(report), [(-x, -y), (0.0, 0.0), (x, y)])
+
+    def test_spiral_and_cardioid_meet_at_the_pole_at_different_theta(self) -> None:
+        spiral = PolarFunction("θ", name="s", theta_max=6 * math.pi)
+        cardioid = PolarFunction("1 + cos(θ)", name="c")
+        report = find_object_intersections(_shape(spiral), _shape(cardioid))
+        points = _points(report)
+        self.assertEqual(len(points), 2)
+        self.assertIn((0.0, 0.0), points)
+        pole = next(p for p in report["points"] if abs(p["x"]) < 1e-9 and abs(p["y"]) < 1e-9)
+        self.assertAlmostEqual(pole["params"]["s"]["theta"], 0.0, places=6)
+        self.assertAlmostEqual(pole["params"]["c"]["theta"], math.pi, places=6)
+
+    def test_one_lobe_and_a_parametric_parabola_meet_at_the_pole(self) -> None:
+        lobe = PolarFunction("sqrt(4cos(2θ))", name="l", theta_min=-math.pi / 4, theta_max=math.pi / 4)
+        x_axis = find_object_intersections(_shape(lobe), line_shape("h", (-3.0, 0.0), (3.0, 0.0)))
+        self.assertEqual(_points(x_axis), [(0.0, 0.0), (2.0, 0.0)])
+        lemniscate = PolarFunction("sqrt(4cos(2θ))", name="L")
+        parabola = ParametricShape("p", lambda t: t, lambda t: t * t, -3.0, 3.0, pixels_per_unit=32.0)
+        report = find_object_intersections(_shape(lemniscate), parabola)
+        self.assertEqual(len(report["points"]), 3)
+        self.assertIn((0.0, 0.0), _points(report))
+
+    def test_small_objects_through_the_pole_of_a_large_lemniscate_give_it_once(self) -> None:
+        lemniscate = PolarFunction("sqrt(4cos(2θ))", name="L")
+        short = find_object_intersections(_shape(lemniscate), line_shape("s", (-0.1, 0.0), (0.1, 0.0)))
+        self.assertEqual(_points(short), [(0.0, 0.0)])
+        circle = find_object_intersections(_shape(lemniscate), circle_shape("c", (0.2, 0.0), 0.2))
+        self.assertEqual(len(circle["points"]), 3)
+        self.assertIn((0.0, 0.0), _points(circle))
+        large = PolarFunction("sqrt(100cos(2θ))", name="B")
+        unit = find_object_intersections(_shape(large), line_shape("u", (-1.0, 0.0), (1.0, 0.0)))
+        self.assertEqual(_points(unit), [(0.0, 0.0)])
+
     def test_a_circle_traced_twice_gives_each_point_once(self) -> None:
         circle = PolarFunction("2cos(θ)", name="k")  # over [0, 2π] the circle is traced twice
         report = find_object_intersections(_shape(circle), circle_shape("c", (1.0, 1.0), 1.0))

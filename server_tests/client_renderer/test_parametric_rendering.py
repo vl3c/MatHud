@@ -99,8 +99,6 @@ class TestParametricPlanSignature(unittest.TestCase):
         self.assertNotEqual(self._signature(mapper), before)
 
 
-
-
 class TestDomainEdges(unittest.TestCase):
     """Paths end where the curve's domain ends between two samples, not at the last sample."""
 

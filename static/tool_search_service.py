@@ -164,6 +164,12 @@ _POLAR_CURVE_NOUNS = frozenset(
     {"curve", "curves", "plot", "plots", "equation", "function", "functions", "rose", "spiral"}
 )
 _POLAR_CURVE_RE = re.compile(r"(?:^|[^a-z0-9_])r\s*(?:\(\s*(?:θ|theta)\s*\))?\s*(?:\^\s*2\s*)?=(?!=)")
+# r = f(θ) written out: θ right after a number, an operator, "(" or a trig function, or alone
+# ("r = 2sin(3θ)", "r = 1 + cos θ", "r = θ"); not "r = 5 at angle θ = 30°"
+_POLAR_EQUATION_RE = re.compile(
+    r"(?:^|[^a-z0-9_])r\s*(?:\(\s*(?:θ|theta)\s*\))?\s*=(?!=)\s*"
+    r"(?:(?:θ|theta)\b|[^,;=]*?(?:[0-9*+\-/^(]|\b(?:sin|cos|tan|sec|csc|cot))\s*(?:θ|theta)\b)"
+)
 _POLAR_NOT_CURVE_WORDS = frozenset({"point", "points", "convert", "conversion", "cartesian", "rectangular"})
 # Shapes whose radius or angle a query may give as r and θ
 _POLAR_SHAPE_WORDS = frozenset(
@@ -174,7 +180,14 @@ _POLAR_EDIT_WORDS = frozenset(
     {"change", "update", "edit", "set", "recolor", "recolour", "extend", "range", "make", "color", "colour"}
     | {"red", "blue", "green", "orange", "purple", "black", "yellow", "pink", "gray", "grey", "brown"}
 )
-_POLAR_DRAW_WORDS = frozenset({"draw", "plot", "graph", "sketch", "create", "add", "new"})
+_POLAR_DRAW_WORDS = frozenset({"draw", "plot", "graph", "sketch", "create", "add", "new", "show", "want"})
+# "a cardioid", "an ellipse", "another rose": a new object, not one already drawn
+_NEW_OBJECT_RE = re.compile(r"\b(?:a|an|another)\s")
+# "the cardioid", "make it blue", "f_polar": a curve already drawn ("make the cardioid a different color")
+_EXISTING_OBJECT_RE = re.compile(r"\b(?:the|it|its|existing|\w+_polar)\b")
+# x(t) = ... or x = ... t ...: a curve given by x and y in t
+_PARAMETRIC_RE = re.compile(r"\bx\s*\(\s*t\s*\)|\bx\s*=[^,;]*\bt\b")
+_PARAMETRIC_Y_RE = re.compile(r"\by\s*\(\s*t\s*\)|\by\s*=[^,;]*\bt\b")
 _VALUE_QUESTION_WORDS = frozenset({"what", "whats"})
 # "f(x) = x for x < 0 ...", "the function is -x when x < 0": a function defined by cases
 _DEFINES_FUNCTION_WORDS = frozenset({"function", "define", "defined"})
@@ -943,7 +956,13 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         """
         if token_set & _POLAR_NOT_CURVE_WORDS:
             return False
+        if token_set & {"parametric", "parametrically"} or _PARAMETRIC_RE.search(raw_lower):
+            # "a cardioid using x(t) = ..., y(t) = ...": a parametric curve
+            return False
         equation = bool(_POLAR_CURVE_RE.search(raw_lower)) and ("θ" in raw_lower or "theta" in token_set)
+        if _POLAR_EQUATION_RE.search(raw_lower):
+            # "plot r = 2sin(3θ) and measure the angle between two petals": the curve is given
+            return True
         if token_set & _POLAR_SHAPE_WORDS:
             return False
         if token_set & {"grid", "coordinates"} and not equation:
@@ -1235,9 +1254,12 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             if token_set & {"delete", "remove", "erase"}:
                 scores["delete_polar_function"] += 8.0
             elif (token_set & _POLAR_EDIT_WORDS) and not (
-                token_set & _POLAR_DRAW_WORDS or _POLAR_CURVE_RE.search(raw_lower)
+                token_set & _POLAR_DRAW_WORDS
+                or _POLAR_CURVE_RE.search(raw_lower)
+                or (_NEW_OBJECT_RE.search(raw_lower) and not _EXISTING_OBJECT_RE.search(raw_lower))
             ):
                 # "make the cardioid blue", "change the θ range of f_polar"; not "draw it in red"
+                # or "make a cardioid" (a new curve)
                 scores["update_polar_function"] += 8.0
             else:
                 scores["draw_polar_function"] += 8.0
@@ -1245,13 +1267,21 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             # "the point with polar coordinates r = 2, θ = π/3", "plot (2, π/3) in polar
             # coordinates", "a polar grid": a point or the grid, not a curve
             scores["draw_polar_function"] -= 6.0
+        parametric_words = token_set & {"parametric", "parametrically"}
+        if not polar_curve and (parametric_words or _PARAMETRIC_RE.search(raw_lower)):
+            # "plot a cardioid using x(t) = ..., y(t) = ...": the curve is named, but given
+            # parametrically
+            scores["draw_polar_function"] -= 6.0
 
         # -- Functions/plotting --
-        if token_set & {"parametric"}:
+        if parametric_words:
             scores["draw_parametric_function"] += 6.0
         # Detect parametric-like patterns: x=f(t), y=g(t)  or  x(t)=..., y(t)=...
         if ("x=" in raw_lower and "y=" in raw_lower and
                 any(fn in raw_lower for fn in ("cos(t)", "sin(t)", "t*", "(t)"))):
+            scores["draw_parametric_function"] += 8.0
+        elif _PARAMETRIC_RE.search(raw_lower) and _PARAMETRIC_Y_RE.search(raw_lower):
+            # The same with spaces: "x(t) = 3*cos(t), y(t) = 2*sin(t)", "x = t^2, y = t"
             scores["draw_parametric_function"] += 8.0
         if token_set & {"piecewise", "rules"}:
             scores["draw_piecewise_function"] += 6.0
