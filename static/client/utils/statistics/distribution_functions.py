@@ -281,7 +281,12 @@ def chi_squared_pdf_expression(params: Params) -> str:
     """exp(L + (k/2 - 1)·ln(x) - x/2): one exponential, so large df neither overflows nor underflows."""
     k = params["df"]
     log_constant = -0.5 * k * math.log(2.0) - log_gamma(0.5 * k)
-    return f"exp({_num(log_constant)}+{_num(0.5 * k - 1.0)}*ln(x)-x/2)"
+    return f"exp({_num(log_constant)}{_log_x_term(0.5 * k - 1.0)}-x/2)"
+
+
+def _log_x_term(power: float) -> str:
+    """The term +power*ln(x), or nothing for power 0, so df = 2 stays defined at x = 0 (0·ln(0) is NaN)."""
+    return "" if power == 0.0 else f"+{_num(power)}*ln(x)"
 
 
 # ---------------------------------------------------------------------------
@@ -327,7 +332,8 @@ def f_pdf_expression(params: Params) -> str:
     d1, d2 = params["df"], params["df2"]
     log_beta = log_gamma(0.5 * d1) + log_gamma(0.5 * d2) - log_gamma(0.5 * (d1 + d2))
     log_constant = 0.5 * d1 * math.log(d1 / d2) - log_beta
-    return f"exp({_num(log_constant)}+{_num(0.5 * d1 - 1.0)}*ln(x)-{_num(0.5 * (d1 + d2))}*ln(1+{_num(d1 / d2)}*x))"
+    log_x = _log_x_term(0.5 * d1 - 1.0)
+    return f"exp({_num(log_constant)}{log_x}-{_num(0.5 * (d1 + d2))}*ln(1+{_num(d1 / d2)}*x))"
 
 
 # ---------------------------------------------------------------------------

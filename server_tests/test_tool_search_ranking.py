@@ -610,3 +610,23 @@ def test_exact_fractions_keep_simplify_first(service: ToolSearchService, query: 
 
 def test_d_by_dx_is_a_derivative(service: ToolSearchService) -> None:
     assert _names(service, "Compute d/dx of ln(x^2+1).")[0] == "derive"
+
+
+# "the normal to f at x = 2" is a normal line; a normal with distribution words is a distribution
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("draw the normal to f at x = 2", "draw_normal_line"),
+        ("draw the normal to the parabola at x = 2", "draw_normal_line"),
+        ("draw the normal to the circle at point A", "draw_normal_line"),
+        ("draw the normal of f at x=3", "draw_normal_line"),
+        ("show the normal to g at x = 0", "draw_normal_line"),
+        ("draw the tangent and normal to f at x=2", "draw_normal_line"),
+        ("plot a normal distribution with mean 0 and sigma 1", "plot_distribution"),
+        ("draw a normal curve", "plot_distribution"),
+        ("shade the normal from -1 to 1", "plot_distribution"),
+        ("what is P(X<3) for a normal with mean 5", "compute_distribution"),
+    ],
+)
+def test_normal_line_and_normal_distribution(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected

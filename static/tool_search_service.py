@@ -155,6 +155,10 @@ _PICTURE_WORDS = frozenset(
     {"plot", "draw", "graph", "sketch", "shade", "shaded", "shading", "show", "display", "visualize"}
     | {"visualise", "picture", "curve", "bars", "histogram"}
 )
+# "the normal to f at x = 2", "the normal of the parabola": a normal line, not a normal distribution.
+_NORMAL_LINE_RE = re.compile(
+    r"\bnormals?\s+(?:to\b|at\b|(?:of|for)\s+(?:[a-z]\b|the\s+(?:graph|curve|parabola|circle|ellipse|function)))"
+)
 _FUNCTION_NAME_WORDS = frozenset({"sin", "cos", "exp", "ln", "log", "squared", "cubed"})
 _FUNCTION_EQUATION_RE = re.compile(r"\b[a-z]\(\s*[a-z]\s*\)|[=^]")
 _PIECEWISE_RE = re.compile(r"for\s+x\s*[<>]|when\s+x\s*[<>]|x\s*>=|x\s*<=")
@@ -992,10 +996,18 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["create_colored_area"] += 3.0
 
         # -- Statistics --
-        # "the normal to f(x)=... at x=2" is a normal line, unless distribution words say otherwise.
+        # "the normal to f at x=2", "tangent and normal", "normal to y=x^2": a normal line, unless
+        # distribution words say otherwise.
         normal_line = "normal" in token_set and bool(
             token_set & {"line", "perpendicular"}
-            or (_FUNCTION_DEFINITION_RE.search(raw_lower) and not token_set & _DISTRIBUTION_CONTEXT_WORDS)
+            or (
+                not token_set & _DISTRIBUTION_CONTEXT_WORDS
+                and (
+                    _FUNCTION_DEFINITION_RE.search(raw_lower)
+                    or _NORMAL_LINE_RE.search(raw_lower)
+                    or "tangent" in token_set
+                )
+            )
         )
         if token_set & {"distribution", "gaussian", "bell"}:
             scores["plot_distribution"] += 6.0

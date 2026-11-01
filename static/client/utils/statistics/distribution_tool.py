@@ -37,6 +37,21 @@ def compute_distribution_tool(
     """Run the tool; raises ValueError for an invalid distribution, parameter or input."""
     spec = get_distribution(distribution_type)
     params = spec.parse_params(distribution_params)
+    try:
+        return _compute(spec, params, distribution_params, x, left_bound, right_bound, probability)
+    except (OverflowError, ZeroDivisionError):
+        raise ValueError("the parameters or inputs are too large or too small to compute") from None
+
+
+def _compute(
+    spec: DistributionSpec,
+    params: Dict[str, float],
+    distribution_params: Optional[Dict[str, Any]],
+    x: Optional[float],
+    left_bound: Optional[float],
+    right_bound: Optional[float],
+    probability: Optional[float],
+) -> Dict[str, Any]:
     result: Dict[str, Any] = {"distribution": spec.name, "params": dict(params)}
     _add_moments(result, spec, params)
     result["support"] = describe_support(spec, params)
@@ -107,8 +122,8 @@ def _add_point(result: Dict[str, Any], spec: DistributionSpec, params: Dict[str,
     at = spec.pdf(x, params)
     result["P(X = x)"] = round_significant(at)
     result["P(X <= x)"] = round_significant(below)
-    result["P(X < x)"] = round_significant(below - at)
-    result["P(X >= x)"] = round_significant(above + at)
+    result["P(X < x)"] = round_significant(max(0.0, below - at))
+    result["P(X >= x)"] = round_significant(min(1.0, above + at))
     result["P(X > x)"] = round_significant(above)
 
 

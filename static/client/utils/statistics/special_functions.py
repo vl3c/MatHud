@@ -97,17 +97,29 @@ def _t_minus_log1p(t: float) -> float:
     return t - math.log1p(t)
 
 
+def _relative_deviation(value: float, center: float) -> float:
+    """t - ln(1 + t) with t = (value - center)/center, for value, center > 0.
+
+    Far below the center 1 + t loses digits (t ≈ -1), so the log takes value/center directly.
+    """
+    t = (value - center) / center
+    if t < -0.5:
+        return t - math.log(value / center)
+    return _t_minus_log1p(t)
+
+
 def gamma_kernel(a: float, x: float) -> float:
     """x^a e^(-x) / Γ(a) for a > 0, x > 0.
 
     Written as exp(-a·(t - ln(1+t))) · sqrt(a / 2π) / exp(correction) with t = (x - a)/a,
     so large a and x keep their digits (the naive logs cancel to ~a·1e-16).
     """
-    t = (x - a) / a
-    if t <= -1.0:
-        # x is negligible next to a (t rounded to -1): the plain logs lose nothing here.
-        return math.exp(a * math.log(x) - x - log_gamma(a)) if x > 0.0 else 0.0
-    log_value = -a * _t_minus_log1p(t) + 0.5 * math.log(a) - _HALF_LOG_TWO_PI - _stirling_correction(a)
+    if x <= 0.0:
+        return 0.0
+    if x / a == 0.0:
+        # x/a underflows: the plain logs lose nothing here.
+        return math.exp(a * math.log(x) - x - log_gamma(a))
+    log_value = -a * _relative_deviation(x, a) + 0.5 * math.log(a) - _HALF_LOG_TWO_PI - _stirling_correction(a)
     return math.exp(log_value)
 
 
@@ -117,21 +129,20 @@ def beta_kernel(a: float, b: float, x: float, y: Optional[float] = None) -> floa
     ``y`` is 1 - x when the caller knows it exactly (1 - x rounds away a small y's digits).
     With s = a + b, x0 = a / s and y0 = b / s, the logs of the powers and the Stirling parts
     of the three gammas combine into -a·l(t1) - b·l(t2) + ln(a·b/s)/2 - ln(2π)/2 plus the
-    corrections, where l(t) = t - ln(1+t), t1 = (x - x0)/x0 and t2 = (y - y0)/y0.
+    corrections, where l(t) = t - ln(1+t), t1 = (x - x0)/x0 and t2 = (y - y0)/y0
+    (``_relative_deviation``).
     """
     if y is None:
         y = 1.0 - x
     s = a + b
     x0 = a / s
     y0 = b / s
-    t1 = (x - x0) / x0
-    t2 = (y - y0) / y0
-    if t1 <= -1.0 or t2 <= -1.0:
-        # x is negligible next to x0 or y next to y0: use the plain logs.
+    if x / x0 == 0.0 or y / y0 == 0.0:
+        # x/x0 or y/y0 underflows: use the plain logs.
         return math.exp(a * math.log(x) + b * math.log(y) - log_beta(a, b))
     log_value = (
-        -a * _t_minus_log1p(t1)
-        - b * _t_minus_log1p(t2)
+        -a * _relative_deviation(x, x0)
+        - b * _relative_deviation(y, y0)
         + 0.5 * math.log(a * b / s)
         - _HALF_LOG_TWO_PI
         - _stirling_correction(a)

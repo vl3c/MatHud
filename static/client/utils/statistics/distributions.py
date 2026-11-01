@@ -98,6 +98,7 @@ def _parse_params(spec: DistributionSpec, raw: Any, strict: bool) -> Dict[str, f
     missing = [rule for rule in spec.params if rule.default is None and params.get(rule.key) is None]
     if missing:
         raise ValueError(f"{spec.name} needs " + " and ".join(rule.label for rule in missing))
+    _refuse_only_foreign_params(spec, params)
     parsed: Dict[str, float] = {}
     for rule in spec.params:
         value = params.get(rule.key)
@@ -114,6 +115,20 @@ def _parse_params(spec: DistributionSpec, raw: Any, strict: bool) -> Dict[str, f
         if problem:
             raise ValueError(problem)
     return parsed
+
+
+def _refuse_only_foreign_params(spec: DistributionSpec, params: Dict[str, Any]) -> None:
+    """Parameters given, none of them this distribution's: refuse rather than plot the defaults.
+
+    "An exponential with mean 5" filled as ``{"mean": 5}`` would otherwise silently use rate 1.
+    """
+    if any(params.get(rule.key) is not None for rule in spec.params):
+        return
+    foreign = spec.ignored_params(params)
+    if foreign:
+        raise ValueError(
+            f"{spec.name} takes " + " and ".join(rule.label for rule in spec.params) + f", not {', '.join(foreign)}"
+        )
 
 
 def _positive(value: float) -> Optional[str]:
@@ -276,7 +291,7 @@ _UNIFORM = DistributionSpec(
 _EXPONENTIAL = DistributionSpec(
     name="exponential",
     discrete=False,
-    params=(ParamRule("rate", 1.0, "rate (λ)", _positive),),
+    params=(ParamRule("rate", 1.0, "rate (λ = 1/mean)", _positive),),
     support=lambda params: _ZERO_TO_INF,
     pdf=fn.exponential_pdf,
     cdf=fn.exponential_cdf,
@@ -379,7 +394,7 @@ _GEOMETRIC = DistributionSpec(
     quantile=_geometric_quantile,
     moments=fn.geometric_moments,
     pdf_expression=None,
-    default_bounds=lambda params: (1.0, _geometric_quantile(0.999, params)),
+    default_bounds=lambda params: (1.0, max(2.0, _geometric_quantile(0.999, params))),
     mode=lambda params: 1.0,
 )
 

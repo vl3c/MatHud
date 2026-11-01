@@ -120,6 +120,10 @@ class TestIntegerBars(StatisticsManagerHarness):
         self.assertEqual(result["ignored_params"], ["mean", "sigma"])
         self.assertEqual(result["distribution_params"], {"n": 10.0, "p": 0.3})
 
+    def test_a_geometric_near_certain_success_still_draws(self) -> None:
+        result = self.plot(distribution_type="geometric", distribution_params={"p": 0.999})
+        self.assertEqual(result["values"], "1..2")
+
     def test_wide_default_bounds_are_trimmed_around_the_mode(self) -> None:
         result = self.plot(distribution_type="geometric", distribution_params={"p": 0.001})
         self.assertEqual(result["bar_count"], MAX_INTEGER_BARS)
@@ -239,6 +243,33 @@ class TestContinuousDistributions(StatisticsManagerHarness):
         self.assertEqual(colours, [UNSHADED_BAR_FILL_COLOR] * 2 + ["orange"] * 2)
         self.assertEqual(result["shaded_range"], "P(X >= 0)")
         self.assertEqual(result["shaded_probability"], 0.5)
+
+    def test_one_given_bound_past_the_other_default_side_keeps_the_default_width(self) -> None:
+        result = self.plot(
+            distribution_type="normal", distribution_params=None, plot_bounds={"left_bound": 10, "right_bound": None}
+        )
+        self.assertEqual(result["bounds"], {"left": 10.0, "right": 18.0})
+        result = self.plot(
+            distribution_type="normal", distribution_params=None, plot_bounds={"left_bound": None, "right_bound": -5}
+        )
+        self.assertEqual(result["bounds"], {"left": -13.0, "right": -5.0})
+
+    def test_a_refused_shade_draws_nothing(self) -> None:
+        with self.assertRaises(ValueError):
+            self.plot(
+                distribution_type="normal",
+                distribution_params=None,
+                plot_bounds={"left_bound": 0, "right_bound": 2},
+                shade_bounds={"left_bound": 3, "right_bound": 4},
+            )
+        self.assertEqual(self.functions.drawn, [])
+
+    def test_df_2_densities_are_defined_at_zero(self) -> None:
+        chi = DISTRIBUTIONS["chi_squared"].pdf_expression({"df": 2.0})  # type: ignore[misc]
+        f = DISTRIBUTIONS["f"].pdf_expression({"df": 2.0, "df2": 10.0})  # type: ignore[misc]
+        self.assertNotIn("ln(x)", chi)
+        self.assertNotIn("*ln(x)", f)
+        self.assertIn("*ln(x)", DISTRIBUTIONS["chi_squared"].pdf_expression({"df": 3.0}))  # type: ignore[misc]
 
 
 if __name__ == "__main__":

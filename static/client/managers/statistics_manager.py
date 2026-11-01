@@ -792,6 +792,14 @@ class StatisticsManager:
         """The density curve over ``drawn`` and the area under it over the shade range (all of it by default)."""
         assert spec.pdf_expression is not None
         resolved_left, resolved_right = drawn
+        asked = drawn if shade is None else shade
+        # The area is drawn inside the plotted range; the probability covers the whole range asked for.
+        # Checked before anything is drawn, so a refused shade leaves no curve behind.
+        shade_left = max(resolved_left, asked[0])
+        shade_right = min(resolved_right, asked[1])
+        if shade_left >= shade_right:
+            raise ValueError("shade_bounds must define a non-empty interval within plot_bounds")
+
         function_name = self.name_generator.generate_function_name(f"{plot_name}_pdf")
         function_obj = self.function_manager.draw_function(
             spec.pdf_expression(params),
@@ -801,13 +809,6 @@ class StatisticsManager:
             color=curve_color,
         )
         function_name = getattr(function_obj, "name", function_name)
-
-        asked = drawn if shade is None else shade
-        # The area is drawn inside the plotted range; the probability covers the whole range asked for.
-        shade_left = max(resolved_left, asked[0])
-        shade_right = min(resolved_right, asked[1])
-        if shade_left >= shade_right:
-            raise ValueError("shade_bounds must define a non-empty interval within plot_bounds")
 
         area = self.colored_area_manager.create_colored_area(
             drawable1_name=function_name,
@@ -1239,8 +1240,14 @@ class StatisticsManager:
         right_bound: Optional[float],
     ) -> tuple[float, float]:
         default_left, default_right = spec.default_bounds(params)
+        width = default_right - default_left
         left = default_left if left_bound is None else float(left_bound)
         right = default_right if right_bound is None else float(right_bound)
+        # One side given past the other default side: keep the default width from the given side.
+        if right_bound is None and left_bound is not None and right <= left:
+            right = left + width
+        if left_bound is None and right_bound is not None and left >= right:
+            left = right - width
 
         if not math.isfinite(left) or not math.isfinite(right):
             raise ValueError("left_bound and right_bound must be finite")

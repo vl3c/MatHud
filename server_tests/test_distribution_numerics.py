@@ -156,6 +156,17 @@ class TestDistributionFunctions(unittest.TestCase):
             cases = [(t, lower(t), lower(-t), density(t)) for t in (-60.0, -4.0, -0.5, 0.0, 0.01, 2.1, 9.0)]
             self.check("t", {"df": df}, cases)
 
+    def test_far_tails_below_the_kernel_centre(self) -> None:
+        # x far below a (or x0) used to lose eps·x0/x relative through log1p(t) with t ≈ -1.
+        for df, t in ((1.0, -1e6), (1.0, -1e8), (5.0, -1e8), (1.1, -1e9)):
+            nu = mp.mpf(df)
+            want = mp.betainc(nu / 2, mp.mpf(1) / 2, 0, nu / (nu + mp.mpf(t) ** 2), regularized=True) / 2
+            _assert_close(self, DISTRIBUTIONS["t"].cdf(t, {"df": df}), float(want), f"t df={df} P(T <= {t})", 1e-12)
+        for n, p in ((10, 1e-12), (2, 7.7e-8)):
+            want = 1 - (1 - mp.mpf(p)) ** n
+            got = DISTRIBUTIONS["binomial"].sf(0, {"n": n, "p": p})
+            _assert_close(self, got, float(want), f"binomial n={n} p={p} P(X > 0)", 1e-12)
+
     def test_chi_squared(self) -> None:
         for df in (1.0, 2.0, 3.0, 10.0, 250.0):
             k = mp.mpf(df)

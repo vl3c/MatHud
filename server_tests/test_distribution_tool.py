@@ -90,6 +90,29 @@ class TestComputeDistribution(unittest.TestCase):
                     _run(*args, **kwargs)
                 self.assertEqual(str(caught.exception), message)
 
+    def test_only_another_distributions_params_are_refused(self) -> None:
+        cases = [
+            (("exponential", {"mean": 5, "rate": None}), "exponential takes rate (λ = 1/mean), not mean"),
+            (("uniform", {"mean": 0, "sigma": 1}), "uniform takes lower and upper, not mean, sigma"),
+            (("normal", {"rate": 2}), "normal takes mean and sigma, not rate"),
+        ]
+        for args, message in cases:
+            with self.subTest(args=args):
+                with self.assertRaises(ValueError) as caught:
+                    _run(*args)
+                self.assertEqual(str(caught.exception), message)
+        self.assertEqual(_run("exponential", {"rate": 0.2, "mean": 5})["mean"], 5.0)
+
+    def test_tails_at_a_point_stay_within_0_and_1(self) -> None:
+        result = _run("binomial", {"n": 10, "p": 1e-12}, x=0)
+        self.assertEqual(result["P(X < x)"], 0.0)
+        self.assertLessEqual(result["P(X >= x)"], 1.0)
+
+    def test_extreme_parameters_give_a_clear_error(self) -> None:
+        with self.assertRaises(ValueError) as caught:
+            _run("exponential", {"rate": 1e-300})
+        self.assertEqual(str(caught.exception), "the parameters or inputs are too large or too small to compute")
+
     def test_round_significant(self) -> None:
         self.assertEqual(round_significant(0.30000000000000004), 0.3)
         self.assertEqual(round_significant(-6.95729106167942e-17), -6.95729106168e-17)
