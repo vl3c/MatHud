@@ -2,8 +2,8 @@
   "metadata": {
     "schema_version": 1,
     "description": "Tool discovery benchmark cases for search_tools semantic routing.",
-    "expected_tool_count": 96,
-    "expected_tool_hash": "86fe5c1c6b1c06c0b41bde2983e771aa838afa5de13b6f8ca73ab201d122d973",
+    "expected_tool_count": 99,
+    "expected_tool_hash": "df1522c1802a63d3569803ad152106020894483f1cb3351758d255c302828223",
     "confusion_clusters": {
       "convert_cluster": [
         "convert",
@@ -3058,6 +3058,153 @@
       "category": "confusion_probe",
       "difficulty": "hard",
       "cluster": "rewrite_cluster"
+    },
+    {
+      "id": "polar_cardioid",
+      "query": "Plot the cardioid r = 1 + cos(θ).",
+      "expected_any": [
+        "draw_polar_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "easy",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_rose",
+      "query": "Draw a four-petal rose r = cos(2θ).",
+      "expected_any": [
+        "draw_polar_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "medium",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_curve_theta_word",
+      "query": "Graph the polar curve r = 2sin(3theta) in red.",
+      "expected_any": [
+        "draw_polar_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_create",
+      "difficulty": "medium",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_spiral",
+      "query": "Plot the spiral r = θ for θ from 0 to 6π.",
+      "expected_any": [
+        "draw_polar_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_lemniscate",
+      "query": "Draw the lemniscate r^2 = 4cos(2θ).",
+      "expected_any": [
+        "draw_polar_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "medium",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_plot_words",
+      "query": "Polar plot of r = 1 - 2cos(theta).",
+      "expected_any": [
+        "draw_polar_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_on_polar_grid",
+      "query": "Switch to a polar grid and plot r = 3 + 2sin(θ).",
+      "expected_any": [
+        "draw_polar_function",
+        "set_coordinate_system"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_delete",
+      "query": "Delete the polar curve f_polar.",
+      "expected_any": [
+        "delete_polar_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_delete",
+      "difficulty": "medium",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_update_range",
+      "query": "Change the θ range of the polar curve f_polar to 0 to 4pi.",
+      "expected_any": [
+        "update_polar_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_update",
+      "difficulty": "medium",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_point_not_curve",
+      "query": "Plot the point with polar coordinates r = 2 and θ = π/3.",
+      "expected_any": [
+        "create_point",
+        "convert_coordinates"
+      ],
+      "forbidden": [
+        "search_tools",
+        "draw_polar_function"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "convert_cluster"
+    },
+    {
+      "id": "polar_convert_not_curve",
+      "query": "Convert the point r = 5, theta = 0.927 from polar to cartesian.",
+      "expected_any": [
+        "convert_coordinates"
+      ],
+      "forbidden": [
+        "search_tools",
+        "draw_polar_function"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "convert_cluster"
     }
   ]
 }

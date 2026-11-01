@@ -226,6 +226,12 @@ UPDATE_SPECS: Dict[str, _UpdateSpec] = {
     "update_parametric_function": _UpdateSpec(
         "Parametric function", "name", _by_name(lambda canvas: canvas.get_parametric_function), (COLOR_FIELD,)
     ),
+    "update_polar_function": _UpdateSpec(
+        "Polar function",
+        "name",
+        _by_name(lambda canvas: canvas.drawable_manager.polar_function_manager.get_polar_function),
+        (COLOR_FIELD,),
+    ),
     "update_angle": _UpdateSpec(
         "Angle",
         "name",

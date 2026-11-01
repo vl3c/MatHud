@@ -66,6 +66,10 @@ UNDOABLE_TOOLS: Tuple[str, ...] = (
     "draw_parametric_function",
     "delete_parametric_function",
     "update_parametric_function",
+    # Polar function operations
+    "draw_polar_function",
+    "delete_polar_function",
+    "update_polar_function",
     # Tangent and normal line operations
     "draw_tangent_line",
     "draw_normal_line",

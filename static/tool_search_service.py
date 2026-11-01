@@ -23,7 +23,7 @@ import os
 import re
 import time
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple, TypedDict
+from typing import Any, Dict, List, Optional, Set, Tuple, TypedDict
 
 from openai import OpenAI
 
@@ -157,6 +157,14 @@ _PROBABILITY_CALL_RE = re.compile(r"(?<![a-z0-9_])p\s*\(")
 # "AB > BC": a relation between two named objects (lengths), not an inequality in x
 _NAMES_RELATION_RE = re.compile(r"(?<![A-Za-z0-9_])[A-Z][A-Z0-9]*\s*(?:<=|>=|<|>|≤|≥)\s*[A-Z][A-Z0-9]*(?![A-Za-z0-9_])")
 # "when x < 0 what is |x|": a value asked under a condition on x
+# Polar curves r(θ): their names, nouns that make "polar" a curve, the "r =" / "r(θ) =" / "r^2 ="
+# that starts one, and words that make "r = ..., θ = ..." a point or a conversion instead
+_POLAR_CURVE_NAMES = frozenset({"cardioid", "cardioids", "limacon", "limaçon", "lemniscate", "lemniscates"})
+_POLAR_CURVE_NOUNS = frozenset(
+    {"curve", "curves", "plot", "plots", "equation", "function", "functions", "rose", "spiral"}
+)
+_POLAR_CURVE_RE = re.compile(r"(?:^|[^a-z0-9_])r\s*(?:\(\s*(?:θ|theta)\s*\))?\s*(?:\^\s*2\s*)?=(?!=)")
+_POLAR_NOT_CURVE_WORDS = frozenset({"point", "points", "convert", "conversion", "cartesian", "rectangular"})
 _VALUE_QUESTION_WORDS = frozenset({"what", "whats"})
 # "f(x) = x for x < 0 ...", "the function is -x when x < 0": a function defined by cases
 _DEFINES_FUNCTION_WORDS = frozenset({"function", "define", "defined"})
@@ -359,6 +367,8 @@ TOOL_CATEGORIES: Dict[str, CategoryEntry] = {
             "update_piecewise_function",
             "draw_parametric_function", "delete_parametric_function",
             "update_parametric_function",
+            "draw_polar_function", "delete_polar_function",
+            "update_polar_function",
             "draw_tangent_line", "draw_normal_line",
             "find_function_features",
         ],
@@ -367,6 +377,7 @@ TOOL_CATEGORIES: Dict[str, CategoryEntry] = {
             "piecewise", "tangent", "normal", "y=", "f(x)",
             "parabola", "sine", "cosine", "exponential", "logarithm",
             "polynomial", "lissajous", "spiral",
+            "cardioid", "limacon", "lemniscate", "rose",
             "extrema", "extremum", "maxima", "minima", "zeros",
         ],
     },
@@ -912,6 +923,22 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         return bool(token_set & _GRAPH_THEORY_ONLY_WORDS) or len(token_set & _GRAPH_THEORY_AMBIGUOUS_WORDS) >= 2
 
     @staticmethod
+    def _names_polar_curve(token_set: Set[str], raw_lower: str) -> bool:
+        """Whether a query is about a polar curve r(θ), not a polar point, grid or conversion.
+
+        "Plot r = 1 + cos(θ)", "the cardioid", "polar curve f_polar" are; "the point with
+        r = 2 and θ = π/3", "convert (r=5, theta=0.9) to cartesian" and "switch to polar
+        coordinates" are not.
+        """
+        if token_set & _POLAR_NOT_CURVE_WORDS:
+            return False
+        if token_set & _POLAR_CURVE_NAMES:
+            return True
+        if "polar" in token_set and token_set & _POLAR_CURVE_NOUNS:
+            return True
+        return bool(_POLAR_CURVE_RE.search(raw_lower)) and ("θ" in raw_lower or "theta" in token_set)
+
+    @staticmethod
     def _apply_intent_boosts(
         query_tokens: List[str],
         scores: Dict[str, float],
@@ -1170,6 +1197,8 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         elif token_set & _NOT_STEP_WORDS and token_set & _EQUIVALENCE_WORDS:
             scores["check_steps"] -= 10.0  # the equivalent of 5 miles in km, equivalent fractions
 
+        polar_curve = ToolSearchService._names_polar_curve(token_set, raw_lower)
+
         # -- Convert (unit vs coordinate) --
         if token_set & ({"convert", "change"} | _EQUIVALENCE_WORDS) and token_set & {
             "unit", "units", "temperature", "celsius", "fahrenheit",
@@ -1179,8 +1208,22 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         if token_set & {"convert", "change"} and token_set & {
             "polar", "cartesian", "coordinate", "coordinates",
             "rectangular",
-        }:
+        } and not polar_curve:
             scores["convert_coordinates"] += 8.0
+
+        # -- Polar curves r(θ) --
+        if polar_curve:
+            if token_set & {"delete", "remove", "erase"}:
+                scores["delete_polar_function"] += 8.0
+            elif token_set & {"change", "update", "edit", "set", "recolor", "extend", "range"} and not (
+                _POLAR_CURVE_RE.search(raw_lower)
+            ):
+                scores["update_polar_function"] += 8.0
+            else:
+                scores["draw_polar_function"] += 8.0
+        elif "polar" in token_set and token_set & {"point", "points"}:
+            # "the point with polar coordinates r = 2, θ = π/3" is a point, not a curve
+            scores["draw_polar_function"] -= 6.0
 
         # -- Functions/plotting --
         if token_set & {"parametric"}:
