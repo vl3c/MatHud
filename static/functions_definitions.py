@@ -66,6 +66,73 @@ DISTRIBUTION_TYPES: List[str] = [
 ]
 
 
+# Test and interval types of hypothesis_test and confidence_interval, and of chi_squared_test.
+INFERENCE_TYPES: List[str] = [
+    "z",
+    "t",
+    "two_sample_z",
+    "two_sample_t",
+    "paired_t",
+    "one_proportion",
+    "two_proportion",
+]
+CHI_SQUARED_TEST_TYPES: List[str] = ["goodness_of_fit", "independence"]
+
+
+def _inference_sample_schema(which: str) -> Dict[str, Any]:
+    """One sample for hypothesis_test and confidence_interval: raw data or summary statistics."""
+
+    def field(kind: Any, description: str) -> Dict[str, Any]:
+        return {"type": kind, "description": description}
+
+    first = which == "sample1"
+    return {
+        "type": ["object", "null"] if not first else "object",
+        "description": (
+            "The first sample (for paired_t, the first measurement of each pair)."
+            if first
+            else "The second sample, for two_sample_z, two_sample_t, paired_t (the second measurement of each pair) "
+            "and two_proportion. Null for one-sample types."
+        )
+        + " Give data (raw values), or the summary mean, sd, n; for z types also sigma; for proportions successes "
+        "and n. Null every key that is not given.",
+        "properties": {
+            "data": {
+                "type": ["array", "null"],
+                "items": {"type": "number"},
+                "description": "Raw values. Then mean and sd are computed, so send them as null.",
+            },
+            "mean": field(["number", "null"], "Sample mean x-bar (summary input)."),
+            "sd": field(
+                ["number", "null"],
+                "Sample standard deviation s (Sx, dividing by n - 1) for t types; not the standard error, not the "
+                "variance.",
+            ),
+            "sigma": field(
+                ["number", "null"],
+                "Known population standard deviation for z types (needed for z, also with data). Null for t types.",
+            ),
+            "n": field(["number", "null"], "Sample size (summary input), or the number of trials for a proportion."),
+            "successes": field(
+                ["number", "null"],
+                "Proportions only: the count of successes x (p-hat = x/n). Not a percentage: for 45% of 200 send 90; "
+                "if p-hat * n is not a whole number, ask the user for the count.",
+            ),
+        },
+        "required": ["data", "mean", "sd", "sigma", "n", "successes"],
+        "additionalProperties": False,
+    }
+
+
+def _inference_type_description() -> str:
+    return (
+        "z: one mean, known population sigma. t: one mean, unknown sigma (also for a list of differences). "
+        "two_sample_z: two independent means, known sigmas. two_sample_t: two independent means (pooled false = "
+        "Welch). paired_t: two equal-length lists of paired values (before/after on the same subjects). "
+        "one_proportion, two_proportion: proportions from successes and n."
+    )
+
+
 def _distribution_type_schema(action: str) -> Dict[str, Any]:
     return {
         "type": "string",
@@ -2699,7 +2766,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "compute_distribution",
-            "description": "Probabilities, quantiles and moments of a probability distribution, like a calculator's normalcdf, invNorm, tcdf, binompdf or poissoncdf. Always returns mean, variance, standard_deviation and support. With x: for a continuous distribution pdf, P(X <= x) and P(X > x); for a discrete one P(X = x), P(X <= x), P(X < x), P(X >= x) and P(X > x). With left_bound and/or right_bound: P(a <= X <= b), a null side open, and for a discrete distribution also P(a < X < b). With probability: the quantile (inverse cdf, left tail): the x with P(X <= x) = probability, or for a discrete distribution the smallest k with P(X <= k) >= probability. Critical values: right tail alpha is the quantile of 1 - alpha, two-sided is 1 - alpha/2. Geometric counts the trials up to and including the first success (1, 2, 3, ...). Numbers are rounded to 12 significant digits. Draws nothing; use plot_distribution to show and shade a distribution.",
+            "description": "Probabilities, quantiles and moments of a probability distribution, like a calculator's normalcdf, invNorm, tcdf, binompdf or poissoncdf. Always returns mean, variance, standard_deviation and support. With x: for a continuous distribution pdf, P(X <= x) and P(X > x); for a discrete one P(X = x), P(X <= x), P(X < x), P(X >= x) and P(X > x). With left_bound and/or right_bound: P(a <= X <= b), a null side open, and for a discrete distribution also P(a < X < b). With probability: the quantile (inverse cdf, left tail): the x with P(X <= x) = probability, or for a discrete distribution the smallest k with P(X <= k) >= probability. Critical values: right tail alpha is the quantile of 1 - alpha, two-sided is 1 - alpha/2. p-value of a test statistic already computed (z, t or chi-squared with df): left-tailed P(X <= stat) and right-tailed P(X > stat) with x = stat; two-sided for z and t is 2 * P(X > |stat|). For a test from data or summary statistics use hypothesis_test or chi_squared_test. Geometric counts the trials up to and including the first success (1, 2, 3, ...). Numbers are rounded to 12 significant digits. Draws nothing; use plot_distribution to show and shade a distribution.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2731,6 +2798,126 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "right_bound",
                     "probability",
                 ],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "hypothesis_test",
+            "description": "Hypothesis tests of means and proportions, like a calculator's Z-Test, T-Test, 2-SampZTest, 2-SampTTest, 1-PropZTest and 2-PropZTest, plus a paired t test. Returns the hypotheses, the statistic (z or t), df, p_value for the alternative, critical_values at alpha, reject_null (p <= alpha), a one-line conclusion, the estimate, its standard_error and the sample figures; notes warn when the normal approximation may be poor. Give each sample as data (raw values) or as mean, sd and n; z types need the known population sigma; proportions take successes and n (counts). Example: {test_type: 't', sample1: {data: [5.1, 4.9, 5.6], mean: null, sd: null, sigma: null, n: null, successes: null}, sample2: null, hypothesized_value: 5, alternative: 'two_sided', alpha: null, pooled: null}. For chi-squared tests use chi_squared_test; for a p-value of a statistic already known (z = 2.1, t = 1.8 with 15 df) use compute_distribution. Draws nothing; to show the rejection region, plot_distribution with the statistic's distribution (normal with mean 0 and sigma 1, or t with df) and shade beyond the critical value (two-sided: plot once per tail, or shade the middle).",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "test_type": {
+                        "type": "string",
+                        "enum": list(INFERENCE_TYPES),
+                        "description": "The test. " + _inference_type_description(),
+                    },
+                    "sample1": _inference_sample_schema("sample1"),
+                    "sample2": _inference_sample_schema("sample2"),
+                    "hypothesized_value": {
+                        "type": ["number", "null"],
+                        "description": "The value in H0: mu0 for z and t (needed), p0 for one_proportion (needed, between 0 and 1), the difference mu1 - mu2 or mu_d for two_sample and paired types (null = 0). two_proportion tests p1 = p2: null.",
+                    },
+                    "alternative": {
+                        "type": ["string", "null"],
+                        "enum": ["two_sided", "less", "greater", None],
+                        "description": "H1: two_sided (parameter != value, default), less (<, left-tailed) or greater (>, right-tailed).",
+                    },
+                    "alpha": {
+                        "type": ["number", "null"],
+                        "description": "Significance level, between 0 and 0.5; null = 0.05. Write 0.01 for 1%.",
+                    },
+                    "pooled": {
+                        "type": ["boolean", "null"],
+                        "description": "two_sample_t only: true pools the variances (assumes equal variances); null or false is Welch's test. Null for other types.",
+                    },
+                },
+                "required": [
+                    "test_type",
+                    "sample1",
+                    "sample2",
+                    "hypothesized_value",
+                    "alternative",
+                    "alpha",
+                    "pooled",
+                ],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "confidence_interval",
+            "description": "Confidence intervals of means and proportions, like a calculator's ZInterval, TInterval, 2-SampZInt, 2-SampTInt, 1-PropZInt and 2-PropZInt, plus a paired t interval. Returns the parameter, estimate, standard_error, df, critical_value (z* or t*), margin_of_error and the interval lower to upper; proportion intervals are Wald intervals (as on the TI-84), not clipped to [0, 1], and notes warn when there are fewer than 10 successes or failures. Samples as in hypothesis_test: data (raw values) or mean, sd and n; z types need the known sigma; proportions take successes and n. Draws nothing.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "interval_type": {
+                        "type": "string",
+                        "enum": list(INFERENCE_TYPES),
+                        "description": "The interval. " + _inference_type_description(),
+                    },
+                    "sample1": _inference_sample_schema("sample1"),
+                    "sample2": _inference_sample_schema("sample2"),
+                    "confidence_level": {
+                        "type": ["number", "null"],
+                        "description": "Confidence level between 0 and 1, e.g. 0.95 or 0.99; null = 0.95.",
+                    },
+                    "pooled": {
+                        "type": ["boolean", "null"],
+                        "description": "two_sample_t only: true pools the variances; null or false is Welch's interval. Null for other types.",
+                    },
+                },
+                "required": ["interval_type", "sample1", "sample2", "confidence_level", "pooled"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "chi_squared_test",
+            "description": "Chi-squared tests, like a calculator's χ²GOF-Test and χ²-Test. goodness_of_fit: observed counts per category against expected counts or probabilities (null = all categories equally likely); df = categories - 1 unless df is given. independence: a contingency table of counts (rows x columns, at least 2 x 2), testing independence or homogeneity, no continuity correction. Returns the statistic, df, p_value (upper tail), critical_value at alpha, reject_null (p <= alpha), a conclusion, the expected counts and each cell's contribution (O - E)^2/E; notes warn when an expected count is below 5. Draws nothing.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "test_type": {
+                        "type": "string",
+                        "enum": list(CHI_SQUARED_TEST_TYPES),
+                        "description": "goodness_of_fit (one list of counts) or independence (a table).",
+                    },
+                    "observed": {
+                        "type": ["array", "null"],
+                        "items": {"type": "number"},
+                        "description": "goodness_of_fit: observed counts, one per category, e.g. [20, 30, 50]. Null for independence.",
+                    },
+                    "expected": {
+                        "type": ["array", "null"],
+                        "items": {"type": "number"},
+                        "description": "goodness_of_fit: expected counts (summing to the observed total) or probabilities (summing to 1), one per category, e.g. [0.25, 0.25, 0.5]; not percentages. Null = equal. Null for independence.",
+                    },
+                    "table": {
+                        "type": ["array", "null"],
+                        "items": {"type": "array", "items": {"type": "number"}},
+                        "description": "independence: the contingency table as rows of counts, e.g. [[10, 20], [30, 40]]. Null for goodness_of_fit.",
+                    },
+                    "df": {
+                        "type": ["number", "null"],
+                        "description": "goodness_of_fit only: degrees of freedom when parameters were estimated from the data (categories - 1 - estimated parameters); null = categories - 1.",
+                    },
+                    "alpha": {
+                        "type": ["number", "null"],
+                        "description": "Significance level, between 0 and 0.5; null = 0.05.",
+                    },
+                },
+                "required": ["test_type", "observed", "expected", "table", "df", "alpha"],
                 "additionalProperties": False,
             },
         },
