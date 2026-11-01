@@ -444,6 +444,15 @@ class TestReviewRoundOne(_Close):
         with self.assertRaisesRegex(ValueError, "write 0.5 for 50%"):
             _test("one_proportion", _summary(successes=90, n=200), h0=50)
 
+    def test_a_fractional_count_asks_for_the_count(self) -> None:
+        with self.assertRaisesRegex(ValueError, "ask for the count"):
+            _test("one_proportion", _summary(successes=0.453, n=200), h0=0.5)
+
+    def test_the_schema_states_the_paired_direction(self) -> None:
+        props = _find_tool("hypothesis_test")["function"]["parameters"]["properties"]
+        self.assertIn("sample1 - sample2", props["test_type"]["description"])
+        self.assertIn("after as sample1 with greater", props["alternative"]["description"])
+
     def test_pooled_false_is_not_listed(self) -> None:
         self.assertNotIn("ignored_inputs", _test("z", _summary(mean=1, sigma=1, n=4), h0=0, pooled=False))
 

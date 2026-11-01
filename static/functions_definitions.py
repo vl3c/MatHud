@@ -128,7 +128,8 @@ def _inference_type_description() -> str:
     return (
         "z: one mean, known population sigma. t: one mean, unknown sigma (also for a list of differences). "
         "two_sample_z: two independent means, known sigmas. two_sample_t: two independent means (pooled false = "
-        "Welch). paired_t: two equal-length lists of paired values (before/after on the same subjects). "
+        "Welch). paired_t: two equal-length lists of paired values (before/after on the same subjects); the "
+        "differences are sample1 - sample2 (mu_d). "
         "one_proportion, two_proportion: proportions from successes and n."
     )
 
@@ -2825,7 +2826,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "alternative": {
                         "type": ["string", "null"],
                         "enum": ["two_sided", "less", "greater", None],
-                        "description": "H1: two_sided (parameter != value, default), less (<, left-tailed) or greater (>, right-tailed).",
+                        "description": "H1: two_sided (parameter != value, default), less (<, left-tailed) or greater (>, right-tailed). Two-sample and paired parameters are sample1 minus sample2 (mu1 - mu2, mu_d), so greater means sample1 is larger: for after > before send after as sample1 with greater, or before as sample1 with less.",
                     },
                     "alpha": {
                         "type": ["number", "null"],

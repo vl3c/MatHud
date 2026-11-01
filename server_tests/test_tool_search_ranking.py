@@ -738,3 +738,30 @@ def test_names_and_series_tests_are_not_hypothesis_tests(service: ToolSearchServ
 def test_outlier_test_keeps_descriptive_statistics(service: ToolSearchService) -> None:
     names = _names(service, "find the standard deviation and test for outliers in 2, 4, 6, 100")
     assert "compute_descriptive_statistics" in names[:2], names
+
+
+# Review round 2: products of t or z, calculus critical values, "make"/"show" without a picture, textbook wording.
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("compute z * conj(z) for z = 3 + 4i", "evaluate_expression"),
+        ("evaluate 2*z*3 where z = 4", "evaluate_expression"),
+        ("find t such that t*2 = 10", "solve"),
+        ("find the critical values of f(x) = x^3 - 3x", "evaluate_expression"),
+        ("make a 95% confidence interval for the mean of 4, 5, 6, 7, 8", "confidence_interval"),
+        ("display the 95% confidence interval for mean 12.3, sd 2.1, n 50", "confidence_interval"),
+        ("show the p-value for a two sample t test of [1,2,3] and [4,5,6]", "hypothesis_test"),
+        ("test the claim that the mean weight is 500 g; sample mean 495, s = 10, n = 25", "hypothesis_test"),
+        ("is there evidence that the mean exceeds 50? sample mean 52, sd 5, n 40, test at 5%", "hypothesis_test"),
+        ("carry out a test at the 5% level that the proportion is 0.3; 45 successes in 120", "hypothesis_test"),
+        ("test whether angle alpha is a right angle", "create_angle"),
+        ("what z gives 95% confidence", "compute_distribution"),
+    ],
+)
+def test_inference_review_round_two(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected
+
+
+def test_theorem_hypotheses_are_not_a_hypothesis_test(service: ToolSearchService) -> None:
+    names = _names(service, "verify the hypotheses of the mean value theorem for f(x) = x^2 on [0, 2]")
+    assert names[0] != "hypothesis_test", names

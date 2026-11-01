@@ -131,10 +131,12 @@ def _proportion_sample(fields: Dict[str, Any], name: str) -> Sample:
     n = whole_number(fields["n"], f"{name}.n", 1)
     raw_successes = finite_number(fields["successes"], f"{name}.successes")
     if 0.0 < raw_successes < 1.0:
-        raise ValueError(
-            f"{name}.successes is a count, not a proportion: for p-hat {raw_successes:g} of n = {n} send "
-            f"{raw_successes * n:g} if that is a whole number, otherwise ask for the count"
-        )
+        count = raw_successes * n
+        if abs(count - round(count)) <= 1e-9 * max(1.0, count):
+            advice = f"for p-hat {raw_successes:g} of n = {n} send {round(count)}"
+        else:
+            advice = f"p-hat {raw_successes:g} of n = {n} is not a whole number of successes, so ask for the count"
+        raise ValueError(f"{name}.successes is a count, not a proportion: {advice}")
     successes = whole_number(raw_successes, f"{name}.successes", 0)
     if successes > n:
         raise ValueError(f"{name}.successes ({successes}) cannot exceed {name}.n ({n})")

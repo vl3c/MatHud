@@ -169,7 +169,9 @@ _HYPOTHESIS_TEST_RE = re.compile(
     r"|\b(?:2-?)?samp[tz]test\b|\b[12]-?propztest\b|\bpaired\b[^.]*\btests?\b"
     r"|\b(?:one|two|1|2)[- ]?(?:sample|proportion|prop)s?\b[^.]*\btests?\b|\bproportion\s+tests?\b"
     r"|\btest(?:s|ed)?\s+(?:whether|if|that)\s+(?:the\s+)?(?:population\s+)?(?:means?|proportions?|averages?)\b"
-    r"|\btest(?:s|ed)?\b[^.]*(?:\balpha\b|α)|(?:\balpha\b|α)\s*=?\s*0?\.\d[^.]*\btest"
+    r"|\btest(?:s|ed)?\b[^.]*(?:\balpha\b|α)\s*(?:=|of|level)?\s*0?\.\d|(?:\balpha\b|α)\s*=?\s*0?\.\d[^.]*\btest"
+    r"|\btest\s+(?:the\s+|this\s+)?claim\b|\b(?:evidence|claim)\s+that\s+(?:the\s+)?(?:population\s+)?(?:mean|proportion)"
+    r"|\btest\b[^.]*\bat\s+(?:the\s+)?\d+(?:\.\d+)?\s*%|\b(?:at|with)\s+(?:the\s+)?\d+(?:\.\d+)?\s*%\s+(?:significance\s+)?level"
 )
 _CHI_SQUARED_TEST_RE = re.compile(
     r"(?:χ²|χ2|\bchi[- ]?(?:squared?|sq|2)?)[- ]?(?:gof[- ]?)?(?:tests?\b|goodness\b)"
@@ -187,7 +189,19 @@ _STATISTIC_VALUE_RE = re.compile(
 )
 _STATISTIC_P_VALUE_RE = re.compile(r"\bp[- ]?values?\b|\bcritical\s+values?\b")
 # "critical value of t with 5 df", "z* for 90% confidence": a quantile, also without a statistic's value.
-_CRITICAL_VALUE_RE = re.compile(r"\bcritical\s+(?:[tz]\s+|chi[- ]?squared?\s+)?values?\b|\b[tz]\s*\*")
+_CRITICAL_VALUE_RE = re.compile(
+    r"\bcritical\s+(?:[tz]\s+|chi[- ]?squared?\s+)?values?\b|\b[tz]\s*\*(?!\s*[\d(.])(?!\s*[a-z]\b)|\bwhat\s+[tz](?:\s+value)?\s+gives\b"
+)
+# A critical value is a statistics question only next to one of these ("critical values of f" is calculus).
+_CRITICAL_CONTEXT_RE = re.compile(
+    r"confiden|\balpha\b|α|\bdf\b|degrees?\s+of\s+freedom|significan|\d\s*%|\b(?:one|two|left|right|upper|lower)[- ]tail"
+)
+_FUNCTION_CONTEXT_RE = re.compile(r"\b[a-z]\(\s*x\s*\)|\by\s*=|\bfunction\b")
+_TEST_WORD_RE = re.compile(r"\btest(?:s|ed|ing)?\b|\bp[- ]?values?\b|\bhypothes[ie]s\b")
+# A picture of a distribution ("shade the p-value on a normal curve") is plot_distribution's.
+_DISTRIBUTION_PICTURE_WORDS = frozenset({"distribution", "curve", "normal", "bell", "gaussian", "density"})
+# Words that make "test" a statistics request even without a test pattern.
+_SAMPLE_WORDS = frozenset({"mean", "means", "proportion", "proportions", "sample", "samples", "population", "sigma"})
 # A confidence interval of a regression slope or intercept (LinRegTInt) belongs to fit_regression.
 _REGRESSION_WORDS = frozenset({"regression", "slope", "intercept", "fit", "fitting"})
 _DESCRIPTIVE_WORDS = frozenset({"descriptive", "stats", "statistics", "mean", "median", "stdev", "quartile", "average"})
@@ -1019,12 +1033,18 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         ):
             return {"compute_distribution"}
         tools: set[str] = set()
-        if _CRITICAL_VALUE_RE.search(raw_lower):
+        if (
+            _CRITICAL_VALUE_RE.search(raw_lower)
+            and _CRITICAL_CONTEXT_RE.search(raw_lower)
+            and not _FUNCTION_CONTEXT_RE.search(raw_lower)
+        ):
             tools.add("compute_distribution")
         if _CHI_SQUARED_TEST_RE.search(raw_lower):
             tools.add("chi_squared_test")
-        elif _HYPOTHESIS_TEST_RE.search(raw_lower):
-            tools.add("hypothesis_test")
+        elif _HYPOTHESIS_TEST_RE.search(raw_lower) and "theorem" not in raw_lower:
+            # "the critical value of t at the 5% level" names a level, not a test.
+            if not tools or _TEST_WORD_RE.search(raw_lower):
+                tools.add("hypothesis_test")
         if _CONFIDENCE_INTERVAL_RE.search(raw_lower):
             tools.add("confidence_interval")
         return tools
@@ -1033,14 +1053,17 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
     def _boost_inference_tools(tools: set[str], token_set: set[str], scores: Dict[str, float]) -> None:
         """Raise the tools ``_inference_intent`` found above the statistics and test-word matches.
 
-        A picture ("plot a normal and shade the p-value") gets no boost and ranks below
-        plot_distribution, which draws it. A critical value asked next to a test ranks behind the test, and a confidence
+        A picture of a distribution ("plot a normal and shade the p-value") gets no boost and
+        ranks below plot_distribution, which draws it; "show the p-value of a t test" is not one. A critical value asked next to a test ranks behind the test, and a confidence
         interval of a regression slope stays with fit_regression.
         """
-        if token_set & _PICTURE_WORDS:
-            drawing = scores.get("plot_distribution", 0.0)
+        drawing = scores.get("plot_distribution", 0.0)
+        draws_distribution = token_set & _PICTURE_WORDS and token_set & (
+            _DISTRIBUTION_PICTURE_WORDS | _DISTRIBUTION_NAME_WORDS
+        )
+        if draws_distribution and drawing > 0.0:
             for tool in tools:
-                if drawing > 0.0 and scores.get(tool, 0.0) >= drawing:
+                if scores.get(tool, 0.0) >= drawing:
                     scores[tool] = drawing - 0.5
             return
         for tool in tools:
@@ -1058,7 +1081,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
     def _quiet_inference_tools(token_set: set[str], scores: Dict[str, float]) -> None:
         """No inference intent: the tool names' "test" and "interval" do not make a ratio test,
         a symmetry test or an interval of x a statistics request."""
-        if token_set & TEST_QUERY_WORDS:
+        if token_set & TEST_QUERY_WORDS and not token_set & _SAMPLE_WORDS:
             scores.pop("hypothesis_test", None)
             scores.pop("chi_squared_test", None)
             # Their descriptions name hypothesis_test, which indexes as "test".
