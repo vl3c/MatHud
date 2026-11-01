@@ -116,6 +116,7 @@ VALUE_TOOLS: Tuple[str, ...] = (
     "derive",
     "integrate",
     "numeric_integrate",
+    "arc_length",
     "simplify",
     "expand",
     "factor",
