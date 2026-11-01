@@ -128,6 +128,7 @@ VALUE_TOOLS: Tuple[str, ...] = (
     "plot_histogram",
     "plot_box",
     "plot_scatter",
+    "compute_distribution",
     "calculate_area",
     "convert_coordinates",
     "search_tools",

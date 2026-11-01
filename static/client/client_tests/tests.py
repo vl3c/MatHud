@@ -86,8 +86,8 @@ from .test_graph_analyzer import (
     TestAnalyzeGraphPointInHull,
 )
 from .test_graph_utils import TestGraphUtils
-from .test_statistics_distributions import TestStatisticsDistributions
-from .test_statistics_manager import TestStatisticsManager
+from .test_statistics_distributions import TestDistributionNumericsInBrython, TestStatisticsDistributions
+from .test_statistics_manager import TestDistributionsBeyondNormal, TestStatisticsManager
 from .test_regression import TestRegressionCanvas
 from .test_point_name_collisions import TestPointNameCollisions
 from .test_path_elements import TestPathElements
@@ -592,7 +592,9 @@ class Tests:
             TestGraphTools,
             TestGraphUtils,
             TestStatisticsDistributions,
+            TestDistributionNumericsInBrython,
             TestStatisticsManager,
+            TestDistributionsBeyondNormal,
             TestRegressionCanvas,
             TestPointNameCollisions,
             TestAnalyzeGraphShortestPath,

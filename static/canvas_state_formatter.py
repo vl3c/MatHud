@@ -847,6 +847,9 @@ def _render_scatter_plot(scene: _Scene, item: JsonDict) -> str:
     else:
         head += f"; {len(xs)} pairs, not listed"
     return _data_plot_line(item, head, args)
+# Distributions whose plots draw one bar per whole value k, over [k - 1/2, k + 1/2]
+# (server_tests/test_plot_table_guards.py checks this against the distribution table).
+DISCRETE_DISTRIBUTION_TYPES: FrozenSet[str] = frozenset({"binomial", "poisson", "geometric"})
 
 
 def _distribution_head(args: Mapping[str, Any]) -> str:
@@ -856,8 +859,19 @@ def _distribution_head(args: Mapping[str, Any]) -> str:
         parts.append(", ".join(f"{key} {format_number(value)}" for key, value in params.items()))
     bounds = args.get("bounds")
     if isinstance(bounds, dict) and (bounds.get("left") is not None or bounds.get("right") is not None):
-        parts.append(f"on {_range_text(bounds.get('left'), bounds.get('right'))}")
+        values = _discrete_values_text(args.get("distribution_type"), bounds)
+        parts.append(values or f"on {_range_text(bounds.get('left'), bounds.get('right'))}")
     return "; ".join(parts)
+
+
+def _discrete_values_text(distribution_type: Any, bounds: Mapping[str, Any]) -> Optional[str]:
+    """ "values 0..10" for a discrete distribution's bars over [-0.5, 10.5], else None."""
+    if distribution_type not in DISCRETE_DISTRIBUTION_TYPES:
+        return None
+    left, right = bounds.get("left"), bounds.get("right")
+    if not (isinstance(left, (int, float)) and isinstance(right, (int, float))):
+        return None
+    return f"values {format_number(left + 0.5)}..{format_number(right - 0.5)}"
 
 
 def _render_continuous_plot(scene: _Scene, item: JsonDict) -> str:
@@ -881,7 +895,11 @@ def _render_discrete_plot(scene: _Scene, item: JsonDict) -> str:
         line += f"  {format_number(args['bar_count'])} bars"
     if args.get("bar_labels"):
         line += " labelled " + "/".join(str(label) for label in _as_list(args["bar_labels"]))
+    shade = args.get("shade_bounds")
+    if isinstance(shade, dict):
+        line += f"  shaded {_range_text(shade.get('left'), shade.get('right'))}"
     handled = {
+        "shade_bounds",
         "plot_type",
         "distribution_type",
         "distribution_params",

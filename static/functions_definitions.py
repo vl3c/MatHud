@@ -53,6 +53,61 @@ TRIANGLE_SUBTYPE_VALUES = _TriangleSubtype.values()
 QUADRILATERAL_SUBTYPE_VALUES = _QuadrilateralSubtype.values()
 POLYGON_SUBTYPE_VALUES = sorted(set(TRIANGLE_SUBTYPE_VALUES + QUADRILATERAL_SUBTYPE_VALUES))
 
+DISTRIBUTION_TYPES: List[str] = [
+    "binomial",
+    "chi_squared",
+    "exponential",
+    "f",
+    "geometric",
+    "normal",
+    "poisson",
+    "t",
+    "uniform",
+]
+
+
+def _distribution_type_schema(action: str) -> Dict[str, Any]:
+    return {
+        "type": "string",
+        "enum": list(DISTRIBUTION_TYPES),
+        "description": (
+            f"Distribution to {action}. Continuous: normal, uniform, exponential, t (Student's t), "
+            "chi_squared, f. Discrete: binomial, poisson, geometric."
+        ),
+    }
+
+
+def _distribution_params_schema() -> Dict[str, Any]:
+    """One flat object shared by every distribution: each reads its own keys and ignores the rest."""
+
+    def number(description: str) -> Dict[str, Any]:
+        return {"type": ["number", "null"], "description": description}
+
+    return {
+        "type": ["object", "null"],
+        "description": (
+            "Parameters; set only the selected distribution's keys and null the rest. normal: mean, sigma. "
+            "uniform: lower, upper. exponential: rate. t, chi_squared: df. f: df, df2. binomial: n, p. "
+            "poisson: rate. geometric: p."
+        ),
+        "properties": {
+            "mean": number("normal: mean (mu). Default 0."),
+            "sigma": number("normal: standard deviation, > 0. Default 1."),
+            "lower": number("uniform: lower end of its support (not the drawing range). Default 0."),
+            "upper": number("uniform: upper end of its support. Default 1."),
+            "rate": number("exponential: rate λ = 1/mean, > 0, default 1. poisson: mean λ, > 0, needed."),
+            "df": number("t, chi_squared: degrees of freedom; f: numerator df. > 0, needed."),
+            "df2": number("f: denominator degrees of freedom, > 0, needed."),
+            "n": number("binomial: number of trials, a whole number >= 1, needed."),
+            "p": number(
+                "binomial: success probability; geometric: success probability per trial. "
+                "Strictly between 0 and 1, needed."
+            ),
+        },
+        "required": ["mean", "sigma", "lower", "upper", "rate", "df", "df2", "n", "p"],
+        "additionalProperties": False,
+    }
+
 
 FunctionDefinition = Dict[str, Any]
 
@@ -2402,7 +2457,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "plot_distribution",
-            "description": "Plots a probability distribution on the canvas. Choose representation 'continuous' for a function curve or 'discrete' for bar rectangles. For continuous plots, you can optionally draw the curve over plot_bounds while shading only over shade_bounds (clamped into plot_bounds). Creates a tracked plot composite for reliable deletion.",
+            "description": "Plots a probability distribution on the canvas and reports the probability of the shaded range (shaded_probability, shaded_range). Continuous distributions (normal, uniform, exponential, t, chi_squared, f): representation 'continuous' draws the density curve and shades the area under it over shade_bounds; 'discrete' draws bar_count bars as tall as the density. Discrete distributions (binomial, poisson, geometric) always draw one bar per value k, as tall as P(X = k), and shading highlights the bars of the values in shade_bounds (the others are gray). The curve or bars cover plot_bounds clipped to the distribution's support. For a probability without a picture use compute_distribution. Creates a tracked plot composite for reliable deletion.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2414,40 +2469,21 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "representation": {
                         "type": "string",
                         "enum": ["continuous", "discrete"],
-                        "description": "Plot representation. 'continuous' draws a smooth curve. 'discrete' draws bars (rectangles).",
+                        "description": "Plot representation. 'continuous' draws a smooth curve. 'discrete' draws bars (rectangles). Discrete distributions are always drawn as bars.",
                     },
-                    "distribution_type": {
-                        "type": "string",
-                        "enum": ["normal"],
-                        "description": "Distribution to plot. v1 supports only 'normal' (Gaussian).",
-                    },
-                    "distribution_params": {
-                        "type": ["object", "null"],
-                        "description": "Parameters for the selected distribution type. For 'normal', provide mean and sigma.",
-                        "properties": {
-                            "mean": {
-                                "type": ["number", "null"],
-                                "description": "Mean (mu) for the normal distribution. Defaults to 0 if null.",
-                            },
-                            "sigma": {
-                                "type": ["number", "null"],
-                                "description": "Standard deviation (sigma) for the normal distribution. Defaults to 1 if null. Must be > 0.",
-                            },
-                        },
-                        "required": ["mean", "sigma"],
-                        "additionalProperties": False,
-                    },
+                    "distribution_type": _distribution_type_schema("plot"),
+                    "distribution_params": _distribution_params_schema(),
                     "plot_bounds": {
                         "type": ["object", "null"],
-                        "description": "Optional bounds for plotting the curve. If null, or either side is null, defaults to mean +/- 4*sigma.",
+                        "description": "Optional drawing range (x values). If null, or either side is null, that side defaults to the distribution's main range (normal: mean +/- 4*sigma; binomial: about mean +/- 5 sd within 0..n), widened to take in shade_bounds. Clipped to the support; for a discrete distribution, the whole values inside get a bar (at most 500).",
                         "properties": {
                             "left_bound": {
                                 "type": ["number", "null"],
-                                "description": "Optional left bound for plotting the curve. Defaults to mean - 4*sigma when null.",
+                                "description": "Optional left end of the drawing range. Null: the distribution's default.",
                             },
                             "right_bound": {
                                 "type": ["number", "null"],
-                                "description": "Optional right bound for plotting the curve. Defaults to mean + 4*sigma when null.",
+                                "description": "Optional right end of the drawing range. Null: the distribution's default.",
                             },
                         },
                         "required": ["left_bound", "right_bound"],
@@ -2455,15 +2491,15 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     },
                     "shade_bounds": {
                         "type": ["object", "null"],
-                        "description": "Continuous only. Optional bounds for shading under the curve. If null, defaults to plot_bounds. Bounds are clamped into plot_bounds.",
+                        "description": "Optional range to shade, giving shaded_probability = P(left_bound <= X <= right_bound). A null side is open (P(X >= a) has a null right_bound). If the whole object is null: a continuous curve is shaded over its drawing range and bars are not highlighted. For a discrete distribution the whole values inside count, both ends included: P(X < 5) is right_bound 4, P(X > 2) is left_bound 3.",
                         "properties": {
                             "left_bound": {
                                 "type": ["number", "null"],
-                                "description": "Optional left bound for shading under the curve. If null, defaults to plot_bounds.left_bound.",
+                                "description": "Left end of the shaded range; null for no lower end.",
                             },
                             "right_bound": {
                                 "type": ["number", "null"],
-                                "description": "Optional right bound for shading under the curve. If null, defaults to plot_bounds.right_bound.",
+                                "description": "Right end of the shaded range; null for no upper end.",
                             },
                         },
                         "required": ["left_bound", "right_bound"],
@@ -2480,7 +2516,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     },
                     "bar_count": {
                         "type": ["number", "null"],
-                        "description": "Discrete only. Number of bars to draw across the bounds: a whole number from 1 to 500. If null, 24 is used.",
+                        "description": "Continuous distributions drawn as bars only: number of bars across the drawing range, a whole number from 1 to 500. If null, 24 is used. Ignored for discrete distributions (one bar per value).",
                     },
                 },
                 "required": [
@@ -2789,6 +2825,46 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "curve_color",
                     "show_points",
                     "point_color",
+                ],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "compute_distribution",
+            "description": "Probabilities, quantiles and moments of a probability distribution, like a calculator's normalcdf, invNorm, tcdf, binompdf or poissoncdf. Always returns mean, variance, standard_deviation and support. With x: for a continuous distribution pdf, P(X <= x) and P(X > x); for a discrete one P(X = x), P(X <= x), P(X < x), P(X >= x) and P(X > x). With left_bound and/or right_bound: P(a <= X <= b), a null side open, and for a discrete distribution also P(a < X < b). With probability: the quantile (inverse cdf, left tail): the x with P(X <= x) = probability, or for a discrete distribution the smallest k with P(X <= k) >= probability. Critical values: right tail alpha is the quantile of 1 - alpha, two-sided is 1 - alpha/2. Geometric counts the trials up to and including the first success (1, 2, 3, ...). Numbers are rounded to 12 significant digits. Draws nothing; use plot_distribution to show and shade a distribution.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "distribution_type": _distribution_type_schema("use"),
+                    "distribution_params": _distribution_params_schema(),
+                    "x": {
+                        "type": ["number", "null"],
+                        "description": "A value of X: gives the density (or P(X = x)) and the tails at x. Null if not needed.",
+                    },
+                    "left_bound": {
+                        "type": ["number", "null"],
+                        "description": "Left end a of an interval for P(a <= X <= b); null for no lower end.",
+                    },
+                    "right_bound": {
+                        "type": ["number", "null"],
+                        "description": "Right end b of an interval for P(a <= X <= b); null for no upper end. Both bounds null: no interval.",
+                    },
+                    "probability": {
+                        "type": ["number", "null"],
+                        "description": "A probability strictly between 0 and 1 to invert (left-tail quantile). Null if not needed.",
+                    },
+                },
+                "required": [
+                    "distribution_type",
+                    "distribution_params",
+                    "x",
+                    "left_bound",
+                    "right_bound",
+                    "probability",
                 ],
                 "additionalProperties": False,
             },

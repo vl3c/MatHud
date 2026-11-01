@@ -22,10 +22,10 @@ Canonicalization rules (applied when schema type is matched):
       applied before validation, so also when validation fails. The routes apply
       it to every model reply's tool calls (``normalize_tool_calls``), streaming
       or not, before the client runs them.
-    - Omitted-to-null: a required top-level argument the call leaves out is filled
-      with None when its schema allows null (strict schemas mark every argument
-      required, and an optional one is nullable), so the call validates and the
-      other arguments are still coerced. The client handlers treat None as "not
+    - Omitted-to-null: a required argument the call leaves out is filled with None
+      when its schema allows null, at the top level and inside nested objects
+      (strict schemas mark every argument required, and an optional one is
+      nullable), so the call validates and the other arguments are still coerced. The client handlers treat None as "not
       given" for these arguments, except those in NO_NULL_FILL, which stay missing
       without counting as missing. Unlike the null-strings rule, this applies only
       inside ``validate()`` (the non-streaming /send_message path), not to the
@@ -403,6 +403,9 @@ def _validate_value(
         additional = schema.get("additionalProperties", True)
 
         if properties is not None:
+            # An omitted nullable key of a nested object means null, as at the top level
+            _fill_omitted_nested(tool_name, path, value, properties, required)
+
             # Check for required fields
             for req_key in required:
                 if req_key not in value:
@@ -456,6 +459,24 @@ def _fill_omitted_nullable(
         if _schema_allows_null(prop_schema):
             logger.info("Tool '%s': omitted argument '%s' filled with null.", tool_name, key)
             arguments[key] = None
+
+
+def _fill_omitted_nested(
+    tool_name: str, path: str, value: Dict[str, Any], properties: Dict[str, Any], required: List[str]
+) -> None:
+    """Set each required key missing from a nested object to None where its schema allows null.
+
+    A strict schema lists every key of an object as required, so a model (or a scenario's
+    reference call) that writes only the keys it uses, such as ``distribution_params``
+    with just mean and sigma, still validates.
+    """
+    for key in required:
+        prop_schema = properties.get(key)
+        if key in value or not isinstance(prop_schema, dict):
+            continue
+        if _schema_allows_null(prop_schema):
+            logger.info("Tool '%s': omitted argument '%s.%s' filled with null.", tool_name, path, key)
+            value[key] = None
 
 
 # ---------------------------------------------------------------------------

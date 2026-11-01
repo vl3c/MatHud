@@ -44,6 +44,7 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
 - Trigonometric Functions: sin, cos, tan, arcsin, arccos, arctan
 - Logarithmic Functions: natural log, log base 10, log with custom base
 - Statistical Functions: mean, median, mode, standard deviation, variance
+- Probability Distributions: normal, uniform, exponential, t, χ², F, binomial, Poisson and geometric; density or P(X = x), tails, interval probabilities, quantiles and moments (`compute_distribution`), and plots with shaded ranges and their probability (`plot_distribution`)
 - Calculus Operations: derivatives, integrals, limits
 - Complex Numbers: operations with real and imaginary components
 - Graphing Functions: plot functions, parametric equations, polar coordinates
@@ -345,7 +346,11 @@ static/client/
 │   │   └── quadrilateral.py           # Rectangle canonicalization
 │   └── statistics/                    # Statistical utilities
 │       ├── __init__.py                # Package exports
-│       └── distributions.py           # Normal PDF expression generation
+│       ├── special_functions.py       # Log-gamma, incomplete gamma and beta, bisection
+│       ├── distribution_functions.py  # pdf, cdf, tails, quantiles and moments per distribution
+│       ├── distributions.py           # DISTRIBUTIONS table: one DistributionSpec per type
+│       ├── distribution_plot.py       # Drawn range, bars per value, shaded probability
+│       └── distribution_tool.py       # compute_distribution tool
 ├── name_generator/                    # Automatic name generation for objects
 │   ├── base.py                        # Base name generator class
 │   ├── drawable.py                    # General drawable object name generation
