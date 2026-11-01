@@ -180,12 +180,12 @@ _POLAR_EDIT_WORDS = frozenset(
     {"change", "update", "edit", "set", "recolor", "recolour", "extend", "range", "make", "color", "colour"}
     | {"red", "blue", "green", "orange", "purple", "black", "yellow", "pink", "gray", "grey", "brown"}
 )
-_POLAR_DRAW_WORDS = frozenset({"draw", "plot", "graph", "sketch", "create", "add", "new", "show", "want"})
+_POLAR_DRAW_WORDS = frozenset({"draw", "plot", "graph", "sketch", "create", "add", "show", "want"})
 # The article right before the curve word (a few adjectives may come between) says whether
 # the curve is new: "make a red cardioid at the origin", "one more rose"; or already drawn:
 # "make the cardioid a different color"
 _POLAR_CURVE_WORD = r"(?:cardioids?|lima[cç]ons?|lemniscates?|roses?|spirals?|polar|curves?)\b"
-_NEW_POLAR_CURVE_RE = re.compile(r"\b(?:a|an|another|more|new|second)\s+(?:[\w-]+\s+){0,3}?" + _POLAR_CURVE_WORD)
+_NEW_POLAR_CURVE_RE = re.compile(r"\b(?:a|an|another|more|new|second|two|three|four|five|[0-9]+)\s+(?:[\w-]+\s+){0,3}?" + _POLAR_CURVE_WORD)
 _EXISTING_POLAR_CURVE_RE = re.compile(
     r"\b(?:the|this|that|my|existing)\s+(?:[\w-]+\s+){0,2}?" + _POLAR_CURVE_WORD + r"|\b\w+_polar\b"
 )
@@ -981,13 +981,15 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             return True
         if token_set & _POLAR_SHAPE_WORDS:
             return False
-        if token_set & {"grid", "coordinates"} and not equation:
-            # The polar grid, or a point in polar coordinates, unless an r(θ) is given
-            return False
-        if token_set & _POLAR_CURVE_NAMES or any(token.endswith("_polar") for token in token_set):
+        # A named curve is a curve on any grid: "plot a cardioid on a polar grid"
+        names_curve = token_set & _POLAR_CURVE_NAMES or "limaçon" in raw_lower
+        if names_curve or any(token.endswith("_polar") for token in token_set):
             return True
         if "rose" in token_set and token_set & {"curve", "petal", "petals", "polar"}:
             return True
+        if token_set & {"grid", "coordinates"} and not equation:
+            # The polar grid, or a point in polar coordinates, unless an r(θ) is given
+            return False
         if "polar" in token_set and token_set & _POLAR_CURVE_NOUNS:
             return True
         return equation
@@ -1283,6 +1285,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             # "the point with polar coordinates r = 2, θ = π/3", "plot (2, π/3) in polar
             # coordinates", "a polar grid": a point or the grid, not a curve
             scores["draw_polar_function"] -= 6.0
+            scores["update_polar_function"] -= 6.0
         parametric_words = token_set & {"parametric", "parametrically"}
         if not polar_curve and (parametric_words or _PARAMETRIC_RE.search(raw_lower)):
             # "plot a cardioid using x(t) = ..., y(t) = ...": the curve is named, but given

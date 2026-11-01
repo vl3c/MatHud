@@ -3290,6 +3290,19 @@
       "cluster": "function_cluster"
     },
     {
+      "id": "polar_named_curve_on_polar_grid",
+      "query": "Plot a cardioid on a polar grid.",
+      "expected_any": [
+        "draw_polar_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
       "id": "parametric_cardioid_not_polar",
       "query": "Plot a cardioid using x(t) = (1-cos(t))*cos(t) and y(t) = (1-cos(t))*sin(t).",
       "expected_any": [
