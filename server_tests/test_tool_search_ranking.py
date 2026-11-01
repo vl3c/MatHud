@@ -793,3 +793,36 @@ def test_inference_review_round_three(service: ToolSearchService, query: str, ex
 def test_sample_size_planning_is_not_an_interval(service: ToolSearchService) -> None:
     names = _names(service, "what sample size is needed for a margin of error of 3 with sigma 15 at 95% confidence")
     assert not {"confidence_interval", "hypothesis_test"} & set(names), names
+
+
+# Review round 4: a sample size given as data, exact discrete tails asked as "significant", calculus in t.
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("for a sample size of 30 with mean 98.2 and s 0.6, test H0: mu = 98.6 at alpha 0.05", "hypothesis_test"),
+        ("a sample size of 25 has mean 52 and sd 6; construct a 95% confidence interval", "confidence_interval"),
+        (
+            "the probability of 9 or more successes out of 10 with p = 0.5; is it significant at 0.05?",
+            "compute_distribution",
+        ),
+        ("binomial: is 9 out of 10 successes significant at the 5% level when p = 0.5", "compute_distribution"),
+        (
+            "for a binomial with n = 20 and p = 0.5, find P(X >= 15) and decide whether it is significant at the 5% level",
+            "compute_distribution",
+        ),
+        (
+            "assume a normal distribution; find the p-value for H0: mu = 50 with sample mean 52, sd 5, n 30",
+            "hypothesis_test",
+        ),
+        ("find the critical values of s(t) = t^2 - 4t where t is 0 to 5", "evaluate_expression"),
+        ("p-value for chi2(3) = 7.8", "compute_distribution"),
+        ("make a binomial distribution with n=10 and p=0.5", "plot_distribution"),
+    ],
+)
+def test_inference_review_round_four(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected
+
+
+def test_survey_size_planning_is_not_an_interval(service: ToolSearchService) -> None:
+    names = _names(service, "how many people must be surveyed for a margin of error of 3%?")
+    assert "confidence_interval" not in names, names

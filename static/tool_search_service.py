@@ -185,14 +185,18 @@ _CONFIDENCE_INTERVAL_RE = re.compile(
 )
 # A p-value of a statistic already computed ("p-value for t = 2.1 with 15 df"): compute_distribution.
 _STATISTIC_VALUE_RE = re.compile(
-    r"(?:\b[tz]|\bchi[- ]?(?:squared?|sq)?|χ²|χ2)(?:\s*\(\s*\d+\s*\))?[- ]?(?:\s*(?:score|statistic|stat|value))?"
+    r"(?:\b[tz]|\bchi[- ]?(?:squared?|sq|2)?|χ²|χ2)(?:\s*\(\s*\d+\s*\))?[- ]?(?:\s*(?:score|statistic|stat|value))?"
     r"\s*(?:=|\bis\b|\bof\b|\bequals\b)\s*-?\.?\d|\bstatistic\s+(?:of|is|=|equals)\s*-?\.?\d"
 )
-# A p-value from a named distribution ("using the binomial distribution, the p-value of 15 or more heads").
+# A discrete distribution, P(X ...) or "the probability of 9 or more" named outright ("using the binomial
+# distribution, is 15 or more heads significant?"): its exact tail is compute_distribution's, not a
+# normal-approximation test.
 _NAMED_DISTRIBUTION_RE = re.compile(
-    r"\b(?:binomial|poisson|geometric)\b|\b(?:normal|t|chi[- ]?squared?|exponential|uniform)\s+distribution\b"
-    r"|\bp\s*\(\s*x\b"
+    r"\b(?:binomial|poisson|geometric)\b|\bp\s*\(\s*x\b"
+    r"|\bprobability\b[^.;?]*\b(?:or\s+(?:more|fewer|less)|at\s+(?:least|most))\b"
 )
+# A named distribution routes to compute_distribution only next to a test word ("geometric series" does not).
+_INFERENCE_SIGNAL_RE = re.compile(r"significan|\bp[- ]?values?\b|\bh[_ ]?[01]\b|\bnull\b|\btest\b|\balpha\b|α")
 _STATISTIC_P_VALUE_RE = re.compile(r"\bp[- ]?values?\b|\bcritical\s+values?\b")
 # "critical value of t with 5 df", "z* for 90% confidence": a quantile, also without a statistic's value.
 _CRITICAL_VALUE_RE = re.compile(
@@ -202,8 +206,7 @@ _CRITICAL_VALUE_RE = re.compile(
 _CRITICAL_CONTEXT_RE = re.compile(
     r"confiden|\balpha\b|α|\bdf\b|degrees?\s+of\s+freedom|significan|\d\s*%|\b(?:one|two|left|right|upper|lower)[- ]tail"
 )
-_FUNCTION_CONTEXT_RE = re.compile(r"\b[a-z]\(\s*x\s*\)|\by\s*=|\bfunction\b")
-_TEST_NAME_RE = re.compile(r"\btest(?:s|ed|ing)?\b|\bhypothes[ie]s\b")
+_FUNCTION_CONTEXT_RE = re.compile(r"\b[a-z]\(\s*[a-z]\s*\)|\by\s*=|\bfunction\b")
 _TEST_WORD_RE = re.compile(r"\btest(?:s|ed|ing)?\b|\bp[- ]?values?\b|\bhypothes[ie]s\b")
 # A picture of a distribution ("shade the p-value on a normal curve") is plot_distribution's.
 _DISTRIBUTION_PICTURE_WORDS = frozenset({"distribution", "curve", "normal", "bell", "gaussian", "density"})
@@ -215,7 +218,12 @@ _REGRESSION_WORDS = frozenset(
     {"regression", "slope", "intercept", "fit", "fitting", "correlation", "correlated", "correlate"}
 )
 # Sample-size planning ("how large a sample for a margin of error of 3") is not an interval.
-_SAMPLE_SIZE_RE = re.compile(r"\bsample\s+size\b|\bhow\s+(?:large|big)\s+(?:a\s+|the\s+)?sample\b")
+_SAMPLE_SIZE_RE = re.compile(
+    r"\b(?:what|which|minimum|smallest|required|needed)\s+sample\s+size\b|\bsample\s+size\s+(?:is\s+)?(?:needed|required)\b"
+    r"|\bhow\s+(?:large|big)\s+(?:a\s+|the\s+)?sample\b|\bhow\s+many\b[^.?]*\b(?:surveyed|sampled|needed|required)\b"
+)
+# Sample figures that make a named binomial question a test of data after all.
+_SAMPLE_SUMMARY_WORDS = frozenset({"mean", "sd", "sigma", "sample", "samples", "data"})
 _DESCRIPTIVE_WORDS = frozenset({"descriptive", "stats", "statistics", "mean", "median", "stdev", "quartile", "average"})
 # Words that ask for the test suite even next to a test word.
 _TEST_SUITE_WORDS = frozenset({"run", "suite", "client", "server", "unit", "brython"})
@@ -1038,17 +1046,18 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         p-values and hypotheses for hypothesis_test, and confidence intervals or margins of
         error for confidence_interval.
         """
-        if _STATISTIC_P_VALUE_RE.search(raw_lower) and not _NUMBER_LIST_RE.search(raw_lower):
+        function = _FUNCTION_CONTEXT_RE.search(raw_lower)
+        if _STATISTIC_P_VALUE_RE.search(raw_lower) and not (_NUMBER_LIST_RE.search(raw_lower) or function):
             if _STATISTIC_VALUE_RE.search(raw_lower):
                 return {"compute_distribution"}
-            if _NAMED_DISTRIBUTION_RE.search(raw_lower) and not _TEST_NAME_RE.search(raw_lower):
-                return {"compute_distribution"}
-        tools: set[str] = set()
         if (
-            _CRITICAL_VALUE_RE.search(raw_lower)
-            and _CRITICAL_CONTEXT_RE.search(raw_lower)
-            and not _FUNCTION_CONTEXT_RE.search(raw_lower)
+            _NAMED_DISTRIBUTION_RE.search(raw_lower)
+            and _INFERENCE_SIGNAL_RE.search(raw_lower)
+            and not set(re.findall(r"[a-z]+", raw_lower)) & _SAMPLE_SUMMARY_WORDS
         ):
+            return {"compute_distribution"}
+        tools: set[str] = set()
+        if _CRITICAL_VALUE_RE.search(raw_lower) and _CRITICAL_CONTEXT_RE.search(raw_lower) and not function:
             tools.add("compute_distribution")
         if _CHI_SQUARED_TEST_RE.search(raw_lower):
             tools.add("chi_squared_test")
