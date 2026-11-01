@@ -694,3 +694,47 @@ def test_an_interval_of_x_is_not_a_confidence_interval(service: ToolSearchServic
 def test_other_test_words_stay_away_from_inference(service: ToolSearchService, query: str) -> None:
     names = _names(service, query)
     assert not names or names[0] not in ("hypothesis_test", "chi_squared_test", "confidence_interval"), names
+
+
+# Review round 1: "test", "interval" and "significance" outside statistics, pictures and critical values.
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("is the sequence convergent? test with the ratio test", "evaluate_expression"),
+        ("test for symmetry of y = x^3", "evaluate_expression"),
+        ("what is the significance of the second derivative", "derive"),
+        ("plot a normal distribution and shade the p-value for z = 2.1", "plot_distribution"),
+        ("plot a t distribution with 10 df and shade the p-value for t = 2.3", "plot_distribution"),
+        ("draw the 95% confidence interval on a normal curve", "plot_distribution"),
+        ("critical z value for 95% confidence", "compute_distribution"),
+        ("z* for 90% confidence", "compute_distribution"),
+        ("t* for 95% confidence with 14 df", "compute_distribution"),
+        (
+            "fit a linear regression to x=[1,2,3] y=[2,4,7] and give the confidence interval of the slope",
+            "fit_regression",
+        ),
+        ("run a t-test on data 5 6 7 8 against 5 and give the critical value", "hypothesis_test"),
+        ("test H0: mu = 50 against mu > 50 with data 51 52 53", "hypothesis_test"),
+        ("test whether the mean is 50 using 48 52 49 51 47", "hypothesis_test"),
+    ],
+)
+def test_inference_words_in_other_requests(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "plot points h0 and h1",
+        "create point H0 at (1, 2)",
+        "p values of these points",
+        "use the ratio test on sum 1/n!",
+    ],
+)
+def test_names_and_series_tests_are_not_hypothesis_tests(service: ToolSearchService, query: str) -> None:
+    assert not {"hypothesis_test", "chi_squared_test"} & set(_names(service, query)[:3])
+
+
+def test_outlier_test_keeps_descriptive_statistics(service: ToolSearchService) -> None:
+    names = _names(service, "find the standard deviation and test for outliers in 2, 4, 6, 100")
+    assert "compute_descriptive_statistics" in names[:2], names

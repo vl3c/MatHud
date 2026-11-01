@@ -371,7 +371,7 @@ class TestRefusals(unittest.TestCase):
         self.assertRefused("Unsupported interval_type", lambda: _interval("chi_squared_gof", sample))
 
     def test_pooled_outside_two_sample_t_is_listed(self) -> None:
-        result = _test("z", _summary(mean=1, sigma=1, n=4), h0=0, pooled=False)
+        result = _test("z", _summary(mean=1, sigma=1, n=4), h0=0, pooled=True)
         self.assertEqual(result["ignored_inputs"], ["pooled"])
 
     def test_chi_squared_refusals(self) -> None:
@@ -409,6 +409,53 @@ class TestRefusals(unittest.TestCase):
         self.assertRefused("column 1", lambda: chi_squared_test_tool("independence", None, None, [[0, 2], [0, 4]]))
         self.assertRefused("needs table", lambda: chi_squared_test_tool("independence", None, None, None))
         self.assertRefused("needs observed", lambda: chi_squared_test_tool("goodness_of_fit", None, None, None))
+
+
+class TestReviewRoundOne(_Close):
+    def test_rounded_thirds_are_probabilities(self) -> None:
+        result = chi_squared_test_tool("goodness_of_fit", [30, 30, 40], [0.33, 0.33, 0.33])
+        self.assertEqual(result["expected"], [33.3333333333] * 3)
+
+    def test_empty_lists_count_as_null(self) -> None:
+        sample = _summary(data=[], mean=5.5, sd=1, n=10)
+        self.assertEqual(_test("t", sample, _summary(data=[]), h0=5)["df"], 9)
+        result = chi_squared_test_tool("independence", [], [], [[10, 20], [30, 40]])
+        self.assertEqual(result["df"], 1)
+        self.assertEqual(chi_squared_test_tool("goodness_of_fit", [20, 30, 50], [], [])["df"], 2)
+
+    def test_matching_df_is_accepted_on_independence(self) -> None:
+        self.assertEqual(chi_squared_test_tool("independence", None, None, [[10, 20], [30, 40]], 1)["df"], 1)
+        with self.assertRaisesRegex(ValueError, r"\(rows - 1\)\(columns - 1\) = 1"):
+            chi_squared_test_tool("independence", None, None, [[10, 20], [30, 40]], 2)
+
+    def test_z_with_only_sd_names_both_readings(self) -> None:
+        with self.assertRaisesRegex(ValueError, "send it as sample1.sigma.*use t"):
+            _test("z", _summary(mean=105, sd=15, n=36), h0=100)
+
+    def test_conclusion_never_prints_p_equal_to_alpha(self) -> None:
+        result = _test("z", _summary(mean=1.95996, sigma=1, n=1), h0=0)
+        self.assertFalse(result["reject_null"])
+        self.assertTrue(result["conclusion"].startswith("p = 0.050000"), result["conclusion"])
+        self.assertNotIn("p = 0.05 >", result["conclusion"])
+
+    def test_proportion_hints(self) -> None:
+        with self.assertRaisesRegex(ValueError, "send 90"):
+            _test("one_proportion", _summary(successes=0.45, n=200), h0=0.5)
+        with self.assertRaisesRegex(ValueError, "write 0.5 for 50%"):
+            _test("one_proportion", _summary(successes=90, n=200), h0=50)
+
+    def test_pooled_false_is_not_listed(self) -> None:
+        self.assertNotIn("ignored_inputs", _test("z", _summary(mean=1, sigma=1, n=4), h0=0, pooled=False))
+
+    def test_levels_below_half_are_refused(self) -> None:
+        with self.assertRaisesRegex(ValueError, "below 50%"):
+            _interval("z", _summary(mean=0, sigma=1, n=1), level=1.5)
+        with self.assertRaisesRegex(ValueError, "below 50%"):
+            _interval("z", _summary(mean=0, sigma=1, n=1), level=0.05)
+
+    def test_ratio_hint(self) -> None:
+        with self.assertRaisesRegex(ValueError, "divide each by their sum"):
+            chi_squared_test_tool("goodness_of_fit", [315, 108, 101, 32], [9, 3, 3, 1])
 
 
 class TestSchemas(unittest.TestCase):

@@ -56,7 +56,12 @@ def given_keys(raw: Any, name: str) -> Dict[str, Any]:
     unknown = sorted(key for key in raw if key not in SAMPLE_KEYS)
     if unknown:
         raise ValueError(f"{name} has unknown keys {', '.join(unknown)}; use {', '.join(SAMPLE_KEYS)}")
-    return {key: value for key, value in raw.items() if value is not None}
+    return {key: value for key, value in raw.items() if not is_empty(value)}
+
+
+def is_empty(value: Any) -> bool:
+    """Null, or an empty list (small models send [] for an unused array)."""
+    return value is None or (isinstance(value, list) and len(value) == 0)
 
 
 def finite_number(value: Any, label: str) -> float:
@@ -124,7 +129,13 @@ def _proportion_sample(fields: Dict[str, Any], name: str) -> Sample:
             "when that is a whole number"
         )
     n = whole_number(fields["n"], f"{name}.n", 1)
-    successes = whole_number(fields["successes"], f"{name}.successes", 0)
+    raw_successes = finite_number(fields["successes"], f"{name}.successes")
+    if 0.0 < raw_successes < 1.0:
+        raise ValueError(
+            f"{name}.successes is a count, not a proportion: for p-hat {raw_successes:g} of n = {n} send "
+            f"{raw_successes * n:g} if that is a whole number, otherwise ask for the count"
+        )
+    successes = whole_number(raw_successes, f"{name}.successes", 0)
     if successes > n:
         raise ValueError(f"{name}.successes ({successes}) cannot exceed {name}.n ({n})")
     return Sample(name=name, n=n, successes=successes)
@@ -134,8 +145,9 @@ def _z_sample(fields: Dict[str, Any], name: str, ignored: List[str]) -> Sample:
     if "sigma" not in fields:
         if "sd" in fields:
             raise ValueError(
-                f"a z test needs the known population sigma, and {name} gives only the sample sd; "
-                "use t (or two_sample_t) instead"
+                f"a z test needs the known population standard deviation as {name}.sigma, and {name} gives sd: "
+                f"if that value is the population's (known) standard deviation, send it as {name}.sigma; "
+                "if it is the sample's standard deviation, use t (or two_sample_t)"
             )
         raise ValueError(f"a z test needs {name}.sigma, the known population standard deviation")
     sigma = finite_number(fields["sigma"], f"{name}.sigma")
@@ -236,13 +248,19 @@ def parse_confidence_level(value: Any) -> float:
     if value is None:
         return DEFAULT_CONFIDENCE_LEVEL
     level = finite_number(value, "confidence_level")
-    if 0.0 < level < 1.0:
-        return level
     if 1.0 < level < 100.0:
-        return level / 100.0
-    raise ValueError(
-        "confidence_level must be between 0 and 1 (e.g. 0.95) or a percentage between 1 and 100 (e.g. 95), exclusive"
-    )
+        level /= 100.0
+    elif not 0.0 < level < 1.0:
+        raise ValueError(
+            "confidence_level must be between 0 and 1 (e.g. 0.95) or a percentage between 1 and 100 (e.g. 95), "
+            "exclusive"
+        )
+    if level < 0.5:
+        raise ValueError(
+            f"confidence_level {value:g} reads as {level:.4g}, below 50%; confidence levels are usually 0.90, 0.95 "
+            "or 0.99 (a significance level alpha = 0.05 is the level 0.95)"
+        )
+    return level
 
 
 def parse_counts(value: Any, label: str) -> List[float]:

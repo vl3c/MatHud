@@ -80,7 +80,7 @@ def decide(p: float, alpha: float, alternative_hypothesis: str) -> Dict[str, Any
     """p_value (0 below 1e-300, with a note), reject_null and the conclusion, on the unrounded p."""
     reject = p <= alpha
     tiny = p < SMALLEST_P_VALUE
-    p_text = f"p < {SMALLEST_P_VALUE:g}" if tiny else f"p = {p:.4g}"
+    p_text = f"p < {SMALLEST_P_VALUE:g}" if tiny else f"p = {_distinct_text(p, alpha)}"
     sign = "<=" if reject else ">"
     if reject:
         verdict = f"reject H0; the data support H1 ({alternative_hypothesis})"
@@ -95,6 +95,15 @@ def decide(p: float, alpha: float, alternative_hypothesis: str) -> Dict[str, Any
     if tiny:
         result["p_value_note"] = f"p < {SMALLEST_P_VALUE:g}"
     return result
+
+
+def _distinct_text(p: float, alpha: float) -> str:
+    """p with 4 significant digits, more when 4 would print it equal to alpha (p = 0.0500004)."""
+    for digits in range(4, 13):
+        text = f"{p:.{digits}g}"
+        if p == alpha or float(text) != alpha:
+            return text
+    return repr(p)
 
 
 def require_finite(*values: Optional[float]) -> None:
@@ -134,7 +143,8 @@ def _hypothesized_value(test_type: str, value: Any) -> float:
             raise ValueError("hypothesized_value is needed: p0, the proportion in H0")
         p0 = float(finite_number(value, "hypothesized_value"))
         if not 0.0 < p0 < 1.0:
-            raise ValueError("hypothesized_value (p0) must be strictly between 0 and 1")
+            hint = f"; write {p0 / 100:g} for {p0:g}%" if 1.0 < p0 < 100.0 else ""
+            raise ValueError(f"hypothesized_value (p0) must be strictly between 0 and 1{hint}")
         return p0
     if test_type == "two_proportion":
         if value is not None and finite_number(value, "hypothesized_value") != 0.0:

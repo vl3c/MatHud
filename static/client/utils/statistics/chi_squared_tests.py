@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Tuple
 
 from utils.statistics.distributions import get_distribution
 from utils.statistics.hypothesis_tests import decide, number_text, require_finite, rounded
-from utils.statistics.inference_samples import parse_alpha, parse_counts, whole_number
+from utils.statistics.inference_samples import finite_number, is_empty, parse_alpha, parse_counts, whole_number
 from utils.statistics.special_functions import bisect_increasing
 
 CHI_SQUARED_TEST_TYPES = ("goodness_of_fit", "independence")
@@ -52,8 +52,9 @@ def _goodness_of_fit_expected(observed: List[float], expected: Any, notes: List[
     if any(value <= 0.0 for value in values):
         raise ValueError("every expected value must be > 0")
     given = math.fsum(values)
-    near_one = abs(given - 1.0) <= PROBABILITY_SUM_TOLERANCE
-    near_total = abs(given - total) <= COUNT_SUM_TOLERANCE * total
+    # The slack keeps rounded thirds (0.33 * 3 sums to 0.99 less a hair) inside the tolerance.
+    near_one = abs(given - 1.0) <= PROBABILITY_SUM_TOLERANCE + EXACT_SUM_TOLERANCE
+    near_total = abs(given - total) <= COUNT_SUM_TOLERANCE * total * (1.0 + EXACT_SUM_TOLERANCE)
     if near_one and near_total:
         raise ValueError(
             "the expected values could be probabilities or counts (the observed total is close to 1); "
@@ -75,9 +76,11 @@ def _goodness_of_fit_expected(observed: List[float], expected: Any, notes: List[
             f"the expected values sum to {number_text(given)}, which looks like percentages; divide them by 100 "
             "to give probabilities"
         )
+    kind = "probabilities" if given < 2.0 else "values"
     raise ValueError(
-        f"the expected counts sum to {number_text(given)} but the observed counts sum to {number_text(total)}; "
-        f"give counts summing to {number_text(total)} or probabilities summing to 1"
+        f"the expected {kind} sum to {number_text(given)} but the observed counts sum to {number_text(total)}; "
+        f"give counts summing to {number_text(total)} or probabilities summing to 1 (for ratios such as 9:3:3:1, "
+        "divide each by their sum; null means all categories equally likely)"
     )
 
 
@@ -117,7 +120,7 @@ def _contributions(observed: List[float], expected: List[float]) -> List[float]:
     return [(o - e) ** 2 / e for o, e in zip(observed, expected)]
 
 
-def _refuse_foreign(test_type: str, observed: Any, expected: Any, table: Any, df: Any) -> None:
+def _refuse_foreign(test_type: str, observed: Any, expected: Any, table: Any) -> None:
     if test_type == "goodness_of_fit":
         if table is not None:
             raise ValueError(
@@ -127,7 +130,7 @@ def _refuse_foreign(test_type: str, observed: Any, expected: Any, table: Any, df
         if observed is None:
             raise ValueError("goodness_of_fit needs observed, the list of observed counts per category")
         return
-    given = [name for name, value in (("observed", observed), ("expected", expected), ("df", df)) if value is not None]
+    given = [name for name, value in (("observed", observed), ("expected", expected)) if value is not None]
     if given:
         raise ValueError(
             f"{', '.join(given)} {'is' if len(given) == 1 else 'are'} for test_type goodness_of_fit; "
@@ -148,7 +151,8 @@ def run_chi_squared_test(
     """Run one χ² test; raises ValueError for invalid or contradictory input."""
     if test_type not in CHI_SQUARED_TEST_TYPES:
         raise ValueError(f"Unsupported test_type '{test_type}'; use one of {', '.join(CHI_SQUARED_TEST_TYPES)}")
-    _refuse_foreign(test_type, observed, expected, table, df)
+    observed, expected, table = (None if is_empty(value) else value for value in (observed, expected, table))
+    _refuse_foreign(test_type, observed, expected, table)
     level = parse_alpha(alpha)
     notes: List[str] = []
     if test_type == "goodness_of_fit":
@@ -156,7 +160,7 @@ def run_chi_squared_test(
         method = "χ²GOF-Test: chi-squared goodness of fit"
         h0, h1 = "the data follow the expected distribution", "the data do not follow the expected distribution"
     else:
-        statistic, degrees, details = _independence(table, notes)
+        statistic, degrees, details = _independence(table, df, notes)
         method = "χ²-Test: chi-squared test of independence (or homogeneity)"
         if len(details["expected"]) == 2 and len(details["expected"][0]) == 2:
             method += ", no continuity correction"
@@ -195,13 +199,17 @@ def _goodness_of_fit(observed: Any, expected: Any, df: Any, notes: List[str]) ->
     return math.fsum(contributions), degrees, {"expected": expected_counts, "contributions": contributions}
 
 
-def _independence(table: Any, notes: List[str]) -> Tuple[float, int, Dict[str, Any]]:
+def _independence(table: Any, df: Any, notes: List[str]) -> Tuple[float, int, Dict[str, Any]]:
     rows = _parse_table(table)
+    degrees = (len(rows) - 1) * (len(rows[0]) - 1)
+    if df is not None and finite_number(df, "df") != degrees:
+        raise ValueError(
+            f"df for a {len(rows)} x {len(rows[0])} table is (rows - 1)(columns - 1) = {degrees}; send df as null"
+        )
     expected_rows = _independence_expected(rows)
     contributions = [_contributions(row, expected_row) for row, expected_row in zip(rows, expected_rows)]
     _note_small_expected([value for row in expected_rows for value in row], notes)
     statistic = math.fsum(value for row in contributions for value in row)
-    degrees = (len(rows) - 1) * (len(rows[0]) - 1)
     return statistic, degrees, {"expected": expected_rows, "contributions": contributions}
 
 

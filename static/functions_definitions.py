@@ -2910,7 +2910,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     },
                     "df": {
                         "type": ["number", "null"],
-                        "description": "goodness_of_fit only: degrees of freedom when parameters were estimated from the data (categories - 1 - estimated parameters); null = categories - 1.",
+                        "description": "goodness_of_fit: degrees of freedom when parameters were estimated from the data (categories - 1 - estimated parameters); null = categories - 1. independence: null ((rows - 1)(columns - 1)).",
                     },
                     "alpha": {
                         "type": ["number", "null"],

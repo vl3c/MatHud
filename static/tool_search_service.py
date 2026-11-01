@@ -162,10 +162,13 @@ _NORMAL_LINE_RE = re.compile(
 # Hypothesis tests, confidence intervals and chi-squared tests (_inference_intent), matched on the
 # lowercased raw query because the tokenizer drops one-letter words ("t-test", "p-value") and χ².
 _HYPOTHESIS_TEST_RE = re.compile(
-    r"\b[tz][- ]?tests?\b|\bp[- ]?values?\b|\bhypothes[ie]s\b|\bh[_ ]?0\b|\bsignificance\b"
-    r"|\bsignificant(?:ly)?\s+(?:at|different|difference|level)\b|\breject(?:s|ed|ing)?\s+(?:the\s+)?(?:null|h[_ ]?0)\b"
+    r"\b[tz][- ]?tests?\b|\bp[- ]?values?\b(?!\s+of\s+(?:these|the|those)\s+points)|\bhypothes[ie]s\b"
+    r"|\bh[_ ]?0\s*(?::|=|is\b)|\bnull\s+h[_ ]?0\b|\bsignificance\s+(?:level|test)|\blevel\s+of\s+significance\b"
+    r"|\bstatistically\s+significant|\bsignificant(?:ly)?\s+(?:at|different|difference|level)\b"
+    r"|\breject(?:s|ed|ing)?\s+(?:the\s+)?(?:null|h[_ ]?0)\b"
     r"|\b(?:2-?)?samp[tz]test\b|\b[12]-?propztest\b|\bpaired\b[^.]*\btests?\b"
-    r"|\b(?:one|two|1|2)[- ]?(?:sample|proportion|prop)\b[^.]*\btests?\b|\bproportion\s+tests?\b"
+    r"|\b(?:one|two|1|2)[- ]?(?:sample|proportion|prop)s?\b[^.]*\btests?\b|\bproportion\s+tests?\b"
+    r"|\btest(?:s|ed)?\s+(?:whether|if|that)\s+(?:the\s+)?(?:population\s+)?(?:means?|proportions?|averages?)\b"
     r"|\btest(?:s|ed)?\b[^.]*(?:\balpha\b|α)|(?:\balpha\b|α)\s*=?\s*0?\.\d[^.]*\btest"
 )
 _CHI_SQUARED_TEST_RE = re.compile(
@@ -174,7 +177,7 @@ _CHI_SQUARED_TEST_RE = re.compile(
     r"|\bindependence\s+tests?\b|\bgof\b"
 )
 _CONFIDENCE_INTERVAL_RE = re.compile(
-    r"\bconfidence\s+(?:intervals?|levels?|bounds?)\b|\bmargin\s+of\s+error\b|\b[tz]-?intervals?\b"
+    r"\bconfidence\s+(?:intervals?|levels?|bounds?)\b|\bmargin\s+of\s+error\b|\b[tz]-?intervals?\b(?!\s*\[)"
     r"|\b[12]-?propzint\b|\b(?:2-?)?samp[tz]int\b|\b\d+(?:\.\d+)?\s*%\s*(?:ci|intervals?|confiden)"
     r"|\binterval\s+estimates?\b"
 )
@@ -183,8 +186,10 @@ _STATISTIC_VALUE_RE = re.compile(
     r"(?:\b[tz]|\bchi[- ]?(?:squared?|sq)?|χ²|χ2)\s*(?:score|statistic|stat)?\s*=\s*-?\.?\d"
 )
 _STATISTIC_P_VALUE_RE = re.compile(r"\bp[- ]?values?\b|\bcritical\s+values?\b")
-# "critical value of t with 5 df": a quantile, also without a statistic's value.
-_CRITICAL_VALUE_DF_RE = re.compile(r"\bcritical\s+values?\b[^.]*\b(?:df|degrees?\s+of\s+freedom)\b")
+# "critical value of t with 5 df", "z* for 90% confidence": a quantile, also without a statistic's value.
+_CRITICAL_VALUE_RE = re.compile(r"\bcritical\s+(?:[tz]\s+|chi[- ]?squared?\s+)?values?\b|\b[tz]\s*\*")
+# A confidence interval of a regression slope or intercept (LinRegTInt) belongs to fit_regression.
+_REGRESSION_WORDS = frozenset({"regression", "slope", "intercept", "fit", "fitting"})
 _DESCRIPTIVE_WORDS = frozenset({"descriptive", "stats", "statistics", "mean", "median", "stdev", "quartile", "average"})
 # Words that ask for the test suite even next to a test word.
 _TEST_SUITE_WORDS = frozenset({"run", "suite", "client", "server", "unit", "brython"})
@@ -968,13 +973,15 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         return bool(token_set & _GRAPH_THEORY_ONLY_WORDS) or len(token_set & _GRAPH_THEORY_AMBIGUOUS_WORDS) >= 2
 
     @staticmethod
-    def _boost_distribution_tools(token_set: set[str], scores: Dict[str, float], normal_line: bool) -> None:
+    def _boost_distribution_tools(
+        token_set: set[str], scores: Dict[str, float], normal_line: bool, compute: bool = True
+    ) -> None:
         """compute_distribution for probabilities and quantiles, plot_distribution for pictures.
 
         A distribution is named outright (binomial, poisson, chi, student, calculator names
         such as normalcdf), or by an everyday word (normal, exponential, uniform, geometric)
         next to a distribution word; exponential growth, geometric sequences and uniform
-        scaling stay with their own tools.
+        scaling stay with their own tools. ``compute=False`` keeps only the picture boost.
         """
         named = bool(token_set & _DISTRIBUTION_NAME_WORDS) or bool(
             token_set & _AMBIGUOUS_DISTRIBUTION_WORDS and token_set & _DISTRIBUTION_CONTEXT_WORDS
@@ -990,6 +997,8 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             if named:
                 scores["plot_distribution"] += 6.0
             return
+        if not compute:
+            return
         # Calculator names (invNorm, binomcdf) outrank evaluate_expression's call-syntax boost.
         scores["compute_distribution"] += (10.0 if token_set & _DISTRIBUTION_NAME_WORDS else 8.0) if named else 3.0
 
@@ -998,10 +1007,10 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         """The inference tools a query asks for; compute_distribution for a known statistic's tail.
 
         "p-value for t = 2.1 with 15 df" names a statistic's value and "critical value of t with
-        5 df" a quantile: distribution questions. Otherwise χ² tests ask for chi_squared_test
-        (checked first: "chi-square test" also reads as a test), t/z tests, p-values and
-        hypotheses for hypothesis_test, and confidence intervals or margins of error for
-        confidence_interval.
+        5 df" or "z* for 90% confidence" a quantile: distribution questions. χ² tests ask for
+        chi_squared_test (checked first: "chi-square test" also reads as a test), t/z tests,
+        p-values and hypotheses for hypothesis_test, and confidence intervals or margins of
+        error for confidence_interval.
         """
         if (
             _STATISTIC_P_VALUE_RE.search(raw_lower)
@@ -1010,9 +1019,9 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         ):
             return {"compute_distribution"}
         tools: set[str] = set()
-        if _CRITICAL_VALUE_DF_RE.search(raw_lower):
+        if _CRITICAL_VALUE_RE.search(raw_lower):
             tools.add("compute_distribution")
-        elif _CHI_SQUARED_TEST_RE.search(raw_lower):
+        if _CHI_SQUARED_TEST_RE.search(raw_lower):
             tools.add("chi_squared_test")
         elif _HYPOTHESIS_TEST_RE.search(raw_lower):
             tools.add("hypothesis_test")
@@ -1022,11 +1031,41 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
 
     @staticmethod
     def _boost_inference_tools(tools: set[str], token_set: set[str], scores: Dict[str, float]) -> None:
-        """Raise the tools ``_inference_intent`` found above the statistics and test-word matches."""
+        """Raise the tools ``_inference_intent`` found above the statistics and test-word matches.
+
+        A picture ("plot a normal and shade the p-value") gets no boost and ranks below
+        plot_distribution, which draws it. A critical value asked next to a test ranks behind the test, and a confidence
+        interval of a regression slope stays with fit_regression.
+        """
+        if token_set & _PICTURE_WORDS:
+            drawing = scores.get("plot_distribution", 0.0)
+            for tool in tools:
+                if drawing > 0.0 and scores.get(tool, 0.0) >= drawing:
+                    scores[tool] = drawing - 0.5
+            return
         for tool in tools:
-            scores[tool] += 14.0
-        if not token_set & _TEST_SUITE_WORDS:
-            scores.pop("run_tests", None)
+            if tool == "confidence_interval" and token_set & _REGRESSION_WORDS:
+                scores.pop(tool, None)
+                continue
+            boost = 14.0
+            if tool == "compute_distribution" and tools & {"hypothesis_test", "chi_squared_test"}:
+                boost = 10.0  # a test's critical value: the test first
+            if tool == "confidence_interval" and "compute_distribution" in tools:
+                boost = 10.0  # "critical z value for 95% confidence": the quantile first
+            scores[tool] += boost
+    @staticmethod
+    def _quiet_inference_tools(token_set: set[str], scores: Dict[str, float]) -> None:
+        """No inference intent: the tool names' "test" and "interval" do not make a ratio test,
+        a symmetry test or an interval of x a statistics request."""
+        if token_set & TEST_QUERY_WORDS:
+            scores.pop("hypothesis_test", None)
+            scores.pop("chi_squared_test", None)
+            # Their descriptions name hypothesis_test, which indexes as "test".
+            for tool in ("compute_distribution", "confidence_interval"):
+                if tool in scores:
+                    scores[tool] -= 1.0
+        if token_set & {"interval", "intervals"}:
+            scores.pop("confidence_interval", None)
 
     @staticmethod
     def _apply_intent_boosts(
@@ -1079,19 +1118,20 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         if "normal" in token_set and not normal_line:
             scores["plot_distribution"] += 4.0
         inference = ToolSearchService._inference_intent(raw_lower)
+        tests_data = bool(inference - {"compute_distribution"})
+        # A test's p-value or interval is not a distribution question; its picture still is.
+        ToolSearchService._boost_distribution_tools(token_set, scores, normal_line, compute=not inference)
         if inference:
             ToolSearchService._boost_inference_tools(inference, token_set, scores)
+            if not token_set & _TEST_SUITE_WORDS:
+                scores.pop("run_tests", None)
         else:
-            ToolSearchService._boost_distribution_tools(token_set, scores, normal_line)
-            if token_set & {"interval", "intervals"}:
-                # An interval of x ("the interval where f is increasing") is not a confidence interval.
-                scores.pop("confidence_interval", None)
+            ToolSearchService._quiet_inference_tools(token_set, scores)
         if token_set & {"bar", "bars"}:
             scores["plot_bars"] += 6.0
         if token_set & {"regression", "fit", "fitting"}:
             scores["fit_regression"] += 6.0
         # A test or interval of a mean is not a summary of the data.
-        tests_data = bool(inference - {"compute_distribution"})
         if token_set & _DESCRIPTIVE_WORDS and not tests_data:
             scores["compute_descriptive_statistics"] += 6.0
         # A fit that is asked for its correlation belongs to fit_regression, whose linear fit reports r;

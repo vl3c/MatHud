@@ -222,7 +222,7 @@ def setup_for(
     sample_kind = SAMPLE_KINDS.get(kind)
     if sample_kind is None:
         raise ValueError(f"Unsupported type '{kind}'; use one of {', '.join(SAMPLE_KINDS)}")
-    if pooled is not None and kind != "two_sample_t":
+    if pooled and kind != "two_sample_t":
         ignored.append("pooled")
     first = parse_sample(sample1, "sample1", sample_kind, ignored)
     second: Optional[Sample] = None
