@@ -641,7 +641,7 @@ def content_extent(canvas: "Canvas", samples: int = FIT_SAMPLES) -> Optional[Lis
     """``[x_min, y_min, x_max, y_max]`` of every drawable, or None when there is nothing to fit.
 
     Points, segment, vector and polygon vertices, circles, arcs and ellipses by
-    their extent, labels and bars; functions over their bounds (or the other
+    their extent, labels, bars and data plots; functions over their bounds (or the other
     content's x range, else -10..10) with Tukey-fenced samples, so an asymptote
     does not stretch the view; parametric curves by samples over their t range.
     """
@@ -729,6 +729,9 @@ def _drawable_extent_points(drawable: Any, name: str, samples: int) -> List[Tupl
             (float(drawable.x_left), float(drawable.y_bottom)),
             (float(drawable.x_right), float(drawable.y_top)),
         ]
+    if callable(getattr(drawable, "extent_points", None)):
+        # Data plots (histogram, box, scatter) know the corners of what they draw
+        return [(float(x), float(y)) for x, y in drawable.extent_points()]
     if name in _TRACED_CLASSES:
         t_min, t_max = float(drawable.t_min), float(drawable.t_max)
         pairs = [_safe_eval_pair(drawable.evaluate, t_min + (t_max - t_min) * i / samples) for i in range(samples + 1)]

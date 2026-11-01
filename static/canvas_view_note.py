@@ -338,6 +338,42 @@ def _bar(args: JsonDict, positions: Mapping[str, Point2D], signature: str) -> Op
     return Shape(Box(min(left, right), max(left, right), min(bottom, top), max(bottom, top)), signature)
 
 
+def _finite_floats(values: Any) -> List[float]:
+    if not isinstance(values, list):
+        return []
+    floats = [_as_float(value) for value in values]
+    return [value for value in floats if value is not None and math.isfinite(value)]
+
+
+def _histogram(args: JsonDict, positions: Mapping[str, Point2D], signature: str) -> Optional[Shape]:
+    start, width, count = (_as_float(args.get(key)) for key in ("bin_start", "bin_width", "bin_count"))
+    summary = args.get("summary")
+    heights = _finite_floats(summary.get("heights")) if isinstance(summary, Mapping) else []
+    if start is None or width is None or count is None or not heights:
+        return None
+    return Shape(Box(start, start + width * count, 0.0, max(0.0, max(heights))), signature)
+
+
+def _box_plot(args: JsonDict, positions: Mapping[str, Point2D], signature: str) -> Optional[Shape]:
+    """The box plot's whiskers and outliers (none when it does not mark them), and its height."""
+    middle, height = _as_float(args.get("y_position")), _as_float(args.get("box_height"))
+    summary = args.get("summary")
+    if middle is None or height is None or not isinstance(summary, Mapping):
+        return None
+    xs = _finite_floats([summary.get("whisker_low"), summary.get("whisker_high")])
+    xs += _finite_floats(summary.get("outliers"))
+    if not xs:
+        return None
+    return Shape(Box(min(xs), max(xs), middle - height / 2.0, middle + height / 2.0), signature)
+
+
+def _scatter_plot(args: JsonDict, positions: Mapping[str, Point2D], signature: str) -> Optional[Shape]:
+    xs, ys = _finite_floats(args.get("x_data")), _finite_floats(args.get("y_data"))
+    if not xs or not ys:
+        return None
+    return Shape(Box(min(xs), max(xs), min(ys), max(ys)), signature)
+
+
 _POLYGON_BUCKETS = (
     "Triangles",
     "Rectangles",
@@ -357,6 +393,9 @@ _MEASURES: Tuple[Tuple[str, _Measure], ...] = (
     ("Ellipses", _ellipse),
     ("CircleArcs", _arc),
     ("Bars", _bar),
+    ("HistogramPlots", _histogram),
+    ("BoxPlots", _box_plot),
+    ("ScatterPlots", _scatter_plot),
 ) + tuple((bucket, _polygon) for bucket in _POLYGON_BUCKETS)
 _GRAPH_BUCKETS = ("Functions", "PiecewiseFunctions")
 _CURVE_BUCKETS = _GRAPH_BUCKETS + ("ParametricFunctions", "PolarFunctions")

@@ -105,13 +105,26 @@ _GRAPH_EDGE_WORDS = frozenset({"segment", "segments", "connect", "connected", "c
 # shapes, calculus, statistics and the coordinate system.
 _OTHER_GRAPH_WORDS = frozenset(
     {"bar", "bars", "chart", "histogram", "distribution", "normal", "gaussian", "bell", "probability"}
-    | {"scatter", "data", "regression", "line", "lines", "linear", "trend"}
+    | {"binomial", "poisson"}
+    | {"scatter", "scatterplot", "box", "boxplot", "whisker", "whiskers", "bins"}
+    | {"data", "regression", "line", "lines", "linear", "trend"}
     | {"parametric", "polar", "cartesian", "coordinate", "coordinates", "axes", "axis", "grid"}
     | {"piecewise", "inequality", "inequalities", "function", "functions", "curve", "curves", "equation"}
     | {"equations", "plot", "plotted", "parabola", "polynomial", "quadratic", "squared", "cubed"}
     | {"sin", "cos", "tan", "exp", "ln", "log", "sqrt", "abs", "absolute", "value"}
     | {"circle", "circles", "ellipse", "ellipses", "triangle", "polygon", "arc", "angle"}
     | {"derivative", "integral", "tangent", "slope", "area"}
+)
+# Data-plot words: histograms, box plots and scatter plots; fit words send a scatter request
+# to fit_regression.
+_HISTOGRAM_WORDS = frozenset({"histogram", "histograms", "bin", "bins", "binned", "binning"})
+_BOX_PLOT_WORDS = frozenset({"boxplot", "boxplots", "whisker", "whiskers"})
+_SCATTER_WORDS = frozenset({"scatter", "scatterplot", "scatterplots"})
+_FIT_WORDS = frozenset({"fit", "fitting", "fitted", "regression", "trend", "best"})
+# Words that ask for descriptive statistics ("the standard deviation of the data and a histogram").
+_DESCRIPTIVE_STATISTICS_WORDS = frozenset(
+    {"descriptive", "stats", "statistics", "mean", "median", "average", "stdev", "std", "sd", "deviation"}
+    | {"quartile", "quartiles", "iqr", "interquartile"}
 )
 # Function notation such as "f(x)", "y = ...", "x^2", "x > 3", "1/x".
 _FUNCTION_NOTATION_RE = re.compile(r"\b[a-z]\(\s*[a-z]\s*\)|[=^<>/+*]")
@@ -134,6 +147,30 @@ _GRAPH_FAMILY_RE = re.compile(r"\b(?:bipartite|complete|star|cycle|wheel|peterse
 # "y = ..." or "f(x) = ..." is a function even when the query also mentions points
 # ("graph y = sin(x) and mark the points where it crosses zero").
 _FUNCTION_DEFINITION_RE = re.compile(r"(?:^|[^\w(])(?:y|[a-z]\(\s*[a-z]\s*\))\s*=")
+# Distribution words for compute_distribution and plot_distribution (_boost_distribution_tools).
+_DISTRIBUTION_NAME_WORDS = frozenset(
+    {"binomial", "poisson", "chi", "chisquared", "student", "students", "gaussian"}
+    | {"normalcdf", "normalpdf", "invnorm", "binompdf", "binomcdf", "poissonpdf", "poissoncdf"}
+    | {"tcdf", "tpdf", "invt", "chicdf", "chi2cdf", "fcdf", "geometpdf", "geometcdf", "invbinom"}
+)
+_AMBIGUOUS_DISTRIBUTION_WORDS = frozenset({"normal", "exponential", "uniform", "geometric"})
+_DISTRIBUTION_CONTEXT_WORDS = frozenset(
+    {"distribution", "distributions", "distributed", "random", "variable", "probability", "probabilities"}
+    | {"pdf", "cdf", "pmf", "density", "quantile", "quantiles", "freedom", "trials", "success", "successes"}
+)
+_PROBABILITY_WORDS = frozenset(
+    {"probability", "probabilities", "pdf", "cdf", "pmf", "quantile", "quantiles", "critical", "invnorm"}
+    | {"normalcdf", "normalpdf", "binompdf", "binomcdf", "poissonpdf", "poissoncdf", "tcdf", "tpdf", "invt"}
+    | {"chicdf", "chi2cdf", "fcdf", "geometpdf", "geometcdf", "invbinom", "likely", "chance", "odds"}
+)
+_PICTURE_WORDS = frozenset(
+    {"plot", "draw", "graph", "sketch", "shade", "shaded", "shading", "show", "display", "visualize"}
+    | {"visualise", "picture", "curve", "bars", "histogram", "create", "make", "put", "canvas"}
+)
+# "the normal to f at x = 2", "the normal of the parabola": a normal line, not a normal distribution.
+_NORMAL_LINE_RE = re.compile(
+    r"\bnormals?\s+(?:to\b|at\b|(?:of|for)\s+(?:[a-z]\b|the\s+(?:graph|curve|parabola|circle|ellipse|function)))"
+)
 _FUNCTION_NAME_WORDS = frozenset({"sin", "cos", "exp", "ln", "log", "squared", "cubed"})
 _FUNCTION_EQUATION_RE = re.compile(r"\b[a-z]\(\s*[a-z]\s*\)|[=^]")
 _PIECEWISE_RE = re.compile(r"for\s+x\s*[<>]|when\s+x\s*[<>]|x\s*>=|x\s*<=")
@@ -225,6 +262,7 @@ _NOT_A_FUNCTION_WORDS = frozenset(
     | {"polygon", "polygons", "rectangle", "square", "quadrilateral", "pentagon", "hexagon"}
     | {"circle", "circles", "ellipse", "ellipses", "arc", "arcs", "angle", "angles", "label", "labels"}
     | {"bar", "bars", "chart", "histogram", "distribution", "scatter", "data", "regression"}
+    | {"scatterplot", "box", "boxplot", "whisker", "whiskers", "bins"}
     | {"parametric", "polar", "edge", "edges", "node", "nodes"}
 )
 # "connect A and B", "join the midpoints": a segment. The verb needs points to join, and
@@ -451,17 +489,21 @@ TOOL_CATEGORIES: Dict[str, CategoryEntry] = {
     },
     "statistics": {
         "tools": [
-            "plot_distribution", "plot_bars", "delete_plot",
-            "fit_regression", "compute_descriptive_statistics",
+            "plot_distribution", "plot_bars", "plot_histogram", "plot_box",
+            "plot_scatter", "delete_plot",
+            "fit_regression", "compute_descriptive_statistics", "compute_distribution",
         ],
         "keywords": [
             "statistics", "distribution", "bar", "chart", "mean",
             "median", "regression", "histogram", "normal", "gaussian",
             "standard", "deviation", "stdev", "quartile", "percentile",
             "probability", "bell", "discrete", "continuous", "frequency",
+            "binomial", "poisson", "quantile",
             "descriptive", "stats", "average", "variance",
             # The verb "correlate" is left to the intent boost, which skips graph theory and matrices
             "correlation", "covariance", "pearson",
+            "bins", "boxplot", "whisker", "whiskers", "outlier", "outliers",
+            "scatter", "scatterplot",
         ],
     },
     "graph_theory": {
@@ -1007,6 +1049,51 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         return equation
 
     @staticmethod
+    def _asks_for_histogram(token_set: set[str]) -> bool:
+        """Whether a query asks for a histogram of data, not a bar chart of grouped values
+        ("a histogram-like bar plot from these grouped values" is a bar chart)."""
+        if not token_set & _HISTOGRAM_WORDS:
+            return False
+        return not (token_set & {"bar", "bars"} and token_set & {"grouped", "like", "categories", "category"})
+
+    @staticmethod
+    def _asks_for_box_plot(token_set: set[str]) -> bool:
+        """Whether a query asks for a box plot: "boxplot", whiskers, or "box" with plot or chart
+        and no function words (a bare "box" is a rectangle)."""
+        if token_set & _BOX_PLOT_WORDS:
+            return True
+        if "box" not in token_set or not token_set & {"plot", "plots", "chart", "diagram"}:
+            return False
+        # "plot the function inside the box": a function plot, not a box plot
+        return not token_set & {"function", "functions", "curve", "graph", "equation"}
+
+    @staticmethod
+    def _boost_distribution_tools(token_set: set[str], scores: Dict[str, float], normal_line: bool) -> None:
+        """compute_distribution for probabilities and quantiles, plot_distribution for pictures.
+
+        A distribution is named outright (binomial, poisson, chi, student, calculator names
+        such as normalcdf), or by an everyday word (normal, exponential, uniform, geometric)
+        next to a distribution word; exponential growth, geometric sequences and uniform
+        scaling stay with their own tools.
+        """
+        named = bool(token_set & _DISTRIBUTION_NAME_WORDS) or bool(
+            token_set & _AMBIGUOUS_DISTRIBUTION_WORDS and token_set & _DISTRIBUTION_CONTEXT_WORDS
+        )
+        if "normal" in token_set and not normal_line:
+            named = True
+        asks_probability = bool(token_set & _PROBABILITY_WORDS)
+        # "critical value of the t distribution": the one-letter name is lost, its context is not.
+        named = named or (asks_probability and bool(token_set & _DISTRIBUTION_CONTEXT_WORDS - _PROBABILITY_WORDS))
+        if not (named or asks_probability):
+            return
+        if token_set & _PICTURE_WORDS:
+            if named:
+                scores["plot_distribution"] += 6.0
+            return
+        # Calculator names (invNorm, binomcdf) outrank evaluate_expression's call-syntax boost.
+        scores["compute_distribution"] += (10.0 if token_set & _DISTRIBUTION_NAME_WORDS else 8.0) if named else 3.0
+
+    @staticmethod
     def _apply_intent_boosts(
         query_tokens: List[str],
         scores: Dict[str, float],
@@ -1039,16 +1126,46 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["create_colored_area"] += 3.0
 
         # -- Statistics --
+        # "the normal to f at x=2", "tangent and normal", "normal to y=x^2": a normal line, unless
+        # distribution words say otherwise.
+        normal_line = "normal" in token_set and bool(
+            token_set & {"line", "perpendicular"}
+            or (
+                not token_set & _DISTRIBUTION_CONTEXT_WORDS
+                and (
+                    _FUNCTION_DEFINITION_RE.search(raw_lower)
+                    or _NORMAL_LINE_RE.search(raw_lower)
+                    or "tangent" in token_set
+                )
+            )
+        )
         if token_set & {"distribution", "gaussian", "bell"}:
             scores["plot_distribution"] += 6.0
-        if "normal" in token_set and not (token_set & {"line", "perpendicular"}):
+        if token_set & {"normal", "normally"} and not normal_line:
             scores["plot_distribution"] += 4.0
+        ToolSearchService._boost_distribution_tools(token_set, scores, normal_line)
+        histogram = ToolSearchService._asks_for_histogram(token_set)
+        box_plot = ToolSearchService._asks_for_box_plot(token_set)
         if token_set & {"bar", "bars"}:
             scores["plot_bars"] += 6.0
-        if token_set & {"regression", "fit", "fitting"}:
+        if histogram:
+            # "a bar chart of the bin counts": the bar chart that was named wins
+            scores["plot_histogram"] += 3.0 if token_set & {"bar", "bars"} else 8.0
+        if box_plot:
+            scores["plot_box"] += 10.0
+        # A scatter plot asked for its fit or trend line is a regression ("best-fit line for this scatter data")
+        if token_set & _SCATTER_WORDS and not token_set & _FIT_WORDS:
+            scores["plot_scatter"] += 8.0
+        # "plot y = 2x + 1 on the scatter plot": the function is drawn over the data
+        if token_set & _SCATTER_WORDS and (_FUNCTION_EQUATION_RE.search(raw_lower) or token_set & _FUNCTION_NAME_WORDS):
+            scores["draw_function"] += 4.0
+        if token_set & {"regression", "fit", "fitting", "trend"}:
             scores["fit_regression"] += 6.0
-        if token_set & {"descriptive", "stats", "statistics", "mean", "median", "stdev", "quartile", "average"}:
-            scores["compute_descriptive_statistics"] += 6.0
+        if token_set & _DESCRIPTIVE_STATISTICS_WORDS:
+            scores["compute_descriptive_statistics"] += 7.0
+        if {"five", "summary"} <= token_set and not box_plot:
+            # "the five-number summary of 4, 8, 15": statistics, not an expression to evaluate
+            scores["compute_descriptive_statistics"] += 8.0
         # A fit that is asked for its correlation belongs to fit_regression, whose linear fit reports r;
         # a covariance matrix is linear algebra, and correlating vertices, edges or paths is a graph
         # analysis. A lone "graph" or "tree" is a plot or data ("graph the correlation of x and y",
@@ -1077,7 +1194,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         # -- Tangent/normal lines --
         if "tangent" in token_set:
             scores["draw_tangent_line"] += 6.0
-        if "normal" in token_set and token_set & {"line", "perpendicular"}:
+        if normal_line:
             scores["draw_normal_line"] += 6.0
 
         # -- Roots, extrema and intersections of plotted functions --

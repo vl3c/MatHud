@@ -1,7 +1,9 @@
 """The plot kinds: one row per plot class, read by every site that handles plots by kind.
 
-A plot is a non-renderable composite that names or derives the drawables it is drawn with.
-Each row says how a plot of that class is saved and rebuilt:
+A distribution or bar plot is a composite that names or derives the drawables it is drawn
+with; a data plot (histogram, box, scatter: ``drawables/data_plot.py``) draws itself and has
+no parts, so its row names no materialize or delete method. Each row says how a plot of
+that class is saved and rebuilt:
 
 - ``bucket``: the saved-state list it is stored in (its class name plus "s").
 - ``build``: makes the plot from a saved item's name and args.
@@ -25,13 +27,23 @@ its bucket in ``WorkspaceManager.RESTORED_BUCKETS`` and a formatter spec.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional, Tuple
 
 from drawables.bars_plot import BarsPlot
+from drawables.box_plot import BoxPlot
 from drawables.continuous_plot import ContinuousPlot
 from drawables.discrete_plot import DiscretePlot
+from drawables.histogram_plot import HistogramPlot
 from drawables.plot import Plot
+from drawables.scatter_plot import ScatterPlot
+from utils.statistics.data_plots import (
+    resolve_bins,
+    resolve_normalize,
+    validate_plot_data,
+    validate_scatter_data,
+)
 
 
 @dataclass(frozen=True)
@@ -98,6 +110,7 @@ def _build_discrete(name: str, args: Dict[str, Any]) -> Plot:
         distribution_params=args.get("distribution_params", None),
         bounds=args.get("bounds", None),
         metadata=args.get("metadata", None),
+        shade_bounds=args.get("shade_bounds") if isinstance(args.get("shade_bounds"), dict) else None,
     )
 
 
@@ -119,6 +132,60 @@ def _build_bars(name: str, args: Dict[str, Any]) -> Plot:
         bounds=args.get("bounds", None),
         metadata=args.get("metadata", None),
     )
+
+
+def _optional_number(args: Dict[str, Any], key: str) -> Optional[float]:
+    value = args.get(key)
+    return None if value is None else float(value)
+
+
+def _optional_color(args: Dict[str, Any]) -> Optional[str]:
+    value = args.get("color")
+    return None if value is None else str(value)
+
+
+# The data plots draw themselves (drawables/data_plot.py). Their builders validate the
+# saved data like the tools do, so a bad saved item is refused (and skipped by the
+# restore) rather than drawn wrongly; the saved summary is recomputed, never read.
+def _build_histogram(name: str, args: Dict[str, Any]) -> Plot:
+    data = validate_plot_data(args.get("data"))
+    bins = resolve_bins(data, args.get("bin_start"), args.get("bin_width"), args.get("bin_count"))
+    return HistogramPlot(
+        name,
+        data=data,
+        bins=bins,
+        normalize=resolve_normalize(args.get("normalize")),
+        color=_optional_color(args),
+        fill_opacity=_optional_number(args, "fill_opacity"),
+    )
+
+
+def _saved_finite(args: Dict[str, Any], key: str, default: float) -> float:
+    value = args.get(key)
+    number = default if value is None else float(value)
+    if not math.isfinite(number):
+        raise ValueError(f"{key} must be finite, got {value!r}")
+    return number
+
+
+def _build_box(name: str, args: Dict[str, Any]) -> Plot:
+    box_height = _saved_finite(args, "box_height", 1.0)
+    if box_height <= 0:
+        raise ValueError(f"box_height must be greater than 0, got {box_height}")
+    return BoxPlot(
+        name,
+        data=validate_plot_data(args.get("data")),
+        y_position=_saved_finite(args, "y_position", 0.0),
+        box_height=box_height,
+        show_outliers=bool(args.get("show_outliers", True)),
+        color=_optional_color(args),
+        fill_opacity=_optional_number(args, "fill_opacity"),
+    )
+
+
+def _build_scatter(name: str, args: Dict[str, Any]) -> Plot:
+    x_data, y_data = validate_scatter_data(args.get("x_data"), args.get("y_data"))
+    return ScatterPlot(name, x_data=x_data, y_data=y_data, color=_optional_color(args))
 
 
 def _build_legacy(name: str, args: Dict[str, Any]) -> Plot:
@@ -148,6 +215,9 @@ PLOT_KINDS: Tuple[PlotKind, ...] = (
         True,
     ),
     PlotKind("BarsPlot", "BarsPlots", _build_bars, "materialize_bars_plot", "_delete_bars_plot", True),
+    PlotKind("HistogramPlot", "HistogramPlots", _build_histogram, None, None, False),
+    PlotKind("BoxPlot", "BoxPlots", _build_box, None, None, False),
+    PlotKind("ScatterPlot", "ScatterPlots", _build_scatter, None, None, False),
     PlotKind("Plot", "Plots", _build_legacy, None, None, False),
 )
 

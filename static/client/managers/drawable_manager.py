@@ -68,6 +68,7 @@ from managers.angle_manager import AngleManager
 from managers.label_manager import LabelManager
 from managers.arc_manager import ArcManager
 from managers.graph_manager import GraphManager
+from managers.data_plot_manager import DataPlotManager
 from managers.statistics_manager import StatisticsManager
 from managers.bar_manager import BarManager
 from managers.tangent_manager import TangentManager
@@ -222,6 +223,8 @@ class DrawableManager:
             self.function_manager,
             self.colored_area_manager,
         )
+
+        self.data_plot_manager: DataPlotManager = DataPlotManager(canvas, self.drawables, self.name_generator)
 
         self.tangent_manager: TangentManager = TangentManager(
             canvas,

@@ -21,6 +21,9 @@ from managers.statistics_manager import StatisticsManager
 from utils.statistics.distributions import normal_pdf, normal_pdf_expression
 
 
+VALID_TYPES = "; use one of normal, uniform, exponential, t, chi_squared, f, binomial, poisson, geometric"
+
+
 class _Part:
     def __init__(self, name: str) -> None:
         self.name = name
@@ -230,6 +233,8 @@ class TestPlotDistributionPayloads(StatisticsManagerHarness):
             "shade_bounds": {"left": 0.0, "right": 9.0},
             "function_name": "C_pdf",
             "fill_area_name": "C_fill",
+            "shaded_probability": 0.691462461274,
+            "shaded_range": "P(X >= 0)",
         }
         self.assertEqual(result, expected)
         self.assertEqual(list(result), list(expected))
@@ -282,8 +287,8 @@ class TestPlotDistributionPayloads(StatisticsManagerHarness):
 
     def test_tool_errors_are_unchanged(self) -> None:
         cases = [
-            ({"distribution_type": None}, "Unsupported distribution_type 'None'"),
-            ({"distribution_type": "poisson"}, "Unsupported distribution_type 'poisson'"),
+            ({"distribution_type": None}, "Unsupported distribution_type 'None'" + VALID_TYPES),
+            ({"distribution_type": "zeta_unknown"}, "Unsupported distribution_type 'zeta_unknown'" + VALID_TYPES),
             ({"representation": "pmf"}, "representation must be 'continuous' or 'discrete'"),
             ({"distribution_params": {"sigma": 0}}, "sigma must be > 0"),
             ({"distribution_params": {"mean": float("nan")}}, "mean must be finite"),
@@ -339,16 +344,16 @@ class TestMaterializeDiscretePlot(StatisticsManagerHarness):
         self.assertEqual({bar["args"]["stroke_color"] for bar in bars}, {"red"})
 
     def test_unknown_type_makes_no_bars_and_warns(self) -> None:
-        bars, output = self.materialize(_discrete_plot("poisson"))
+        bars, output = self.materialize(_discrete_plot("zeta_unknown"))
         self.assertEqual(bars, [])
-        self.assertIn("Unsupported distribution_type 'poisson'", output)
+        self.assertIn("Unsupported distribution_type 'zeta_unknown'", output)
         self.assertIn("'R'", output)
 
     def test_plots_without_bars_never_warn(self) -> None:
         for overrides in ({"bar_count": None}, {"bar_count": 0}, {"bounds": {}}, {"bounds": {"left": 1, "right": 0}}):
             with self.subTest(overrides=overrides):
                 self.setUp()
-                bars, output = self.materialize(_discrete_plot("poisson", **overrides))
+                bars, output = self.materialize(_discrete_plot("zeta_unknown", **overrides))
                 self.assertEqual((bars, output), ([], ""))
 
     def test_saved_param_edge_cases_keep_their_outcome(self) -> None:

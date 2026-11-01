@@ -6,9 +6,12 @@ import unittest
 from typing import Any, Dict, List
 
 from drawables.bars_plot import BarsPlot
+from drawables.box_plot import BoxPlot
 from drawables.continuous_plot import ContinuousPlot
 from drawables.discrete_plot import DiscretePlot
+from drawables.histogram_plot import HistogramPlot
 from drawables.plot import Plot
+from drawables.scatter_plot import ScatterPlot
 from managers.statistics_manager import StatisticsManager
 from plot_kinds import (
     PLOT_CLASS_NAMES,
@@ -22,6 +25,10 @@ from plot_kinds import (
     plot_kind,
 )
 from server_tests.test_drawable_wiring import _drawable_buckets, _literal
+from utils.statistics.data_plots import Bins
+
+# Data plots draw themselves: their rows name no parts and their plot_type is fixed.
+DATA_PLOT_CLASSES = ("HistogramPlot", "BoxPlot", "ScatterPlot")
 
 
 def _kind(class_name: str) -> PlotKind:
@@ -72,6 +79,9 @@ def _sample_plots() -> List[Plot]:
         ),
         BarsPlot("Pruned", plot_type="bars", values=[1.0], labels_below=["a"]),
         Plot("P", plot_type="distribution", distribution_params={"mean": 1, "sigma": 2}),
+        HistogramPlot("H", data=[0.1, 0.3, 0.3, 0.9], bins=Bins(0.0, 0.2, 5), normalize="density", fill_opacity=0.5),
+        BoxPlot("Box", data=[1, 2, 3, 4, 30], y_position=-1.5, box_height=2.0, show_outliers=False, color="red"),
+        ScatterPlot("S", x_data=[1, 2, 3], y_data=[2, 4, 7], color="green"),
     ]
 
 
@@ -98,7 +108,7 @@ class TestPlotKindRows(unittest.TestCase):
                     self.assertTrue(callable(getattr(StatisticsManager, method_name, None)))
 
     def test_rows_keep_the_restore_order(self) -> None:
-        self.assertEqual(PLOT_CLASS_NAMES, ("ContinuousPlot", "DiscretePlot", "BarsPlot", "Plot"))
+        self.assertEqual(PLOT_CLASS_NAMES, ("ContinuousPlot", "DiscretePlot", "BarsPlot", *DATA_PLOT_CLASSES, "Plot"))
         self.assertEqual([kind.class_name for kind in PLOT_KINDS if kind.materialize], ["DiscretePlot", "BarsPlot"])
         self.assertEqual([kind.class_name for kind in PLOT_KINDS if kind.derived_bars], ["DiscretePlot", "BarsPlot"])
 
@@ -120,9 +130,26 @@ class TestPlotKindBuilders(unittest.TestCase):
 
     def test_plot_type_defaults_to_distribution(self) -> None:
         for kind in PLOT_KINDS:
+            if kind.class_name in DATA_PLOT_CLASSES:
+                continue
             with self.subTest(kind=kind.class_name):
                 plot, _ = build_saved_plot(kind, {"name": "N", "args": {"plot_type": ""}})
                 self.assertEqual(plot.plot_type, "distribution")
+
+    def test_data_plots_have_no_parts_and_refuse_saved_items_without_data(self) -> None:
+        for class_name in DATA_PLOT_CLASSES:
+            kind = _kind(class_name)
+            with self.subTest(kind=class_name):
+                self.assertEqual((kind.materialize, kind.delete_parts, kind.derived_bars), (None, None, False))
+                with self.assertRaises((TypeError, ValueError)):
+                    build_saved_plot(kind, {"name": "N", "args": {"plot_type": ""}})
+
+    def test_data_plot_types_are_fixed(self) -> None:
+        types = {plot.get_class_name(): plot.plot_type for plot in _sample_plots()}
+        self.assertEqual(
+            [types[name] for name in DATA_PLOT_CLASSES],
+            ["histogram", "box", "scatter"],
+        )
 
     def test_bars_ignore_saved_distribution_fields(self) -> None:
         args: Dict[str, Any] = {

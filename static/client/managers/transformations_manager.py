@@ -231,16 +231,17 @@ class TransformationsManager:
     def _refuse_plot(self, drawable: Any, tool: str, verb: str) -> None:
         """Raise for a plot, whose translate and rotate do nothing (the call would report a false success).
 
-        A plot (bars, continuous or discrete) is a record of the objects it drew; they are
-        not moved with it.
+        A bar or distribution plot is a record of the objects it drew, which are not moved
+        with it; a data plot (histogram, box, scatter) is drawn from its data.
         """
         from drawables.plot import Plot
 
         if isinstance(drawable, Plot):
             raise ValueError(
-                f"'{drawable.name}' is a plot ({self._get_class_name(drawable)}), a record of the objects it drew, "
+                f"'{drawable.name}' is a plot ({self._get_class_name(drawable)}), "
                 f"and {tool} cannot {verb} it. To place it elsewhere, delete it and plot it again "
-                "(plot_bars with x_start and y_base, or plot_distribution with plot_bounds)."
+                "(plot_bars with x_start and y_base, plot_distribution with plot_bounds, "
+                "plot_box with y_position, or plot_histogram and plot_scatter from shifted data)."
             )
 
     def _redraw(self) -> None:

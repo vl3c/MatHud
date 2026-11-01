@@ -2,8 +2,8 @@
   "metadata": {
     "schema_version": 1,
     "description": "Tool discovery benchmark cases for search_tools semantic routing.",
-    "expected_tool_count": 99,
-    "expected_tool_hash": "df1522c1802a63d3569803ad152106020894483f1cb3351758d255c302828223",
+    "expected_tool_count": 103,
+    "expected_tool_hash": "5f386849d8e21f7613d1462bc919de4b497739b25d6e155d81aa04f64150640e",
     "confusion_clusters": {
       "convert_cluster": [
         "convert",
@@ -22,7 +22,11 @@
       "stats_cluster": [
         "plot_distribution",
         "plot_bars",
-        "fit_regression"
+        "fit_regression",
+        "plot_histogram",
+        "plot_box",
+        "plot_scatter",
+        "compute_distribution"
       ],
       "workspace_cluster": [
         "save_workspace",
@@ -2199,6 +2203,321 @@
       "difficulty": "normal"
     },
     {
+      "id": "u_plot_histogram_1",
+      "query": "Draw a histogram of these test scores: 55, 62, 70, 71, 78, 85, 90.",
+      "expected_any": [
+        "plot_histogram"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_histogram_2",
+      "query": "Bin this data into groups of width 5 and plot the frequencies: [12, 14, 19, 21, 22, 30].",
+      "expected_any": [
+        "plot_histogram"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_histogram_3",
+      "query": "Make a histogram with bars of width 10 for the heights 150, 162, 171, 168, 180.",
+      "expected_any": [
+        "plot_histogram"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_histogram_4",
+      "query": "Show the distribution of these values as a density histogram and overlay a normal curve.",
+      "expected_any": [
+        "plot_histogram",
+        "plot_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_box_1",
+      "query": "Draw a box plot of [3, 7, 8, 5, 12, 14, 21, 13, 18].",
+      "expected_any": [
+        "plot_box"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_box_2",
+      "query": "Make a box-and-whisker diagram for the waiting times 4, 6, 6, 9, 15, 40.",
+      "expected_any": [
+        "plot_box"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_box_3",
+      "query": "Show a boxplot of the median and quartiles of these marks: 40, 52, 61, 75, 88.",
+      "expected_any": [
+        "plot_box"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_box_4",
+      "query": "Compare two classes with box plots: class A 60, 70, 80 and class B 55, 65, 95.",
+      "expected_any": [
+        "plot_box"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_scatter_1",
+      "query": "Make a scatter plot of hours studied [1, 2, 3, 4] against scores [52, 60, 71, 80].",
+      "expected_any": [
+        "plot_scatter"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_scatter_2",
+      "query": "Plot these points (1,2), (2,4), (3,5), (4,4) as a scatter plot.",
+      "expected_any": [
+        "plot_scatter"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_scatter_3",
+      "query": "Show a scatterplot of temperature versus ice cream sales.",
+      "expected_any": [
+        "plot_scatter"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_stats_five_number",
+      "query": "Give me the five-number summary of 4, 8, 15, 16, 23, 42.",
+      "expected_any": [
+        "compute_descriptive_statistics"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_data_plot_regress_1",
+      "query": "Make a bar chart of the bin counts 4, 9, 6.",
+      "expected_any": [
+        "plot_bars"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_data_plot_regress_2",
+      "query": "Draw a bar graph of the histogram counts 3, 5, 2.",
+      "expected_any": [
+        "plot_bars"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_data_plot_regress_3",
+      "query": "Compute the median and quartiles, then draw a box plot.",
+      "expected_any": [
+        "compute_descriptive_statistics",
+        "plot_box"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_data_plot_regress_4",
+      "query": "Show summary statistics and a box plot for 1,2,3,4,50.",
+      "expected_any": [
+        "compute_descriptive_statistics",
+        "plot_box"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_data_plot_regress_5",
+      "query": "Plot the function inside the box from -2 to 2.",
+      "expected_any": [
+        "draw_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_stats_standard_deviation_1",
+      "query": "Standard deviation of 2, 4, 4, 4, 5, 5, 7, 9.",
+      "expected_any": [
+        "compute_descriptive_statistics"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_stats_interquartile_range_1",
+      "query": "What is the interquartile range of 3, 5, 9, 12?",
+      "expected_any": [
+        "compute_descriptive_statistics"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_stats_standard_deviation_2",
+      "query": "Find the standard deviation of the data and plot it.",
+      "expected_any": [
+        "compute_descriptive_statistics"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_stats_standard_deviation_3",
+      "query": "Find the standard deviation of the data and make a scatter plot.",
+      "expected_any": [
+        "compute_descriptive_statistics"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_distribution_normally_1",
+      "query": "The heights of students are normally distributed with mean 170 and sd 8. Plot it.",
+      "expected_any": [
+        "plot_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_distribution_normally_2",
+      "query": "The data is normally distributed with mean 0 and standard deviation 1, plot it.",
+      "expected_any": [
+        "plot_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_fit_regression_trend_line",
+      "query": "Make a scatter plot of these points, then add a linear trend line.",
+      "expected_any": [
+        "fit_regression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_draw_function_on_scatter_1",
+      "query": "Plot y = 2x + 1 on the scatter plot.",
+      "expected_any": [
+        "draw_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_draw_function_on_scatter_2",
+      "query": "Graph y = 2x + 1 on the scatterplot.",
+      "expected_any": [
+        "draw_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
       "id": "u_plot_distribution_1",
       "query": "Plot a normal distribution with mean 0 and std dev 1.",
       "expected_any": [
@@ -3058,6 +3377,141 @@
       "category": "confusion_probe",
       "difficulty": "hard",
       "cluster": "rewrite_cluster"
+    },
+    {
+      "id": "u_compute_distribution_1",
+      "query": "What is P(X <= 3) for a binomial distribution with n = 10 and p = 0.3?",
+      "expected_any": [
+        "compute_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_compute_distribution_2",
+      "query": "Find the probability that a normal variable with mean 100 and standard deviation 15 is below 85.",
+      "expected_any": [
+        "compute_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_compute_distribution_3",
+      "query": "Critical value of the t distribution with 12 degrees of freedom at 95% confidence.",
+      "expected_any": [
+        "compute_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_compute_distribution_4",
+      "query": "invNorm(0.975)",
+      "expected_any": [
+        "compute_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_compute_distribution_5",
+      "query": "Poisson with mean 4: probability of exactly 2 events?",
+      "expected_any": [
+        "compute_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_compute_distribution_6",
+      "query": "What's the 90th percentile of a chi-squared distribution with 5 df?",
+      "expected_any": [
+        "compute_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_distribution_7",
+      "query": "Plot a binomial distribution with n = 10 and p = 0.3 and shade P(2 <= X <= 5).",
+      "expected_any": [
+        "plot_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_distribution_8",
+      "query": "Draw the exponential distribution with rate 0.5.",
+      "expected_any": [
+        "plot_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_distribution_9",
+      "query": "Shade the area to the right of 2.1 under a t distribution with 15 degrees of freedom.",
+      "expected_any": [
+        "plot_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "c_exponential_function_not_distribution",
+      "query": "Plot the exponential function y = 2^x.",
+      "expected_any": [
+        "draw_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "normal",
+      "cluster": "stats_cluster"
+    },
+    {
+      "id": "c_geometric_series_not_distribution",
+      "query": "Sum the geometric series 1/2^k for k from 0 to infinity.",
+      "expected_any": [
+        "simplify",
+        "evaluate_expression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "normal",
+      "cluster": "stats_cluster"
     },
     {
       "id": "polar_cardioid",

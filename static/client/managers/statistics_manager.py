@@ -25,6 +25,13 @@ from drawables.bar import Bar
 from drawables.discrete_plot import DiscretePlot
 from drawables.plot import Plot
 from plot_kinds import PLOT_CLASS_NAMES, derived_bar_name, plot_kind
+from utils.statistics.distribution_plot import (
+    clip_to_support,
+    drawn_range,
+    integer_bars,
+    shaded_probability,
+    values_text,
+)
 from utils.statistics.distributions import DEFAULT_DISTRIBUTION_TYPE, DistributionSpec, get_distribution
 from utils.statistics.regression import fit_regression as _fit_regression, SUPPORTED_MODEL_TYPES
 
@@ -40,6 +47,37 @@ if TYPE_CHECKING:
 
 DEFAULT_DISCRETE_BAR_COUNT = 24
 MAX_DISCRETE_BAR_COUNT = 500
+# Bars outside a discrete plot's shaded range are drawn in this colour, at the plot's opacity.
+UNSHADED_BAR_FILL_COLOR = "lightgray"
+
+
+def _inside(shade: Optional[Tuple[float, float]], x: float) -> bool:
+    """Whether a bar midpoint is shaded: always without a shade range, else inside it (1e-9 slack)."""
+    if shade is None:
+        return True
+    return shade[0] - 1e-9 <= x <= shade[1] + 1e-9
+
+
+def _shade_state(shade: Tuple[float, float]) -> Dict[str, Optional[float]]:
+    """A shade range as saved and reported: {left, right}, an open side as None."""
+    return {
+        "left": None if math.isinf(shade[0]) else shade[0],
+        "right": None if math.isinf(shade[1]) else shade[1],
+    }
+
+
+def _saved_shade(saved: Any) -> Optional[Tuple[float, float]]:
+    """A saved ``shade_bounds`` {left, right} as a range, or None when absent or invalid."""
+    if not isinstance(saved, dict):
+        return None
+    try:
+        left = -math.inf if saved.get("left") is None else float(saved["left"])
+        right = math.inf if saved.get("right") is None else float(saved["right"])
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(left) or math.isnan(right) or left > right:
+        return None
+    return left, right
 
 
 class StatisticsManager:
@@ -123,109 +161,69 @@ class StatisticsManager:
         try:
             # No default: the tool requires a type, and an empty one is an error.
             spec = get_distribution(distribution_type)
-            dist = spec.name
-
             rep = str(representation or "").strip().lower()
             if rep not in ("continuous", "discrete"):
                 raise ValueError("representation must be 'continuous' or 'discrete'")
-
             params = spec.parse_params(distribution_params)
+            plot_name = self._generate_unique_name(self.name_generator.filter_string(name or "") or f"{spec.name}_plot")
             plot_bounds_dict = plot_bounds if isinstance(plot_bounds, dict) else {}
-            plot_left_raw = plot_bounds_dict.get("left_bound")
-            plot_right_raw = plot_bounds_dict.get("right_bound")
-            resolved_left, resolved_right = self._resolve_bounds(spec, params, plot_left_raw, plot_right_raw)
+            bounds_given = (
+                plot_bounds_dict.get("left_bound") is not None,
+                plot_bounds_dict.get("right_bound") is not None,
+            )
+            bounds = self._resolve_bounds(
+                spec, params, plot_bounds_dict.get("left_bound"), plot_bounds_dict.get("right_bound")
+            )
+            shade = self._resolve_shade_bounds(shade_bounds)
+            notes: List[str] = []
+            drawn = drawn_range(spec, params, bounds, bounds_given=bounds_given, shade=shade, notes=notes)
 
-            plot_name = self._generate_unique_name(self.name_generator.filter_string(name or "") or f"{dist}_plot")
-
-            if rep == "discrete":
-                result_payload = self._plot_distribution_discrete(
-                    plot_name=plot_name,
-                    distribution_type=dist,
-                    distribution_params=params,
-                    height=lambda x: spec.pdf(x, params),
-                    left_bound=resolved_left,
-                    right_bound=resolved_right,
+            if spec.discrete:
+                result_payload = self._plot_integer_distribution(
+                    spec,
+                    params,
+                    plot_name,
+                    rep,
+                    drawn,
+                    any(bounds_given),
+                    shade,
+                    notes,
                     curve_color=curve_color,
                     fill_color=fill_color,
                     fill_opacity=fill_opacity,
                     bar_count=bar_count,
                 )
-                return result_payload
-
-            expression = spec.pdf_expression(params)
-
-            function_preferred = f"{plot_name}_pdf"
-            function_name = self.name_generator.generate_function_name(function_preferred)
-            function_obj = self.function_manager.draw_function(
-                expression,
-                name=function_name,
-                left_bound=resolved_left,
-                right_bound=resolved_right,
-                color=curve_color,
-            )
-            function_name = getattr(function_obj, "name", function_name)
-
-            shade_left = resolved_left
-            shade_right = resolved_right
-            shade_bounds_dict = shade_bounds if isinstance(shade_bounds, dict) else {}
-            if shade_bounds_dict:
-                shade_left_raw = shade_bounds_dict.get("left_bound")
-                shade_right_raw = shade_bounds_dict.get("right_bound")
-                if shade_left_raw is not None:
-                    shade_left = float(shade_left_raw)
-                if shade_right_raw is not None:
-                    shade_right = float(shade_right_raw)
-                if not math.isfinite(shade_left) or not math.isfinite(shade_right):
-                    raise ValueError("shade_bounds left_bound and right_bound must be finite")
-
-            # Clamp shade interval into plot interval.
-            shade_left = max(resolved_left, shade_left)
-            shade_right = min(resolved_right, shade_right)
-            if shade_left >= shade_right:
-                raise ValueError("shade_bounds must define a non-empty interval within plot_bounds")
-
-            area = self.colored_area_manager.create_colored_area(
-                drawable1_name=function_name,
-                drawable2_name=None,
-                left_bound=shade_left,
-                right_bound=shade_right,
-                color=self._normalize_fill_color(fill_color),
-                opacity=self._normalize_fill_opacity(fill_opacity),
-            )
-
-            fill_area_name = self._generate_unique_name(f"{plot_name}_fill")
-            try:
-                area.name = fill_area_name
-            except Exception:
-                fill_area_name = getattr(area, "name", fill_area_name)
-
-            plot = ContinuousPlot(
-                plot_name,
-                plot_type="distribution",
-                distribution_type=dist,
-                function_name=function_name,
-                fill_area_name=fill_area_name,
-                distribution_params=dict(params),
-                bounds={"left": resolved_left, "right": resolved_right},
-            )
-            self.drawables.add(plot)
-
-            # Non-renderable composite; dependency analyzer currently ignores it but keep call for symmetry.
-            try:
-                self.dependency_manager.analyze_drawable_for_dependencies(plot)
-            except Exception:
-                pass
-
-            result_payload = {
-                "plot_name": plot_name,
-                "representation": "continuous",
-                "distribution_type": dist,
-                "distribution_params": dict(params),
-                "bounds": {"left": resolved_left, "right": resolved_right},
-                "shade_bounds": {"left": shade_left, "right": shade_right},
-                "function_name": function_name,
-                "fill_area_name": fill_area_name,
-            }
+            elif rep == "discrete":
+                bar_shade = None if shade is None else (max(shade[0], drawn[0]), min(shade[1], drawn[1]))
+                if bar_shade is not None and bar_shade[0] >= bar_shade[1]:
+                    raise ValueError("shade_bounds must define a non-empty interval within plot_bounds")
+                result_payload = self._plot_distribution_discrete(
+                    plot_name=plot_name,
+                    distribution_type=spec.name,
+                    distribution_params=params,
+                    height=lambda x: spec.pdf(x, params),
+                    left_bound=drawn[0],
+                    right_bound=drawn[1],
+                    curve_color=curve_color,
+                    fill_color=fill_color,
+                    fill_opacity=fill_opacity,
+                    bar_count=bar_count,
+                    shade=bar_shade,
+                )
+                if shade is not None:
+                    result_payload.update(shaded_probability(spec, params, shade))
+            else:
+                result_payload = self._plot_continuous_distribution(
+                    spec,
+                    params,
+                    plot_name,
+                    drawn,
+                    shade,
+                    curve_color=curve_color,
+                    fill_color=fill_color,
+                    fill_opacity=fill_opacity,
+                )
+            self._add_notes(result_payload, spec, distribution_params, notes)
             return result_payload
         except Exception as exc:
             self._log_operation_debug(
@@ -701,6 +699,7 @@ class StatisticsManager:
             fill_color=getattr(plot, "fill_color", None),
             fill_opacity=getattr(plot, "fill_opacity", None),
             labels=labels_list,
+            shade=_saved_shade(getattr(plot, "shade_bounds", None)),
         )
 
     def materialize_bars_plot(self, plot: Any) -> None:
@@ -781,6 +780,123 @@ class StatisticsManager:
                     continue
         return None
 
+    def _plot_continuous_distribution(
+        self,
+        spec: DistributionSpec,
+        params: Dict[str, float],
+        plot_name: str,
+        drawn: Tuple[float, float],
+        shade: Optional[Tuple[float, float]],
+        *,
+        curve_color: Optional[str],
+        fill_color: Optional[str],
+        fill_opacity: Optional[float],
+    ) -> Dict[str, Any]:
+        """The density curve over ``drawn`` and the area under it over the shade range (all of it by default)."""
+        assert spec.pdf_expression is not None
+        resolved_left, resolved_right = drawn
+        asked = drawn if shade is None else shade
+        # The area is drawn inside the plotted range; the probability covers the whole range asked for.
+        # Checked before anything is drawn, so a refused shade leaves no curve behind.
+        shade_left = max(resolved_left, asked[0])
+        shade_right = min(resolved_right, asked[1])
+        if shade_left >= shade_right:
+            raise ValueError("shade_bounds must define a non-empty interval within plot_bounds")
+
+        function_name = self.name_generator.generate_function_name(f"{plot_name}_pdf")
+        function_obj = self.function_manager.draw_function(
+            spec.pdf_expression(params),
+            name=function_name,
+            left_bound=resolved_left,
+            right_bound=resolved_right,
+            color=curve_color,
+        )
+        function_name = getattr(function_obj, "name", function_name)
+
+        area = self.colored_area_manager.create_colored_area(
+            drawable1_name=function_name,
+            drawable2_name=None,
+            left_bound=shade_left,
+            right_bound=shade_right,
+            color=self._normalize_fill_color(fill_color),
+            opacity=self._normalize_fill_opacity(fill_opacity),
+        )
+        fill_area_name = self._generate_unique_name(f"{plot_name}_fill")
+        try:
+            area.name = fill_area_name
+        except Exception:
+            fill_area_name = getattr(area, "name", fill_area_name)
+
+        plot = ContinuousPlot(
+            plot_name,
+            plot_type="distribution",
+            distribution_type=spec.name,
+            function_name=function_name,
+            fill_area_name=fill_area_name,
+            distribution_params=dict(params),
+            bounds={"left": resolved_left, "right": resolved_right},
+        )
+        self.drawables.add(plot)
+        # Non-renderable composite; dependency analyzer currently ignores it but keep call for symmetry.
+        try:
+            self.dependency_manager.analyze_drawable_for_dependencies(plot)
+        except Exception:
+            pass
+
+        result: Dict[str, Any] = {
+            "plot_name": plot_name,
+            "representation": "continuous",
+            "distribution_type": spec.name,
+            "distribution_params": dict(params),
+            "bounds": {"left": resolved_left, "right": resolved_right},
+            "shade_bounds": {"left": shade_left, "right": shade_right},
+            "function_name": function_name,
+            "fill_area_name": fill_area_name,
+        }
+        result.update(shaded_probability(spec, params, asked))
+        return result
+
+    def _plot_integer_distribution(
+        self,
+        spec: DistributionSpec,
+        params: Dict[str, float],
+        plot_name: str,
+        representation: str,
+        drawn: Tuple[float, float],
+        bounds_given: bool,
+        shade: Optional[Tuple[float, float]],
+        notes: List[str],
+        *,
+        curve_color: Optional[str],
+        fill_color: Optional[str],
+        fill_opacity: Optional[float],
+        bar_count: Optional[float],
+    ) -> Dict[str, Any]:
+        """One bar per value k of a discrete distribution, [k - 1/2, k + 1/2] and P(X = k) tall."""
+        if representation == "continuous":
+            notes.append(f"{spec.name} is discrete: drawn as bars, one per value")
+        if bar_count is not None:
+            notes.append("bar_count is ignored for a discrete distribution: one bar per value")
+        shaded = None if shade is None else clip_to_support(spec, params, shade)
+        first, last = integer_bars(spec, params, drawn, bounds_given=bounds_given, shade=shaded, notes=notes)
+        result = self._plot_distribution_discrete(
+            plot_name=plot_name,
+            distribution_type=spec.name,
+            distribution_params=params,
+            height=lambda x: spec.pdf(x, params),
+            left_bound=first - 0.5,
+            right_bound=last + 0.5,
+            curve_color=curve_color,
+            fill_color=fill_color,
+            fill_opacity=fill_opacity,
+            bar_count=float(last - first + 1),
+            shade=shaded,
+        )
+        result["values"] = values_text(first, last)
+        if shaded is not None:
+            result.update(shaded_probability(spec, params, shaded))
+        return result
+
     def _plot_distribution_discrete(
         self,
         *,
@@ -794,6 +910,7 @@ class StatisticsManager:
         fill_color: Optional[str],
         fill_opacity: Optional[float],
         bar_count: Optional[float],
+        shade: Optional[Tuple[float, float]] = None,
     ) -> Dict[str, Any]:
         n = self._resolve_bar_count(bar_count)
         if not (right_bound - left_bound) / float(n) > 0.0:
@@ -811,6 +928,7 @@ class StatisticsManager:
             distribution_params=dict(distribution_params),
             bounds={"left": left_bound, "right": right_bound},
             metadata={"bar_count": n},
+            shade_bounds=None if shade is None else _shade_state(shade),
         )
         try:
             self._create_discrete_bars(
@@ -823,6 +941,7 @@ class StatisticsManager:
                 fill_color=fill_color,
                 fill_opacity=fill_opacity,
                 labels=None,
+                shade=shade,
             )
         except Exception:
             # Never leave a half-built plot behind
@@ -830,7 +949,7 @@ class StatisticsManager:
             raise
         self.drawables.add(plot)
 
-        return {
+        result: Dict[str, Any] = {
             "plot_name": plot_name,
             "representation": "discrete",
             "distribution_type": distribution_type,
@@ -838,6 +957,9 @@ class StatisticsManager:
             "bounds": {"left": left_bound, "right": right_bound},
             "bar_count": n,
         }
+        if shade is not None:
+            result["shade_bounds"] = _shade_state(shade)
+        return result
 
     def _create_discrete_bars(
         self,
@@ -851,17 +973,24 @@ class StatisticsManager:
         fill_color: Optional[str],
         fill_opacity: Optional[float],
         labels: Optional[List[str]],
+        shade: Optional[Tuple[float, float]] = None,
     ) -> None:
-        """Create the bars of a discrete distribution plot, each as tall as ``height`` at its midpoint."""
+        """Create the bars of a discrete distribution plot, each as tall as ``height`` at its midpoint.
+
+        With ``shade``, the bars whose midpoint lies outside it are drawn in light gray.
+        """
         width = (right_bound - left_bound) / float(bar_count)
         bar_manager = self._get_bar_manager()
         existing_bar_names = self._existing_names("Bar")
+        opacity = self._normalize_fill_opacity(fill_opacity)
+        fill = self._normalize_fill_color(fill_color)
         for i in range(bar_count):
             bar_name = derived_bar_name(plot_name, i)
             if bar_name in existing_bar_names:
                 continue
             x_left = left_bound + i * width
             x_right = left_bound + (i + 1) * width
+            midpoint = (x_left + x_right) / 2.0
             label_text = labels[i] if labels is not None and i < len(labels) else None
             self._add_bar(
                 bar_manager,
@@ -869,10 +998,10 @@ class StatisticsManager:
                 x_left=x_left,
                 x_right=x_right,
                 y_bottom=0.0,
-                y_top=height((x_left + x_right) / 2.0),
+                y_top=height(midpoint),
                 stroke_color=curve_color,
-                fill_color=self._normalize_fill_color(fill_color),
-                fill_opacity=self._normalize_fill_opacity(fill_opacity),
+                fill_color=fill if _inside(shade, midpoint) else UNSHADED_BAR_FILL_COLOR,
+                fill_opacity=opacity,
                 label_above_text=label_text,
                 label_below_text=None,
             )
@@ -1076,6 +1205,36 @@ class StatisticsManager:
                 return candidate
             idx += 1
 
+    @staticmethod
+    def _resolve_shade_bounds(shade_bounds: Optional[Dict[str, Any]]) -> Optional[Tuple[float, float]]:
+        """The shade range given, with a null side open (-inf or inf), or None when none is given."""
+        if not isinstance(shade_bounds, dict):
+            return None
+        left_raw = shade_bounds.get("left_bound")
+        right_raw = shade_bounds.get("right_bound")
+        if left_raw is None and right_raw is None:
+            return None
+        left = -math.inf if left_raw is None else float(left_raw)
+        right = math.inf if right_raw is None else float(right_raw)
+        if (
+            math.isnan(left)
+            or math.isnan(right)
+            or (left_raw is not None and math.isinf(left))
+            or (right_raw is not None and math.isinf(right))
+        ):
+            raise ValueError("shade_bounds left_bound and right_bound must be finite")
+        if left > right:
+            raise ValueError("shade_bounds left_bound must be <= right_bound")
+        return left, right
+
+    @staticmethod
+    def _add_notes(result: Dict[str, Any], spec: DistributionSpec, raw_params: Any, notes: List[str]) -> None:
+        ignored = spec.ignored_params(raw_params)
+        if ignored:
+            result["ignored_params"] = ignored
+        if notes:
+            result["note"] = "; ".join(notes)
+
     def _resolve_bounds(
         self,
         spec: DistributionSpec,
@@ -1084,8 +1243,14 @@ class StatisticsManager:
         right_bound: Optional[float],
     ) -> tuple[float, float]:
         default_left, default_right = spec.default_bounds(params)
+        width = default_right - default_left
         left = default_left if left_bound is None else float(left_bound)
         right = default_right if right_bound is None else float(right_bound)
+        # One side given past the other default side: keep the default width from the given side.
+        if right_bound is None and left_bound is not None and right <= left:
+            right = left + width
+        if left_bound is None and right_bound is not None and left >= right:
+            left = right - width
 
         if not math.isfinite(left) or not math.isfinite(right):
             raise ValueError("left_bound and right_bound must be finite")

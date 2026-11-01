@@ -86,8 +86,8 @@ from .test_graph_analyzer import (
     TestAnalyzeGraphPointInHull,
 )
 from .test_graph_utils import TestGraphUtils
-from .test_statistics_distributions import TestStatisticsDistributions
-from .test_statistics_manager import TestStatisticsManager
+from .test_statistics_distributions import TestDistributionNumericsInBrython, TestStatisticsDistributions
+from .test_statistics_manager import TestDistributionsBeyondNormal, TestStatisticsManager
 from .test_regression import TestRegressionCanvas
 from .test_point_name_collisions import TestPointNameCollisions
 from .test_path_elements import TestPathElements
@@ -216,6 +216,7 @@ from .test_drawable_renderers import (
 from .test_base_drawable_manager import TestBaseDrawableManager
 from .test_point_manager import TestPointManagerUpdates
 from .test_bar_renderer import TestBarRenderer
+from .test_data_plots import TestDataPlotRendering, TestDataPlotTools
 from .test_function_renderables import (
     TestFunctionRenderable,
     TestFunctionsBoundedAreaRenderable,
@@ -522,6 +523,8 @@ class Tests:
             TestScreenOffsetLabelLayout,
             TestBarManager,
             TestBarRenderer,
+            TestDataPlotRendering,
+            TestDataPlotTools,
             TestVectorRenderer,
             TestAngleRenderer,
             TestEllipseRenderer,
@@ -590,7 +593,9 @@ class Tests:
             TestGraphTools,
             TestGraphUtils,
             TestStatisticsDistributions,
+            TestDistributionNumericsInBrython,
             TestStatisticsManager,
+            TestDistributionsBeyondNormal,
             TestRegressionCanvas,
             TestPointNameCollisions,
             TestAnalyzeGraphShortestPath,

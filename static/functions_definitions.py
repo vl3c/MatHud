@@ -53,6 +53,61 @@ TRIANGLE_SUBTYPE_VALUES = _TriangleSubtype.values()
 QUADRILATERAL_SUBTYPE_VALUES = _QuadrilateralSubtype.values()
 POLYGON_SUBTYPE_VALUES = sorted(set(TRIANGLE_SUBTYPE_VALUES + QUADRILATERAL_SUBTYPE_VALUES))
 
+DISTRIBUTION_TYPES: List[str] = [
+    "binomial",
+    "chi_squared",
+    "exponential",
+    "f",
+    "geometric",
+    "normal",
+    "poisson",
+    "t",
+    "uniform",
+]
+
+
+def _distribution_type_schema(action: str) -> Dict[str, Any]:
+    return {
+        "type": "string",
+        "enum": list(DISTRIBUTION_TYPES),
+        "description": (
+            f"Distribution to {action}. Continuous: normal, uniform, exponential, t (Student's t), "
+            "chi_squared, f. Discrete: binomial, poisson, geometric."
+        ),
+    }
+
+
+def _distribution_params_schema() -> Dict[str, Any]:
+    """One flat object shared by every distribution: each reads its own keys and ignores the rest."""
+
+    def number(description: str) -> Dict[str, Any]:
+        return {"type": ["number", "null"], "description": description}
+
+    return {
+        "type": ["object", "null"],
+        "description": (
+            "Parameters; set only the selected distribution's keys and null the rest. normal: mean, sigma. "
+            "uniform: lower, upper. exponential: rate. t, chi_squared: df. f: df, df2. binomial: n, p. "
+            "poisson: rate. geometric: p."
+        ),
+        "properties": {
+            "mean": number("normal: mean (mu). Default 0."),
+            "sigma": number("normal: standard deviation, > 0. Default 1."),
+            "lower": number("uniform: lower end of its support (not the drawing range). Default 0."),
+            "upper": number("uniform: upper end of its support. Default 1."),
+            "rate": number("exponential: rate λ = 1/mean, > 0, default 1. poisson: mean λ, > 0, needed."),
+            "df": number("t, chi_squared: degrees of freedom; f: numerator df. > 0, needed."),
+            "df2": number("f: denominator degrees of freedom, > 0, needed."),
+            "n": number("binomial: number of trials, a whole number >= 1, needed."),
+            "p": number(
+                "binomial: success probability; geometric: success probability per trial. "
+                "Strictly between 0 and 1, needed."
+            ),
+        },
+        "required": ["mean", "sigma", "lower", "upper", "rate", "df", "df2", "n", "p"],
+        "additionalProperties": False,
+    }
+
 
 FunctionDefinition = Dict[str, Any]
 
@@ -2473,7 +2528,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "plot_distribution",
-            "description": "Plots a probability distribution on the canvas. Choose representation 'continuous' for a function curve or 'discrete' for bar rectangles. For continuous plots, you can optionally draw the curve over plot_bounds while shading only over shade_bounds (clamped into plot_bounds). Creates a tracked plot composite for reliable deletion.",
+            "description": "Plots a probability distribution on the canvas and reports the probability of the shaded range (shaded_probability, shaded_range). Continuous distributions (normal, uniform, exponential, t, chi_squared, f): representation 'continuous' draws the density curve and shades the area under it over shade_bounds; 'discrete' draws bar_count bars as tall as the density. Discrete distributions (binomial, poisson, geometric) always draw one bar per value k, as tall as P(X = k), and shading highlights the bars of the values in shade_bounds (the others are gray). The curve or bars cover plot_bounds clipped to the distribution's support. For a probability without a picture use compute_distribution. Creates a tracked plot composite for reliable deletion.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2485,40 +2540,21 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "representation": {
                         "type": "string",
                         "enum": ["continuous", "discrete"],
-                        "description": "Plot representation. 'continuous' draws a smooth curve. 'discrete' draws bars (rectangles).",
+                        "description": "Plot representation. 'continuous' draws a smooth curve. 'discrete' draws bars (rectangles). Discrete distributions are always drawn as bars.",
                     },
-                    "distribution_type": {
-                        "type": "string",
-                        "enum": ["normal"],
-                        "description": "Distribution to plot. v1 supports only 'normal' (Gaussian).",
-                    },
-                    "distribution_params": {
-                        "type": ["object", "null"],
-                        "description": "Parameters for the selected distribution type. For 'normal', provide mean and sigma.",
-                        "properties": {
-                            "mean": {
-                                "type": ["number", "null"],
-                                "description": "Mean (mu) for the normal distribution. Defaults to 0 if null.",
-                            },
-                            "sigma": {
-                                "type": ["number", "null"],
-                                "description": "Standard deviation (sigma) for the normal distribution. Defaults to 1 if null. Must be > 0.",
-                            },
-                        },
-                        "required": ["mean", "sigma"],
-                        "additionalProperties": False,
-                    },
+                    "distribution_type": _distribution_type_schema("plot"),
+                    "distribution_params": _distribution_params_schema(),
                     "plot_bounds": {
                         "type": ["object", "null"],
-                        "description": "Optional bounds for plotting the curve. If null, or either side is null, defaults to mean +/- 4*sigma.",
+                        "description": "Optional drawing range (x values). If null, or either side is null, that side defaults to the distribution's main range (normal: mean +/- 4*sigma; binomial: about mean +/- 5 sd within 0..n), widened to take in shade_bounds. Clipped to the support; for a discrete distribution, the whole values inside get a bar (at most 500).",
                         "properties": {
                             "left_bound": {
                                 "type": ["number", "null"],
-                                "description": "Optional left bound for plotting the curve. Defaults to mean - 4*sigma when null.",
+                                "description": "Optional left end of the drawing range. Null: the distribution's default.",
                             },
                             "right_bound": {
                                 "type": ["number", "null"],
-                                "description": "Optional right bound for plotting the curve. Defaults to mean + 4*sigma when null.",
+                                "description": "Optional right end of the drawing range. Null: the distribution's default.",
                             },
                         },
                         "required": ["left_bound", "right_bound"],
@@ -2526,15 +2562,15 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     },
                     "shade_bounds": {
                         "type": ["object", "null"],
-                        "description": "Continuous only. Optional bounds for shading under the curve. If null, defaults to plot_bounds. Bounds are clamped into plot_bounds.",
+                        "description": "Optional range to shade, giving shaded_probability = P(left_bound <= X <= right_bound). A null side is open (P(X >= a) has a null right_bound). If the whole object is null: a continuous curve is shaded over its drawing range and bars are not highlighted. For a discrete distribution the whole values inside count, both ends included: P(X < 5) is right_bound 4, P(X > 2) is left_bound 3.",
                         "properties": {
                             "left_bound": {
                                 "type": ["number", "null"],
-                                "description": "Optional left bound for shading under the curve. If null, defaults to plot_bounds.left_bound.",
+                                "description": "Left end of the shaded range; null for no lower end.",
                             },
                             "right_bound": {
                                 "type": ["number", "null"],
-                                "description": "Optional right bound for shading under the curve. If null, defaults to plot_bounds.right_bound.",
+                                "description": "Right end of the shaded range; null for no upper end.",
                             },
                         },
                         "required": ["left_bound", "right_bound"],
@@ -2551,7 +2587,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     },
                     "bar_count": {
                         "type": ["number", "null"],
-                        "description": "Discrete only. Number of bars to draw across the bounds: a whole number from 1 to 500. If null, 24 is used.",
+                        "description": "Continuous distributions drawn as bars only: number of bars across the drawing range, a whole number from 1 to 500. If null, 24 is used. Ignored for discrete distributions (one bar per value).",
                     },
                 },
                 "required": [
@@ -2638,8 +2674,143 @@ FUNCTIONS: List[Dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "plot_histogram",
+            "description": "Draws a histogram of raw data values: the values are counted into equal-width bins and each bin is drawn as a bar standing on y = 0 (for counts already grouped into categories, use plot_bars). Bins are [a, b), as on a graphing calculator: a value on an edge belongs to the bin it starts (only the right end of the last of a fixed number of bins counts in that bin). Give any of bin_start, bin_width and bin_count; missing ones come from the data: Sturges' rule (ceil(log2 n) + 1 bins) with a round width (1, 2, 2.5 or 5 times a power of ten), the start a multiple of the width at or below the smallest value, and enough bins to hold the largest value. For calculator-style bins (Xmin, Xscl) give bin_start and bin_width. At most 1000 values and 200 bins. Bar heights are in y units on the canvas's single scale (count, or density = count / (n * bin_width) for overlaying plot_distribution). Returns plot_name, n, bin_start, bin_width, bin_count, edges (bin_count + 1 numbers), counts, heights (density only), and excluded_count with a note when fixed bins leave values out. Delete it with delete_plot.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional plot name. If null, 'histogram' (with a number when taken) is used.",
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "description": "The raw values, finite numbers, 1 to 1000 of them; each value counts once (not a frequency table).",
+                    },
+                    "bin_start": {
+                        "type": ["number", "null"],
+                        "description": "Left edge of the first bin. Null: a multiple of the bin width at or below the smallest value (the smallest value itself when only bin_count is given). Values below it are not counted.",
+                    },
+                    "bin_width": {
+                        "type": ["number", "null"],
+                        "description": "Width of every bin, > 0. Null: from bin_count, or a round width from Sturges' rule.",
+                    },
+                    "bin_count": {
+                        "type": ["integer", "null"],
+                        "description": "Number of bins, 1 to 200. Null: enough bins to reach the largest value. With bin_width also given the bins are fixed and values beyond them are not counted.",
+                    },
+                    "normalize": {
+                        "type": ["string", "null"],
+                        "enum": ["count", "density", None],
+                        "description": "Bar height: 'count' (default when null) or 'density' (count / (n * bin_width), so the bars' area is 1 when every value falls in a bin and a normal curve from plot_distribution overlays them).",
+                    },
+                    "color": {
+                        "type": ["string", "null"],
+                        "description": "Optional bar fill color. Defaults to light blue; bars are always outlined.",
+                    },
+                    "fill_opacity": {
+                        "type": ["number", "null"],
+                        "description": "Optional bar fill opacity, 0 to 1. Defaults to 0.6.",
+                    },
+                },
+                "required": [
+                    "name",
+                    "data",
+                    "bin_start",
+                    "bin_width",
+                    "bin_count",
+                    "normalize",
+                    "color",
+                    "fill_opacity",
+                ],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "plot_box",
+            "description": "Draws a horizontal box-and-whisker plot of raw data values along the x axis. The quartiles are the same as compute_descriptive_statistics gives (median of each half, the half excluding the median when n is odd). With show_outliers (default), values more than 1.5 * IQR below Q1 or above Q3 are outliers drawn as dots and the whiskers reach the most extreme values inside those fences (a value on a fence is inside); otherwise the whiskers reach the minimum and maximum. At most 1000 values. By default the box is 0.2 times the whisker span tall and is placed below the x axis and below any existing box plot, so box plots of several data sets stack. Returns plot_name, n, min, q1, median, q3, max, iqr, whisker_low, whisker_high, y_position, box_height and, with outliers shown, lower_fence, upper_fence, outlier_count and outliers (the 20 smallest). Delete it with delete_plot.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional plot name. If null, 'box_plot' (with a number when taken) is used.",
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "description": "The raw values, finite numbers, 1 to 1000 of them.",
+                    },
+                    "y_position": {
+                        "type": ["number", "null"],
+                        "description": "y of the box's centre line. Null: just below the x axis and below every existing box plot.",
+                    },
+                    "box_height": {
+                        "type": ["number", "null"],
+                        "description": "Box height in y units, > 0. Null: 0.2 times the whisker span (1 when all values are equal).",
+                    },
+                    "show_outliers": {
+                        "type": ["boolean", "null"],
+                        "description": "Whether to mark values beyond the 1.5 * IQR fences as outliers. Null means true.",
+                    },
+                    "color": {
+                        "type": ["string", "null"],
+                        "description": "Optional color of the outline, median, whiskers and outliers. The box fill uses it too, at fill_opacity (light blue when null).",
+                    },
+                    "fill_opacity": {
+                        "type": ["number", "null"],
+                        "description": "Optional box fill opacity, 0 to 1. Defaults to 0.3.",
+                    },
+                },
+                "required": ["name", "data", "y_position", "box_height", "show_outliers", "color", "fill_opacity"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "plot_scatter",
+            "description": "Draws a scatter plot: one dot per (x_data[i], y_data[i]) pair, as a single plot object rather than named points (use create_point for points to build on). At most 1000 pairs. x and y share the canvas's single scale. Returns plot_name, n, x_min, x_max, y_min, y_max and r (Pearson's correlation, null for one pair or a constant list). For a trend line, call fit_regression on the same data with show_points false. Delete it with delete_plot.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional plot name. If null, 'scatter_plot' (with a number when taken) is used.",
+                    },
+                    "x_data": {
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "description": "The x values, finite numbers, 1 to 1000 of them.",
+                    },
+                    "y_data": {
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "description": "The y values, as many as x_data.",
+                    },
+                    "color": {
+                        "type": ["string", "null"],
+                        "description": "Optional dot color. Defaults to the point color.",
+                    },
+                },
+                "required": ["name", "x_data", "y_data", "color"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "delete_plot",
-            "description": "Deletes a previously created plot composite by name, including any underlying components (curve and filled area, or derived bars).",
+            "description": "Deletes a previously created plot by name (distribution, bar chart, histogram, box plot or scatter plot), including any underlying components (curve and filled area, or derived bars).",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2725,6 +2896,46 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "curve_color",
                     "show_points",
                     "point_color",
+                ],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "compute_distribution",
+            "description": "Probabilities, quantiles and moments of a probability distribution, like a calculator's normalcdf, invNorm, tcdf, binompdf or poissoncdf. Always returns mean, variance, standard_deviation and support. With x: for a continuous distribution pdf, P(X <= x) and P(X > x); for a discrete one P(X = x), P(X <= x), P(X < x), P(X >= x) and P(X > x). With left_bound and/or right_bound: P(a <= X <= b), a null side open, and for a discrete distribution also P(a < X < b). With probability: the quantile (inverse cdf, left tail): the x with P(X <= x) = probability, or for a discrete distribution the smallest k with P(X <= k) >= probability. Critical values: right tail alpha is the quantile of 1 - alpha, two-sided is 1 - alpha/2. Geometric counts the trials up to and including the first success (1, 2, 3, ...). Numbers are rounded to 12 significant digits. Draws nothing; use plot_distribution to show and shade a distribution.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "distribution_type": _distribution_type_schema("use"),
+                    "distribution_params": _distribution_params_schema(),
+                    "x": {
+                        "type": ["number", "null"],
+                        "description": "A value of X: gives the density (or P(X = x)) and the tails at x. Null if not needed.",
+                    },
+                    "left_bound": {
+                        "type": ["number", "null"],
+                        "description": "Left end a of an interval for P(a <= X <= b); null for no lower end.",
+                    },
+                    "right_bound": {
+                        "type": ["number", "null"],
+                        "description": "Right end b of an interval for P(a <= X <= b); null for no upper end. Both bounds null: no interval.",
+                    },
+                    "probability": {
+                        "type": ["number", "null"],
+                        "description": "A probability strictly between 0 and 1 to invert (left-tail quantile). Null if not needed.",
+                    },
+                },
+                "required": [
+                    "distribution_type",
+                    "distribution_params",
+                    "x",
+                    "left_bound",
+                    "right_bound",
+                    "probability",
                 ],
                 "additionalProperties": False,
             },
