@@ -3303,6 +3303,19 @@
       "cluster": "function_cluster"
     },
     {
+      "id": "polar_range_end_not_a_count",
+      "query": "Set theta max to 4 pi for the cardioid.",
+      "expected_any": [
+        "update_polar_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_update",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
       "id": "parametric_cardioid_not_polar",
       "query": "Plot a cardioid using x(t) = (1-cos(t))*cos(t) and y(t) = (1-cos(t))*sin(t).",
       "expected_any": [

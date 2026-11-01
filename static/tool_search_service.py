@@ -180,15 +180,25 @@ _POLAR_EDIT_WORDS = frozenset(
     {"change", "update", "edit", "set", "recolor", "recolour", "extend", "range", "make", "color", "colour"}
     | {"red", "blue", "green", "orange", "purple", "black", "yellow", "pink", "gray", "grey", "brown"}
 )
+# Verbs that only edit: "update two cardioids", "change the polar plot"
+_POLAR_UPDATE_VERBS = frozenset({"update", "change", "edit", "modify", "recolor", "recolour", "extend"})
 _POLAR_DRAW_WORDS = frozenset({"draw", "plot", "graph", "sketch", "create", "add", "show", "want"})
 # The article right before the curve word (a few adjectives may come between) says whether
 # the curve is new: "make a red cardioid at the origin", "one more rose"; or already drawn:
 # "make the cardioid a different color"
 _POLAR_CURVE_WORD = r"(?:cardioids?|lima[cç]ons?|lemniscates?|roses?|spirals?|polar|curves?)\b"
-_NEW_POLAR_CURVE_RE = re.compile(r"\b(?:a|an|another|more|new|second|two|three|four|five|[0-9]+)\s+(?:[\w-]+\s+){0,3}?" + _POLAR_CURVE_WORD)
-_EXISTING_POLAR_CURVE_RE = re.compile(
-    r"\b(?:the|this|that|my|existing)\s+(?:[\w-]+\s+){0,2}?" + _POLAR_CURVE_WORD + r"|\b\w+_polar\b"
+# A count reads as new curves only right before the curve word ("two cardioids", "3 red roses"),
+# not as a range end ("set theta_max to 6 for the lemniscate")
+_NEW_POLAR_CURVE_RE = re.compile(
+    r"\b(?:a|an|another|more|new|second)\s+(?:[\w-]+\s+){0,3}?" + _POLAR_CURVE_WORD
+    + r"|\b(?:two|three|four|five|[0-9]+)\s+(?:(?!for\b|on\b|to\b|from\b|in\b|pi\b)[\w-]+\s+)?" + _POLAR_CURVE_WORD
 )
+_EXISTING_POLAR_CURVE_RE = re.compile(
+    r"\b(?:the|this|that|these|those|all|both|my|existing)\s+(?:[\w-]+\s+){0,2}?" + _POLAR_CURVE_WORD
+    + r"|\b\w+_polar\b"
+)
+# "the polar curve", "polar functions": a curve, even next to the polar grid
+_POLAR_CURVE_PHRASE_RE = re.compile(r"\bpolar\s+(?:curves?|functions?|equations?|plots?)\b")
 # x(t) = ... or x = ... t ...: a curve given by x and y in t
 _PARAMETRIC_RE = re.compile(r"\bx\s*\(\s*t\s*\)|\bx\s*=[^,;]*\bt\b")
 _PARAMETRIC_Y_RE = re.compile(r"\by\s*\(\s*t\s*\)|\by\s*=[^,;]*\bt\b")
@@ -987,6 +997,8 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             return True
         if "rose" in token_set and token_set & {"curve", "petal", "petals", "polar"}:
             return True
+        if _POLAR_CURVE_PHRASE_RE.search(raw_lower):
+            return True
         if token_set & {"grid", "coordinates"} and not equation:
             # The polar grid, or a point in polar coordinates, unless an r(θ) is given
             return False
@@ -1271,12 +1283,17 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         if polar_curve:
             if token_set & {"delete", "remove", "erase"}:
                 scores["delete_polar_function"] += 8.0
+            elif token_set & _POLAR_UPDATE_VERBS and not _POLAR_CURVE_RE.search(raw_lower):
+                # "update two cardioids", "change the polar plot to red": the verb says edit
+                scores["update_polar_function"] += 8.0
+                if token_set & _POLAR_DRAW_WORDS:
+                    scores["draw_polar_function"] += 4.0
             elif (token_set & _POLAR_EDIT_WORDS) and not (
                 token_set & _POLAR_DRAW_WORDS
                 or _POLAR_CURVE_RE.search(raw_lower)
                 or _names_new_polar_curve(raw_lower)
             ):
-                # "make the cardioid blue", "change the θ range of f_polar"; not "draw it in red"
+                # "make the cardioid blue", "set θ_max of f_polar to 4π"; not "draw it in red"
                 # or "make a cardioid" (a new curve)
                 scores["update_polar_function"] += 8.0
             else:
@@ -1285,7 +1302,8 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             # "the point with polar coordinates r = 2, θ = π/3", "plot (2, π/3) in polar
             # coordinates", "a polar grid": a point or the grid, not a curve
             scores["draw_polar_function"] -= 6.0
-            scores["update_polar_function"] -= 6.0
+            if not token_set & _POLAR_EDIT_WORDS:
+                scores["update_polar_function"] -= 6.0
         parametric_words = token_set & {"parametric", "parametrically"}
         if not polar_curve and (parametric_words or _PARAMETRIC_RE.search(raw_lower)):
             # "plot a cardioid using x(t) = ..., y(t) = ...": the curve is named, but given
@@ -1512,7 +1530,8 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
 
     @classmethod
     def _tokenize(cls, text: str) -> List[str]:
-        tokens = [t for t in re.findall(r"[a-z0-9_]+", text.lower()) if t]
+        # "limaçon" is one word, as "limacon"
+        tokens = [t for t in re.findall(r"[a-z0-9_]+", text.lower().replace("ç", "c")) if t]
         return [t for t in tokens if t not in cls._STOPWORDS and len(t) > 1]
 
     @classmethod
