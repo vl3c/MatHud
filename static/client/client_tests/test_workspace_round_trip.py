@@ -43,6 +43,9 @@ EXPECTED_DRAWABLE_KEYS: Tuple[str, ...] = (
     "ContinuousPlots",
     "DiscretePlots",
     "BarsPlots",
+    "HistogramPlots",
+    "BoxPlots",
+    "ScatterPlots",
     "UndirectedGraphs",
     "DirectedGraphs",
     "Trees",
@@ -149,6 +152,11 @@ def _build_plots(c: Canvas) -> None:
         bar_count=4,
     )
     c.plot_bars(name="Poll", values=[1.0, 2.0], labels_below=["a", "b"], x_start=60.0, y_base=60.0)
+    data_plots = c.drawable_manager.data_plot_manager
+    # Small and large values: Brython's json.loads misreads some exponents on load
+    data_plots.plot_histogram(name="Hist", data=[1e-05, 0.3, 0.3, 0.7, 1.0], bin_width=0.25, bin_start=0.0)
+    data_plots.plot_box(name="Box", data=[2.5, 3.0, 4.0, 9.0, 40.0], y_position=70.0, show_outliers=True)
+    data_plots.plot_scatter(name="Dots", x_data=[1.5, 2e-07, 3e20], y_data=[-4.0, 5.25, 6.0], color="red")
 
 
 def _build_graphs(c: Canvas) -> None:
