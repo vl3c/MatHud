@@ -264,6 +264,10 @@ static/client/
 │   ├── continuous_plot.py             # Function-based distribution plots
 │   ├── discrete_plot.py               # Bar-based distribution plots
 │   ├── bars_plot.py                   # Custom bar chart visualizations
+│   ├── data_plot.py                   # Base of the self-drawing data plots
+│   ├── histogram_plot.py              # Histogram of a data list (binned)
+│   ├── box_plot.py                    # Horizontal box-and-whisker plot
+│   ├── scatter_plot.py                # Scatter plot of (x, y) pairs
 │   ├── bar.py                         # Bar chart rectangle elements
 │   ├── attached_label.py              # Labels embedded in other drawables
 │   └── label_render_mode.py           # Label rendering configuration (world/screen-offset)
@@ -311,6 +315,7 @@ static/client/
 │   ├── graph_manager.py               # Graph and tree creation/deletion + state capture
 │   ├── bar_manager.py                 # Bar chart element management
 │   ├── statistics_manager.py          # Distribution and regression plotting
+│   ├── data_plot_manager.py           # plot_histogram, plot_box, plot_scatter
 │   └── polygon_type.py                # Polygon type enumeration
 ├── utils/                             # Utility modules
 │   ├── math_utils.py                  # Mathematical utility functions (the CAS tools ask the server's SymPy)

@@ -24,7 +24,7 @@ The long-term goal is a mathematical heads-up display: an AI that looks at a rea
 2. Geometry primitives: create, edit, and relate points, segments, vectors, triangles, rectangles, circles, ellipses, and angles.
 3. Mathematics: evaluate expressions, solve equations and inequalities (optionally on an interval), differentiate, integrate, check the steps of a derivation (`check_steps`), give Taylor polynomials (`taylor_polynomial`), partial fractions (`expand` with a variable) and closed forms of sums (`simplify` of `summation(term, k, a, b)`), work with complex numbers, and run statistical routines.
 4. Graph theory: create graphs, trees, DAGs; run analyses (shortest path, MST, topological sort, BFS/DFS).
-5. Statistics: plot probability distributions (normal, discrete) and bar charts; compute descriptive statistics (mean, median, mode, quartiles, etc.).
+5. Statistics: plot probability distributions (normal, discrete), bar charts, histograms (`plot_histogram`), box plots (`plot_box`) and scatter plots (`plot_scatter`); compute descriptive statistics (mean, median, mode, quartiles, etc.).
 6. Workspace operations: save, load, list, delete, import, and export named workspaces.
 
 ## Key References
@@ -144,7 +144,7 @@ Then navigate to `http://127.0.0.1:5004/` in the browser.
 16. `turn_metrics.py` aggregates per-request metrics into per-turn summaries (chat footer under the final answer; `window.getMatHudLastTurnMetrics()` / `window.getMatHudTurnMetricsHistory()` return them as JSON strings for benchmarks).
 17. `json_safe.py` converts tool results to plain JSON data (`to_json_safe`, `is_json_plain`) before they are sent back to the model; a failed Brython `json.dumps` breaks later dumps of the same objects ("Circular reference detected").
 18. `canvas_backup_manager.py` mirrors the canvas (workspace-shaped state plus the view) to `localStorage` after draws and on page hide, and `main.py` restores it on page load, so a reload keeps the canvas (not the chat).
-19. `plot_kinds.py` (`PLOT_KINDS`) has one row per plot class (saved bucket, builder, `StatisticsManager` materialize and delete methods, derived bars); the workspace restore, `delete_plot`, plot lookup and Canvas bar pruning loop over it. `utils/statistics/distributions.py` (`DISTRIBUTIONS`, `get_distribution`) has one `DistributionSpec` per `distribution_type` (parameter parsing, pdf, pdf expression, default bounds); only `normal` exists.
+19. `plot_kinds.py` (`PLOT_KINDS`) has one row per plot class (saved bucket, builder, `StatisticsManager` materialize and delete methods, derived bars); the workspace restore, `delete_plot`, plot lookup and Canvas bar pruning loop over it. The data plots (`HistogramPlot`, `BoxPlot`, `ScatterPlot`, base `drawables/data_plot.py`) draw themselves through `_HELPERS`, keep their data as tuples and give renderers a fixed `render_signature()`; their tools live in `managers/data_plot_manager.py`. `utils/statistics/distributions.py` (`DISTRIBUTIONS`, `get_distribution`) has one `DistributionSpec` per `distribution_type` (parameter parsing, pdf, pdf expression, default bounds); only `normal` exists.
 
 ---
 
