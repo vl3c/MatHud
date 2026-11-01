@@ -321,6 +321,11 @@ class SvgRenderer(RendererProtocol):
     def _compute_drawable_signature(
         self, drawable: Any, coordinate_mapper: Any = None, drawable_name: Optional[str] = None
     ) -> Tuple[Any, ...]:
+        fixed_signature = getattr(drawable, "render_signature", None)
+        if callable(fixed_signature):
+            # A drawable that never changes once built (the data plots) gives a fixed token,
+            # so a plot of 1000 values is not serialized and walked every frame.
+            return ("fixed",) + tuple(fixed_signature())
         if drawable_name is None:
             drawable_name = self._resolve_drawable_name(drawable)
         state_func = getattr(drawable, "get_state", None)
