@@ -178,6 +178,7 @@ class IntersectionManager:
             float(drawable.t_max),
             pixels_per_unit=self._pixels_per_unit(),
             parameter_name="theta" if kind == "polar_function" else "t",
+            pole=(0.0, 0.0) if kind == "polar_function" else None,
         )
 
     @staticmethod

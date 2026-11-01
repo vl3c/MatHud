@@ -25,6 +25,8 @@ from expression_validator import ExpressionValidator
 
 # A leading "r =", "r(θ) =" or "r(theta) =" has one reading: the right-hand side follows
 _R_PREFIX = re.compile(r"^\s*r\s*(?:\(\s*(?:θ|ϑ|theta)\s*\)\s*)?=(?!=)\s*")
+# "r^2 = ..." or "r² = ...": the equation of r^2, refused with the sqrt form as the hint
+_R_SQUARED_PREFIX = re.compile(r"^\s*r\s*(?:\^\s*2|\*\*\s*2|²)\s*=")
 # Glued function names before theta ("costheta"), refused with a hint
 _GLUED_THETA = re.compile(r"^([A-Za-z]+)theta$")
 _EXAMPLE = "Example: 1 + cos(θ) or 2*sin(3*θ)."
@@ -100,6 +102,11 @@ class PolarFunction(Drawable):
                 parse, or reads a name other than θ
         """
         source = str(text or "").strip()
+        if _R_SQUARED_PREFIX.match(source):
+            raise ValueError(
+                f"r(θ) = '{text}' gives r^2, not r. For r^2 = f(θ) (a lemniscate), give sqrt(f(θ)), "
+                f"such as sqrt(4*cos(2*θ)) for r^2 = 4cos(2θ)."
+            )
         source = _R_PREFIX.sub("", source, count=1)
         if not source:
             raise ValueError(f"r(θ) is empty. Give the right-hand side of r = ..., in θ. {_EXAMPLE}")

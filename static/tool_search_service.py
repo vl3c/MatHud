@@ -165,6 +165,16 @@ _POLAR_CURVE_NOUNS = frozenset(
 )
 _POLAR_CURVE_RE = re.compile(r"(?:^|[^a-z0-9_])r\s*(?:\(\s*(?:θ|theta)\s*\))?\s*(?:\^\s*2\s*)?=(?!=)")
 _POLAR_NOT_CURVE_WORDS = frozenset({"point", "points", "convert", "conversion", "cartesian", "rectangular"})
+# Shapes whose radius or angle a query may give as r and θ
+_POLAR_SHAPE_WORDS = frozenset(
+    {"vector", "vectors", "arc", "arcs", "segment", "segments", "magnitude", "radius", "sector", "angle", "angles"}
+)
+# Editing an existing polar curve, and drawing one
+_POLAR_EDIT_WORDS = frozenset(
+    {"change", "update", "edit", "set", "recolor", "recolour", "extend", "range", "make", "color", "colour"}
+    | {"red", "blue", "green", "orange", "purple", "black", "yellow", "pink", "gray", "grey", "brown"}
+)
+_POLAR_DRAW_WORDS = frozenset({"draw", "plot", "graph", "sketch", "create", "add", "new"})
 _VALUE_QUESTION_WORDS = frozenset({"what", "whats"})
 # "f(x) = x for x < 0 ...", "the function is -x when x < 0": a function defined by cases
 _DEFINES_FUNCTION_WORDS = frozenset({"function", "define", "defined"})
@@ -926,17 +936,26 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
     def _names_polar_curve(token_set: Set[str], raw_lower: str) -> bool:
         """Whether a query is about a polar curve r(θ), not a polar point, grid or conversion.
 
-        "Plot r = 1 + cos(θ)", "the cardioid", "polar curve f_polar" are; "the point with
-        r = 2 and θ = π/3", "convert (r=5, theta=0.9) to cartesian" and "switch to polar
-        coordinates" are not.
+        "Plot r = 1 + cos(θ)", "the cardioid", "polar curve f_polar", "the rose curve" are;
+        "the point with r = 2 and θ = π/3", "convert (r=5, theta=0.9) to cartesian", "switch
+        to a polar grid and plot y = sin(x)", "plot (2, π/3) in polar coordinates" and "a
+        vector with magnitude r = 5 at θ = 30°" are not.
         """
         if token_set & _POLAR_NOT_CURVE_WORDS:
             return False
-        if token_set & _POLAR_CURVE_NAMES:
+        equation = bool(_POLAR_CURVE_RE.search(raw_lower)) and ("θ" in raw_lower or "theta" in token_set)
+        if token_set & _POLAR_SHAPE_WORDS:
+            return False
+        if token_set & {"grid", "coordinates"} and not equation:
+            # The polar grid, or a point in polar coordinates, unless an r(θ) is given
+            return False
+        if token_set & _POLAR_CURVE_NAMES or any(token.endswith("_polar") for token in token_set):
+            return True
+        if "rose" in token_set and token_set & {"curve", "petal", "petals", "polar"}:
             return True
         if "polar" in token_set and token_set & _POLAR_CURVE_NOUNS:
             return True
-        return bool(_POLAR_CURVE_RE.search(raw_lower)) and ("θ" in raw_lower or "theta" in token_set)
+        return equation
 
     @staticmethod
     def _apply_intent_boosts(
@@ -1215,14 +1234,16 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         if polar_curve:
             if token_set & {"delete", "remove", "erase"}:
                 scores["delete_polar_function"] += 8.0
-            elif token_set & {"change", "update", "edit", "set", "recolor", "extend", "range"} and not (
-                _POLAR_CURVE_RE.search(raw_lower)
+            elif (token_set & _POLAR_EDIT_WORDS) and not (
+                token_set & _POLAR_DRAW_WORDS or _POLAR_CURVE_RE.search(raw_lower)
             ):
+                # "make the cardioid blue", "change the θ range of f_polar"; not "draw it in red"
                 scores["update_polar_function"] += 8.0
             else:
                 scores["draw_polar_function"] += 8.0
-        elif "polar" in token_set and token_set & {"point", "points"}:
-            # "the point with polar coordinates r = 2, θ = π/3" is a point, not a curve
+        elif "polar" in token_set and token_set & {"point", "points", "grid", "coordinate", "coordinates"}:
+            # "the point with polar coordinates r = 2, θ = π/3", "plot (2, π/3) in polar
+            # coordinates", "a polar grid": a point or the grid, not a curve
             scores["draw_polar_function"] -= 6.0
 
         # -- Functions/plotting --

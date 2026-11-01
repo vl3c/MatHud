@@ -52,11 +52,13 @@ from utils.curve_pair_intersections import intersect_curves
 from utils.function_features import MAX_SAMPLES, scan_roots, sample_count
 
 DEFAULT_MAX_RESULTS = 50
+# A hit closer than this share of the pair's size to a curve's pole is the pole
+_POLE_TOLERANCE = 1e-7
 # Always given for two parametric curves whose search finished: they are intersected by
 # sampling, which cannot guarantee every crossing
 CURVE_PAIR_SAMPLING_NOTE = (
-    "Two parametric curves are intersected by sampling them: on long or intricate curves a crossing can "
-    "occasionally be missed. Narrow a curve's t range to check a region."
+    "Two parametric or polar curves are intersected by sampling them: on long or intricate curves a crossing "
+    "can occasionally be missed. Narrow a curve's t (or θ) range to check a region."
 )
 
 # Rounding units (of every term of a computation) within which a gap is zero: a line or
@@ -428,7 +430,9 @@ class ParametricShape:
     """The curve (x(t), y(t)) for t in [t_min, t_max].
 
     ``parameter_name`` is the key hits report the parameter under ("t", or "theta" for a
-    polar curve r(θ), whose points are (r·cos θ, r·sin θ)).
+    polar curve r(θ), whose points are (r·cos θ, r·sin θ)). ``pole`` is a point the curve
+    reaches with only about half the digits, as r = sqrt(cos(2θ)) reaches the origin at the
+    edge of its domain; hits that close to it are the pole itself (see _snap_to_poles).
     """
 
     rank = 5
@@ -443,9 +447,11 @@ class ParametricShape:
         t_max: float,
         pixels_per_unit: Optional[float] = None,
         parameter_name: str = "t",
+        pole: Optional[Point2] = None,
     ) -> None:
         self.name = name
         self.parameter_name = parameter_name
+        self.pole = pole
         self.x_of_t = x_of_t
         self.y_of_t = y_of_t
         self.t_min = float(t_min)
@@ -637,6 +643,7 @@ def find_object_intersections(
         found = _polygon_hits(first, second)
     else:
         found = _ordered_dispatch(first, second)
+    _snap_to_poles(found, first, second)
     found.notes[:0] = [shape.note for shape in (first, second) if shape.note]
     return _report(found, max_results, _pair_size(first, second))
 
@@ -1597,6 +1604,25 @@ def _report(found: _Found, max_results: int, size: float) -> IntersectionReport:
         "truncated": len(points) > limit,
         "notes": list(found.notes),
     }
+
+
+def _snap_to_poles(found: _Found, first: Shape, second: Shape) -> None:
+    """Put hits within _POLE_TOLERANCE (of the pair's size) of a curve's pole exactly on it.
+
+    A polar curve whose r is a square root reaches the pole at the edge of its domain, where
+    a rounding unit of θ moves the point by about the square root of one: the lobes of
+    r = sqrt(4cos(2θ)) meet a line through the origin at points 1e-8 apart, which would be
+    reported as several points instead of one.
+    """
+    poles = [pole for pole in (getattr(first, "pole", None), getattr(second, "pole", None)) if pole is not None]
+    if not poles or not found.hits:
+        return
+    reach = _POLE_TOLERANCE * _pair_size(first, second)
+    for hit in found.hits:
+        for px, py in poles:
+            if math.hypot(hit.x - px, hit.y - py) <= reach:
+                hit.x, hit.y = float(px), float(py)
+                break
 
 
 def _merged_hits(hits: List[_Hit], size: float) -> List[_Hit]:

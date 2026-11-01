@@ -15,7 +15,13 @@ from typing import Any, Dict, List, Tuple
 
 from server_tests import client_renderer  # noqa: F401  (browser stub, so MathUtils resolves)
 from drawables.polar_function import PolarFunction
-from utils.object_intersections import ParametricShape, circle_shape, find_object_intersections
+from utils.object_intersections import (
+    FunctionShape,
+    ParametricShape,
+    circle_shape,
+    find_object_intersections,
+    line_shape,
+)
 
 
 def _shape(curve: PolarFunction) -> ParametricShape:
@@ -27,6 +33,7 @@ def _shape(curve: PolarFunction) -> ParametricShape:
         curve.t_max,
         pixels_per_unit=32.0,
         parameter_name="theta",
+        pole=(0.0, 0.0),
     )
 
 
@@ -73,6 +80,12 @@ class TestParsing(unittest.TestCase):
             PolarFunction("costheta")
         with self.assertRaisesRegex(ValueError, "'a' is not defined"):
             PolarFunction("a*θ")
+
+    def test_r_squared_gets_the_square_root_hint(self) -> None:
+        for text in ("r^2 = 4cos(2θ)", "r² = 4*cos(2*theta)", "r ^ 2=cos(2θ)"):
+            with self.subTest(text=text):
+                with self.assertRaisesRegex(ValueError, r"give sqrt\(f\(θ\)\)"):
+                    PolarFunction(text)
 
     def test_empty_and_unparsable_text_is_refused(self) -> None:
         with self.assertRaisesRegex(ValueError, "empty"):
@@ -222,6 +235,17 @@ class TestPolarIntersections(unittest.TestCase):
         thetas = sorted(p["params"]["u"]["theta"] for p in report["points"])
         self.assertAlmostEqual(thetas[0], math.pi / 3, places=6)
         self.assertAlmostEqual(thetas[1], 5 * math.pi / 3, places=6)
+
+    def test_lemniscate_meets_curves_through_the_pole_once_there(self) -> None:
+        # The lobes of r = sqrt(4cos(2θ)) reach the pole at domain edges, with half the digits
+        lemniscate = PolarFunction("sqrt(4cos(2θ))", name="L")
+        x_axis = find_object_intersections(_shape(lemniscate), line_shape("h", (-3.0, 0.0), (3.0, 0.0)))
+        self.assertEqual(_points(x_axis), [(-2.0, 0.0), (0.0, 0.0), (2.0, 0.0)])
+        diagonal = find_object_intersections(_shape(lemniscate), line_shape("s", (-3.0, -3.0), (3.0, 3.0)))
+        self.assertEqual(_points(diagonal), [(0.0, 0.0)])
+        parabola = find_object_intersections(_shape(lemniscate), FunctionShape("f", lambda x: x * x, -5.0, 5.0))
+        self.assertEqual(len(parabola["points"]), 3)
+        self.assertIn((0.0, 0.0), _points(parabola))
 
     def test_a_circle_traced_twice_gives_each_point_once(self) -> None:
         circle = PolarFunction("2cos(θ)", name="k")  # over [0, 2π] the circle is traced twice

@@ -3205,6 +3205,75 @@
       "category": "confusion_probe",
       "difficulty": "hard",
       "cluster": "convert_cluster"
+    },
+    {
+      "id": "polar_grid_not_curve",
+      "query": "Switch to a polar grid and plot y = sin(x).",
+      "expected_any": [
+        "set_coordinate_system",
+        "draw_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_coordinates_point_not_curve",
+      "query": "Plot (2, π/3) in polar coordinates.",
+      "expected_any": [
+        "set_coordinate_system",
+        "convert_coordinates",
+        "create_point"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "convert_cluster"
+    },
+    {
+      "id": "polar_recolor_by_shape_name",
+      "query": "Make the cardioid blue.",
+      "expected_any": [
+        "update_polar_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_update",
+      "difficulty": "medium",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_rose_curve_words",
+      "query": "Draw a rose curve with five petals.",
+      "expected_any": [
+        "draw_polar_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_vector_not_curve",
+      "query": "Draw a vector with magnitude r = 5 at angle θ = 30°.",
+      "expected_any": [
+        "create_vector"
+      ],
+      "forbidden": [
+        "search_tools",
+        "draw_polar_function"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "geometry_cluster"
     }
   ]
 }

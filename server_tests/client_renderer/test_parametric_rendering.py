@@ -99,8 +99,6 @@ class TestParametricPlanSignature(unittest.TestCase):
         self.assertNotEqual(self._signature(mapper), before)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class TestDomainEdges(unittest.TestCase):
@@ -162,3 +160,7 @@ class TestDomainEdges(unittest.TestCase):
         start = paths[0][0]
         expected = mapper.math_to_screen(1.0, 0.0)
         self.assertLess(math.hypot(start[0] - expected[0], start[1] - expected[1]), 1e-3)
+
+
+if __name__ == "__main__":
+    unittest.main()
