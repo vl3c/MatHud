@@ -477,6 +477,26 @@ class Canvas2DRenderer(RendererProtocol):
             return f"{drawable_name}:{identifier}"
         return f"{drawable_name}:{id(drawable)}"
 
+    def _fixed_signature_view(
+        self, drawable: Any, coordinate_mapper: Any, drawable_name: Optional[str]
+    ) -> Tuple[Any, ...]:
+        """The zoom and canvas size a fixed-signature drawable's plan depends on (none when FIXED).
+
+        A cobweb resamples its curve on zoom (ViewMode.SCALE); pans reproject its plan.
+        """
+        name = drawable_name if drawable_name is not None else self._resolve_drawable_name(drawable)
+        if view_mode_for(name) == ViewMode.FIXED or coordinate_mapper is None:
+            return ()
+        scale = getattr(coordinate_mapper, "scale_factor", None)
+        width = getattr(coordinate_mapper, "canvas_width", None)
+        height = getattr(coordinate_mapper, "canvas_height", None)
+        return (
+            "view",
+            None if scale is None else round(float(scale), 4),
+            None if width is None else round(float(width), 2),
+            None if height is None else round(float(height), 2),
+        )
+
     def _compute_drawable_signature(
         self, drawable: Any, coordinate_mapper: Any = None, drawable_name: Optional[str] = None
     ) -> Tuple[Any, ...]:
@@ -484,7 +504,8 @@ class Canvas2DRenderer(RendererProtocol):
         if callable(fixed_signature):
             # A drawable that never changes once built (the data plots) gives a fixed token,
             # so a plot of 1000 values is not serialized and walked every frame.
-            return ("fixed",) + tuple(fixed_signature())
+            signature = ("fixed",) + tuple(fixed_signature())
+            return signature + self._fixed_signature_view(drawable, coordinate_mapper, drawable_name)
         if drawable_name is None:
             drawable_name = self._resolve_drawable_name(drawable)
         state_func = getattr(drawable, "get_state", None)
