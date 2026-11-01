@@ -2,8 +2,8 @@
 Intersection Manager for MatHud
 
 Finds where two canvas objects meet (the find_intersections tool): segments, vectors,
-circles, circle arcs, ellipses, functions, piecewise functions, parametric curves and
-polygons (triangles, rectangles, any polygon), in any mix. The geometry lives in
+circles, circle arcs, ellipses, functions, piecewise functions, parametric curves, polar
+curves and polygons (triangles, rectangles, any polygon), in any mix. The geometry lives in
 ``utils.object_intersections``; this manager looks the objects up by name, describes them
 as shapes, words the result for the AI and optionally places a point at each intersection
 (one undo step).
@@ -46,6 +46,7 @@ _OBJECT_KINDS: Tuple[Tuple[str, str], ...] = (
     ("Functions", "function"),
     ("PiecewiseFunctions", "piecewise_function"),
     ("ParametricFunctions", "parametric_function"),
+    ("PolarFunctions", "polar_function"),
 )
 _LINE_KINDS = ("segment", "vector")
 _FUNCTION_KINDS = ("function", "piecewise_function")
@@ -133,7 +134,7 @@ class IntersectionManager:
             match = self._find_object(name)
             if match is None:
                 raise ValueError(
-                    f"No segment, vector, circle, arc, ellipse, function, parametric curve or polygon named "
+                    f"No segment, vector, circle, arc, ellipse, function, parametric or polar curve or polygon named "
                     f"'{name}'. Points cannot be intersected."
                 )
             found.append(match)
@@ -176,6 +177,8 @@ class IntersectionManager:
             float(drawable.t_min),
             float(drawable.t_max),
             pixels_per_unit=self._pixels_per_unit(),
+            parameter_name="theta" if kind == "polar_function" else "t",
+            pole=(0.0, 0.0) if kind == "polar_function" else None,
         )
 
     @staticmethod

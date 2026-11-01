@@ -272,6 +272,14 @@ class FunctionRegistry:
             "update_parametric_function": no_op_tools.update_tool(
                 canvas, "update_parametric_function", canvas.update_parametric_function
             ),
+            # ===== POLAR FUNCTION PLOTTING =====
+            "draw_polar_function": canvas.drawable_manager.polar_function_manager.draw_polar_function,
+            "delete_polar_function": canvas.drawable_manager.polar_function_manager.delete_polar_function,
+            "update_polar_function": no_op_tools.update_tool(
+                canvas,
+                "update_polar_function",
+                canvas.drawable_manager.polar_function_manager.update_polar_function,
+            ),
             # ===== TANGENT AND NORMAL LINES =====
             "draw_tangent_line": canvas.create_tangent_line,
             "draw_normal_line": canvas.create_normal_line,
@@ -328,6 +336,9 @@ class FunctionRegistry:
             # ===== PLOT OPERATIONS =====
             "plot_distribution": canvas.plot_distribution,
             "plot_bars": canvas.plot_bars,
+            "plot_histogram": canvas.drawable_manager.data_plot_manager.plot_histogram,
+            "plot_box": canvas.drawable_manager.data_plot_manager.plot_box,
+            "plot_scatter": canvas.drawable_manager.data_plot_manager.plot_scatter,
             "delete_plot": canvas.delete_plot,
             "fit_regression": canvas.fit_regression,
             "compute_descriptive_statistics": compute_descriptive_statistics_tool,

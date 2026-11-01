@@ -48,7 +48,7 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
 - Hypothesis Tests and Confidence Intervals: z, t, two-sample z and t (Welch or pooled), paired t, one- and two-proportion tests with p-value, critical values and decision (`hypothesis_test`), the matching intervals (`confidence_interval`), and χ² goodness of fit and independence (`chi_squared_test`); samples as raw data or summary statistics
 - Calculus Operations: derivatives, integrals, limits
 - Complex Numbers: operations with real and imaginary components
-- Graphing Functions: plot functions, parametric equations, polar coordinates
+- Graphing Functions: plot functions, piecewise functions, parametric curves x(t), y(t) and polar curves r(θ) (`drawables/polar_function.py`, drawn by the parametric renderer, which ends a path where the curve's domain ends between samples), and switch to a polar grid
 - Geometric Calculations: distance, angle, area, volume, intersections
 - Coordinate Conversion: rectangular to polar and polar to rectangular transformations
 - Equation Solving: linear equations, quadratic equations, systems of equations (two-equation x/y systems report every intersection, found by substitution with numeric root checks), numeric solving for transcendental/nonlinear systems via multi-start Newton-Raphson (Gauss-Newton or minimum-norm steps for over/underdetermined systems)
@@ -266,6 +266,10 @@ static/client/
 │   ├── continuous_plot.py             # Function-based distribution plots
 │   ├── discrete_plot.py               # Bar-based distribution plots
 │   ├── bars_plot.py                   # Custom bar chart visualizations
+│   ├── data_plot.py                   # Base of the self-drawing data plots
+│   ├── histogram_plot.py              # Histogram of a data list (binned)
+│   ├── box_plot.py                    # Horizontal box-and-whisker plot
+│   ├── scatter_plot.py                # Scatter plot of (x, y) pairs
 │   ├── bar.py                         # Bar chart rectangle elements
 │   ├── attached_label.py              # Labels embedded in other drawables
 │   └── label_render_mode.py           # Label rendering configuration (world/screen-offset)
@@ -313,6 +317,7 @@ static/client/
 │   ├── graph_manager.py               # Graph and tree creation/deletion + state capture
 │   ├── bar_manager.py                 # Bar chart element management
 │   ├── statistics_manager.py          # Distribution and regression plotting
+│   ├── data_plot_manager.py           # plot_histogram, plot_box, plot_scatter
 │   └── polygon_type.py                # Polygon type enumeration
 ├── utils/                             # Utility modules
 │   ├── math_utils.py                  # Mathematical utility functions (the CAS tools ask the server's SymPy)

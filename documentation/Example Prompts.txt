@@ -41,6 +41,11 @@ Run a chi-square test of independence on the table [[762, 327, 468], [484, 239, 
 Goodness of fit: observed 89, 37, 30, 28, 2 against probabilities 0.40, 0.20, 0.20, 0.19, 0.01.
 Find the p-value for t = 2.1 with 15 degrees of freedom, two-tailed.
 Plot a bar chart named Poll with values [10, 20, 5], labels below ["A", "B", "C"], labels above ["10", "20", "5"], bar_width 2.0, bar_spacing 0.5, fill color "#222", fill opacity 0.5, stroke color "#111". Zoom so everything is visible.
+Draw a histogram of the test scores 55, 62, 70, 71, 78, 85, 90, 90 with bins of width 10 starting at 50.
+Make a density histogram of these reaction times in seconds and overlay a normal curve with the same mean and standard deviation: 0.8, 1.1, 1.2, 1.4, 1.5, 1.5, 1.7, 1.9, 2.2, 2.6.
+Make a box plot of the waiting times 4, 6, 6, 7, 9, 10, 12, 40 and tell me whether any are outliers.
+Compare class A (60, 65, 70, 72, 80, 95) and class B (55, 58, 62, 75, 77, 78) with box plots.
+Make a scatter plot of hours studied 1, 2, 3, 4, 5 against scores 52, 60, 71, 80, 86, then add a linear trend line without extra points.
 
 # Parametric Curves
 Draw a parametric circle with x(t) = cos(t) and y(t) = sin(t) from t=0 to t=2*pi.
@@ -51,6 +56,19 @@ Plot a cardioid using x(t) = (1-cos(t))*cos(t) and y(t) = (1-cos(t))*sin(t).
 Create a figure-eight curve (lemniscate) with x(t) = cos(t)/(1+sin(t)^2) and y(t) = sin(t)*cos(t)/(1+sin(t)^2).
 Update the parametric function named "Circle" to use a blue color.
 Delete the parametric function named "Spiral".
+
+# Polar Curves
+Plot the cardioid r = 1 + cos(θ).
+Draw the rose r = 2*sin(3*θ) in red.
+Plot the spiral r = θ for θ from 0 to 6*pi.
+Draw the lemniscate r = sqrt(4*cos(2*θ)).
+Plot r = cos(θ/2) over its full period (θ from 0 to 4*pi).
+Plot the limaçon r = 1 + 2*cos(theta) and switch to a polar grid.
+Draw the cardioid r = 1 + cos(θ) and the circle r = 3*cos(θ), and find where they meet.
+Draw the tangent to the polar curve f_polar at θ = pi/4.
+Find the area enclosed by r = 1 + cos(θ) (integrate 0.5*r^2 over θ from 0 to 2*pi).
+Change the θ range of f_polar to 0 to 4*pi and make it blue.
+Delete the polar curve f_polar.
 
 # Tangent and Normal Lines
 Plot y = x^2 and draw its tangent line at x = 2.

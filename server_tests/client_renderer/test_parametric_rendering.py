@@ -99,5 +99,66 @@ class TestParametricPlanSignature(unittest.TestCase):
         self.assertNotEqual(self._signature(mapper), before)
 
 
+class TestDomainEdges(unittest.TestCase):
+    """Paths end where the curve's domain ends between two samples, not at the last sample."""
+
+    def _paths(self, func: Any, mapper: CoordinateMapper) -> List[List[Tuple[float, float]]]:
+        return [list(path) for path in ParametricFunctionRenderable(func, mapper).build_screen_paths().paths]
+
+    def test_lemniscate_lobes_reach_the_pole(self) -> None:
+        from drawables.polar_function import PolarFunction
+
+        mapper = _make_mapper()
+        pole = mapper.math_to_screen(0.0, 0.0)
+        # (r(θ), θ range, path ends at the pole: one per domain edge inside the range)
+        cases = (
+            ("sqrt(9cos(2θ))", (0.0, 2 * math.pi), 4),
+            ("sqrt(cos(2θ))", (0.0, 6.283), 4),
+            ("3sqrt(sin(2θ))", (0.1, 3.3), 2),
+        )
+        for r_text, (theta_min, theta_max), edges in cases:
+            with self.subTest(r=r_text, theta_max=theta_max):
+                curve = PolarFunction(r_text, theta_min=theta_min, theta_max=theta_max)
+                ends = [end for path in self._paths(curve, mapper) for end in (path[0], path[-1])]
+                at_pole = [end for end in ends if math.hypot(end[0] - pole[0], end[1] - pole[1]) < 1.0]
+                self.assertEqual(len(at_pole), edges, ends)
+
+    def test_a_pole_of_r_is_not_joined_to_infinity(self) -> None:
+        from drawables.polar_function import PolarFunction
+
+        # A parabola r = 2/(1 - cos θ): r is infinite at θ = 0 and 2π, the range's ends
+        mapper = _make_mapper()
+        paths = self._paths(PolarFunction("2/(1 - cos(θ))"), mapper)
+        self.assertEqual(len(paths), 1)
+        for x, y in paths[0]:
+            self.assertTrue(math.isfinite(x) and math.isfinite(y))
+            self.assertLess(abs(x), 1e7)
+            self.assertLess(abs(y), 1e7)
+
+    def test_hyperbola_branches_are_not_joined(self) -> None:
+        from drawables.polar_function import PolarFunction
+
+        # r = 2/(1 - 2cos θ): r changes sign through infinity at θ = ±π/3, two branches
+        mapper = _make_mapper()
+        paths = self._paths(PolarFunction("2/(1 - 2cos(θ))"), mapper)
+        width, height = mapper.canvas_width, mapper.canvas_height
+        self.assertGreaterEqual(len(paths), 2)
+        for path in paths:
+            for (x1, y1), (x2, y2) in zip(path, path[1:]):
+                # A step may run along a branch off screen, never across the screen between branches
+                self.assertFalse(min(x1, x2) < 0 and max(x1, x2) > width, ((x1, y1), (x2, y2)))
+                self.assertFalse(min(y1, y2) < 0 and max(y1, y2) > height, ((x1, y1), (x2, y2)))
+
+    def test_removable_gap_at_the_range_start_is_closed(self) -> None:
+        # x(t) = sin(t)/t is undefined only at t = 0, the first sample
+        func = _parametric(lambda t: math.sin(t) / t, lambda t: t, 0.0, 1.0)
+        mapper = _make_mapper()
+        paths = self._paths(func, mapper)
+        self.assertEqual(len(paths), 1)
+        start = paths[0][0]
+        expected = mapper.math_to_screen(1.0, 0.0)
+        self.assertLess(math.hypot(start[0] - expected[0], start[1] - expected[1]), 1e-3)
+
+
 if __name__ == "__main__":
     unittest.main()

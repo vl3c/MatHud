@@ -406,6 +406,11 @@ class DrawablesContainer:
         return self.get_by_class_name("ParametricFunction")
 
     @property
+    def PolarFunctions(self) -> List["Drawable"]:
+        """Get all PolarFunction objects."""
+        return self.get_by_class_name("PolarFunction")
+
+    @property
     def Labels(self) -> List["Drawable"]:
         """Get all Label objects."""
         return self.get_by_class_name("Label")

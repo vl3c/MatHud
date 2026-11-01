@@ -1245,7 +1245,12 @@ _HELPERS: Dict[str, _HelperEntry] = {
     "Function": _HelperEntry(shared.render_function_helper, ViewMode.SCALE_BUCKETED_OFFSET),
     "PiecewiseFunction": _HelperEntry(shared.render_function_helper, ViewMode.SCALE_BUCKETED_OFFSET),
     "ParametricFunction": _HelperEntry(shared.render_parametric_function_helper, ViewMode.SCALE),
+    # Polar curves expose the parametric interface (evaluate, t_min, t_max), so the same helper draws them
+    "PolarFunction": _HelperEntry(shared.render_parametric_function_helper, ViewMode.SCALE),
     "Bar": _HelperEntry(shared.render_bar_helper),
+    "HistogramPlot": _HelperEntry(shared.render_histogram_plot_helper),
+    "BoxPlot": _HelperEntry(shared.render_box_plot_helper),
+    "ScatterPlot": _HelperEntry(shared.render_scatter_plot_helper),
     "FunctionsBoundedColoredArea": _HelperEntry(shared.render_functions_bounded_area_helper, ViewMode.SCALE_OFFSET),
     "FunctionSegmentBoundedColoredArea": _HelperEntry(
         shared.render_function_segment_area_helper, ViewMode.SCALE_OFFSET

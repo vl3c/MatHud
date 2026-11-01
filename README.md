@@ -35,8 +35,8 @@ The app may be rewritten in another language or stack along the way. What has to
 
 1. Draw and manipulate geometric objects (points, segments, vectors, polygons, circles, ellipses, angles) directly on the canvas.
 2. Ask the assistant to solve algebra, calculus, trigonometry, statistics, and linear algebra problems with LaTeX-formatted explanations.
-3. Plot functions, compare intersections, shade bounded regions, and translate/rotate objects to explore relationships visually.
-4. Plot statistics visualizations (probability distributions and bar charts) and compute probabilities, tails and quantiles of normal, uniform, exponential, t, χ², F, binomial, Poisson and geometric distributions; run hypothesis tests (z, t, two-sample, paired, proportion and χ² tests) and confidence intervals.
+3. Plot functions, parametric curves and polar curves r(θ), compare intersections, shade bounded regions, and translate/rotate objects to explore relationships visually.
+4. Plot statistics visualizations (probability distributions, bar charts, histograms, box plots and scatter plots) and compute probabilities, tails and quantiles of normal, uniform, exponential, t, χ², F, binomial, Poisson and geometric distributions; run hypothesis tests (z, t, two-sample, paired, proportion and χ² tests) and confidence intervals.
 5. Fit regression models to data (linear, polynomial, exponential, logarithmic, power, logistic, sinusoidal) and visualize fitted curves with R² statistics.
 6. Compute descriptive statistics (mean, median, mode, standard deviation, variance, min, max, quartiles, IQR) for any dataset.
 7. Create and analyze graph theory graphs (graphs, trees, DAGs).

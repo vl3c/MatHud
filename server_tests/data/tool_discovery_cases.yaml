@@ -2,8 +2,8 @@
   "metadata": {
     "schema_version": 1,
     "description": "Tool discovery benchmark cases for search_tools semantic routing.",
-    "expected_tool_count": 100,
-    "expected_tool_hash": "cba2b81cf20087f3b153edc8a53d05e22e49c610966c8f5225df80fe30cde292",
+    "expected_tool_count": 106,
+    "expected_tool_hash": "978d1f1db28071fbf617cac6fccd3865d2c47ca28fc07e766da99faa8b303737",
     "confusion_clusters": {
       "convert_cluster": [
         "convert",
@@ -23,6 +23,9 @@
         "plot_distribution",
         "plot_bars",
         "fit_regression",
+        "plot_histogram",
+        "plot_box",
+        "plot_scatter",
         "compute_distribution",
         "hypothesis_test",
         "confidence_interval",
@@ -2203,6 +2206,321 @@
       "difficulty": "normal"
     },
     {
+      "id": "u_plot_histogram_1",
+      "query": "Draw a histogram of these test scores: 55, 62, 70, 71, 78, 85, 90.",
+      "expected_any": [
+        "plot_histogram"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_histogram_2",
+      "query": "Bin this data into groups of width 5 and plot the frequencies: [12, 14, 19, 21, 22, 30].",
+      "expected_any": [
+        "plot_histogram"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_histogram_3",
+      "query": "Make a histogram with bars of width 10 for the heights 150, 162, 171, 168, 180.",
+      "expected_any": [
+        "plot_histogram"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_histogram_4",
+      "query": "Show the distribution of these values as a density histogram and overlay a normal curve.",
+      "expected_any": [
+        "plot_histogram",
+        "plot_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_box_1",
+      "query": "Draw a box plot of [3, 7, 8, 5, 12, 14, 21, 13, 18].",
+      "expected_any": [
+        "plot_box"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_box_2",
+      "query": "Make a box-and-whisker diagram for the waiting times 4, 6, 6, 9, 15, 40.",
+      "expected_any": [
+        "plot_box"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_box_3",
+      "query": "Show a boxplot of the median and quartiles of these marks: 40, 52, 61, 75, 88.",
+      "expected_any": [
+        "plot_box"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_box_4",
+      "query": "Compare two classes with box plots: class A 60, 70, 80 and class B 55, 65, 95.",
+      "expected_any": [
+        "plot_box"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_scatter_1",
+      "query": "Make a scatter plot of hours studied [1, 2, 3, 4] against scores [52, 60, 71, 80].",
+      "expected_any": [
+        "plot_scatter"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_scatter_2",
+      "query": "Plot these points (1,2), (2,4), (3,5), (4,4) as a scatter plot.",
+      "expected_any": [
+        "plot_scatter"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_scatter_3",
+      "query": "Show a scatterplot of temperature versus ice cream sales.",
+      "expected_any": [
+        "plot_scatter"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_stats_five_number",
+      "query": "Give me the five-number summary of 4, 8, 15, 16, 23, 42.",
+      "expected_any": [
+        "compute_descriptive_statistics"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_data_plot_regress_1",
+      "query": "Make a bar chart of the bin counts 4, 9, 6.",
+      "expected_any": [
+        "plot_bars"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_data_plot_regress_2",
+      "query": "Draw a bar graph of the histogram counts 3, 5, 2.",
+      "expected_any": [
+        "plot_bars"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_data_plot_regress_3",
+      "query": "Compute the median and quartiles, then draw a box plot.",
+      "expected_any": [
+        "compute_descriptive_statistics",
+        "plot_box"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_data_plot_regress_4",
+      "query": "Show summary statistics and a box plot for 1,2,3,4,50.",
+      "expected_any": [
+        "compute_descriptive_statistics",
+        "plot_box"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_data_plot_regress_5",
+      "query": "Plot the function inside the box from -2 to 2.",
+      "expected_any": [
+        "draw_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_stats_standard_deviation_1",
+      "query": "Standard deviation of 2, 4, 4, 4, 5, 5, 7, 9.",
+      "expected_any": [
+        "compute_descriptive_statistics"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_stats_interquartile_range_1",
+      "query": "What is the interquartile range of 3, 5, 9, 12?",
+      "expected_any": [
+        "compute_descriptive_statistics"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_stats_standard_deviation_2",
+      "query": "Find the standard deviation of the data and plot it.",
+      "expected_any": [
+        "compute_descriptive_statistics"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_stats_standard_deviation_3",
+      "query": "Find the standard deviation of the data and make a scatter plot.",
+      "expected_any": [
+        "compute_descriptive_statistics"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_distribution_normally_1",
+      "query": "The heights of students are normally distributed with mean 170 and sd 8. Plot it.",
+      "expected_any": [
+        "plot_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_distribution_normally_2",
+      "query": "The data is normally distributed with mean 0 and standard deviation 1, plot it.",
+      "expected_any": [
+        "plot_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_fit_regression_trend_line",
+      "query": "Make a scatter plot of these points, then add a linear trend line.",
+      "expected_any": [
+        "fit_regression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_draw_function_on_scatter_1",
+      "query": "Plot y = 2x + 1 on the scatter plot.",
+      "expected_any": [
+        "draw_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_draw_function_on_scatter_2",
+      "query": "Graph y = 2x + 1 on the scatterplot.",
+      "expected_any": [
+        "draw_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
       "id": "u_plot_distribution_1",
       "query": "Plot a normal distribution with mean 0 and std dev 1.",
       "expected_any": [
@@ -3197,6 +3515,315 @@
       "category": "confusion_probe",
       "difficulty": "normal",
       "cluster": "stats_cluster"
+    },
+    {
+      "id": "polar_cardioid",
+      "query": "Plot the cardioid r = 1 + cos(θ).",
+      "expected_any": [
+        "draw_polar_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "easy",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_rose",
+      "query": "Draw a four-petal rose r = cos(2θ).",
+      "expected_any": [
+        "draw_polar_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "medium",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_curve_theta_word",
+      "query": "Graph the polar curve r = 2sin(3theta) in red.",
+      "expected_any": [
+        "draw_polar_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_create",
+      "difficulty": "medium",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_spiral",
+      "query": "Plot the spiral r = θ for θ from 0 to 6π.",
+      "expected_any": [
+        "draw_polar_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_lemniscate",
+      "query": "Draw the lemniscate r^2 = 4cos(2θ).",
+      "expected_any": [
+        "draw_polar_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "medium",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_plot_words",
+      "query": "Polar plot of r = 1 - 2cos(theta).",
+      "expected_any": [
+        "draw_polar_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_on_polar_grid",
+      "query": "Switch to a polar grid and plot r = 3 + 2sin(θ).",
+      "expected_any": [
+        "draw_polar_function",
+        "set_coordinate_system"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_delete",
+      "query": "Delete the polar curve f_polar.",
+      "expected_any": [
+        "delete_polar_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_delete",
+      "difficulty": "medium",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_update_range",
+      "query": "Change the θ range of the polar curve f_polar to 0 to 4pi.",
+      "expected_any": [
+        "update_polar_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_update",
+      "difficulty": "medium",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_point_not_curve",
+      "query": "Plot the point with polar coordinates r = 2 and θ = π/3.",
+      "expected_any": [
+        "create_point",
+        "convert_coordinates"
+      ],
+      "forbidden": [
+        "search_tools",
+        "draw_polar_function"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "convert_cluster"
+    },
+    {
+      "id": "polar_convert_not_curve",
+      "query": "Convert the point r = 5, theta = 0.927 from polar to cartesian.",
+      "expected_any": [
+        "convert_coordinates"
+      ],
+      "forbidden": [
+        "search_tools",
+        "draw_polar_function"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "convert_cluster"
+    },
+    {
+      "id": "polar_grid_not_curve",
+      "query": "Switch to a polar grid and plot y = sin(x).",
+      "expected_any": [
+        "set_coordinate_system",
+        "draw_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_coordinates_point_not_curve",
+      "query": "Plot (2, π/3) in polar coordinates.",
+      "expected_any": [
+        "set_coordinate_system",
+        "convert_coordinates",
+        "create_point"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "convert_cluster"
+    },
+    {
+      "id": "polar_recolor_by_shape_name",
+      "query": "Make the cardioid blue.",
+      "expected_any": [
+        "update_polar_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_update",
+      "difficulty": "medium",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_rose_curve_words",
+      "query": "Draw a rose curve with five petals.",
+      "expected_any": [
+        "draw_polar_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_make_new_curve",
+      "query": "Make a cardioid.",
+      "expected_any": [
+        "draw_polar_function"
+      ],
+      "forbidden": [
+        "search_tools",
+        "update_polar_function"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "medium",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_make_new_curve_with_the_later",
+      "query": "Make a red cardioid at the origin.",
+      "expected_any": [
+        "draw_polar_function"
+      ],
+      "forbidden": [
+        "search_tools",
+        "update_polar_function"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_named_curve_on_polar_grid",
+      "query": "Plot a cardioid on a polar grid.",
+      "expected_any": [
+        "draw_polar_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_range_end_not_a_count",
+      "query": "Set theta max to 4 pi for the cardioid.",
+      "expected_any": [
+        "update_polar_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_update",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "parametric_cardioid_not_polar",
+      "query": "Plot a cardioid using x(t) = (1-cos(t))*cos(t) and y(t) = (1-cos(t))*sin(t).",
+      "expected_any": [
+        "draw_parametric_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "parametric_lemniscate_not_polar",
+      "query": "Create a figure-eight curve (lemniscate) with x(t) = cos(t)/(1+sin(t)^2) and y(t) = sin(t)*cos(t)/(1+sin(t)^2).",
+      "expected_any": [
+        "draw_parametric_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "parametric_ellipse_spaced",
+      "query": "Draw an ellipse parametrically: x(t) = 3*cos(t), y(t) = 2*sin(t).",
+      "expected_any": [
+        "draw_parametric_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "polar_vector_not_curve",
+      "query": "Draw a vector with magnitude r = 5 at angle θ = 30°.",
+      "expected_any": [
+        "create_vector"
+      ],
+      "forbidden": [
+        "search_tools",
+        "draw_polar_function"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "geometry_cluster"
     },
     {
       "id": "u_hypothesis_test_1",

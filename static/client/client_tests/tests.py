@@ -123,6 +123,7 @@ from .test_parametric_function import (
     TestExpressionValidatorParametric,
 )
 from .test_parametric_function_manager import TestParametricFunctionManager
+from .test_polar_function_manager import TestPolarFunctionTools
 from .test_tangent_manager import (
     TestTangentToFunction,
     TestNormalToFunction,
@@ -216,6 +217,7 @@ from .test_drawable_renderers import (
 from .test_base_drawable_manager import TestBaseDrawableManager
 from .test_point_manager import TestPointManagerUpdates
 from .test_bar_renderer import TestBarRenderer
+from .test_data_plots import TestDataPlotRendering, TestDataPlotTools
 from .test_function_renderables import (
     TestFunctionRenderable,
     TestFunctionsBoundedAreaRenderable,
@@ -522,6 +524,8 @@ class Tests:
             TestScreenOffsetLabelLayout,
             TestBarManager,
             TestBarRenderer,
+            TestDataPlotRendering,
+            TestDataPlotTools,
             TestVectorRenderer,
             TestAngleRenderer,
             TestEllipseRenderer,
@@ -655,6 +659,7 @@ class Tests:
             TestParametricFunctionDiscontinuities,
             TestExpressionValidatorParametric,
             TestParametricFunctionManager,
+            TestPolarFunctionTools,
             TestTangentToFunction,
             TestNormalToFunction,
             TestTangentToCircle,

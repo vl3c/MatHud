@@ -14,7 +14,7 @@ from typing import Set
 
 from static.functions_definitions import FUNCTIONS
 from static.tool_search_service import TOOL_CATEGORIES
-from tool_kinds import META_TOOLS, UNDOABLE_TOOLS, VALUE_TOOLS
+from tool_kinds import DRAWING_VALUE_TOOLS, META_TOOLS, UNDOABLE_TOOLS, VALUE_TOOLS
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REGISTRY_PATH = os.path.join(PROJECT_ROOT, "static", "client", "function_registry.py")
@@ -71,6 +71,9 @@ class TestToolWiring(unittest.TestCase):
         self.assertEqual([name for name, count in Counter(kinds).items() if count > 1], [])
         self.assertEqual(sorted(_defined_tools() - set(kinds)), [])
         self.assertEqual(sorted(set(kinds) - _defined_tools()), [])
+
+    def test_drawing_value_tools_are_value_tools(self) -> None:
+        self.assertEqual(sorted(set(DRAWING_VALUE_TOOLS) - set(VALUE_TOOLS)), [])
 
 
 if __name__ == "__main__":

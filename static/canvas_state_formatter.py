@@ -615,6 +615,17 @@ def _render_parametric(scene: _Scene, item: JsonDict) -> str:
     return line + _color_suffix(args) + _extras_suffix(args, handled)
 
 
+def _render_polar(scene: _Scene, item: JsonDict) -> str:
+    args = _args(item)
+    theta_min, theta_max = args.get("theta_min"), args.get("theta_max")
+    theta_range = f"θ in {_range_text(theta_min, theta_max)}"
+    if not _differs(theta_max, 2 * math.pi) and _is_number(theta_max) and not _differs(theta_min or 0, 0.0):
+        theta_range = "θ in [0, 2pi]"
+    line = f"{item.get('name', '?')} = PolarCurve(r(θ) = {format_expression(args.get('r_expression'))}, {theta_range})"
+    handled = {"r_expression", "theta_min", "theta_max", "color"}
+    return line + _color_suffix(args) + _extras_suffix(args, handled)
+
+
 def _area_style(args: Mapping[str, Any]) -> str:
     style = []
     color = args.get("color")
@@ -749,6 +760,104 @@ def _render_bars_plot(scene: _Scene, item: JsonDict) -> str:
     return line + _extras_suffix(args, handled | set(_DEFAULT_BAR_OPTIONS))
 
 
+# Data plots list their data only when it is this short; longer data is summarized.
+MAX_LISTED_DATA_VALUES = 24
+MAX_LISTED_SCATTER_PAIRS = 12
+MAX_LISTED_BIN_COUNTS = 50
+MAX_LISTED_OUTLIERS = 10
+_DATA_PLOT_HANDLED = {
+    "plot_type",
+    "data",
+    "x_data",
+    "y_data",
+    "summary",
+    "color",
+    "fill_opacity",
+    "bin_start",
+    "bin_width",
+    "bin_count",
+    "normalize",
+    "y_position",
+    "box_height",
+    "show_outliers",
+}
+_DATA_PLOT_BUCKETS = frozenset({"HistogramPlots", "BoxPlots", "ScatterPlots"})
+
+
+def _summary(args: Mapping[str, Any]) -> Mapping[str, Any]:
+    summary = args.get("summary")
+    return summary if isinstance(summary, dict) else {}
+
+
+def _numbers_text(values: Sequence[Any], limit: int, separator: str = ", ") -> str:
+    shown = separator.join(format_number(value) for value in values[:limit])
+    if len(values) > limit:
+        shown += f"{separator}... ({len(values) - limit} more)"
+    return shown
+
+
+def _data_text(values: List[Any]) -> str:
+    if len(values) <= MAX_LISTED_DATA_VALUES:
+        return "; data " + ", ".join(format_number(value) for value in values)
+    return f"; {len(values)} values, not listed"
+
+
+def _data_plot_line(item: JsonDict, head: str, args: Mapping[str, Any]) -> str:
+    line = f"{item.get('name', '?')} = {head})" + _color_suffix(args)
+    return line + _extras_suffix(args, _DATA_PLOT_HANDLED)
+
+
+def _render_histogram_plot(scene: _Scene, item: JsonDict) -> str:
+    args = _args(item)
+    data = _as_list(args.get("data"))
+    counts = _as_list(_summary(args).get("counts"))
+    head = (
+        f"Histogram(n {len(data)}; {format_number(args.get('bin_count'))} "
+        f"{'bin' if args.get('bin_count') == 1 else 'bins'} of width "
+        f"{format_number(args.get('bin_width'))} from {format_number(args.get('bin_start'))}; "
+        f"counts {_numbers_text(counts, MAX_LISTED_BIN_COUNTS, '/')}"
+    )
+    if args.get("normalize") == "density":
+        head += "; density heights"
+    excluded = _summary(args).get("excluded_count")
+    if _is_number(excluded) and excluded:
+        head += f"; {format_number(excluded)} values outside the bins"
+    return _data_plot_line(item, head + _data_text(data), args)
+
+
+def _render_box_plot(scene: _Scene, item: JsonDict) -> str:
+    args = _args(item)
+    summary = _summary(args)
+    five = ", ".join(
+        f"{label} {format_number(summary.get(key))}"
+        for label, key in (("min", "min"), ("Q1", "q1"), ("median", "median"), ("Q3", "q3"), ("max", "max"))
+    )
+    head = f"BoxPlot(n {format_number(summary.get('n'))}; {five}"
+    head += f"; whiskers {format_number(summary.get('whisker_low'))}..{format_number(summary.get('whisker_high'))}"
+    if args.get("show_outliers", True):
+        outliers = _as_list(summary.get("outliers"))
+        head += "; outliers " + (_numbers_text(outliers, MAX_LISTED_OUTLIERS) if outliers else "none")
+    else:
+        head += "; outliers not marked"
+    head += f"; at y {format_number(args.get('y_position'))}, height {format_number(args.get('box_height'))}"
+    return _data_plot_line(item, head + _data_text(_as_list(args.get("data"))), args)
+
+
+def _render_scatter_plot(scene: _Scene, item: JsonDict) -> str:
+    args = _args(item)
+    summary = _summary(args)
+    xs, ys = _as_list(args.get("x_data")), _as_list(args.get("y_data"))
+    head = (
+        f"ScatterPlot(n {len(xs)}; x {format_number(summary.get('x_min'))}..{format_number(summary.get('x_max'))}, "
+        f"y {format_number(summary.get('y_min'))}..{format_number(summary.get('y_max'))}"
+    )
+    r = summary.get("r")
+    head += f"; r {format_number(r)}" if _is_number(r) else "; r undefined"
+    if len(xs) <= MAX_LISTED_SCATTER_PAIRS:
+        head += "; points " + ", ".join(f"({format_number(x)}, {format_number(y)})" for x, y in zip(xs, ys))
+    else:
+        head += f"; {len(xs)} pairs, not listed"
+    return _data_plot_line(item, head, args)
 # Distributions whose plots draw one bar per whole value k, over [k - 1/2, k + 1/2]
 # (server_tests/test_plot_table_guards.py checks this against the distribution table).
 DISCRETE_DISTRIBUTION_TYPES: FrozenSet[str] = frozenset({"binomial", "poisson", "geometric"})
@@ -909,6 +1018,7 @@ _BUCKET_SPECS: Tuple[_BucketSpec, ...] = (
     _BucketSpec("Functions", "functions", _render_function),
     _BucketSpec("PiecewiseFunctions", "functions", _render_piecewise),
     _BucketSpec("ParametricFunctions", "functions", _render_parametric),
+    _BucketSpec("PolarFunctions", "functions", _render_polar),
     _BucketSpec("FunctionsBoundedColoredAreas", "shaded areas", _render_functions_area),
     _BucketSpec("FunctionSegmentBoundedColoredAreas", "shaded areas", _render_function_segment_area),
     _BucketSpec("SegmentsBoundedColoredAreas", "shaded areas", _render_segments_area),
@@ -920,6 +1030,9 @@ _BUCKET_SPECS: Tuple[_BucketSpec, ...] = (
     _BucketSpec("BarsPlots", "plots", _render_bars_plot),
     _BucketSpec("ContinuousPlots", "plots", _render_continuous_plot),
     _BucketSpec("DiscretePlots", "plots", _render_discrete_plot),
+    _BucketSpec("HistogramPlots", "plots", _render_histogram_plot),
+    _BucketSpec("BoxPlots", "plots", _render_box_plot),
+    _BucketSpec("ScatterPlots", "plots", _render_scatter_plot),
     _BucketSpec("Plots", "plots", _render_plot),
     _BucketSpec("Bars", "plots", _render_bar),
     _BucketSpec("Labels", "text labels", _render_label),
@@ -1258,12 +1371,23 @@ def _min_json_item(item: Mapping[str, Any], bucket: str = "") -> JsonDict:
         args.pop("visible")
     if isinstance(args.get("render_mode"), dict) and args["render_mode"].get("kind") == "world":
         args.pop("render_mode")
+    if bucket in _DATA_PLOT_BUCKETS:
+        _shorten_plot_data(args)
     entry: JsonDict = {"name": item.get("name")}
     entry.update(args)
     for key, value in item.items():
         if key not in ("name", "args", "type") and key not in _RENDER_ONLY_FIELDS and not _is_empty(value):
             entry[key] = value
     return entry
+
+
+def _shorten_plot_data(args: JsonDict) -> None:
+    """Replace a data plot's long data lists by their length (the summary stays)."""
+    limit = MAX_LISTED_SCATTER_PAIRS if "x_data" in args else MAX_LISTED_DATA_VALUES
+    for key in ("data", "x_data", "y_data"):
+        values = args.get(key)
+        if isinstance(values, list) and len(values) > limit:
+            args[key] = f"{len(values)} values, not listed"
 
 
 # --------------------------------------------------------------------------- deltas
