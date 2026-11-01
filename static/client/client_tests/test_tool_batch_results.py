@@ -293,6 +293,13 @@ class TestToolBatchUndo(_ToolBatchTestCase):
 
     def test_distribution_that_fails_after_drawing_its_curve_stays_undoable(self) -> None:
         before = self.snapshot()
+        # A bad shade is refused before anything is drawn, so fail the area itself.
+        areas = self.canvas.drawable_manager.statistics_manager.colored_area_manager
+
+        def fail_area(**_: Any) -> None:
+            raise ValueError("area failed")
+
+        areas.create_colored_area = fail_area  # type: ignore[method-assign]
 
         _, traced = self.run_batch(
             (
@@ -303,7 +310,7 @@ class TestToolBatchUndo(_ToolBatchTestCase):
                     "distribution_type": "normal",
                     "distribution_params": {"mean": 0.0, "sigma": 1.0},
                     "plot_bounds": {"left_bound": -4.0, "right_bound": 4.0},
-                    "shade_bounds": {"left_bound": 5.0, "right_bound": 6.0},
+                    "shade_bounds": {"left_bound": -1.0, "right_bound": 1.0},
                     "curve_color": None,
                     "fill_color": None,
                     "fill_opacity": None,

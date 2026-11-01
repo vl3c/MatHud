@@ -84,18 +84,21 @@ class TestPlotToolSchemas(unittest.TestCase):
 
         dist_type = _require_dict(props.get("distribution_type"), "distribution_type")
         self.assertEqual(dist_type.get("type"), "string")
-        self.assertEqual(dist_type.get("enum"), ["normal"])
+        self.assertEqual(
+            dist_type.get("enum"),
+            ["binomial", "chi_squared", "exponential", "f", "geometric", "normal", "poisson", "t", "uniform"],
+        )
 
         dist_params = _require_dict(props.get("distribution_params"), "distribution_params")
         self.assertEqual(dist_params.get("type"), ["object", "null"])
         self.assertEqual(dist_params.get("additionalProperties"), False)
         dp_props = _require_dict(dist_params.get("properties"), "distribution_params.properties")
-        self.assertEqual(dist_params.get("required"), ["mean", "sigma"])
-
-        mean = _require_dict(dp_props.get("mean"), "distribution_params.mean")
-        sigma = _require_dict(dp_props.get("sigma"), "distribution_params.sigma")
-        self.assertEqual(mean.get("type"), ["number", "null"])
-        self.assertEqual(sigma.get("type"), ["number", "null"])
+        keys = ["mean", "sigma", "lower", "upper", "rate", "df", "df2", "n", "p"]
+        self.assertEqual(dist_params.get("required"), keys)
+        self.assertEqual(list(dp_props), keys)
+        for key in keys:
+            with self.subTest(param=key):
+                self.assertEqual(_require_dict(dp_props.get(key), key).get("type"), ["number", "null"])
 
         plot_bounds = _require_dict(props.get("plot_bounds"), "plot_bounds")
         self.assertEqual(plot_bounds.get("type"), ["object", "null"])

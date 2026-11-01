@@ -333,7 +333,7 @@ class TestStatisticsManager(unittest.TestCase):
             self.canvas.plot_distribution(
                 name="BadDist",
                 representation="continuous",
-                distribution_type="poisson",
+                distribution_type="zeta_unknown",
                 distribution_params={"mean": 0.0, "sigma": 1.0},
                 plot_bounds=None,
                 shade_bounds=None,
@@ -576,7 +576,7 @@ class TestStatisticsManager(unittest.TestCase):
         plot = DiscretePlot(
             "FutureDiscrete",
             plot_type="distribution",
-            distribution_type="poisson",
+            distribution_type="zeta_unknown",
             bar_count=3,
             distribution_params={"rate": 2.0},
             bounds={"left": 0.0, "right": 3.0},
@@ -767,3 +767,93 @@ class TestStatisticsManager(unittest.TestCase):
         # A bar is as tall as the pdf at its midpoint (x = -1.5 for the first bar)
         expected = math.exp(-0.5 * 1.5 * 1.5) / math.sqrt(2.0 * math.pi)
         self.assertAlmostEqual(by_name["Tiles_bar_0"].y_top, expected, places=12)
+
+
+class TestDistributionsBeyondNormal(unittest.TestCase):
+    """The new distributions through the real Canvas: curves, bars, shading, undo and restore."""
+
+    def setUp(self) -> None:
+        self.canvas = Canvas(500, 500, draw_enabled=False)
+
+    def _plot(self, **overrides: Any) -> Dict[str, Any]:
+        args: Dict[str, Any] = {
+            "name": "P",
+            "representation": "continuous",
+            "distribution_type": "normal",
+            "distribution_params": None,
+            "plot_bounds": None,
+            "shade_bounds": None,
+            "curve_color": None,
+            "fill_color": None,
+            "fill_opacity": None,
+            "bar_count": None,
+        }
+        args.update(overrides)
+        self.canvas.archive()
+        return dict(self.canvas.plot_distribution(**args))
+
+    def _drawables(self, class_name: str) -> List[Any]:
+        return list(self.canvas.get_drawables_by_class_name(class_name))
+
+    def test_each_density_curve_evaluates_like_its_pdf(self) -> None:
+        from utils.statistics.distributions import DISTRIBUTIONS
+
+        cases = [
+            ("uniform", {"lower": -1.0, "upper": 3.0}, 0.5),
+            ("exponential", {"rate": 2.0}, 0.7),
+            ("t", {"df": 5.0}, 1.3),
+            ("chi_squared", {"df": 3.0}, 2.5),
+            ("chi_squared", {"df": 400.0}, 399.0),
+            ("f", {"df": 4.0, "df2": 9.0}, 0.9),
+        ]
+        for name, params, x in cases:
+            with self.subTest(distribution=name, params=params):
+                self.setUp()
+                result = self._plot(distribution_type=name, distribution_params=params)
+                function = [f for f in self._drawables("Function") if f.name == result["function_name"]][0]
+                spec = DISTRIBUTIONS[name]
+                want = spec.pdf(x, spec.parse_params(params))
+                self.assertLessEqual(abs(float(function.function(x)) - want), 1e-9 * want)
+
+    def test_chi_squared_with_one_degree_of_freedom_plots_from_zero(self) -> None:
+        result = self._plot(distribution_type="chi_squared", distribution_params={"df": 1.0})
+        self.assertEqual(result["bounds"]["left"], 0.0)
+        self.assertEqual(len(self._drawables("FunctionsBoundedColoredArea")), 1)
+
+    def test_binomial_bars_shading_undo_and_restore(self) -> None:
+        from workspace_manager import WorkspaceManager
+
+        result = self._plot(
+            representation="discrete",
+            distribution_type="binomial",
+            distribution_params={"n": 10, "p": 0.3},
+            shade_bounds={"left_bound": 2, "right_bound": 5},
+            fill_color="orange",
+        )
+        self.assertEqual(result["bar_count"], 11)
+        self.assertEqual(result["shaded_range"], "P(2 <= X <= 5)")
+        self.assertAlmostEqual(result["shaded_probability"], 0.8033426667, places=9)
+        bars = sorted(self._drawables("Bar"), key=lambda bar: bar.x_left)
+        fills = [bar.fill_color for bar in bars]
+        self.assertEqual(fills, ["lightgray"] * 2 + ["orange"] * 4 + ["lightgray"] * 5)
+
+        state = self.canvas.get_canvas_state()
+        if isinstance(state, dict) and "Bars" in state:
+            del state["Bars"]
+        restored = Canvas(500, 500, draw_enabled=False)
+        WorkspaceManager(restored)._restore_workspace_state(state)
+        restored_bars = sorted(restored.get_drawables_by_class_name("Bar"), key=lambda bar: bar.x_left)
+        self.assertEqual([bar.fill_color for bar in restored_bars], fills)
+        self.assertEqual([bar.y_top for bar in restored_bars], [bar.y_top for bar in bars])
+
+        self.canvas.undo()
+        self.assertEqual(self._drawables("DiscretePlot"), [])
+        self.assertEqual(self._drawables("Bar"), [])
+        self.canvas.redo()
+        self.assertEqual(len(self._drawables("Bar")), 11)
+
+    def test_poisson_drawn_as_continuous_is_bars_with_a_note(self) -> None:
+        result = self._plot(distribution_type="poisson", distribution_params={"rate": 3})
+        self.assertEqual(result["representation"], "discrete")
+        self.assertIn("drawn as bars", result["note"])
+        self.assertEqual(len(self._drawables("Bar")), result["bar_count"])

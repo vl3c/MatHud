@@ -432,7 +432,8 @@ class TestRenderTextBuckets(unittest.TestCase):
                         "plot_type": "distribution",
                         "distribution_type": "binomial",
                         "distribution_params": {"n": 4, "p": 0.5},
-                        "bounds": {"left": 0, "right": 4},
+                        "bounds": {"left": -0.5, "right": 4.5},
+                        "shade_bounds": {"left": 1, "right": None},
                         "metadata": {"bar_count": 5},
                         "bar_count": 5,
                         "bar_labels": None,
@@ -464,7 +465,7 @@ class TestRenderTextBuckets(unittest.TestCase):
             ],
         )
         self.assertIn("n1 = Distribution(normal; mean 0, sigma 1; on [-4, 4])  curve n1_pdf, fill n1_fill", text)
-        self.assertIn("b1 = DiscreteDistribution(binomial; n 4, p 0.5; on [0, 4])  5 bars", text)
+        self.assertIn("b1 = DiscreteDistribution(binomial; n 4, p 0.5; values 0..4)  5 bars  shaded [1, inf]", text)
         self.assertIn("bars = BarChart(a 1, b 2.5)  bar_width 2 labels above 1/2.5", text)
 
     def test_label_non_default_style(self) -> None:

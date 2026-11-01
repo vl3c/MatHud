@@ -36,7 +36,7 @@ The app may be rewritten in another language or stack along the way. What has to
 1. Draw and manipulate geometric objects (points, segments, vectors, polygons, circles, ellipses, angles) directly on the canvas.
 2. Ask the assistant to solve algebra, calculus, trigonometry, statistics, and linear algebra problems with LaTeX-formatted explanations.
 3. Plot functions, compare intersections, shade bounded regions, and translate/rotate objects to explore relationships visually.
-4. Plot statistics visualizations (probability distributions and bar charts).
+4. Plot statistics visualizations (probability distributions and bar charts) and compute probabilities, tails and quantiles of normal, uniform, exponential, t, χ², F, binomial, Poisson and geometric distributions.
 5. Fit regression models to data (linear, polynomial, exponential, logarithmic, power, logistic, sinusoidal) and visualize fitted curves with R² statistics.
 6. Compute descriptive statistics (mean, median, mode, standard deviation, variance, min, max, quartiles, IQR) for any dataset.
 7. Create and analyze graph theory graphs (graphs, trees, DAGs).
@@ -219,14 +219,15 @@ python scripts/benchmark_canvas_formats.py --regrade logs/canvas_format_benchmar
    6. `solve system of equations: x + y = 5, x - y = 1`
    7. `evaluate linear algebra expression with matrices A=[[1,2],[3,4]]; compute inv(A)`
    8. `plot a normal distribution with mean 0 and sigma 1, continuous, shade from -1 to 1`
-   9. `plot a bar chart with values [10,20,5] and labels ["A","B","C"]`
-   10. `fit a linear regression to x_data=[1,2,3,4,5] and y_data=[2,4,6,8,10], show points and report R²`
-   11. `compute descriptive statistics for [10, 20, 30, 40, 50]`
-   12. `create an undirected weighted graph named G1 with vertices A,B,C,D and edges A-B (1), B-C (2), A-C (4), C-D (1)`
-   13. `on graph G1, find the shortest path from A to D and highlight the edges`
-   14. `create a DAG named D1 with vertices A,B,C,D and edges A->B, A->C, B->D, C->D; then topologically sort it`
-   15. `save workspace as "demo"` / `load workspace "demo"`
-   16. `run tests`
+   9. `plot a binomial distribution with n 10 and p 0.3 and shade P(2 <= X <= 5)`
+   10. `plot a bar chart with values [10,20,5] and labels ["A","B","C"]`
+   11. `fit a linear regression to x_data=[1,2,3,4,5] and y_data=[2,4,6,8,10], show points and report R²`
+   12. `compute descriptive statistics for [10, 20, 30, 40, 50]`
+   13. `create an undirected weighted graph named G1 with vertices A,B,C,D and edges A-B (1), B-C (2), A-C (4), C-D (1)`
+   14. `on graph G1, find the shortest path from A to D and highlight the edges`
+   15. `create a DAG named D1 with vertices A,B,C,D and edges A->B, A->C, B->D, C->D; then topologically sort it`
+   16. `save workspace as "demo"` / `load workspace "demo"`
+   17. `run tests`
 4. Each finished answer ends with a muted metrics footer, e.g. `qwen3.8-27b · 4.2 s · first token 0.8 s · 38 tok/s · 2 requests · 3 tool calls`; hover it for token counts (prompt, cached, completion), the per-request breakdown and tool errors. Speeds come from llama-server `timings` or the provider's usage report, and are prefixed with `~` when estimated from the streamed text. Every model request is also logged as a `response_metrics {...}` JSON line, and `window.getMatHudLastTurnMetrics()` / `window.getMatHudTurnMetricsHistory()` return the per-turn summaries as JSON strings for benchmarking.
 
 ### 6.3 Slash Commands

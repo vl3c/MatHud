@@ -24,7 +24,7 @@ The long-term goal is a mathematical heads-up display: an AI that looks at a rea
 2. Geometry primitives: create, edit, and relate points, segments, vectors, triangles, rectangles, circles, ellipses, and angles.
 3. Mathematics: evaluate expressions, solve equations and inequalities (optionally on an interval), differentiate, integrate, check the steps of a derivation (`check_steps`), give Taylor polynomials (`taylor_polynomial`), partial fractions (`expand` with a variable) and closed forms of sums (`simplify` of `summation(term, k, a, b)`), work with complex numbers, and run statistical routines.
 4. Graph theory: create graphs, trees, DAGs; run analyses (shortest path, MST, topological sort, BFS/DFS).
-5. Statistics: plot probability distributions (normal, discrete) and bar charts; compute descriptive statistics (mean, median, mode, quartiles, etc.).
+5. Statistics: plot probability distributions (normal, uniform, exponential, t, χ², F, binomial, Poisson, geometric; shaded ranges report their probability) and bar charts; compute probabilities, tails, quantiles and moments of a distribution (`compute_distribution`); compute descriptive statistics (mean, median, mode, quartiles, etc.).
 6. Workspace operations: save, load, list, delete, import, and export named workspaces.
 
 ## Key References
@@ -144,7 +144,7 @@ Then navigate to `http://127.0.0.1:5004/` in the browser.
 16. `turn_metrics.py` aggregates per-request metrics into per-turn summaries (chat footer under the final answer; `window.getMatHudLastTurnMetrics()` / `window.getMatHudTurnMetricsHistory()` return them as JSON strings for benchmarks).
 17. `json_safe.py` converts tool results to plain JSON data (`to_json_safe`, `is_json_plain`) before they are sent back to the model; a failed Brython `json.dumps` breaks later dumps of the same objects ("Circular reference detected").
 18. `canvas_backup_manager.py` mirrors the canvas (workspace-shaped state plus the view) to `localStorage` after draws and on page hide, and `main.py` restores it on page load, so a reload keeps the canvas (not the chat).
-19. `plot_kinds.py` (`PLOT_KINDS`) has one row per plot class (saved bucket, builder, `StatisticsManager` materialize and delete methods, derived bars); the workspace restore, `delete_plot`, plot lookup and Canvas bar pruning loop over it. `utils/statistics/distributions.py` (`DISTRIBUTIONS`, `get_distribution`) has one `DistributionSpec` per `distribution_type` (parameter parsing, pdf, pdf expression, default bounds); only `normal` exists.
+19. `plot_kinds.py` (`PLOT_KINDS`) has one row per plot class (saved bucket, builder, `StatisticsManager` materialize and delete methods, derived bars); the workspace restore, `delete_plot`, plot lookup and Canvas bar pruning loop over it. `utils/statistics/distributions.py` (`DISTRIBUTIONS`, `get_distribution`) has one `DistributionSpec` per `distribution_type` (parameter parsing, pdf, cdf, tails, quantile, moments, pdf expression for continuous types, default bounds) over `utils/statistics/special_functions.py`; `distribution_tool.py` is the `compute_distribution` tool and `distribution_plot.py` the plot range, bars per value and shaded probability.
 
 ---
 
@@ -352,7 +352,7 @@ Follow this checklist when introducing a new drawable type:
 - Register the manager within `DrawableManager` and expose delegating methods.
 - Add undo/redo archiving in manager methods before mutating state.
 - Update `workspace_manager.py` to handle serialization/deserialization, and add the saved bucket to `WorkspaceManager.RESTORED_BUCKETS`.
-- A new plot kind is one `PLOT_KINDS` row in `static/client/plot_kinds.py` (builder, materialize and delete method names on `StatisticsManager`), plus its bucket in `RESTORED_BUCKETS`, a formatter spec in `static/canvas_state_formatter.py` and `cli/scenarios/geometry.PLOT_TYPES` (`server_tests/test_drawable_wiring.py`, `test_plot_kinds.py` and `test_plot_table_guards.py` check them). A new distribution is one `DISTRIBUTIONS` entry plus the `plot_distribution` enum. A kind deriving drawables other than Bars also needs the save-time Bar drop and Canvas pruning changed.
+- A new plot kind is one `PLOT_KINDS` row in `static/client/plot_kinds.py` (builder, materialize and delete method names on `StatisticsManager`), plus its bucket in `RESTORED_BUCKETS`, a formatter spec in `static/canvas_state_formatter.py` and `cli/scenarios/geometry.PLOT_TYPES` (`server_tests/test_drawable_wiring.py`, `test_plot_kinds.py` and `test_plot_table_guards.py` check them). A new distribution is one `DISTRIBUTIONS` entry plus its name in `DISTRIBUTION_TYPES` (`static/functions_definitions.py`, the enum of both distribution tools); a new parameter joins `SHARED_PARAM_NAMES` and the shared `distribution_params` schema (`test_plot_table_guards.py` checks both against the table). A kind deriving drawables other than Bars also needs the save-time Bar drop and Canvas pruning changed.
 
 ### 4. Wire the Canvas API
 - Add convenience methods on `Canvas` (create/get/delete) that delegate to the manager.

@@ -98,6 +98,7 @@ def _build_discrete(name: str, args: Dict[str, Any]) -> Plot:
         distribution_params=args.get("distribution_params", None),
         bounds=args.get("bounds", None),
         metadata=args.get("metadata", None),
+        shade_bounds=args.get("shade_bounds") if isinstance(args.get("shade_bounds"), dict) else None,
     )
 
 

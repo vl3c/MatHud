@@ -124,6 +124,7 @@ VALUE_TOOLS: Tuple[str, ...] = (
     "find_intersections",
     "fit_regression",
     "compute_descriptive_statistics",
+    "compute_distribution",
     "calculate_area",
     "convert_coordinates",
     "search_tools",
