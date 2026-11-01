@@ -48,6 +48,7 @@ _ArcSnapshot = Tuple[Any, float, float, List[Tuple[Any, float, float]]]
 _EXCLUDE_TRANSFORM: Tuple[str, ...] = (
     "Function",
     "ParametricFunction",
+    "PolarFunction",
     "PiecewiseFunction",
     "Graph",
     "UndirectedGraph",

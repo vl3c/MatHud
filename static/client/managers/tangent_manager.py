@@ -2,11 +2,12 @@
 Tangent and Normal Line Manager for MatHud
 
 Manages the creation of tangent and normal lines to curves (functions, parametric
-functions, circles, ellipses). Lines are created as standard Segment drawables.
+functions, polar functions, circles, ellipses). Lines are created as standard Segment drawables.
 
 The manager handles different curve types:
 - Function y=f(x): parameter is the x-coordinate
 - ParametricFunction x(t), y(t): parameter is the t value
+- PolarFunction r(θ): parameter is θ (it uses the parametric tangent of (r cos θ, r sin θ))
 - Circle: parameter is the angle in radians from positive x-axis
 - Ellipse: parameter is the angle in radians (parameter angle, not geometric)
 """
@@ -29,11 +30,27 @@ if TYPE_CHECKING:
     from drawables.segment import Segment
     from drawables.function import Function
     from drawables.parametric_function import ParametricFunction
+    from drawables.polar_function import PolarFunction
     from drawables.circle import Circle
     from drawables.ellipse import Ellipse
 
 # Type alias for supported curve types
-CurveType = Union["Function", "ParametricFunction", "Circle", "Ellipse"]
+CurveType = Union["Function", "ParametricFunction", "PolarFunction", "Circle", "Ellipse"]
+
+
+def _is_polar(curve: Any) -> bool:
+    return bool(getattr(curve, "get_class_name", lambda: "")() == "PolarFunction")
+
+
+def _curve_kind(curve: Any) -> str:
+    """How messages name a parametric-style curve."""
+    return "polar function" if _is_polar(curve) else "parametric function"
+
+
+def _parameter_text(curve: Any, value: float) -> str:
+    """The parameter at a point of the curve as messages give it: θ=... for a polar curve, else t=..."""
+    return f"θ={value}" if _is_polar(curve) else f"t={value}"
+
 
 # Default line segment length in math units
 DEFAULT_TANGENT_LENGTH = 4.0
@@ -99,7 +116,7 @@ class TangentManager:
     Manages tangent and normal line creation for various curve types.
 
     Creates segment drawables representing tangent or normal lines at specified
-    points on functions, parametric curves, circles, and ellipses.
+    points on functions, parametric and polar curves, circles, and ellipses.
 
     Attributes:
         canvas: Reference to the parent Canvas instance
@@ -147,7 +164,7 @@ class TangentManager:
         """
         Retrieve a curve by name from the drawables container.
 
-        Searches for functions, parametric functions, circles, and ellipses.
+        Searches for functions, parametric and polar functions, circles, and ellipses.
 
         Args:
             curve_name: Name of the curve to find
@@ -166,6 +183,10 @@ class TangentManager:
         for pfunc in self.drawables.ParametricFunctions:
             if getattr(pfunc, "name", None) == curve_name:
                 return pfunc  # type: ignore[return-value]
+
+        for polar in self.drawables.PolarFunctions:
+            if getattr(polar, "name", None) == curve_name:
+                return polar  # type: ignore[return-value]
 
         for circle in self.drawables.Circles:
             if getattr(circle, "name", None) == curve_name:
@@ -188,7 +209,7 @@ class TangentManager:
 
         Args:
             curve: The curve drawable
-            parameter: x-coord (Function), t-value (Parametric), or angle (Circle/Ellipse)
+            parameter: x-coord (Function), t-value (Parametric), θ (Polar), or angle (Circle/Ellipse)
             length: Desired length of the tangent line segment
 
         Returns:
@@ -202,7 +223,7 @@ class TangentManager:
 
         if class_name == "Function":
             return self._compute_function_tangent(curve, parameter, length)  # type: ignore[arg-type]
-        elif class_name == "ParametricFunction":
+        elif class_name in ("ParametricFunction", "PolarFunction"):
             return self._compute_parametric_tangent(curve, parameter, length)  # type: ignore[arg-type]
         elif class_name == "Circle":
             return self._compute_circle_tangent(curve, parameter, length)  # type: ignore[arg-type]
@@ -270,12 +291,11 @@ class TangentManager:
         t: float,
         length: float,
     ) -> Dict[str, Any]:
-        """Compute tangent data for parametric curve at parameter t."""
-        # Evaluate parametric function at t
+        """Compute tangent data for a parametric (or polar) curve at parameter t (θ for a polar curve)."""
         try:
             point = pfunc.evaluate(t)
         except Exception as e:
-            raise ValueError(f"Cannot evaluate parametric function at t={t}: {e}")
+            raise ValueError(f"Cannot evaluate {_curve_kind(pfunc)} at {_parameter_text(pfunc, t)}: {e}")
 
         x, y = float(point[0]), float(point[1])
 
@@ -284,7 +304,7 @@ class TangentManager:
         dy_dt = MathUtils.numerical_derivative_at(pfunc.evaluate_y, t)
 
         if dx_dt is None or dy_dt is None:
-            raise ValueError(f"Cannot compute derivatives at t={t}")
+            raise ValueError(f"Cannot compute derivatives at {_parameter_text(pfunc, t)}")
 
         direction = self._parametric_direction(pfunc, t, (x, y), (dx_dt, dy_dt))
         return _line_data((x, y), direction, length)
@@ -329,7 +349,8 @@ class TangentManager:
         if units:
             return units[0]
         raise ValueError(
-            f"'{pfunc.name}' does not move near t={t} (a stationary point), so it has no tangent direction there"
+            f"'{pfunc.name}' does not move near {_parameter_text(pfunc, t)} (a stationary point), "
+            "so it has no tangent direction there"
         )
 
     def _compute_circle_tangent(
@@ -377,7 +398,7 @@ class TangentManager:
 
         Args:
             curve: The curve drawable
-            parameter: x-coord (Function), t-value (Parametric), or angle (Circle/Ellipse)
+            parameter: x-coord (Function), t-value (Parametric), θ (Polar), or angle (Circle/Ellipse)
             length: Desired length of the normal line segment
 
         Returns:
@@ -410,8 +431,8 @@ class TangentManager:
         Create a tangent line segment to a curve at a specified point.
 
         Args:
-            curve_name: Name of the target curve (function, parametric, circle, or ellipse)
-            parameter: Location on curve (x for functions, t for parametric, angle for circle/ellipse)
+            curve_name: Name of the target curve (function, parametric, polar, circle, or ellipse)
+            parameter: Location on curve (x for functions, t for parametric, θ for polar, angle for circle/ellipse)
             name: Optional name for the created segment
             length: Total length of tangent segment (default: 4.0 math units)
             color: Display color (default: same as curve or default_color)
@@ -468,8 +489,8 @@ class TangentManager:
         The normal line is perpendicular to the tangent line at the same point.
 
         Args:
-            curve_name: Name of the target curve (function, parametric, circle, or ellipse)
-            parameter: Location on curve (x for functions, t for parametric, angle for circle/ellipse)
+            curve_name: Name of the target curve (function, parametric, polar, circle, or ellipse)
+            parameter: Location on curve (x for functions, t for parametric, θ for polar, angle for circle/ellipse)
             name: Optional name for the created segment
             length: Total length of normal segment (default: 4.0 math units)
             color: Display color (default: same as curve or default_color)

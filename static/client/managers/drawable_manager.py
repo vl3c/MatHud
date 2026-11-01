@@ -54,6 +54,7 @@ from managers.vector_manager import VectorManager
 from managers.function_manager import FunctionManager
 from managers.piecewise_function_manager import PiecewiseFunctionManager
 from managers.parametric_function_manager import ParametricFunctionManager
+from managers.polar_function_manager import PolarFunctionManager
 from managers.circle_manager import CircleManager
 from managers.ellipse_manager import EllipseManager
 from managers.polygon_manager import PolygonManager
@@ -157,6 +158,10 @@ class DrawableManager:
 
         self.parametric_function_manager: ParametricFunctionManager = ParametricFunctionManager(
             canvas, self.drawables, self.name_generator, self.dependency_manager, self.proxy
+        )
+
+        self.polar_function_manager: PolarFunctionManager = PolarFunctionManager(
+            canvas, self.drawables, self.name_generator, self.dependency_manager
         )
 
         self.circle_manager: CircleManager = CircleManager(

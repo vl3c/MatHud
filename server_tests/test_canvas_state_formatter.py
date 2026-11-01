@@ -141,6 +141,23 @@ class TestRenderTextGolden(unittest.TestCase):
         )
         self.assertEqual(render_text(load_scene("mixed_medium")), expected)
 
+    def test_polar_curves(self) -> None:
+        state = with_view(
+            PolarFunctions=[
+                {
+                    "name": "f_polar",
+                    "args": {"r_expression": "1+cos(θ)", "theta_min": 0, "theta_max": 6.283185307179586},
+                },
+                {
+                    "name": "spiral",
+                    "args": {"r_expression": "θ", "theta_min": 0, "theta_max": 18.84955592153876, "color": "red"},
+                },
+            ]
+        )
+        lines = render_text(state).splitlines()
+        self.assertIn("f_polar = PolarCurve(r(θ) = 1+cos(θ), θ in [0, 2pi])", lines)
+        self.assertIn("spiral = PolarCurve(r(θ) = θ, θ in [0, 18.8496]) color red", lines)
+
     def test_weighted_graph_edges_replace_segments(self) -> None:
         expected = "\n".join(
             [

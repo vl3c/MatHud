@@ -118,6 +118,7 @@ class WorkspaceManager:
         "Functions",
         "PiecewiseFunctions",
         "ParametricFunctions",
+        "PolarFunctions",
         "FunctionsBoundedColoredAreas",
         "SegmentsBoundedColoredAreas",
         "FunctionSegmentBoundedColoredAreas",
@@ -802,6 +803,22 @@ class WorkspaceManager:
             color=args.get("color"),
         )
 
+    def _create_polar_functions(self, state: Dict[str, Any]) -> None:
+        """Create polar curves from workspace state."""
+        if "PolarFunctions" not in state:
+            return
+        self._restore_items("PolarFunctions", state["PolarFunctions"], self._restore_polar_function)
+
+    def _restore_polar_function(self, item_state: Dict[str, Any]) -> None:
+        args = item_state.get("args", {})
+        self.canvas.drawable_manager.polar_function_manager.draw_polar_function(
+            args.get("r_expression", ""),
+            name=item_state.get("name", ""),
+            theta_min=args.get("theta_min"),
+            theta_max=args.get("theta_max"),
+            color=args.get("color"),
+        )
+
     def _create_colored_areas(self, state: Dict[str, Any]) -> None:
         """Create colored areas from workspace state."""
         handlers = self._colored_area_handlers()
@@ -1174,6 +1191,7 @@ class WorkspaceManager:
             self._create_functions,
             self._create_piecewise_functions,
             self._create_parametric_functions,
+            self._create_polar_functions,
         ]
 
     def _run_restore_steps(

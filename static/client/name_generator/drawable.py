@@ -182,6 +182,10 @@ class DrawableNameGenerator:
         """
         return self.function_generator.generate_parametric_function_name(preferred_name)
 
+    def generate_polar_function_name(self, preferred_name: Optional[str]) -> str:
+        """Generate a unique polar function name (f_polar, g_polar, ..., f1_polar), or preferred_name if free."""
+        return self.function_generator.generate_polar_function_name(preferred_name)
+
     def generate_label_name(self, preferred_name: Optional[str]) -> str:
         """Generate a unique label name, using preferred_name when provided."""
         return str(self.label_generator.generate_label_name(preferred_name))

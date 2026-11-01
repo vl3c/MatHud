@@ -615,6 +615,17 @@ def _render_parametric(scene: _Scene, item: JsonDict) -> str:
     return line + _color_suffix(args) + _extras_suffix(args, handled)
 
 
+def _render_polar(scene: _Scene, item: JsonDict) -> str:
+    args = _args(item)
+    theta_min, theta_max = args.get("theta_min"), args.get("theta_max")
+    theta_range = f"θ in {_range_text(theta_min, theta_max)}"
+    if not _differs(theta_max, 2 * math.pi) and _is_number(theta_max) and not _differs(theta_min or 0, 0.0):
+        theta_range = "θ in [0, 2pi]"
+    line = f"{item.get('name', '?')} = PolarCurve(r(θ) = {format_expression(args.get('r_expression'))}, {theta_range})"
+    handled = {"r_expression", "theta_min", "theta_max", "color"}
+    return line + _color_suffix(args) + _extras_suffix(args, handled)
+
+
 def _area_style(args: Mapping[str, Any]) -> str:
     style = []
     color = args.get("color")
@@ -889,6 +900,7 @@ _BUCKET_SPECS: Tuple[_BucketSpec, ...] = (
     _BucketSpec("Functions", "functions", _render_function),
     _BucketSpec("PiecewiseFunctions", "functions", _render_piecewise),
     _BucketSpec("ParametricFunctions", "functions", _render_parametric),
+    _BucketSpec("PolarFunctions", "functions", _render_polar),
     _BucketSpec("FunctionsBoundedColoredAreas", "shaded areas", _render_functions_area),
     _BucketSpec("FunctionSegmentBoundedColoredAreas", "shaded areas", _render_function_segment_area),
     _BucketSpec("SegmentsBoundedColoredAreas", "shaded areas", _render_segments_area),
