@@ -632,3 +632,65 @@ def test_d_by_dx_is_a_derivative(service: ToolSearchService) -> None:
 )
 def test_normal_line_and_normal_distribution(service: ToolSearchService, query: str, expected: str) -> None:
     assert _names(service, query)[0] == expected
+
+
+# Hypothesis tests, confidence intervals and chi-squared tests: matched on the raw text, because the
+# tokenizer drops "t" and "p" ("t-test", "p-value") and χ².
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("run a t-test on the data 5 6 7 8 against mean 5", "hypothesis_test"),
+        ("two sample t test", "hypothesis_test"),
+        ("paired t test before after", "hypothesis_test"),
+        ("test the hypothesis that the mean is 50", "hypothesis_test"),
+        ("1-PropZTest with x=45 n=100 p0=0.5", "hypothesis_test"),
+        ("2-SampTTest on lists 1 2 3 and 4 5 6", "hypothesis_test"),
+        ("is the coin fair? 60 heads in 100 flips, test at alpha 0.05", "hypothesis_test"),
+        ("is the difference between the two group means significant at the 5% level?", "hypothesis_test"),
+        ("compare two proportions with a test: 45 of 100 vs 30 of 100", "hypothesis_test"),
+        ("95% confidence interval for the mean", "confidence_interval"),
+        ("margin of error for a proportion", "confidence_interval"),
+        ("ZInterval with sigma 15 mean 103 n 36", "confidence_interval"),
+        ("with 95% confidence, estimate the mean weight from 12 13 14", "confidence_interval"),
+        ("χ² test for the table [[10,20],[30,40]]", "chi_squared_test"),
+        ("chi-square test of independence for this table", "chi_squared_test"),
+        ("chi-square goodness of fit test with observed 20 30 50", "chi_squared_test"),
+        ("find the p-value for t = 2.1 with 15 df, two-tailed", "compute_distribution"),
+        ("p-value for z = -1.8, left-tailed", "compute_distribution"),
+        ("critical value of t with 5 df", "compute_distribution"),
+        ("what is P(X<3) for a normal with mean 5", "compute_distribution"),
+        ("plot a chi-square distribution with 3 degrees of freedom", "plot_distribution"),
+        ("run tests", "run_tests"),
+        ("run the client tests", "run_tests"),
+        ("draw the normal to f at x = 2", "draw_normal_line"),
+        ("solve x^2 < 4 on the interval [0, 3]", "solve"),
+        ("integrate x^2 over the interval [0, 2]", "integrate"),
+    ],
+)
+def test_inference_requests(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected
+
+
+@pytest.mark.parametrize(
+    "query",
+    ["run a t-test on the data 5 6 7 8", "paired t test before after", "two sample t test"],
+)
+def test_a_t_test_is_not_the_test_suite(service: ToolSearchService, query: str) -> None:
+    assert "run_tests" not in _names(service, query)
+
+
+@pytest.mark.parametrize(
+    "query",
+    ["interval where f is increasing", "On which interval is f increasing?", "solve x^2 < 4 on the interval [0, 3]"],
+)
+def test_an_interval_of_x_is_not_a_confidence_interval(service: ToolSearchService, query: str) -> None:
+    assert "confidence_interval" not in _names(service, query)[:3]
+
+
+@pytest.mark.parametrize(
+    "query",
+    ["test if A, B, C are collinear", "round to 3 significant figures", "are these vectors linearly independent"],
+)
+def test_other_test_words_stay_away_from_inference(service: ToolSearchService, query: str) -> None:
+    names = _names(service, query)
+    assert not names or names[0] not in ("hypothesis_test", "chi_squared_test", "confidence_interval"), names
