@@ -2,8 +2,8 @@
   "metadata": {
     "schema_version": 1,
     "description": "Tool discovery benchmark cases for search_tools semantic routing.",
-    "expected_tool_count": 103,
-    "expected_tool_hash": "5f386849d8e21f7613d1462bc919de4b497739b25d6e155d81aa04f64150640e",
+    "expected_tool_count": 106,
+    "expected_tool_hash": "978d1f1db28071fbf617cac6fccd3865d2c47ca28fc07e766da99faa8b303737",
     "confusion_clusters": {
       "convert_cluster": [
         "convert",
@@ -26,7 +26,10 @@
         "plot_histogram",
         "plot_box",
         "plot_scatter",
-        "compute_distribution"
+        "compute_distribution",
+        "hypothesis_test",
+        "confidence_interval",
+        "chi_squared_test"
       ],
       "workspace_cluster": [
         "save_workspace",
@@ -3821,6 +3824,201 @@
       "category": "confusion_probe",
       "difficulty": "hard",
       "cluster": "geometry_cluster"
+    },
+    {
+      "id": "u_hypothesis_test_1",
+      "query": "Run a t-test on the data 5, 6, 7, 8 against a mean of 5.",
+      "expected_any": [
+        "hypothesis_test"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_hypothesis_test_2",
+      "query": "Test the hypothesis that the population mean is 50 at alpha = 0.05.",
+      "expected_any": [
+        "hypothesis_test"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_hypothesis_test_3",
+      "query": "Do a paired t test on these before and after scores.",
+      "expected_any": [
+        "hypothesis_test"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_hypothesis_test_4",
+      "query": "Two-sample t test: is the mean of group A different from group B?",
+      "expected_any": [
+        "hypothesis_test"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_hypothesis_test_5",
+      "query": "1-PropZTest with 45 successes out of 100 against p0 = 0.5",
+      "expected_any": [
+        "hypothesis_test"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_hypothesis_test_6",
+      "query": "Is the coin fair? 60 heads in 100 flips, test at alpha 0.05.",
+      "expected_any": [
+        "hypothesis_test"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_confidence_interval_1",
+      "query": "Give a 95% confidence interval for the mean of 12, 15, 11, 14, 13.",
+      "expected_any": [
+        "confidence_interval"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_confidence_interval_2",
+      "query": "What is the margin of error for a proportion of 45 out of 100?",
+      "expected_any": [
+        "confidence_interval"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_confidence_interval_3",
+      "query": "ZInterval with sigma 15, mean 103 and n 36",
+      "expected_any": [
+        "confidence_interval"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_chi_squared_test_1",
+      "query": "Chi-square test of independence for the table [[10, 20], [30, 40]].",
+      "expected_any": [
+        "chi_squared_test"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_chi_squared_test_2",
+      "query": "Goodness of fit test: observed 20, 30, 50 against equal expected counts.",
+      "expected_any": [
+        "chi_squared_test"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_chi_squared_test_3",
+      "query": "χ² test for the contingency table [[12, 8], [5, 15]]",
+      "expected_any": [
+        "chi_squared_test"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "c_statistic_p_value_is_distribution",
+      "query": "Find the p-value for t = 2.1 with 15 degrees of freedom, two-tailed.",
+      "expected_any": [
+        "compute_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "normal",
+      "cluster": "stats_cluster"
+    },
+    {
+      "id": "c_t_critical_value_is_distribution",
+      "query": "What is the critical value of t with 5 df at the 5% level?",
+      "expected_any": [
+        "compute_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "normal",
+      "cluster": "stats_cluster"
+    },
+    {
+      "id": "c_run_tests_not_t_test",
+      "query": "Run the client tests.",
+      "expected_any": [
+        "run_tests"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "normal"
+    },
+    {
+      "id": "c_collinear_test_not_hypothesis",
+      "query": "Test whether A, B and C are collinear.",
+      "expected_any": [
+        "inspect_relation",
+        "find_intersections"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "normal"
     }
   ]
 }

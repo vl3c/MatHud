@@ -87,6 +87,7 @@ from .test_graph_analyzer import (
 )
 from .test_graph_utils import TestGraphUtils
 from .test_statistics_distributions import TestDistributionNumericsInBrython, TestStatisticsDistributions
+from .test_inference_tools import TestInferenceToolsInBrython
 from .test_statistics_manager import TestDistributionsBeyondNormal, TestStatisticsManager
 from .test_regression import TestRegressionCanvas
 from .test_point_name_collisions import TestPointNameCollisions
@@ -594,6 +595,7 @@ class Tests:
             TestGraphUtils,
             TestStatisticsDistributions,
             TestDistributionNumericsInBrython,
+            TestInferenceToolsInBrython,
             TestStatisticsManager,
             TestDistributionsBeyondNormal,
             TestRegressionCanvas,

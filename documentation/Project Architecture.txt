@@ -45,6 +45,7 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
 - Logarithmic Functions: natural log, log base 10, log with custom base
 - Statistical Functions: mean, median, mode, standard deviation, variance
 - Probability Distributions: normal, uniform, exponential, t, χ², F, binomial, Poisson and geometric; density or P(X = x), tails, interval probabilities, quantiles and moments (`compute_distribution`), and plots with shaded ranges and their probability (`plot_distribution`)
+- Hypothesis Tests and Confidence Intervals: z, t, two-sample z and t (Welch or pooled), paired t, one- and two-proportion tests with p-value, critical values and decision (`hypothesis_test`), the matching intervals (`confidence_interval`), and χ² goodness of fit and independence (`chi_squared_test`); samples as raw data or summary statistics
 - Calculus Operations: derivatives, integrals, limits
 - Complex Numbers: operations with real and imaginary components
 - Graphing Functions: plot functions, piecewise functions, parametric curves x(t), y(t) and polar curves r(θ) (`drawables/polar_function.py`, drawn by the parametric renderer, which ends a path where the curve's domain ends between samples), and switch to a polar grid
@@ -350,7 +351,13 @@ static/client/
 │       ├── distribution_functions.py  # pdf, cdf, tails, quantiles and moments per distribution
 │       ├── distributions.py           # DISTRIBUTIONS table: one DistributionSpec per type
 │       ├── distribution_plot.py       # Drawn range, bars per value, shaded probability
-│       └── distribution_tool.py       # compute_distribution tool
+│       ├── distribution_tool.py       # compute_distribution tool
+│       ├── inference_samples.py       # Sample, alpha, level and count parsing for the inference tools
+│       ├── inference_setup.py         # Estimate, standard error and df per test or interval type
+│       ├── hypothesis_tests.py        # z, t, two-sample, paired and proportion tests
+│       ├── confidence_intervals.py    # The matching intervals
+│       ├── chi_squared_tests.py       # χ² goodness of fit and independence
+│       └── inference_tool.py          # hypothesis_test, confidence_interval, chi_squared_test tools
 ├── name_generator/                    # Automatic name generation for objects
 │   ├── base.py                        # Base name generator class
 │   ├── drawable.py                    # General drawable object name generation
