@@ -885,3 +885,24 @@ def test_inference_review_round_five(service: ToolSearchService, query: str, exp
 )
 def test_inference_review_round_six(service: ToolSearchService, query: str, expected: str) -> None:
     assert _names(service, query)[0] == expected
+
+
+# Review round 7: p and mu compared in words; P as a point, p as a p-series exponent and calculus with alpha
+# or a t-interval stay with their tools.
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("test whether p is 0.5 with 60 heads in 100 tosses", "hypothesis_test"),
+        ("test whether p equals 0.5 given 60 of 100", "hypothesis_test"),
+        ("test whether mu is 100 given x̄ = 103, s = 15, n = 50", "hypothesis_test"),
+        ("test whether p has increased from 0.4 given 52 of 100", "hypothesis_test"),
+        ("test whether p is larger than 0.5 given 60 of 100", "hypothesis_test"),
+        ("test if P is at the midpoint of AB", "construct_midpoint"),
+        ("test whether p = 2 gives a convergent p-series", "simplify"),
+        ("use the second derivative test on f(x) = x^2 - alpha x with alpha = 0.3", "derive"),
+        ("plot y = sin(alpha x) with alpha = 0.5 and test where it crosses zero", "draw_function"),
+        ("draw x(t) = t^2, y(t) = t^3 over the t-interval (-1, 1)", "draw_parametric_function"),
+    ],
+)
+def test_inference_review_round_seven(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected

@@ -173,6 +173,12 @@ _NORMAL_LINE_RE = re.compile(
 )
 # Hypothesis tests, confidence intervals and chi-squared tests (_inference_intent), matched on the
 # lowercased raw query because the tokenizer drops one-letter words ("t-test", "p-value") and χ².
+# A comparison of a parameter with a value: a symbol, or "differs from", "is at least", "has increased from".
+_PARAMETER_COMPARISON = (
+    r"(?:[<>=≠≤≥]|!=|\b(?:differs?|exceeds?|equals?|has|is)\b(?:\s+(?:greater|less|more|larger|bigger|smaller"
+    r"|higher|lower|different|equal|not|at|least|most|above|below|over|under|than|to|from|or|increased"
+    r"|decreased|changed|risen|fallen|exactly))*)\s*(?:[<>=≠≤≥]\s*)?"
+)
 _HYPOTHESIS_TEST_RE = re.compile(
     r"\b[tz][- ]?tests?\b|\bp[- ]?values?\b(?!\s+of\s+(?:these|the|those)\s+points)|\bhypothes[ie]s\b"
     r"|\bh[_ ]?0\s*(?::|=|is\b)|\bnull\s+h[_ ]?0\b|\bsignificance\s+(?:level|test)|\blevel\s+of\s+significance\b"
@@ -181,9 +187,10 @@ _HYPOTHESIS_TEST_RE = re.compile(
     r"|\b(?:2-?)?samp[tz]test\b|\b[12]-?propztest\b|\bpaired\b[^.]*\btests?\b"
     r"|\b(?:one|two|1|2)[- ]?(?:sample|proportion|prop)s?\b[^.]*\btests?\b|\bproportion\s+tests?\b"
     r"|\btest(?:s|ed)?\s+(?:whether|if|that)\s+(?:the\s+)?(?:population\s+)?(?:means?|proportions?|averages?)\b"
-    # "test whether p > 0.5", not "test whether p(x) = x^2 + 1 has real roots" or "p and q"
-    r"|\btest(?:s|ed)?\s+(?:whether|if|that)\s+(?:p|mu|μ)\s*(?:[<>=≠≤≥]|!=|\b(?:differs?|exceeds?"
-    r"|is\s+(?:greater|less|more|different|equal|not|at|above|below)))"
+    # "test whether p > 0.5" or "mu is 100": p compared with a proportion, mu with a number; not "p(x) = x^2 + 1",
+    # "p and q", "P is at the midpoint of AB" or "p = 2 gives a convergent p-series".
+    r"|\btest(?:s|ed)?\s+(?:whether|if|that)\s+(?:p\s*" + _PARAMETER_COMPARISON + r"(?:0?\.\d|[01](?![\d.])"
+    r"|\d{1,2}(?:\.\d+)?\s*%)|(?:mu|μ)\s*" + _PARAMETER_COMPARISON + r"-?\.?\d)"
     r"|\bh[_ ]?[1a]\s*:"
     r"|\btest(?:s|ed)?\b(?:[^.;?]|\.\d)*(?:\balpha\b|α)\s*(?:=|of|level)?\s*0?\.\d|(?:\balpha\b|α)\s*=?\s*0?\.\d(?:[^.;?]|\.\d)*\btest"
     r"|\btest\s+(?:the\s+|this\s+)?claim\b|\b(?:evidence|claim)\s+that\s+(?:the\s+)?(?:population\s+)?(?:mean|proportion)"
@@ -221,6 +228,11 @@ _CRITICAL_VALUE_RE = re.compile(
 # A critical value is a statistics question only next to one of these ("critical values of f" is calculus).
 _CRITICAL_CONTEXT_RE = re.compile(
     r"confiden|\balpha\b|α|\bdf\b|degrees?\s+of\s+freedom|significan|\d\s*%|\b(?:one|two|left|right|upper|lower)[- ]tail"
+)
+# Statistics words that keep a test or interval next to function notation ("the p-value of a t test, with y = ..." data).
+_STATISTICS_CONTEXT_RE = re.compile(
+    r"\bp[- ]?values?\b|\bhypothes[ie]s\b|\bh[_ ]?[01a]\b|\bnull\b|\b[tz][- ]?tests?\b|\bmeans?\b|\bproportions?\b"
+    r"|\bsamples?\b|significan|\bconfidence\b|\bmargin\s+of\s+error\b|\bci\b"
 )
 _FUNCTION_CONTEXT_RE = re.compile(r"\b[a-z]\(\s*[a-z]\s*\)|\by\s*=|\bfunction\b")
 _TEST_WORD_RE = re.compile(r"\btest(?:s|ed|ing)?\b|\bp[- ]?values?\b|\bhypothes[ie]s\b")
@@ -1198,10 +1210,16 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         if _CHI_SQUARED_TEST_RE.search(raw_lower):
             tools.add("chi_squared_test")
         elif _HYPOTHESIS_TEST_RE.search(raw_lower) and "theorem" not in raw_lower:
-            # "the critical value of t at the 5% level" names a level, not a test.
-            if not tools or _TEST_WORD_RE.search(raw_lower):
+            # "the critical value of t at the 5% level" names a level, not a test; "the second derivative
+            # test on f(x) = x^2 - alpha x with alpha = 0.3" is calculus.
+            if (not tools or _TEST_WORD_RE.search(raw_lower)) and not (
+                function and not _STATISTICS_CONTEXT_RE.search(raw_lower)
+            ):
                 tools.add("hypothesis_test")
-        if _CONFIDENCE_INTERVAL_RE.search(raw_lower):
+        if _CONFIDENCE_INTERVAL_RE.search(raw_lower) and not (function or _PARAMETRIC_RE.search(raw_lower)):
+            tools.add("confidence_interval")
+        elif _CONFIDENCE_INTERVAL_RE.search(raw_lower) and _STATISTICS_CONTEXT_RE.search(raw_lower):
+            # "draw x(t) = t^2, y(t) = t^3 over the t-interval (-1, 1)" is a parameter range.
             tools.add("confidence_interval")
         return tools
 
