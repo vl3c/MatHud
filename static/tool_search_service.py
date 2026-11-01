@@ -191,7 +191,7 @@ _POLAR_CURVE_WORD = r"(?:cardioids?|lima[cç]ons?|lemniscates?|roses?|spirals?|p
 # not as a range end ("set theta_max to 6 for the lemniscate")
 _NEW_POLAR_CURVE_RE = re.compile(
     r"\b(?:a|an|another|more|new|second)\s+(?:[\w-]+\s+){0,3}?" + _POLAR_CURVE_WORD
-    + r"|\b(?:two|three|four|five|[0-9]+)\s+(?:(?!for\b|on\b|to\b|from\b|in\b|pi\b)[\w-]+\s+)?" + _POLAR_CURVE_WORD
+    + r"|\b(?:two|three|four|five|[0-9]+)\s+(?:(?!for\b|on\b|to\b|from\b|in\b|pi\b)[\w-]+\s+){0,2}?" + _POLAR_CURVE_WORD
 )
 _EXISTING_POLAR_CURVE_RE = re.compile(
     r"\b(?:the|this|that|these|those|all|both|my|existing)\s+(?:[\w-]+\s+){0,2}?" + _POLAR_CURVE_WORD
