@@ -626,6 +626,8 @@ def test_d_by_dx_is_a_derivative(service: ToolSearchService) -> None:
         ("draw a normal curve", "plot_distribution"),
         ("shade the normal from -1 to 1", "plot_distribution"),
         ("what is P(X<3) for a normal with mean 5", "compute_distribution"),
+        ("make a binomial distribution with n=10 and p=0.5", "plot_distribution"),
+        ("put a chi-square distribution with 3 df on the canvas", "plot_distribution"),
     ],
 )
 def test_normal_line_and_normal_distribution(service: ToolSearchService, query: str, expected: str) -> None:

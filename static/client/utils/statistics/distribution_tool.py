@@ -73,6 +73,8 @@ def describe_support(spec: DistributionSpec, params: Dict[str, float]) -> str:
     if spec.discrete:
         first = _number_text(lo)
         if math.isfinite(hi):
+            if hi - lo <= 2:
+                return ", ".join(_number_text(lo + k) for k in range(int(hi - lo) + 1))
             return f"{first}, {_number_text(lo + 1)}, ..., {_number_text(hi)}"
         return f"{first}, {_number_text(lo + 1)}, {_number_text(lo + 2)}, ..."
     left = "(-inf" if math.isinf(lo) else f"[{_number_text(lo)}"

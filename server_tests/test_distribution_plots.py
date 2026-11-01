@@ -264,6 +264,20 @@ class TestContinuousDistributions(StatisticsManagerHarness):
             )
         self.assertEqual(self.functions.drawn, [])
 
+    def test_a_shade_outside_the_bars_of_a_continuous_distribution_is_refused(self) -> None:
+        with self.assertRaises(ValueError) as caught:
+            self.stats.plot_distribution(
+                **_call(
+                    distribution_type="normal",
+                    distribution_params={"mean": 0, "sigma": 1},
+                    plot_bounds={"left_bound": -3, "right_bound": 3},
+                    shade_bounds={"left_bound": 4, "right_bound": 5},
+                    bar_count=6,
+                )
+            )
+        self.assertEqual(str(caught.exception), "shade_bounds must define a non-empty interval within plot_bounds")
+        self.assertEqual(self.bar_states(), [])
+
     def test_df_2_densities_are_defined_at_zero(self) -> None:
         chi = DISTRIBUTIONS["chi_squared"].pdf_expression({"df": 2.0})  # type: ignore[misc]
         f = DISTRIBUTIONS["f"].pdf_expression({"df": 2.0, "df2": 10.0})  # type: ignore[misc]

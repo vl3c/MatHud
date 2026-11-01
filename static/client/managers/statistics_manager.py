@@ -194,6 +194,9 @@ class StatisticsManager:
                     bar_count=bar_count,
                 )
             elif rep == "discrete":
+                bar_shade = None if shade is None else (max(shade[0], drawn[0]), min(shade[1], drawn[1]))
+                if bar_shade is not None and bar_shade[0] >= bar_shade[1]:
+                    raise ValueError("shade_bounds must define a non-empty interval within plot_bounds")
                 result_payload = self._plot_distribution_discrete(
                     plot_name=plot_name,
                     distribution_type=spec.name,
@@ -205,7 +208,7 @@ class StatisticsManager:
                     fill_color=fill_color,
                     fill_opacity=fill_opacity,
                     bar_count=bar_count,
-                    shade=None if shade is None else (max(shade[0], drawn[0]), min(shade[1], drawn[1])),
+                    shade=bar_shade,
                 )
                 if shade is not None:
                     result_payload.update(shaded_probability(spec, params, shade))

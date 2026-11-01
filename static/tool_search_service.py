@@ -153,7 +153,7 @@ _PROBABILITY_WORDS = frozenset(
 )
 _PICTURE_WORDS = frozenset(
     {"plot", "draw", "graph", "sketch", "shade", "shaded", "shading", "show", "display", "visualize"}
-    | {"visualise", "picture", "curve", "bars", "histogram"}
+    | {"visualise", "picture", "curve", "bars", "histogram", "create", "make", "put", "canvas"}
 )
 # "the normal to f at x = 2", "the normal of the parabola": a normal line, not a normal distribution.
 _NORMAL_LINE_RE = re.compile(

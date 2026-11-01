@@ -63,6 +63,9 @@ class TestComputeDistribution(unittest.TestCase):
         self.assertEqual(result["P(X <= x)"], result["P(X < x)"])
         self.assertEqual(result["support"], "0, 1, 2, ...")
         self.assertEqual(_run("geometric", {"p": 0.5})["support"], "1, 2, 3, ...")
+        self.assertEqual(_run("binomial", {"n": 1, "p": 0.5})["support"], "0, 1")
+        self.assertEqual(_run("binomial", {"n": 2, "p": 0.5})["support"], "0, 1, 2")
+        self.assertEqual(_run("binomial", {"n": 3, "p": 0.5})["support"], "0, 1, ..., 3")
 
     def test_moments_only_and_undefined_moments(self) -> None:
         result = _run("f", {"df": 3, "df2": 2})
