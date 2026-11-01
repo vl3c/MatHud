@@ -1738,11 +1738,11 @@ def _snap_to_poles(found: _Found, first: Shape, second: Shape) -> None:
     """
     if not found.hits:
         return
-    poles = [
-        (shape.pole, _pole_reach(shape, shape.pole))  # type: ignore[union-attr]
-        for shape in (first, second)
-        if getattr(shape, "pole", None) is not None
-    ]
+    poles: List[Tuple[Point2, float]] = []
+    for shape in (first, second):
+        pole: Optional[Point2] = getattr(shape, "pole", None)
+        if pole is not None:
+            poles.append((pole, _pole_reach(shape, pole)))
     for hit in found.hits:
         for (px, py), reach in poles:
             if math.hypot(hit.x - px, hit.y - py) <= reach:
