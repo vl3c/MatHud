@@ -2,8 +2,8 @@
   "metadata": {
     "schema_version": 1,
     "description": "Tool discovery benchmark cases for search_tools semantic routing.",
-    "expected_tool_count": 96,
-    "expected_tool_hash": "86fe5c1c6b1c06c0b41bde2983e771aa838afa5de13b6f8ca73ab201d122d973",
+    "expected_tool_count": 99,
+    "expected_tool_hash": "b937c4fdae6953855d3f509509f18ace4201789af64a064f7f6d02fd217436a6",
     "confusion_clusters": {
       "convert_cluster": [
         "convert",
@@ -22,7 +22,10 @@
       "stats_cluster": [
         "plot_distribution",
         "plot_bars",
-        "fit_regression"
+        "fit_regression",
+        "plot_histogram",
+        "plot_box",
+        "plot_scatter"
       ],
       "workspace_cluster": [
         "save_workspace",
@@ -2191,6 +2194,151 @@
       "query": "Create a histogram-like bar plot from these grouped values.",
       "expected_any": [
         "plot_bars"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_histogram_1",
+      "query": "Draw a histogram of these test scores: 55, 62, 70, 71, 78, 85, 90.",
+      "expected_any": [
+        "plot_histogram"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_histogram_2",
+      "query": "Bin this data into groups of width 5 and plot the frequencies: [12, 14, 19, 21, 22, 30].",
+      "expected_any": [
+        "plot_histogram"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_histogram_3",
+      "query": "Make a histogram with bars of width 10 for the heights 150, 162, 171, 168, 180.",
+      "expected_any": [
+        "plot_histogram"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_histogram_4",
+      "query": "Show the distribution of these values as a density histogram and overlay a normal curve.",
+      "expected_any": [
+        "plot_histogram",
+        "plot_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_box_1",
+      "query": "Draw a box plot of [3, 7, 8, 5, 12, 14, 21, 13, 18].",
+      "expected_any": [
+        "plot_box"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_box_2",
+      "query": "Make a box-and-whisker diagram for the waiting times 4, 6, 6, 9, 15, 40.",
+      "expected_any": [
+        "plot_box"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_box_3",
+      "query": "Show a boxplot of the median and quartiles of these marks: 40, 52, 61, 75, 88.",
+      "expected_any": [
+        "plot_box"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_box_4",
+      "query": "Compare two classes with box plots: class A 60, 70, 80 and class B 55, 65, 95.",
+      "expected_any": [
+        "plot_box"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_scatter_1",
+      "query": "Make a scatter plot of hours studied [1, 2, 3, 4] against scores [52, 60, 71, 80].",
+      "expected_any": [
+        "plot_scatter"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_scatter_2",
+      "query": "Plot these points (1,2), (2,4), (3,5), (4,4) as a scatter plot.",
+      "expected_any": [
+        "plot_scatter"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_scatter_3",
+      "query": "Show a scatterplot of temperature versus ice cream sales.",
+      "expected_any": [
+        "plot_scatter"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_stats_five_number",
+      "query": "Give me the five-number summary of 4, 8, 15, 16, 23, 42.",
+      "expected_any": [
+        "compute_descriptive_statistics"
       ],
       "forbidden": [
         "search_tools"

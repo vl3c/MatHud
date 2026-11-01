@@ -105,7 +105,8 @@ _GRAPH_EDGE_WORDS = frozenset({"segment", "segments", "connect", "connected", "c
 # shapes, calculus, statistics and the coordinate system.
 _OTHER_GRAPH_WORDS = frozenset(
     {"bar", "bars", "chart", "histogram", "distribution", "normal", "gaussian", "bell", "probability"}
-    | {"scatter", "data", "regression", "line", "lines", "linear", "trend"}
+    | {"scatter", "scatterplot", "box", "boxplot", "whisker", "whiskers", "bins"}
+    | {"data", "regression", "line", "lines", "linear", "trend"}
     | {"parametric", "polar", "cartesian", "coordinate", "coordinates", "axes", "axis", "grid"}
     | {"piecewise", "inequality", "inequalities", "function", "functions", "curve", "curves", "equation"}
     | {"equations", "plot", "plotted", "parabola", "polynomial", "quadratic", "squared", "cubed"}
@@ -113,6 +114,12 @@ _OTHER_GRAPH_WORDS = frozenset(
     | {"circle", "circles", "ellipse", "ellipses", "triangle", "polygon", "arc", "angle"}
     | {"derivative", "integral", "tangent", "slope", "area"}
 )
+# Data-plot words: histograms, box plots and scatter plots; fit words send a scatter request
+# to fit_regression.
+_HISTOGRAM_WORDS = frozenset({"histogram", "histograms", "bin", "bins", "binned", "binning"})
+_BOX_PLOT_WORDS = frozenset({"boxplot", "boxplots", "whisker", "whiskers"})
+_SCATTER_WORDS = frozenset({"scatter", "scatterplot", "scatterplots"})
+_FIT_WORDS = frozenset({"fit", "fitting", "fitted", "regression", "trend", "best"})
 # Function notation such as "f(x)", "y = ...", "x^2", "x > 3", "1/x".
 _FUNCTION_NOTATION_RE = re.compile(r"\b[a-z]\(\s*[a-z]\s*\)|[=^<>/+*]")
 # "create a graph", "build graph G1", "make a new graph called net": nothing but the request.
@@ -168,6 +175,7 @@ _NOT_A_FUNCTION_WORDS = frozenset(
     | {"polygon", "polygons", "rectangle", "square", "quadrilateral", "pentagon", "hexagon"}
     | {"circle", "circles", "ellipse", "ellipses", "arc", "arcs", "angle", "angles", "label", "labels"}
     | {"bar", "bars", "chart", "histogram", "distribution", "scatter", "data", "regression"}
+    | {"scatterplot", "box", "boxplot", "whisker", "whiskers", "bins"}
     | {"parametric", "polar", "edge", "edges", "node", "nodes"}
 )
 # "connect A and B", "join the midpoints": a segment. The verb needs points to join, and
@@ -391,7 +399,8 @@ TOOL_CATEGORIES: Dict[str, CategoryEntry] = {
     },
     "statistics": {
         "tools": [
-            "plot_distribution", "plot_bars", "delete_plot",
+            "plot_distribution", "plot_bars", "plot_histogram", "plot_box",
+            "plot_scatter", "delete_plot",
             "fit_regression", "compute_descriptive_statistics",
         ],
         "keywords": [
@@ -402,6 +411,8 @@ TOOL_CATEGORIES: Dict[str, CategoryEntry] = {
             "descriptive", "stats", "average", "variance",
             # The verb "correlate" is left to the intent boost, which skips graph theory and matrices
             "correlation", "covariance", "pearson",
+            "bins", "boxplot", "whisker", "whiskers", "outlier", "outliers",
+            "scatter", "scatterplot",
         ],
     },
     "graph_theory": {
@@ -912,6 +923,22 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         return bool(token_set & _GRAPH_THEORY_ONLY_WORDS) or len(token_set & _GRAPH_THEORY_AMBIGUOUS_WORDS) >= 2
 
     @staticmethod
+    def _asks_for_histogram(token_set: set[str]) -> bool:
+        """Whether a query asks for a histogram of data, not a bar chart of grouped values
+        ("a histogram-like bar plot from these grouped values" is a bar chart)."""
+        if not token_set & _HISTOGRAM_WORDS:
+            return False
+        return not (token_set & {"bar", "bars"} and token_set & {"grouped", "like", "categories", "category"})
+
+    @staticmethod
+    def _asks_for_box_plot(token_set: set[str]) -> bool:
+        """Whether a query asks for a box plot: "boxplot", whiskers, or "box" with plot or chart
+        (a bare "box" is a rectangle)."""
+        if token_set & _BOX_PLOT_WORDS:
+            return True
+        return "box" in token_set and bool(token_set & {"plot", "plots", "chart", "diagram"})
+
+    @staticmethod
     def _apply_intent_boosts(
         query_tokens: List[str],
         scores: Dict[str, float],
@@ -948,12 +975,28 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["plot_distribution"] += 6.0
         if "normal" in token_set and not (token_set & {"line", "perpendicular"}):
             scores["plot_distribution"] += 4.0
-        if token_set & {"bar", "bars"}:
+        histogram = ToolSearchService._asks_for_histogram(token_set)
+        box_plot = ToolSearchService._asks_for_box_plot(token_set)
+        if token_set & {"bar", "bars"} and not histogram:
             scores["plot_bars"] += 6.0
+        if histogram:
+            scores["plot_histogram"] += 8.0
+        if box_plot:
+            scores["plot_box"] += 10.0
+        # A scatter plot asked for its fit or trend line is a regression ("best-fit line for this scatter data")
+        if token_set & _SCATTER_WORDS and not token_set & _FIT_WORDS:
+            scores["plot_scatter"] += 8.0
         if token_set & {"regression", "fit", "fitting"}:
             scores["fit_regression"] += 6.0
-        if token_set & {"descriptive", "stats", "statistics", "mean", "median", "stdev", "quartile", "average"}:
+        if (
+            token_set & {"descriptive", "stats", "statistics", "mean", "median", "stdev", "quartile", "average"}
+            and not box_plot
+            and not histogram
+        ):
             scores["compute_descriptive_statistics"] += 6.0
+        if {"five", "summary"} <= token_set and not box_plot:
+            # "the five-number summary of 4, 8, 15": statistics, not an expression to evaluate
+            scores["compute_descriptive_statistics"] += 8.0
         # A fit that is asked for its correlation belongs to fit_regression, whose linear fit reports r;
         # a covariance matrix is linear algebra, and correlating vertices, edges or paths is a graph
         # analysis. A lone "graph" or "tree" is a plot or data ("graph the correlation of x and y",
