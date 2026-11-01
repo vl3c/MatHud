@@ -2457,6 +2457,42 @@
       "difficulty": "normal"
     },
     {
+      "id": "u_plot_distribution_normally_1",
+      "query": "The heights of students are normally distributed with mean 170 and sd 8. Plot it.",
+      "expected_any": [
+        "plot_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_distribution_normally_2",
+      "query": "The data is normally distributed with mean 0 and standard deviation 1, plot it.",
+      "expected_any": [
+        "plot_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_fit_regression_trend_line",
+      "query": "Make a scatter plot of these points, then add a linear trend line.",
+      "expected_any": [
+        "fit_regression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
       "id": "u_plot_distribution_1",
       "query": "Plot a normal distribution with mean 0 and std dev 1.",
       "expected_any": [

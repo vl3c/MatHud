@@ -981,7 +981,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         # -- Statistics --
         if token_set & {"distribution", "gaussian", "bell"}:
             scores["plot_distribution"] += 6.0
-        if "normal" in token_set and not (token_set & {"line", "perpendicular"}):
+        if token_set & {"normal", "normally"} and not (token_set & {"line", "perpendicular"}):
             scores["plot_distribution"] += 4.0
         histogram = ToolSearchService._asks_for_histogram(token_set)
         box_plot = ToolSearchService._asks_for_box_plot(token_set)
@@ -995,7 +995,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         # A scatter plot asked for its fit or trend line is a regression ("best-fit line for this scatter data")
         if token_set & _SCATTER_WORDS and not token_set & _FIT_WORDS:
             scores["plot_scatter"] += 8.0
-        if token_set & {"regression", "fit", "fitting"}:
+        if token_set & {"regression", "fit", "fitting", "trend"}:
             scores["fit_regression"] += 6.0
         if token_set & _DESCRIPTIVE_STATISTICS_WORDS:
             scores["compute_descriptive_statistics"] += 7.0
