@@ -1,4 +1,7 @@
-"""Base class of the plots drawn from a data list: histograms, box plots and scatter plots.
+"""Base class of the plots that draw themselves from data or computed values.
+
+Histograms, box plots and scatter plots are drawn from a data list; sequence plots and
+cobweb diagrams from the terms or orbit they compute when built.
 
 Unlike the distribution and bar plots, which are records of the drawables they create, a
 data plot draws itself: it is renderable and has its own plan helper
@@ -6,7 +9,8 @@ data plot draws itself: it is renderable and has its own plan helper
 summary once, when built. Nothing changes a data plot after that (there is no update tool
 and transforms refuse plots), so a copy shares the data and summary, and
 ``render_signature`` is fixed, which keeps undo snapshots and per-frame renderer checks
-cheap for plots of up to 1000 values.
+cheap for plots of up to 1000 values. A class whose plan depends on the zoom (the cobweb,
+``ViewMode.SCALE``) gets the view added to that token by the renderers.
 """
 
 from __future__ import annotations
