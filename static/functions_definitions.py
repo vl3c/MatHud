@@ -2809,8 +2809,74 @@ FUNCTIONS: List[Dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "plot_sequence",
+            "description": "Plots a sequence u(n): one dot at (n, u(n)) for each whole n from start to end (at most 1000 terms), as a single plot object, and returns the terms (floating-point numbers). The index is always n. Explicit terms are an expression in n, such as 1/n, (-1)^n/n, 2^n or factorial(n), with initial_terms null. Recursive terms name the previous terms as u(n-1) and u(n-2) (and may use n), such as u(n-1) + u(n-2) with initial_terms [1, 1], or 0.5*u(n-1) + 1 with initial_terms [0]; initial_terms is [u(start)] when only u(n-1) is used, [u(start), u(start+1)] in that order when u(n-2) is. Give u(n) = f(u(n-1)), not u(n+1) = f(u(n)). Use numbers, not parameters (3*u(n-1), not r*u(n-1)). The orbit of an iteration x -> g(x) against n is the recursion g(u(n-1)); its cobweb is plot_cobweb. Returns plot_name, kind, start, end, terms (first_terms and last_terms beyond 50 terms), min, max and trend (increasing, decreasing, constant or neither); undefined terms are left out (undefined_at), and a recursion stops at its first undefined term (stopped_at). For the limit as n goes to infinity call limit; for a sum of terms call evaluate_expression with summation. Delete it with delete_plot.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional plot name. If null, 'sequence' (with a number when taken) is used.",
+                    },
+                    "expression": {
+                        "type": "string",
+                        "description": "u(n) in n, or in u(n-1), u(n-2) and n for a recursion, e.g. '1/n' or 'u(n-1) + u(n-2)'. A leading 'u(n) =' is allowed.",
+                    },
+                    "start": {"type": "integer", "description": "The first index n (a whole number)."},
+                    "end": {"type": "integer", "description": "The last index n, at least start."},
+                    "initial_terms": {
+                        "type": ["array", "null"],
+                        "items": {"type": "number"},
+                        "description": "For a recursion: [u(start)], or [u(start), u(start+1)] in that order when u(n-2) is used. Null for an explicit u(n).",
+                    },
+                    "color": {
+                        "type": ["string", "null"],
+                        "description": "Optional dot color. Defaults to the point color.",
+                    },
+                },
+                "required": ["name", "expression", "start", "end", "initial_terms", "color"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "plot_cobweb",
+            "description": "Iterates x(k+1) = g(x(k)) from x0 and draws its cobweb (web) diagram: the curve y = g(x), the line y = x, and the path from (x0, 0) up to the curve, across to the line, and so on, as a single plot object. g is an expression in x, such as cos(x) or 3.2*x*(1-x) (plain numbers, like 3.2, in place of parameters). steps: the iterations drawn, 1 to 500 (default 20). Returns plot_name, steps, orbit (x0, x1, ... as drawn; first and last values beyond 50) and behaviour, judged on up to 2000 iterations (iterations says how many): fixed_point (fixed_point, slope g'(x) there, stable: true when |slope| < 1), cycle (period, cycle, multiplier, stable), escapes (escaped_at), diverges (steady growth), undefined (g undefined at undefined_input, at iteration undefined_at) or none (pattern: monotone, shrinking or irregular), with a note to report. To plot the orbit against k, use plot_sequence with the recursion g(u(n-1)). Delete it with delete_plot.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional plot name. If null, 'cobweb' (with a number when taken) is used.",
+                    },
+                    "function": {
+                        "type": "string",
+                        "description": "g(x), an expression in x, e.g. 'cos(x)'. A leading 'g(x) =', 'f(x) =' or 'y =' is allowed.",
+                    },
+                    "x0": {"type": "number", "description": "The starting value x0."},
+                    "steps": {
+                        "type": ["integer", "null"],
+                        "description": "Number of iterations, 1 to 500. Null for 20.",
+                    },
+                    "color": {
+                        "type": ["string", "null"],
+                        "description": "Optional color of the web. Defaults to red.",
+                    },
+                },
+                "required": ["name", "function", "x0", "steps", "color"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "delete_plot",
-            "description": "Deletes a previously created plot by name (distribution, bar chart, histogram, box plot or scatter plot), including any underlying components (curve and filled area, or derived bars).",
+            "description": "Deletes a previously created plot by name (distribution, bar chart, histogram, box plot, scatter plot, sequence or cobweb diagram), including any underlying components (curve and filled area, or derived bars).",
             "strict": True,
             "parameters": {
                 "type": "object",
