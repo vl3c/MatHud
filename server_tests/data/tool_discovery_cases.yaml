@@ -2493,6 +2493,30 @@
       "difficulty": "normal"
     },
     {
+      "id": "u_draw_function_on_scatter_1",
+      "query": "Plot y = 2x + 1 on the scatter plot.",
+      "expected_any": [
+        "draw_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_draw_function_on_scatter_2",
+      "query": "Graph y = 2x + 1 on the scatterplot.",
+      "expected_any": [
+        "draw_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
       "id": "u_plot_distribution_1",
       "query": "Plot a normal distribution with mean 0 and std dev 1.",
       "expected_any": [

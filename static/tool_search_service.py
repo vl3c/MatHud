@@ -995,6 +995,9 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         # A scatter plot asked for its fit or trend line is a regression ("best-fit line for this scatter data")
         if token_set & _SCATTER_WORDS and not token_set & _FIT_WORDS:
             scores["plot_scatter"] += 8.0
+        # "plot y = 2x + 1 on the scatter plot": the function is drawn over the data
+        if token_set & _SCATTER_WORDS and (_FUNCTION_EQUATION_RE.search(raw_lower) or token_set & _FUNCTION_NAME_WORDS):
+            scores["draw_function"] += 4.0
         if token_set & {"regression", "fit", "fitting", "trend"}:
             scores["fit_regression"] += 6.0
         if token_set & _DESCRIPTIVE_STATISTICS_WORDS:
