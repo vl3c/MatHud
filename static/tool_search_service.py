@@ -180,7 +180,10 @@ _HYPOTHESIS_TEST_RE = re.compile(
     r"|\breject(?:s|ed|ing)?\s+(?:the\s+)?(?:null|h[_ ]?0)\b"
     r"|\b(?:2-?)?samp[tz]test\b|\b[12]-?propztest\b|\bpaired\b[^.]*\btests?\b"
     r"|\b(?:one|two|1|2)[- ]?(?:sample|proportion|prop)s?\b[^.]*\btests?\b|\bproportion\s+tests?\b"
-    r"|\btest(?:s|ed)?\s+(?:whether|if|that)\s+(?:the\s+)?(?:population\s+)?(?:means?|proportions?|averages?|p|mu|μ)\b"
+    r"|\btest(?:s|ed)?\s+(?:whether|if|that)\s+(?:the\s+)?(?:population\s+)?(?:means?|proportions?|averages?)\b"
+    # "test whether p > 0.5", not "test whether p(x) = x^2 + 1 has real roots" or "p and q"
+    r"|\btest(?:s|ed)?\s+(?:whether|if|that)\s+(?:p|mu|μ)\s*(?:[<>=≠≤≥]|!=|\b(?:differs?|exceeds?"
+    r"|is\s+(?:greater|less|more|different|equal|not|at|above|below)))"
     r"|\bh[_ ]?[1a]\s*:"
     r"|\btest(?:s|ed)?\b(?:[^.;?]|\.\d)*(?:\balpha\b|α)\s*(?:=|of|level)?\s*0?\.\d|(?:\balpha\b|α)\s*=?\s*0?\.\d(?:[^.;?]|\.\d)*\btest"
     r"|\btest\s+(?:the\s+|this\s+)?claim\b|\b(?:evidence|claim)\s+that\s+(?:the\s+)?(?:population\s+)?(?:mean|proportion)"
@@ -237,7 +240,7 @@ _SAMPLE_SIZE_RE = re.compile(
 )
 # Summary figures, or a normal-approximation test asked by name, that make a named binomial question a
 # test of data after all ("a sample of 30", "test whether the mean is 10" stay exact tails).
-_SAMPLE_SUMMARY_WORDS = frozenset({"sd", "sigma", "approximation", "proportion", "proportions"})
+_SAMPLE_SUMMARY_WORDS = frozenset({"sd", "sigma", "approximation"})
 _Z_TEST_RE = re.compile(r"\bz[- ]?tests?\b|\b1-?propztest\b|\bstandard\s+deviation\b")
 # Words that ask for the test suite even next to a test word.
 _TEST_SUITE_WORDS = frozenset({"run", "suite", "client", "server", "unit", "brython"})

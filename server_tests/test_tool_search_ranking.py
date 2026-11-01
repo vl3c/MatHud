@@ -860,3 +860,28 @@ def test_survey_size_planning_is_not_an_interval(service: ToolSearchService) -> 
 )
 def test_inference_review_round_five(service: ToolSearchService, query: str, expected: str) -> None:
     assert _names(service, query)[0] == expected
+
+
+# Review round 6: a named binomial test that mentions a proportion is an exact tail; p(x) and logic p, q are not p.
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        (
+            "a manufacturer claims the proportion of faulty bulbs is 0.05; 4 of 25 are faulty; "
+            "use a binomial test at the 5% level",
+            "compute_distribution",
+        ),
+        (
+            "in a binomial experiment the success proportion is 0.4; find the p-value of 12 or more successes in 20",
+            "compute_distribution",
+        ),
+        ("test whether p(x) = x^2 + 1 has real roots", "solve"),
+        ("test if p(x) = x^2 - 4 has a root at x = 2", "evaluate_expression"),
+        ("test whether p(t) = 3t^2 has a maximum", "find_function_features"),
+        ("test whether p and q are logically equivalent", "check_steps"),
+        ("a survey of 500 voters finds 270 support the measure; test whether p > 0.5 at alpha 0.05", "hypothesis_test"),
+        ("test whether mu exceeds 3.5 at alpha 0.05 given mean 3.8, sd 0.9, n = 40", "hypothesis_test"),
+    ],
+)
+def test_inference_review_round_six(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected
