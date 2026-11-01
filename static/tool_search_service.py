@@ -105,6 +105,10 @@ _ITS_LENGTH_RE = re.compile(r"\b(?:its|their)\s+(?:arc\s+)?(?:length|perimeter|c
 _NAMES_CURVE_RE = re.compile(
     rf"\b{_CURVE_NOUNS}|\b[yr]\s*=|\b[a-z]\s*\(\s*[a-z]\s*\)\s*=|\bx\s*\(\s*t\s*\)|\b(?:parametric|polar)\b"
 )
+# A graph of vertices and edges named or placed: "graph G", "in G1", "in the graph", "A-B-C-A"
+_NAMED_GRAPH_RE = re.compile(
+    r"\b[Gg]raph\s+[A-Z]\w*\b|\b[Ii]n\s+(?:the\s+|this\s+)?graph\b|\bin\s+G\d*\b|\b[A-Z]\s*-\s*[A-Z]\s*-\s*[A-Z]\b"
+)
 # Words for a length that, without a curve, is not arc_length's ("the length of segment AB")
 _LENGTH_WORDS = frozenset({"length", "lengths", "long", "perimeter", "circumference"})
 # "The distance travelled along (x(t), y(t))": arc length when the motion is in the plane
@@ -1088,9 +1092,14 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         return equation
 
     @staticmethod
-    def _asks_for_curve_length(raw_lower: str) -> bool:
+    def _asks_for_curve_length(token_set: Set[str], raw_query: str, raw_lower: str) -> bool:
         """Whether a query asks for the length of a curve: "arc length of y = x^2", "the length of
-        the spiral", "distance travelled by (t^2, t^3)"; not "the length of segment AB"."""
+        the spiral", "distance travelled by (t^2, t^3)"; not "the length of segment AB", nor a
+        loop, arc or path of a graph of vertices and edges ("the length of the loop in graph G")."""
+        if (token_set & (_GRAPH_STRUCTURE_WORDS | _GRAPH_THEORY_ONLY_WORDS) or _NAMED_GRAPH_RE.search(raw_query)) and not (
+            _FUNCTION_DEFINITION_RE.search(raw_lower) or _POLAR_CURVE_RE.search(raw_lower)
+        ):
+            return False
         if _CURVE_LENGTH_RE.search(raw_lower) or _CURVE_PART_LENGTH_RE.search(raw_lower):
             return True
         if _ITS_LENGTH_RE.search(raw_lower) and _NAMES_CURVE_RE.search(raw_lower):
@@ -1367,12 +1376,16 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         wants_exact = bool(token_set & {"exact", "fraction", "fractions", "radical"})
         named_at_point = wants_exact and _NAMED_FUNCTION_AT_POINT_RE.search(raw_lower) is not None
         at_point = named_at_point or _FUNCTION_AT_POINT_RE.search(raw_lower) is not None
-        curve_length = ToolSearchService._asks_for_curve_length(raw_lower)
+        curve_length = ToolSearchService._asks_for_curve_length(token_set, raw_query, raw_lower)
         exact_alongside = wants_exact and (named_at_point or curve_length or bool(token_set & _MEASUREMENT_WORDS))
         if curve_length:
             # arc_length measures it; integrate gives the exact integral of the speed
             scores["arc_length"] += 20.0
             scores["integrate"] += 12.0 if wants_exact else 1.0
+            if token_set & {"integral", "integrate", "integration", "numerical", "numerically"}:
+                # "use numerical integration to approximate the arc length of y = ...": the integral asked for
+                scores["integrate"] += 10.0
+                scores["numeric_integrate"] += 12.0
             if (
                 token_set & {"draw", "plot", "graph", "sketch"}
                 and _FUNCTION_DEFINITION_RE.search(raw_lower)

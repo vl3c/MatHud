@@ -332,6 +332,17 @@ class TestCreativePrompts:
         for query in ("what is the length of segment AB", "length of vector v", "perimeter of polygon ABCD"):
             assert "arc_length" not in _top_n(self.service, query)[:3], query
 
+    def test_loops_and_arcs_of_a_graph_stay_with_graph_tools(self) -> None:
+        """A loop, arc or perimeter of a graph of vertices and edges is not a curve's length."""
+        for query in (
+            "length of the loop in graph G",
+            "what is the length of the loop A-B-C-A in G1",
+            "the perimeter of the graph G",
+        ):
+            top = _top_n(self.service, query)
+            assert top[0] == "analyze_graph", (query, top)
+            assert "arc_length" not in top, (query, top)
+
     def test_exact_arc_length_keeps_arc_length_first(self) -> None:
         """The exact form is the integral of the speed: integrate and simplify follow arc_length."""
         top = _top_n(self.service, "exact arc length of y = x^(3/2) from 0 to 4")

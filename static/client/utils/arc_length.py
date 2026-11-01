@@ -72,6 +72,7 @@ _TURN_LIMIT = 1.0
 _COS_TURN_LIMIT = math.cos(_TURN_LIMIT)
 # A smooth arc's polyline gains a quarter as much at each halving (ratio 4)
 _RATIO_LOW = 3.0
+_QUARTER_LOW, _QUARTER_HIGH = 3.75, 4.25
 _RATIO_HIGH = 5.5
 # Extrapolation is trusted only where the gain the quartic predicts for the next halving is at
 # most this share of the last gain (a quarter on a resolved arc)
@@ -111,6 +112,8 @@ _PROBE_RATIO = 4.0
 _PROBE_START_STEP = 4
 _PROBE_STEPS = 26
 _AGREEMENT = 1e-3
+# A range narrower than this share of its bounds is refused (its points round together)
+_NARROWEST = 1e-12
 
 # Quartic through points at 0..4: its slope at each point (rows), and its value at each
 # quarter's midpoint 0.5, 1.5, 2.5 and 3.5
@@ -279,8 +282,34 @@ def _interval(ts: List[float], ps: List[Point], neighbours: _Neighbours, noise: 
         # Romberg: one, two, four and eight chords, extrapolated in h^2 and then h^4 and h^6
         a2, a4, a8 = two + gains[0] / 3.0, four + gains[1] / 3.0, eight + gains[2] / 3.0
         b4, b8 = a4 + (a4 - a2) / 15.0, a8 + (a8 - a4) / 15.0
-        return (-max(0.0, abs(b8 - b4) / 63.0 - floor), b8 + (b8 - b4) / 63.0, ts, ps, neighbours)
+        error = abs(b8 - b4) / 63.0
+        if neighbours[0] is None or neighbours[1] is None or not _quarters(gains):
+            # Where the curvature is infinite (x^(3/2) at 0, |x|^(5/3) at 0) the chords converge
+            # at a lower order than Romberg assumes, at an end of the range or inside it
+            error = max(error, _order_error(gains[1], last, 3.0), _order_error(a4 - a2, a8 - a4, 15.0))
+        return (-max(0.0, error - floor), b8 + (b8 - b4) / 63.0, ts, ps, neighbours)
     return (-max(0.0, max(last, predicted) - floor), eight + last / 3.0, ts, ps, neighbours)
+
+
+def _quarters(gains: Tuple[float, float, float]) -> bool:
+    """True when each halving gained close to a quarter of the one before, as a smooth arc's
+    chords do once the interval is short (between _QUARTER_LOW and _QUARTER_HIGH)."""
+    for coarse, fine in ((gains[0], gains[1]), (gains[1], gains[2])):
+        if fine != 0.0 and not _QUARTER_LOW <= coarse / fine <= _QUARTER_HIGH:
+            return False
+    return True
+
+
+def _order_error(coarse: float, fine: float, assumed: float) -> float:
+    """What extrapolating fine by fine/assumed misses when the gains shrink by coarse/fine rather
+    than by assumed + 1: a curve whose curvature is infinite at a point (x^(3/2) at 0, a
+    lemniscate at the pole) converges at a lower order there, which Romberg would overshoot."""
+    if fine == 0.0:
+        return 0.0
+    ratio = coarse / fine
+    if ratio <= 1.0:
+        return abs(fine)
+    return abs(fine) * abs(1.0 / (ratio - 1.0) - 1.0 / assumed)
 
 
 def _asymptotic(gains: Tuple[float, float, float], floor: float) -> bool:
@@ -645,6 +674,11 @@ def arc_length(
         lower, upper = upper, lower
     if lower == upper:
         return ArcLengthResult(length=0.0, error_estimate=0.0, evaluations=0)
+    if upper - lower <= _NARROWEST * max(abs(lower), abs(upper)):
+        raise ValueError(
+            f"The range [{_fmt(lower)}, {_fmt(upper)}] is narrower than the numbers can resolve, so its "
+            "intervals cannot be told apart. Widen the range."
+        )
 
     curve = _Curve(point, lower, upper, label, time.time() + time_limit)
     curve.defined_at(lower)

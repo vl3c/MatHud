@@ -22,10 +22,12 @@ import re
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 import compiled_expression
-from utils.arc_length import Point, arc_length_in_pieces, traced_times
+from utils.arc_length import TOLERANCE, Point, arc_length_in_pieces, traced_times
 
 # Leading "y =", "f(x) =" or "y(x) =" (one reading: the right-hand side follows)
-_FUNCTION_PREFIX = re.compile(r"^\s*(?:y|[A-Za-z]\w*\s*\(\s*x\s*\))\s*=(?!=)\s*")
+_FUNCTION_PREFIX = re.compile(r"^\s*(?:[yY]|[A-Za-z]\w*\s*\(\s*x\s*\))\s*=(?!=)\s*")
+# A plotted curve's name written as a call, as the canvas text shows functions: "f(x)", "r(θ)"
+_CALLED_NAME = re.compile(r"^(\w+)\s*\(\s*(?:x|t|θ|theta)\s*\)$")
 # Leading "x =" / "x(t) =" or "y =" / "y(t) =" of a parametric coordinate
 _COORDINATE_PREFIX = re.compile(r"^\s*([xy])\s*(?:\(\s*t\s*\))?\s*=(?!=)\s*")
 # A name glued to the variable, such as sinx or cost
@@ -44,6 +46,9 @@ _ROOT_HINT = (
 
 POLAR_DEFAULT_RANGE = (0.0, 2 * math.pi)
 PARAMETRIC_DEFAULT_RANGE = (0.0, 2 * math.pi)
+# One unit in the last place of a double, relative; and the error at which arc_length accepts a length
+_ONE_ULP = 2.0**-52
+_ACCEPTED = 20.0 * TOLERANCE
 
 
 class NamedCurve(NamedTuple):
@@ -100,6 +105,8 @@ def arc_length_tool(
         raise ValueError(message) from exc
 
     length, error = measured["length"], measured["error_estimate"]
+    bound_error = _bound_rounding_error(curve, lower, upper, lower_bound, upper_bound)
+    error += bound_error
     shown_length = _rounded(length, error)
     result: Dict[str, Any] = {
         "length": shown_length,
@@ -114,6 +121,12 @@ def arc_length_tool(
     notes: List[str] = []
     if "warning" in measured:
         result["warning"] = measured["warning"]
+    elif bound_error > 0.0 and error > _ACCEPTED * length:
+        result["warning"] = (
+            f"The length is accurate only to about {error:.1g}: the curve moves so fast at a bound that "
+            "rounding the bound to the nearest floating-point number moves the curve's end by about "
+            f"{bound_error:.1g}."
+        )
     if curve.kind != "function" and length > 0.0:
         times = traced_times(curve.point, lower, upper)
         if times > 1:
@@ -124,7 +137,8 @@ def arc_length_tool(
                 f"length: one trace (the curve's perimeter) is {result['length_of_one_trace']}; the full "
                 "length is the distance travelled along it."
             )
-    outside = _outside_own_range(curve, lower, upper)
+    # Only a plotted curve has a range of its own; an expression's default range is not one
+    outside = _outside_own_range(curve, lower, upper) if _filled(curve_name) else None
     if outside:
         notes.append(outside)
     if notes:
@@ -164,7 +178,7 @@ def _read_curve(
     if _filled(curve_name):
         if resolve is None:
             raise ValueError("Curves can be measured by name only on the canvas.")
-        return resolve(str(curve_name).strip())
+        return _resolve_name(str(curve_name).strip(), resolve)
     if _filled(function_string):
         return _function_curve(str(function_string))
     if _filled(r_expression):
@@ -207,6 +221,17 @@ def _parametric_curve(x_text: str, y_text: str) -> NamedCurve:
         (),
         f"(x(t), y(t)) = ({x_source.strip()}, {y_source.strip()})",
     )
+
+
+def _resolve_name(name: str, resolve: Resolver) -> NamedCurve:
+    """The plotted curve called name; "f(x)", as the canvas text shows a function, is f."""
+    try:
+        return resolve(name)
+    except ValueError:
+        called = _CALLED_NAME.match(name)
+        if called is None:
+            raise
+        return resolve(called.group(1))
 
 
 def _strip_coordinate(text: str, coordinate: str) -> str:
@@ -316,6 +341,40 @@ def _refuse_asymptotes(curve: NamedCurve, lower: float, upper: float) -> None:
                 f"{curve.description} has a vertical asymptote at {_VARIABLE[curve.kind]} = {location:.6g}, inside "
                 f"[{lower:.6g}, {upper:.6g}], so its length there is infinite. Measure each side separately."
             )
+
+
+def _bound_rounding_error(curve: NamedCurve, lower: float, upper: float, lower_bound: Any, upper_bound: Any) -> float:
+    """How far the curve's ends move when a rounded bound (pi/4, a default 2π) moves by one unit
+    in its last place: next to zero for most curves, but r = sqrt(cos(2θ)) at θ = pi/4 ends
+    about 1e-8 away from the pole it reaches at the exact π/4."""
+    given = [_number_as_given(lower_bound), _number_as_given(upper_bound)]
+    total = 0.0
+    for bound, inward in ((lower, 1.0), (upper, -1.0)):
+        if bound == math.floor(bound) or bound in given:
+            continue  # a whole number, or a number as the model gave it, is the bound meant
+        here, there = _point_or_none(curve, bound), _point_or_none(curve, bound + inward * abs(bound) * _ONE_ULP)
+        if here is not None and there is not None:
+            total += math.hypot(here[0] - there[0], here[1] - there[1])
+    return total if math.isfinite(total) else 0.0
+
+
+def _number_as_given(value: Any) -> Optional[float]:
+    """The bound when the model gave it as a number (or a number's text), else None."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        return float(str(value))
+    except ValueError:
+        return None
+
+
+def _point_or_none(curve: NamedCurve, parameter: float) -> Optional[Point]:
+    try:
+        return curve.point(parameter)
+    except Exception:
+        return None
 
 
 def _outside_own_range(curve: NamedCurve, lower: float, upper: float) -> Optional[str]:

@@ -36,6 +36,11 @@ def _reference(x: Callable[[Any], Any], y: Callable[[Any], Any], a: float, b: fl
     return float(sum(mpmath.quad(speed, [lo, hi]) for lo, hi in zip(edges, edges[1:])))
 
 
+def _from_speed(speed: Callable[[Any], Any], edges: List[float]) -> float:
+    """The integral of a speed given in closed form, over consecutive edges."""
+    return float(sum(mpmath.quad(speed, [lo, hi]) for lo, hi in zip(edges, edges[1:])))
+
+
 def _graph(f: Callable[[Any], Any], a: float, b: float, cuts: List[float] = []) -> float:
     return _reference(lambda s: s, f, a, b, cuts)
 
@@ -49,8 +54,8 @@ class ArcLengthCase(unittest.TestCase):
         """The length matches to digits_required significant digits and the estimate covers the true error."""
         error = abs(result["length"] - expected)
         self.assertLessEqual(error, 10 ** (-digits_required) * max(1.0, abs(expected)), result)
-        # The length is rounded to what the estimate supports: allow half a unit of that rounding
-        self.assertLessEqual(error, 2 * result["error_estimate"] + 1e-12 * max(1.0, abs(expected)), result)
+        # The estimate covers the rounding of the length shown; allow only the reference's own noise
+        self.assertLessEqual(error, result["error_estimate"] + 1e-15 * max(1.0, abs(expected)), result)
 
     def assertRefused(self, fragment: str, **arguments: Any) -> str:
         with self.assertRaises(ValueError) as caught:
@@ -103,6 +108,29 @@ class TestFunctionLengths(ArcLengthCase):
     def test_textbook_cusp_two_thirds_power(self) -> None:
         expected = _graph(lambda x: mpmath.power(abs(x), mpmath.mpf(2) / 3), -1, 8, [0])
         self.assertLength(arc_length_tool(function_string="cbrt(x)^2", lower_bound=-1, upper_bound=8), expected)
+
+    def test_infinite_curvature_at_an_end_is_covered(self) -> None:
+        """x^(3/2) from 0, the textbook exercise: the chords converge at a lower order at 0."""
+        self.assertLength(arc_length_tool(function_string="(2/3)*x^(3/2)", lower_bound=0, upper_bound=3), 14 / 3)
+        for p in ("3/2", "5/2", "5/3", "7/4"):
+            power = mpmath.mpf(eval(p))
+            expected = _from_speed(
+                lambda x: mpmath.sqrt(1 + (power * x ** (power - 1)) ** 2), [0, 1e-12, 1e-6, 1e-3, 1]
+            )
+            self.assertLength(arc_length_tool(function_string=f"x^({p})", lower_bound=0, upper_bound=1), expected)
+        expected = _from_speed(lambda x: mpmath.sqrt(1 + 9 * x**2 * (1 - x**2)), [-1, 0, 1])
+        self.assertLength(arc_length_tool(function_string="(1-x^2)^(3/2)", lower_bound=-1, upper_bound=1), expected)
+
+    def test_a_rounded_bound_where_the_curve_moves_fast_widens_the_estimate(self) -> None:
+        """r = sqrt(cos(2θ)) reaches the pole at the exact π/4, but at the double nearest π/4 it
+        ends about 1e-8 away: the estimate says so, with a warning."""
+        lemniscate = 2.6220575542921198104648395898911194136827549514316
+        result = arc_length_tool(r_expression="sqrt(cos(2*θ))", lower_bound="-pi/4", upper_bound="pi/4")
+        self.assertLength(result, lemniscate, 7)
+        self.assertIn("rounding the bound", result["warning"])
+        semicircle = arc_length_tool(function_string="sqrt(1-x^2)", lower_bound=-1, upper_bound=1)
+        self.assertLength(semicircle, math.pi)
+        self.assertNotIn("warning", semicircle)
 
     def test_removable_points_and_endpoint_limits(self) -> None:
         sinc = _graph(lambda x: mpmath.sin(x) / x if x != 0 else mpmath.mpf(1), -1, 1, [0])
@@ -234,6 +262,20 @@ class TestRefusals(ArcLengthCase):
         self.assertRefused("radians", function_string="sin(x)", lower_bound=0, upper_bound="90°")
         self.assertRefused("constant expression", function_string="x", lower_bound=0, upper_bound="x + 1")
         self.assertRefused("50π", r_expression="θ", lower_bound=0, upper_bound=200)
+        self.assertRefused(
+            "narrower than the numbers can resolve", function_string="x", lower_bound=1, upper_bound=1 + 1e-15
+        )
+
+    def test_expression_ranges_are_not_plotted_ranges(self) -> None:
+        result = arc_length_tool(x_expression="t^2", y_expression="t^3", lower_bound=-1, upper_bound=1)
+        self.assertNotIn("note", result)
+        self.assertNotIn("note", arc_length_tool(r_expression="θ", lower_bound=0, upper_bound="6*pi"))
+
+    def test_capital_y_is_read(self) -> None:
+        self.assertLength(
+            arc_length_tool(function_string="Y = x^2", lower_bound=0, upper_bound=1),
+            math.sqrt(5) / 2 + math.asinh(2) / 4,
+        )
 
 
 class TestPieces(ArcLengthCase):
@@ -375,6 +417,10 @@ class TestPlottedCurves(ArcLengthCase):
         self.assertAlmostEqual(end[1], 1.0)
         ellipse = _reference(lambda t: 3 * mpmath.cos(t), mpmath.sin, 0, 2 * math.pi)
         self.assertLength(self._measure(curve_name="E"), ellipse)
+
+    def test_name_written_as_a_call(self) -> None:
+        """The canvas text shows a function as f(x) = ...; "f(x)" is f."""
+        self.assertLength(self._measure(curve_name="f(x)"), math.sqrt(5) / 2 + math.asinh(2) / 4)
 
     def test_unknown_name(self) -> None:
         with self.assertRaises(ValueError) as caught:
