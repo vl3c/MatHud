@@ -285,6 +285,77 @@
           ]
         }
       ]
+    },
+    {
+      "id": "ST-08",
+      "title": "Binomial bars with a shaded probability",
+      "tags": ["statistics", "plots", "undo"],
+      "smoke": false,
+      "targets": "one bar per value; shaded probability over the values asked for; undo",
+      "steps": [
+        {
+          "user": "Plot a binomial distribution with n = 10 and p = 0.3 and shade P(2 ≤ X ≤ 5). What is that probability?",
+          "reference": [
+            {
+              "tool": "plot_distribution",
+              "args": {
+                "name": "bin",
+                "representation": "discrete",
+                "distribution_type": "binomial",
+                "distribution_params": {"n": 10, "p": 0.3},
+                "shade_bounds": {"left_bound": 2, "right_bound": 5}
+              }
+            }
+          ],
+          "checks": [
+            {"check": "count", "select": {"type": "DiscretePlot"}, "eq": 1},
+            {"check": "attribute", "path": "args.bar_count", "select": {"type": "DiscretePlot", "only": true}, "eq": 11},
+            {
+              "check": "attribute",
+              "path": "args.shade_bounds",
+              "select": {"type": "DiscretePlot", "only": true},
+              "eq": {"left": 2, "right": 5}
+            },
+            {
+              "check": "tool_result",
+              "tool": "plot_distribution",
+              "path": "shaded_probability",
+              "eq": 0.8033426667,
+              "tol": 1e-09
+            },
+            {"check": "tool_result", "tool": "plot_distribution", "path": "shaded_range", "eq": "P(2 <= X <= 5)"},
+            {"check": "answer_mentions", "matches": "0\\.80"}
+          ]
+        },
+        {
+          "do": [{"tool": "undo", "args": {}}],
+          "checks": [{"check": "count", "select": {"type": "DiscretePlot"}, "eq": 0}]
+        }
+      ]
+    },
+    {
+      "id": "ST-09",
+      "title": "t-distribution tail probability and critical value",
+      "tags": ["statistics", "read-only"],
+      "smoke": false,
+      "targets": "non-canvas distribution tool; upper tail and quantile",
+      "steps": [
+        {
+          "user": "For a t distribution with 15 degrees of freedom, what is P(T > 2.1), and what is the two-sided 95% critical value?",
+          "reference": [
+            {
+              "tool": "compute_distribution",
+              "args": {"distribution_type": "t", "distribution_params": {"df": 15}, "x": 2.1, "probability": 0.975}
+            }
+          ],
+          "checks": [
+            {"check": "tool_result", "tool": "compute_distribution", "path": "P(X > x)", "eq": 0.026527628076, "tol": 1e-09},
+            {"check": "tool_result", "tool": "compute_distribution", "path": "quantile", "eq": 2.13144954556, "tol": 1e-09},
+            {"check": "state_equals", "snapshot": "start"},
+            {"check": "answer_mentions", "matches": "0\\.0265|2\\.131"}
+          ]
+        }
+      ]
     }
   ]
 }
