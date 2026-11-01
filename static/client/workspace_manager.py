@@ -126,6 +126,9 @@ class WorkspaceManager:
         "ContinuousPlots",
         "DiscretePlots",
         "BarsPlots",
+        "HistogramPlots",
+        "BoxPlots",
+        "ScatterPlots",
         "Plots",
         "Bars",
         "Angles",
@@ -850,8 +853,9 @@ class WorkspaceManager:
         """
         Restore plot composites from workspace state, kind by kind (``plot_kinds.PLOT_KINDS``).
 
-        Plot composites are non-renderable bookkeeping objects that reference other drawables.
-        They must be restored after polygons, functions, and colored areas.
+        Distribution and bar plots are bookkeeping objects that reference other drawables, so
+        they are restored after polygons, functions and colored areas; data plots (histogram,
+        box, scatter) draw themselves from their saved data.
         """
         plot_items = self._collect_plot_items(state)
 
