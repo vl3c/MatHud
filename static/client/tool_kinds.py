@@ -132,6 +132,8 @@ VALUE_TOOLS: Tuple[str, ...] = (
     "plot_histogram",
     "plot_box",
     "plot_scatter",
+    "plot_sequence",
+    "plot_cobweb",
     "compute_distribution",
     "calculate_area",
     "convert_coordinates",
@@ -147,6 +149,8 @@ DRAWING_VALUE_TOOLS: Tuple[str, ...] = (
     "plot_histogram",
     "plot_box",
     "plot_scatter",
+    "plot_sequence",
+    "plot_cobweb",
 )
 
 META_TOOLS: Tuple[str, ...] = (

@@ -782,6 +782,21 @@ _DATA_PLOT_HANDLED = {
     "show_outliers",
 }
 _DATA_PLOT_BUCKETS = frozenset({"HistogramPlots", "BoxPlots", "ScatterPlots"})
+# Sequence plots and cobwebs list this many terms or orbit values.
+MAX_LISTED_SEQUENCE_VALUES = 12
+_SEQUENCE_PLOT_HANDLED = {
+    "plot_type",
+    "expression",
+    "start",
+    "end",
+    "initial_terms",
+    "function",
+    "x0",
+    "steps",
+    "summary",
+    "color",
+}
+_SEQUENCE_PLOT_BUCKETS = frozenset({"SequencePlots", "CobwebPlots"})
 
 
 def _summary(args: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -858,6 +873,84 @@ def _render_scatter_plot(scene: _Scene, item: JsonDict) -> str:
     else:
         head += f"; {len(xs)} pairs, not listed"
     return _data_plot_line(item, head, args)
+
+
+def _sequence_plot_line(item: JsonDict, head: str, args: Mapping[str, Any]) -> str:
+    line = f"{item.get('name', '?')} = {head})" + _color_suffix(args)
+    return line + _extras_suffix(args, _SEQUENCE_PLOT_HANDLED)
+
+
+def _initial_terms_text(args: Mapping[str, Any]) -> str:
+    start: Any = args.get("start")
+    initial = _as_list(args.get("initial_terms"))
+    if not initial or not _is_number(start):
+        return ""
+    first = int(start)
+    return "".join(
+        f", u({format_number(first + offset)}) = {format_number(value)}" for offset, value in enumerate(initial)
+    )
+
+
+def _render_sequence_plot(scene: _Scene, item: JsonDict) -> str:
+    args = _args(item)
+    summary = _summary(args)
+    terms = _as_list(summary.get("terms"))
+    head = f"Sequence(u(n) = {args.get('expression', '?')}{_initial_terms_text(args)}; "
+    head += f"n {format_number(args.get('start'))}..{format_number(args.get('end'))}; "
+    head += f"terms {_numbers_text(terms, MAX_LISTED_SEQUENCE_VALUES)}" if terms else "no defined terms"
+    if terms:
+        head += f"; min {format_number(summary.get('min'))}, max {format_number(summary.get('max'))}"
+        head += f"; {summary.get('trend')}"
+    undefined = _as_list(summary.get("undefined_at"))
+    if undefined:
+        head += f"; undefined at n = {_numbers_text(undefined, MAX_LISTED_SEQUENCE_VALUES)}"
+    if _is_number(summary.get("stopped_at")):
+        head += f"; stops at n = {format_number(summary.get('stopped_at'))} (undefined)"
+    return _sequence_plot_line(item, head, args)
+
+
+def _stability_word(stable: Any) -> str:
+    return "stable" if stable is True else "unstable" if stable is False else "neutral"
+
+
+def _orbit_behaviour_text(summary: Mapping[str, Any]) -> str:
+    behaviour = summary.get("behaviour")
+    after = f" after {format_number(summary.get('iterations'))} iterations"
+    if behaviour == "fixed_point":
+        return (
+            f"fixed point {format_number(summary.get('fixed_point'))} "
+            f"({_stability_word(summary.get('stable'))}, slope {format_number(summary.get('slope'))})"
+        )
+    if behaviour == "cycle":
+        cycle = _as_list(summary.get("cycle"))
+        return (
+            f"{format_number(summary.get('period'))}-cycle {_numbers_text(cycle, MAX_LISTED_SEQUENCE_VALUES)} "
+            f"({_stability_word(summary.get('stable'))})"
+        )
+    if behaviour == "escapes":
+        return f"escapes at iteration {format_number(summary.get('escaped_at'))}"
+    if behaviour == "undefined":
+        return (
+            f"undefined at iteration {format_number(summary.get('undefined_at'))} "
+            f"(g undefined at x = {format_number(summary.get('undefined_input'))})"
+        )
+    if behaviour == "diverges":
+        return "diverges" + after
+    return "no fixed point or cycle" + after
+
+
+def _render_cobweb_plot(scene: _Scene, item: JsonDict) -> str:
+    args = _args(item)
+    summary = _summary(args)
+    orbit = _as_list(summary.get("orbit"))
+    head = (
+        f"Cobweb(g(x) = {args.get('function', '?')}; x0 {format_number(args.get('x0'))}; "
+        f"{format_number(max(len(orbit) - 1, 0))} steps; orbit {_numbers_text(orbit, MAX_LISTED_SEQUENCE_VALUES)}; "
+        f"{_orbit_behaviour_text(summary)}"
+    )
+    return _sequence_plot_line(item, head, args)
+
+
 # Distributions whose plots draw one bar per whole value k, over [k - 1/2, k + 1/2]
 # (server_tests/test_plot_table_guards.py checks this against the distribution table).
 DISCRETE_DISTRIBUTION_TYPES: FrozenSet[str] = frozenset({"binomial", "poisson", "geometric"})
@@ -1033,6 +1126,8 @@ _BUCKET_SPECS: Tuple[_BucketSpec, ...] = (
     _BucketSpec("HistogramPlots", "plots", _render_histogram_plot),
     _BucketSpec("BoxPlots", "plots", _render_box_plot),
     _BucketSpec("ScatterPlots", "plots", _render_scatter_plot),
+    _BucketSpec("SequencePlots", "plots", _render_sequence_plot),
+    _BucketSpec("CobwebPlots", "plots", _render_cobweb_plot),
     _BucketSpec("Plots", "plots", _render_plot),
     _BucketSpec("Bars", "plots", _render_bar),
     _BucketSpec("Labels", "text labels", _render_label),
@@ -1373,6 +1468,8 @@ def _min_json_item(item: Mapping[str, Any], bucket: str = "") -> JsonDict:
         args.pop("render_mode")
     if bucket in _DATA_PLOT_BUCKETS:
         _shorten_plot_data(args)
+    if bucket in _SEQUENCE_PLOT_BUCKETS:
+        _shorten_sequence_summary(args)
     entry: JsonDict = {"name": item.get("name")}
     entry.update(args)
     for key, value in item.items():
@@ -1388,6 +1485,19 @@ def _shorten_plot_data(args: JsonDict) -> None:
         values = args.get(key)
         if isinstance(values, list) and len(values) > limit:
             args[key] = f"{len(values)} values, not listed"
+
+
+def _shorten_sequence_summary(args: JsonDict) -> None:
+    """Replace a sequence's or cobweb's long term lists by their length (the rest stays)."""
+    summary = args.get("summary")
+    if not isinstance(summary, dict):
+        return
+    shortened = dict(summary)
+    for key in ("terms", "n_values", "orbit"):
+        values = shortened.get(key)
+        if isinstance(values, list) and len(values) > MAX_LISTED_SEQUENCE_VALUES:
+            shortened[key] = values[:MAX_LISTED_SEQUENCE_VALUES] + [f"... {len(values)} values in all"]
+    args["summary"] = shortened
 
 
 # --------------------------------------------------------------------------- deltas

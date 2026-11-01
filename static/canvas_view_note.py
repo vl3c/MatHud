@@ -374,6 +374,27 @@ def _scatter_plot(args: JsonDict, positions: Mapping[str, Point2D], signature: s
     return Shape(Box(min(xs), max(xs), min(ys), max(ys)), signature)
 
 
+def _sequence_plot(args: JsonDict, positions: Mapping[str, Point2D], signature: str) -> Optional[Shape]:
+    summary = args.get("summary")
+    if not isinstance(summary, Mapping):
+        return None
+    ns, terms = _finite_floats(summary.get("n_values")), _finite_floats(summary.get("terms"))
+    if not ns or not terms:
+        return None
+    return Shape(Box(min(ns), max(ns), min(terms), max(terms)), signature)
+
+
+def _cobweb_plot(args: JsonDict, positions: Mapping[str, Point2D], signature: str) -> Optional[Shape]:
+    """The web: x over the curve's range, y from the axis to the orbit's values."""
+    summary = args.get("summary")
+    if not isinstance(summary, Mapping):
+        return None
+    xs, orbit = _finite_floats(summary.get("x_range")), _finite_floats(summary.get("orbit"))
+    if len(xs) != 2 or not orbit:
+        return None
+    return Shape(Box(min(xs), max(xs), min(0.0, min(orbit)), max(0.0, max(orbit))), signature)
+
+
 _POLYGON_BUCKETS = (
     "Triangles",
     "Rectangles",
@@ -396,6 +417,8 @@ _MEASURES: Tuple[Tuple[str, _Measure], ...] = (
     ("HistogramPlots", _histogram),
     ("BoxPlots", _box_plot),
     ("ScatterPlots", _scatter_plot),
+    ("SequencePlots", _sequence_plot),
+    ("CobwebPlots", _cobweb_plot),
 ) + tuple((bucket, _polygon) for bucket in _POLYGON_BUCKETS)
 _GRAPH_BUCKETS = ("Functions", "PiecewiseFunctions")
 _CURVE_BUCKETS = _GRAPH_BUCKETS + ("ParametricFunctions", "PolarFunctions")
