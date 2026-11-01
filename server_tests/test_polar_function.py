@@ -289,6 +289,18 @@ class TestPolarIntersections(unittest.TestCase):
         unit = find_object_intersections(_shape(large), line_shape("u", (-1.0, 0.0), (1.0, 0.0)))
         self.assertEqual(_points(unit), [(0.0, 0.0)])
 
+    def test_unbounded_curves_are_not_pulled_onto_the_pole(self) -> None:
+        # Samples next to an asymptote make these curves' extents about 1e16
+        line = PolarFunction("1/cos(θ)", name="x1")  # the line x = 1
+        report = find_object_intersections(_shape(line), line_shape("h", (-3.0, 0.0), (3.0, 0.0)))
+        self.assertEqual(_points(report), [(1.0, 0.0)])
+        hyperbola = PolarFunction("1/(1 - sqrt(2)*cos(θ))", name="h")
+        x_axis = find_object_intersections(_shape(hyperbola), line_shape("a", (-5.0, 0.0), (5.0, 0.0)))
+        root = math.sqrt(2)
+        self.assertEqual(_points(x_axis), [(round(-1 - root, 6), 0.0), (round(1 - root, 6), 0.0)])
+        circle = find_object_intersections(_shape(PolarFunction("3/cos(θ)", name="x3")), circle_shape("c", (0, 0), 5))
+        self.assertEqual(_points(circle), [(3.0, -4.0), (3.0, 4.0)])
+
     def test_a_circle_traced_twice_gives_each_point_once(self) -> None:
         circle = PolarFunction("2cos(θ)", name="k")  # over [0, 2π] the circle is traced twice
         report = find_object_intersections(_shape(circle), circle_shape("c", (1.0, 1.0), 1.0))

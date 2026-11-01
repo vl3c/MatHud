@@ -181,14 +181,30 @@ _POLAR_EDIT_WORDS = frozenset(
     | {"red", "blue", "green", "orange", "purple", "black", "yellow", "pink", "gray", "grey", "brown"}
 )
 _POLAR_DRAW_WORDS = frozenset({"draw", "plot", "graph", "sketch", "create", "add", "new", "show", "want"})
-# "a cardioid", "an ellipse", "another rose": a new object, not one already drawn
-_NEW_OBJECT_RE = re.compile(r"\b(?:a|an|another)\s")
-# "the cardioid", "make it blue", "f_polar": a curve already drawn ("make the cardioid a different color")
-_EXISTING_OBJECT_RE = re.compile(r"\b(?:the|it|its|existing|\w+_polar)\b")
+# The article right before the curve word (a few adjectives may come between) says whether
+# the curve is new: "make a red cardioid at the origin", "one more rose"; or already drawn:
+# "make the cardioid a different color"
+_POLAR_CURVE_WORD = r"(?:cardioids?|lima[cç]ons?|lemniscates?|roses?|spirals?|polar|curves?)\b"
+_NEW_POLAR_CURVE_RE = re.compile(r"\b(?:a|an|another|more|new|second)\s+(?:[\w-]+\s+){0,3}?" + _POLAR_CURVE_WORD)
+_EXISTING_POLAR_CURVE_RE = re.compile(
+    r"\b(?:the|this|that|my|existing)\s+(?:[\w-]+\s+){0,2}?" + _POLAR_CURVE_WORD + r"|\b\w+_polar\b"
+)
 # x(t) = ... or x = ... t ...: a curve given by x and y in t
 _PARAMETRIC_RE = re.compile(r"\bx\s*\(\s*t\s*\)|\bx\s*=[^,;]*\bt\b")
 _PARAMETRIC_Y_RE = re.compile(r"\by\s*\(\s*t\s*\)|\by\s*=[^,;]*\bt\b")
 _VALUE_QUESTION_WORDS = frozenset({"what", "whats"})
+
+
+def _names_new_polar_curve(raw_lower: str) -> bool:
+    """Whether the query asks for a new curve ("make a cardioid"), not one already drawn."""
+    new = _NEW_POLAR_CURVE_RE.search(raw_lower)
+    if new is None:
+        return False
+    existing = _EXISTING_POLAR_CURVE_RE.search(raw_lower)
+    # "make the cardioid a red curve" names the drawn one first
+    return existing is None or new.start() < existing.start()
+
+
 # "f(x) = x for x < 0 ...", "the function is -x when x < 0": a function defined by cases
 _DEFINES_FUNCTION_WORDS = frozenset({"function", "define", "defined"})
 # Shapes, charts and other drawables a query can "graph" with an equation or coordinates
@@ -1256,7 +1272,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             elif (token_set & _POLAR_EDIT_WORDS) and not (
                 token_set & _POLAR_DRAW_WORDS
                 or _POLAR_CURVE_RE.search(raw_lower)
-                or (_NEW_OBJECT_RE.search(raw_lower) and not _EXISTING_OBJECT_RE.search(raw_lower))
+                or _names_new_polar_curve(raw_lower)
             ):
                 # "make the cardioid blue", "change the θ range of f_polar"; not "draw it in red"
                 # or "make a cardioid" (a new curve)

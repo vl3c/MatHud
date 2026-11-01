@@ -58,6 +58,8 @@ _POLE_TOLERANCE = 1e-7
 _POLE_SAMPLES = 2048
 _POLE_BISECTIONS = 60
 _POLE_CANDIDATES = 16
+# Samples for a curve's typical distance from its pole (the scale of the pole tolerance)
+_POLE_SCALE_SAMPLES = 64
 # Always given for two parametric curves whose search finished: they are intersected by
 # sampling, which cannot guarantee every crossing
 CURVE_PAIR_SAMPLING_NOTE = (
@@ -1631,15 +1633,16 @@ def _add_shared_pole(found: _Found, first: Shape, second: Shape) -> None:
     """
     if found.overlaps or isinstance(first, PolygonShape) or isinstance(second, PolygonShape):
         return
-    pole = getattr(first, "pole", None) or getattr(second, "pole", None)
+    polar = first if getattr(first, "pole", None) is not None else second
+    pole = getattr(polar, "pole", None)
     if pole is None:
         return
-    if any(math.hypot(hit.x - pole[0], hit.y - pole[1]) <= _pole_reach(first, second) for hit in found.hits):
+    if any(math.hypot(hit.x - pole[0], hit.y - pole[1]) <= _pole_reach(polar, pole) for hit in found.hits):
         return
     params: Dict[str, Params] = {}
     # The cheap checks of a segment, circle or graph first; a curve is searched for its pole
     for shape in sorted((first, second), key=lambda shape: isinstance(shape, ParametricShape)):
-        shape_params = _params_at_pole(shape, pole, _pole_reach(shape, shape))
+        shape_params = _params_at_pole(shape, pole, _pole_reach(shape, pole))
         if shape_params is None:
             return
         if shape_params:
@@ -1733,13 +1736,13 @@ def _snap_to_poles(found: _Found, first: Shape, second: Shape) -> None:
     r = sqrt(4cos(2θ)) meet a line through the origin at points 1e-8 apart, which would be
     reported as several points instead of one.
     """
+    if not found.hits:
+        return
     poles = [
-        (shape.pole, _pole_reach(shape, shape))  # type: ignore[union-attr]
+        (shape.pole, _pole_reach(shape, shape.pole))  # type: ignore[union-attr]
         for shape in (first, second)
         if getattr(shape, "pole", None) is not None
     ]
-    if not poles or not found.hits:
-        return
     for hit in found.hits:
         for (px, py), reach in poles:
             if math.hypot(hit.x - px, hit.y - py) <= reach:
@@ -1747,14 +1750,26 @@ def _snap_to_poles(found: _Found, first: Shape, second: Shape) -> None:
                 break
 
 
-def _pole_reach(first: Shape, second: Shape) -> float:
-    """How close to a pole a hit is the pole: _POLE_TOLERANCE of the larger object's size.
+def _pole_reach(shape: Shape, pole: Point2) -> float:
+    """How close to the pole a point of this object is on it: _POLE_TOLERANCE of its typical size.
 
-    The error near the pole comes from the polar curve (about 1e-8 of its size), however small
-    the other object is.
+    A curve's size is its median distance from the pole over a coarse sampling, not its
+    extent, which a sample next to an asymptote (r = sec(θ) at θ = π/2) makes huge. The error
+    near the pole comes from the polar curve (about 1e-8 of its size), however small the
+    other object is.
     """
-    sizes = [size for size in (_shape_size(first), _shape_size(second)) if math.isfinite(size) and size > 0.0]
-    return _POLE_TOLERANCE * (max(sizes) if sizes else 1.0)
+    if isinstance(shape, ParametricShape):
+        distances = []
+        for i in range(_POLE_SCALE_SAMPLES + 1):
+            x, y = shape.point(shape.t_min + (shape.t_max - shape.t_min) * i / _POLE_SCALE_SAMPLES)
+            distance = math.hypot(x - pole[0], y - pole[1])
+            if math.isfinite(distance):
+                distances.append(distance)
+        distances.sort()
+        size = distances[len(distances) // 2] if distances else 0.0
+    else:
+        size = _shape_size(shape)
+    return _POLE_TOLERANCE * (size if math.isfinite(size) and size > 0.0 else 1.0)
 
 
 def _merged_hits(hits: List[_Hit], size: float) -> List[_Hit]:

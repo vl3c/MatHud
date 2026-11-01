@@ -3276,6 +3276,20 @@
       "cluster": "function_cluster"
     },
     {
+      "id": "polar_make_new_curve_with_the_later",
+      "query": "Make a red cardioid at the origin.",
+      "expected_any": [
+        "draw_polar_function"
+      ],
+      "forbidden": [
+        "search_tools",
+        "update_polar_function"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
       "id": "parametric_cardioid_not_polar",
       "query": "Plot a cardioid using x(t) = (1-cos(t))*cos(t) and y(t) = (1-cos(t))*sin(t).",
       "expected_any": [
