@@ -122,6 +122,65 @@ input, select, textarea, button {
     box-shadow: var(--shadow-lg);
 }
 
+/* Parameter sliders over the canvas (static/client/parameter_panel.py) */
+.parameter-panel {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 20; /* above the Canvas2D layer (10) */
+    max-height: 45%;
+    overflow-y: auto;
+    padding: 6px 10px;
+    background: rgb(255 255 255 / 0.85);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    font-size: 13px;
+    color: var(--text-primary);
+}
+
+.parameter-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 26px;
+}
+
+.parameter-name {
+    min-width: 1.5em;
+    font-style: italic;
+    font-weight: 600;
+    text-align: right;
+}
+
+.parameter-slider {
+    width: 140px;
+    accent-color: var(--primary-color);
+}
+
+.parameter-value {
+    min-width: 5em;
+    font-variant-numeric: tabular-nums;
+}
+
+.parameter-play {
+    width: 24px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--surface-color);
+    color: var(--text-primary);
+    font-size: 10px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.parameter-play:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
 /* Chat interface area (fixed width on the right) */
 .chat-container {
     position: relative;
