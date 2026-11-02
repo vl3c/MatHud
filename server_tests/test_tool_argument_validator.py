@@ -404,8 +404,8 @@ class TestTypeRejection(unittest.TestCase):
     def test_string_instead_of_number(self) -> None:
         """Non-numeric string for a number field should fail."""
         result = ToolArgumentValidator.validate(
-            "create_point",
-            {"x": "five", "y": 10, "color": None, "name": None},
+            "create_label",
+            {"x": "five", "y": 10, "text": "t", "color": None, "name": None, "font_size": None, "rotation_degrees": None},
         )
         self.assertFalse(result["valid"])
         self.assertTrue(any("'x'" in e and "number" in e for e in result["errors"]))
@@ -516,8 +516,8 @@ class TestTypeRejection(unittest.TestCase):
     def test_multiple_type_errors_reported(self) -> None:
         """All type errors should be reported, not just the first."""
         result = ToolArgumentValidator.validate(
-            "create_point",
-            {"x": "bad", "y": "also_bad", "color": None, "name": None},
+            "create_label",
+            {"x": "bad", "y": "also_bad", "text": "t", "color": None, "name": None, "font_size": None, "rotation_degrees": None},
         )
         self.assertFalse(result["valid"])
         self.assertGreaterEqual(len(result["errors"]), 2)
@@ -727,8 +727,8 @@ class TestCanonicalization(unittest.TestCase):
     def test_string_to_number_coercion(self) -> None:
         """Numeric string for a number field should be coerced to float."""
         result = ToolArgumentValidator.validate(
-            "create_point",
-            {"x": "5", "y": "10.5", "color": None, "name": None},
+            "create_label",
+            {"x": "5", "y": "10.5", "text": "t", "color": None, "name": None, "font_size": None, "rotation_degrees": None},
         )
         self.assertTrue(result["valid"])
         self.assertEqual(result["arguments"]["x"], 5.0)
@@ -801,16 +801,16 @@ class TestCanonicalization(unittest.TestCase):
     def test_non_numeric_string_not_coerced(self) -> None:
         """Non-numeric string for number field should fail, not be coerced."""
         result = ToolArgumentValidator.validate(
-            "create_point",
-            {"x": "abc", "y": 10, "color": None, "name": None},
+            "create_label",
+            {"x": "abc", "y": 10, "text": "t", "color": None, "name": None, "font_size": None, "rotation_degrees": None},
         )
         self.assertFalse(result["valid"])
 
     def test_string_nan_not_coerced(self) -> None:
         """String 'nan' should not be coerced to float('nan')."""
         result = ToolArgumentValidator.validate(
-            "create_point",
-            {"x": "nan", "y": 10, "color": None, "name": None},
+            "create_label",
+            {"x": "nan", "y": 10, "text": "t", "color": None, "name": None, "font_size": None, "rotation_degrees": None},
         )
         # "nan" parses to float('nan') which is then rejected as non-finite
         self.assertFalse(result["valid"])
@@ -818,17 +818,17 @@ class TestCanonicalization(unittest.TestCase):
     def test_string_inf_not_coerced(self) -> None:
         """String 'inf' should not be coerced to float('inf')."""
         result = ToolArgumentValidator.validate(
-            "create_point",
-            {"x": "inf", "y": 10, "color": None, "name": None},
+            "create_label",
+            {"x": "inf", "y": 10, "text": "t", "color": None, "name": None, "font_size": None, "rotation_degrees": None},
         )
         # "inf" parses to float('inf') which is then rejected as non-finite
         self.assertFalse(result["valid"])
 
     def test_coercion_does_not_mutate_original(self) -> None:
         """Original arguments dict should not be mutated by canonicalization."""
-        original = {"x": "5", "y": "10", "color": None, "name": None}
+        original = {"x": "5", "y": "10", "text": "t", "color": None, "name": None, "font_size": None, "rotation_degrees": None}
         original_copy = dict(original)
-        result = ToolArgumentValidator.validate("create_point", original)
+        result = ToolArgumentValidator.validate("create_label", original)
         self.assertTrue(result["valid"])
         # Original should be unchanged
         self.assertEqual(original, original_copy)
@@ -839,8 +839,8 @@ class TestCanonicalization(unittest.TestCase):
         """String-to-number coercion should log a warning."""
         with self.assertLogs("static.tool_argument_validator", level="WARNING") as cm:
             ToolArgumentValidator.validate(
-                "create_point",
-                {"x": "5", "y": 10, "color": None, "name": None},
+                "create_label",
+                {"x": "5", "y": 10, "text": "t", "color": None, "name": None, "font_size": None, "rotation_degrees": None},
             )
         self.assertTrue(any("coerced" in msg for msg in cm.output))
 
@@ -1308,15 +1308,15 @@ class TestEdgeCases(unittest.TestCase):
 
     def test_invalid_returns_original_args(self) -> None:
         """When validation fails, original arguments should be returned."""
-        original = {"x": "bad", "y": 10, "color": None, "name": None}
-        result = ToolArgumentValidator.validate("create_point", original)
+        original = {"x": "bad", "y": 10, "text": "t", "color": None, "name": None, "font_size": None, "rotation_degrees": None}
+        result = ToolArgumentValidator.validate("create_label", original)
         self.assertFalse(result["valid"])
         # Should return the original, not a deep copy with partial coercion
         self.assertEqual(result["arguments"]["x"], "bad")
 
     def test_valid_returns_canonical_args(self) -> None:
         """When validation passes, canonical arguments should be returned."""
-        result = ToolArgumentValidator.validate("create_point", {"x": "5", "y": 10, "color": None, "name": None})
+        result = ToolArgumentValidator.validate("create_label", {"x": "5", "y": 10, "text": "t", "color": None, "name": None, "font_size": None, "rotation_degrees": None})
         self.assertTrue(result["valid"])
         self.assertEqual(result["arguments"]["x"], 5.0)
 
@@ -1361,9 +1361,23 @@ class TestOmittedNullableArguments(unittest.TestCase):
         self.assertEqual(processed["arguments"], {"data": [1.0, 2.0, 3.0], "y_data": None})
 
     def test_omitted_optional_arguments_of_create_point(self) -> None:
-        result = ToolArgumentValidator.validate("create_point", {"x": "5", "y": 2})
+        result = ToolArgumentValidator.validate("create_point", {"x": 5, "y": 2})
         self.assertTrue(result["valid"], result["errors"])
-        self.assertEqual(result["arguments"], {"x": 5.0, "y": 2, "color": None, "name": None})
+        self.assertEqual(result["arguments"], {"x": 5, "y": 2, "color": None, "name": None})
+
+    def test_coordinates_may_be_expressions_in_parameters(self) -> None:
+        # x and y take a number or a text ("a", "a^2"); the client reads the text
+        result = ToolArgumentValidator.validate("create_point", {"x": "a", "y": "a^2", "color": None, "name": None})
+        self.assertTrue(result["valid"], result["errors"])
+        self.assertEqual((result["arguments"]["x"], result["arguments"]["y"]), ("a", "a^2"))
+        radius = ToolArgumentValidator.validate(
+            "create_circle", {"center_x": 0, "center_y": 0, "radius": "2*r", "color": None, "name": None}
+        )
+        self.assertTrue(radius["valid"], radius["errors"])
+        centre = ToolArgumentValidator.validate(
+            "create_circle", {"center_x": "a", "center_y": 0, "radius": 1, "color": None, "name": None}
+        )
+        self.assertFalse(centre["valid"])  # centres stay numbers
 
     def test_given_values_are_kept(self) -> None:
         result = ToolArgumentValidator.validate("compute_descriptive_statistics", {"data": [1, 2], "y_data": [3, 4]})
@@ -1460,11 +1474,11 @@ class TestToolCallProcessorIntegration(unittest.TestCase):
     def test_valid_call_uses_canonical_args(self) -> None:
         """jsonify_tool_call should use canonicalized args when valid."""
         tool_call = self._make_tool_call(
-            "create_point",
-            '{"x": "5", "y": 10, "color": null, "name": null}',
+            "create_label",
+            '{"x": "5", "y": 10, "text": "t", "color": null, "name": null, "font_size": null, "rotation_degrees": null}',
         )
         processed = ToolCallProcessor.jsonify_tool_call(tool_call)
-        self.assertEqual(processed["function_name"], "create_point")
+        self.assertEqual(processed["function_name"], "create_label")
         # x should be coerced from "5" to 5.0
         self.assertEqual(processed["arguments"]["x"], 5.0)
         self.assertEqual(processed["arguments"]["y"], 10)
@@ -1472,18 +1486,18 @@ class TestToolCallProcessorIntegration(unittest.TestCase):
     def test_invalid_call_logs_warning_and_proceeds(self) -> None:
         """jsonify_tool_call should log warnings for invalid args but proceed."""
         tool_call = self._make_tool_call(
-            "create_point",
-            '{"x": "not_a_number", "y": 10, "color": null, "name": null}',
+            "create_label",
+            '{"x": "not_a_number", "y": 10, "text": "t", "color": null, "name": null, "font_size": null, "rotation_degrees": null}',
         )
         with self.assertLogs(level="WARNING") as cm:
             processed = ToolCallProcessor.jsonify_tool_call(tool_call)
         # Should still produce a result (log-only mode)
-        self.assertEqual(processed["function_name"], "create_point")
+        self.assertEqual(processed["function_name"], "create_label")
         self.assertIn("arguments", processed)
         # Original args should pass through on failure
         self.assertEqual(processed["arguments"]["x"], "not_a_number")
         # Warning should have been logged
-        self.assertTrue(any("create_point" in msg for msg in cm.output))
+        self.assertTrue(any("create_label" in msg for msg in cm.output))
 
     def test_valid_call_no_canonicalization_needed(self) -> None:
         """jsonify_tool_call with already-correct types should pass through."""

@@ -1,0 +1,69 @@
+{
+  "schema": 1,
+  "area": "PS",
+  "title": "Parameters and sliders: objects that follow a named number, and its animation",
+  "scenarios": [
+    {
+      "id": "PS-01",
+      "title": "A slider drives a parabola and a point on it",
+      "tags": ["parameters", "functions", "points"],
+      "smoke": false,
+      "targets": "set_parameter, parameters in draw_function and create_point coordinates given as text",
+      "steps": [
+        {
+          "user": "Make a slider a from -3 to 3 starting at 1 and plot y = a*x^2 as f.",
+          "reference": [
+            {"tool": "set_parameter", "args": {"name": "a", "value": 1, "min": -3, "max": 3, "step": null}},
+            {
+              "tool": "draw_function",
+              "args": {"function_string": "a*x^2", "name": "f", "left_bound": null, "right_bound": null, "color": null, "undefined_at": null}
+            }
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "exists", "select": {"type": "Parameter", "name": "a", "where": {"args.value": 1, "args.min": -3, "args.max": 3}}},
+            {"check": "count", "select": {"type": "Function"}, "eq": 1}
+          ]
+        },
+        {
+          "user": "Set a to 2 and put a point P at (a, a^2) that follows the slider.",
+          "reference": [
+            {"tool": "set_parameter", "args": {"name": "a", "value": 2, "min": null, "max": null, "step": null}},
+            {"tool": "create_point", "args": {"x": "a", "y": "a^2", "color": null, "name": "P"}}
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "exists", "select": {"type": "Parameter", "name": "a", "where": {"args.value": 2}}},
+            {"check": "exists", "select": {"type": "Point", "name": "P", "where": {"args.x_expression": "a", "args.y_expression": "a^2"}}},
+            {"check": "point_at", "select": {"type": "Point", "name": "P"}, "at": [2, 4]}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PS-02",
+      "title": "Animating a parameter",
+      "tags": ["parameters", "animation"],
+      "smoke": false,
+      "targets": "animate_parameter: one call starts the animation (the end value is checked by the Brython tests)",
+      "steps": [
+        {
+          "user": "Create a parameter k from 0 to 5, draw y = sin(k*x), then animate k from 0 to 5 over 3 seconds.",
+          "reference": [
+            {"tool": "set_parameter", "args": {"name": "k", "value": 0, "min": 0, "max": 5, "step": null}},
+            {
+              "tool": "draw_function",
+              "args": {"function_string": "sin(k*x)", "name": null, "left_bound": null, "right_bound": null, "color": null, "undefined_at": null}
+            },
+            {"tool": "animate_parameter", "args": {"name": "k", "start": 0, "end": 5, "duration_seconds": 3, "repeat": null}}
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "tool_result", "tool": "animate_parameter", "path": "animating", "eq": "once"},
+            {"check": "exists", "select": {"type": "Parameter", "name": "k", "where": {"args.min": 0, "args.max": 5}}}
+          ]
+        }
+      ]
+    }
+  ]
+}
