@@ -2,8 +2,8 @@
   "metadata": {
     "schema_version": 1,
     "description": "Tool discovery benchmark cases for search_tools semantic routing.",
-    "expected_tool_count": 109,
-    "expected_tool_hash": "29de3fd29c2c5c1fe31a238ecba2aa666f63b477fcd0eae2af482dd4901f809e",
+    "expected_tool_count": 113,
+    "expected_tool_hash": "2ac83c13b054717815dedf458124d10fd189f878709e9ad0ed83197b017ab37c",
     "confusion_clusters": {
       "convert_cluster": [
         "convert",
@@ -4483,6 +4483,283 @@
       "category": "confusion_probe",
       "difficulty": "hard",
       "cluster": "sequences_cluster"
+    },
+    {
+      "id": "implicit_circle_equation",
+      "query": "Draw x^2 + y^2 = 25.",
+      "expected_any": [
+        "draw_implicit_curve"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "easy"
+    },
+    {
+      "id": "implicit_ellipse_equation",
+      "query": "Plot the ellipse x^2/9 + y^2/4 = 1.",
+      "expected_any": [
+        "draw_implicit_curve"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "medium"
+    },
+    {
+      "id": "implicit_hyperbola",
+      "query": "Graph the hyperbola x^2 - y^2 = 1.",
+      "expected_any": [
+        "draw_implicit_curve"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "medium"
+    },
+    {
+      "id": "implicit_sideways_parabola",
+      "query": "Sketch x = y^2 - 4.",
+      "expected_any": [
+        "draw_implicit_curve"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "medium"
+    },
+    {
+      "id": "implicit_folium",
+      "query": "Graph the folium x^3 + y^3 = 6xy.",
+      "expected_any": [
+        "draw_implicit_curve"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "hard"
+    },
+    {
+      "id": "implicit_vertical_line",
+      "query": "Draw the vertical line x = -2.",
+      "expected_any": [
+        "draw_implicit_curve"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "medium"
+    },
+    {
+      "id": "implicit_standard_form_line",
+      "query": "Plot the line 2x + 3y = 6.",
+      "expected_any": [
+        "draw_implicit_curve"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "medium"
+    },
+    {
+      "id": "shade_half_plane",
+      "query": "Graph the inequality y > 2x + 1.",
+      "expected_any": [
+        "shade_inequality"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "easy"
+    },
+    {
+      "id": "shade_disc",
+      "query": "Shade the region x^2 + y^2 <= 9.",
+      "expected_any": [
+        "shade_inequality"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "medium"
+    },
+    {
+      "id": "shade_feasible_region",
+      "query": "Shade the feasible region x + y <= 10, x >= 0, y >= 0.",
+      "expected_any": [
+        "shade_inequality"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "medium"
+    },
+    {
+      "id": "shade_or_region",
+      "query": "Shade where y < -1 or y > 1.",
+      "expected_any": [
+        "shade_inequality"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "medium"
+    },
+    {
+      "id": "shade_x_only",
+      "query": "Graph the inequality x > 2.",
+      "expected_any": [
+        "shade_inequality"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "hard"
+    },
+    {
+      "id": "delete_implicit_curve_by_name",
+      "query": "Delete the implicit curve c1.",
+      "expected_any": [
+        "delete_implicit_curve"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_delete",
+      "difficulty": "easy"
+    },
+    {
+      "id": "update_implicit_curve_color",
+      "query": "Make implicit curve c1 blue.",
+      "expected_any": [
+        "update_implicit_curve"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_update",
+      "difficulty": "easy"
+    },
+    {
+      "id": "delete_shaded_region",
+      "query": "Delete the shaded region R1.",
+      "expected_any": [
+        "delete_colored_area"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_delete",
+      "difficulty": "medium"
+    },
+    {
+      "id": "recolor_shaded_region",
+      "query": "Make the region R1 red.",
+      "expected_any": [
+        "update_colored_area"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_update",
+      "difficulty": "medium"
+    },
+    {
+      "id": "implicit_not_function",
+      "query": "Plot the function y = x^2 from x = -5 to 5.",
+      "expected_any": [
+        "draw_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "medium"
+    },
+    {
+      "id": "implicit_not_system",
+      "query": "Find (x,y) for 2x + 3y = 7 and x - y = 4.",
+      "expected_any": [
+        "solve_system_of_equations"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "medium"
+    },
+    {
+      "id": "implicit_not_point",
+      "query": "Draw a point B at x=50, y=-30.",
+      "expected_any": [
+        "create_point"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "medium"
+    },
+    {
+      "id": "implicit_not_solve_inequality",
+      "query": "Solve x^2 - 4 >= 0.",
+      "expected_any": [
+        "solve"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "medium"
+    },
+    {
+      "id": "implicit_not_distribution_shade",
+      "query": "Plot a binomial distribution with n = 10 and p = 0.3 and shade P(2 <= X <= 5).",
+      "expected_any": [
+        "plot_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "medium"
+    },
+    {
+      "id": "implicit_not_function_domain",
+      "query": "Plot y = sqrt(x) for x > 0.",
+      "expected_any": [
+        "draw_function",
+        "draw_piecewise_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "medium"
+    },
+    {
+      "id": "implicit_differentiation_is_derive",
+      "query": "Implicit differentiation of x^2 + y^2 = 25.",
+      "expected_any": [
+        "derive"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard"
     }
   ]
 }

@@ -386,7 +386,7 @@ def test_inequalities_to_solve_rank_solve_first(service: ToolSearchService, quer
     [
         ("Graph f(x)=1 for x<0 and -1 for x>=0.", "draw_piecewise_function"),
         ("Plot a piecewise function: x^2 for x<0 and 2x+1 for x>=0.", "draw_piecewise_function"),
-        ("Shade the region where y > x^2", "create_region_colored_area"),
+        ("Shade the region where y > x^2", "shade_inequality"),
         ("Compute lim x->infinity (1+1/x)^x.", "limit"),
     ],
 )
