@@ -477,8 +477,11 @@ _POLAR_CURVE_PHRASE_RE = re.compile(r"\bpolar\s+(?:curves?|functions?|equations?
 
 # -- Parameters (sliders) --
 _SLIDER_WORDS = frozenset({"slider", "sliders"})
-_ANIMATION_WORDS = frozenset(
-    {"animate", "animates", "animation", "animations", "animating", "animated", "sweep", "sweeps", "sweeping"}
+_ANIMATION_WORDS = frozenset({"animate", "animates", "animation", "animations", "animating", "animated"})
+# "sweep a from 0 to 5" animates; "an arc sweeping 90 degrees" is an arc's angle
+_SWEEP_WORDS = frozenset({"sweep", "sweeps", "sweeping"})
+_SWEEP_OTHER_CONTEXT = frozenset(
+    {"arc", "arcs", "sector", "sectors", "angle", "angles", "degree", "degrees", "radian", "radians", "wedge"}
 )
 _PARAMETER_WORDS = frozenset({"parameter", "parameters"})
 # Where "parameter" means a distribution's, a fitted model's, a population's or a parametric
@@ -869,7 +872,7 @@ TOOL_CATEGORIES: Dict[str, CategoryEntry] = {
     "parameters": {
         "tools": ["set_parameter", "animate_parameter", "delete_parameter"],
         # "parameter(s)" counts through _boost_parameter_tools, outside other senses of the word
-        "keywords": ["slider", "sliders", "animate", "animation", "animating", "animated", "sweep"],
+        "keywords": ["slider", "sliders", "animate", "animation", "animating", "animated"],
     },
     "coordinates": {
         "tools": [
@@ -1583,15 +1586,20 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
 
         "parameter" alone also names a distribution's, a fit's or a parametric curve's numbers:
         there it counts for nothing, and the parameter tools lose the points their names and
-        descriptions earned. "slider", "animate" and "sweep" always count. Assignments and
-        ranges match the query as written, since a parameter is a lowercase name (A is a point).
+        descriptions earned. "slider" and "animate" always count, "sweep" except next to arcs and
+        angles. Assignments and ranges match the query as written, since a parameter is a
+        lowercase name (A is a point).
         """
         raw_lower = raw_query.lower()
         sliders = bool(token_set & _SLIDER_WORDS)
         other_sense = bool(token_set & _OTHER_PARAMETER_CONTEXT)
         parameters = bool(token_set & _PARAMETER_WORDS) and not other_sense
+        sweep = bool(token_set & _SWEEP_WORDS) and not token_set & _SWEEP_OTHER_CONTEXT
         animation = (
-            bool(token_set & _ANIMATION_WORDS) or bool(_PLAY_RE.match(raw_query)) or bool(_BOUNCE_RE.search(raw_lower))
+            bool(token_set & _ANIMATION_WORDS)
+            or sweep
+            or bool(_PLAY_RE.match(raw_query))
+            or bool(_BOUNCE_RE.search(raw_lower))
         )
         ranged = bool(_PARAMETER_RANGE_RE.search(raw_query)) and not token_set & _RANGE_OTHER_CONTEXT
         assignment = bool(_PARAMETER_ASSIGNMENT_RE.match(raw_query))

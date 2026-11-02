@@ -26,6 +26,8 @@ _GLUED_VARIABLES = ("x", "t", "θ")
 # A name followed by "(": a call, or a product written without "*" (a(x+1))
 _CALLED_NAME = re.compile(r"(\w+)\s*\(")
 _QUOTES = ('"', "'")
+# Names that are always variables, never parameters (drawables/parameter.py CURVE_VARIABLES)
+_VARIABLE_NAMES = frozenset({"x", "y", "θ", "theta"})
 # Where the model finds set_parameter when tools are searched
 _CREATE_HINT = "set_parameter (search_tools 'slider' finds it if it is not loaded)"
 
@@ -95,6 +97,8 @@ def called_name_hint(text: Any) -> Optional[str]:
         product = f"{name}*{argument}"
         if name in parameters:
             return f"'{text}': {name} is a parameter, not a function. For {name} times {argument} write {product}."
+        if name in _VARIABLE_NAMES:
+            return f"'{text}': {name} is a variable, not a function. For {name} times {argument} write {product}."
         return (
             f"'{text}': {name} is not a function expressions may call. For a product write {product} "
             f"(and create {name} with {_CREATE_HINT}), or use a known function such as sin(x)."

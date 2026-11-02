@@ -139,6 +139,9 @@ class TestDefinitionsAndHints(_CleanNamespace):
         ce.set_parameter_values({"a": 1.0})
         self.assertIn("write a*(x+1)", called_name_hint("a(x+1)^2") or "")
         self.assertIn("write g*(x)", called_name_hint("g(x)") or "")
+        variable = called_name_hint("x(x-1)") or ""
+        self.assertIn("x is a variable", variable)
+        self.assertNotIn("set_parameter", variable)
         for fine in ("sin(x) + 2", "f(x) = x^2", "2(x+1)", "x.real(1)", "log10(x)"):
             with self.subTest(fine=fine):
                 self.assertIsNone(called_name_hint(fine))

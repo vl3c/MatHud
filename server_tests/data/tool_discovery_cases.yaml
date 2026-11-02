@@ -4635,6 +4635,18 @@
       "cluster": "function_cluster"
     },
     {
+      "id": "c_arc_sweep_not_animation",
+      "query": "Draw an arc from A to B sweeping 90 degrees.",
+      "expected_any": [
+        "create_circle_arc"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "normal"
+    },
+    {
       "id": "c_sum_index_not_slider",
       "query": "Sum 1/n as n goes from 1 to 10.",
       "expected_any": [
