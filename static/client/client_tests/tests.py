@@ -124,6 +124,7 @@ from .test_parametric_function import (
 )
 from .test_parametric_function_manager import TestParametricFunctionManager
 from .test_polar_function_manager import TestPolarFunctionTools
+from .test_implicit_curves import TestImplicitCurveTools, TestImplicitPlotterInBrython, TestImplicitRendering
 from .test_arc_length import TestArcLengthTool
 from .test_tangent_manager import (
     TestTangentToFunction,
@@ -665,6 +666,9 @@ class Tests:
             TestExpressionValidatorParametric,
             TestParametricFunctionManager,
             TestPolarFunctionTools,
+            TestImplicitCurveTools,
+            TestImplicitRendering,
+            TestImplicitPlotterInBrython,
             TestArcLengthTool,
             TestTangentToFunction,
             TestNormalToFunction,
