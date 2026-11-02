@@ -1561,21 +1561,30 @@ class TestMathFunctions(unittest.TestCase):
         result = MathUtils.calculate_point_discontinuities("ceil(x)", -1.5, 1.5)
         self.assertEqual(result, [-1, 0, 1], "Ceil function should have discontinuities at integers within bounds")
 
-        # Test absolute value function
+        # An absolute value is continuous: its corner is not a discontinuity
         result = MathUtils.calculate_point_discontinuities("abs(x)")
-        self.assertEqual(result, [0], "Absolute value function should have discontinuity at x=0")
+        self.assertEqual(result, [], "abs(x) is continuous at its corner x=0")
+        self.assertEqual(MathUtils.calculate_corner_points("abs(x)"), [0])
 
         # Test absolute value with shifted input
-        result = MathUtils.calculate_point_discontinuities("abs(x-2)")
-        self.assertEqual(result, [2], "Shifted absolute value should have discontinuity at x=2")
+        result = MathUtils.calculate_corner_points("abs(x-2)")
+        self.assertEqual(result, [2], "Shifted absolute value should have its corner at x=2")
 
         # Test function with no discontinuities
         result = MathUtils.calculate_point_discontinuities("x^2 + 2*x + 1")
         self.assertEqual(result, [], "Continuous function should have no point discontinuities")
 
         # Test multiple absolute value terms
-        result = MathUtils.calculate_point_discontinuities("abs(x) + abs(x-1)")
-        self.assertEqual(sorted(result), [0, 1], "Multiple absolute values should give multiple discontinuities")
+        result = MathUtils.calculate_corner_points("abs(x) + abs(x-1)")
+        self.assertEqual(result, [0, 1], "Multiple absolute values should give multiple corners")
+        self.assertEqual(MathUtils.calculate_point_discontinuities("abs(x) + abs(x-1)"), [])
+        self.assertEqual(MathUtils.calculate_corner_points("|x - 3|", 0, 2), [], "corners outside the bounds")
+
+        # floor/ceil steps are listed only when few enough (a huge range listed 2e9 integers)
+        self.assertEqual(MathUtils.calculate_point_discontinuities("floor(x)", -1e9, 1e9), [])
+        # Integers are steps of floor(x) only, not of floor(x + 0.5) or floor(x/2)
+        self.assertEqual(MathUtils.calculate_point_discontinuities("floor(x + 0.5)", -2, 2), [])
+        self.assertEqual(MathUtils.calculate_point_discontinuities("floor(x/2)", -2, 2), [])
 
         # Test with bounds filtering
         result = MathUtils.calculate_point_discontinuities("floor(x)", 0, 2)
