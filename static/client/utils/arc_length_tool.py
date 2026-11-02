@@ -48,6 +48,8 @@ POLAR_DEFAULT_RANGE = (0.0, 2 * math.pi)
 PARAMETRIC_DEFAULT_RANGE = (0.0, 2 * math.pi)
 # One unit in the last place of a double, relative; and the error at which arc_length accepts a length
 _ONE_ULP = 2.0**-52
+# A bound given as a number with at most this many significant digits is the bound meant
+_MEANT_DIGITS = 12
 _ACCEPTED = 20.0 * TOLERANCE
 
 
@@ -133,9 +135,10 @@ def arc_length_tool(
             result["traced_times"] = times
             result["length_of_one_trace"] = _rounded(length / times, error / times)
             notes.append(
-                f"This range traces the curve {times} times, so the length is {times} times the curve's own "
-                f"length: one trace (the curve's perimeter) is {result['length_of_one_trace']}; the full "
-                "length is the distance travelled along it."
+                f"This range repeats the motion {times} times: one period of it is {result['length_of_one_trace']} "
+                "long, and the full length is the distance travelled along the curve. One period is the "
+                "closed curve's own length (its perimeter) unless the path runs back over itself within a "
+                "period, as x = sin(t)^2, y = cos(t)^2 runs along a segment and back; the curve is shorter then."
             )
     # Only a plotted curve has a range of its own; an expression's default range is not one
     outside = _outside_own_range(curve, lower, upper) if _filled(curve_name) else None
@@ -359,15 +362,21 @@ def _bound_rounding_error(curve: NamedCurve, lower: float, upper: float, lower_b
 
 
 def _number_as_given(value: Any) -> Optional[float]:
-    """The bound when the model gave it as a number (or a number's text), else None."""
-    if isinstance(value, bool):
+    """The bound when the model gave it as a short number (or a short number's text), else None.
+    A number with more than _MEANT_DIGITS significant digits (0.7853981633974483, π/4 as a float)
+    is itself a rounded value."""
+    if value is None or isinstance(value, bool):
         return None
-    if isinstance(value, (int, float)):
-        return float(value)
     try:
-        return float(str(value))
-    except ValueError:
+        number = float(value) if isinstance(value, (int, float)) else float(str(value))
+    except (TypeError, ValueError):  # Brython raises TypeError for text that is not a number
         return None
+    return number if _significant_digits(number) <= _MEANT_DIGITS else None
+
+
+def _significant_digits(number: float) -> int:
+    """Digits in the shortest text that reads back as number (0.25 has 2, π/4 as a float 16)."""
+    return len(repr(abs(number)).lower().split("e")[0].replace(".", "").strip("0"))
 
 
 def _point_or_none(curve: NamedCurve, parameter: float) -> Optional[Point]:
