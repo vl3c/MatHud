@@ -66,7 +66,9 @@ def _function(drawable: Any) -> NamedCurve:
         "function",
         point,
         (_finite_or_none(drawable.left_bound), _finite_or_none(drawable.right_bound)),
-        _floats(getattr(drawable, "point_discontinuities", None)) + _floats(getattr(drawable, "undefined_at", None)),
+        _floats(getattr(drawable, "point_discontinuities", None))
+        + _floats(getattr(drawable, "undefined_at", None))
+        + _floats(getattr(drawable, "corner_points", None)),
         _floats(getattr(drawable, "vertical_asymptotes", None)),
         f"{drawable.name}(x) = {drawable.function_string}",
     )
@@ -89,7 +91,9 @@ def _piecewise(drawable: Any) -> NamedCurve:
         "function",
         point,
         (_finite_or_none(drawable.left_bound), _finite_or_none(drawable.right_bound)),
-        boundaries + _floats(getattr(drawable, "point_discontinuities", None)),
+        boundaries
+        + _floats(getattr(drawable, "point_discontinuities", None))
+        + _floats(getattr(drawable, "corner_points", None)),
         _floats(getattr(drawable, "vertical_asymptotes", None)),
         f"piecewise function {drawable.name} ({pieces})",
     )

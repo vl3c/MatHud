@@ -91,6 +91,7 @@ class PiecewiseFunction(Drawable):
             self._compute_discontinuities()
 
         self._compute_asymptotes()
+        self._compute_corner_points()
 
         super().__init__(name=name or "f", color=color)
 
@@ -190,6 +191,15 @@ class PiecewiseFunction(Drawable):
                     self.point_discontinuities.append(disc)
 
         self.point_discontinuities.sort()
+
+    def _compute_corner_points(self) -> None:
+        """Corners of each piece within its interval (abs() arguments at zero); derived, not saved."""
+        corners: List[float] = []
+        for interval in self.intervals:
+            for corner in MathUtils.calculate_corner_points(interval.expression, interval.left, interval.right):
+                if corner not in corners:
+                    corners.append(corner)
+        self.corner_points: List[float] = sorted(corners)
 
     # Offset (relative to max(1, |x|)) of the probes either side of a boundary
     _JUMP_PROBE_OFFSET = 1e-7
@@ -335,6 +345,7 @@ class PiecewiseFunction(Drawable):
         self._compute_bounds()
         self._compute_discontinuities()
         self._compute_asymptotes()
+        self._compute_corner_points()
 
     def rotate(self, angle: float) -> None:
         """Rotation is not applicable to functions."""

@@ -4007,6 +4007,10 @@ class MathUtils:
                 point_discontinuities.append(point)
         return vertical_asymptotes, horizontal_asymptotes, sorted(point_discontinuities)
 
+    # floor/ceil steps listed at most (floor(x) on [-1e9, 1e9] would list 2e9 integers); each
+    # is saved, copied into undo snapshots and sent with the canvas state
+    _MAX_LISTED_STEPS = 200
+
     @staticmethod
     def calculate_point_discontinuities(
         function_string: str,
@@ -4035,21 +4039,17 @@ class MathUtils:
                 matches = re.findall(pattern, function_string)
                 point_discontinuities_set.update(float(x) for x in matches)
 
-        # For floor and ceil functions
+        # For floor(x) and ceil(x): each integer within the bounds, when there are few enough
+        # to list. Only for the argument x itself (floor(x + 0.5) steps at half-integers); the
+        # renderer finds the steps numerically either way.
         if "floor" in function_string or "ceil" in function_string:
-            # If bounds are provided, check each integer within bounds
-            if left_bound is not None and right_bound is not None:
+            arguments = MathUtils._function_call_arguments(function_string, "floor|ceil")
+            if left_bound is not None and right_bound is not None and arguments:
                 left = math.ceil(left_bound)
                 right = math.floor(right_bound)
-                point_discontinuities_set.update(range(left, right + 1))
-
-        # For absolute value function at its corners
-        if "abs" in function_string:
-            # Solve each (balanced) abs argument = 0 to find the corner points
-            scan_left = float(left_bound) if left_bound is not None else -1000.0
-            scan_right = float(right_bound) if right_bound is not None else 1000.0
-            for abs_argument in MathUtils._function_call_arguments(function_string, "abs"):
-                point_discontinuities_set.update(MathUtils._real_zeros_in_x(abs_argument, scan_left, scan_right))
+                plain = all(argument.strip() == "x" for argument in arguments)
+                if plain and right - left < MathUtils._MAX_LISTED_STEPS:
+                    point_discontinuities_set.update(range(left, right + 1))
 
         # Convert to list and sort
         point_discontinuities_list = sorted(point_discontinuities_set)
@@ -4059,6 +4059,31 @@ class MathUtils:
             point_discontinuities_list = [x for x in point_discontinuities_list if left_bound <= x <= right_bound]
 
         return point_discontinuities_list
+
+    @staticmethod
+    def calculate_corner_points(
+        function_string: str,
+        left_bound: Optional[Number] = None,
+        right_bound: Optional[Number] = None,
+    ) -> List[float]:
+        """The x where an abs() argument is zero: corners of the graph, where it stays continuous.
+
+        abs(x) at 0 and abs(x-1)+abs(x+2) at -2 and 1 are corners, not discontinuities; the
+        renderer samples them exactly and searches use them as breakpoints. Bars are read as
+        abs() here. With bounds only corners within them are listed; without, [-1000, 1000]
+        is scanned.
+        """
+        from expression_validator import ExpressionValidator
+
+        function_string = replace_absolute_bars(ExpressionValidator.fix_math_expression(function_string))
+        if "abs" not in function_string:
+            return []
+        scan_left = float(left_bound) if left_bound is not None else -1000.0
+        scan_right = float(right_bound) if right_bound is not None else 1000.0
+        corners: Set[float] = set()
+        for abs_argument in MathUtils._function_call_arguments(function_string, "abs"):
+            corners.update(MathUtils._real_zeros_in_x(abs_argument, scan_left, scan_right))
+        return [x for x in sorted(corners) if scan_left <= x <= scan_right]
 
     @staticmethod
     def triangle_matches_coordinates(
