@@ -303,6 +303,10 @@ class TestToolSearch(unittest.TestCase):
             "do 5 iterations of the bisection method on x^3 - x - 2 on [1, 2]",
             "find the root of x^3 - 2x - 5 to 3 decimal places by iteration",
             "approximate the zero of cos(x) - x with 10 iterations",
+            "find the root of x^3 - 2x - 5 = 0 by iteration starting at 2",
+            "approximate the solution of x^3 + 2x = 5 by iteration",
+            "plot the orbit x(t) = 2cos(t), y(t) = sin(t)",
+            "plot the orbit of a satellite x = 3cos(t), y = 2sin(t)",
         ):
             with self.subTest(query=query):
                 self.assertNotEqual(self._top(query)[:1], ["plot_cobweb"])
@@ -310,9 +314,20 @@ class TestToolSearch(unittest.TestCase):
             "Fixed-point iteration for x = cos(x) from x0 = 0.5",
             "iterate g(x) = sqrt(x + 2) from x0 = 0 to find the root",
             "iterate x -> cos(x) from x0 = 1 until it converges to 4 decimal places",
+            "iterate x^2 - 1 starting from zero",
         ):
             with self.subTest(query=query):
                 self.assertEqual(self._top(query)[:1], ["plot_cobweb"])
+
+    def test_the_index_n_is_not_a_sequence_name(self) -> None:
+        cases = {
+            "evaluate n(n-1)/2 for n = 10": "evaluate_expression",
+            "find n such that n(n+1) = 132": "solve",
+            "plot n(n-1)": "draw_function",
+        }
+        for query, tool in cases.items():
+            with self.subTest(query=query):
+                self.assertEqual(self._top(query)[:1], [tool])
 
     def test_plot_requests_keep_plot_sequence(self) -> None:
         for query in (
@@ -488,6 +503,13 @@ class TestCanvasText(unittest.TestCase):
         self.assertIn("web = Cobweb(g(x) = 3.2*x*(1-x); x0 0.1; 50 steps; orbit 0.1, 0.288,", text)
         self.assertIn("2-cycle 0.513045, 0.799455 (stable))", text)
         self.assertNotIn("summary", text)
+
+    def test_unknown_stability_and_slow_orbits_are_worded(self) -> None:
+        root = CobwebPlot("r", function=parse_iteration_function("sqrt(x)"), x0=0.0, steps=5)
+        slow = CobwebPlot("s", function=parse_iteration_function("sin(x)"), x0=1.0, steps=5)
+        text = render_state(self.state(root, slow), "text", None)
+        self.assertIn("fixed point 0 (stability unknown)", text)
+        self.assertIn("no fixed point or cycle yet, still moving one way after 2000 iterations", text)
 
     def test_min_json_shortens_long_lists(self) -> None:
         plot = SequencePlot("S", rule=parse_sequence("n"), start=1, end=500)

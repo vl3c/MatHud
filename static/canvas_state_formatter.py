@@ -909,8 +909,13 @@ def _render_sequence_plot(scene: _Scene, item: JsonDict) -> str:
     return _sequence_plot_line(item, head, args)
 
 
-def _stability_word(stable: Any) -> str:
-    return "stable" if stable is True else "unstable" if stable is False else "neutral"
+def _stability_word(stable: Any, slope: Any = 0.0) -> str:
+    """stable, unstable, neutral (|slope| about 1) or "stability unknown" (no slope)."""
+    if stable is True:
+        return "stable"
+    if stable is False:
+        return "unstable"
+    return "stability unknown" if slope is None else "neutral"
 
 
 def _orbit_behaviour_text(summary: Mapping[str, Any]) -> str:
@@ -921,13 +926,13 @@ def _orbit_behaviour_text(summary: Mapping[str, Any]) -> str:
         slope_text = "" if slope is None else f", slope {format_number(slope)}"
         return (
             f"fixed point {format_number(summary.get('fixed_point'))} "
-            f"({_stability_word(summary.get('stable'))}{slope_text})"
+            f"({_stability_word(summary.get('stable'), slope)}{slope_text})"
         )
     if behaviour == "cycle":
         cycle = _as_list(summary.get("cycle"))
         return (
             f"{format_number(summary.get('period'))}-cycle {_numbers_text(cycle, MAX_LISTED_SEQUENCE_VALUES)} "
-            f"({_stability_word(summary.get('stable'))})"
+            f"({_stability_word(summary.get('stable'), summary.get('multiplier'))})"
         )
     if behaviour == "escapes":
         return f"escapes at iteration {format_number(summary.get('escaped_at'))}"
@@ -938,8 +943,13 @@ def _orbit_behaviour_text(summary: Mapping[str, Any]) -> str:
         )
     if behaviour == "diverges":
         return "diverges" + after
-    if summary.get("pattern") == "shrinking" and summary.get("period"):
+    pattern = summary.get("pattern")
+    if pattern == "shrinking" and summary.get("period"):
         return f"settling slowly into a {format_number(summary.get('period'))}-cycle" + after
+    if pattern == "shrinking":
+        return "no fixed point or cycle yet, changes still shrinking" + after
+    if pattern == "monotone":
+        return "no fixed point or cycle yet, still moving one way" + after
     return "no fixed point or cycle" + after
 
 

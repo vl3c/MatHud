@@ -122,12 +122,18 @@ _SEQUENCE_WORDS = frozenset(
     {"sequence", "sequences", "recursive", "recursion", "recurrence", "recursively", "fibonacci", "recursions"}
 )
 _COBWEB_WORDS = frozenset({"cobweb", "cobwebs", "orbit", "orbits", "staircase"})
+# "the orbit of a satellite", "an elliptical orbit": a curve, not an iteration's orbit
+_PHYSICAL_ORBIT_WORDS = frozenset(
+    {"satellite", "satellites", "planet", "planets", "moon", "elliptical", "circular", "parametric", "radius"}
+)
 _ITERATION_WORDS = frozenset({"iterate", "iterates", "iteration", "iterations", "iterating", "iterated"})
 # "5 iterations of Newton's method": a root finder's iterations, not an orbit to draw
 _ROOT_METHOD_WORDS = frozenset({"newton", "newtons", "raphson", "bisection", "secant"})
 # "find the root of x^3 - 2x - 5 by iteration" names f, not an iteration g and a start: solve_numeric
-_ROOT_WORDS = frozenset({"root", "roots", "zero", "zeros"})
-_ITERATION_START_WORDS = frozenset({"x0", "from", "starting", "start", "starts", "initial"})
+_ROOT_WORDS = frozenset({"root", "roots", "zero", "zeros", "solution", "solutions"})
+# g(x) = ..., x = cos(x), x -> cos(x): the map to iterate is given
+_ZERO_START_RE = re.compile(r"\b(?:from|at)\s+zero\b")
+_ITERATION_MAP_RE = re.compile(r"\bg\s*\(\s*x\s*\)|\bx\s*=\s*[a-z]+\s*\(|\bx\s*->")
 # A sum or series of terms is a computation, not a plot of the terms (nor an orbit)
 _SEQUENCE_SUM_WORDS = frozenset({"sum", "sums", "summation", "series", "sigma"})
 # A limit or convergence test of a sequence is a computation; an iteration's convergence is a cobweb
@@ -160,12 +166,13 @@ _ORDINAL_TERM_RE = re.compile(r"\b\d+(?:st|nd|rd|th)\s+term")
 _NOT_ITERATION_WORDS = (_SEQUENCE_OBJECT_WORDS - {"point", "points"}) | frozenset(
     {"vertices", "vertex", "nodes", "edges", "graph", "tree", "dag", "bfs", "dfs", "traversal", "list", "workspaces"}
 )
+_NOT_ITERATION_WORDS = _NOT_ITERATION_WORDS | _PHYSICAL_ORBIT_WORDS
 # u(n), a(n), u(n-1), x(n+1), a_n, u_{n-1}: a term of a sequence
-_SEQUENCE_TERM_RE = re.compile(r"(?<![a-z])[a-z]\s*\(\s*n\s*(?:[-+]\s*\d\s*)?\)|\b[a-z]_\{?n\b")
+_SEQUENCE_TERM_RE = re.compile(r"(?<![a-z])[a-mo-z]\s*\(\s*n\s*(?:[-+]\s*\d\s*)?\)|\b[a-z]_\{?n\b")
 # u(n-1), a(n-2): a previous term of a recursion
-_PREVIOUS_TERM_RE = re.compile(r"(?<![a-z])[a-z]\s*\(\s*n\s*-\s*[12]\s*\)")
+_PREVIOUS_TERM_RE = re.compile(r"(?<![a-z])[a-mo-z]\s*\(\s*n\s*-\s*[12]\s*\)")
 # x(n+1) = ..., x_{n+1}: a first-order iteration, drawn as a cobweb
-_NEXT_TERM_RE = re.compile(r"(?<![a-z])[a-z]\s*\(\s*n\s*\+\s*1\s*\)|\b[a-z]_[({]?n\s*\+\s*1")
+_NEXT_TERM_RE = re.compile(r"(?<![a-z])[a-mo-z]\s*\(\s*n\s*\+\s*1\s*\)|\b[a-z]_[({]?n\s*\+\s*1")
 _PLOT_NOUN_WORDS = frozenset({"diagram", "diagrams", "plot", "plots", "chart", "picture"})
 # "plot the convergent sequence 1/n": a plot request, whatever else it asks about the sequence
 _SEQUENCE_PLOT_VERBS = frozenset({"plot", "plots", "plotting", "graph", "draw", "sketch", "visualize", "visualise"})
@@ -1165,12 +1172,16 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         fixed_point = "fixed point" in raw_lower.replace("-", " ")
         iterates = bool(token_set & _ITERATION_WORDS) or "logistic map" in raw_lower
         if iterates and not fixed_point:
-            names_map = "g(x)" in raw_lower.replace(" ", "") or bool(token_set & _ITERATION_START_WORDS)
-            if token_set & _ROOT_METHOD_WORDS or (token_set & _ROOT_WORDS and not names_map):
+            names_map = _ITERATION_MAP_RE.search(raw_lower) is not None
+            roots = token_set & _ROOT_WORDS
+            if roots == {"zero"} and _ZERO_START_RE.search(raw_lower):
+                roots = set()  # "iterate x^2 - 1 starting from zero": a start, not a root
+            if token_set & _ROOT_METHOD_WORDS or (roots and not names_map):
                 iterates = False
         stability = fixed_point and bool(token_set & _STABILITY_WORDS)
         next_term = _NEXT_TERM_RE.search(raw_lower) is not None
-        if (web or next_term or stability or iterates) and not token_set & _NOT_ITERATION_WORDS:
+        parametric = "(t)" in raw_lower.replace(" ", "")  # "the orbit x(t) = 2cos(t), y(t) = sin(t)"
+        if (web or next_term or stability or iterates) and not (token_set & _NOT_ITERATION_WORDS or parametric):
             # A named web or cobweb outranks the curve words it is drawn with ("a web plot for the logistic map")
             scores["plot_cobweb"] += 12.0 if web else 10.0
             return
