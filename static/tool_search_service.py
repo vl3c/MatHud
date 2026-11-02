@@ -125,6 +125,9 @@ _COBWEB_WORDS = frozenset({"cobweb", "cobwebs", "orbit", "orbits", "staircase"})
 _ITERATION_WORDS = frozenset({"iterate", "iterates", "iteration", "iterations", "iterating", "iterated"})
 # "5 iterations of Newton's method": a root finder's iterations, not an orbit to draw
 _ROOT_METHOD_WORDS = frozenset({"newton", "newtons", "raphson", "bisection", "secant"})
+# "find the root of x^3 - 2x - 5 by iteration" names f, not an iteration g and a start: solve_numeric
+_ROOT_WORDS = frozenset({"root", "roots", "zero", "zeros"})
+_ITERATION_START_WORDS = frozenset({"x0", "from", "starting", "start", "starts", "initial"})
 # A sum or series of terms is a computation, not a plot of the terms (nor an orbit)
 _SEQUENCE_SUM_WORDS = frozenset({"sum", "sums", "summation", "series", "sigma"})
 # A limit or convergence test of a sequence is a computation; an iteration's convergence is a cobweb
@@ -1161,8 +1164,10 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             return
         fixed_point = "fixed point" in raw_lower.replace("-", " ")
         iterates = bool(token_set & _ITERATION_WORDS) or "logistic map" in raw_lower
-        if iterates and token_set & _ROOT_METHOD_WORDS and not fixed_point:
-            iterates = False
+        if iterates and not fixed_point:
+            names_map = "g(x)" in raw_lower.replace(" ", "") or bool(token_set & _ITERATION_START_WORDS)
+            if token_set & _ROOT_METHOD_WORDS or (token_set & _ROOT_WORDS and not names_map):
+                iterates = False
         stability = fixed_point and bool(token_set & _STABILITY_WORDS)
         next_term = _NEXT_TERM_RE.search(raw_lower) is not None
         if (web or next_term or stability or iterates) and not token_set & _NOT_ITERATION_WORDS:

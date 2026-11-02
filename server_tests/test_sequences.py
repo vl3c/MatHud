@@ -301,10 +301,18 @@ class TestToolSearch(unittest.TestCase):
         for query in (
             "apply newton's method to x^2 - 2 starting at 1 for 5 iterations",
             "do 5 iterations of the bisection method on x^3 - x - 2 on [1, 2]",
+            "find the root of x^3 - 2x - 5 to 3 decimal places by iteration",
+            "approximate the zero of cos(x) - x with 10 iterations",
         ):
             with self.subTest(query=query):
                 self.assertNotEqual(self._top(query)[:1], ["plot_cobweb"])
-        self.assertEqual(self._top("Fixed-point iteration for x = cos(x) from x0 = 0.5")[:1], ["plot_cobweb"])
+        for query in (
+            "Fixed-point iteration for x = cos(x) from x0 = 0.5",
+            "iterate g(x) = sqrt(x + 2) from x0 = 0 to find the root",
+            "iterate x -> cos(x) from x0 = 1 until it converges to 4 decimal places",
+        ):
+            with self.subTest(query=query):
+                self.assertEqual(self._top(query)[:1], ["plot_cobweb"])
 
     def test_plot_requests_keep_plot_sequence(self) -> None:
         for query in (
