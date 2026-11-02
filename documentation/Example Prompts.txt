@@ -70,6 +70,23 @@ Find the area enclosed by r = 1 + cos(θ) (integrate 0.5*r^2 over θ from 0 to 2
 Change the θ range of f_polar to 0 to 4*pi and make it blue.
 Delete the polar curve f_polar.
 
+# Implicit Curves and Inequality Regions
+Draw the curve x^2 + y^2 = 25.
+Graph the ellipse (x - 1)^2/9 + (y + 2)^2/4 = 1 as an implicit curve.
+Draw the hyperbola x*y = 4 in red.
+Plot the folium of Descartes x^3 + y^3 = 6*x*y.
+Draw the elliptic curve y^2 = x^3 - x.
+Draw the astroid cbrt(x)^2 + cbrt(y)^2 = 1 (cbrt is the real cube root; x^(2/3) is not real for x < 0).
+Graph sin(x) = cos(y).
+Shade the region y > 2*x + 1.
+Shade x^2 + y^2 <= 9 in green with opacity 0.3.
+Shade the feasible region x + y <= 10, x >= 0, y >= 0, 2*x + y <= 16.
+Shade where y < -1 or y > 1.
+Shade y > x^2 - 2 and (x < 0 or y < 1).
+Make the region R1 blue. (Regions are colored areas: update_colored_area and delete_colored_area edit them.)
+Change the color of the implicit curve c1 to orange.
+Delete the implicit curve c1.
+
 # Sequences and Iteration
 Plot the sequence u(n) = 1/n for n from 1 to 20.
 Plot u(n) = (-1)^n/n for n from 1 to 30 and tell me whether it is increasing, decreasing or neither.
