@@ -225,6 +225,95 @@ _PICTURE_WORDS = frozenset(
 _NORMAL_LINE_RE = re.compile(
     r"\bnormals?\s+(?:to\b|at\b|(?:of|for)\s+(?:[a-z]\b|the\s+(?:graph|curve|parabola|circle|ellipse|function)))"
 )
+# Hypothesis tests, confidence intervals and chi-squared tests (_inference_intent), matched on the
+# lowercased raw query because the tokenizer drops one-letter words ("t-test", "p-value") and χ².
+# A comparison of a parameter with a value: a symbol, or "differs from", "is at least", "has increased from".
+_PARAMETER_COMPARISON = (
+    r"(?:[<>=≠≤≥]|!=|\b(?:differs?|exceeds?|equals?|has|is)\b(?:\s+(?:greater|less|more|larger|bigger|smaller"
+    r"|higher|lower|different|equal|not|at|least|most|above|below|over|under|than|to|from|or|increased"
+    r"|decreased|changed|risen|fallen|exactly))*)\s*(?:[<>=≠≤≥]\s*)?"
+)
+_HYPOTHESIS_TEST_RE = re.compile(
+    r"\b[tz][- ]?tests?\b|\bp[- ]?values?\b(?!\s+of\s+(?:these|the|those)\s+points)|\bhypothes[ie]s\b"
+    r"|\bh[_ ]?0\s*(?::|=|is\b)|\bnull\s+h[_ ]?0\b|\bsignificance\s+(?:level|test)|\blevel\s+of\s+significance\b"
+    r"|\bstatistically\s+significant|\bsignificant(?:ly)?\s+(?:at|different|difference|level)\b"
+    r"|\breject(?:s|ed|ing)?\s+(?:the\s+)?(?:null|h[_ ]?0)\b"
+    r"|\b(?:2-?)?samp[tz]test\b|\b[12]-?propztest\b|\bpaired\b[^.]*\btests?\b"
+    r"|\b(?:one|two|1|2)[- ]?(?:sample|proportion|prop)s?\b[^.]*\btests?\b|\bproportion\s+tests?\b"
+    r"|\btest(?:s|ed)?\s+(?:whether|if|that)\s+(?:the\s+)?(?:population\s+)?(?:means?|proportions?|averages?)\b"
+    # "test whether p > 0.5" or "mu is 100": p compared with a proportion, mu with a number; not "p(x) = x^2 + 1",
+    # "p and q", "P is at the midpoint of AB" or "p = 2 gives a convergent p-series".
+    r"|\btest(?:s|ed)?\s+(?:whether|if|that)\s+(?:p\s*" + _PARAMETER_COMPARISON + r"(?:0?\.\d|[01](?![\d.])"
+    r"|\d{1,2}(?:\.\d+)?\s*%)|(?:mu|μ)\s*" + _PARAMETER_COMPARISON + r"-?\.?\d)"
+    r"|\bh[_ ]?[1a]\s*:"
+    r"|\btest(?:s|ed)?\b(?:[^.;?]|\.\d)*(?:\balpha\b|α)\s*(?:=|of|level)?\s*0?\.\d|(?:\balpha\b|α)\s*=?\s*0?\.\d(?:[^.;?]|\.\d)*\btest"
+    r"|\btest\s+(?:the\s+|this\s+)?claim\b|\b(?:evidence|claim)\s+that\s+(?:the\s+)?(?:population\s+)?(?:mean|proportion)"
+    r"|\btest\b(?:[^.;?]|\.\d)*\bat\s+(?:the\s+)?\d+(?:\.\d+)?\s*%|\b(?:at|with)\s+(?:the\s+)?\d+(?:\.\d+)?\s*%\s+(?:significance\s+)?level"
+)
+_CHI_SQUARED_TEST_RE = re.compile(
+    r"(?:χ²|χ2|\bchi[- ]?(?:squared?|sq|2)?)[- ]?(?:gof[- ]?)?(?:tests?\b|goodness\b)"
+    r"|\bgoodness[- ]of[- ]fit\b|\bcontingency\b|\btests?\s+(?:of|for)\s+(?:independence|homogeneity)\b"
+    r"|\bindependence\s+tests?\b|\bgof\b"
+)
+_CONFIDENCE_INTERVAL_RE = re.compile(
+    r"\bconfidence\s+(?:intervals?|levels?|bounds?)\b|\bmargin\s+of\s+error\b|\b[tz]-?intervals?\b(?!\s*\[)"
+    r"|\b[tz]\s+intervals?\b(?!\s*(?:[\[(]|-?\d|to\b|from\b))|\bci\s+(?:for|of)\b"
+    r"|\b[12]-?propzint\b|\b(?:2-?)?samp[tz]int\b|\b\d+(?:\.\d+)?\s*%\s*(?:ci|intervals?|confiden)"
+    r"|\binterval\s+estimates?\b"
+)
+# A p-value of a statistic already computed ("p-value for t = 2.1 with 15 df"): compute_distribution.
+_STATISTIC_VALUE_RE = re.compile(
+    r"(?:\b[tz]|\bchi[- ]?(?:squared?|sq|2)?|χ²|χ2)(?:\s*\(\s*\d+\s*\))?[- ]?(?:\s*(?:score|statistic|stat|value))?"
+    r"\s*(?:=|\bis\b|\bof\b|\bequals\b)\s*-?\.?\d|\bstatistic\s+(?:of|is|=|equals)\s*-?\.?\d"
+)
+# A discrete distribution, P(X ...) or "the probability of 9 or more" named outright ("using the binomial
+# distribution, is 15 or more heads significant?"): its exact tail is compute_distribution's, not a
+# normal-approximation test.
+_NAMED_DISTRIBUTION_RE = re.compile(
+    r"\b(?:binomial|poisson)\b|\bgeometric\s+(?:distribution|random|probability|model)|\bp\s*\(\s*x\s*(?:[<>=≤≥]|!=)"
+    r"|\bprobability\b[^.;?]*\b(?:or\s+(?:more|fewer|less)|at\s+(?:least|most))\b"
+)
+# A named distribution routes to compute_distribution only next to a test word ("geometric series" does not).
+_INFERENCE_SIGNAL_RE = re.compile(r"significan|\bp[- ]?values?\b|\bh[_ ]?[01]\b|\bnull\b|\btest\b|\balpha\b|α")
+_STATISTIC_P_VALUE_RE = re.compile(r"\bp[- ]?values?\b|\bcritical\s+values?\b")
+# "critical value of t with 5 df", "z* for 90% confidence": a quantile, also without a statistic's value.
+_CRITICAL_VALUE_RE = re.compile(
+    r"\bcritical\s+(?:[tz]\s+|chi[- ]?squared?\s+)?values?\b|\b[tz]\s*\*(?!\s*[\d(.])(?!\s*[a-z]\b)|\bwhat\s+[tz](?:\s+value)?\s+gives\b"
+)
+# A critical value is a statistics question only next to one of these ("critical values of f" is calculus).
+_CRITICAL_CONTEXT_RE = re.compile(
+    r"confiden|\balpha\b|α|\bdf\b|degrees?\s+of\s+freedom|significan|\d\s*%|\b(?:one|two|left|right|upper|lower)[- ]tail"
+)
+# Statistics words that keep a test or interval next to function notation ("the p-value of a t test, with y = ..." data).
+_STATISTICS_CONTEXT_RE = re.compile(
+    r"\bp[- ]?values?\b|\bhypothes[ie]s\b|\bh[_ ]?[01a]\b|\bnull\b|\b[tz][- ]?tests?\b|\bmeans?\b|\bproportions?\b"
+    r"|\bsamples?\b|significan|\bconfidence\b|\bmargin\s+of\s+error\b|\bci\b"
+)
+_FUNCTION_CONTEXT_RE = re.compile(r"\b[a-z]\(\s*[a-z]\s*\)|\by\s*=|\bfunction\b")
+# Values named like a variable ("x = 5, 6, 7 and y = 6, 7, 9", "y = [3, 5]", "y = {3, 5}", "y = 52, s = 6"):
+# data, not a function.
+_DATA_VALUES_RE = re.compile(r"\b[a-z]\s*=\s*(?:[\[{(]|c\()?\s*-?(?:\d+(?:\.\d+)?|\.\d+)\s*(?:[,;\]})]|\s+-?\.?\d|$)")
+_TEST_WORD_RE = re.compile(r"\btest(?:s|ed|ing)?\b|\bp[- ]?values?\b|\bhypothes[ie]s\b")
+# A picture of a distribution ("shade the p-value on a normal curve") is plot_distribution's.
+_DISTRIBUTION_PICTURE_WORDS = frozenset({"distribution", "curve", "normal", "bell", "gaussian", "density"})
+# Words that make "test" a statistics request even without a test pattern.
+_SAMPLE_WORDS = frozenset({"mean", "means", "proportion", "proportions", "sample", "samples", "population", "sigma"})
+# A test or interval of a regression slope, intercept or correlation (LinRegTTest, LinRegTInt) is out of
+# scope: those requests stay with fit_regression and compute_descriptive_statistics.
+_REGRESSION_WORDS = frozenset(
+    {"regression", "slope", "intercept", "fit", "fitting", "correlation", "correlated", "correlate"}
+)
+# Sample-size planning ("how large a sample for a margin of error of 3") is not an interval.
+_SAMPLE_SIZE_RE = re.compile(
+    r"\b(?:what|which|minimum|smallest|required|needed)\s+sample\s+size\b|\bsample\s+size\s+(?:is\s+)?(?:needed|required)\b"
+    r"|\bhow\s+(?:large|big)\s+(?:a\s+|the\s+)?sample\b|\bhow\s+many\b[^.?]*\b(?:surveyed|sampled|needed|required)\b"
+)
+# Summary figures, or a normal-approximation test asked by name, that make a named binomial question a
+# test of data after all ("a sample of 30", "test whether the mean is 10" stay exact tails).
+_SAMPLE_SUMMARY_WORDS = frozenset({"sd", "sigma", "approximation"})
+_Z_TEST_RE = re.compile(r"\bz[- ]?tests?\b|\b1-?propztest\b|\bstandard\s+deviation\b")
+# Words that ask for the test suite even next to a test word.
+_TEST_SUITE_WORDS = frozenset({"run", "suite", "client", "server", "unit", "brython"})
 _FUNCTION_NAME_WORDS = frozenset({"sin", "cos", "exp", "ln", "log", "squared", "cubed"})
 _FUNCTION_EQUATION_RE = re.compile(r"\b[a-z]\(\s*[a-z]\s*\)|[=^]")
 _PIECEWISE_RE = re.compile(r"for\s+x\s*[<>]|when\s+x\s*[<>]|x\s*>=|x\s*<=")
@@ -546,6 +635,7 @@ TOOL_CATEGORIES: Dict[str, CategoryEntry] = {
             "plot_distribution", "plot_bars", "plot_histogram", "plot_box",
             "plot_scatter", "delete_plot",
             "fit_regression", "compute_descriptive_statistics", "compute_distribution",
+            "hypothesis_test", "confidence_interval", "chi_squared_test",
         ],
         "keywords": [
             "statistics", "distribution", "bar", "chart", "mean",
@@ -1137,13 +1227,15 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         return not token_set & {"function", "functions", "curve", "graph", "equation"}
 
     @staticmethod
-    def _boost_distribution_tools(token_set: set[str], scores: Dict[str, float], normal_line: bool) -> None:
+    def _boost_distribution_tools(
+        token_set: set[str], scores: Dict[str, float], normal_line: bool, compute: bool = True
+    ) -> None:
         """compute_distribution for probabilities and quantiles, plot_distribution for pictures.
 
         A distribution is named outright (binomial, poisson, chi, student, calculator names
         such as normalcdf), or by an everyday word (normal, exponential, uniform, geometric)
         next to a distribution word; exponential growth, geometric sequences and uniform
-        scaling stay with their own tools.
+        scaling stay with their own tools. ``compute=False`` keeps only the picture boost.
         """
         named = bool(token_set & _DISTRIBUTION_NAME_WORDS) or bool(
             token_set & _AMBIGUOUS_DISTRIBUTION_WORDS and token_set & _DISTRIBUTION_CONTEXT_WORDS
@@ -1159,8 +1251,92 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             if named:
                 scores["plot_distribution"] += 6.0
             return
+        if not compute:
+            return
         # Calculator names (invNorm, binomcdf) outrank evaluate_expression's call-syntax boost.
         scores["compute_distribution"] += (10.0 if token_set & _DISTRIBUTION_NAME_WORDS else 8.0) if named else 3.0
+
+    @staticmethod
+    def _inference_intent(raw_lower: str) -> set[str]:
+        """The inference tools a query asks for; compute_distribution for a known statistic's tail.
+
+        "p-value for t = 2.1 with 15 df" names a statistic's value and "critical value of t with
+        5 df" or "z* for 90% confidence" a quantile: distribution questions. χ² tests ask for
+        chi_squared_test (checked first: "chi-square test" also reads as a test), t/z tests,
+        p-values and hypotheses for hypothesis_test, and confidence intervals or margins of
+        error for confidence_interval.
+        """
+        function = _FUNCTION_CONTEXT_RE.search(_DATA_VALUES_RE.sub(" ", raw_lower))
+        if _STATISTIC_P_VALUE_RE.search(raw_lower) and not (_NUMBER_LIST_RE.search(raw_lower) or function):
+            if _STATISTIC_VALUE_RE.search(raw_lower):
+                return {"compute_distribution"}
+        if (
+            _NAMED_DISTRIBUTION_RE.search(raw_lower)
+            and _INFERENCE_SIGNAL_RE.search(raw_lower)
+            and not (function or _CHI_SQUARED_TEST_RE.search(raw_lower) or _Z_TEST_RE.search(raw_lower))
+            and not set(re.findall(r"[a-z]+", raw_lower)) & _SAMPLE_SUMMARY_WORDS
+        ):
+            return {"compute_distribution"}
+        tools: set[str] = set()
+        if _CRITICAL_VALUE_RE.search(raw_lower) and _CRITICAL_CONTEXT_RE.search(raw_lower) and not function:
+            tools.add("compute_distribution")
+        if _CHI_SQUARED_TEST_RE.search(raw_lower):
+            tools.add("chi_squared_test")
+        elif _HYPOTHESIS_TEST_RE.search(raw_lower) and "theorem" not in raw_lower:
+            # "the critical value of t at the 5% level" names a level, not a test; "the second derivative
+            # test on f(x) = x^2 - alpha x with alpha = 0.3" is calculus.
+            if (not tools or _TEST_WORD_RE.search(raw_lower)) and not (
+                function and not _STATISTICS_CONTEXT_RE.search(raw_lower)
+            ):
+                tools.add("hypothesis_test")
+        if _CONFIDENCE_INTERVAL_RE.search(raw_lower) and not (function or _PARAMETRIC_RE.search(raw_lower)):
+            tools.add("confidence_interval")
+        elif _CONFIDENCE_INTERVAL_RE.search(raw_lower) and _STATISTICS_CONTEXT_RE.search(raw_lower):
+            # "draw x(t) = t^2, y(t) = t^3 over the t-interval (-1, 1)" is a parameter range.
+            tools.add("confidence_interval")
+        return tools
+
+    @staticmethod
+    def _boost_inference_tools(tools: set[str], token_set: set[str], scores: Dict[str, float]) -> None:
+        """Raise the tools ``_inference_intent`` found above the statistics and test-word matches.
+
+        A picture of a distribution ("plot a normal and shade the p-value") gets no boost and
+        ranks below plot_distribution, which draws it; "show the p-value of a t test" is not one. A critical value asked next to a test ranks behind the test, and a confidence
+        interval of a regression slope or correlation stays with fit_regression.
+        """
+        drawing = scores.get("plot_distribution", 0.0)
+        draws_distribution = token_set & _PICTURE_WORDS and token_set & (
+            _DISTRIBUTION_PICTURE_WORDS | _DISTRIBUTION_NAME_WORDS
+        )
+        if draws_distribution and drawing > 0.0:
+            for tool in tools:
+                if scores.get(tool, 0.0) >= drawing:
+                    scores[tool] = drawing - 0.5
+            return
+        for tool in tools:
+            if tool in ("confidence_interval", "hypothesis_test") and token_set & _REGRESSION_WORDS:
+                scores.pop(tool, None)
+                continue
+            boost = 14.0
+            if tool == "compute_distribution" and tools & {"hypothesis_test", "chi_squared_test"}:
+                boost = 10.0  # a test's critical value: the test first
+            if tool == "confidence_interval" and "compute_distribution" in tools:
+                boost = 4.0  # "critical z value for 95% confidence": the quantile first
+            scores[tool] += boost
+
+    @staticmethod
+    def _quiet_inference_tools(token_set: set[str], scores: Dict[str, float]) -> None:
+        """No inference intent: the tool names' "test" and "interval" do not make a ratio test,
+        a symmetry test or an interval of x a statistics request."""
+        if token_set & TEST_QUERY_WORDS and not token_set & _SAMPLE_WORDS:
+            scores.pop("hypothesis_test", None)
+            scores.pop("chi_squared_test", None)
+            # Their descriptions name hypothesis_test, which indexes as "test".
+            for tool in ("compute_distribution", "confidence_interval"):
+                if tool in scores:
+                    scores[tool] -= 1.0
+        if token_set & {"interval", "intervals"}:
+            scores.pop("confidence_interval", None)
 
     @staticmethod
     def _apply_intent_boosts(
@@ -1212,7 +1388,20 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["plot_distribution"] += 6.0
         if token_set & {"normal", "normally"} and not normal_line:
             scores["plot_distribution"] += 4.0
-        ToolSearchService._boost_distribution_tools(token_set, scores, normal_line)
+        inference = ToolSearchService._inference_intent(raw_lower)
+        tests_data = bool(inference - {"compute_distribution"})
+        # A test's p-value or interval is not a distribution question; its picture still is.
+        ToolSearchService._boost_distribution_tools(token_set, scores, normal_line, compute=not inference)
+        if inference:
+            ToolSearchService._boost_inference_tools(inference, token_set, scores)
+            if not token_set & _TEST_SUITE_WORDS:
+                scores.pop("run_tests", None)
+        else:
+            ToolSearchService._quiet_inference_tools(token_set, scores)
+        if _SAMPLE_SIZE_RE.search(raw_lower):
+            # Planning n for a margin of error is arithmetic the inference tools cannot do.
+            scores.pop("confidence_interval", None)
+            scores.pop("hypothesis_test", None)
         histogram = ToolSearchService._asks_for_histogram(token_set)
         box_plot = ToolSearchService._asks_for_box_plot(token_set)
         if token_set & {"bar", "bars"}:
@@ -1230,7 +1419,8 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["draw_function"] += 4.0
         if token_set & {"regression", "fit", "fitting", "trend"}:
             scores["fit_regression"] += 6.0
-        if token_set & _DESCRIPTIVE_STATISTICS_WORDS:
+        # A test or interval of a mean is not a summary of the data.
+        if token_set & _DESCRIPTIVE_STATISTICS_WORDS and not tests_data:
             scores["compute_descriptive_statistics"] += 7.0
         if {"five", "summary"} <= token_set and not box_plot:
             # "the five-number summary of 4, 8, 15": statistics, not an expression to evaluate
