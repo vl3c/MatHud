@@ -4635,6 +4635,20 @@
       "cluster": "function_cluster"
     },
     {
+      "id": "c_curve_parameter_t_not_slider",
+      "query": "Plot the cycloid with parameter t from 0 to 4pi.",
+      "expected_any": [
+        "draw_parametric_function",
+        "draw_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "normal",
+      "cluster": "function_cluster"
+    },
+    {
       "id": "c_arc_sweep_not_animation",
       "query": "Draw an arc from A to B sweeping 90 degrees.",
       "expected_any": [

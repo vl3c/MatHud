@@ -77,8 +77,9 @@ def snap_to_step(value: float, low: float, high: float, step: float) -> float:
 def format_value(value: float, step: float) -> str:
     """The value as the slider panel shows it: the step's decimals, at most 6 significant digits."""
     decimals = 0
-    if 0 < step < 1:
-        decimals = min(6, int(math.ceil(-math.log10(step) - 1e-9)))
+    if step > 0:
+        step_text = f"{step:.6f}".rstrip("0")  # 0.25 -> "0.25": two decimals, 2.5 -> one
+        decimals = len(step_text.split(".")[1]) if "." in step_text else 0
     text = f"{value:.{decimals}f}"
     if len(text.lstrip("-").replace(".", "")) > 6:
         text = f"{value:.6g}"

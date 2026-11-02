@@ -524,6 +524,14 @@ _PARAMETER_DELETE_RE = re.compile(
     + _UNFUNCTION_PARAMETER_NAME
     + r"\s*$"
 )
+# A curve's parameter, not a slider: "with parameter t from 0 to 2pi", "(cos t, sin 2t)",
+# "the curve parameters", "the parameter of the cycloid"
+_CURVE_PARAMETER_RE = re.compile(
+    r"\bparameters?\s+(?:t|θ|theta)\b"
+    r"|\([^()]*\bt\b[^()]*,[^()]*\bt\b[^()]*\)"
+    r"|\b(?:curves?|cycloid|helix|lissajous|spiral|path)\b[^.;]*\bparameters?\b"
+    r"|\bparameters?\b[^.;]*\b(?:curves?|cycloid|helix|lissajous|spiral|path)\b"
+)
 _PARAMETER_TOOLS = ("set_parameter", "animate_parameter", "delete_parameter")
 _DELETE_WORDS = frozenset({"delete", "remove", "erase", "drop", "rid"})
 # "n goes from 1 to 10" in a sum or a sequence is an index, not a slider
@@ -1615,7 +1623,11 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         """
         raw_lower = raw_query.lower()
         sliders = bool(token_set & _SLIDER_WORDS)
-        other_sense = bool(token_set & _OTHER_PARAMETER_CONTEXT) or bool(_PARAMETRIC_RE.search(raw_lower))
+        other_sense = (
+            bool(token_set & _OTHER_PARAMETER_CONTEXT)
+            or bool(_PARAMETRIC_RE.search(raw_lower))
+            or bool(_CURVE_PARAMETER_RE.search(raw_lower))
+        )
         parameters = bool(token_set & _PARAMETER_WORDS) and not other_sense
         sweep = bool(token_set & _SWEEP_WORDS) and not token_set & _SWEEP_OTHER_CONTEXT
         animation = (
