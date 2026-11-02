@@ -25,6 +25,7 @@ import expression_functions as ef
 _GLUED_VARIABLES = ("x", "t", "θ")
 # A name followed by "(": a call, or a product written without "*" (a(x+1))
 _CALLED_NAME = re.compile(r"(\w+)\s*\(")
+_QUOTES = ('"', "'")
 # Where the model finds set_parameter when tools are searched
 _CREATE_HINT = "set_parameter (search_tools 'slider' finds it if it is not loaded)"
 
@@ -122,15 +123,28 @@ def _finite(value: Any) -> Optional[float]:
     return number if math.isfinite(number) else None
 
 
+def _unquoted(text: str) -> str:
+    """The text without one pair of matching quotes around all of it ('"b"' is b).
+
+    Models sometimes quote an expression inside a JSON string; the quotes are never part
+    of an expression, so one surrounding pair is dropped and any other quote is refused.
+    """
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in _QUOTES:
+        return text[1:-1].strip()
+    return text
+
+
 def compile_definition(text: str) -> Tuple[str, Tuple[str, ...]]:
     """The stored form of a definition text and the parameters it reads.
 
     Raises:
         ValueError: The text does not parse, or reads names that are not parameters.
     """
-    source = str(text).strip()
+    source = _unquoted(str(text).strip())
     if not source:
         raise ValueError("The expression is empty; give a number or an expression in parameters, such as a^2.")
+    if any(quote in source for quote in _QUOTES):
+        raise ValueError(f"Could not read {source}: write the expression without quotes, such as a^2 or 2*a.")
     try:
         compiled = compiled_expression.compile_expression(source, ())
     except Exception as exc:

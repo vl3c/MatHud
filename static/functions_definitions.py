@@ -292,11 +292,11 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "properties": {
                     "x": {
                         "type": ["number", "string"],
-                        "description": "The X coordinate: a number, or an expression in parameters made with set_parameter, such as 'a' or '2*a + 1' (the point then follows them)",
+                        "description": "The X coordinate: a number, or an expression in parameters made with set_parameter, such as a or 2*a + 1, without quote marks (the point then follows them)",
                     },
                     "y": {
                         "type": ["number", "string"],
-                        "description": "The Y coordinate: a number, or an expression in parameters, such as 'a^2'",
+                        "description": "The Y coordinate: a number, or an expression in parameters, such as a^2, without quote marks",
                     },
                     "color": {"type": ["string", "null"], "description": "Optional color for the point"},
                     "name": {
@@ -339,11 +339,11 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "new_name": {"type": ["string", "null"], "description": "Optional new name for the point"},
                     "new_x": {
                         "type": ["number", "string", "null"],
-                        "description": "Optional new x-coordinate (requires new_y): a number, which makes the point free, or an expression in parameters such as 'a'",
+                        "description": "Optional new x-coordinate (requires new_y): a number, which makes the point free, or an expression in parameters such as a, without quote marks",
                     },
                     "new_y": {
                         "type": ["number", "string", "null"],
-                        "description": "Optional new y-coordinate (requires new_x): a number, or an expression in parameters such as 'a^2'",
+                        "description": "Optional new y-coordinate (requires new_x): a number, or an expression in parameters such as a^2, without quote marks",
                     },
                     "new_color": {
                         "type": ["string", "null"],
@@ -632,7 +632,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "center_y": {"type": "number", "description": "The Y coordinate of the circle's center"},
                     "radius": {
                         "type": ["number", "string"],
-                        "description": "The radius: a number, or an expression in parameters made with set_parameter, written as text such as 'r' or '2*a' (the circle follows it; a negative value gives the same circle as its absolute value). A centre on a point that follows parameters: create that point first, then the circle at its coordinates.",
+                        "description": "The radius: a number, or an expression in parameters made with set_parameter, written as text such as r or 2*a, without quote marks (the circle follows it; a negative value gives the same circle as its absolute value). A centre on a point that follows parameters: create that point first, then the circle at its coordinates.",
                     },
                     "color": {"type": ["string", "null"], "description": "Optional color to assign to the circle"},
                     "name": {

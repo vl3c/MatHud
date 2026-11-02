@@ -113,6 +113,19 @@ class TestDefinitionsAndHints(_CleanNamespace):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 read_definition(bad, "x")
 
+    def test_one_pair_of_surrounding_quotes_is_dropped(self) -> None:
+        ce.set_parameter_values({"a": 2.0, "b": 3.0})
+        for quoted, expected in (('"b"', (3.0, "b")), ("'2*a'", (4.0, "2*a")), ('" a^2 "', (4.0, "a^2"))):
+            with self.subTest(quoted=quoted):
+                defined = read_definition(quoted, "x")
+                self.assertEqual((defined.value, defined.expression), expected)
+        self.assertEqual(read_definition('"3"', "x").value, 3.0)
+        for bad in ('"b"*2', "'a", "\"a'", '""'):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                read_definition(bad, "x")
+        with self.assertRaisesRegex(ValueError, "without quotes"):
+            read_definition('"a" + "b"', "x")
+
     def test_glued_names_get_the_product_hint(self) -> None:
         message = undefined_names_hint("ax^2 + bx + c", ["ax", "bx", "c"], ("x",))
         self.assertIn("For a times x write a*x", message)
