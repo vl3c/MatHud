@@ -133,7 +133,18 @@ _ROOT_METHOD_WORDS = frozenset({"newton", "newtons", "raphson", "bisection", "se
 _ROOT_WORDS = frozenset({"root", "roots", "zero", "zeros", "solution", "solutions"})
 # g(x) = ..., x = cos(x), x -> cos(x): the map to iterate is given
 _ZERO_START_RE = re.compile(r"\b(?:from|at)\s+zero\b")
-_ITERATION_MAP_RE = re.compile(r"\bg\s*\(\s*x\s*\)|\bx\s*=\s*[a-z]+\s*\(|\bx\s*->")
+# "iterate cos(x) from 1 and find the solution" (the verb names the map first; "by iteration" does not),
+# and x = 1 + 1/x (an x on both sides)
+_ITERATION_MAP_RE = re.compile(
+    r"\bg\s*\(\s*x\s*\)|\bx\s*=\s*[a-z]+\s*\(|\bx\s*->"
+    r"|(?<![a-z])x\s*=[^=,;?]*?(?<![a-z])x(?![a-z])"
+    r"|\b(?:iterat(?:e|es|ing)|iteration\s+(?:of|on))\s+(?:the\s+(?:map|function)\s+)?"
+    r"(?!over\b|through\b|to\b|until\b|it\b|this\b|the\b|a\b|an\b)"
+)
+# x(t+1) = ...: a discrete-time iteration in t, not a parametric curve
+_DISCRETE_TIME_RE = re.compile(r"\(\s*t\s*[-+]\s*1\s*\)")
+# "for 20 steps": iterations of a recursion, not the steps of a derivation
+_COUNTED_STEPS_RE = re.compile(r"\b\d+\s+steps\b")
 # A sum or series of terms is a computation, not a plot of the terms (nor an orbit)
 _SEQUENCE_SUM_WORDS = frozenset({"sum", "sums", "summation", "series", "sigma"})
 # A limit or convergence test of a sequence is a computation; an iteration's convergence is a cobweb
@@ -1165,7 +1176,10 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         partial_sums = "partial sum" in raw_lower
         time_series = "time series" in raw_lower
         sum_words = token_set & _SEQUENCE_SUM_WORDS and not partial_sums and not time_series
-        web = bool(token_set & _COBWEB_WORDS) or ("web" in token_set and bool(token_set & _PLOT_NOUN_WORDS))
+        cobweb_words = token_set & _COBWEB_WORDS
+        if cobweb_words == {"staircase"} and token_set & {"function", "floor", "ceil", "ceiling", "step"}:
+            cobweb_words = set()  # the staircase (floor) function
+        web = bool(cobweb_words) or ("web" in token_set and bool(token_set & _PLOT_NOUN_WORDS))
         if sum_words and not web:
             ToolSearchService._penalize(scores, ("plot_sequence", "plot_cobweb"), 8.0)
             return
@@ -1180,7 +1194,8 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
                 iterates = False
         stability = fixed_point and bool(token_set & _STABILITY_WORDS)
         next_term = _NEXT_TERM_RE.search(raw_lower) is not None
-        parametric = "(t)" in raw_lower.replace(" ", "")  # "the orbit x(t) = 2cos(t), y(t) = sin(t)"
+        # "the orbit x(t) = 2cos(t), y(t) = sin(t)" is a curve; x(t+1) = 3.2 x(t)(1 - x(t)) is not
+        parametric = "(t)" in raw_lower.replace(" ", "") and not _DISCRETE_TIME_RE.search(raw_lower)
         if (web or next_term or stability or iterates) and not (token_set & _NOT_ITERATION_WORDS or parametric):
             # A named web or cobweb outranks the curve words it is drawn with ("a web plot for the logistic map")
             scores["plot_cobweb"] += 12.0 if web else 10.0
@@ -1195,7 +1210,10 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         if (token_set & _SEQUENCE_LIMIT_WORDS or _ORDINAL_TERM_RE.search(raw_lower)) and not plotted:
             ToolSearchService._penalize(scores, ("plot_sequence", "plot_cobweb"), 8.0)
             return
-        if token_set & _NOT_NUMBER_SEQUENCE_WORDS:
+        not_numbers = token_set & _NOT_NUMBER_SEQUENCE_WORDS
+        if not_numbers == {"steps"} and _COUNTED_STEPS_RE.search(raw_lower):
+            not_numbers = set()
+        if not_numbers:
             ToolSearchService._penalize(scores, ("plot_sequence",), 3.0)
             return
         if _PREVIOUS_TERM_RE.search(raw_lower):

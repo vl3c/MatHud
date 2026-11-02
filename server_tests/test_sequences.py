@@ -315,6 +315,9 @@ class TestToolSearch(unittest.TestCase):
             "iterate g(x) = sqrt(x + 2) from x0 = 0 to find the root",
             "iterate x -> cos(x) from x0 = 1 until it converges to 4 decimal places",
             "iterate x^2 - 1 starting from zero",
+            "iterate cos(x) from 1 and find the solution",
+            "iterate x = 1 + 1/x from 1 and find the solution",
+            "plot the orbit of the logistic map x(t+1) = 4x(t)(1-x(t))",
         ):
             with self.subTest(query=query):
                 self.assertEqual(self._top(query)[:1], ["plot_cobweb"])
@@ -324,6 +327,8 @@ class TestToolSearch(unittest.TestCase):
             "evaluate n(n-1)/2 for n = 10": "evaluate_expression",
             "find n such that n(n+1) = 132": "solve",
             "plot n(n-1)": "draw_function",
+            "plot the staircase function floor(x)": "draw_function",
+            "check the 3 steps of my derivation": "check_steps",
         }
         for query, tool in cases.items():
             with self.subTest(query=query):
@@ -334,6 +339,7 @@ class TestToolSearch(unittest.TestCase):
             "graph u(n) = 2u(n-1) + 1 with u(0) = 1",
             "plot the convergent sequence 1/n",
             "graph the sequence 1/n to see whether it converges",
+            "plot u(n) = 0.5*u(n-1) + 1 with u(0) = 0 for 20 steps",
         ):
             with self.subTest(query=query):
                 self.assertEqual(self._top(query)[:1], ["plot_sequence"])
