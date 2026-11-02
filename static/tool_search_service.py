@@ -514,6 +514,10 @@ _PARAMETER_SETTING_RE = re.compile(
     r"^\s*(?i:set|change|make|update|give)\s+(?i:the\s+)?(?i:range|min|max|minimum|maximum|step|limits?)\s+"
     r"(?i:of|for)\s+(?i:(?:the\s+)?(?:parameter|slider)\s+)?" + _UNFUNCTION_PARAMETER_NAME + r"\b"
 )
+# "a = 3", "now k = 0.5": a lone assignment of a value
+_BARE_ASSIGNMENT_RE = re.compile(
+    r"^\s*(?i:now\s+|and\s+)?" + _UNFUNCTION_PARAMETER_NAME + r"\s*=\s*" + _PARAMETER_VALUE + r"\s*[.!]?\s*$"
+)
 # "delete a", "remove the slider k" (f, g and h are usually functions)
 _PARAMETER_DELETE_RE = re.compile(
     r"^\s*(?i:delete|remove|erase|drop)\s+(?i:the\s+)?(?i:(?:parameter|slider)\s+)?"
@@ -521,7 +525,7 @@ _PARAMETER_DELETE_RE = re.compile(
     + r"\s*$"
 )
 _PARAMETER_TOOLS = ("set_parameter", "animate_parameter", "delete_parameter")
-_DELETE_WORDS = frozenset({"delete", "remove", "erase", "drop", "get rid"})
+_DELETE_WORDS = frozenset({"delete", "remove", "erase", "drop", "rid"})
 # "n goes from 1 to 10" in a sum or a sequence is an index, not a slider
 _RANGE_OTHER_CONTEXT = frozenset(
     {"sum", "summation", "series", "sequence", "sequences", "integral", "integrate", "limit", "product", "cobweb"}
@@ -1621,7 +1625,11 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             or bool(_BOUNCE_RE.search(raw_lower))
         )
         ranged = bool(_PARAMETER_RANGE_RE.search(raw_query)) and not token_set & _RANGE_OTHER_CONTEXT
-        assignment = bool(_PARAMETER_ASSIGNMENT_RE.match(raw_query) or _PARAMETER_SETTING_RE.match(raw_query))
+        assignment = bool(
+            _PARAMETER_ASSIGNMENT_RE.match(raw_query)
+            or _PARAMETER_SETTING_RE.match(raw_query)
+            or _BARE_ASSIGNMENT_RE.match(raw_query)
+        )
         deletion = bool(_PARAMETER_DELETE_RE.match(raw_query))
         if not (sliders or parameters or animation or ranged or assignment or deletion):
             if other_sense:
@@ -1634,7 +1642,8 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         elif sliders and _STOP_ANIMATION_RE.search(raw_lower):
             scores["animate_parameter"] += 10.0
         if sliders or parameters or assignment:
-            scores["set_parameter"] += 9.0
+            # Above the create_* tools that "create" lifts: "create parameters a and b"
+            scores["set_parameter"] += 12.0 if parameters and not sliders else 9.0
         if ((sliders or parameters) and token_set & _DELETE_WORDS) or deletion:
             scores["delete_parameter"] += 12.0
 

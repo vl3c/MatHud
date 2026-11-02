@@ -217,6 +217,20 @@ class TestObjectsFollowParameters(_ParameterTestCase):
         self.assertEqual(self.undo_depth(), depth)
         self.assertEqual(self.canvas.get_point_by_name("P").x, 1.0)
 
+    def test_update_ellipse_refuses_to_move_a_defined_centre(self) -> None:
+        self.set("a", value=2)
+        self.point("a", "0", "P")
+        ellipse = {"center_x": 2, "center_y": 0, "radius_x": 3, "radius_y": 1, "rotation_angle": None}
+        _, traced = self.run_batch(("create_ellipse", dict(ellipse, color=None, name=None)))
+        self.assert_ok(traced[0])
+        name = self.canvas.drawable_manager.drawables.Ellipses[0].name
+        update = {"name": name, "new_color": None, "new_radius_x": None, "new_radius_y": None}
+        _, traced = self.run_batch(
+            ("update_ellipse", dict(update, new_rotation_angle=None, new_center_x=5, new_center_y=5))
+        )
+        self.assert_error(traced[0], "defined by parameters", "update_point")
+        self.assertEqual(self.canvas.get_point_by_name("P").x, 2.0)
+
     def test_update_point_with_numbers_frees_and_with_expressions_defines(self) -> None:
         self.set("a", value=1)
         self.point(5, 5, "P")

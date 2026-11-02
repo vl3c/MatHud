@@ -4686,6 +4686,19 @@
       "cluster": "parameter_cluster"
     },
     {
+      "id": "c_parameter_create_plural",
+      "query": "Create parameters a and b.",
+      "expected_any": [
+        "set_parameter"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "single_tool",
+      "difficulty": "normal",
+      "cluster": "parameter_cluster"
+    },
+    {
       "id": "c_sum_index_not_slider",
       "query": "Sum 1/n as n goes from 1 to 10.",
       "expected_any": [
