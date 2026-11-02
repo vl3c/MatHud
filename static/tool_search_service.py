@@ -474,6 +474,53 @@ _EXISTING_POLAR_CURVE_RE = re.compile(
 )
 # "the polar curve", "polar functions": a curve, even next to the polar grid
 _POLAR_CURVE_PHRASE_RE = re.compile(r"\bpolar\s+(?:curves?|functions?|equations?|plots?)\b")
+
+# -- Parameters (sliders) --
+_SLIDER_WORDS = frozenset({"slider", "sliders"})
+_ANIMATION_WORDS = frozenset(
+    {"animate", "animates", "animation", "animations", "animating", "animated", "sweep", "sweeps", "sweeping"}
+)
+_PARAMETER_WORDS = frozenset({"parameter", "parameters"})
+# Where "parameter" means a distribution's, a fitted model's, a population's or a parametric
+# curve's numbers, not a slider
+_OTHER_PARAMETER_CONTEXT = (
+    _DISTRIBUTION_NAME_WORDS
+    | _AMBIGUOUS_DISTRIBUTION_WORDS
+    | {"distribution", "distributions", "mean", "sigma", "mu", "lambda", "population", "estimate", "estimator"}
+    | {"confidence", "hypothesis", "test", "fit", "fitted", "fitting", "regression", "model", "parametric"}
+)
+# A parameter's name: one lowercase letter (not a variable, e or i), optionally with a digit or
+# _digit, or a Greek letter
+_PARAMETER_NAME = r"(?:[abcdfghk-qsuvwzα-ωΑ-Ω](?:_?\d)?)"
+# "set a to 3", "let k = 7", "change the value of a to 4", "reset parameter a to 0": a number
+# and nothing more ("change f to x^2 + 1" redefines a function)
+_PARAMETER_ASSIGNMENT_RE = re.compile(
+    r"^\s*(?i:set|let|make|put|change|increase|decrease|reset|update)\s+(?i:the\s+)?"
+    r"(?i:(?:value\s+of|parameter|slider)\s+)?" + _PARAMETER_NAME + r"(?:'s\s+value)?\s*(?i:=|\bto\b|\bat\b)"
+    r"\s*-?(?i:\d+\.?\d*|\.\d+|pi|π)\s*(?i:$|[,;.]|\band\b|\bthen\b)"
+)
+_PARAMETER_TOOLS = ("set_parameter", "animate_parameter", "delete_parameter")
+_DELETE_WORDS = frozenset({"delete", "remove", "erase", "drop", "get rid"})
+# "n goes from 1 to 10" in a sum or a sequence is an index, not a slider
+_RANGE_OTHER_CONTEXT = frozenset(
+    {"sum", "summation", "series", "sequence", "sequences", "integral", "integrate", "limit", "product", "cobweb"}
+)
+# "vary a from 0 to 1", "as a varies from -2 to 2", "let a run from -3 to 3", "slide a from 1 to 3"
+_PARAMETER_RANGE_RE = re.compile(
+    r"(?:\b(?i:vary|slide|move|play)\s+" + _PARAMETER_NAME + r"\s+(?i:from)\b)"
+    r"|(?:\b" + _PARAMETER_NAME + r"\s+(?i:varies|vary|goes|go|runs|run|moves|changes)\s+(?i:from)\b)"
+)
+# "play a", "play the slider", "pause a", "stop the animation"
+_PLAY_RE = re.compile(
+    r"^\s*(?i:play|pause|resume)\s+(?i:the\s+)?(?i:slider\s+|parameter\s+)?" + _PARAMETER_NAME + r"\s*$"
+)
+_STOP_ANIMATION_RE = re.compile(r"\b(?:stop|pause|halt|end)\b")
+# "bounce a between 0 and 5", "make k go back and forth"
+_BOUNCE_RE = re.compile(
+    r"\b(?:bounce|oscillate|swing)\s+(?:the\s+)?(?:slider\s+|parameter\s+)?" + _PARAMETER_NAME + r"\b"
+    r"|\bback\s+and\s+forth\b"
+)
+
 # x(t) = ... or x = ... t ...: a curve given by x and y in t
 _PARAMETRIC_RE = re.compile(r"\bx\s*\(\s*t\s*\)|\bx\s*=[^,;]*\bt\b")
 _PARAMETRIC_Y_RE = re.compile(r"\by\s*\(\s*t\s*\)|\by\s*=[^,;]*\bt\b")
@@ -818,6 +865,11 @@ TOOL_CATEGORIES: Dict[str, CategoryEntry] = {
             "concurrent", "tangent", "congruent", "similar",
             "relationship", "distance", "measure", "intersection",
         ],
+    },
+    "parameters": {
+        "tools": ["set_parameter", "animate_parameter", "delete_parameter"],
+        # "parameter(s)" counts through _boost_parameter_tools, outside other senses of the word
+        "keywords": ["slider", "sliders", "animate", "animation", "animating", "animated", "sweep"],
     },
     "coordinates": {
         "tools": [
@@ -1526,6 +1578,39 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores.pop("confidence_interval", None)
 
     @staticmethod
+    def _boost_parameter_tools(token_set: Set[str], raw_query: str, scores: Dict[str, float]) -> None:
+        """Sliders: creating, setting, animating, stopping and deleting parameters.
+
+        "parameter" alone also names a distribution's, a fit's or a parametric curve's numbers:
+        there it counts for nothing, and the parameter tools lose the points their names and
+        descriptions earned. "slider", "animate" and "sweep" always count. Assignments and
+        ranges match the query as written, since a parameter is a lowercase name (A is a point).
+        """
+        raw_lower = raw_query.lower()
+        sliders = bool(token_set & _SLIDER_WORDS)
+        other_sense = bool(token_set & _OTHER_PARAMETER_CONTEXT)
+        parameters = bool(token_set & _PARAMETER_WORDS) and not other_sense
+        animation = (
+            bool(token_set & _ANIMATION_WORDS) or bool(_PLAY_RE.match(raw_query)) or bool(_BOUNCE_RE.search(raw_lower))
+        )
+        ranged = bool(_PARAMETER_RANGE_RE.search(raw_query)) and not token_set & _RANGE_OTHER_CONTEXT
+        assignment = bool(_PARAMETER_ASSIGNMENT_RE.match(raw_query))
+        if not (sliders or parameters or animation or ranged or assignment):
+            if other_sense:
+                for tool in _PARAMETER_TOOLS:
+                    scores.pop(tool, None)
+            return
+        if animation or ranged:
+            scores["animate_parameter"] += 10.0
+            scores["set_parameter"] += 4.0
+        elif sliders and _STOP_ANIMATION_RE.search(raw_lower):
+            scores["animate_parameter"] += 10.0
+        if sliders or parameters or assignment:
+            scores["set_parameter"] += 9.0
+        if (sliders or parameters) and token_set & _DELETE_WORDS:
+            scores["delete_parameter"] += 12.0
+
+    @staticmethod
     def _apply_intent_boosts(
         query_tokens: List[str],
         scores: Dict[str, float],
@@ -2012,6 +2097,8 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         # -- Coordinate system --
         if token_set & {"polar", "cartesian"} and token_set & {"system", "mode", "switch"}:
             scores["set_coordinate_system"] += 6.0
+
+        ToolSearchService._boost_parameter_tools(token_set, raw_query or raw_lower, scores)
 
         # Simplify's +3 alone falls under RELATIVE_SCORE_CUTOFF of a function value's score
         # and behind the other area tools, so it scores one point under the leading tool

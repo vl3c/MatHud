@@ -2,8 +2,8 @@
   "metadata": {
     "schema_version": 1,
     "description": "Tool discovery benchmark cases for search_tools semantic routing.",
-    "expected_tool_count": 109,
-    "expected_tool_hash": "29de3fd29c2c5c1fe31a238ecba2aa666f63b477fcd0eae2af482dd4901f809e",
+    "expected_tool_count": 112,
+    "expected_tool_hash": "89c6fd993426a2823d860440ce7d73bdb89c458d492dd9fc1004b25203542c73",
     "confusion_clusters": {
       "convert_cluster": [
         "convert",
@@ -50,6 +50,12 @@
         "evaluate_expression",
         "simplify",
         "limit"
+      ],
+      "parameter_cluster": [
+        "set_parameter",
+        "animate_parameter",
+        "delete_parameter",
+        "draw_function"
       ]
     },
     "thresholds": {
@@ -4483,6 +4489,163 @@
       "category": "confusion_probe",
       "difficulty": "hard",
       "cluster": "sequences_cluster"
+    },
+    {
+      "id": "c_slider_create",
+      "query": "Add a slider a from 0 to 5.",
+      "expected_any": [
+        "set_parameter"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "single_tool",
+      "difficulty": "normal",
+      "cluster": "parameter_cluster"
+    },
+    {
+      "id": "c_parameter_set_value",
+      "query": "Set a to 3.",
+      "expected_any": [
+        "set_parameter"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "single_tool",
+      "difficulty": "normal",
+      "cluster": "parameter_cluster"
+    },
+    {
+      "id": "c_parameter_change_value",
+      "query": "Change the value of k to 0.5.",
+      "expected_any": [
+        "set_parameter"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "single_tool",
+      "difficulty": "normal",
+      "cluster": "parameter_cluster"
+    },
+    {
+      "id": "c_parameter_animate",
+      "query": "Animate a from 0 to 2*pi over 5 seconds.",
+      "expected_any": [
+        "animate_parameter"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "single_tool",
+      "difficulty": "normal",
+      "cluster": "parameter_cluster"
+    },
+    {
+      "id": "c_parameter_bounce",
+      "query": "Bounce b back and forth between -2 and 2.",
+      "expected_any": [
+        "animate_parameter"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "single_tool",
+      "difficulty": "normal",
+      "cluster": "parameter_cluster"
+    },
+    {
+      "id": "c_parameter_vary",
+      "query": "Vary a from -3 to 3 and watch the parabola.",
+      "expected_any": [
+        "animate_parameter"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "single_tool",
+      "difficulty": "normal",
+      "cluster": "parameter_cluster"
+    },
+    {
+      "id": "c_parameter_stop",
+      "query": "Stop the slider animation.",
+      "expected_any": [
+        "animate_parameter"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "single_tool",
+      "difficulty": "normal",
+      "cluster": "parameter_cluster"
+    },
+    {
+      "id": "c_parameter_delete",
+      "query": "Delete the slider k.",
+      "expected_any": [
+        "delete_parameter"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "single_tool",
+      "difficulty": "normal",
+      "cluster": "parameter_cluster"
+    },
+    {
+      "id": "c_function_with_slider",
+      "query": "Plot y = a*x^2 with a slider for a.",
+      "expected_any": [
+        "set_parameter",
+        "draw_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "normal",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "c_distribution_parameter_not_slider",
+      "query": "Plot a normal distribution with parameters mu = 0 and sigma = 1.",
+      "expected_any": [
+        "plot_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "normal",
+      "cluster": "stats_cluster"
+    },
+    {
+      "id": "c_parametric_parameter_not_slider",
+      "query": "Change the parameter range of the parametric curve to t from 0 to 4*pi.",
+      "expected_any": [
+        "draw_parametric_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "normal",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "c_sum_index_not_slider",
+      "query": "Sum 1/n as n goes from 1 to 10.",
+      "expected_any": [
+        "evaluate_expression",
+        "simplify"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "normal"
     }
   ]
 }
