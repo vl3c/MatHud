@@ -109,6 +109,8 @@ UNDOABLE_TOOLS: Tuple[str, ...] = (
     "create_angle",
     "delete_angle",
     "update_angle",
+    # Parameter (slider) operations
+    "delete_parameter",
 )
 
 VALUE_TOOLS: Tuple[str, ...] = (
@@ -146,6 +148,9 @@ VALUE_TOOLS: Tuple[str, ...] = (
     "chi_squared_test",
     "calculate_area",
     "convert_coordinates",
+    # Their results (value, range, users, notes) are for the model; each is one undo step
+    "set_parameter",
+    "animate_parameter",
     "search_tools",
 )
 

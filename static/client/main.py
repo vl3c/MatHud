@@ -22,6 +22,8 @@ from typing import Optional
 from ai_interface import AIInterface
 from browser import aio, document, window
 from canvas import Canvas
+from parameter_animation import ParameterAnimator
+from parameter_panel import ParameterPanel
 from canvas_backup_manager import CanvasBackupManager
 from canvas_event_handler import CanvasEventHandler
 from math_symbol_input import MathSymbolInput
@@ -220,6 +222,17 @@ def _start_canvas_backup(canvas: Canvas, ai_interface: AIInterface) -> None:
         print(f"Error starting the canvas backup: {e}")
 
 
+def _start_parameters(canvas: Canvas) -> None:
+    """Own the parameter namespace, animate on requestAnimationFrame and show the slider panel."""
+    manager = canvas.drawable_manager.parameter_manager
+    manager.claim_namespace()
+    manager.animator = ParameterAnimator(manager, canvas.draw)
+    try:
+        ParameterPanel(manager, canvas).attach()
+    except Exception as e:
+        print(f"Error initializing the slider panel: {e}")
+
+
 def main() -> None:
     """Initialize the MatHud client-side application.
 
@@ -232,6 +245,9 @@ def main() -> None:
     viewport = document["math-svg"].getBoundingClientRect()
     canvas = Canvas(viewport.width, viewport.height)
     _canvas = canvas
+
+    # The page canvas's parameters are the ones expressions read; animations and sliders drive them
+    _start_parameters(canvas)
 
     # Instantiate the AIInterface class to handle interactions with the AI backend
     _ai_interface = AIInterface(canvas)

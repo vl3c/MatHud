@@ -95,6 +95,7 @@ class WorkspaceManager:
     # list missing here is skipped with a warning (server_tests/test_drawable_wiring.py
     # keeps the list complete).
     RESTORED_BUCKETS: Tuple[str, ...] = (
+        "Parameters",
         "Points",
         "Labels",
         "Segments",
@@ -225,10 +226,25 @@ class WorkspaceManager:
                 print(f"Warning: Could not restore {bucket} item '{name}': {exc}")
 
     def _create_points(self, state: Dict[str, Any]) -> None:
-        """Create points from workspace state."""
+        """Create points from workspace state: plain points first, then points defined by parameters.
+
+        A defined point is always a new point, so one that sits on a plain point at the
+        saved values never takes that point's place.
+        """
         if "Points" not in state:
             return
-        self._restore_items("Points", state["Points"], self._restore_point)
+        items = [item for item in state["Points"] or [] if isinstance(item, dict)]
+        plain = [item for item in items if not self._has_definition(item)]
+        defined = [item for item in items if self._has_definition(item)]
+        self._restore_items("Points", plain, self._restore_point)
+        self._restore_items("Points", defined, self._restore_defined_point)
+
+    @staticmethod
+    def _has_definition(item_state: Dict[str, Any]) -> bool:
+        args = item_state.get("args")
+        return isinstance(args, dict) and (
+            isinstance(args.get("x_expression"), str) or isinstance(args.get("y_expression"), str)
+        )
 
     def _restore_point(self, item_state: Dict[str, Any]) -> None:
         self.canvas.create_point(
@@ -236,6 +252,39 @@ class WorkspaceManager:
             item_state["args"]["position"]["y"],
             name=item_state.get("name", ""),
             color=self._saved_color(item_state),
+        )
+
+    def _restore_defined_point(self, item_state: Dict[str, Any]) -> None:
+        """A point following parameters (saved x_expression / y_expression), at their current values."""
+        args = item_state["args"]
+        point = self.canvas.drawable_manager.point_manager.create_point(
+            args["position"]["x"],
+            args["position"]["y"],
+            item_state.get("name", ""),
+            color=self._saved_color(item_state),
+            extra_graphics=False,
+            distinct=True,
+        )
+        x_expression, y_expression = args.get("x_expression"), args.get("y_expression")
+        point.set_definition(
+            x_expression if isinstance(x_expression, str) else None,
+            y_expression if isinstance(y_expression, str) else None,
+        )
+
+    def _create_parameters(self, state: Dict[str, Any]) -> None:
+        """Create parameters (sliders) from workspace state; a saved animation does not restart."""
+        if "Parameters" not in state:
+            return
+        self._restore_items("Parameters", state["Parameters"], self._restore_parameter)
+
+    def _restore_parameter(self, item_state: Dict[str, Any]) -> None:
+        args = item_state.get("args", {})
+        self.canvas.drawable_manager.parameter_manager.set_parameter(
+            item_state.get("name", ""),
+            value=args.get("value"),
+            min=args.get("min"),
+            max=args.get("max"),
+            step=args.get("step"),
         )
 
     @staticmethod
@@ -732,7 +781,7 @@ class WorkspaceManager:
     def _restore_circle(self, item_state: Dict[str, Any]) -> None:
         center_point: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["center"])
         if center_point:
-            self.canvas.create_circle(
+            circle = self.canvas.create_circle(
                 center_point.x,
                 center_point.y,
                 item_state["args"]["radius"],
@@ -741,6 +790,11 @@ class WorkspaceManager:
                 extra_graphics=False,
                 reuse_existing=False,
             )
+            radius_expression = item_state["args"].get("radius_expression")
+            if isinstance(radius_expression, str) and circle is not None:
+                circle.set_radius_definition(radius_expression)
+                if not circle.has_custom_name:  # named after the expression again: A(b)
+                    circle.regenerate_name(self.canvas.drawable_manager.drawables.names_in_use(exclude=circle))
 
     def _create_ellipses(self, state: Dict[str, Any]) -> None:
         """Create ellipses from workspace state."""
@@ -1211,6 +1265,8 @@ class WorkspaceManager:
 
     def _pre_plot_restore_steps(self) -> List[Callable[[Dict[str, Any]], None]]:
         return [
+            # Parameters first: restoring a function or a defined point evaluates them
+            self._create_parameters,
             self._create_points,
             self._create_labels,
             self._create_segments,

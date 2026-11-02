@@ -140,6 +140,7 @@ class TransformationsManager:
             raise ValueError(f"No drawable found with name '{name}'")
         for drawable in candidates:
             if self._supports(drawable, method, exclude_types):
+                self._refuse_defined(drawable, tool)
                 return drawable
         drawable = candidates[0]
         class_name = self._get_class_name(drawable)
@@ -149,6 +150,40 @@ class TransformationsManager:
                 "Give center_x and center_y to rotate it about a point."
             )
         raise ValueError(f"'{name}' is {self._with_article(class_name)}; {tool} supports {_TOOL_SUPPORT[tool]}.")
+
+    def _refuse_defined(self, drawable: Any, tool: str) -> None:
+        """Refuse a transform that would move a point defined by parameters, or scale a defined radius.
+
+        Such a point follows its parameters, so moving it any other way is refused, never
+        silently undone by the next parameter change.
+        """
+        for point in self._points_of(drawable):
+            if getattr(point, "has_definition", False):
+                raise ValueError(
+                    f"{tool} would move {point.name}, which is defined by parameters "
+                    f"({point.x_expression or point.x}, {point.y_expression or point.y}). "
+                    f"Change the parameters with set_parameter, or first give {point.name} numbers "
+                    "with update_point."
+                )
+        if tool == "scale_object" and getattr(drawable, "radius_expression", None) is not None:
+            raise ValueError(
+                f"{drawable.name} has a radius defined by parameters ({drawable.radius_expression}); "
+                "change the parameters with set_parameter instead of scaling it."
+            )
+
+    def _points_of(self, drawable: Any) -> List[Any]:
+        """Every point a transform of drawable moves (its vertices, endpoints or centre)."""
+        if self._get_class_name(drawable) == "Point":
+            return [drawable]
+        points = self._gather_moved_points(drawable)
+        for attribute in ("point1", "point2", "center"):
+            point = getattr(drawable, attribute, None)
+            if point is not None and all(p is not point for p in points):
+                points.append(point)
+        segment = getattr(drawable, "segment", None)
+        if segment is not None:
+            points.extend(p for p in self._points_of(segment) if all(q is not p for q in points))
+        return points
 
     def _supports(self, drawable: Any, method: str, exclude_types: Tuple[str, ...]) -> bool:
         if isinstance(drawable, ColoredArea) or self._get_class_name(drawable) in exclude_types:

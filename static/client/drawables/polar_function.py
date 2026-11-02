@@ -61,6 +61,7 @@ class PolarFunction(Drawable):
         theta_min: float = DEFAULT_THETA_MIN,
         theta_max: float = DEFAULT_THETA_MAX,
         color: str = default_color,
+        check: bool = True,
     ) -> None:
         """
         Initialize a polar curve.
@@ -72,6 +73,10 @@ class PolarFunction(Drawable):
             theta_min: Start of the θ range (radians)
             theta_max: End of the θ range (radians)
             color: Display color
+            check: Refuse names other than θ and the current parameters, and an r reading
+                no parameters with no real value on the range; copies (undo) pass False,
+                since their parameters' values may differ from the current ones while a
+                state is restored
 
         Raises:
             ValueError: If the expression cannot be parsed or reads other names, the range is
@@ -82,8 +87,11 @@ class PolarFunction(Drawable):
         self.theta_min, self.theta_max = self.ordered_theta_range(theta_min, theta_max)
         self.r_expression: str
         self._r_function: Callable[[float], float]
-        self.r_expression, self._r_function = self.parse_r_expression(r_expression)
-        self.check_has_real_value(self.r_expression, self._r_function, self.theta_min, self.theta_max)
+        self.r_expression, self._r_function = self.parse_r_expression(r_expression, check_names=check)
+        if check and not self.parameter_names():
+            # A curve reading parameters may have no real value at their current values (a = 0
+            # in θ/a); it draws nothing until they change, and a saved one still loads.
+            self.check_has_real_value(self.r_expression, self._r_function, self.theta_min, self.theta_max)
         super().__init__(name=name or "r", color=color)
 
     # ------------------------------------------------------------------
@@ -91,7 +99,7 @@ class PolarFunction(Drawable):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def parse_r_expression(text: str) -> Tuple[str, Callable[[float], float]]:
+    def parse_r_expression(text: str, check_names: bool = True) -> Tuple[str, Callable[[float], float]]:
         """The stored form of r(θ) and its compiled function of θ.
 
         The whole word theta becomes θ before fix_math_expression, so "3theta" and
@@ -125,20 +133,24 @@ class PolarFunction(Drawable):
                 f"Could not read r(θ) = '{text}': {exc}. Write every function with parentheses and "
                 f"products explicitly: sin(θ), 2*θ, e^(0.1*θ). {_EXAMPLE}"
             ) from exc
-        free = compiled.free_names
-        if free:
+        free = compiled.undefined_names
+        if free and check_names:
             raise ValueError(PolarFunction._free_names_message(text, free))
-        return stored, cast(Callable[[float], float], compiled.bind())
+        return stored, cast(Callable[[float], float], compiled.bind(parameters=True))
 
     @staticmethod
     def _free_names_message(text: str, free: Tuple[str, ...]) -> str:
         names = ", ".join(f"'{name}'" for name in free)
-        message = f"r(θ) = '{text}' may use only θ (or theta); {names} is not defined."
+        message = f"r(θ) = '{text}' may use only θ (or theta) and parameters; {names} is not defined."
         for name in free:
             glued = _GLUED_THETA.match(name)
             if glued:
                 return f"{message} Write {glued.group(1)}(theta), with parentheses."
-        return f"{message} {_EXAMPLE}"
+        return (
+            f"{message} Create a parameter first with set_parameter (search_tools 'slider' finds it if it "
+            f"is not loaded): set_parameter(name='{free[0]}', value=...), "
+            f"or write a number. {_EXAMPLE}"
+        )
 
     @classmethod
     def ordered_theta_range(cls, theta_min: Any, theta_max: Any) -> Tuple[float, float]:
@@ -262,6 +274,15 @@ class PolarFunction(Drawable):
         """Return the class name for serialization and type identification."""
         return "PolarFunction"
 
+    def parameter_names(self) -> Tuple[str, ...]:
+        """The current parameters r(θ) reads, sorted."""
+        try:
+            return compiled_expression.compile_expression(
+                self.r_expression, ("θ",), compiled_expression.FUNCTIONS_CURVE
+            ).parameter_names
+        except Exception:
+            return ()
+
     def get_state(self) -> Dict[str, Any]:
         """Serialize the curve for workspace persistence."""
         return {
@@ -284,6 +305,7 @@ class PolarFunction(Drawable):
             theta_min=self.theta_min,
             theta_max=self.theta_max,
             color=self.color,
+            check=False,
         )
         memo[id(self)] = copy
         return copy

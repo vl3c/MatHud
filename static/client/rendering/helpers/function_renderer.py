@@ -19,6 +19,7 @@ from constants import default_font_family
 from rendering.renderables import FunctionRenderable
 from rendering.helpers.shape_decorator import _manages_shape
 from rendering.primitives import FontStyle, StrokeStyle, TextAlignment
+from rendering.signature_state import signature_state
 
 
 def _cull_path_to_visible(path, width, height, margin=16):
@@ -86,11 +87,11 @@ def _unwrap_mapper(mapper):
 
 def _model_signature(func):
     """Serialized model state, used to drop cached paths when the function changes."""
-    get_state = getattr(func, "get_state", None)
-    if not callable(get_state):
+    state = signature_state(func)
+    if state is None:
         return None
     try:
-        return repr(get_state())
+        return repr(state)
     except Exception:
         return None
 

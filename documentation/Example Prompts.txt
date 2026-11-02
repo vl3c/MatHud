@@ -97,6 +97,17 @@ Draw the cobweb of the logistic map 3.2*x*(1-x) from x0 = 0.1 for 60 steps. Does
 Iterate g(x) = 3.9*x*(1-x) from 0.2 and draw the cobweb; is the orbit chaotic?
 Delete the cobweb diagram named "cobweb".
 
+# Parameters and Sliders
+Make a slider a from -5 to 5 and plot y = a*x^2. (Write products with *: a*x, not ax.)
+Plot y = a*sin(b*x) with sliders a and b, then set a to 2 and b to 3.
+Put a point P at (a, a^2) that follows the slider a.
+Draw a circle centred at the origin with radius r, where r is a slider from 1 to 5.
+Plot the parametric curve x(t) = cos(a*t), y(t) = sin(t) and animate a from 1 to 5 over 8 seconds.
+Draw the rose r = 2*sin(k*θ) and bounce k back and forth between 1 and 7.
+Stop the animation of k.
+Change the range of the slider a to 0 to 10 with step 0.5.
+Delete the slider b. (Refused while objects use it; delete them first.)
+
 # Tangent and Normal Lines
 Plot y = x^2 and draw its tangent line at x = 2.
 Draw the tangent and normal lines to y = sin(x) at x = pi/4, both in red.

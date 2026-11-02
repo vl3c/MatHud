@@ -290,8 +290,14 @@ FUNCTIONS: List[Dict[str, Any]] = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "x": {"type": "number", "description": "The X coordinate of the point"},
-                    "y": {"type": "number", "description": "The Y coordinate of the point"},
+                    "x": {
+                        "type": ["number", "string"],
+                        "description": "The X coordinate: a number, or an expression in parameters made with set_parameter, such as a or 2*a + 1, without quote marks (the point then follows them)",
+                    },
+                    "y": {
+                        "type": ["number", "string"],
+                        "description": "The Y coordinate: a number, or an expression in parameters, such as a^2, without quote marks",
+                    },
                     "color": {"type": ["string", "null"], "description": "Optional color for the point"},
                     "name": {
                         "type": ["string", "null"],
@@ -331,8 +337,14 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "properties": {
                     "point_name": {"type": "string", "description": "Existing name of the point to edit"},
                     "new_name": {"type": ["string", "null"], "description": "Optional new name for the point"},
-                    "new_x": {"type": ["number", "null"], "description": "Optional new x-coordinate (requires new_y)"},
-                    "new_y": {"type": ["number", "null"], "description": "Optional new y-coordinate (requires new_x)"},
+                    "new_x": {
+                        "type": ["number", "string", "null"],
+                        "description": "Optional new x-coordinate (requires new_y): a number, which makes the point free, or an expression in parameters such as a, without quote marks",
+                    },
+                    "new_y": {
+                        "type": ["number", "string", "null"],
+                        "description": "Optional new y-coordinate (requires new_x): a number, or an expression in parameters such as a^2, without quote marks",
+                    },
                     "new_color": {
                         "type": ["string", "null"],
                         "description": "Optional new display color for the point",
@@ -618,7 +630,10 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "properties": {
                     "center_x": {"type": "number", "description": "The X coordinate of the circle's center"},
                     "center_y": {"type": "number", "description": "The Y coordinate of the circle's center"},
-                    "radius": {"type": "number", "description": "The radius of the circle"},
+                    "radius": {
+                        "type": ["number", "string"],
+                        "description": "The radius: a number, or an expression in parameters made with set_parameter, written as text such as r or 2*a, without quote marks (the circle follows it; a negative value gives the same circle as its absolute value). A centre on a point that follows parameters: create that point first, then the circle at its coordinates.",
+                    },
                     "color": {"type": ["string", "null"], "description": "Optional color to assign to the circle"},
                     "name": {
                         "type": ["string", "null"],
@@ -990,7 +1005,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "properties": {
                     "function_string": {
                         "type": "string",
-                        "description": "The mathematical expression represented as a string, e.g., '2*x + 3'.",
+                        "description": "The mathematical expression represented as a string, e.g., '2*x + 3'. It may read parameters made with set_parameter, such as 'a*sin(b*x)' (write products explicitly: a*x); the plot follows them.",
                     },
                     "name": {
                         "type": ["string", "null"],
@@ -1112,7 +1127,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             "properties": {
                                 "expression": {
                                     "type": "string",
-                                    "description": "Mathematical expression for this piece (e.g., 'x^2', 'sin(x)').",
+                                    "description": "Mathematical expression for this piece (e.g., 'x^2', 'sin(x)'); it may read parameters made with set_parameter ('a*x').",
                                 },
                                 "left": {
                                     "type": ["number", "null"],
@@ -1202,7 +1217,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "properties": {
                     "x_expression": {
                         "type": "string",
-                        "description": "Mathematical expression for x as a function of t. Example: 'cos(t)' for a circle, 't*cos(t)' for a spiral.",
+                        "description": "Mathematical expression for x as a function of t. Example: 'cos(t)' for a circle, 't*cos(t)' for a spiral. It may read parameters made with set_parameter ('a*cos(t)'); t is always the curve variable.",
                     },
                     "y_expression": {
                         "type": "string",
@@ -1276,7 +1291,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "properties": {
                     "r_expression": {
                         "type": "string",
-                        "description": "Only the right-hand side of r = ..., in θ (or the word theta), with every function in parentheses and products written explicitly: '1 + cos(θ)', '2*sin(3*θ)', 'e^(0.1*θ)', 'sqrt(4*cos(2*θ))' (the lemniscate r^2 = 4cos(2θ)), '2/(1 - cos(θ))'. Write sin(θ)^2, not sin^2θ. No other variable may appear.",
+                        "description": "Only the right-hand side of r = ..., in θ (or the word theta), with every function in parentheses and products written explicitly: '1 + cos(θ)', '2*sin(3*θ)', 'e^(0.1*θ)', 'sqrt(4*cos(2*θ))' (the lemniscate r^2 = 4cos(2θ)), '2/(1 - cos(θ))'. Write sin(θ)^2, not sin^2θ. No other variable may appear, apart from parameters made with set_parameter ('a*(1 + cos(θ))').",
                     },
                     "name": {
                         "type": ["string", "null"],
@@ -1415,6 +1430,88 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     },
                 },
                 "required": ["inequality", "name", "color", "opacity"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "set_parameter",
+            "description": "Creates a parameter (a named number with a slider) or changes its value, slider range or step. Parameter names can then be used in function expressions (y = a*x^2 + b, products written explicitly), piecewise pieces, parametric and polar curves, create_point / update_point coordinates and the create_circle radius given as text ('a', 'a^2'); those objects follow the parameter when it changes. Create the parameter before drawing with it. Null keeps the current value, range or step; a new parameter defaults to value 1, range -10 to 10, step 0.1. A value outside the min/max given in the same call is refused; a value outside the stored range widens it. Names: letters, digits and _, starting with a letter (a, b2, k_1, ω); not x, y, θ, theta, e, i, pi or a function name (t in a parametric curve is always the curve variable). Returns the value, range, step and the objects that use it.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "The parameter name, such as 'a' or 'k'"},
+                    "value": {
+                        "type": ["number", "null"],
+                        "description": "The value (null keeps the current value; 1 for a new parameter, clamped into its range)",
+                    },
+                    "min": {
+                        "type": ["number", "null"],
+                        "description": "The slider minimum (null keeps it; -10 for a new parameter)",
+                    },
+                    "max": {
+                        "type": ["number", "null"],
+                        "description": "The slider maximum (null keeps it; 10 for a new parameter)",
+                    },
+                    "step": {
+                        "type": ["number", "null"],
+                        "description": "The slider step, positive (null keeps it; 0.1 for a new parameter)",
+                    },
+                },
+                "required": ["name", "value", "min", "max", "step"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "animate_parameter",
+            "description": "Animates a parameter made with set_parameter: its value moves linearly from start to end over duration_seconds, and everything using it follows (sweep a from 0 to 2*pi). repeat 'once' stops at end, 'loop' starts again from start, 'bounce' goes back and forth; 'stop' stops the animation of the named parameter (or of every parameter when name is null) and keeps the current values. The call returns at once while the animation runs on the canvas; the whole animation is one undo step.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "The parameter to animate (null only with repeat 'stop', to stop every animation)",
+                    },
+                    "start": {
+                        "type": ["number", "null"],
+                        "description": "The start value (null: the slider minimum)",
+                    },
+                    "end": {
+                        "type": ["number", "null"],
+                        "description": "The end value (null: the slider maximum)",
+                    },
+                    "duration_seconds": {
+                        "type": ["number", "null"],
+                        "description": "Seconds from start to end, more than 0 and at most 600 (null: 4)",
+                    },
+                    "repeat": {
+                        "type": ["string", "null"],
+                        "enum": ["once", "loop", "bounce", "stop", None],
+                        "description": "once (default), loop, bounce, or stop",
+                    },
+                },
+                "required": ["name", "start", "end", "duration_seconds", "repeat"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_parameter",
+            "description": "Deletes a parameter (slider). Refused while objects use it; the error names them, so delete or redefine them first.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {"name": {"type": "string", "description": "The parameter name"}},
+                "required": ["name"],
                 "additionalProperties": False,
             },
         },

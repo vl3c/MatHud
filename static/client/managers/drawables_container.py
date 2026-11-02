@@ -421,6 +421,11 @@ class DrawablesContainer:
         return self.get_by_class_name("InequalityColoredArea")
 
     @property
+    def Parameters(self) -> List["Drawable"]:
+        """Get all Parameter objects (sliders; never drawn on the canvas)."""
+        return self.get_by_class_name("Parameter")
+
+    @property
     def Labels(self) -> List["Drawable"]:
         """Get all Label objects."""
         return self.get_by_class_name("Label")

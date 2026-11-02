@@ -76,6 +76,7 @@ from managers.bar_manager import BarManager
 from managers.tangent_manager import TangentManager
 from managers.construction_manager import ConstructionManager
 from managers.intersection_manager import IntersectionManager
+from managers.parameter_manager import ParameterManager
 from drawables.closed_shape_colored_area import ClosedShapeColoredArea
 
 if TYPE_CHECKING:
@@ -260,6 +261,8 @@ class DrawableManager:
             self.drawables,
             self.point_manager,
         )
+
+        self.parameter_manager: ParameterManager = ParameterManager(canvas, self.drawables)
 
         # No need for the loop that sets drawable_manager anymore
         # The proxy handles forwarding calls to the appropriate managers
