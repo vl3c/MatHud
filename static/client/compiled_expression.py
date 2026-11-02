@@ -10,7 +10,9 @@ positionally, in order:
     F = compile_expression("x^2 + y^2 - 1", ("x", "y")).bind()     # F(1.0, 1.0) == 1.0
 
 ``functions`` picks the namespace: ``FUNCTIONS_ALL`` (every function, used for function
-and piecewise plots) or ``FUNCTIONS_CURVE`` (the curve-safe rows, for parametric curves).
+and piecewise plots), ``FUNCTIONS_CURVE`` (the curve-safe rows, for parametric curves) or
+``FUNCTIONS_REAL`` (the curve-safe rows with sqrt, log, asin... giving NaN outside their
+domain, for evaluating on a grid: implicit curves and regions).
 Names the expression reads that are neither functions, constants, the imaginary unit nor
 variables are listed in ``free_names``; they are not rejected (``a*x`` parses and fails
 per sample, as before).
@@ -32,15 +34,18 @@ from expression_validator import ExpressionValidator
 
 FUNCTIONS_ALL = "all"
 FUNCTIONS_CURVE = "curve"
+FUNCTIONS_REAL = "real"
 
 # Names each namespace defines (functions and constants), without resolving MathUtils
 _NAMESPACE_KEYS: Dict[str, FrozenSet[str]] = {
     FUNCTIONS_ALL: frozenset(ef.BY_NAME) | frozenset(ef.CONSTANTS),
     FUNCTIONS_CURVE: frozenset(ef.CURVE_NAMES) | frozenset(ef.CONSTANTS),
+    FUNCTIONS_REAL: frozenset(ef.CURVE_NAMES) | frozenset(ef.CONSTANTS),
 }
 _NAMESPACE_BUILDERS: Dict[str, Callable[[], Dict[str, Any]]] = {
     FUNCTIONS_ALL: ef.build_python_namespace,
     FUNCTIONS_CURVE: ef.build_curve_namespace,
+    FUNCTIONS_REAL: ef.build_real_namespace,
 }
 _NAMESPACES: Dict[str, Dict[str, Any]] = {}
 
@@ -87,7 +92,7 @@ class CompiledExpression:
         source: The text as given.
         python_text: The text after fix_math_expression (Python form).
         variables: The variable names, normalised (ϑ -> θ), in argument order.
-        functions: FUNCTIONS_ALL or FUNCTIONS_CURVE.
+        functions: FUNCTIONS_ALL, FUNCTIONS_CURVE or FUNCTIONS_REAL.
     """
 
     __slots__ = ("source", "python_text", "variables", "functions", "_parsed")
@@ -115,6 +120,36 @@ class CompiledExpression:
                 if name not in defined and name not in self.variables and name not in ef.IMAGINARY_UNITS
             )
         )
+
+    @property
+    def variables_read(self) -> Tuple[str, ...]:
+        """The variables the expression reads, in the order of ``variables``."""
+        names = self._parsed.names
+        return tuple(name for name in self.variables if name in names)
+
+    def factors(self) -> Tuple["CompiledExpression", ...]:
+        """The factors of a product or integer power at the top of the expression.
+
+        (x - y)*(x + y) gives x - y and x + y; (x^2 + y^2 - 1)^2 gives x^2 + y^2 - 1; -x*y
+        gives x and y. The expression is zero exactly where one of its factors is, so a
+        zero set can be found factor by factor (an even power never changes sign). A
+        factor that repeats is listed once; any other expression is its own only factor.
+        Only the top of the tree is split: nothing is expanded.
+        """
+        nodes = _top_level_factors(self._parsed.tree.body)
+        if len(nodes) == 1 and nodes[0] is self._parsed.tree.body:
+            return (self,)
+        found: List[CompiledExpression] = []
+        seen: Dict[str, bool] = {}
+        for node in nodes:
+            signature = ast.dump(node, annotate_fields=False)
+            if signature in seen:
+                continue
+            seen[signature] = True
+            tree = ast.Expression(body=node)
+            parsed = _Parsed(f"{self.python_text}\x00{signature}", tree, _read_names(tree))
+            found.append(CompiledExpression(self.source, parsed, self.variables, self.functions))
+        return tuple(found)
 
     def bind(self) -> Callable[..., float]:
         """A callable taking the variables positionally and returning a float.
@@ -193,7 +228,7 @@ def compile_expression(
     Args:
         text: The expression as typed or stored (math.js or Python form).
         variables: Variable names, in the order the bound callable takes them.
-        functions: FUNCTIONS_ALL or FUNCTIONS_CURVE.
+        functions: FUNCTIONS_ALL, FUNCTIONS_CURVE or FUNCTIONS_REAL.
 
     Raises:
         ValueError: The text does not validate (the messages of
@@ -218,6 +253,25 @@ def _parse(text: str) -> _Parsed:
     return _Parsed(python_text, tree, _read_names(tree))
 
 
+def _top_level_factors(node: ast.expr) -> List[ast.expr]:
+    """Factors of a product, a power with a whole exponent of at least 1, or a negation."""
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mult):
+        return _top_level_factors(node.left) + _top_level_factors(node.right)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow):
+        exponent = node.right
+        if (
+            isinstance(exponent, ast.Constant)
+            and not isinstance(exponent.value, bool)
+            and isinstance(exponent.value, (int, float))
+            and float(exponent.value).is_integer()
+            and exponent.value >= 1
+        ):
+            return _top_level_factors(node.left)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+        return _top_level_factors(node.operand)
+    return [node]
+
+
 def _read_names(tree: ast.AST) -> FrozenSet[str]:
     """Names the tree reads, except those only called (sin in sin(x))."""
     nodes = list(ast.walk(tree))
@@ -227,7 +281,9 @@ def _read_names(tree: ast.AST) -> FrozenSet[str]:
 
 def _checked_functions(functions: str) -> str:
     if functions not in _NAMESPACE_KEYS:
-        raise ValueError(f"Unknown function set {functions!r}; expected {FUNCTIONS_ALL!r} or {FUNCTIONS_CURVE!r}")
+        raise ValueError(
+            f"Unknown function set {functions!r}; expected {FUNCTIONS_ALL!r}, {FUNCTIONS_CURVE!r} or {FUNCTIONS_REAL!r}"
+        )
     return functions
 
 
