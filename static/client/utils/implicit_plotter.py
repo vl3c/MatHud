@@ -119,19 +119,20 @@ class _Budget:
             self.spent = self.timed_out = True
         return self.spent
 
-    def retry(self) -> None:
-        """The budget again, for a coarser try after the evaluations ran out."""
-        self.evals_left = self.max_evals
+    def retry(self, evals: int) -> None:
+        """More evaluations, for a coarser try after the evaluations ran out."""
+        self.evals_left = evals
         self.spent = False
 
 
-def grid_origin(low: float, cell: float, block: int) -> Tuple[int, float]:
+def grid_origin(low: float, cell: float, block: int, phase: Optional[float] = None) -> Tuple[int, float]:
     """The first block-aligned node index at or below ``low`` and the grid's phase.
 
     Nodes are at phase + k * cell for whole k, with block corners at multiples of block,
     so two plots of the same function at the same cell size share their nodes.
     """
-    phase = _PHASE * cell
+    if phase is None:
+        phase = _PHASE * cell
     index = int(math.floor((low - phase) / cell))
     index -= index % block
     return index, phase
@@ -220,37 +221,62 @@ def _search_function(
     whole: Optional[Callable[[float, float], float]] = None,
 ) -> "_Grid":
     """Search one function, at a coarser cell when the curve is too dense for the budget
-    (sin(x*y) = 0.5 over a wide view): a complete coarser plot is better than parts missing."""
-    factor = 1
-    while True:
-        layout = _layout(rect[0], rect[1], rect[2], rect[3], cell * factor, block)
+    (sin(x*y) = 0.5 over a wide view): a complete coarser plot is better than parts missing.
+
+    The blocks are classified once, on the asked grid. A grid 2, 4 or 8 times coarser has
+    the same blocks (fewer cells each, same phase), so it reuses that classification: a
+    coarser classification would miss periodic curves whose period is near a block's size
+    (sin(y) = 0.5), and cost a second coarse pass.
+    """
+    phase = _PHASE * cell
+
+    def make_grid(factor: int) -> "_Grid":
+        block_cells = block // factor
+        layout = _layout(rect[0], rect[1], rect[2], rect[3], cell * factor, block_cells, phase)
         assert layout is not None
-        grid = _Grid(function, layout, cell * factor, block, budget)
+        grid = _Grid(function, layout, cell * factor, block_cells, budget)
         grid.atom_of = atom_of if fill else None
         grid.whole = whole
-        sure, maybe = grid.coarse(fill)
-        needed = len(sure) * block * _COST_PER_BLOCK_CELL
-        if needed <= budget.evals_left or factor >= _MAX_COARSENING or budget.spent:
-            grid.search(sure, maybe)
-            if budget.spent and not budget.timed_out and factor < _MAX_COARSENING:
-                # The estimate was short: one coarser try rather than parts missing
-                budget.retry()
-                factor = min(_MAX_COARSENING, 2 * factor)
-                continue
-            return grid
-        factor = min(
-            _MAX_COARSENING, max(factor + 1, int(math.ceil(factor * math.sqrt(needed / max(1, budget.evals_left)))))
-        )
+        grid.fill = fill
+        return grid
+
+    grid = make_grid(1)
+    sure, maybe = grid.coarse(fill)
+    if budget.spent:
+        return grid
+    # A sure block costs about its cells per side times the constant: 1 / factor of it
+    needed = len(sure) * block * _COST_PER_BLOCK_CELL
+    factor = 1
+    while needed > factor * budget.evals_left and _can_coarsen(block, factor):
+        factor *= 2
+    if factor > 1:
+        grid = make_grid(factor)
+    grid.search(sure, maybe)
+    if budget.spent and not budget.timed_out and _can_coarsen(block, factor):
+        # The estimate was short: one try twice as coarse, with half the budget again (the
+        # deadline bounds the time either way)
+        budget.retry(budget.max_evals // 2)
+        grid = make_grid(2 * factor)
+        grid.search(sure, maybe)
+    return grid
+
+
+def _can_coarsen(block: int, factor: int) -> bool:
+    """Whether a grid twice as coarse is allowed: at most _MAX_COARSENING times the asked
+    cell, with blocks of an even number of cells, at least 2."""
+    coarser = 2 * factor
+    cells = block // coarser
+    return coarser <= _MAX_COARSENING and block % coarser == 0 and cells >= 2 and cells % 2 == 0
 
 
 def _layout(
-    x_min: float, y_min: float, x_max: float, y_max: float, cell: float, block: int
+    x_min: float, y_min: float, x_max: float, y_max: float, cell: float, block: int, phase: Optional[float] = None
 ) -> Optional[Tuple[int, int, float, int, int]]:
     """(first node index along x, along y, phase, blocks along x, along y) of the
     block-aligned grid covering the rect, or None when it would have more than
     MAX_CELLS_PER_SIDE cells on a side. Node (i, j) is at phase + (i0 + i) * cell."""
-    i0, phase = grid_origin(x_min, cell, block)
-    j0, _ = grid_origin(y_min, cell, block)
+    i0, phase = grid_origin(x_min, cell, block, phase)
+    j0, _ = grid_origin(y_min, cell, block, phase)
     blocks_i = max(1, int(math.ceil((x_max - (phase + i0 * cell)) / (cell * block))))
     blocks_j = max(1, int(math.ceil((y_max - (phase + j0 * cell)) / (cell * block))))
     if max(blocks_i, blocks_j) * block > MAX_CELLS_PER_SIDE:
