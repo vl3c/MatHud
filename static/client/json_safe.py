@@ -18,11 +18,21 @@ a string, as CPython would write it.
 express becomes a string saying what it was. ``is_json_plain`` checks, without
 serializing, whether a value can be dumped as it is; ``ensure_json_safe`` converts
 only values that cannot.
+
+Reading is the other way round: Brython's ``json.loads`` rejects numbers written with an
+``e+`` exponent (``1e+16``, as both Brython's and CPython's ``json.dumps`` write large
+floats such as a fitted constant 1.1e46) but reads ``1e16`` and ``1e-05``.
+``loads_json`` reads such text too.
 """
 
 from __future__ import annotations
 
+import json
+import re
 from typing import Any, List, Set
+
+# A JSON string (skipped), or an "e+" exponent after a digit or point (the "+" dropped)
+_STRING_OR_PLUS_EXPONENT = re.compile(r'"(?:[^"\\]|\\.)*"|([0-9.])([eE])\+([0-9])')
 
 # Deeper nesting than this is cut off; tool results are a few levels deep.
 MAX_JSON_SAFE_DEPTH = 64
@@ -57,6 +67,33 @@ def is_json_plain(value: Any) -> bool:
 def ensure_json_safe(value: Any) -> Any:
     """``value`` itself when it is plain JSON data, else its ``to_json_safe`` copy."""
     return value if is_json_plain(value) else to_json_safe(value)
+
+
+def loads_json(text: str) -> Any:
+    """``json.loads(text)``, also in Brython when numbers have ``e+`` exponents (``1.1e+46``).
+
+    The text is read as it is first; only when that fails are the ``e+`` exponents outside
+    strings rewritten without the ``+`` and the text read again.
+
+    Raises:
+        ValueError: The text is not JSON (the first attempt's error).
+    """
+    try:
+        return json.loads(text)
+    except Exception as exc:
+        repaired = _STRING_OR_PLUS_EXPONENT.sub(_drop_exponent_plus, text)
+        if repaired == text:
+            raise ValueError(str(exc)) from exc
+        try:
+            return json.loads(repaired)
+        except Exception:
+            raise ValueError(str(exc)) from exc
+
+
+def _drop_exponent_plus(match: re.Match[str]) -> str:
+    if match.group(1) is None:
+        return match.group(0)
+    return match.group(1) + match.group(2) + match.group(3)
 
 
 def _is_plain(value: Any, active: Set[int], depth: int) -> bool:

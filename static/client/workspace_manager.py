@@ -54,6 +54,7 @@ from constants import (
     default_closed_shape_resolution,
     default_color,
 )
+from json_safe import loads_json
 from drawables.label_render_mode import LabelRenderMode
 from drawables.directed_graph import DirectedGraph
 from drawables.tree import Tree
@@ -1520,7 +1521,7 @@ class WorkspaceManager:
             return f"{exception_prefix}: {str(e)}"
 
     def _response_from_request(self, req: Any) -> Dict[str, Any]:
-        return cast(Dict[str, Any], json.loads(req.text))
+        return cast(Dict[str, Any], loads_json(req.text))
 
     def _response_is_success(self, response: Dict[str, Any]) -> bool:
         return bool(response.get("status") == "success")

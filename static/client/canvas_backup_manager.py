@@ -31,7 +31,7 @@ import json
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 from browser import document, window
-from json_safe import ensure_json_safe
+from json_safe import ensure_json_safe, loads_json
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -202,7 +202,7 @@ class CanvasBackupManager:
 
     @staticmethod
     def _parse_backup(raw: str) -> Dict[str, Any]:
-        backup = json.loads(raw)
+        backup = loads_json(raw)
         if not isinstance(backup, dict) or backup.get("version") != BACKUP_VERSION:
             raise ValueError("unknown backup format")
         if not isinstance(backup.get("state"), dict):
