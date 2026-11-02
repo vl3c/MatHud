@@ -493,14 +493,28 @@ _OTHER_PARAMETER_CONTEXT = (
     | {"confidence", "hypothesis", "test", "fit", "fitted", "fitting", "regression", "model", "parametric"}
 )
 # A parameter's name: one lowercase letter (not a variable, e or i), optionally with a digit or
-# _digit, or a Greek letter
-_PARAMETER_NAME = r"(?:[abcdfghk-qsuvwzα-ωΑ-Ω](?:_?\d)?)"
-# "set a to 3", "let k = 7", "change the value of a to 4", "reset parameter a to 0": a number
+# _digit, or a Greek letter. r and t are parameter names too, but "t goes from 0 to 2*pi" is
+# a curve's variable, so "<name> goes from" uses the narrower name.
+_RANGED_PARAMETER_NAME = r"(?:[abcdfghk-qsuvwzα-ωΑ-Ω](?:_?\d)?)"
+_PARAMETER_NAME = r"(?:[abcdfghk-wzα-ωΑ-Ω](?:_?\d)?)"
+# A value: a number or pi, optionally times or over another ("pi/2", "1/2", "2*pi")
+_PARAMETER_VALUE = r"-?(?i:\d+\.?\d*|\.\d+|pi|π)(?:\s*[*/]\s*(?i:\d+\.?\d*|\.\d+|pi|π))*"
+# "set a to 3", "let k = 7", "change the value of a to 4", "reset parameter a to 0": a value
 # and nothing more ("change f to x^2 + 1" redefines a function)
 _PARAMETER_ASSIGNMENT_RE = re.compile(
     r"^\s*(?i:set|let|make|put|change|increase|decrease|reset|update)\s+(?i:the\s+)?"
     r"(?i:(?:value\s+of|parameter|slider)\s+)?" + _PARAMETER_NAME + r"(?:'s\s+value)?\s*(?i:=|\bto\b|\bat\b)"
-    r"\s*-?(?i:\d+\.?\d*|\.\d+|pi|π)\s*(?i:$|[,;.]|\band\b|\bthen\b)"
+    r"\s*" + _PARAMETER_VALUE + r"\s*(?i:please\s*)?(?i:$|[,;.!]|\band\b|\bthen\b)"
+)
+# "set the range of a from -5 to 5", "set the step of k to 0.5", "make the max of a 10"
+_PARAMETER_SETTING_RE = re.compile(
+    r"^\s*(?i:set|change|make|update|give)\s+(?i:the\s+)?(?i:range|min|max|minimum|maximum|step|limits?)\s+"
+    r"(?i:of|for)\s+(?i:(?:the\s+)?(?:parameter|slider)\s+)?" + _PARAMETER_NAME + r"\b"
+)
+# "delete a", "remove the slider k" (f, g and h are usually functions)
+_PARAMETER_DELETE_RE = re.compile(
+    r"^\s*(?i:delete|remove|erase|drop)\s+(?i:the\s+)?(?i:(?:parameter|slider)\s+)?"
+    r"(?:[abcdk-wzα-ωΑ-Ω](?:_?\d)?)\s*$"
 )
 _PARAMETER_TOOLS = ("set_parameter", "animate_parameter", "delete_parameter")
 _DELETE_WORDS = frozenset({"delete", "remove", "erase", "drop", "get rid"})
@@ -511,7 +525,7 @@ _RANGE_OTHER_CONTEXT = frozenset(
 # "vary a from 0 to 1", "as a varies from -2 to 2", "let a run from -3 to 3", "slide a from 1 to 3"
 _PARAMETER_RANGE_RE = re.compile(
     r"(?:\b(?i:vary|slide|move|play)\s+" + _PARAMETER_NAME + r"\s+(?i:from)\b)"
-    r"|(?:\b" + _PARAMETER_NAME + r"\s+(?i:varies|vary|goes|go|runs|run|moves|changes)\s+(?i:from)\b)"
+    r"|(?:\b" + _RANGED_PARAMETER_NAME + r"\s+(?i:varies|vary|goes|go|runs|run|moves|changes)\s+(?i:from)\b)"
 )
 # "play a", "play the slider", "pause a", "stop the animation"
 _PLAY_RE = re.compile(
@@ -1592,7 +1606,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         """
         raw_lower = raw_query.lower()
         sliders = bool(token_set & _SLIDER_WORDS)
-        other_sense = bool(token_set & _OTHER_PARAMETER_CONTEXT)
+        other_sense = bool(token_set & _OTHER_PARAMETER_CONTEXT) or bool(_PARAMETRIC_RE.search(raw_lower))
         parameters = bool(token_set & _PARAMETER_WORDS) and not other_sense
         sweep = bool(token_set & _SWEEP_WORDS) and not token_set & _SWEEP_OTHER_CONTEXT
         animation = (
@@ -1602,8 +1616,9 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             or bool(_BOUNCE_RE.search(raw_lower))
         )
         ranged = bool(_PARAMETER_RANGE_RE.search(raw_query)) and not token_set & _RANGE_OTHER_CONTEXT
-        assignment = bool(_PARAMETER_ASSIGNMENT_RE.match(raw_query))
-        if not (sliders or parameters or animation or ranged or assignment):
+        assignment = bool(_PARAMETER_ASSIGNMENT_RE.match(raw_query) or _PARAMETER_SETTING_RE.match(raw_query))
+        deletion = bool(_PARAMETER_DELETE_RE.match(raw_query))
+        if not (sliders or parameters or animation or ranged or assignment or deletion):
             if other_sense:
                 for tool in _PARAMETER_TOOLS:
                     scores.pop(tool, None)
@@ -1615,7 +1630,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["animate_parameter"] += 10.0
         if sliders or parameters or assignment:
             scores["set_parameter"] += 9.0
-        if (sliders or parameters) and token_set & _DELETE_WORDS:
+        if ((sliders or parameters) and token_set & _DELETE_WORDS) or deletion:
             scores["delete_parameter"] += 12.0
 
     @staticmethod

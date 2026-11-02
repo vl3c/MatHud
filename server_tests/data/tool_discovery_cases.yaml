@@ -4647,6 +4647,45 @@
       "difficulty": "normal"
     },
     {
+      "id": "c_parameter_set_r",
+      "query": "Set r to 3.",
+      "expected_any": [
+        "set_parameter"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "single_tool",
+      "difficulty": "normal",
+      "cluster": "parameter_cluster"
+    },
+    {
+      "id": "c_parameter_set_fraction",
+      "query": "Set a to pi/2.",
+      "expected_any": [
+        "set_parameter"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "single_tool",
+      "difficulty": "normal",
+      "cluster": "parameter_cluster"
+    },
+    {
+      "id": "c_parameter_delete_bare",
+      "query": "Delete k.",
+      "expected_any": [
+        "delete_parameter"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "single_tool",
+      "difficulty": "normal",
+      "cluster": "parameter_cluster"
+    },
+    {
       "id": "c_sum_index_not_slider",
       "query": "Sum 1/n as n goes from 1 to 10.",
       "expected_any": [

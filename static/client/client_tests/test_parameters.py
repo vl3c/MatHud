@@ -231,6 +231,31 @@ class TestObjectsFollowParameters(_ParameterTestCase):
         self.set("a", value=3)
         self.assertEqual((point.x, point.y), (7.0, 8.0))
 
+    def test_update_point_frees_a_used_point_and_one_where_it_stands(self) -> None:
+        self.set("a", value=1)
+        self.point("a", "0", "P")
+        segment_args = {"name": None, "color": None, "label_text": None, "label_visible": None}
+        self.run_batch(("create_segment", dict(segment_args, x1=1, y1=0, x2=4, y2=4)))
+        point = self.canvas.get_point_by_name("P")
+        segment = self.canvas.drawable_manager.drawables.Segments[0]
+        self.assertIs(segment.point1, point)
+        args = {"point_name": "P", "new_name": None, "new_color": None}
+        depth = self.undo_depth()
+        _, traced = self.run_batch(("update_point", dict(args, new_x=1, new_y=0)))  # where it stands
+        self.assert_ok(traced[0])
+        self.assertFalse(point.has_definition)
+        self.assertEqual(self.undo_depth(), depth + 1)
+        self.set("a", value=4)
+        self.assertEqual((point.x, point.y), (1.0, 0.0))
+        self.run_batch(("update_point", dict(args, new_x="a", new_y="0")))
+        _, traced = self.run_batch(("update_point", dict(args, new_x=2, new_y=3)))  # used by the segment
+        self.assert_ok(traced[0])
+        self.assertEqual((point.x, point.y, point.has_definition), (2.0, 3.0, False))
+        self.assertIs(segment.point1, point)
+        self.assertEqual(segment.line_formula, segment._calculate_line_algebraic_formula())
+        _, traced = self.run_batch(("translate_object", {"name": "P", "x_offset": 1, "y_offset": 0}))
+        self.assert_ok(traced[0])
+
     def test_circle_radius_follows_and_is_named_after_it(self) -> None:
         self.set("b", value=2)
         _, traced = self.run_batch(

@@ -118,10 +118,11 @@ def create_point_tool(canvas: "Canvas", create_point: Callable[..., Any]) -> Cal
 def update_point_tool(canvas: "Canvas", update_point: Callable[..., Any]) -> Callable[..., Any]:
     """update_point taking numbers or expressions in parameters for new_x and new_y.
 
-    Numbers move the point as before (the solitary-point rule applies) and replace the
-    coordinates' expressions: the point becomes free. An expression defines that
-    coordinate on any point, referenced or not (segments on it follow); a coordinate not
-    given keeps its number or its expression.
+    Numbers move a free point as before (the solitary-point rule applies). Numbers for a
+    point defined by parameters make it free at them, even where it stands and even when
+    other objects use it, so update_point always frees a point translate_object refuses.
+    An expression defines that coordinate on any point, referenced or not (segments on it
+    follow); a coordinate not given keeps its number or its expression.
     """
 
     def run(
@@ -132,7 +133,11 @@ def update_point_tool(canvas: "Canvas", update_point: Callable[..., Any]) -> Cal
         new_color: Optional[str] = None,
     ) -> Any:
         given = _definitions({"new_x": new_x, "new_y": new_y})
-        if not any(definition is not None and definition.expression for definition in given.values()):
+        point = canvas.get_point_by_name(point_name)
+        defines = any(definition is not None and definition.expression for definition in given.values())
+        if not defines and point is not None and point.has_definition and None not in given.values():
+            return _free_defined_point(point, given["new_x"], given["new_y"], new_name, new_color)
+        if not defines:
             return update_point(
                 point_name=point_name,
                 new_name=new_name,
@@ -140,20 +145,36 @@ def update_point_tool(canvas: "Canvas", update_point: Callable[..., Any]) -> Cal
                 new_y=_plain(new_y, given["new_y"]),
                 new_color=new_color,
             )
-        point = canvas.get_point_by_name(point_name)
         if point is None:
             raise ValueError(f"Point '{point_name}' was not found.")
         x_definition, y_definition = given["new_x"], given["new_y"]
         x_expression = _described(x_definition) if x_definition is not None else point.x_expression
         y_expression = _described(y_definition) if y_definition is not None else point.y_expression
-        if new_name is not None or new_color is not None:
-            update_point(point_name=point_name, new_name=new_name, new_x=None, new_y=None, new_color=new_color)
-        else:
-            canvas.undo_redo_manager.archive()
+        _rename_or_archive(point_name, new_name, new_color)
         x_now = x_definition.value if x_definition is not None else point.x
         y_now = y_definition.value if y_definition is not None else point.y
         point.update_position(x_now, y_now)
         point.set_definition(x_expression, y_expression)
+        canvas.drawable_manager.parameter_manager.refresh_segments_on({id(point)})
+        if getattr(canvas, "draw_enabled", False):
+            canvas.draw()
+        return True
+
+    def _rename_or_archive(point_name: str, new_name: Any, new_color: Any) -> None:
+        """Apply a new name or color through update_point (which archives), else archive here."""
+        if new_name is None and new_color is None:
+            canvas.undo_redo_manager.archive()
+            return
+        result = update_point(point_name=point_name, new_name=new_name, new_x=None, new_y=None, new_color=new_color)
+        if result is not True:  # the name and color were already those: nothing archived
+            canvas.undo_redo_manager.archive()
+
+    def _free_defined_point(point: Any, x_definition: Any, y_definition: Any, new_name: Any, new_color: Any) -> Any:
+        """Numbers for a point defined by parameters: it becomes free at them, even where it
+        stands and even when other objects use it (they follow, as with a parameter change)."""
+        _rename_or_archive(point.name, new_name, new_color)
+        point.clear_definition()
+        point.update_position(x_definition.value, y_definition.value)
         canvas.drawable_manager.parameter_manager.refresh_segments_on({id(point)})
         if getattr(canvas, "draw_enabled", False):
             canvas.draw()
