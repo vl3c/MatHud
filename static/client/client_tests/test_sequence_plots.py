@@ -7,6 +7,7 @@ Brython (float and int arithmetic, the character scan of u(n-1)) and the canvas 
 
 from __future__ import annotations
 
+import json
 import unittest
 from typing import Any, Dict, List, Tuple
 
@@ -202,6 +203,16 @@ class TestSequencePlotTools(unittest.TestCase):
         manager = self.canvas.drawable_manager.sequence_plot_manager
         manager.plot_sequence(expression="n", start=-2, end=6)
         self.assertEqual(content_extent(self.canvas), [-2.0, -2.0, 6.0, 6.0])
+
+    def test_large_terms_survive_brython_json(self) -> None:
+        # Brython's json.loads refuses "1e+21"; the summary saves such terms as text.
+        manager = self.canvas.drawable_manager.sequence_plot_manager
+        manager.plot_sequence(expression="2^n", start=1, end=100, name="P")
+        state = json.loads(json.dumps(self.workspace_manager._snapshot_persistable_canvas_state()))
+        self.canvas.clear()
+        self.workspace_manager._restore_workspace_state(state)
+        restored = self.canvas.drawable_manager.drawables.get_by_class_name("SequencePlot")[0]
+        self.assertEqual(restored.summary["max"], 2.0**100)
 
     def test_saved_workspace_restores_the_plots(self) -> None:
         manager = self.canvas.drawable_manager.sequence_plot_manager

@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 
 from drawables.data_plot import DataPlot
-from utils.sequences import IterationFunction, drawn_orbit, orbit_until_settled, orbit_x_range
+from utils.sequences import IterationFunction, drawn_orbit, orbit_until_settled, orbit_x_range, saved_summary
 
 
 class CobwebCurve:
@@ -108,5 +108,5 @@ class CobwebPlot(DataPlot):
         return [(x_min, min(ys)), (x_max, max(ys))]
 
     def _plot_args(self) -> Dict[str, Any]:
-        summary = {key: list(value) if isinstance(value, tuple) else value for key, value in self.summary.items()}
+        summary = saved_summary(self.summary)
         return {"function": self.function.expression, "x0": self.x0, "steps": self.steps, "summary": summary}

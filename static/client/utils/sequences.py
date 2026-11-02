@@ -56,6 +56,8 @@ TREND_TOLERANCE = 1e-12
 # approach to a fixed point. Slopes and cycle multipliers below SLOPE_ZERO are reported as 0.
 CYCLE_SEPARATION = 1e-6
 SLOPE_ZERO = 1e-8
+# Computed floats at least this large are saved as text (see saved_number).
+SAVED_NUMBER_LIMIT = 1e15
 # Undefined indices listed in a result (the count says how many there are).
 MAX_LISTED_UNDEFINED = 10
 
@@ -102,6 +104,29 @@ def _read_call_argument(text: str, open_index: int) -> Optional[Tuple[str, int]]
 def _plain_minus(text: str) -> str:
     """The text with the Unicode minus sign (U+2212) written as '-'."""
     return text.replace("\u2212", "-")
+
+
+def saved_number(value: Any) -> Any:
+    """A computed float as saved in a plot's summary: as text when JSON would write an 'e+'.
+
+    Python writes floats from 1e16 up with an exponent such as 1.2676506002282294e+30, which
+    Brython's json.loads cannot read, so a saved workspace or the page's backup holding one
+    (2^n to n = 100) would not load; the text keeps 12 significant digits.
+    """
+    if isinstance(value, float) and math.isfinite(value) and abs(value) >= SAVED_NUMBER_LIMIT:
+        return f"{value:.12g}"
+    return value
+
+
+def saved_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
+    """A plot summary for its saved state: tuples as lists, large floats as text (saved_number)."""
+    saved: Dict[str, Any] = {}
+    for key, value in summary.items():
+        if isinstance(value, (tuple, list)):
+            saved[key] = [saved_number(item) for item in value]
+        else:
+            saved[key] = saved_number(value)
+    return saved
 
 
 def _strip_prefix(text: str, names: Sequence[str]) -> str:
@@ -651,13 +676,30 @@ def _unsettled(values: List[float]) -> Dict[str, Any]:
     steps = [abs(d) for d in diffs]
     if _shrinking(steps, 1):
         return {"behaviour": "none", "pattern": "shrinking", "last_change": change}
+    period = _approached_period(values)
+    if period is not None:
+        return {"behaviour": "none", "pattern": "shrinking", "period": period, "last_change": change}
+    return {"behaviour": "none", "pattern": "irregular", "last_change": change}
+
+
+def _approached_period(values: List[float]) -> Optional[int]:
+    """The period p of a cycle the orbit slowly approaches, from the gaps x(k+p) - x(k), or None.
+
+    The gaps of a multiple of p shrink too, and so do the gaps of a divisor while they settle on
+    the cycle's split (r = 3.45 approaches a 4-cycle and its lag-2 gaps shrink to 0.005), so a
+    later period wins when its last gaps are a thousand times smaller.
+    """
+    best: Optional[Tuple[int, float]] = None
     for period in range(2, MAX_PERIOD + 1):
         # eight comparisons for each point of the cycle, so a chaotic orbit does not pass by chance
         window = values[-max(DIVERGENCE_WINDOW + period, 9 * period) :]
         gaps = [abs(b - a) for a, b in zip(window, window[period:])]
-        if len(gaps) >= 8 * period and _shrinking(gaps, period):
-            return {"behaviour": "none", "pattern": "shrinking", "period": period, "last_change": change}
-    return {"behaviour": "none", "pattern": "irregular", "last_change": change}
+        if len(gaps) < 8 * period or not _shrinking(gaps, period):
+            continue
+        last = max(gaps[-period:])
+        if best is None or last < 1e-3 * best[1]:
+            best = (period, last)
+    return None if best is None else best[0]
 
 
 def _shrinking(gaps: List[float], period: int) -> bool:

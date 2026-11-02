@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import json
 import math
+import re
 import time
 import unittest
 from types import SimpleNamespace
@@ -234,7 +235,7 @@ class TestOrbits(unittest.TestCase):
                 self.assertEqual((behaviour["behaviour"], behaviour["pattern"]), ("none", "shrinking"))
 
     def test_a_slow_approach_to_a_cycle_is_shrinking_with_its_period(self) -> None:
-        for r, period in ((3.45, 2), (3.4495, 2), (3.544, 4), (3.564, 8)):
+        for r, period in ((3.45, 4), (3.4495, 4), (3.449, 2), (3.544, 4), (3.564, 8)):
             with self.subTest(r=r):
                 behaviour = _behaviour(f"{r}*x*(1-x)", 0.2)
                 self.assertEqual((behaviour["behaviour"], behaviour["pattern"]), ("none", "shrinking"))
@@ -332,6 +333,21 @@ class TestDrawables(unittest.TestCase):
                 assert kind is not None
                 rebuilt, name = build_saved_plot(kind, json.loads(json.dumps(state)))
                 self.assertEqual((name, rebuilt.get_state()), (plot.name, state))
+
+    def test_large_terms_are_saved_without_an_exponent_brython_cannot_read(self) -> None:
+        # Brython's json.loads refuses "1e+21"; 2^n to 100 used to break the workspace and backup.
+        plot = SequencePlot("S", rule=parse_sequence("2^n"), start=1, end=100)
+        text = json.dumps(plot.get_state())
+        self.assertIsNone(re.search(r"e\+\d+[,\]} ]", text))  # only inside strings
+        saved = json.loads(text)["args"]["summary"]
+        self.assertEqual(saved["terms"][9], 1024.0)
+        self.assertEqual(saved["max"], "1.26765060023e+30")
+        kind = plot_kind("SequencePlot")
+        assert kind is not None
+        rebuilt, _ = build_saved_plot(kind, json.loads(text))
+        self.assertEqual(rebuilt.summary["max"], 2.0**100)
+        shape = next(iter(measure_shapes({"SequencePlots": [json.loads(text)]}).values()))
+        self.assertAlmostEqual(shape.box.top / 2.0**100, 1.0, places=9)
 
     def test_bad_saved_items_are_refused(self) -> None:
         for class_name, args in [

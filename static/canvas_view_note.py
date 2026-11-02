@@ -374,11 +374,27 @@ def _scatter_plot(args: JsonDict, positions: Mapping[str, Point2D], signature: s
     return Shape(Box(min(xs), max(xs), min(ys), max(ys)), signature)
 
 
+def _saved_floats(values: Any) -> List[float]:
+    """Numbers of a sequence or cobweb summary, which saves floats from 1e15 up as text."""
+    if not isinstance(values, list):
+        return []
+    return _finite_floats([_text_number(value) for value in values])
+
+
+def _text_number(value: Any) -> Any:
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return value
+
+
 def _sequence_plot(args: JsonDict, positions: Mapping[str, Point2D], signature: str) -> Optional[Shape]:
     summary = args.get("summary")
     if not isinstance(summary, Mapping):
         return None
-    ns, terms = _finite_floats(summary.get("n_values")), _finite_floats(summary.get("terms"))
+    ns, terms = _saved_floats(summary.get("n_values")), _saved_floats(summary.get("terms"))
     if not ns or not terms:
         return None
     return Shape(Box(min(ns), max(ns), min(terms), max(terms)), signature)
@@ -389,7 +405,7 @@ def _cobweb_plot(args: JsonDict, positions: Mapping[str, Point2D], signature: st
     summary = args.get("summary")
     if not isinstance(summary, Mapping):
         return None
-    xs, orbit = _finite_floats(summary.get("x_range")), _finite_floats(summary.get("orbit"))
+    xs, orbit = _saved_floats(summary.get("x_range")), _saved_floats(summary.get("orbit"))
     if len(xs) != 2 or not orbit:
         return None
     return Shape(Box(min(xs), max(xs), min(0.0, min(orbit)), max(0.0, max(orbit))), signature)

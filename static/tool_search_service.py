@@ -124,8 +124,7 @@ _SEQUENCE_WORDS = frozenset(
 _COBWEB_WORDS = frozenset({"cobweb", "cobwebs", "orbit", "orbits", "staircase"})
 _ITERATION_WORDS = frozenset({"iterate", "iterates", "iteration", "iterations", "iterating", "iterated"})
 # "5 iterations of Newton's method": a root finder's iterations, not an orbit to draw
-_ROOT_METHOD_WORDS = frozenset({"newton", "newtons", "raphson", "bisection", "secant", "method", "methods"})
-_ROOT_METHOD_WORDS = _ROOT_METHOD_WORDS | frozenset({"root", "roots", "zero", "zeros", "decimal", "decimals"})
+_ROOT_METHOD_WORDS = frozenset({"newton", "newtons", "raphson", "bisection", "secant"})
 # A sum or series of terms is a computation, not a plot of the terms (nor an orbit)
 _SEQUENCE_SUM_WORDS = frozenset({"sum", "sums", "summation", "series", "sigma"})
 # A limit or convergence test of a sequence is a computation; an iteration's convergence is a cobweb

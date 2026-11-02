@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from drawables.data_plot import DataPlot
-from utils.sequences import SequenceRule, sequence_summary, sequence_terms
+from utils.sequences import SequenceRule, saved_summary, sequence_summary, sequence_terms
 
 
 class SequencePlot(DataPlot):
@@ -68,7 +68,7 @@ class SequencePlot(DataPlot):
         ]
 
     def _plot_args(self) -> Dict[str, Any]:
-        summary = {key: list(value) if isinstance(value, tuple) else value for key, value in self.summary.items()}
+        summary = saved_summary(self.summary)
         return {
             "expression": self.rule.expression,
             "start": self.start,
