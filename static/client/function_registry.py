@@ -280,6 +280,15 @@ class FunctionRegistry:
                 "update_polar_function",
                 canvas.drawable_manager.polar_function_manager.update_polar_function,
             ),
+            # ===== IMPLICIT CURVES AND INEQUALITY REGIONS =====
+            "draw_implicit_curve": canvas.drawable_manager.implicit_curve_manager.draw_implicit_curve,
+            "delete_implicit_curve": canvas.drawable_manager.implicit_curve_manager.delete_implicit_curve,
+            "update_implicit_curve": no_op_tools.update_tool(
+                canvas,
+                "update_implicit_curve",
+                canvas.drawable_manager.implicit_curve_manager.update_implicit_curve,
+            ),
+            "shade_inequality": canvas.drawable_manager.implicit_curve_manager.shade_inequality,
             # ===== TANGENT AND NORMAL LINES =====
             "draw_tangent_line": canvas.create_tangent_line,
             "draw_normal_line": canvas.create_normal_line,
