@@ -270,6 +270,19 @@ _HISTOGRAM_WORDS = frozenset({"histogram", "histograms", "bin", "bins", "binned"
 _BOX_PLOT_WORDS = frozenset({"boxplot", "boxplots", "whisker", "whiskers"})
 _SCATTER_WORDS = frozenset({"scatter", "scatterplot", "scatterplots"})
 _FIT_WORDS = frozenset({"fit", "fitting", "fitted", "regression", "trend", "best"})
+# A custom fit asked for without "fit" or "regression": "a*x^2 + b best fits the data", "fits the
+# points", "use least squares to find a and b in y = a*e^(b*x)" (but not the least-squares
+# solution of a linear system Ax = b, which is linear algebra).
+_FIT_PHRASE_RE = re.compile(
+    r"\bbest[- ]fits?\b|\bfits?\s+best\b|\bleast[- ]squares?\b"
+    r"|\bfits?\s+(?:the\s+|these\s+|my\s+|our\s+|this\s+)?(?:data|points|measurements|observations|readings)\b"
+)
+_LEAST_SQUARES_ALGEBRA_RE = re.compile(
+    r"\b[a-z]\s*\*?\s*x\s*=\s*b\b|\bsystem\b|\boverdetermined\b|\bnormal equations\b|\bmatri(?:x|ces)\b|\[\["
+)
+# "the data follows y = a*exp(b*x); find a and b", "model the data with y = a*sin(b*x)"
+_DATA_WORDS = frozenset({"data", "measurements", "observations", "dataset", "readings"})
+_DATA_MODEL_WORDS = frozenset({"model", "follows", "constants", "find", "estimate", "determine"})
 # Words that ask for descriptive statistics ("the standard deviation of the data and a histogram").
 _DESCRIPTIVE_STATISTICS_WORDS = frozenset(
     {"descriptive", "stats", "statistics", "mean", "median", "average", "stdev", "std", "sd", "deviation"}
@@ -1413,6 +1426,15 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         return not (token_set & {"bar", "bars"} and token_set & {"grouped", "like", "categories", "category"})
 
     @staticmethod
+    def _asks_for_custom_fit(token_set: Set[str], raw_lower: str) -> bool:
+        """A fit of a model to data asked for without "fit" or "regression" (see _FIT_PHRASE_RE)."""
+        if _FIT_PHRASE_RE.search(raw_lower) and not _LEAST_SQUARES_ALGEBRA_RE.search(raw_lower):
+            return True
+        return bool(
+            token_set & _DATA_WORDS and token_set & _DATA_MODEL_WORDS and _FUNCTION_DEFINITION_RE.search(raw_lower)
+        )
+
+    @staticmethod
     def _asks_for_box_plot(token_set: set[str]) -> bool:
         """Whether a query asks for a box plot: "boxplot", whiskers, or "box" with plot or chart
         and no function words (a bare "box" is a rectangle)."""
@@ -1739,7 +1761,9 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         # "plot y = 2x + 1 on the scatter plot": the function is drawn over the data
         if token_set & _SCATTER_WORDS and (_FUNCTION_EQUATION_RE.search(raw_lower) or token_set & _FUNCTION_NAME_WORDS):
             scores["draw_function"] += 4.0
-        if token_set & {"regression", "fit", "fitting", "trend"}:
+        if token_set & {"regression", "fit", "fitting", "trend"} or ToolSearchService._asks_for_custom_fit(
+            token_set, raw_lower
+        ):
             scores["fit_regression"] += 6.0
         # A test or interval of a mean is not a summary of the data.
         if token_set & _DESCRIPTIVE_STATISTICS_WORDS and not tests_data:
