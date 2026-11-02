@@ -441,8 +441,26 @@ class TestCreativePrompts:
             ("plot x(t) = cos(t), y(t) = sin(t) for 0 <= t <= 2*pi", "draw_parametric_function"),
             ("Graph f(x) with two rules: -x when x<2, and x-4 when x>=2.", "draw_piecewise_function"),
             ("implicit differentiation of x^2 + y^2 = 25", "derive"),
+            # Bare relations are equations to solve; measuring and other objects keep their tools
+            ("2x + 3y = 7 and x - y = 4", "solve_system_of_equations"),
+            ("x^2 + y^2 = 25 and x + y = 7", "solve_system_of_equations"),
+            ("calculate the area of the region x^2 + y^2 <= 4", "calculate_area"),
+            ("what is the area of the circle x^2 + y^2 = 25", "calculate_area"),
+            ("arc length of x^2 + y^2 = 1", "arc_length"),
+            ("integrate x*y over the region x^2 + y^2 < 1", "integrate"),
+            ("zoom so that -10 < x < 10 and -5 < y < 5", "zoom"),
+            ("draw a segment from x = 0 to x = 5 at y = 2", "create_segment"),
+            ("plot the histogram where x > 5", "plot_histogram"),
+            ("plot y = x^2 - 1 and shade between it and y = 0 for -1 < x < 1", "create_colored_area"),
+            ("plot the function y = x^2 - 4 and shade where y < 0", "draw_function"),
+            ("graph the circle x^2 + y^2 = 4", "create_circle"),
         ):
             assert _top_n(self.service, query)[0] == tool, query
+        for query, tool in (
+            ("2x + y = 5, x - 3y = -1", "solve"),
+            ("what are the intercepts of 2x + 3y = 6", "solve"),
+        ):
+            assert tool in _top_n(self.service, query), query
 
     def test_editing_implicit_curves_and_shaded_regions(self) -> None:
         for query, tool in (
@@ -454,6 +472,9 @@ class TestCreativePrompts:
             ("make the region R1 red", "update_colored_area"),
             ("change region R2 opacity to 0.1", "update_colored_area"),
             ("Color the polygonal region enclosed by segments AB, BC, CD, DA.", "create_region_colored_area"),
+            ("fill the region inside circle c1 with red", "create_region_colored_area"),
+            ("delete point P in the shaded region", "delete_point"),
+            ("change the triangle so its area is 10", "calculate_area"),
         ):
             assert _top_n(self.service, query)[0] == tool, query
 

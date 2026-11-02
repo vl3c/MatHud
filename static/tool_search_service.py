@@ -341,6 +341,21 @@ _IMPLICIT_EXCLUDED_WORDS = frozenset(
     | {"parametric", "polar", "piecewise", "evaluate", "simplify", "factor", "expand", "check", "steps"}
     | {"intersects", "crosses", "find", "confirm", "verify", "prove", "reflect", "mirror", "across", "rotate"}
     | {"translate", "rules", "rule", "when", "otherwise", "complete", "rewrite"}
+    # Measuring or other objects: "the area of the region x^2 + y^2 <= 4", "arc length of
+    # x^2 + y^2 = 1", "the intercepts of 2x + 3y = 6", "zoom so that -10 < x < 10", "a segment
+    # from x = 0 to x = 5", "shade between it and y = 0" (a colored area)
+    | {"integrate", "integral", "arc", "perimeter", "circumference", "intercept", "intercepts", "zoom"}
+    | {"segment", "segments", "histogram", "histograms", "between", "under", "calculate", "compute"}
+    | {"measure", "how", "distance", "vector", "vectors"}
+)
+# "the area of the region ...", "the length of the curve ...": a measurement
+_IMPLICIT_MEASURE_RE = re.compile(r"\b(?:area|length|size)\s+(?:of|is|enclosed|inside|bounded)\b")
+# A relation in x and y is drawn or shaded only when the query asks for a picture: bare
+# relations ("2x + 3y = 7 and x - y = 4") are equations to solve
+_IMPLICIT_PICTURE_WORDS = frozenset(
+    {"draw", "plot", "graph", "sketch", "show", "display", "visualize", "visualise", "trace", "shade"}
+    | {"shaded", "shading", "region", "regions", "feasible", "curve", "curves", "implicit", "implicitly"}
+    | {"conic", "locus", "contour", "picture", "highlight", "color", "colour", "fill"}
 )
 # Function names that may lead or end an operand; other words are English around the math
 _OPERAND_FUNCTION_WORDS = frozenset({"sin", "cos", "tan", "exp", "ln", "log", "sqrt", "abs", "cbrt", "pi", "e"})
@@ -381,12 +396,20 @@ def implicit_intent(raw_lower: str) -> Optional[str]:
     derivatives, distributions, parametric, polar and piecewise queries are left alone."""
     raw_lower = re.sub(r"\s+equals\s+", " = ", raw_lower)
     words = set(re.findall(r"[a-z]+", raw_lower))
-    if words & _IMPLICIT_EXCLUDED_WORDS or re.search(r"\bp\s*\(|\b[xyr]\s*\(\s*[tθ]|\bθ|theta", raw_lower):
+    if not words & _IMPLICIT_PICTURE_WORDS or words & _IMPLICIT_EXCLUDED_WORDS:
+        return None
+    if _IMPLICIT_MEASURE_RE.search(raw_lower):
+        return None
+    if re.search(r"\bp\s*\(|\b[xyr]\s*\(\s*[tθ]|\bθ|theta", raw_lower):
         return None
     relations = _relation_operands(raw_lower)
     if _is_vertical_line(raw_lower, relations, words):
         return "curve"
     has_equation = any(sign == "=" for _, sign, _ in relations)
+    defines_function = bool(_FUNCTION_DEFINITION_RE.search(raw_lower)) and any(
+        sign == "=" and re.fullmatch(r"y|[a-z]\(\s*x\s*\)", left) and not _Y_VARIABLE_RE.search(right)
+        for left, sign, right in relations
+    )
     region = curve = False
     for left, sign, right in relations:
         if not left or not right:
@@ -395,6 +418,8 @@ def implicit_intent(raw_lower: str) -> Optional[str]:
         has_y = bool(_Y_VARIABLE_RE.search(left) or _Y_VARIABLE_RE.search(right))
         has_x = bool(_X_VARIABLE_RE.search(left) or _X_VARIABLE_RE.search(right))
         if sign != "=":
+            if defines_function and re.fullmatch(r"[xy]", left) and re.fullmatch(r"-?[\d.]+", right):
+                continue  # "plot y = x^2 - 4 and shade where y < 0": part of the function's area
             # x alone: a region when region words say so, or "graph -1 < x <= 2" with no
             # equation ("plot y = x^2 for x > 0" restricts a function's domain)
             if has_y or (has_x and (words & _REGION_WORDS or (words & _GRAPH_VERBS and not has_equation))):
@@ -1683,9 +1708,20 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
                 return
             scores[drawn] = max(scores[drawn], leading) + 6.0
             return
-        region_words = token_set & {"region", "shaded", "shading", "feasible", "area"}
+        region_words = token_set & {"region", "shaded", "shading", "feasible"}
+        if "area" in token_set and re.search(r"\b(?:colou?red|shaded|filled)\s+areas?\b|\bareas?\s+[a-z]\w*\d", raw_lower):
+            region_words = region_words | {"area"}  # "the colored area", "area A1"; not "its area is 10"
         tool: Optional[str] = None
-        if region_words and not token_set & {"create", "draw", "plot", "graph", "sketch", "between", "under"}:
+        creating = token_set & {"create", "draw", "plot", "graph", "sketch", "between", "under", "fill", "shade"}
+        # "fill the region inside circle c1", "the region enclosed by AB, BC": a new area
+        creating = creating or token_set & {"inside", "enclosed", "bounded", "outside", "within"}
+        # "delete point P in the shaded region": another object goes
+        other_object = re.search(
+            r"\b(?:delete|remove|erase)\s+(?:the\s+)?(?:point|segment|vector|triangle|circle|ellipse|polygon"
+            r"|rectangle|function|graph|label|angle|line|curve)s?\b",
+            raw_lower,
+        )
+        if region_words and not creating and not other_object:
             if deleting:
                 tool = "delete_colored_area"
             elif token_set & (_POLAR_UPDATE_VERBS | {"set", "opacity", "transparency"}) or (
