@@ -43,7 +43,7 @@ AUTO_SNAPSHOTS = ("start", "setup")
 WORKSPACE_TOOLS = frozenset({"save_workspace", "load_workspace", "delete_workspace", "list_workspaces"})
 _ID_PATTERN = re.compile(r"^[A-Z]+-\d{2,}$")
 # Report order of the areas (section 5 of the design doc).
-AREA_ORDER = ("GEO", "CON", "FN", "AR", "TR", "GR", "ST", "MC", "CV", "WS", "NM", "MT")
+AREA_ORDER = ("GEO", "CON", "FN", "PS", "AR", "TR", "GR", "ST", "MC", "CV", "WS", "NM", "MT")
 _STEP_KINDS = ("snapshot", "user", "do", "checks")
 # Per-turn limits in live mode (section 4.4): a model-quality check and two hard stops.
 TURN_LIMIT_KEYS = ("max_tool_calls", "max_requests", "timeout_s")

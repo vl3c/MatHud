@@ -118,8 +118,12 @@ class CanvasBackupManager:
         document.bind("visibilitychange", self._on_visibility_change)
 
     def schedule_backup(self) -> None:
-        """Back up after ``BACKUP_DELAY_MS`` unless a backup is already scheduled."""
-        if not self.enabled or self._pending:
+        """Back up after ``BACKUP_DELAY_MS`` unless a backup is already scheduled.
+
+        Skipped while a parameter animates (every frame draws); the draw after the
+        animation ends schedules one.
+        """
+        if not self.enabled or self._pending or self._parameters_animating():
             return
         self._pending = True
         self._set_timeout(self._run_scheduled_backup, BACKUP_DELAY_MS)
@@ -141,6 +145,13 @@ class CanvasBackupManager:
             return True
         except Exception as exc:
             self._on_write_failure(exc)
+            return False
+
+    def _parameters_animating(self) -> bool:
+        manager = getattr(getattr(self.canvas, "drawable_manager", None), "parameter_manager", None)
+        try:
+            return bool(getattr(manager, "animating", False))
+        except Exception:
             return False
 
     def _run_scheduled_backup(self) -> None:

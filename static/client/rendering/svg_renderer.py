@@ -37,6 +37,7 @@ from rendering.interfaces import RendererProtocol
 from rendering.style_manager import get_renderer_style
 from rendering.base_telemetry import BaseRendererTelemetry
 from rendering.svg_primitive_adapter import SvgPrimitiveAdapter
+from rendering.signature_state import is_undefined, signature_state
 
 
 class SvgTelemetry(BaseRendererTelemetry):
@@ -236,6 +237,8 @@ class SvgRenderer(RendererProtocol):
                 return
         except Exception:
             return
+        if is_undefined(drawable):
+            return
         if drawable_name is None:
             drawable_name = self._resolve_drawable_name(drawable)
         map_state = self._capture_map_state(coordinate_mapper)
@@ -349,13 +352,7 @@ class SvgRenderer(RendererProtocol):
             return signature + self._fixed_signature_view(drawable, coordinate_mapper, drawable_name)
         if drawable_name is None:
             drawable_name = self._resolve_drawable_name(drawable)
-        state_func = getattr(drawable, "get_state", None)
-        state: Any = None
-        if callable(state_func):
-            try:
-                state = state_func()
-            except Exception:
-                state = None
+        state: Any = signature_state(drawable)
         fallback: Dict[str, Any] = {}
         for attr in ("name", "color"):
             if hasattr(drawable, attr):

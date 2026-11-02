@@ -262,8 +262,18 @@ class ResultProcessor:
         """Keep the mark only if the batch changed earlier or the call left a partial change behind.
 
         With no change recorded before the call, the batch baseline is the state before the call.
+        While a parameter animates, the canvas always differs from the baseline (the value
+        moves), so only the earlier mark counts.
         """
-        canvas.set_undo_batch_changed(changed_before or canvas.state_differs_from_undo_batch_baseline())
+        if changed_before or ResultProcessor._parameters_animating(canvas):
+            canvas.set_undo_batch_changed(changed_before)
+            return
+        canvas.set_undo_batch_changed(canvas.state_differs_from_undo_batch_baseline())
+
+    @staticmethod
+    def _parameters_animating(canvas: "Canvas") -> bool:
+        manager = getattr(getattr(canvas, "drawable_manager", None), "parameter_manager", None)
+        return bool(getattr(manager, "animating", False))
 
     @staticmethod
     def build_tool_call_results(calls: List[Dict[str, Any]], traced_calls: List["TracedCall"]) -> List[Dict[str, Any]]:

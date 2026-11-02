@@ -155,6 +155,7 @@ class Canvas:
     def draw(self, apply_zoom: bool = False) -> None:
         if not self.draw_enabled:
             return
+        self._sync_parameter_namespace()
         renderer = self.renderer
         renderer_end = self._begin_renderer_frame(renderer)
 
@@ -165,6 +166,15 @@ class Canvas:
         finally:
             self._end_renderer_frame(renderer_end)
         self._notify_draw_listeners()
+
+    def _sync_parameter_namespace(self) -> None:
+        """Guard: expressions read the parameters this canvas holds (cheap when they already do)."""
+        manager = getattr(getattr(self, "drawable_manager", None), "parameter_manager", None)
+        if manager is not None:
+            try:
+                manager.sync_namespace()
+            except Exception as exc:
+                print(f"Warning: could not sync parameters: {exc}")
 
     def add_draw_listener(self, listener: Callable[[], None]) -> None:
         """Call ``listener`` after every frame ``draw()`` renders; every visible change redraws."""
@@ -349,6 +359,9 @@ class Canvas:
 
     def _clear_drawables_collection(self) -> None:
         self.drawable_manager.drawables.clear()
+        manager = getattr(self.drawable_manager, "parameter_manager", None)
+        if manager is not None:
+            manager.on_state_restored()
 
     def _reset_name_generator_state(self) -> None:
         if hasattr(self.drawable_manager, "name_generator") and hasattr(

@@ -131,6 +131,7 @@ class PointManager(BaseDrawableManager):
         name: str = "",
         color: Optional[str] = None,
         extra_graphics: bool = True,
+        distinct: bool = False,
     ) -> Point:
         """
         Create a new point at the specified coordinates
@@ -141,12 +142,14 @@ class PointManager(BaseDrawableManager):
             name: Optional name for the point
             color: Optional color for the point
             extra_graphics: Whether to create additional graphics (e.g. split segments)
+            distinct: Create a new point even where one exists (a point defined by
+                parameters only passes through the spot at the current values)
 
         Returns:
             Point: The newly created point
         """
         # Check if a point already exists at these coordinates (nothing changes, so no archive)
-        existing_point = self.get_point(x, y)
+        existing_point = None if distinct else self.get_point(x, y)
         if existing_point:
             return existing_point
 
@@ -460,6 +463,7 @@ class PointManager(BaseDrawableManager):
 
         if new_coordinates is not None:
             x_val, y_val = new_coordinates
+            point.clear_definition()  # numbers make a point defined by parameters free
             point.update_position(x_val, y_val)
 
         if "color" in pending_fields and new_color is not None:

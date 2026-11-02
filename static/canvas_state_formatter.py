@@ -373,11 +373,42 @@ def _polygon_area(coords: Sequence[Point2D]) -> float:
 Renderer = Callable[[_Scene, JsonDict], Optional[str]]
 
 
+def _render_parameter(scene: _Scene, item: JsonDict) -> str:
+    args = _args(item)
+    line = (
+        f"{item.get('name', '?')} = {format_number(args.get('value'))}  slider "
+        f"[{format_number(args.get('min'))}, {format_number(args.get('max'))}] step {format_number(args.get('step'))}"
+    )
+    animation = args.get("animation")
+    if isinstance(animation, dict):
+        line += (
+            f"; animating {animation.get('repeat', 'once')} from {format_number(animation.get('start'))} "
+            f"to {format_number(animation.get('end'))} over {format_number(animation.get('duration'))} s"
+        )
+    return line + _extras_suffix(args, {"value", "min", "max", "step", "animation", "color"})
+
+
+def _definition_suffix(args: Mapping[str, Any], keys: Sequence[Tuple[str, str]]) -> str:
+    """'  defined by x = a, y = a^2' for the parameter expressions an object's state holds."""
+    parts = [f"{label} = {format_expression(args[key])}" for key, label in keys if args.get(key) is not None]
+    if not parts:
+        return ""
+    text = "  defined by " + ", ".join(parts)
+    if args.get("undefined"):
+        text += " (undefined at the current parameter values, so not drawn; the coordinates are its last ones)"
+    return text
+
+
+_POINT_DEFINITION_KEYS = (("x_expression", "x"), ("y_expression", "y"))
+
+
 def _render_point(scene: _Scene, item: JsonDict) -> str:
     args = _args(item)
     position = _position(args)
     line = f"{item.get('name', '?')} = {_point_text(position.get('x'), position.get('y'))}"
-    return line + _color_suffix(args) + _extras_suffix(args, {"position", "color"})
+    line += _definition_suffix(args, _POINT_DEFINITION_KEYS)
+    handled = {"position", "color", "x_expression", "y_expression", "undefined"}
+    return line + _color_suffix(args) + _extras_suffix(args, handled)
 
 
 def _render_segment(scene: _Scene, item: JsonDict) -> Optional[str]:
@@ -468,6 +499,7 @@ def _render_circle(scene: _Scene, item: JsonDict) -> str:
     args = _args(item)
     center, radius = args.get("center"), args.get("radius")
     line = f"{item.get('name', '?')} = Circle(center {center}, r {format_number(radius)})"
+    line += _definition_suffix(args, (("radius_expression", "r"),))
     r = _as_float(radius)
     if r is not None:
         line += f"  area {format_number(math.pi * r * r)}"
@@ -480,7 +512,8 @@ def _render_circle(scene: _Scene, item: JsonDict) -> str:
             ]
             if on_circle:
                 line += "; passes through " + ", ".join(on_circle)
-    return line + _color_suffix(args) + _extras_suffix(args, {"center", "radius", "color"})
+    handled = {"center", "radius", "color", "radius_expression", "undefined"}
+    return line + _color_suffix(args) + _extras_suffix(args, handled)
 
 
 def _render_ellipse(scene: _Scene, item: JsonDict) -> str:
@@ -1105,6 +1138,7 @@ class _BucketSpec:
 
 # Output order: dependencies before the objects that reference them.
 _BUCKET_SPECS: Tuple[_BucketSpec, ...] = (
+    _BucketSpec("Parameters", "parameters", _render_parameter),
     _BucketSpec("Points", "points", _render_point),
     _BucketSpec("Segments", "segments", _render_segment),
     _BucketSpec("Vectors", "vectors", _render_vector),
@@ -1154,7 +1188,7 @@ _TRUNCATION_TIERS: Tuple[Tuple[str, ...], ...] = (
     ("text labels", "computations", "other objects"),
     ("points", "segments", "vectors", "angles"),
     ("shaded areas", "plots", "circles and arcs"),
-    ("polygons", "functions", "graphs"),
+    ("polygons", "functions", "graphs", "parameters"),
 )
 # Steps of the kept-fraction search per tier.
 _FRACTION_SEARCH_STEPS = 10
