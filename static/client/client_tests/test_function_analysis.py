@@ -579,14 +579,16 @@ class TestOddRootPowerNote(_FunctionToolTestCase):
         result = str(self.draw("x^(1/3)", "f", -5, 5))
 
         self.assertIn("Function 'f' was drawn.", result)
-        self.assertIn("nthroot(x, 3)^1 instead of x^(1/3)", result)
-        self.assertIn("cbrt(x)", result)
+        self.assertIn("nthroot(u, 3) instead of u^(1/3)", result)
+        self.assertIn("cbrt(u)", result)
+        self.assertNotIn("^1 ", result)
 
     def test_note_joins_the_swapped_bounds_message(self) -> None:
         result = str(self.draw("(x-1)^(2/3)", "f", 5, -5))
 
         self.assertIn("bounds swapped", result)
-        self.assertIn("nthroot(x, 3)^2 instead of x^(2/3)", result)
+        self.assertIn("nthroot(u, 3)^2 instead of u^(2/3)", result)
+        self.assertIn("keeping the base as it is", result)
 
     def test_no_note_without_negative_x_or_an_odd_root(self) -> None:
         cases = [

@@ -212,11 +212,13 @@ class FunctionRegistry:
             return ""
         numerator, denominator = fractional[0]
         power = f"{numerator}/{denominator}"
+        exponent = "" if numerator == 1 else f"^({numerator})" if numerator < 0 else f"^{numerator}"
         return (
             f"Note: a power of ({power}) is not real for a negative base, so the curve is not drawn "
-            f"where that base is below 0. For the real root of a negative base write "
-            f"nthroot(x, {denominator})^{numerator} instead of x^({power})"
-            + (" (or cbrt(x) for x^(1/3))." if power == "1/3" else ".")
+            f"where that base is below 0. For the real root of a negative base u write "
+            f"nthroot(u, {denominator}){exponent} instead of u^({power}), keeping the base as it is "
+            f"(nthroot(x - 1, {denominator}){exponent} for (x - 1)^({power}))"
+            + ("; cbrt(u) is nthroot(u, 3)." if denominator == 3 and numerator == 1 else ".")
         )
 
     @staticmethod

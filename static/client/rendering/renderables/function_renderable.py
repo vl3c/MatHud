@@ -307,16 +307,18 @@ class FunctionRenderable:
             )
             subranges = [samples] if samples else []
         self._break_starts = {left for left, _ in breaks}
-        return [self._with_corners(samples) for samples in subranges]
+        return [self._with_corners(samples, breaks) for samples in subranges]
 
-    def _with_corners(self, samples: list[float]) -> list[float]:
+    def _with_corners(self, samples: list[float], breaks: List[Tuple[float, float]]) -> list[float]:
         """The samples plus the corners (abs() arguments at zero) within them, so the drawn
-        polyline passes through each corner exactly instead of cutting it."""
+        polyline passes through each corner exactly instead of cutting it. A corner inside a
+        break's bracket (sign(x) + abs(x) at 0) is left out: the path breaks at the bracket's
+        left end, so a sample within it would be joined straight across the jump."""
         corners = getattr(self.func, "corner_points", None)
         if not corners or len(samples) < 2:
             return samples
         low, high = samples[0], samples[-1]
-        inside = [float(c) for c in corners if low < c < high]
+        inside = [float(c) for c in corners if low < c < high and not any(left < c < right for left, right in breaks)]
         if not inside:
             return samples
         return sorted(set(samples).union(inside))

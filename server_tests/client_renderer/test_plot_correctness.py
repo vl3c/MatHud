@@ -94,6 +94,11 @@ CASES: Dict[str, Tuple[Callable[[float], float], View, CurveModel]] = {
     # Corners and domain edges
     "abs(x)": _case(abs, corners=[0.0]),
     "abs(x-1)+abs(x+2)": _case(lambda x: abs(x - 1) + abs(x + 2), corners=[-2.0, 1.0]),
+    # A corner at a jump: f there is not the right-hand limit (round 3 of the PR review)
+    "sign(x)+abs(x)": _case(
+        lambda x: math.copysign(1.0, x) * (x != 0) + abs(x), (-8.63, 11.37, 7.5, -7.5), corners=[0.0]
+    ),
+    "ceil(x)+abs(x)": _case(lambda x: math.ceil(x) + abs(x), (-2.63, 3.37, 2.35, -2.15), corners=[0.0]),
     "sqrt(abs(x)) zoomed": _case(lambda x: math.sqrt(abs(x)), (-1e-4, 1e-4, 7.5e-5, -7.5e-5), corners=[0.0]),
     "sqrt(1-x^2)": _case(lambda x: math.sqrt(1 - x * x), (-2.0, 2.0, 1.5, -1.5)),
     "sqrt(x) zoomed": _case(math.sqrt, (-1e-3, 1e-3, 7.5e-4, -7.5e-4)),
