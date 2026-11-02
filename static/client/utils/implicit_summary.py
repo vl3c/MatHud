@@ -132,7 +132,8 @@ def curve_in_view(
         )
     if not result.complete:
         _add_note(summary, "The curve is intricate in this view and was only partly drawn.")
-    elif drawn is not None and result.cell > 1.01 * result.asked_cell:
+    elif drawn is not None and result.cell > 2.01 * result.asked_cell:
+        # 6 px cells instead of 3 px still follow a curve within a pixel or so
         _add_note(
             summary,
             f"To stay within the plotting budget it was drawn on a coarser grid ({result.cell * scale:.0f} px cells "

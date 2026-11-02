@@ -205,8 +205,10 @@ def plot(
 
 # Evaluations a sure block costs per cell of its side, roughly (its perimeter, and the
 # cells and crossings the curve passes through): about 5 to 6 measured on conics and
-# periodic curves, with some room; an estimate that falls short gets one coarser retry
-_COST_PER_BLOCK_CELL = 8
+# periodic curves, 9 to 20 on regions and near poles (y > tan(x)). Pricing the costly ones
+# keeps them within the budget, at the price of smooth curves sometimes going one step
+# coarser than they needed (the result notes only 4 times coarser or more)
+_COST_PER_BLOCK_CELL = 15
 # A curve too dense for the budget at the asked cell size is plotted at most this much coarser
 _MAX_COARSENING = 8
 

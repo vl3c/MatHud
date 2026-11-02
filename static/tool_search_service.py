@@ -1726,7 +1726,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             if implicit_measuring(raw_lower):
                 # "plot x^2 + y^2 = 4 and find its perimeter": a measuring tool that leads stays
                 # first; the drawing tools that cannot draw the relation go below it
-                unable = ("draw_function", "draw_piecewise_function", "create_colored_area")
+                unable = ("draw_function", "draw_piecewise_function", "create_colored_area", "create_region_colored_area")
                 scores[drawn] = max(scores[drawn], leading - 0.01)
                 for name in unable:
                     if name in scores and scores[name] >= scores[drawn]:

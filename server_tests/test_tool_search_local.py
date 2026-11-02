@@ -481,6 +481,8 @@ class TestCreativePrompts:
             assert top.index("draw_implicit_curve") < top.index("draw_function"), query
         top = _top_n(self.service, "shade x + y <= 4, x >= 0, y >= 0 and find the corner points")
         assert "shade_inequality" in top[:2]
+        top = _top_n(self.service, "shade the feasible region x + y <= 4, x >= 0, y >= 0 and find the vertices")
+        assert top.index("shade_inequality") < top.index("create_region_colored_area")
 
     def test_explicit_functions_after_short_words_stay_functions(self) -> None:
         for query, tool in (
