@@ -1027,6 +1027,9 @@ class DrawableManager:
         curve_color: Optional[str],
         show_points: Optional[bool],
         point_color: Optional[str],
+        model: Optional[str] = None,
+        initial_values: Optional[List[Dict[str, Any]]] = None,
+        update_parameters: Optional[bool] = None,
     ) -> Dict[str, Any]:
         return cast(
             Dict[str, Any],
@@ -1040,6 +1043,9 @@ class DrawableManager:
                 curve_color=curve_color,
                 show_points=show_points,
                 point_color=point_color,
+                model=model,
+                initial_values=initial_values,
+                update_parameters=update_parameters,
             ),
         )
 

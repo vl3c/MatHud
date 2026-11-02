@@ -156,6 +156,27 @@ def resolve_range(
     return new_value, low, high, new_step, notes
 
 
+def range_around(value: float) -> Tuple[float, float, float]:
+    """A slider (min, max, step) for a computed value, such as a fitted constant.
+
+    The range is value ± |value| (± 1 for 0), rounded outward to the step, and the step
+    is a 1, 2 or 5 times a power of ten near a hundredth of the range. The value itself
+    is left as it is (not snapped to the step).
+    """
+    half = abs(value) if value != 0.0 else 1.0
+    raw_step = 2.0 * half / 100.0
+    power = 10.0 ** math.floor(math.log10(raw_step))
+    step = next(m * power for m in (1.0, 2.0, 5.0, 10.0) if m * power >= raw_step * (1.0 - 1e-12))
+    low = _round_text(math.floor((value - half) / step + 1e-9) * step)
+    high = _round_text(math.ceil((value + half) / step - 1e-9) * step)
+    return min(low, value), max(high, value), _round_text(step)
+
+
+def _round_text(number: float) -> float:
+    """The number to 12 significant digits (drops 0.30000000000000004 noise)."""
+    return float(f"{number:.12g}")
+
+
 def _refuse_outside_given(value: Optional[float], low: Optional[float], high: Optional[float]) -> None:
     """Refuse a value outside the min or max given in the same call (the caller chose both)."""
     if value is None:
