@@ -340,6 +340,8 @@ class FunctionRegistry:
             "plot_histogram": canvas.drawable_manager.data_plot_manager.plot_histogram,
             "plot_box": canvas.drawable_manager.data_plot_manager.plot_box,
             "plot_scatter": canvas.drawable_manager.data_plot_manager.plot_scatter,
+            "plot_sequence": canvas.drawable_manager.sequence_plot_manager.plot_sequence,
+            "plot_cobweb": canvas.drawable_manager.sequence_plot_manager.plot_cobweb,
             "delete_plot": canvas.delete_plot,
             "fit_regression": canvas.fit_regression,
             "compute_descriptive_statistics": compute_descriptive_statistics_tool,

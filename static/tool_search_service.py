@@ -187,11 +187,83 @@ _OTHER_GRAPH_WORDS = frozenset(
     | {"data", "regression", "line", "lines", "linear", "trend"}
     | {"parametric", "polar", "cartesian", "coordinate", "coordinates", "axes", "axis", "grid"}
     | {"piecewise", "inequality", "inequalities", "function", "functions", "curve", "curves", "equation"}
+    | {"sequence", "sequences", "cobweb", "orbit", "recursive", "recursion", "recurrence", "fibonacci"}
     | {"equations", "plot", "plotted", "parabola", "polynomial", "quadratic", "squared", "cubed"}
     | {"sin", "cos", "tan", "exp", "ln", "log", "sqrt", "abs", "absolute", "value"}
     | {"circle", "circles", "ellipse", "ellipses", "triangle", "polygon", "arc", "angle"}
     | {"derivative", "integral", "tangent", "slope", "area"}
 )
+# Sequence and iteration words (_boost_sequence_tools): terms of a sequence go to plot_sequence,
+# an iteration's orbit to plot_cobweb.
+_SEQUENCE_WORDS = frozenset(
+    {"sequence", "sequences", "recursive", "recursion", "recurrence", "recursively", "fibonacci", "recursions"}
+)
+_COBWEB_WORDS = frozenset({"cobweb", "cobwebs", "orbit", "orbits", "staircase"})
+# "the orbit of a satellite", "an elliptical orbit": a curve, not an iteration's orbit
+_PHYSICAL_ORBIT_WORDS = frozenset(
+    {"satellite", "satellites", "planet", "planets", "moon", "elliptical", "circular", "parametric", "radius"}
+)
+_ITERATION_WORDS = frozenset({"iterate", "iterates", "iteration", "iterations", "iterating", "iterated"})
+# "5 iterations of Newton's method": a root finder's iterations, not an orbit to draw
+_ROOT_METHOD_WORDS = frozenset({"newton", "newtons", "raphson", "bisection", "secant"})
+# "find the root of x^3 - 2x - 5 by iteration" names f, not an iteration g and a start: solve_numeric
+_ROOT_WORDS = frozenset({"root", "roots", "zero", "zeros", "solution", "solutions"})
+# g(x) = ..., x = cos(x), x -> cos(x): the map to iterate is given
+_ZERO_START_RE = re.compile(r"\b(?:from|at)\s+zero\b")
+# "iterate cos(x) from 1 and find the solution" (the verb names the map first; "by iteration" does not),
+# and x = 1 + 1/x (an x on both sides)
+_ITERATION_MAP_RE = re.compile(
+    r"\bg\s*\(\s*x\s*\)|\bx\s*=\s*[a-z]+\s*\(|\bx\s*->"
+    r"|(?<![a-z])x\s*=[^=,;?]*?(?<![a-z])x(?![a-z])"
+    r"|\b(?:iterat(?:e|es|ing)|iteration\s+(?:of|on))\s+(?:the\s+(?:map|function)\s+)?"
+    r"(?!over\b|through\b|to\b|until\b|it\b|this\b|the\b|a\b|an\b)"
+)
+# x(t+1) = ...: a discrete-time iteration in t, not a parametric curve
+_DISCRETE_TIME_RE = re.compile(r"\(\s*t\s*[-+]\s*1\s*\)")
+# "for 20 steps": iterations of a recursion, not the steps of a derivation
+_COUNTED_STEPS_RE = re.compile(r"\b\d+\s+steps\b")
+# A sum or series of terms is a computation, not a plot of the terms (nor an orbit)
+_SEQUENCE_SUM_WORDS = frozenset({"sum", "sums", "summation", "series", "sigma"})
+# A limit or convergence test of a sequence is a computation; an iteration's convergence is a cobweb
+_SEQUENCE_LIMIT_WORDS = frozenset(
+    {"limit", "limits", "converge", "convergent", "converges", "diverge", "divergent", "diverges"}
+    | {"test", "nth", "formula"}
+)
+_STABILITY_WORDS = frozenset({"stable", "unstable", "stability", "attracting", "repelling", "attract", "repel"})
+# Geometric objects and transformations ("a sequence of circles", "rotate orbit by 45 degrees",
+# where orbit names an ellipse)
+_SEQUENCE_OBJECT_WORDS = frozenset(
+    {"point", "points", "circle", "circles", "segment", "segments", "triangle", "triangles", "ellipse"}
+    | {"polygon", "polygons", "square", "squares", "rectangle", "rectangles", "vector", "vectors", "angle"}
+    | {"angles", "label", "labels", "arc", "arcs", "line", "lines", "ellipses", "named"}
+    | {"rotate", "reflect", "translate", "rotations", "transformations", "transformation", "degrees"}
+)
+# Sequences of actions, steps, transformations or graph traversals are not number sequences
+_NOT_NUMBER_SEQUENCE_WORDS = _SEQUENCE_OBJECT_WORDS | frozenset(
+    {"undo", "redo", "actions", "action", "steps"}
+    | {"traversal", "topological", "vertices", "vertex", "nodes", "edges", "bfs", "dfs", "path", "dag"}
+)
+_SEQUENCE_REQUEST_EXCLUDED_WORDS = frozenset(
+    {"delete", "remove", "erase", "clear", "zoom", "save", "load", "workspace", "workspaces"}
+)
+# "the first 10 terms of 2^n": terms to list and plot
+_FIRST_TERMS_RE = re.compile(r"\bfirst\s+\d+\s+terms\b")
+# "the 10th term of the arithmetic sequence": a value to compute
+_ORDINAL_TERM_RE = re.compile(r"\b\d+(?:st|nd|rd|th)\s+term")
+# "iterate over the vertices": a graph traversal, not an iteration of a function
+_NOT_ITERATION_WORDS = (_SEQUENCE_OBJECT_WORDS - {"point", "points"}) | frozenset(
+    {"vertices", "vertex", "nodes", "edges", "graph", "tree", "dag", "bfs", "dfs", "traversal", "list", "workspaces"}
+)
+_NOT_ITERATION_WORDS = _NOT_ITERATION_WORDS | _PHYSICAL_ORBIT_WORDS
+# u(n), a(n), u(n-1), x(n+1), a_n, u_{n-1}: a term of a sequence
+_SEQUENCE_TERM_RE = re.compile(r"(?<![a-z])[a-mo-z]\s*\(\s*n\s*(?:[-+]\s*\d\s*)?\)|\b[a-z]_\{?n\b")
+# u(n-1), a(n-2): a previous term of a recursion
+_PREVIOUS_TERM_RE = re.compile(r"(?<![a-z])[a-mo-z]\s*\(\s*n\s*-\s*[12]\s*\)")
+# x(n+1) = ..., x_{n+1}: a first-order iteration, drawn as a cobweb
+_NEXT_TERM_RE = re.compile(r"(?<![a-z])[a-mo-z]\s*\(\s*n\s*\+\s*1\s*\)|\b[a-z]_[({]?n\s*\+\s*1")
+_PLOT_NOUN_WORDS = frozenset({"diagram", "diagrams", "plot", "plots", "chart", "picture"})
+# "plot the convergent sequence 1/n": a plot request, whatever else it asks about the sequence
+_SEQUENCE_PLOT_VERBS = frozenset({"plot", "plots", "plotting", "graph", "draw", "sketch", "visualize", "visualise"})
 # Data-plot words: histograms, box plots and scatter plots; fit words send a scatter request
 # to fit_regression.
 _HISTOGRAM_WORDS = frozenset({"histogram", "histograms", "bin", "bins", "binned", "binning"})
@@ -430,6 +502,7 @@ _NOT_A_FUNCTION_WORDS = frozenset(
     | {"bar", "bars", "chart", "histogram", "distribution", "scatter", "data", "regression"}
     | {"scatterplot", "box", "boxplot", "whisker", "whiskers", "bins"}
     | {"parametric", "polar", "edge", "edges", "node", "nodes"}
+    | {"sequence", "sequences", "cobweb", "cobwebs", "orbit", "orbits", "recursion", "recurrence", "recursive"}
 )
 # "connect A and B", "join the midpoints": a segment. The verb needs points to join, and
 # never boosts when the query is about graphs, functions or forming a shape.
@@ -672,6 +745,12 @@ TOOL_CATEGORIES: Dict[str, CategoryEntry] = {
             "bins", "boxplot", "whisker", "whiskers", "outlier", "outliers",
             "scatter", "scatterplot",
         ],
+    },
+    "sequences": {
+        "tools": ["plot_sequence", "plot_cobweb", "delete_plot"],
+        # Only the unambiguous words: "sequence", "iterate" and "orbit" also name sequences of
+        # actions, graph traversals and objects, so _boost_sequence_tools weighs them instead.
+        "keywords": ["cobweb", "cobwebs"],
     },
     "graph_theory": {
         "tools": [
@@ -1259,6 +1338,82 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         return not token_set & {"function", "functions", "curve", "graph", "equation"}
 
     @staticmethod
+    def _penalize(scores: Dict[str, float], tools: Tuple[str, ...], amount: float) -> None:
+        """Lower the tools' scores, dropping any that reach 0 (ranking stops at the first score <= 0)."""
+        for tool in tools:
+            if tool not in scores:
+                continue
+            scores[tool] -= amount
+            if scores[tool] <= 0:
+                del scores[tool]
+
+    @staticmethod
+    def _boost_sequence_tools(token_set: Set[str], raw_lower: str, scores: Dict[str, float]) -> None:
+        """plot_cobweb for an iteration's orbit, plot_sequence for the terms of a sequence.
+
+        Sums, series, limits and convergence tests of sequences stay with evaluate_expression,
+        simplify and limit (both tools are lowered, which also cancels the name match of
+        "sequence"); sequences of actions, transformations, graph traversals or objects are not
+        number sequences; deleting, zooming to or saving a plot is left to those tools.
+        """
+        if token_set & _SEQUENCE_REQUEST_EXCLUDED_WORDS:
+            if token_set & DESTRUCTIVE_QUERY_WORDS:
+                # "remove the cobweb diagram", "delete the sequence": delete_plot, not a new plot
+                ToolSearchService._penalize(scores, ("plot_sequence", "plot_cobweb"), 6.0)
+                named = token_set & (_SEQUENCE_WORDS | _COBWEB_WORDS)
+                if named and not token_set & (_NOT_NUMBER_SEQUENCE_WORDS - {"named"}):
+                    scores["delete_plot"] += 8.0
+            return
+        partial_sums = "partial sum" in raw_lower
+        time_series = "time series" in raw_lower
+        sum_words = token_set & _SEQUENCE_SUM_WORDS and not partial_sums and not time_series
+        cobweb_words = token_set & _COBWEB_WORDS
+        if cobweb_words == {"staircase"} and token_set & {"function", "floor", "ceil", "ceiling", "step"}:
+            cobweb_words = set()  # the staircase (floor) function
+        web = bool(cobweb_words) or ("web" in token_set and bool(token_set & _PLOT_NOUN_WORDS))
+        if sum_words and not web:
+            ToolSearchService._penalize(scores, ("plot_sequence", "plot_cobweb"), 8.0)
+            return
+        fixed_point = "fixed point" in raw_lower.replace("-", " ")
+        iterates = bool(token_set & _ITERATION_WORDS) or "logistic map" in raw_lower
+        if iterates and not fixed_point:
+            names_map = _ITERATION_MAP_RE.search(raw_lower) is not None
+            roots = token_set & _ROOT_WORDS
+            if roots == {"zero"} and _ZERO_START_RE.search(raw_lower):
+                roots = set()  # "iterate x^2 - 1 starting from zero": a start, not a root
+            if token_set & _ROOT_METHOD_WORDS or (roots and not names_map):
+                iterates = False
+        stability = fixed_point and bool(token_set & _STABILITY_WORDS)
+        next_term = _NEXT_TERM_RE.search(raw_lower) is not None
+        # "the orbit x(t) = 2cos(t), y(t) = sin(t)" is a curve; x(t+1) = 3.2 x(t)(1 - x(t)) is not
+        parametric = "(t)" in raw_lower.replace(" ", "") and not _DISCRETE_TIME_RE.search(raw_lower)
+        if (web or next_term or stability or iterates) and not (token_set & _NOT_ITERATION_WORDS or parametric):
+            # A named web or cobweb outranks the curve words it is drawn with ("a web plot for the logistic map")
+            scores["plot_cobweb"] += 12.0 if web else 10.0
+            return
+        terms_named = bool(
+            token_set & _SEQUENCE_WORDS
+            or _SEQUENCE_TERM_RE.search(raw_lower)
+            or _FIRST_TERMS_RE.search(raw_lower)
+            or partial_sums
+        )
+        plotted = bool(token_set & _SEQUENCE_PLOT_VERBS) and terms_named
+        if (token_set & _SEQUENCE_LIMIT_WORDS or _ORDINAL_TERM_RE.search(raw_lower)) and not plotted:
+            ToolSearchService._penalize(scores, ("plot_sequence", "plot_cobweb"), 8.0)
+            return
+        not_numbers = token_set & _NOT_NUMBER_SEQUENCE_WORDS
+        if not_numbers == {"steps"} and _COUNTED_STEPS_RE.search(raw_lower):
+            not_numbers = set()
+        if not_numbers:
+            ToolSearchService._penalize(scores, ("plot_sequence",), 3.0)
+            return
+        if _PREVIOUS_TERM_RE.search(raw_lower):
+            # u(n-1) only appears in a recursion; it outranks the "u(n) =" read as a function
+            scores["plot_sequence"] += 14.0
+        elif terms_named:
+            scores["plot_sequence"] += 10.0
+
+    @staticmethod
     def _boost_distribution_tools(
         token_set: set[str], scores: Dict[str, float], normal_line: bool, compute: bool = True
     ) -> None:
@@ -1434,6 +1589,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             # Planning n for a margin of error is arithmetic the inference tools cannot do.
             scores.pop("confidence_interval", None)
             scores.pop("hypothesis_test", None)
+        ToolSearchService._boost_sequence_tools(token_set, raw_lower, scores)
         histogram = ToolSearchService._asks_for_histogram(token_set)
         box_plot = ToolSearchService._asks_for_box_plot(token_set)
         if token_set & {"bar", "bars"}:
@@ -1684,7 +1840,8 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["evaluate_expression"] += 3.0
         # Values of a function at points: "f(3)", "value of f at 2", "table of values"; not an
         # exact value ("the exact value of sqrt(12)"), which simplify gives
-        if not only_exact and at_point:
+        # "u(1) = 1" in "the recurrence u(n) = n*u(n-1), u(1) = 1" is a first term, not a value to find
+        if not only_exact and at_point and not (token_set & _SEQUENCE_WORDS or _PREVIOUS_TERM_RE.search(raw_lower)):
             scores["evaluate_expression"] += 12.0
         elif not only_exact and token_set & {"value", "values", "table", "plug", "substitute"}:
             scores["evaluate_expression"] += 8.0

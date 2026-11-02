@@ -1251,6 +1251,9 @@ _HELPERS: Dict[str, _HelperEntry] = {
     "HistogramPlot": _HelperEntry(shared.render_histogram_plot_helper),
     "BoxPlot": _HelperEntry(shared.render_box_plot_helper),
     "ScatterPlot": _HelperEntry(shared.render_scatter_plot_helper),
+    "SequencePlot": _HelperEntry(shared.render_sequence_plot_helper),
+    # Resampled on zoom: the cobweb draws y = g(x) through the parametric curve helper
+    "CobwebPlot": _HelperEntry(shared.render_cobweb_plot_helper, ViewMode.SCALE),
     "FunctionsBoundedColoredArea": _HelperEntry(shared.render_functions_bounded_area_helper, ViewMode.SCALE_OFFSET),
     "FunctionSegmentBoundedColoredArea": _HelperEntry(
         shared.render_function_segment_area_helper, ViewMode.SCALE_OFFSET

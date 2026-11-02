@@ -41,6 +41,10 @@ from rendering.helpers.data_plot_renderer import (
     render_histogram_plot_helper,
     render_scatter_plot_helper,
 )
+from rendering.helpers.sequence_renderer import (
+    render_cobweb_plot_helper,
+    render_sequence_plot_helper,
+)
 from rendering.helpers.colored_area_renderer import (
     render_colored_area_helper,
     render_functions_bounded_area_helper,
@@ -79,6 +83,8 @@ __all__ = [
     "render_box_plot_helper",
     "render_histogram_plot_helper",
     "render_scatter_plot_helper",
+    "render_sequence_plot_helper",
+    "render_cobweb_plot_helper",
     "render_colored_area_helper",
     "render_functions_bounded_area_helper",
     "render_function_segment_area_helper",

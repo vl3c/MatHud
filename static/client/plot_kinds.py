@@ -33,11 +33,21 @@ from typing import Any, Callable, Dict, Optional, Tuple
 
 from drawables.bars_plot import BarsPlot
 from drawables.box_plot import BoxPlot
+from drawables.cobweb_plot import CobwebPlot
 from drawables.continuous_plot import ContinuousPlot
 from drawables.discrete_plot import DiscretePlot
 from drawables.histogram_plot import HistogramPlot
 from drawables.plot import Plot
 from drawables.scatter_plot import ScatterPlot
+from drawables.sequence_plot import SequencePlot
+from utils.sequences import (
+    check_index_range,
+    check_initial_terms,
+    check_steps,
+    finite_number,
+    parse_iteration_function,
+    parse_sequence,
+)
 from utils.statistics.data_plots import (
     resolve_bins,
     resolve_normalize,
@@ -188,6 +198,25 @@ def _build_scatter(name: str, args: Dict[str, Any]) -> Plot:
     return ScatterPlot(name, x_data=x_data, y_data=y_data, color=_optional_color(args))
 
 
+# Sequence plots and cobwebs save their inputs; the builders parse and recompute them like
+# the tools do, so a bad saved item is refused (and skipped by the restore).
+def _build_sequence(name: str, args: Dict[str, Any]) -> Plot:
+    rule = parse_sequence(args.get("expression"))
+    start, end = check_index_range(args.get("start"), args.get("end"))
+    initial = check_initial_terms(rule, args.get("initial_terms"))
+    return SequencePlot(name, rule=rule, start=start, end=end, initial_terms=initial, color=_optional_color(args))
+
+
+def _build_cobweb(name: str, args: Dict[str, Any]) -> Plot:
+    return CobwebPlot(
+        name,
+        function=parse_iteration_function(args.get("function")),
+        x0=finite_number(args.get("x0"), "x0"),
+        steps=check_steps(args.get("steps")),
+        color=_optional_color(args),
+    )
+
+
 def _build_legacy(name: str, args: Dict[str, Any]) -> Plot:
     # A Plot saved before the subclasses existed: rebuild the subclass its parts call for.
     if is_legacy_discrete_args(args):
@@ -218,6 +247,8 @@ PLOT_KINDS: Tuple[PlotKind, ...] = (
     PlotKind("HistogramPlot", "HistogramPlots", _build_histogram, None, None, False),
     PlotKind("BoxPlot", "BoxPlots", _build_box, None, None, False),
     PlotKind("ScatterPlot", "ScatterPlots", _build_scatter, None, None, False),
+    PlotKind("SequencePlot", "SequencePlots", _build_sequence, None, None, False),
+    PlotKind("CobwebPlot", "CobwebPlots", _build_cobweb, None, None, False),
     PlotKind("Plot", "Plots", _build_legacy, None, None, False),
 )
 

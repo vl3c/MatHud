@@ -7,11 +7,13 @@ from typing import Any, Dict, List
 
 from drawables.bars_plot import BarsPlot
 from drawables.box_plot import BoxPlot
+from drawables.cobweb_plot import CobwebPlot
 from drawables.continuous_plot import ContinuousPlot
 from drawables.discrete_plot import DiscretePlot
 from drawables.histogram_plot import HistogramPlot
 from drawables.plot import Plot
 from drawables.scatter_plot import ScatterPlot
+from drawables.sequence_plot import SequencePlot
 from managers.statistics_manager import StatisticsManager
 from plot_kinds import (
     PLOT_CLASS_NAMES,
@@ -25,10 +27,11 @@ from plot_kinds import (
     plot_kind,
 )
 from server_tests.test_drawable_wiring import _drawable_buckets, _literal
+from utils.sequences import parse_iteration_function, parse_sequence
 from utils.statistics.data_plots import Bins
 
 # Data plots draw themselves: their rows name no parts and their plot_type is fixed.
-DATA_PLOT_CLASSES = ("HistogramPlot", "BoxPlot", "ScatterPlot")
+DATA_PLOT_CLASSES = ("HistogramPlot", "BoxPlot", "ScatterPlot", "SequencePlot", "CobwebPlot")
 
 
 def _kind(class_name: str) -> PlotKind:
@@ -82,6 +85,9 @@ def _sample_plots() -> List[Plot]:
         HistogramPlot("H", data=[0.1, 0.3, 0.3, 0.9], bins=Bins(0.0, 0.2, 5), normalize="density", fill_opacity=0.5),
         BoxPlot("Box", data=[1, 2, 3, 4, 30], y_position=-1.5, box_height=2.0, show_outliers=False, color="red"),
         ScatterPlot("S", x_data=[1, 2, 3], y_data=[2, 4, 7], color="green"),
+        SequencePlot("Seq", rule=parse_sequence("1/(n-2)"), start=0, end=5, color="purple"),
+        SequencePlot("Fib", rule=parse_sequence("u(n-1) + u(n-2)"), start=1, end=8, initial_terms=[1, 1]),
+        CobwebPlot("Web", function=parse_iteration_function("cos(x)"), x0=1.0, steps=30, color="blue"),
     ]
 
 
@@ -148,7 +154,7 @@ class TestPlotKindBuilders(unittest.TestCase):
         types = {plot.get_class_name(): plot.plot_type for plot in _sample_plots()}
         self.assertEqual(
             [types[name] for name in DATA_PLOT_CLASSES],
-            ["histogram", "box", "scatter"],
+            ["histogram", "box", "scatter", "sequence", "cobweb"],
         )
 
     def test_bars_ignore_saved_distribution_fields(self) -> None:

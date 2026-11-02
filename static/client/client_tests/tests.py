@@ -219,6 +219,7 @@ from .test_base_drawable_manager import TestBaseDrawableManager
 from .test_point_manager import TestPointManagerUpdates
 from .test_bar_renderer import TestBarRenderer
 from .test_data_plots import TestDataPlotRendering, TestDataPlotTools
+from .test_sequence_plots import TestSequenceArithmetic, TestSequencePlotRendering, TestSequencePlotTools
 from .test_function_renderables import (
     TestFunctionRenderable,
     TestFunctionsBoundedAreaRenderable,
@@ -527,6 +528,9 @@ class Tests:
             TestBarRenderer,
             TestDataPlotRendering,
             TestDataPlotTools,
+            TestSequencePlotRendering,
+            TestSequenceArithmetic,
+            TestSequencePlotTools,
             TestVectorRenderer,
             TestAngleRenderer,
             TestEllipseRenderer,

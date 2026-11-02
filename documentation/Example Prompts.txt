@@ -70,6 +70,16 @@ Find the area enclosed by r = 1 + cos(θ) (integrate 0.5*r^2 over θ from 0 to 2
 Change the θ range of f_polar to 0 to 4*pi and make it blue.
 Delete the polar curve f_polar.
 
+# Sequences and Iteration
+Plot the sequence u(n) = 1/n for n from 1 to 20.
+Plot u(n) = (-1)^n/n for n from 1 to 30 and tell me whether it is increasing, decreasing or neither.
+Plot the Fibonacci sequence u(n) = u(n-1) + u(n-2) with u(1) = u(2) = 1 for n from 1 to 15. What is the 15th term?
+Plot the recursion u(n) = 0.5*u(n-1) + 1 with u(0) = 0 for n from 0 to 20 and say what it approaches.
+Draw a cobweb diagram of g(x) = cos(x) starting at x0 = 1. Where does the orbit settle, and is it stable?
+Draw the cobweb of the logistic map 3.2*x*(1-x) from x0 = 0.1 for 60 steps. Does it settle on a cycle?
+Iterate g(x) = 3.9*x*(1-x) from 0.2 and draw the cobweb; is the orbit chaotic?
+Delete the cobweb diagram named "cobweb".
+
 # Tangent and Normal Lines
 Plot y = x^2 and draw its tangent line at x = 2.
 Draw the tangent and normal lines to y = sin(x) at x = pi/4, both in red.

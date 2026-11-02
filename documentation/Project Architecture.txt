@@ -49,6 +49,7 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
 - Calculus Operations: derivatives, integrals, limits, and the arc length of functions, parametric and polar curves, by expression or a plotted curve by name (`arc_length`: `utils/arc_length.py` measures adaptively with an error estimate and refuses curves that break; `utils/arc_length_tool.py` reads the tool's arguments; `managers/plotted_curves.py` finds a plotted curve by name)
 - Complex Numbers: operations with real and imaginary components
 - Graphing Functions: plot functions, piecewise functions, parametric curves x(t), y(t) and polar curves r(θ) (`drawables/polar_function.py`, drawn by the parametric renderer, which ends a path where the curve's domain ends between samples), and switch to a polar grid
+- Sequences and Iteration: sequence plots of u(n), explicit in n or recursive in u(n-1) and u(n-2) (`plot_sequence`), and cobweb diagrams of x -> g(x) that say whether the orbit settles on a fixed point or a cycle, escapes or diverges (`plot_cobweb`); math in `utils/sequences.py`, drawables `drawables/sequence_plot.py` and `drawables/cobweb_plot.py`, tools in `managers/sequence_plot_manager.py`
 - Geometric Calculations: distance, angle, area, volume, intersections
 - Coordinate Conversion: rectangular to polar and polar to rectangular transformations
 - Equation Solving: linear equations, quadratic equations, systems of equations (two-equation x/y systems report every intersection, found by substitution with numeric root checks), numeric solving for transcendental/nonlinear systems via multi-start Newton-Raphson (Gauss-Newton or minimum-norm steps for over/underdetermined systems)
@@ -270,6 +271,8 @@ static/client/
 │   ├── histogram_plot.py              # Histogram of a data list (binned)
 │   ├── box_plot.py                    # Horizontal box-and-whisker plot
 │   ├── scatter_plot.py                # Scatter plot of (x, y) pairs
+│   ├── sequence_plot.py               # Sequence u(n) drawn as dots at (n, u(n))
+│   ├── cobweb_plot.py                 # Cobweb diagram of an iteration x -> g(x)
 │   ├── bar.py                         # Bar chart rectangle elements
 │   ├── attached_label.py              # Labels embedded in other drawables
 │   └── label_render_mode.py           # Label rendering configuration (world/screen-offset)
@@ -319,10 +322,12 @@ static/client/
 │   ├── bar_manager.py                 # Bar chart element management
 │   ├── statistics_manager.py          # Distribution and regression plotting
 │   ├── data_plot_manager.py           # plot_histogram, plot_box, plot_scatter
+│   ├── sequence_plot_manager.py       # plot_sequence, plot_cobweb
 │   └── polygon_type.py                # Polygon type enumeration
 ├── utils/                             # Utility modules
 │   ├── math_utils.py                  # Mathematical utility functions (the CAS tools ask the server's SymPy)
 │   ├── sympy_client.py                # Synchronous POST /api/cas requests to the server's SymPy engine
+│   ├── sequences.py                   # Sequence terms, orbits of x -> g(x) and their classification
 │   ├── numeric_equations.py           # solve without a closed form: real roots from the sign chart
 │   ├── polynomials.py                 # Polynomial coefficients read exactly from math.js's parse tree
 │   ├── inequality_solver.py           # Inequalities in solve: SymPy's set checked, else a numeric sign chart

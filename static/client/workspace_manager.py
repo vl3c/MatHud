@@ -130,6 +130,8 @@ class WorkspaceManager:
         "HistogramPlots",
         "BoxPlots",
         "ScatterPlots",
+        "SequencePlots",
+        "CobwebPlots",
         "Plots",
         "Bars",
         "Angles",

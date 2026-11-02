@@ -232,7 +232,7 @@ class TransformationsManager:
         """Raise for a plot, whose translate and rotate do nothing (the call would report a false success).
 
         A bar or distribution plot is a record of the objects it drew, which are not moved
-        with it; a data plot (histogram, box, scatter) is drawn from its data.
+        with it; a data plot (histogram, box, scatter, sequence, cobweb) is drawn from its data.
         """
         from drawables.plot import Plot
 
@@ -241,7 +241,8 @@ class TransformationsManager:
                 f"'{drawable.name}' is a plot ({self._get_class_name(drawable)}), "
                 f"and {tool} cannot {verb} it. To place it elsewhere, delete it and plot it again "
                 "(plot_bars with x_start and y_base, plot_distribution with plot_bounds, "
-                "plot_box with y_position, or plot_histogram and plot_scatter from shifted data)."
+                "plot_box with y_position, plot_histogram and plot_scatter from shifted data, "
+                "or plot_sequence and plot_cobweb again)."
             )
 
     def _redraw(self) -> None:

@@ -2,8 +2,8 @@
   "metadata": {
     "schema_version": 1,
     "description": "Tool discovery benchmark cases for search_tools semantic routing.",
-    "expected_tool_count": 107,
-    "expected_tool_hash": "50f0c80a1349a194329aa8d9e6558aeb497e9134aa076004c14f3eb31a7575d3",
+    "expected_tool_count": 109,
+    "expected_tool_hash": "29de3fd29c2c5c1fe31a238ecba2aa666f63b477fcd0eae2af482dd4901f809e",
     "confusion_clusters": {
       "convert_cluster": [
         "convert",
@@ -43,6 +43,13 @@
         "factor",
         "check_steps",
         "taylor_polynomial"
+      ],
+      "sequences_cluster": [
+        "plot_sequence",
+        "plot_cobweb",
+        "evaluate_expression",
+        "simplify",
+        "limit"
       ]
     },
     "thresholds": {
@@ -4156,6 +4163,326 @@
       ],
       "category": "confusion_probe",
       "difficulty": "hard"
+    },
+    {
+      "id": "u_plot_sequence_1",
+      "query": "Plot the sequence u(n) = 1/n for n from 1 to 20.",
+      "expected_any": [
+        "plot_sequence"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_sequence_2",
+      "query": "Show the first 15 Fibonacci numbers as a sequence plot.",
+      "expected_any": [
+        "plot_sequence"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_sequence_3",
+      "query": "Graph the recursive sequence u(n) = 0.5*u(n-1) + 1 with u(0) = 0.",
+      "expected_any": [
+        "plot_sequence"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_sequence_4",
+      "query": "Plot a_n = (-1)^n/n for n = 1 to 30.",
+      "expected_any": [
+        "plot_sequence"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_sequence_5",
+      "query": "Show the first 10 terms of 2^n.",
+      "expected_any": [
+        "plot_sequence"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_sequence_6",
+      "query": "Population model u(n) = 1.1*u(n-1) - 50 with u(0) = 1000, plot 30 years.",
+      "expected_any": [
+        "plot_sequence"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_sequence_7",
+      "query": "Plot the partial sums of 1/k^2 as a sequence.",
+      "expected_any": [
+        "plot_sequence"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_cobweb_1",
+      "query": "Draw a cobweb diagram for g(x) = cos(x) starting at x0 = 1.",
+      "expected_any": [
+        "plot_cobweb"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_cobweb_2",
+      "query": "Iterate g(x) = x/2 + 1/x starting at 1 for 10 steps.",
+      "expected_any": [
+        "plot_cobweb"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_cobweb_3",
+      "query": "Fixed-point iteration for x = cos(x) from x0 = 0.5.",
+      "expected_any": [
+        "plot_cobweb"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_cobweb_4",
+      "query": "Plot the logistic map x(n+1) = 3.5*x(n)*(1 - x(n)) from 0.3.",
+      "expected_any": [
+        "plot_cobweb"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_cobweb_5",
+      "query": "Show the orbit of 0.2 under the map 3.9*x*(1-x).",
+      "expected_any": [
+        "plot_cobweb"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_cobweb_6",
+      "query": "Is the fixed point of 3.2*x*(1-x) stable?",
+      "expected_any": [
+        "plot_cobweb"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_cobweb_7",
+      "query": "Draw a web plot for the logistic map with r = 3.9 from x0 = 0.1.",
+      "expected_any": [
+        "plot_cobweb"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_cobweb_8",
+      "query": "Does iterating x^2 from 0.5 converge?",
+      "expected_any": [
+        "plot_cobweb"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "sequence_sum_not_plot",
+      "query": "What is the sum of the first 20 terms of the arithmetic sequence 3, 7, 11?",
+      "expected_any": [
+        "evaluate_expression"
+      ],
+      "forbidden": [
+        "search_tools",
+        "plot_sequence"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "sequences_cluster"
+    },
+    {
+      "id": "sequence_series_not_plot",
+      "query": "Sum of the geometric series 3*(1/2)^k for k from 0 to infinity.",
+      "expected_any": [
+        "simplify"
+      ],
+      "forbidden": [
+        "search_tools",
+        "plot_sequence",
+        "plot_cobweb"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "sequences_cluster"
+    },
+    {
+      "id": "sequence_limit_not_plot",
+      "query": "Find the limit of the sequence (1 + 1/n)^n as n goes to infinity.",
+      "expected_any": [
+        "limit"
+      ],
+      "forbidden": [
+        "search_tools",
+        "plot_sequence"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "sequences_cluster"
+    },
+    {
+      "id": "sequence_of_actions_not_plot",
+      "query": "Undo the last sequence of actions.",
+      "expected_any": [
+        "undo"
+      ],
+      "forbidden": [
+        "search_tools",
+        "plot_sequence"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "sequences_cluster"
+    },
+    {
+      "id": "sequence_of_transforms_not_plot",
+      "query": "Apply a sequence of transformations: rotate the triangle 90 degrees then reflect it.",
+      "expected_any": [
+        "rotate_object"
+      ],
+      "forbidden": [
+        "search_tools",
+        "plot_sequence"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "sequences_cluster"
+    },
+    {
+      "id": "iterate_vertices_not_cobweb",
+      "query": "Iterate over the vertices of graph G and find the shortest path from A to D.",
+      "expected_any": [
+        "analyze_graph"
+      ],
+      "forbidden": [
+        "search_tools",
+        "plot_cobweb"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "sequences_cluster"
+    },
+    {
+      "id": "sequence_of_circles_not_plot",
+      "query": "Draw a sequence of circles with radii 1, 2 and 3 centred at the origin.",
+      "expected_any": [
+        "create_circle"
+      ],
+      "forbidden": [
+        "search_tools",
+        "plot_sequence"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "sequences_cluster"
+    },
+    {
+      "id": "orbit_named_ellipse_not_cobweb",
+      "query": "Draw an ellipse named orbit centred at (0, 0) with radii 4 and 2.",
+      "expected_any": [
+        "create_ellipse"
+      ],
+      "forbidden": [
+        "search_tools",
+        "plot_cobweb"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "sequences_cluster"
+    },
+    {
+      "id": "delete_cobweb_plot",
+      "query": "Remove the cobweb diagram.",
+      "expected_any": [
+        "delete_plot"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "sequences_cluster"
+    },
+    {
+      "id": "taylor_terms_not_sequence",
+      "query": "Taylor polynomial of sin(x) with 5 terms.",
+      "expected_any": [
+        "taylor_polynomial"
+      ],
+      "forbidden": [
+        "search_tools",
+        "plot_sequence"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "sequences_cluster"
     }
   ]
 }
