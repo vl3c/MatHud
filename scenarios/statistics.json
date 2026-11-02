@@ -541,6 +541,39 @@
           ]
         }
       ]
+    },
+    {
+      "id": "ST-15",
+      "title": "Custom model fit whose constants become sliders",
+      "tags": ["statistics", "regression", "parameters"],
+      "smoke": false,
+      "targets": "fit_regression model_type custom: constants as parameters, the curve reads them",
+      "steps": [
+        {
+          "user": "Fit y = a*exp(-b*x)*cos(c*x) + d to x = [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0, 3.25, 3.5, 3.75, 4.0, 4.25, 4.5, 4.75, 5.0, 5.25, 5.5, 5.75, 6.0] and y = [4.0, 3.201369, 1.774492, 0.3343, -0.611068, -0.819342, -0.350998, 0.506854, 1.382373, 1.964916, 2.103031, 1.828779, 1.313214, 0.781119, 0.422337, 0.331439, 0.491783, 0.801523, 1.124812, 1.345671, 1.405112, 1.311523, 1.125507, 0.929138, 0.793248], without drawing the points.",
+          "reference": [
+            {"tool": "fit_regression", "args": {"name": null, "x_data": [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0, 3.25, 3.5, 3.75, 4.0, 4.25, 4.5, 4.75, 5.0, 5.25, 5.5, 5.75, 6.0], "y_data": [4.0, 3.201369, 1.774492, 0.3343, -0.611068, -0.819342, -0.350998, 0.506854, 1.382373, 1.964916, 2.103031, 1.828779, 1.313214, 0.781119, 0.422337, 0.331439, 0.491783, 0.801523, 1.124812, 1.345671, 1.405112, 1.311523, 1.125507, 0.929138, 0.793248], "model_type": "custom", "degree": null, "plot_bounds": null, "curve_color": null, "show_points": false, "point_color": null, "model": "a*exp(-b*x)*cos(c*x) + d", "initial_values": null, "update_parameters": null}}
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "tool_result", "tool": "fit_regression", "path": "r_squared", "gt": 0.9999},
+            {"check": "tool_result", "tool": "fit_regression", "path": "coefficients.c", "eq": 2.5, "tol": 0.001},
+            {"check": "count", "select": {"type": "Parameter"}, "eq": 4},
+            {"check": "count", "select": {"type": "Function"}, "eq": 1},
+            {"check": "relation", "relation": "function_value", "select": [{"type": "Function", "only": true}], "values": [[0, 4.0], [1, -0.611068], [2.5, 2.103031]], "tol": 0.001}
+          ]
+        },
+        {
+          "user": "Move the slider d up to 2.",
+          "reference": [
+            {"tool": "set_parameter", "args": {"name": "d", "value": 2, "min": null, "max": null, "step": null}}
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "relation", "relation": "function_value", "select": [{"type": "Function", "only": true}], "values": [[0, 5.0], [1, 0.388932]], "tol": 0.001}
+          ]
+        }
+      ]
     }
   ]
 }

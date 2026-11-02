@@ -133,6 +133,7 @@ from .test_parameters import (
     TestSetParameter,
     TestSliderPanel,
 )
+from .test_custom_regression import TestCustomRegression
 from .test_tangent_manager import (
     TestTangentToFunction,
     TestNormalToFunction,
@@ -680,6 +681,7 @@ class Tests:
             TestNamespaceOwner,
             TestAnimation,
             TestSliderPanel,
+            TestCustomRegression,
             TestTangentToFunction,
             TestNormalToFunction,
             TestTangentToCircle,

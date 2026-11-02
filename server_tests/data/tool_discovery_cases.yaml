@@ -4724,6 +4724,93 @@
       ],
       "category": "confusion_probe",
       "difficulty": "normal"
+    },
+    {
+      "id": "u_fit_custom_model",
+      "query": "Fit y = a*exp(-b*x)*cos(c*x) + d to these points.",
+      "expected_any": [
+        "fit_regression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_fit_custom_best_fits",
+      "query": "Find a, b and c so that a*x^2 + b*x + c best fits the data.",
+      "expected_any": [
+        "fit_regression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_fit_custom_least_squares",
+      "query": "Use least squares to find a and b in y = a*e^(b*x).",
+      "expected_any": [
+        "fit_regression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_fit_custom_model_the_data",
+      "query": "Model the data with y = a*sin(b*x) and find a and b.",
+      "expected_any": [
+        "fit_regression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_fit_custom_data_follows",
+      "query": "The data follows y = a*exp(b*x); find a and b.",
+      "expected_any": [
+        "fit_regression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "c_least_squares_linear_system",
+      "query": "Least squares solution of Ax = b with A = [[1,1],[1,2],[1,3]] and b = [1,2,2].",
+      "expected_any": [
+        "evaluate_linear_algebra_expression",
+        "solve_system_of_equations"
+      ],
+      "forbidden": [
+        "fit_regression"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "normal"
+    },
+    {
+      "id": "c_fit_inside_not_regression",
+      "query": "Does the circle fit inside the square?",
+      "expected_any": [
+        "create_circle",
+        "create_polygon",
+        "inspect_relation"
+      ],
+      "forbidden": [
+        "fit_regression"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "normal"
     }
   ]
 }
