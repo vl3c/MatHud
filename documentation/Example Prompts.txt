@@ -198,6 +198,13 @@ Partial fractions of (3x+5)/((x+1)(x+2)).
 Expand (x^2+1)/(x-1) in partial fractions. (An improper fraction also gives its polynomial part: x + 1 + 2/(x-1).)
 Taylor polynomial of cos(x) at 0 to order 6, and plot it with cos(x).
 Find the Taylor polynomial of ln(x) at x = 1 to order 3 and say how large the error is near 1.
+Find the arc length of y = x^2 from x = 0 to 1. (arc_length: 1.47894285754, with an error estimate.)
+Draw y = ln(x) from 1 to e and find the length of the curve. (A plotted curve by name is measured over its own bounds.)
+How long is the astroid x(t) = cos(t)^3, y(t) = sin(t)^3? (6; parametric and polar curves default to t from 0 to 2*pi.)
+What is the perimeter of the cardioid r = 1 + cos(θ)? (8.)
+Find the length of the polar curve r = cos(θ) from 0 to 2*pi. (The range traces the circle twice: the tool reports traced_times 2 and one trace, π.)
+Perimeter of the ellipse E. (A circle, circle arc or ellipse on the canvas is measured by name.)
+What is the arc length of 1/x from -1 to 1? (Refused: the curve has no point at x = 0 and goes off to infinity there; measure each side separately.)
 What is the Maclaurin polynomial of e^x of order 4? (Orders 0 to 10; abs(x) or sqrt(x) at 0 is refused, since they are not smooth there.)
 Find a closed form for the sum of k^2 from k = 1 to n. (simplify of summation(k^2, k, 1, n): n*(n+1)*(2*n+1)/6.)
 What is the sum of 1/k^2 from k = 1 to infinity? (pi^2/6; a divergent series such as 1/k is reported as diverging.)

@@ -124,6 +124,7 @@ from .test_parametric_function import (
 )
 from .test_parametric_function_manager import TestParametricFunctionManager
 from .test_polar_function_manager import TestPolarFunctionTools
+from .test_arc_length import TestArcLengthTool
 from .test_tangent_manager import (
     TestTangentToFunction,
     TestNormalToFunction,
@@ -660,6 +661,7 @@ class Tests:
             TestExpressionValidatorParametric,
             TestParametricFunctionManager,
             TestPolarFunctionTools,
+            TestArcLengthTool,
             TestTangentToFunction,
             TestNormalToFunction,
             TestTangentToCircle,

@@ -46,7 +46,7 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
 - Statistical Functions: mean, median, mode, standard deviation, variance
 - Probability Distributions: normal, uniform, exponential, t, χ², F, binomial, Poisson and geometric; density or P(X = x), tails, interval probabilities, quantiles and moments (`compute_distribution`), and plots with shaded ranges and their probability (`plot_distribution`)
 - Hypothesis Tests and Confidence Intervals: z, t, two-sample z and t (Welch or pooled), paired t, one- and two-proportion tests with p-value, critical values and decision (`hypothesis_test`), the matching intervals (`confidence_interval`), and χ² goodness of fit and independence (`chi_squared_test`); samples as raw data or summary statistics
-- Calculus Operations: derivatives, integrals, limits
+- Calculus Operations: derivatives, integrals, limits, and the arc length of functions, parametric and polar curves, by expression or a plotted curve by name (`arc_length`: `utils/arc_length.py` measures adaptively with an error estimate and refuses curves that break; `utils/arc_length_tool.py` reads the tool's arguments; `managers/plotted_curves.py` finds a plotted curve by name)
 - Complex Numbers: operations with real and imaginary components
 - Graphing Functions: plot functions, piecewise functions, parametric curves x(t), y(t) and polar curves r(θ) (`drawables/polar_function.py`, drawn by the parametric renderer, which ends a path where the curve's domain ends between samples), and switch to a polar grid
 - Geometric Calculations: distance, angle, area, volume, intersections
@@ -313,6 +313,7 @@ static/client/
 │   ├── ellipse_manager.py             # Ellipse operations
 │   ├── angle_manager.py               # Angle operations
 │   ├── function_manager.py            # Function plotting management
+│   ├── plotted_curves.py              # A plotted curve by name as a point function of its parameter (arc_length)
 │   ├── colored_area_manager.py        # Colored area management
 │   ├── graph_manager.py               # Graph and tree creation/deletion + state capture
 │   ├── bar_manager.py                 # Bar chart element management
@@ -332,6 +333,8 @@ static/client/
 │   ├── series_checks.py               # Taylor polynomials (error ratios) and sums (terms, partial sums) checked numerically
 │   ├── closed_form_sums.py            # simplify of summation(term, k, a, b): SymPy's closed form, checked
 │   ├── partial_fractions.py           # expand with a variable: SymPy's partial fractions, checked
+│   ├── arc_length.py                  # Arc length of a curve: adaptive Romberg chords, an error estimate, breaks refused
+│   ├── arc_length_tool.py             # arc_length tool: curve by expression or by name, bounds, retracing, rounding
 │   ├── computation_utils.py           # Computational helper functions
 │   ├── geometry_utils.py              # Geometric utility functions
 │   ├── graph_utils.py                 # Graph theory algorithms and helpers

@@ -1789,6 +1789,57 @@ FUNCTIONS: List[Dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "arc_length",
+            "description": "Measures the length of a curve between two parameter values (arc length), numerically, with an error estimate, like a graphing calculator's arc( command: a function y = f(x) from x = a to b, a parametric curve (x(t), y(t)) from t = a to b (the distance travelled along a path), a polar curve r(θ) from θ = a to b (perimeter of a cardioid, length of a spiral), or a plotted curve by name (also a circle or ellipse, giving its perimeter, or a circle arc). Give exactly one curve: curve_name, function_string, x_expression with y_expression, or r_expression; the other curve fields are null. Expressions use the draw tools' syntax: every function with parentheses and every product with * (sin(x), 2*x, x*e^x, e^x or exp(x), |x| or abs(x), sqrt(x), cbrt(x) for a real cube root). Bounds are in radians and may be numbers or constant expressions such as 'pi/2' or '2*pi'. A range that traces a closed curve more than once (r = cos(θ) or 2*sin(3*θ) on 0 to 2π, which trace twice) returns traced_times and length_of_one_trace, the length of one period: the curve's perimeter unless the path runs back over itself (x = sin(t)^2, y = cos(t)^2 runs along a segment and back, so the curve is half as long). A curve that breaks (a jump, or a vertical asymptote such as 1/x across 0) or has no real point somewhere on the range is refused: measure each piece separately. For the length of a segment, side or polygon use the canvas coordinates instead; for a 1-D distance travelled from a velocity v(t), use numeric_integrate of abs(v(t)), and from velocity components dx/dt and dy/dt, numeric_integrate of sqrt((dx/dt)^2 + (dy/dt)^2): this tool takes positions, not velocities. For an exact closed form, integrate sqrt(1 + f'(x)^2) (or sqrt(x'(t)^2 + y'(t)^2)) with integrate and compare it with this length.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "curve_name": {
+                        "type": ["string", "null"],
+                        "description": "Name of a plotted function, piecewise function, parametric or polar curve, circle, circle arc or ellipse, as the canvas shows it. Null when the curve is given by expression.",
+                    },
+                    "function_string": {
+                        "type": ["string", "null"],
+                        "description": "y = f(x) as an expression in x, such as 'x^2' or 'sin(x)' (a leading 'y =' is allowed). Null otherwise.",
+                    },
+                    "x_expression": {
+                        "type": ["string", "null"],
+                        "description": "x(t) of a parametric curve, in t, such as 'cos(t)^3'. Give y_expression too. Null otherwise.",
+                    },
+                    "y_expression": {
+                        "type": ["string", "null"],
+                        "description": "y(t) of a parametric curve, in t, such as 'sin(t)^3'. Null otherwise.",
+                    },
+                    "r_expression": {
+                        "type": ["string", "null"],
+                        "description": "r(θ) of a polar curve, in θ or the word theta, such as '1 + cos(θ)'. Null otherwise.",
+                    },
+                    "lower_bound": {
+                        "type": ["number", "string", "null"],
+                        "description": "Start of the x, t or θ range: a number or a constant expression such as '0' or 'pi/2', in radians. Null uses the plotted curve's own start (0 for a parametric or polar expression); a function_string needs both bounds.",
+                    },
+                    "upper_bound": {
+                        "type": ["number", "string", "null"],
+                        "description": "End of the x, t or θ range: a number or a constant expression such as '2*pi', in radians. Null uses the plotted curve's own end (2π for a parametric or polar expression).",
+                    },
+                },
+                "required": [
+                    "curve_name",
+                    "function_string",
+                    "x_expression",
+                    "y_expression",
+                    "r_expression",
+                    "lower_bound",
+                    "upper_bound",
+                ],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "simplify",
             "description": "Simplifies a mathematical expression. Numbers stay exact, so it also gives exact answers to arithmetic: '1/3 + 1/4' gives 7/12, 'sqrt(12)' gives 2*sqrt(3) and '0.1 + 0.2' gives 3/10. Use it when the user wants an exact fraction or radical rather than a decimal. For the closed form of a sum or series, give the sum alone as summation(term, k, a, b): 'summation(k^2, k, 1, n)' gives n*(n+1)*(2*n+1)/6, 'summation(1/k^2, k, 1, Infinity)' gives pi^2/6 and 'summation(r^k, k, 0, Infinity)' gives 1/(1-r) for -1 < r < 1; a divergent series is reported as such. The bounds are whole numbers, a symbol such as n (or 2n, n-1), or Infinity for the upper one. Write products with * (k*x, not kx) and factorials as k! or factorial(k).",
             "strict": True,

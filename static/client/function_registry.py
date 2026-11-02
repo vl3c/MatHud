@@ -305,6 +305,7 @@ class FunctionRegistry:
             "derive": MathUtils.derivative,
             "integrate": MathUtils.integral,
             "numeric_integrate": MathUtils.numeric_integrate,
+            "arc_length": canvas.drawable_manager.function_manager.arc_length,
             "simplify": MathUtils.simplify,
             "expand": MathUtils.expand,
             "factor": MathUtils.factor,

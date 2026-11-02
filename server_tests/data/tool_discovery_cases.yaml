@@ -2,8 +2,8 @@
   "metadata": {
     "schema_version": 1,
     "description": "Tool discovery benchmark cases for search_tools semantic routing.",
-    "expected_tool_count": 106,
-    "expected_tool_hash": "978d1f1db28071fbf617cac6fccd3865d2c47ca28fc07e766da99faa8b303737",
+    "expected_tool_count": 107,
+    "expected_tool_hash": "50f0c80a1349a194329aa8d9e6558aeb497e9134aa076004c14f3eb31a7575d3",
     "confusion_clusters": {
       "convert_cluster": [
         "convert",
@@ -4019,6 +4019,143 @@
       ],
       "category": "confusion_probe",
       "difficulty": "normal"
+    },
+    {
+      "id": "u_arc_length_1",
+      "query": "Find the arc length of y = x^2 from x = 0 to 1.",
+      "expected_any": [
+        "arc_length"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_arc_length_2",
+      "query": "How long is the curve y = ln(x) between x = 1 and x = e?",
+      "expected_any": [
+        "arc_length"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_arc_length_3",
+      "query": "Length of the parametric curve x(t) = cos(t)^3, y(t) = sin(t)^3 for t from 0 to 2*pi.",
+      "expected_any": [
+        "arc_length"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_arc_length_4",
+      "query": "What is the perimeter of the cardioid r = 1 + cos(θ)?",
+      "expected_any": [
+        "arc_length"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_arc_length_5",
+      "query": "Distance traveled by a particle along (t^2, t^3) from t = 0 to 2.",
+      "expected_any": [
+        "arc_length"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_arc_length_6",
+      "query": "Measure the length of the plotted curve f between x = -1 and 2.",
+      "expected_any": [
+        "arc_length"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_arc_length_7",
+      "query": "Perimeter of an ellipse with semi-axes 3 and 1.",
+      "expected_any": [
+        "arc_length"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "arc_length_draw_then_measure",
+      "query": "Draw y = x^2 and find its arc length from 0 to 1.",
+      "expected_any": [
+        "arc_length",
+        "draw_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "normal"
+    },
+    {
+      "id": "arc_length_not_segment",
+      "query": "What is the length of segment AB?",
+      "expected_any": [
+        "create_segment",
+        "evaluate_expression"
+      ],
+      "forbidden": [
+        "search_tools",
+        "arc_length"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard"
+    },
+    {
+      "id": "arc_length_not_circle_arc_create",
+      "query": "Draw an arc of radius 3 from angle 0 to 90 degrees around the origin.",
+      "expected_any": [
+        "create_circle_arc"
+      ],
+      "forbidden": [
+        "search_tools",
+        "arc_length"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard"
+    },
+    {
+      "id": "arc_length_velocity_is_integral",
+      "query": "Total distance traveled with velocity v(t) = t^2 - 4 on [0, 3].",
+      "expected_any": [
+        "integrate",
+        "numeric_integrate"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard"
     }
   ]
 }

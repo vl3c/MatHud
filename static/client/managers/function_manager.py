@@ -48,7 +48,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, MutableMapping, Optional, Seq
 from drawables.function import Function
 from managers.dependency_removal import remove_drawable_with_dependencies
 from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
+from managers.plotted_curves import resolve_plotted_curve
 from managers.point_placement import place_points_at
+from utils.arc_length_tool import arc_length_tool
 from utils.function_features import (
     DEFAULT_FEATURES,
     FeatureReport,
@@ -393,6 +395,33 @@ class FunctionManager:
             result.update(placed)
             if reuse_note:
                 result["note"] = f"{result['note']} {reuse_note}" if result.get("note") else reuse_note
+        return result
+
+    def arc_length(
+        self,
+        curve_name: Optional[str] = None,
+        function_string: Optional[str] = None,
+        x_expression: Optional[str] = None,
+        y_expression: Optional[str] = None,
+        r_expression: Optional[str] = None,
+        lower_bound: Any = None,
+        upper_bound: Any = None,
+    ) -> Dict[str, Any]:
+        """The length of a curve, given by expression or as a plotted curve's name (read-only).
+
+        See utils.arc_length_tool.arc_length_tool; a name is looked up among the plotted
+        functions, piecewise functions, parametric and polar curves, circles, circle arcs and ellipses.
+        """
+        result: Dict[str, Any] = arc_length_tool(
+            curve_name=curve_name,
+            function_string=function_string,
+            x_expression=x_expression,
+            y_expression=y_expression,
+            r_expression=r_expression,
+            lower_bound=lower_bound,
+            upper_bound=upper_bound,
+            resolve=lambda name: resolve_plotted_curve(self.drawables, name),
+        )
         return result
 
     def _feature_curves(self, function_names: Sequence[str]) -> List[Any]:

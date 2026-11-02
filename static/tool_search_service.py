@@ -72,9 +72,86 @@ _NAMED_FUNCTION_AT_POINT_RE = re.compile(
     r"\b[a-z]\((?=[^)]{0,40}(?:\d|\bpi\b|\be\b))(?:[\d.+\-*/^\s()]|\bpi\b|\be\b|\bsqrt\b){1,40}\)"
 )
 # Measurements a tool takes (calculate_area): an "exact" one still goes to that tool first.
-# No tool measures a distance or a length, and create_angle draws an angle in decimal
-# degrees, so an exact distance, length or angle goes to simplify.
+# No tool measures a distance or a segment's length, and create_angle draws an angle in
+# decimal degrees, so an exact distance, length or angle goes to simplify. A curve's length
+# (_CURVE_LENGTH_RE) has arc_length.
 _MEASUREMENT_WORDS = frozenset({"area"})
+
+# The length of a curve, which arc_length measures: "arc length", "the length of the curve",
+# "the curve's length", "how long is the graph of e^x", "the perimeter of the cardioid",
+# "the circumference of an ellipse", "the length of the arc AB" (a circle arc). Not a segment,
+# side, vector or polygon.
+_CURVE_NOUNS = (
+    r"(?:curves?|graphs?|spirals?|parabolas?|cardioids?|lima[cç]ons?|lemniscates?|roses?|astroids?"
+    r"|cycloids?|catenary|catenaries|ellipses?|helix|loops?|arcs?"
+    r"|(?:sine|cosine) (?:curve|wave)s?|trajector(?:y|ies)|paths? of (?:the |a )?(?:particle|point|curve))"
+)
+_CURVE_LENGTH_RE = re.compile(
+    r"\barc[\s-]*lengths?\b"
+    # (not a parabola's or ellipse's focal length, latus rectum length or axis length)
+    rf"|(?<!focal\s)(?<!rectum\s)(?<!axis\s)\b(?:length|perimeter|circumference)s?\s+of\s+(?:(?:the|a|an|this|that|its|one)\s+)?(?:[\w()-]+\s+)?{_CURVE_NOUNS}"
+    rf"|\b{_CURVE_NOUNS}(?:'s)?\s+(?:arc\s+)?(?:length|perimeter|circumference)\b"
+    rf"|\bhow\s+long\s+is\s+(?:the\s+|a\s+|this\s+)?(?:[\w()-]+\s+)?{_CURVE_NOUNS}"
+    # "the length of y = x^2 from 0 to 1", "length of sin(x) on [0, pi]", "length of r = 2θ"
+    r"|\b(?:length|perimeter|circumference)\s+of\s+(?:the\s+)?(?:function\s+)?"
+    r"(?:[yr]\s*=|[a-z]\s*\(\s*[a-z]\s*\)\s*=|x\s*\(\s*t\s*\)|x\s*\^|(?:sin|cos|tan|ln|log|exp|sqrt|cosh|sinh)\s*\(|e\s*\^)"
+)
+# One arch, petal or loop of a curve: "the length of one arch of the cycloid", "one petal of r = sin(2θ)"
+_CURVE_PART_LENGTH_RE = re.compile(
+    r"\b(?:length|perimeter)\s+of\s+(?:one|each|an?|the|a\s+single)\s+(?:arch|petal|loop|leaf|leaves|turn)(?:es|s)?\b"
+)
+# "Plot the cardioid r = 1 + cos(θ) and compute its perimeter": a curve's length by pronoun,
+# when the query names a curve
+_ITS_LENGTH_RE = re.compile(r"\b(?:its|their)\s+(?:arc\s+)?(?:length|perimeter|circumference)s?\b")
+# ... unless "its" may be a polygon or segment's, or the length is optimised ("a rectangle inscribed
+# under y = 4 - x^2; maximize its perimeter")
+_ITS_OTHER_SHAPE_RE = re.compile(
+    r"\b(?:rectangles?|triangles?|squares?|polygons?|segments?|lines?|sides?|chords?|ladders?|fences?)\b"
+    r"|\b(?:maximi[sz]e|minimi[sz]e|maximum|minimum|largest|smallest|greatest|least|optimi[sz]e)\b"
+)
+_NAMES_CURVE_RE = re.compile(
+    rf"\b{_CURVE_NOUNS}|\by\s*=|\br\s*=[^,;.]*(?:θ|theta)|\b[a-z]\s*\(\s*[a-z]\s*\)\s*=|\bx\s*\(\s*t\s*\)|\b(?:parametric|polar)\b"
+)
+# A graph of vertices and edges named or placed: "graph G", "in G1", "in the graph", "A-B-C-A"
+_NAMED_GRAPH_RE = re.compile(
+    r"\b[Gg]raph\s+[A-Z]\w*\b|\b[Ii]n\s+(?:the\s+|this\s+)?graph\b|\bin\s+G\d*\b|\b[A-Z]\s*-\s*[A-Z]\s*-\s*[A-Z]\b"
+)
+# Words for a length that, without a curve, is not arc_length's ("the length of segment AB")
+_LENGTH_WORDS = frozenset({"length", "lengths", "long", "perimeter", "circumference"})
+# "The distance travelled along (x(t), y(t))": arc length when the motion is in the plane
+_DISTANCE_TRAVELLED_RE = re.compile(
+    r"\bdistances?\s+(?:travel+ed|covered|walked|moved)\b|\btotal\s+distance\b|\bhow\s+far\s+does\b.*\btravel"
+)
+# Motion along a line, from a velocity or a position: the distance travelled is an integral
+# of |v(t)| ("v(t) = 10 - 2t, find the total distance from t = 0 to 8")
+_LINE_MOTION_WORDS = frozenset({"velocity", "speed", "position", "particle", "displacement"})
+_LINE_MOTION_RE = re.compile(r"\b[vsx]\s*\(\s*t\s*\)")
+# A distance travelled that is not the length of a path given by positions: from velocity
+# components ("dx/dt = 3t^2 and dy/dt = 2t", "velocity vector (2t, 3t^2)") the distance is the
+# integral of the speed; a scalar velocity "v(t) = 2t - 4" is motion along a line; a projectile's
+# horizontal or vertical distance is a coordinate, not a length
+_NOT_PATH_DISTANCE_RE = re.compile(
+    r"\bd[xy]\s*/\s*dt\b|\b[xy]\s*'\s*\(\s*t\s*\)|\bvelocity\s+vectors?\b"
+    r"|\bvelocity\s+(?:is\s+|of\s+)?(?:v\s*\(\s*t\s*\)\s*=\s*)?[(<]"
+    r"|\bv\s*\(\s*t\s*\)\s*=\s*[^\s]"
+    r"|\bhorizontal(?:ly)?\b|\bvertical(?:ly)?\b|\bheight\b|\bshortest\b"
+)
+# A path between named points ("from A to B to C") is a polyline or a graph path
+_BETWEEN_POINTS_RE = re.compile(r"\bfrom\s+[A-Z]\s+to\s+[A-Z]\b")
+# Velocity components: integrate the speed sqrt(x'(t)^2 + y'(t)^2)
+_VELOCITY_COMPONENTS_RE = re.compile(
+    r"\bd[xy]\s*/\s*dt\b|\b[xy]\s*'\s*\(\s*t\s*\)|\bvelocity\s+vectors?\b"
+    r"|\bvelocity\s+(?:is\s+|of\s+)?(?:v\s*\(\s*t\s*\)\s*=\s*)?[(<]|\bv\s*\(\s*t\s*\)\s*=\s*[(<]"
+)
+# Motion in the plane: a pair (x(t), y(t)) that is not a call such as v(t), both x(t) and y(t)
+# (or x = ... t and y = ... t), along y = f(x) or r = f(θ), or a word for a curve
+_PLANE_MOTION_RE = re.compile(
+    r"(?<![\w)])\(\s*[^,;=]*(?<![a-z])t\b[^,;=]*,[^,;=]*(?<![a-z])t\b"
+    r"|\bx\s*\(\s*t\s*\)[^.;]*\by\s*\(\s*t\s*\)"
+    r"|\bx\s*=[^,;]*(?<![a-z])t\b[,;]?[^.;]*\by\s*=[^,;]*(?<![a-z])t\b"
+    r"|\balong\s+(?:the\s+(?:graph\s+of\s+)?)?[yr]\s*="
+    r"|\bparametric|\bplane\b|\bcurve\b|\bpath\b"
+)
 
 # "graph" means a graph of vertices and edges (generate_graph) rather than the plot of
 # a function when the query names that structure (_GRAPH_STRUCTURE_WORDS). Two weaker
@@ -563,7 +640,7 @@ TOOL_CATEGORIES: Dict[str, CategoryEntry] = {
             "convert", "limit", "derive", "integrate", "numeric_integrate",
             "simplify", "expand", "factor", "solve",
             "solve_system_of_equations", "solve_numeric", "check_steps",
-            "taylor_polynomial",
+            "taylor_polynomial", "arc_length",
         ],
         "keywords": [
             "calculate", "evaluate", "solve", "derivative", "integral",
@@ -1139,6 +1216,30 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         return equation
 
     @staticmethod
+    def _asks_for_curve_length(token_set: Set[str], raw_query: str, raw_lower: str) -> bool:
+        """Whether a query asks for the length of a curve: "arc length of y = x^2", "the length of
+        the spiral", "distance travelled by (t^2, t^3)"; not "the length of segment AB", nor a
+        loop, arc or path of a graph of vertices and edges ("the length of the loop in graph G")."""
+        if (token_set & (_GRAPH_STRUCTURE_WORDS | _GRAPH_THEORY_ONLY_WORDS) or _NAMED_GRAPH_RE.search(raw_query)) and not (
+            _FUNCTION_DEFINITION_RE.search(raw_lower) or _POLAR_CURVE_RE.search(raw_lower)
+        ):
+            return False
+        if _CURVE_LENGTH_RE.search(raw_lower) or _CURVE_PART_LENGTH_RE.search(raw_lower):
+            return True
+        if (
+            _ITS_LENGTH_RE.search(raw_lower)
+            and _NAMES_CURVE_RE.search(raw_lower)
+            and not _ITS_OTHER_SHAPE_RE.search(raw_lower)
+        ):
+            return True
+        return bool(
+            _DISTANCE_TRAVELLED_RE.search(raw_lower)
+            and _PLANE_MOTION_RE.search(raw_lower)
+            and not _NOT_PATH_DISTANCE_RE.search(raw_lower)
+            and not _BETWEEN_POINTS_RE.search(raw_query)
+        )
+
+    @staticmethod
     def _asks_for_histogram(token_set: set[str]) -> bool:
         """Whether a query asks for a histogram of data, not a bar chart of grouped values
         ("a histogram-like bar plot from these grouped values" is a bar chart)."""
@@ -1508,7 +1609,44 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         wants_exact = bool(token_set & {"exact", "fraction", "fractions", "radical"})
         named_at_point = wants_exact and _NAMED_FUNCTION_AT_POINT_RE.search(raw_lower) is not None
         at_point = named_at_point or _FUNCTION_AT_POINT_RE.search(raw_lower) is not None
-        exact_alongside = wants_exact and (named_at_point or bool(token_set & _MEASUREMENT_WORDS))
+        curve_length = ToolSearchService._asks_for_curve_length(token_set, raw_query, raw_lower)
+        exact_alongside = wants_exact and (named_at_point or curve_length or bool(token_set & _MEASUREMENT_WORDS))
+        if curve_length:
+            # arc_length measures it; integrate gives the exact integral of the speed
+            scores["arc_length"] += 20.0
+            scores["integrate"] += 12.0 if wants_exact else 1.0
+            if token_set & {"integral", "integrate", "integration", "numerical", "numerically"}:
+                # "use numerical integration to approximate the arc length of y = ...": the integral asked for
+                scores["integrate"] += 10.0
+                scores["numeric_integrate"] += 12.0
+            if (
+                token_set & {"draw", "plot", "graph", "sketch"}
+                and _FUNCTION_DEFINITION_RE.search(raw_lower)
+                and not _PARAMETRIC_RE.search(raw_lower)
+            ):
+                # "draw y = x^2 and find its arc length": the curve is drawn first
+                scores["draw_function"] += 10.0
+        elif token_set & _LENGTH_WORDS:
+            # Its name and description share these words with every other length
+            scores["arc_length"] -= 6.0
+        elif _DISTANCE_TRAVELLED_RE.search(raw_lower) and (
+            token_set & _LINE_MOTION_WORDS
+            or _LINE_MOTION_RE.search(raw_lower)
+            or _VELOCITY_COMPONENTS_RE.search(raw_lower)
+        ):
+            # "the distance travelled with velocity v(t) = 3t^2 from 0 to 2", or from a position x(t),
+            # along a line; or from velocity components, the integral of the speed
+            scores["integrate"] += 6.0
+            scores["numeric_integrate"] += 4.0
+            if _VELOCITY_COMPONENTS_RE.search(raw_lower) and "arc_length" in scores:
+                # Its description names dx/dt only to send them here
+                scores["arc_length"] -= 4.0
+        if not curve_length and "arc_length" in scores:
+            # Behind the math tools it ties with on category and description words alone
+            scores["arc_length"] -= 1.5
+        if scores.get("arc_length", 1.0) <= 0.0:
+            # A negative score would end the results before the demoted destructive tools
+            del scores["arc_length"]
         if wants_exact:
             scores["simplify"] += 3.0 if exact_alongside else 6.0
         only_exact = wants_exact and not exact_alongside
