@@ -429,7 +429,15 @@ class TestRenderHelpers(unittest.TestCase):
 
 class TestFractionalPowerNote(unittest.TestCase):
     def test_fractions_and_decimals_in_exponents(self) -> None:
-        for text in ("x^(2/3) + y^(2/3) = 1", "y = x^0.5", "(x - 1)^(1/3) = y", "y = x^(-1/2)", "y^(.5) <= x"):
+        for text in (
+            "x^(2/3) + y^(2/3) = 1",
+            "y = x^0.5",
+            "(x - 1)^(1/3) = y",
+            "y = x^(-1/2)",
+            "y^(.5) <= x",
+            "y = 2x^(1/3)",
+            "x**(2/3) + y**(2/3) = 1",
+        ):
             self.assertIsNotNone(fractional_power_note(text), text)
 
     def test_a_power_over_a_number_is_not_a_fractional_power(self) -> None:

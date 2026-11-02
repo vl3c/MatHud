@@ -339,14 +339,18 @@ _IMPLICIT_EXCLUDED_WORDS = frozenset(
     {"solve", "solving", "intersection", "intersections", "intersect", "meet", "meets", "derivative"}
     | {"differentiate", "differentiation", "dy", "dx", "slope", "tangent", "normal", "probability", "distribution"}
     | {"parametric", "polar", "piecewise", "evaluate", "simplify", "factor", "expand", "check", "steps"}
-    | {"intersects", "crosses", "find", "confirm", "verify", "prove", "reflect", "mirror", "across", "rotate"}
+    | {"intersects", "crosses", "confirm", "verify", "prove", "reflect", "mirror", "across", "rotate"}
     | {"translate", "rules", "rule", "when", "otherwise", "complete", "rewrite"}
     # Measuring or other objects: "the area of the region x^2 + y^2 <= 4", "arc length of
     # x^2 + y^2 = 1", "the intercepts of 2x + 3y = 6", "zoom so that -10 < x < 10", "a segment
     # from x = 0 to x = 5", "shade between it and y = 0" (a colored area)
-    | {"integrate", "integral", "arc", "perimeter", "circumference", "intercept", "intercepts", "zoom"}
-    | {"segment", "segments", "histogram", "histograms", "between", "under", "calculate", "compute"}
-    | {"measure", "how", "distance", "vector", "vectors"}
+    | {"zoom", "segment", "segments", "histogram", "histograms", "between", "under", "vector", "vectors"}
+)
+# Measuring words: with a graph verb ("plot x^2 + y^2 = 4 and find its perimeter") the
+# relation is still drawn, ranked under the measuring tool; without one it is not drawn
+_IMPLICIT_MEASURE_WORDS = frozenset(
+    {"integrate", "integral", "arc", "perimeter", "circumference", "intercept", "intercepts", "calculate"}
+    | {"compute", "measure", "how", "distance", "find"}
 )
 # "the area of the region ...", "the length of the curve ...": a measurement
 _IMPLICIT_MEASURE_RE = re.compile(r"\b(?:area|length|size)\s+(?:of|is|enclosed|inside|bounded)\b")
@@ -355,7 +359,7 @@ _IMPLICIT_MEASURE_RE = re.compile(r"\b(?:area|length|size)\s+(?:of|is|enclosed|i
 _IMPLICIT_PICTURE_WORDS = frozenset(
     {"draw", "plot", "graph", "sketch", "show", "display", "visualize", "visualise", "trace", "shade"}
     | {"shaded", "shading", "region", "regions", "feasible", "curve", "curves", "implicit", "implicitly"}
-    | {"conic", "locus", "contour", "picture", "highlight", "color", "colour", "fill"}
+    | {"conic", "locus", "contour", "picture", "highlight", "color", "colour", "fill", "look", "looks"}
 )
 # Function names that may lead or end an operand; other words are English around the math
 _OPERAND_FUNCTION_WORDS = frozenset({"sin", "cos", "tan", "exp", "ln", "log", "sqrt", "abs", "cbrt", "pi", "e"})
@@ -389,6 +393,15 @@ def _trim_words(operand: str, leading: bool) -> str:
     return " ".join(parts)
 
 
+def implicit_measuring(raw_lower: str) -> bool:
+    """Whether a query measures something: "the area of", "its perimeter", "how long"; not "how
+    does x^2 + y^2 = 25 look"."""
+    words = set(re.findall(r"[a-z]+", raw_lower))
+    if words & {"look", "looks"}:
+        words.discard("how")
+    return bool(words & _IMPLICIT_MEASURE_WORDS or _IMPLICIT_MEASURE_RE.search(raw_lower))
+
+
 def implicit_intent(raw_lower: str) -> Optional[str]:
     """What a query draws: "curve" for an equation in x and y that is not y = f(x) (x^2 + y^2 = 25,
     x = y^2, 2x + 3y = 6, x = 3 alone), "region" when it gives an inequality in y (y > 2x + 1)
@@ -398,7 +411,7 @@ def implicit_intent(raw_lower: str) -> Optional[str]:
     words = set(re.findall(r"[a-z]+", raw_lower))
     if not words & _IMPLICIT_PICTURE_WORDS or words & _IMPLICIT_EXCLUDED_WORDS:
         return None
-    if _IMPLICIT_MEASURE_RE.search(raw_lower):
+    if implicit_measuring(raw_lower) and not words & _GRAPH_VERBS:
         return None
     if re.search(r"\bp\s*\(|\b[xyr]\s*\(\s*[tθ]|\bθ|theta", raw_lower):
         return None
@@ -1689,7 +1702,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             if editing and not token_set & _GRAPH_VERBS:
                 scores["update_implicit_curve"] += 12.0
                 return
-            if token_set & _GRAPH_VERBS and not token_set & _IMPLICIT_EXCLUDED_WORDS:
+            if token_set & _GRAPH_VERBS and not token_set & (_IMPLICIT_EXCLUDED_WORDS | _IMPLICIT_MEASURE_WORDS):
                 scores["draw_implicit_curve"] += 8.0
         intent = implicit_intent(raw_lower)
         if intent is not None and deleting:
@@ -1706,6 +1719,10 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
                 scores[shape_tool] = max(scores[shape_tool], leading) + 1.0
                 scores[drawn] = max(scores[drawn], leading)
                 return
+            if implicit_measuring(raw_lower):
+                # "plot x^2 + y^2 = 4 and find its perimeter": the measuring tool stays first
+                scores[drawn] = max(scores[drawn], leading - 0.5)
+                return
             scores[drawn] = max(scores[drawn], leading) + 6.0
             return
         region_words = token_set & {"region", "shaded", "shading", "feasible"}
@@ -1715,6 +1732,8 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         creating = token_set & {"create", "draw", "plot", "graph", "sketch", "between", "under", "fill", "shade"}
         # "fill the region inside circle c1", "the region enclosed by AB, BC": a new area
         creating = creating or token_set & {"inside", "enclosed", "bounded", "outside", "within"}
+        if re.search(r"\b(?:region|area)\s+[a-z]\w*\d", raw_lower) and not token_set & {"between", "under"}:
+            creating = set()  # "shade region R2 blue", "fill region R1 with yellow": an existing area
         # "delete point P in the shaded region": another object goes
         other_object = re.search(
             r"\b(?:delete|remove|erase)\s+(?:the\s+)?(?:point|segment|vector|triangle|circle|ellipse|polygon"

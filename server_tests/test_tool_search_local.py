@@ -462,6 +462,20 @@ class TestCreativePrompts:
         ):
             assert tool in _top_n(self.service, query), query
 
+    def test_drawing_and_measuring_keeps_both_tools(self) -> None:
+        for query, first in (
+            ("draw x^2/9 + y^2/4 = 1 and calculate the arc length", "arc_length"),
+            ("draw x*y = 4 and find the intercepts", "solve"),
+        ):
+            assert _top_n(self.service, query)[:2] == [first, "draw_implicit_curve"], query
+        for query in (
+            "plot x^2 + y^2 = 4 and find its perimeter",
+            "graph x^2 + y^2 = 25 and compute the circumference",
+        ):
+            assert "draw_implicit_curve" in _top_n(self.service, query)[:2], query
+        for query in ("how does x^2 + y^2 = 25 look", "what does x^3 + y^3 = 6xy look like"):
+            assert _top_n(self.service, query)[0] == "draw_implicit_curve", query
+
     def test_editing_implicit_curves_and_shaded_regions(self) -> None:
         for query, tool in (
             ("delete the implicit curve c1", "delete_implicit_curve"),
@@ -471,6 +485,8 @@ class TestCreativePrompts:
             ("remove the feasible region", "delete_colored_area"),
             ("make the region R1 red", "update_colored_area"),
             ("change region R2 opacity to 0.1", "update_colored_area"),
+            ("shade region R2 blue", "update_colored_area"),
+            ("fill region R1 with yellow", "update_colored_area"),
             ("Color the polygonal region enclosed by segments AB, BC, CD, DA.", "create_region_colored_area"),
             ("fill the region inside circle c1 with red", "create_region_colored_area"),
             ("delete point P in the shaded region", "delete_point"),

@@ -27,7 +27,9 @@ REGION_SAMPLES = (40, 25)
 
 # A power of x, y or a bracket whose exponent is a fraction in brackets or a decimal:
 # x^(2/3), (x - 1)^(1/3), y^0.5 (complex for a negative base); not x^2/9, which is x^2 over 9
-_FRACTIONAL_POWER = re.compile(r"(?:\b[xy]|\))\s*\^\s*(?:\(\s*-?\s*\d+\s*/\s*\d+\s*\)|\(?\s*-?\s*\d*\.\d*[1-9]\d*)")
+_FRACTIONAL_POWER = re.compile(
+    r"(?:(?<![a-z_])[xy]|\))\s*(?:\^|\*\*)\s*(?:\(\s*-?\s*\d+\s*/\s*\d+\s*\)|\(?\s*-?\s*\d*\.\d*[1-9]\d*)"
+)
 _FRACTIONAL_POWER_NOTE = (
     "A fractional power of a negative number is not real here (x^(2/3) for x < 0), so that part "
     "is not drawn; for the real cube root write cbrt(x), as in cbrt(x)^2 + cbrt(y)^2 = 1."
