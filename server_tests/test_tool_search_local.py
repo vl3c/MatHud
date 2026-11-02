@@ -484,6 +484,19 @@ class TestCreativePrompts:
         top = _top_n(self.service, "shade the feasible region x + y <= 4, x >= 0, y >= 0 and find the vertices")
         assert top.index("shade_inequality") < top.index("create_region_colored_area")
 
+    def test_relations_with_parameters(self) -> None:
+        for query, tool in (
+            ("shade y > a*x + b", "shade_inequality"),
+            ("draw y = a*sin(b*x)", "draw_function"),
+            ("draw y = sin(x) in red", "draw_function"),
+            ("draw x^2/a^2 + y^2/b^2 = 1 with sliders a and b", "draw_implicit_curve"),
+            ("graph a circle x^2 + y^2 = 9", "create_circle"),
+        ):
+            assert _top_n(self.service, query)[0] == tool, query
+        top = _top_n(self.service, "plot x^2 + y^2 = a with a slider a")
+        assert {"draw_implicit_curve", "set_parameter"} <= set(top[:2])
+        assert "draw_function" in _top_n(self.service, "draw y = x^2 and x^2 + y^2 = 4")[:2]
+
     def test_explicit_functions_after_short_words_stay_functions(self) -> None:
         for query, tool in (
             ("plot the curve given by y = x^2", "draw_function"),

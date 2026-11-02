@@ -15,6 +15,7 @@ import unittest
 from typing import Callable, Sequence, Tuple
 
 from server_tests import client_renderer  # noqa: F401  (browser stub, so MathUtils resolves)
+import compiled_expression
 from rendering.helpers.implicit_renderer import bridged_polygon, dashed
 from utils.implicit_plotter import PlotResult, plot, ring_area
 from utils.implicit_relations import parse_equation, parse_inequality
@@ -100,7 +101,8 @@ class TestEquationParsing(unittest.TestCase):
             "xe^x = y": "x\\*e\\^x",
             "x = x": "holds for every x and y",
             "2 = 3": "no x or y",
-            "a*x = y": "'a' is not defined",
+            "a*x = y": "'a', which is not defined. Create the parameter first with set_parameter",
+            "ax = y": "write a\\*x",
             "x(x+1) = y": "function call",
             "(x+1)(y-1) = 1": "\\(x \\+ 1\\)\\*\\(y - 1\\)",
             "x^2 + y^2 = ((25)": "parentheses",
@@ -189,7 +191,7 @@ class TestInequalityParsing(unittest.TestCase):
             "y": "no comparison",
             "sin x < y": "sin\\(x\\)",
             "xy < 1": "x\\*y",
-            "y < a*x": "'a' is not defined",
+            "y < a*x": "'a', which is not defined. Create the parameter first with set_parameter",
             "(y < x": "parentheses",
             " ".join(["x > 0 and"] * 8) + " x > 0": "at most 8",
         }
@@ -197,6 +199,59 @@ class TestInequalityParsing(unittest.TestCase):
             with self.subTest(text=text):
                 with self.assertRaisesRegex(ValueError, pattern):
                     parse_inequality(text)
+
+
+class TestParameters(unittest.TestCase):
+    """Relations may read parameters (sliders); their values are read at call time."""
+
+    def setUp(self) -> None:
+        self._saved = compiled_expression.parameter_values()
+        compiled_expression.set_parameter_values({"a": 2.0, "r": 3.0})
+
+    def tearDown(self) -> None:
+        compiled_expression.set_parameter_values(self._saved)
+
+    def test_an_equation_follows_its_parameters(self) -> None:
+        equation = parse_equation("x^2 + y^2 = r^2")
+        self.assertEqual(equation.parameter_names(), ("r",))
+        self.assertAlmostEqual(equation.g(3.0, 0.0), 0.0)
+        compiled_expression.set_parameter_values({"a": 2.0, "r": 5.0})
+        self.assertAlmostEqual(equation.g(5.0, 0.0), 0.0)
+        result = plot(equation.g, (-8.0, -6.0, 8.0, 6.0), 0.05, factors=equation.factors)
+        for x, y in result.curves[0]:
+            self.assertAlmostEqual(math.hypot(x, y), 5.0, delta=1e-3)
+
+    def test_factors_and_regions_read_parameters(self) -> None:
+        equation = parse_equation("(x - a)*(y - a) = 0")
+        self.assertEqual(len(equation.factors), 2)
+        self.assertAlmostEqual(equation.factors[0](2.0, 7.0), 0.0)
+        region = parse_inequality("y > a*x, x^2 + y^2 < r^2")
+        self.assertEqual(region.parameter_names(), ("a", "r"))
+        self.assertTrue(region.contains(0.0, 1.0))
+        compiled_expression.set_parameter_values({"a": -2.0, "r": 0.5})
+        self.assertFalse(region.contains(0.0, 1.0))
+
+    def test_a_value_that_makes_it_hold_everywhere_is_accepted(self) -> None:
+        compiled_expression.set_parameter_values({"a": 0.0})
+        self.assertEqual(parse_equation("a*x*y = 0").parameter_names(), ("a",))
+
+    def test_saved_relations_load_without_their_parameters(self) -> None:
+        compiled_expression.set_parameter_values({})
+        with self.assertRaisesRegex(ValueError, "set_parameter"):
+            parse_equation("y = b*x^2")
+        equation = parse_equation("y = b*x^2", check_names=False)
+        self.assertEqual(equation.parameter_names(), ())
+        self.assertTrue(math.isnan(_value_or_nan(equation.g, 1.0, 1.0)))
+        parse_inequality("y < b", check_names=False)
+        with self.assertRaisesRegex(ValueError, "set_parameter"):
+            parse_inequality("y < b")
+
+
+def _value_or_nan(g: Callable[[float, float], float], x: float, y: float) -> float:
+    try:
+        return float(g(x, y))
+    except Exception:
+        return float("nan")
 
 
 class TestCurves(unittest.TestCase):

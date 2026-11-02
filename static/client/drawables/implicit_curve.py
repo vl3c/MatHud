@@ -7,6 +7,7 @@ y^2 = x^3 - x or x = 3: every conic, vertical lines and curves that are not func
 Key Features:
     - One equation, read by utils.implicit_relations (standard syntax, no guessing)
     - Plotted over the visible view (utils.implicit_plotter), so it follows pans and zooms
+    - May read parameters (sliders), and follows them
     - No translate or rotate: draw a new equation instead
 """
 
@@ -31,7 +32,9 @@ class ImplicitCurve(Drawable):
     # Plotting is slow: the renderer maps the last plot to the view while a zoom is under way
     reuses_plot_while_zooming = True
 
-    def __init__(self, equation: str, name: Optional[str] = None, color: str = default_color) -> None:
+    def __init__(
+        self, equation: str, name: Optional[str] = None, color: str = default_color, check_names: bool = True
+    ) -> None:
         """
         Initialize an implicit curve.
 
@@ -39,11 +42,12 @@ class ImplicitCurve(Drawable):
             equation: An equation in x and y, such as "x^2 + y^2 = 25"
             name: Optional name for the curve
             color: Display color
+            check_names: Refuse names that are not parameters; copies (undo) pass False
 
         Raises:
             ValueError: If the equation is refused (see implicit_relations.parse_equation)
         """
-        self._relation: ImplicitEquation = parse_equation(equation)
+        self._relation: ImplicitEquation = parse_equation(equation, check_names=check_names)
         self.equation: str = self._relation.text
         super().__init__(name=name or "c", color=color)
 
@@ -56,6 +60,14 @@ class ImplicitCurve(Drawable):
     def factors(self) -> Tuple[Callable[..., float], ...]:
         """Functions whose zero sets together are the curve (see ImplicitEquation)."""
         return self._relation.factors
+
+    def parameter_names(self) -> Tuple[str, ...]:
+        """The current parameters the equation reads, sorted."""
+        return self._relation.parameter_names()
+
+    def reads_missing_names(self) -> bool:
+        """Whether it reads a name that is not a parameter now (it is then drawn nowhere)."""
+        return self._relation.reads_missing_names()
 
     def value(self, x: float, y: float) -> float:
         """LHS - RHS at (x, y); NaN where it is undefined."""
@@ -77,7 +89,7 @@ class ImplicitCurve(Drawable):
         """A copy rebuilt from the stored equation."""
         if id(self) in memo:
             return cast("ImplicitCurve", memo[id(self)])
-        copy = ImplicitCurve(self.equation, name=self.name, color=self.color)
+        copy = ImplicitCurve(self.equation, name=self.name, color=self.color, check_names=False)
         memo[id(self)] = copy
         return copy
 
