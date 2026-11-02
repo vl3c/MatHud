@@ -128,6 +128,14 @@ class TestFunctionLengths(ArcLengthCase):
         result = arc_length_tool(r_expression="sqrt(cos(2*θ))", lower_bound="-pi/4", upper_bound="pi/4")
         self.assertLength(result, lemniscate, 7)
         self.assertIn("rounding the bound", result["warning"])
+        # The same bounds as full-precision numbers are rounded values too
+        as_floats = arc_length_tool(r_expression="sqrt(cos(2*θ))", lower_bound=-math.pi / 4, upper_bound=math.pi / 4)
+        self.assertLength(as_floats, lemniscate, 7)
+        self.assertIn("rounding the bound", as_floats["warning"])
+        sqrt_sine = _from_speed(
+            lambda x: mpmath.sqrt(1 + mpmath.cos(x) ** 2 / (4 * mpmath.sin(x))), [0, 1e-12, 1e-6, 0.5, 2.5, 3.1415, mpmath.pi]
+        )
+        self.assertLength(arc_length_tool(function_string="sqrt(sin(x))", lower_bound=0, upper_bound=math.pi), sqrt_sine, 7)
         semicircle = arc_length_tool(function_string="sqrt(1-x^2)", lower_bound=-1, upper_bound=1)
         self.assertLength(semicircle, math.pi)
         self.assertNotIn("warning", semicircle)
@@ -218,6 +226,14 @@ class TestParametricAndPolarLengths(ArcLengthCase):
         """Over a tiny range the curve one period on is close by because it barely moves."""
         self.assertEqual(traced_times(lambda t: (t, 0.0), 0, 1e-6), 1)
         self.assertNotIn("traced_times", arc_length_tool(x_expression="t", y_expression="t^2", upper_bound="1e-7"))
+
+    def test_a_path_that_runs_back_is_reported_as_periods(self) -> None:
+        """x = sin(t)^2, y = cos(t)^2 runs along a segment and back: one period is not the curve's length."""
+        result = arc_length_tool(x_expression="sin(t)^2", y_expression="cos(t)^2", upper_bound="3*pi")
+        self.assertLength(result, 6 * math.sqrt(2))
+        self.assertEqual(result["traced_times"], 3)
+        self.assertIn("runs back over itself", result["note"])
+        self.assertNotIn("perimeter) is", result["note"])
 
     def test_constant_curve_has_zero_length(self) -> None:
         self.assertEqual(

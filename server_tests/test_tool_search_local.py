@@ -373,6 +373,24 @@ class TestCreativePrompts:
         ):
             assert _top_n(self.service, query)[0] == "arc_length", query
 
+    def test_distances_that_are_not_a_path_length(self) -> None:
+        """Velocity components give the integral of the speed; a projectile's horizontal distance is
+        a coordinate; a path between named points is a polyline or a graph path."""
+        for query in (
+            "a particle moves in the xy-plane so that dx/dt = 3t^2 and dy/dt = 2t; find the total distance traveled from t = 0 to 2",
+            "a particle moving in the plane has velocity vector (2t, 3t^2); find the distance traveled from t = 0 to 1",
+            "the velocity of a particle moving in the plane is v(t) = (3t, 4t); how far does it travel from t = 0 to 2",
+        ):
+            top = _top_n(self.service, query)
+            assert "integrate" in top and "numeric_integrate" in top, (query, top)
+            assert "arc_length" not in top, (query, top)
+        for query in (
+            "a ball is thrown with x(t) = 15t and y(t) = 2 + 10t - 4.9t^2; how far does it travel horizontally before hitting the ground",
+            "find the total distance along the shortest path from A to D",
+            "total distance walked along the path from A to B to C",
+        ):
+            assert _top_n(self.service, query)[0] != "arc_length", query
+
     def test_draw_and_measure_keeps_the_draw_tool(self) -> None:
         top = _top_n(self.service, "draw y = x^2 and find its arc length from 0 to 1")
         assert top[:2] == ["arc_length", "draw_function"]

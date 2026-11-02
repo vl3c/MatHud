@@ -120,6 +120,23 @@ _DISTANCE_TRAVELLED_RE = re.compile(
 # of |v(t)| ("v(t) = 10 - 2t, find the total distance from t = 0 to 8")
 _LINE_MOTION_WORDS = frozenset({"velocity", "speed", "position", "particle", "displacement"})
 _LINE_MOTION_RE = re.compile(r"\b[vsx]\s*\(\s*t\s*\)")
+# A distance travelled that is not the length of a path given by positions: from velocity
+# components ("dx/dt = 3t^2 and dy/dt = 2t", "velocity vector (2t, 3t^2)") the distance is the
+# integral of the speed; a scalar velocity "v(t) = 2t - 4" is motion along a line; a projectile's
+# horizontal or vertical distance is a coordinate, not a length
+_NOT_PATH_DISTANCE_RE = re.compile(
+    r"\bd[xy]\s*/\s*dt\b|\b[xy]\s*'\s*\(\s*t\s*\)|\bvelocity\s+vectors?\b"
+    r"|\bvelocity\s+(?:is\s+|of\s+)?(?:v\s*\(\s*t\s*\)\s*=\s*)?[(<]"
+    r"|\bv\s*\(\s*t\s*\)\s*=\s*[^\s]"
+    r"|\bhorizontal(?:ly)?\b|\bvertical(?:ly)?\b|\bheight\b|\bshortest\b"
+)
+# A path between named points ("from A to B to C") is a polyline or a graph path
+_BETWEEN_POINTS_RE = re.compile(r"\bfrom\s+[A-Z]\s+to\s+[A-Z]\b")
+# Velocity components: integrate the speed sqrt(x'(t)^2 + y'(t)^2)
+_VELOCITY_COMPONENTS_RE = re.compile(
+    r"\bd[xy]\s*/\s*dt\b|\b[xy]\s*'\s*\(\s*t\s*\)|\bvelocity\s+vectors?\b"
+    r"|\bvelocity\s+(?:is\s+|of\s+)?(?:v\s*\(\s*t\s*\)\s*=\s*)?[(<]|\bv\s*\(\s*t\s*\)\s*=\s*[(<]"
+)
 # Motion in the plane: a pair (x(t), y(t)) that is not a call such as v(t), both x(t) and y(t)
 # (or x = ... t and y = ... t), along y = f(x) or r = f(θ), or a word for a curve
 _PLANE_MOTION_RE = re.compile(
@@ -1115,7 +1132,12 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             return True
         if _ITS_LENGTH_RE.search(raw_lower) and _NAMES_CURVE_RE.search(raw_lower):
             return True
-        return bool(_DISTANCE_TRAVELLED_RE.search(raw_lower) and _PLANE_MOTION_RE.search(raw_lower))
+        return bool(
+            _DISTANCE_TRAVELLED_RE.search(raw_lower)
+            and _PLANE_MOTION_RE.search(raw_lower)
+            and not _NOT_PATH_DISTANCE_RE.search(raw_lower)
+            and not _BETWEEN_POINTS_RE.search(raw_query)
+        )
 
     @staticmethod
     def _asks_for_histogram(token_set: set[str]) -> bool:
@@ -1408,11 +1430,17 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             # Its name and description share these words with every other length
             scores["arc_length"] -= 6.0
         elif _DISTANCE_TRAVELLED_RE.search(raw_lower) and (
-            token_set & _LINE_MOTION_WORDS or _LINE_MOTION_RE.search(raw_lower)
+            token_set & _LINE_MOTION_WORDS
+            or _LINE_MOTION_RE.search(raw_lower)
+            or _VELOCITY_COMPONENTS_RE.search(raw_lower)
         ):
-            # "the distance travelled with velocity v(t) = 3t^2 from 0 to 2", or from a position x(t): along a line
+            # "the distance travelled with velocity v(t) = 3t^2 from 0 to 2", or from a position x(t),
+            # along a line; or from velocity components, the integral of the speed
             scores["integrate"] += 6.0
             scores["numeric_integrate"] += 4.0
+            if _VELOCITY_COMPONENTS_RE.search(raw_lower) and "arc_length" in scores:
+                # Its description names dx/dt only to send them here
+                scores["arc_length"] -= 4.0
         if not curve_length and "arc_length" in scores:
             # Behind the math tools it ties with on category and description words alone
             scores["arc_length"] -= 1.5
