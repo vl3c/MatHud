@@ -437,6 +437,9 @@ class TestFractionalPowerNote(unittest.TestCase):
             "y^(.5) <= x",
             "y = 2x^(1/3)",
             "x**(2/3) + y**(2/3) = 1",
+            "(x^2 - y^2)^(1/2) = 1",
+            "(x + y)^(1/3) = 1",
+            "abs(x)^(2/3) + y^(1/3) = 1",
         ):
             self.assertIsNotNone(fractional_power_note(text), text)
 
@@ -448,6 +451,10 @@ class TestFractionalPowerNote(unittest.TestCase):
             "4 + x^2/4 > y",
             "2^0.5*x = y",
             "x^2.0 = y",
+            "abs(x)^(2/3) + abs(y)^(2/3) = 1",
+            "(x^2 + y^2)^(1/2) = 3",
+            "(x^2+y^2)^0.5 = 5",
+            "(4*x^2 + 9*y^2 + 1)^(1/2) = 6",
         ):
             self.assertIsNone(fractional_power_note(text), text)
 

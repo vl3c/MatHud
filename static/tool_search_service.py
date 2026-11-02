@@ -364,6 +364,9 @@ _IMPLICIT_PICTURE_WORDS = frozenset(
 # Function names that may lead or end an operand; other words are English around the math
 _OPERAND_FUNCTION_WORDS = frozenset({"sin", "cos", "tan", "exp", "ln", "log", "sqrt", "abs", "cbrt", "pi", "e"})
 _GRAPH_VERBS = frozenset({"draw", "plot", "graph", "sketch", "show", "display"})
+# Verbs that ask for the relation's picture even next to a measurement ("shade ... and find the
+# corner points")
+_DRAWING_VERBS = _GRAPH_VERBS | {"shade", "fill", "color", "colour"}
 # Words that make a relation sign in x alone a region to shade ("graph the inequality x > 2")
 _REGION_WORDS = frozenset({"shade", "shaded", "shading", "region", "inequality", "inequalities", "feasible", "half"})
 
@@ -387,7 +390,8 @@ def _trim_words(operand: str, leading: bool) -> str:
     parts = operand.split()
     while parts:
         part = parts[0] if leading else parts[-1]
-        if not (part.isalpha() and len(part) > 2 and part not in _OPERAND_FUNCTION_WORDS):
+        # Two-letter words go too ("given by y", "show me y"), but not the products xy and yx
+        if not (part.isalpha() and len(part) > 1 and part not in _OPERAND_FUNCTION_WORDS | {"xy", "yx"}):
             break
         parts.pop(0 if leading else -1)
     return " ".join(parts)
@@ -411,7 +415,7 @@ def implicit_intent(raw_lower: str) -> Optional[str]:
     words = set(re.findall(r"[a-z]+", raw_lower))
     if not words & _IMPLICIT_PICTURE_WORDS or words & _IMPLICIT_EXCLUDED_WORDS:
         return None
-    if implicit_measuring(raw_lower) and not words & _GRAPH_VERBS:
+    if implicit_measuring(raw_lower) and not words & _DRAWING_VERBS:
         return None
     if re.search(r"\bp\s*\(|\b[xyr]\s*\(\s*[tθ]|\bθ|theta", raw_lower):
         return None
@@ -1720,8 +1724,13 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
                 scores[drawn] = max(scores[drawn], leading)
                 return
             if implicit_measuring(raw_lower):
-                # "plot x^2 + y^2 = 4 and find its perimeter": the measuring tool stays first
-                scores[drawn] = max(scores[drawn], leading - 0.5)
+                # "plot x^2 + y^2 = 4 and find its perimeter": a measuring tool that leads stays
+                # first; the drawing tools that cannot draw the relation go below it
+                unable = ("draw_function", "draw_piecewise_function", "create_colored_area")
+                scores[drawn] = max(scores[drawn], leading - 0.01)
+                for name in unable:
+                    if name in scores and scores[name] >= scores[drawn]:
+                        scores[name] = scores[drawn] - 0.005
                 return
             scores[drawn] = max(scores[drawn], leading) + 6.0
             return
@@ -1732,7 +1741,8 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         creating = token_set & {"create", "draw", "plot", "graph", "sketch", "between", "under", "fill", "shade"}
         # "fill the region inside circle c1", "the region enclosed by AB, BC": a new area
         creating = creating or token_set & {"inside", "enclosed", "bounded", "outside", "within"}
-        if re.search(r"\b(?:region|area)\s+[a-z]\w*\d", raw_lower) and not token_set & {"between", "under"}:
+        named = re.search(r"\b(?:region|area)\s+[a-z]\w*\d", raw_lower)
+        if named and not token_set & {"between", "under", "inside", "enclosed", "bounded", "outside", "within"}:
             creating = set()  # "shade region R2 blue", "fill region R1 with yellow": an existing area
         # "delete point P in the shaded region": another object goes
         other_object = re.search(

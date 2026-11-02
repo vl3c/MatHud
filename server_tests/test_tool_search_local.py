@@ -475,6 +475,22 @@ class TestCreativePrompts:
             assert "draw_implicit_curve" in _top_n(self.service, query)[:2], query
         for query in ("how does x^2 + y^2 = 25 look", "what does x^3 + y^3 = 6xy look like"):
             assert _top_n(self.service, query)[0] == "draw_implicit_curve", query
+        # draw_function cannot draw these relations, so it goes below the implicit tool
+        for query in ("plot x^2 + y^2 = 4 and find its perimeter", "graph 2x + 3y = 6 and find the intercepts"):
+            top = _top_n(self.service, query)
+            assert top.index("draw_implicit_curve") < top.index("draw_function"), query
+        top = _top_n(self.service, "shade x + y <= 4, x >= 0, y >= 0 and find the corner points")
+        assert "shade_inequality" in top[:2]
+
+    def test_explicit_functions_after_short_words_stay_functions(self) -> None:
+        for query, tool in (
+            ("plot the curve given by y = x^2", "draw_function"),
+            ("graph the line given by y = 2x + 1", "draw_function"),
+            ("plot for me y = sin(x)", "draw_function"),
+            ("shade the region bounded by y = x^2 and y = 4", "create_region_colored_area"),
+            ("fill region R1 inside circle c1 with red", "create_region_colored_area"),
+        ):
+            assert _top_n(self.service, query)[0] == tool, query
 
     def test_editing_implicit_curves_and_shaded_regions(self) -> None:
         for query, tool in (

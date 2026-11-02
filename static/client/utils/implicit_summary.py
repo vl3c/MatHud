@@ -36,9 +36,34 @@ _FRACTIONAL_POWER_NOTE = (
 )
 
 
+# A bracket that is never negative: abs(...), or sums of even powers and positive numbers
+# ((x^2 + y^2)^(1/2))
+_EVEN_POWER_SUM = re.compile(r"\s*(?:\d*\.?\d+\s*\*?\s*)?(?:[xy]\s*(?:\^|\*\*)\s*\d*[02468]|\d*\.?\d+)\s*")
+
+
 def fractional_power_note(text: str) -> Optional[str]:
-    """The note on fractional powers when the text has one, else None."""
-    return _FRACTIONAL_POWER_NOTE if _FRACTIONAL_POWER.search(text) else None
+    """The note on fractional powers when the text has one on a base that can be negative,
+    else None."""
+    for match in _FRACTIONAL_POWER.finditer(text):
+        if not (text[match.start()] == ")" and _never_negative_bracket(text, match.start())):
+            return _FRACTIONAL_POWER_NOTE
+    return None
+
+
+def _never_negative_bracket(text: str, close: int) -> bool:
+    """Whether the bracket closing at ``close`` is abs(...) or a sum of even powers."""
+    depth = 0
+    for index in range(close, -1, -1):
+        if text[index] == ")":
+            depth += 1
+        elif text[index] == "(":
+            depth -= 1
+            if depth == 0:
+                if text[:index].rstrip().endswith("abs"):
+                    return True
+                terms = text[index + 1 : close].split("+")
+                return all(_EVEN_POWER_SUM.fullmatch(term) for term in terms)
+    return False
 
 
 def _add_note(summary: Dict[str, Any], note: Optional[str]) -> None:
