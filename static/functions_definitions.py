@@ -990,7 +990,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "properties": {
                     "function_string": {
                         "type": "string",
-                        "description": "The mathematical expression represented as a string, e.g., '2*x + 3'.",
+                        "description": "The mathematical expression represented as a string, e.g., '2*x + 3'. A fractional power such as x^(1/3) is not real for x < 0; write cbrt(x) or nthroot(x, 3) for the real cube root (nthroot(x, 3)^2 for x^(2/3)).",
                     },
                     "name": {
                         "type": ["string", "null"],
@@ -1564,7 +1564,10 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     },
                     "p2_name": {"type": ["string", "null"], "description": "Name of the second point"},
                     "p3_name": {"type": ["string", "null"], "description": "Name of the third point"},
-                    "name": {"type": ["string", "null"], "description": "Optional name for the created circumcircle, such as 'c1': letters, digits, underscores and primes, starting with a letter or an underscore. A name already in use gets a '_<n>' suffix"},
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional name for the created circumcircle, such as 'c1': letters, digits, underscores and primes, starting with a letter or an underscore. A name already in use gets a '_<n>' suffix",
+                    },
                     "color": {"type": ["string", "null"], "description": "Optional color for the circumcircle"},
                 },
                 "required": ["triangle_name", "p1_name", "p2_name", "p3_name", "name", "color"],
@@ -1582,7 +1585,10 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "type": "object",
                 "properties": {
                     "triangle_name": {"type": "string", "description": "Name of an existing triangle"},
-                    "name": {"type": ["string", "null"], "description": "Optional name for the created incircle, such as 'c1': letters, digits, underscores and primes, starting with a letter or an underscore. A name already in use gets a '_<n>' suffix"},
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional name for the created incircle, such as 'c1': letters, digits, underscores and primes, starting with a letter or an underscore. A name already in use gets a '_<n>' suffix",
+                    },
                     "color": {"type": ["string", "null"], "description": "Optional color for the incircle"},
                 },
                 "required": ["triangle_name", "name", "color"],
