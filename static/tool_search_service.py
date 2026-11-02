@@ -103,8 +103,14 @@ _CURVE_PART_LENGTH_RE = re.compile(
 # "Plot the cardioid r = 1 + cos(θ) and compute its perimeter": a curve's length by pronoun,
 # when the query names a curve
 _ITS_LENGTH_RE = re.compile(r"\b(?:its|their)\s+(?:arc\s+)?(?:length|perimeter|circumference)s?\b")
+# ... unless "its" may be a polygon or segment's, or the length is optimised ("a rectangle inscribed
+# under y = 4 - x^2; maximize its perimeter")
+_ITS_OTHER_SHAPE_RE = re.compile(
+    r"\b(?:rectangles?|triangles?|squares?|polygons?|segments?|lines?|sides?|chords?|ladders?|fences?)\b"
+    r"|\b(?:maximi[sz]e|minimi[sz]e|maximum|minimum|largest|smallest|greatest|least|optimi[sz]e)\b"
+)
 _NAMES_CURVE_RE = re.compile(
-    rf"\b{_CURVE_NOUNS}|\b[yr]\s*=|\b[a-z]\s*\(\s*[a-z]\s*\)\s*=|\bx\s*\(\s*t\s*\)|\b(?:parametric|polar)\b"
+    rf"\b{_CURVE_NOUNS}|\by\s*=|\br\s*=[^,;.]*(?:θ|theta)|\b[a-z]\s*\(\s*[a-z]\s*\)\s*=|\bx\s*\(\s*t\s*\)|\b(?:parametric|polar)\b"
 )
 # A graph of vertices and edges named or placed: "graph G", "in G1", "in the graph", "A-B-C-A"
 _NAMED_GRAPH_RE = re.compile(
@@ -1220,7 +1226,11 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             return False
         if _CURVE_LENGTH_RE.search(raw_lower) or _CURVE_PART_LENGTH_RE.search(raw_lower):
             return True
-        if _ITS_LENGTH_RE.search(raw_lower) and _NAMES_CURVE_RE.search(raw_lower):
+        if (
+            _ITS_LENGTH_RE.search(raw_lower)
+            and _NAMES_CURVE_RE.search(raw_lower)
+            and not _ITS_OTHER_SHAPE_RE.search(raw_lower)
+        ):
             return True
         return bool(
             _DISTANCE_TRAVELLED_RE.search(raw_lower)

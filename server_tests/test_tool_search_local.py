@@ -391,6 +391,16 @@ class TestCreativePrompts:
         ):
             assert _top_n(self.service, query)[0] != "arc_length", query
 
+    def test_its_length_of_a_polygon_near_a_curve_is_not_an_arc_length(self) -> None:
+        """"its perimeter" is a rectangle's or a segment's when the query has one, or optimises it."""
+        for query in (
+            "a rectangle is inscribed under the curve y = 4 - x^2; maximize its perimeter",
+            "a segment joins the origin to a point on the curve y = 1/x; minimize its length",
+            "a triangle has vertices on the curve y = x^2; compute its perimeter",
+        ):
+            assert _top_n(self.service, query)[0] != "arc_length", query
+        assert _top_n(self.service, "plot the cardioid r = 1 + cos(θ) and compute its perimeter")[0] == "arc_length"
+
     def test_draw_and_measure_keeps_the_draw_tool(self) -> None:
         top = _top_n(self.service, "draw y = x^2 and find its arc length from 0 to 1")
         assert top[:2] == ["arc_length", "draw_function"]
