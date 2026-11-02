@@ -203,6 +203,22 @@ class TestParametricAndPolarLengths(ArcLengthCase):
         self.assertEqual(doubled["traced_times"], 2)
         self.assertEqual(traced_times(lambda t: (math.cos(t), math.sin(t)), 0, 6 * math.pi), 3)
 
+    def test_many_traces_are_counted(self) -> None:
+        """A count past a handful is found factor by factor (12 = 2 * 2 * 3), not as a divisor."""
+        circle = lambda t: (math.cos(t), math.sin(t))  # noqa: E731
+        for times in (7, 8, 9, 10, 12, 14, 30, 100):
+            self.assertEqual(traced_times(circle, 0, 2 * math.pi * times), times)
+        ten = arc_length_tool(x_expression="cos(t)", y_expression="sin(t)", lower_bound=0, upper_bound="20*pi")
+        self.assertEqual(ten["traced_times"], 10)
+        self.assertAlmostEqual(ten["length_of_one_trace"], 2 * math.pi, places=8)
+        seven = arc_length_tool(x_expression="cos(t)", y_expression="sin(t)", lower_bound=0, upper_bound="14*pi")
+        self.assertEqual(seven["traced_times"], 7)
+
+    def test_a_short_stretch_is_not_a_tiny_closed_curve(self) -> None:
+        """Over a tiny range the curve one period on is close by because it barely moves."""
+        self.assertEqual(traced_times(lambda t: (t, 0.0), 0, 1e-6), 1)
+        self.assertNotIn("traced_times", arc_length_tool(x_expression="t", y_expression="t^2", upper_bound="1e-7"))
+
     def test_constant_curve_has_zero_length(self) -> None:
         self.assertEqual(
             arc_length_tool(x_expression="1", y_expression="2", lower_bound=0, upper_bound=1)["length"], 0.0

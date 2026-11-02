@@ -96,11 +96,15 @@ ZOOM_HALVINGS = 48
 MIN_ZOOM_HALVINGS = 20
 BREAK_FRACTION = 0.25
 
-# Retracing: a range that is k whole periods (k up to MAX_TRACES) traces the curve k times;
-# the curve is compared with itself one period on at RETRACE_SAMPLES parameters
-MAX_TRACES = 6
+# Retracing: a range that is k whole periods traces the curve k times. k is found factor by
+# factor (each factor up to MAX_TRACE_FACTOR, k up to MAX_TRACES); the curve is compared with
+# itself one period on at RETRACE_SAMPLES parameters
+MAX_TRACES = 10000
+MAX_TRACE_FACTOR = 60
 RETRACE_SAMPLES = 12
 _RETRACE_AGREEMENT = 1e-9
+# ... and only where it moves, within the period, by more than this (relative)
+_RETRACE_MOVE = 1e-6
 # Pieces between breakpoints must meet: their ends may differ by at most this (relative)
 _JOIN_AGREEMENT = 1e-6
 
@@ -711,35 +715,72 @@ def arc_length(
 
 
 def traced_times(point: PointFn, lower: float, upper: float) -> int:
-    """How many times the curve is traced over [lower, upper]: the largest k <= MAX_TRACES for
-    which the curve one k-th of the range on is the same point (r = cos(θ) on [0, 2π] is
-    traced twice); 1 when it does not repeat.
+    """How many times the curve is traced over [lower, upper]: the largest k for which the curve
+    one k-th of the range on is the same point (r = cos(θ) on [0, 2π] is traced twice, a circle
+    on [0, 20π] ten times); 1 when it does not repeat.
+
+    k grows factor by factor: once the range is k periods, a factor m is taken when the range is
+    also k*m periods, so 12 is found as 2, then 2, then 3. A period counts only where the curve
+    moves within it, so a short stretch of a curve does not pass for a tiny closed one.
     """
     lower, upper = min(lower, upper), max(lower, upper)
     width = upper - lower
-    for k in range(MAX_TRACES, 1, -1):
-        period = width / k
-        if _repeats(point, lower, period):
-            return k
-    return 1
+    times = 1
+    while True:
+        factor = _next_factor(point, lower, width, times)
+        if factor is None:
+            return times
+        times *= factor
+
+
+def _next_factor(point: PointFn, lower: float, width: float, times: int) -> Optional[int]:
+    for factor in range(2, MAX_TRACE_FACTOR + 1):
+        if times * factor > MAX_TRACES:
+            return None
+        period = width / (times * factor)
+        if _repeats(point, lower, period) and _moves(point, lower, period):
+            return factor
+    return None
 
 
 def _repeats(point: PointFn, lower: float, period: float) -> bool:
     for i in range(RETRACE_SAMPLES):
-        s = lower + period * (i + 0.5 * _GOLDEN_FRACTION * (i % 3 + 1)) / RETRACE_SAMPLES
+        s = _retrace_sample(lower, period, i)
         try:
             here, there = point(s), point(s + period)
             if here is None or there is None:
                 return False
-            scale = max(1.0, abs(here[0]), abs(here[1]))
-            if (
-                abs(here[0] - there[0]) > _RETRACE_AGREEMENT * scale
-                or abs(here[1] - there[1]) > _RETRACE_AGREEMENT * scale
-            ):
+            if _apart(here, there) > _RETRACE_AGREEMENT * _size(here):
                 return False
         except Exception:
             return False
     return True
+
+
+def _moves(point: PointFn, lower: float, period: float) -> bool:
+    """Whether the curve gets well away from where it was within one period: true of a closed
+    curve's period, false when the period is too short for the curve to have moved."""
+    for i in range(RETRACE_SAMPLES):
+        s = _retrace_sample(lower, period, i)
+        try:
+            here, there = point(s), point(s + _GOLDEN_FRACTION * period)
+        except Exception:
+            continue
+        if here is not None and there is not None and _apart(here, there) > _RETRACE_MOVE * _size(here):
+            return True
+    return False
+
+
+def _retrace_sample(lower: float, period: float, i: int) -> float:
+    return lower + period * (i + 0.5 * _GOLDEN_FRACTION * (i % 3 + 1)) / RETRACE_SAMPLES
+
+
+def _apart(here: Point, there: Point) -> float:
+    return max(abs(here[0] - there[0]), abs(here[1] - there[1]))
+
+
+def _size(here: Point) -> float:
+    return max(1.0, abs(here[0]), abs(here[1]))
 
 
 _GOLDEN_FRACTION = (math.sqrt(5.0) - 1.0) / 2.0

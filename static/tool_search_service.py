@@ -88,7 +88,8 @@ _CURVE_NOUNS = (
 )
 _CURVE_LENGTH_RE = re.compile(
     r"\barc[\s-]*lengths?\b"
-    rf"|\b(?:length|perimeter|circumference)s?\s+of\s+(?:(?:the|a|an|this|that|its|one)\s+)?(?:[\w()-]+\s+)?{_CURVE_NOUNS}"
+    # (not a parabola's or ellipse's focal length, latus rectum length or axis length)
+    rf"|(?<!focal\s)(?<!rectum\s)(?<!axis\s)\b(?:length|perimeter|circumference)s?\s+of\s+(?:(?:the|a|an|this|that|its|one)\s+)?(?:[\w()-]+\s+)?{_CURVE_NOUNS}"
     rf"|\b{_CURVE_NOUNS}(?:'s)?\s+(?:arc\s+)?(?:length|perimeter|circumference)\b"
     rf"|\bhow\s+long\s+is\s+(?:the\s+|a\s+|this\s+)?(?:[\w()-]+\s+)?{_CURVE_NOUNS}"
     # "the length of y = x^2 from 0 to 1", "length of sin(x) on [0, pi]", "length of r = 2θ"
@@ -115,9 +116,19 @@ _LENGTH_WORDS = frozenset({"length", "lengths", "long", "perimeter", "circumfere
 _DISTANCE_TRAVELLED_RE = re.compile(
     r"\bdistances?\s+(?:travel+ed|covered|walked|moved)\b|\btotal\s+distance\b|\bhow\s+far\s+does\b.*\btravel"
 )
-# Motion along a line, from a velocity: the distance travelled is an integral of |v(t)|
-_VELOCITY_WORDS = frozenset({"velocity", "speed", "v"})
-_PLANE_MOTION_RE = re.compile(r"\(\s*[^,()]*\bt\b[^,]*,[^)]*\bt\b|\bx\s*\(\s*t\s*\)|\bx\s*=[^,;]*\bt\b|\bparametric|\bplane\b|\bcurve\b|\bpath\b")
+# Motion along a line, from a velocity or a position: the distance travelled is an integral
+# of |v(t)| ("v(t) = 10 - 2t, find the total distance from t = 0 to 8")
+_LINE_MOTION_WORDS = frozenset({"velocity", "speed", "position", "particle", "displacement"})
+_LINE_MOTION_RE = re.compile(r"\b[vsx]\s*\(\s*t\s*\)")
+# Motion in the plane: a pair (x(t), y(t)) that is not a call such as v(t), both x(t) and y(t)
+# (or x = ... t and y = ... t), along y = f(x) or r = f(θ), or a word for a curve
+_PLANE_MOTION_RE = re.compile(
+    r"(?<![\w)])\(\s*[^,;=]*(?<![a-z])t\b[^,;=]*,[^,;=]*(?<![a-z])t\b"
+    r"|\bx\s*\(\s*t\s*\)[^.;]*\by\s*\(\s*t\s*\)"
+    r"|\bx\s*=[^,;]*(?<![a-z])t\b[,;]?[^.;]*\by\s*=[^,;]*(?<![a-z])t\b"
+    r"|\balong\s+(?:the\s+(?:graph\s+of\s+)?)?[yr]\s*="
+    r"|\bparametric|\bplane\b|\bcurve\b|\bpath\b"
+)
 
 # "graph" means a graph of vertices and edges (generate_graph) rather than the plot of
 # a function when the query names that structure (_GRAPH_STRUCTURE_WORDS). Two weaker
@@ -1396,8 +1407,10 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         elif token_set & _LENGTH_WORDS:
             # Its name and description share these words with every other length
             scores["arc_length"] -= 6.0
-        elif _DISTANCE_TRAVELLED_RE.search(raw_lower) and token_set & _VELOCITY_WORDS:
-            # "the distance travelled with velocity v(t) = 3t^2 from 0 to 2": along a line
+        elif _DISTANCE_TRAVELLED_RE.search(raw_lower) and (
+            token_set & _LINE_MOTION_WORDS or _LINE_MOTION_RE.search(raw_lower)
+        ):
+            # "the distance travelled with velocity v(t) = 3t^2 from 0 to 2", or from a position x(t): along a line
             scores["integrate"] += 6.0
             scores["numeric_integrate"] += 4.0
         if not curve_length and "arc_length" in scores:

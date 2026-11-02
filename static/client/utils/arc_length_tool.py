@@ -111,7 +111,7 @@ def arc_length_tool(
     result: Dict[str, Any] = {
         "length": shown_length,
         # The estimate covers the rounding of the length shown too
-        "error_estimate": float(f"{error + abs(shown_length - length):.2g}"),
+        "error_estimate": _rounded_up(error + abs(shown_length - length)),
         "curve_type": curve.kind,
         "curve": curve.description,
         "variable": variable,
@@ -385,6 +385,15 @@ def _outside_own_range(curve: NamedCurve, lower: float, upper: float) -> Optiona
         shown = f"[{'-inf' if own_lower is None else f'{own_lower:.6g}'}, {'inf' if own_upper is None else f'{own_upper:.6g}'}]"
         return f"The range measured goes beyond the curve's plotted range {shown}; its formula was measured there too."
     return None
+
+
+def _rounded_up(error: float) -> float:
+    """error to two significant digits, rounded up so the shown estimate never understates it."""
+    if error <= 0.0 or not math.isfinite(error):
+        return error
+    unit = 10.0 ** (math.floor(math.log10(error)) - 1)
+    shown = float(f"{math.ceil(error / unit * (1.0 - 1e-12)) * unit:.2g}")
+    return shown if shown >= error else float(f"{shown + unit:.2g}")
 
 
 def _rounded(value: float, error: float) -> float:

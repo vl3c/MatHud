@@ -353,6 +353,25 @@ class TestCreativePrompts:
         """Along a line, the distance travelled is the integral of |v(t)|."""
         top = _top_n(self.service, "total distance traveled with velocity v(t) = t^2 - 4 on [0, 3]")
         assert top[0] == "integrate"
+        for query in (
+            "velocity v(t) = 3t^2, find the distance travelled from t=0 to t=2",
+            "given v(t)=t^2-1, what is the total distance traveled from t=0 to t=3",
+            "find the displacement and total distance for v(t) = cos(t), 0 <= t <= pi",
+            "the particle's position is x(t) = t^3 - 6t^2, find the total distance traveled from t=0 to t=5",
+            "v(t) = 10 - 2t, total distance from t = 0 to t = 8",
+        ):
+            top = _top_n(self.service, query)
+            assert "integrate" in top and "numeric_integrate" in top, (query, top)
+            assert "arc_length" not in top, (query, top)
+
+    def test_distance_travelled_in_the_plane_is_an_arc_length(self) -> None:
+        for query in (
+            "x = 3t, y = t^2, find the total distance travelled from t=0 to t=2",
+            "a particle moves with x(t) = cos(t), y(t) = sin(t); find the distance travelled from t=0 to 2pi",
+            "distance traveled by the particle with position (cos(t), sin(2t)) for t in [0, pi]",
+            "a particle moves along y = x^2; find the distance travelled from x=0 to x=1",
+        ):
+            assert _top_n(self.service, query)[0] == "arc_length", query
 
     def test_draw_and_measure_keeps_the_draw_tool(self) -> None:
         top = _top_n(self.service, "draw y = x^2 and find its arc length from 0 to 1")
