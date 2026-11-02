@@ -38,7 +38,7 @@ The app may be rewritten in another language or stack along the way. What has to
 3. Plot functions, parametric curves, polar curves r(θ), sequences u(n) (explicit or recursive) and cobweb diagrams of iterations x → g(x), measure arc length, compare intersections, shade bounded regions, and translate/rotate objects to explore relationships visually.
 4. Make parameters with sliders (`y = a*sin(b*x)`, a point at `(a, a^2)`, a circle of radius `r`) and set or animate them; everything that reads them follows.
 5. Plot statistics visualizations (probability distributions, bar charts, histograms, box plots and scatter plots) and compute probabilities, tails and quantiles of normal, uniform, exponential, t, χ², F, binomial, Poisson and geometric distributions; run hypothesis tests (z, t, two-sample, paired, proportion and χ² tests) and confidence intervals.
-6. Fit regression models to data (linear, polynomial, exponential, logarithmic, power, logistic, sinusoidal) and visualize fitted curves with R² statistics.
+6. Fit regression models to data (linear, polynomial, exponential, logarithmic, power, logistic, sinusoidal, or your own model with named constants such as `a*exp(-b*x)*cos(c*x) + d`, whose fitted constants become sliders) and visualize fitted curves with R², RMSE and residuals.
 7. Compute descriptive statistics (mean, median, mode, standard deviation, variance, min, max, quartiles, IQR) for any dataset.
 8. Create and analyze graph theory graphs (graphs, trees, DAGs).
 9. Save, list, load, and delete named workspaces so projects can be resumed or shared later.
