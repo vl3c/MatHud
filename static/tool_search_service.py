@@ -320,8 +320,10 @@ _PICTURE_WORDS = frozenset(
 # Math in a query is read around each relation sign: the operand runs to the nearest comma,
 # semicolon, other sign or English word that cannot be part of an expression.
 _RELATION_SIGN_RE = re.compile(r"<=|>=|=<|=>|≤|≥|<(?!-)|(?<!-)>|(?<![<>=!])=(?![=<>])")  # not arrows -> <-
+# "a" is an article before a word ("a circle"), otherwise a parameter ("y > a*x", "x = a")
 _OPERAND_STOP_RE = re.compile(
-    r"[,;:?!]|<=|>=|=<|=>|≤|≥|<|>|=|\b(?:and|or|for|when|if|where|with|from|to|then|than|is|are|of|on|in|the|a|an"
+    r"[,;:?!]|<=|>=|=<|=>|≤|≥|<|>|=|\b(?:and|or|for|when|if|where|with|from|to|then|than|is|are|of|on|in|the|an"
+    r"|a(?=\s+[a-z]{2})(?!\s+(?:with|and|or|for|when|if|where|from|to|then|is|in|on|of|as|between)\b)"
     r"|plot|graph|draw|shade|sketch|show|region|inequality|inequalities|equation|curve|call|name|named|it|as"
     r"|over|between|above|below|under|inside|outside|color|colour|red|blue|green)\b|\.(?:\s|$)"
 )
@@ -395,6 +397,15 @@ def _trim_words(operand: str, leading: bool) -> str:
             break
         parts.pop(0 if leading else -1)
     return " ".join(parts)
+
+
+def _explicit_function(raw_lower: str) -> bool:
+    """Whether the query writes y = f(x) or f(x) = ... with x on the right and no y."""
+    return any(
+        sign == "=" and re.fullmatch(r"y|[a-z]\(\s*x\s*\)", left) and _X_VARIABLE_RE.search(right)
+        and not _Y_VARIABLE_RE.search(right)
+        for left, sign, right in _relation_operands(raw_lower)
+    )
 
 
 def implicit_measuring(raw_lower: str) -> bool:
@@ -1795,6 +1806,12 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             if token_set & _GRAPH_VERBS and not token_set & (_IMPLICIT_EXCLUDED_WORDS | _IMPLICIT_MEASURE_WORDS):
                 scores["draw_implicit_curve"] += 8.0
         intent = implicit_intent(raw_lower)
+        if intent is None and _explicit_function(raw_lower):
+            # "draw y = a*sin(b*x)": the implicit tool's words must not put it above the
+            # function tool
+            drawn_score = scores.get("draw_implicit_curve", 0.0)
+            if drawn_score >= max(scores.values(), default=0.0) and drawn_score > 0:
+                scores["draw_function"] = max(scores["draw_function"], drawn_score + 0.5)
         if intent is not None and deleting:
             scores["delete_implicit_curve" if intent == "curve" else "delete_colored_area"] += 12.0
             return
@@ -1819,6 +1836,9 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
                         scores[name] = scores[drawn] - 0.005
                 return
             scores[drawn] = max(scores[drawn], leading) + 6.0
+            if intent == "curve" and _explicit_function(raw_lower):
+                # "draw y = x^2 and x^2 + y^2 = 4": the function tool too
+                scores["draw_function"] = max(scores["draw_function"], scores[drawn] - 0.01)
             return
         region_words = token_set & {"region", "shaded", "shading", "feasible"}
         if "area" in token_set and re.search(r"\b(?:colou?red|shaded|filled)\s+areas?\b|\bareas?\s+[a-z]\w*\d", raw_lower):

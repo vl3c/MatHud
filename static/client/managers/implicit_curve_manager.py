@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
+import compiled_expression
 from constants import default_area_fill_color, default_area_opacity, default_color
 from drawables.implicit_curve import ImplicitCurve
 from drawables.inequality_colored_area import InequalityColoredArea
@@ -63,11 +64,13 @@ class ImplicitCurveManager:
         curve = self.create_implicit_curve(equation, name, color)
         bounds, scale = self._view()
         drawn = self._drawn_plot(curve, scale)
-        return {
+        result: Dict[str, Any] = {
             "name": curve.name,
             "equation": curve.equation,
             "in_view": curve_in_view(curve.equation, curve.g, curve.factors, bounds, scale, drawn),
         }
+        _add_parameters(result, curve)
+        return result
 
     def create_implicit_curve(
         self, equation: str, name: Optional[str] = None, color: Optional[str] = None
@@ -143,11 +146,13 @@ class ImplicitCurveManager:
         area = self.create_inequality_area(inequality, name, color, opacity)
         bounds, scale = self._view()
         drawn = self._drawn_plot(area, scale)
-        return {
+        result: Dict[str, Any] = {
             "name": area.name,
             "inequality": area.inequality,
             "in_view": region_in_view(area.inequality, area.contains, bounds, drawn=drawn),
         }
+        _add_parameters(result, area)
+        return result
 
     def create_inequality_area(
         self,
@@ -226,3 +231,16 @@ class ImplicitCurveManager:
                 self.canvas.draw()
             except Exception:
                 pass
+
+
+def _add_parameters(result: Dict[str, Any], drawable: Any) -> None:
+    """The parameters the relation reads, with their values: the view report holds for them."""
+    names = drawable.parameter_names()
+    if not names:
+        return
+    result["parameters"] = {name: compiled_expression.parameter_value(name) for name in names}
+    in_view = result.get("in_view")
+    if isinstance(in_view, dict):
+        values = ", ".join(f"{name} = {compiled_expression.parameter_value(name):g}" for name in names)
+        note = f"What the view shows is for {values}; the drawing follows the sliders."
+        in_view["note"] = f"{in_view['note']} {note}" if in_view.get("note") else note

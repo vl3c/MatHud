@@ -64,6 +64,41 @@
           ]
         }
       ]
+    },
+    {
+      "id": "PS-03",
+      "title": "A slider sizes an implicit circle and a shaded disc",
+      "tags": ["parameters", "implicit", "areas"],
+      "smoke": false,
+      "targets": "parameters in draw_implicit_curve and shade_inequality: both read the slider's value",
+      "steps": [
+        {
+          "user": "Make a slider r from 1 to 5 starting at 2 and draw the circle x^2 + y^2 = r^2 as an implicit curve named circ.",
+          "reference": [
+            {"tool": "set_parameter", "args": {"name": "r", "value": 2, "min": 1, "max": 5, "step": null}},
+            {"tool": "draw_implicit_curve", "args": {"equation": "x^2 + y^2 = r^2", "name": "circ", "color": null}}
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "exists", "select": {"type": "ImplicitCurve", "name": "circ"}},
+            {"check": "tool_result", "tool": "draw_implicit_curve", "path": "parameters.r", "eq": 2}
+          ]
+        },
+        {
+          "user": "Set r to 3 and shade the inside, x^2 + y^2 < r^2.",
+          "reference": [
+            {"tool": "set_parameter", "args": {"name": "r", "value": 3, "min": null, "max": null, "step": null}},
+            {"tool": "shade_inequality", "args": {"inequality": "x^2 + y^2 < r^2", "name": null, "color": null, "opacity": null}}
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "exists", "select": {"type": "Parameter", "name": "r", "where": {"args.value": 3}}},
+            {"check": "count", "select": {"type": "InequalityColoredArea"}, "eq": 1},
+            {"check": "tool_result", "tool": "shade_inequality", "path": "parameters.r", "eq": 3},
+            {"check": "tool_result", "tool": "shade_inequality", "path": "in_view.shaded_share", "gt": 0}
+          ]
+        }
+      ]
     }
   ]
 }
