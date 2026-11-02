@@ -18,6 +18,7 @@ import math
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 from constants import default_color
+from managers.implicit_refusals import implicit_refusal
 from utils.math_utils import MathUtils
 
 if TYPE_CHECKING:
@@ -446,7 +447,10 @@ class TangentManager:
         # Get the curve
         curve = self._get_curve(curve_name)
         if curve is None:
-            raise ValueError(f"Curve '{curve_name}' not found")
+            raise ValueError(
+                implicit_refusal(self.drawables, curve_name, "the tangent and normal tools")
+                or f"Curve '{curve_name}' not found"
+            )
 
         # Set defaults
         length = self._resolve_length(length)
@@ -504,7 +508,10 @@ class TangentManager:
         # Get the curve
         curve = self._get_curve(curve_name)
         if curve is None:
-            raise ValueError(f"Curve '{curve_name}' not found")
+            raise ValueError(
+                implicit_refusal(self.drawables, curve_name, "the tangent and normal tools")
+                or f"Curve '{curve_name}' not found"
+            )
 
         # Set defaults
         length = self._resolve_length(length)

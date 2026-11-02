@@ -55,6 +55,7 @@ from managers.function_manager import FunctionManager
 from managers.piecewise_function_manager import PiecewiseFunctionManager
 from managers.parametric_function_manager import ParametricFunctionManager
 from managers.polar_function_manager import PolarFunctionManager
+from managers.implicit_curve_manager import ImplicitCurveManager
 from managers.circle_manager import CircleManager
 from managers.ellipse_manager import EllipseManager
 from managers.polygon_manager import PolygonManager
@@ -164,6 +165,10 @@ class DrawableManager:
 
         self.polar_function_manager: PolarFunctionManager = PolarFunctionManager(
             canvas, self.drawables, self.name_generator, self.dependency_manager
+        )
+
+        self.implicit_curve_manager: ImplicitCurveManager = ImplicitCurveManager(
+            canvas, self.drawables, self.dependency_manager
         )
 
         self.circle_manager: CircleManager = CircleManager(

@@ -49,6 +49,8 @@ _EXCLUDE_TRANSFORM: Tuple[str, ...] = (
     "Function",
     "ParametricFunction",
     "PolarFunction",
+    "ImplicitCurve",
+    "InequalityColoredArea",
     "PiecewiseFunction",
     "Graph",
     "UndirectedGraph",

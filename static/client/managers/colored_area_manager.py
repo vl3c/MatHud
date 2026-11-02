@@ -397,20 +397,8 @@ class ColoredAreaManager:
         Returns:
             bool: True if the colored area was found and deleted, False otherwise
         """
-        # Find the colored area in all categories
-        colored_area: Optional["Drawable"] = None
-        for category_property in [
-            self.drawables.FunctionsBoundedColoredAreas,
-            self.drawables.SegmentsBoundedColoredAreas,
-            self.drawables.FunctionSegmentBoundedColoredAreas,
-            self.drawables.ClosedShapeColoredAreas,
-        ]:
-            for area in category_property:
-                if area.name == name:
-                    colored_area = area
-                    break
-            if colored_area:
-                break
+        # Every colored area class, including regions shaded with shade_inequality
+        colored_area = self._get_colored_area_by_name(name)
 
         if not colored_area:
             return False
@@ -746,17 +734,10 @@ class ColoredAreaManager:
         return areas
 
     def _get_colored_area_by_name(self, name: str) -> Optional["Drawable"]:
-        collections: List[List["Drawable"]] = [
-            self.drawables.FunctionsBoundedColoredAreas,
-            self.drawables.SegmentsBoundedColoredAreas,
-            self.drawables.FunctionSegmentBoundedColoredAreas,
-            self.drawables.ColoredAreas,
-            self.drawables.ClosedShapeColoredAreas,
-        ]
-        for collection in collections:
-            for area in collection:
-                if area.name == name:
-                    return area
+        """The colored area of any class (every bucket whose name has "ColoredArea") with this name."""
+        for area in self.drawables.get_colored_areas():
+            if getattr(area, "name", None) == name:
+                return area
         return None
 
     def update_colored_area(
