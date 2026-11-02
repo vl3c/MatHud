@@ -659,6 +659,12 @@ def _render_polar(scene: _Scene, item: JsonDict) -> str:
     return line + _color_suffix(args) + _extras_suffix(args, handled)
 
 
+def _render_implicit(scene: _Scene, item: JsonDict) -> str:
+    args = _args(item)
+    line = f"{item.get('name', '?')} = ImplicitCurve({args.get('equation')})"
+    return line + _color_suffix(args) + _extras_suffix(args, {"equation", "color"})
+
+
 def _area_style(args: Mapping[str, Any]) -> str:
     style = []
     color = args.get("color")
@@ -719,6 +725,12 @@ def _render_closed_shape_area(scene: _Scene, item: JsonDict) -> str:
         "opacity",
     }
     return line + _area_style(args) + _extras_suffix(args, handled)
+
+
+def _render_inequality_area(scene: _Scene, item: JsonDict) -> str:
+    args = _args(item)
+    line = f"{item.get('name', '?')} = InequalityRegion({args.get('inequality')})"
+    return line + _area_style(args) + _extras_suffix(args, {"inequality", "color", "opacity"})
 
 
 _GRAPH_BUCKETS: Tuple[str, ...] = ("UndirectedGraphs", "DirectedGraphs", "Trees", "Graphs")
@@ -1160,10 +1172,12 @@ _BUCKET_SPECS: Tuple[_BucketSpec, ...] = (
     _BucketSpec("PiecewiseFunctions", "functions", _render_piecewise),
     _BucketSpec("ParametricFunctions", "functions", _render_parametric),
     _BucketSpec("PolarFunctions", "functions", _render_polar),
+    _BucketSpec("ImplicitCurves", "functions", _render_implicit),
     _BucketSpec("FunctionsBoundedColoredAreas", "shaded areas", _render_functions_area),
     _BucketSpec("FunctionSegmentBoundedColoredAreas", "shaded areas", _render_function_segment_area),
     _BucketSpec("SegmentsBoundedColoredAreas", "shaded areas", _render_segments_area),
     _BucketSpec("ClosedShapeColoredAreas", "shaded areas", _render_closed_shape_area),
+    _BucketSpec("InequalityColoredAreas", "shaded areas", _render_inequality_area),
     _BucketSpec("UndirectedGraphs", "graphs", _graph_renderer("UndirectedGraphs")),
     _BucketSpec("DirectedGraphs", "graphs", _graph_renderer("DirectedGraphs")),
     _BucketSpec("Trees", "graphs", _graph_renderer("Trees")),

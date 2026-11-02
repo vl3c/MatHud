@@ -386,6 +386,72 @@ def build_curve_namespace() -> Dict[str, Any]:
     return _namespace(tuple(row for row in FUNCTIONS if row.curve_safe))
 
 
+_NAN = float("nan")
+
+
+def _real_sqrt(value: float) -> float:
+    return math.sqrt(value) if value >= 0 else _NAN
+
+
+def _real_log(value: float, base: Optional[float] = None) -> float:
+    if not value > 0:
+        return _NAN
+    if base is None:
+        return math.log(value)
+    if not (base > 0 and base != 1):
+        return _NAN
+    return math.log(value, base)
+
+
+def _real_log10(value: float) -> float:
+    return math.log10(value) if value > 0 else _NAN
+
+
+def _real_log2(value: float) -> float:
+    return math.log2(value) if value > 0 else _NAN
+
+
+def _real_asin(value: float) -> float:
+    return math.asin(value) if -1 <= value <= 1 else _NAN
+
+
+def _real_acos(value: float) -> float:
+    return math.acos(value) if -1 <= value <= 1 else _NAN
+
+
+def _real_acosh(value: float) -> float:
+    return math.acosh(value) if value >= 1 else _NAN
+
+
+def _real_atanh(value: float) -> float:
+    return math.atanh(value) if -1 < value < 1 else _NAN
+
+
+# Real versions of the curve functions that are undefined on part of the real line: NaN
+# outside their domain instead of an exception (slow in Brython) or a complex value
+_REAL_OVERRIDES: Dict[str, Callable[..., float]] = {
+    "sqrt": _real_sqrt,
+    "log": _real_log,
+    "log10": _real_log10,
+    "log2": _real_log2,
+    "asin": _real_asin,
+    "acos": _real_acos,
+    "acosh": _real_acosh,
+    "atanh": _real_atanh,
+}
+
+
+def build_real_namespace() -> Dict[str, Any]:
+    """The curve namespace with real sqrt, log, asin, acos, acosh and atanh that give NaN
+    outside their domain, for evaluating on a grid (implicit curves and regions), where
+    whole areas are undefined. Callers cache it."""
+    namespace = build_curve_namespace()
+    for name, function in _REAL_OVERRIDES.items():
+        if name in namespace:
+            namespace[name] = function
+    return namespace
+
+
 # ----- Rewrites by whole tokens -----
 # Identifiers and number literals (with an optional exponent), matched whole from left to
 # right, so a name inside a longer identifier (kiln, x2ln, artifact) is never a match while

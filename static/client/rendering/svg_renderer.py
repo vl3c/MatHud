@@ -370,6 +370,11 @@ class SvgRenderer(RendererProtocol):
             offset = getattr(coordinate_mapper, "offset", None)
             if offset is not None:
                 snapshot["_view_offset"] = (round(float(offset.x), 2), round(float(offset.y), 2))
+        if getattr(drawable, "reuses_plot_while_zooming", False) and getattr(
+            coordinate_mapper, "zoom_in_progress", False
+        ):
+            # Its mid-zoom plan maps an old plot; the settle draw must not hit it in the cache
+            snapshot["_zoom_preview"] = True
         return self._freeze_signature(snapshot)
 
     def _freeze_signature(self, value: Any) -> Tuple[Any, ...]:

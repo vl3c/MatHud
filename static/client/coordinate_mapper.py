@@ -63,6 +63,9 @@ class CoordinateMapper:
         self.zoom_point: Position = Position(0, 0)
         self.zoom_direction: int = 0
         self.zoom_step: float = 0.1
+        # True while a wheel or pinch zoom is under way (set by the event handler): drawables
+        # that are slow to plot (implicit curves) reuse their last plot until it settles
+        self.zoom_in_progress: bool = False
 
     @classmethod
     def from_canvas(cls: type["CoordinateMapper"], canvas: "Canvas") -> "CoordinateMapper":

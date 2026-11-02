@@ -345,6 +345,22 @@ SEGMENTS_BOUNDED_COLORED_AREA_EDIT_POLICY = DrawableEditPolicy(
     },
 )
 
+INEQUALITY_COLORED_AREA_EDIT_POLICY = DrawableEditPolicy(
+    drawable_type="InequalityColoredArea",
+    rules={
+        "color": EditRule(
+            field="color",
+            category="cosmetic",
+            description="Adjust the fill (and boundary) color of the inequality region.",
+        ),
+        "opacity": EditRule(
+            field="opacity",
+            category="style",
+            description="Update the fill opacity between 0 and 1.",
+        ),
+    },
+)
+
 PIECEWISE_FUNCTION_EDIT_POLICY = DrawableEditPolicy(
     drawable_type="PiecewiseFunction",
     rules={
@@ -374,6 +390,7 @@ DRAWABLE_EDIT_POLICIES: Dict[str, DrawableEditPolicy] = {
     FUNCTIONS_BOUNDED_COLORED_AREA_EDIT_POLICY.drawable_type: FUNCTIONS_BOUNDED_COLORED_AREA_EDIT_POLICY,
     FUNCTION_SEGMENT_BOUNDED_COLORED_AREA_EDIT_POLICY.drawable_type: FUNCTION_SEGMENT_BOUNDED_COLORED_AREA_EDIT_POLICY,
     SEGMENTS_BOUNDED_COLORED_AREA_EDIT_POLICY.drawable_type: SEGMENTS_BOUNDED_COLORED_AREA_EDIT_POLICY,
+    INEQUALITY_COLORED_AREA_EDIT_POLICY.drawable_type: INEQUALITY_COLORED_AREA_EDIT_POLICY,
     PIECEWISE_FUNCTION_EDIT_POLICY.drawable_type: PIECEWISE_FUNCTION_EDIT_POLICY,
 }
 

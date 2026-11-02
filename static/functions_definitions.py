@@ -1354,6 +1354,89 @@ FUNCTIONS: List[Dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "draw_implicit_curve",
+            "description": "Draws the curve of an equation in x and y (an implicit curve, as a graphing calculator draws conics and implicit relations): every point (x, y) where the left side equals the right side. Use it for circles (x^2 + y^2 = 25, (x - 1)^2 + (y + 2)^2 = 9), ellipses (x^2/9 + y^2/4 = 1), hyperbolas (x^2 - y^2 = 1, x*y = 4), parabolas opening sideways (x = y^2), vertical lines (x = 3), lines in standard form (2*x + 3*y = 6), cubics such as the folium x^3 + y^3 = 6*x*y and the elliptic curve y^2 = x^3 - x, and any relation that is not a function of x. For y = f(x) prefer draw_function. Write every function with parentheses and every product with *: sin(x), 2*x, x*y, (x + 1)*(y - 1); x^2 means x squared. A fractional power of a negative number is not real (x^(2/3) for x < 0): write cbrt(x) for the real cube root, as in the astroid cbrt(x)^2 + cbrt(y)^2 = 1. The curve is plotted over the visible view and follows pans and zooms; the result says which x and y range of it the view shows. An equation with no real points (x^2 + y^2 = -1) or a single point (x^2 + y^2 = 0) draws nothing. Implicit curves cannot be moved or used by find_intersections, arc_length or tangent lines; for the points where two curves meet use solve_system_of_equations with the equations. To shade where an inequality holds, use shade_inequality.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "equation": {
+                        "type": "string",
+                        "description": "One equation in x and y with a single '=': 'x^2 + y^2 = 25', 'x^2/9 + y^2/4 = 1', 'y^2 = x^3 - x', 'x = 3', 'sin(x) = cos(y)'. Only x and y may appear, with functions such as sin, cos, tan, exp, ln, log, sqrt, abs, cbrt. Write products with *: x*y, not xy.",
+                    },
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional name for the curve. Null generates one (c1, c2, ...).",
+                    },
+                    "color": {"type": ["string", "null"], "description": "Optional color for the curve."},
+                },
+                "required": ["equation", "name", "color"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_implicit_curve",
+            "description": "Removes the implicit curve (an equation in x and y drawn with draw_implicit_curve) with the given name from the canvas.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {"name": {"type": "string", "description": "The name of the implicit curve to delete."}},
+                "required": ["name"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_implicit_curve",
+            "description": "Changes the color of an implicit curve drawn with draw_implicit_curve. To change its equation, delete the curve and draw a new one.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Existing name of the implicit curve to edit."},
+                    "new_color": {"type": ["string", "null"], "description": "Optional new color for the curve."},
+                },
+                "required": ["name", "new_color"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "shade_inequality",
+            "description": "Shades the region of the plane where inequalities in x and y hold, like a graphing calculator's inequality graphing: y > 2*x + 1, x^2 + y^2 <= 9, a system such as a linear programming feasible region (x + y <= 10, x >= 0, y >= 0), or regions combined with or (y < -1 or y > 1). The boundary is drawn solid where it belongs to the region (<=, >=) and dashed where it does not (<, >). Combine inequalities with ',' or 'and' (all must hold) and 'or' (one must hold), with parentheses for groups: 'y > x^2 - 2 and (x < 0 or y < 1)'. A chain such as '-1 < x <= 2' or '1 < x + y < 4' has at most two signs, pointing the same way. Write every function with parentheses and every product with *: sin(x), 2*x, x*y; use cbrt(x) for real cube roots of negative x. Where a side is undefined (sqrt(x) for x < 0) the inequality does not hold. The region is plotted over the visible view and follows pans and zooms; the result gives the share of the view it covers. It is a colored area: delete it with delete_colored_area and change its color or opacity with update_colored_area. For a region bounded by named shapes or functions use create_colored_area or create_region_colored_area; to find the x values where a one-variable inequality holds use solve.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "inequality": {
+                        "type": "string",
+                        "description": "Inequalities in x and y with <, <=, >, >= (or ≤, ≥), joined by ',', 'and', 'or' and parentheses: 'y > 2*x + 1', 'x^2 + y^2 <= 9', 'x + y <= 10, x >= 0, y >= 0', 'y < -1 or y > 1'. No '=' alone and no '!='; for the curve of an equation use draw_implicit_curve.",
+                    },
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional name for the region. Null generates one (R1, R2, ...).",
+                    },
+                    "color": {"type": ["string", "null"], "description": "Optional fill color (the boundary uses it too)."},
+                    "opacity": {
+                        "type": ["number", "null"],
+                        "description": "Optional fill opacity between 0 and 1. Null means 0.3.",
+                    },
+                },
+                "required": ["inequality", "name", "color", "opacity"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "set_parameter",
             "description": "Creates a parameter (a named number with a slider) or changes its value, slider range or step. Parameter names can then be used in function expressions (y = a*x^2 + b, products written explicitly), piecewise pieces, parametric and polar curves, create_point / update_point coordinates and the create_circle radius given as text ('a', 'a^2'); those objects follow the parameter when it changes. Create the parameter before drawing with it. Null keeps the current value, range or step; a new parameter defaults to value 1, range -10 to 10, step 0.1. A value outside the min/max given in the same call is refused; a value outside the stored range widens it. Names: letters, digits and _, starting with a letter (a, b2, k_1, ω); not x, y, θ, theta, e, i, pi or a function name (t in a parametric curve is always the curve variable). Returns the value, range, step and the objects that use it.",
             "strict": True,
@@ -2431,7 +2514,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "delete_colored_area",
-            "description": "Deletes a colored area by its name",
+            "description": "Deletes a colored area by its name: a shaded area between functions or segments, a filled shape or region, or a region shaded with shade_inequality.",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -2445,7 +2528,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "update_colored_area",
-            "description": "Updates editable properties of an existing colored area (color, opacity, and for function-bounded areas, optional left/right bounds). Provide null for fields that should remain unchanged.",
+            "description": "Updates editable properties of an existing colored area, including a region shaded with shade_inequality (color, opacity, and for function-bounded areas, optional left/right bounds). Provide null for fields that should remain unchanged.",
             "strict": True,
             "parameters": {
                 "type": "object",

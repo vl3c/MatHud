@@ -41,6 +41,7 @@ COLORED_AREA_TYPES = frozenset(
         "SegmentsBoundedColoredArea",
         "FunctionSegmentBoundedColoredArea",
         "ClosedShapeColoredArea",
+        "InequalityColoredArea",
     }
 )
 GRAPH_TYPES = frozenset({"UndirectedGraph", "DirectedGraph", "Tree"})
