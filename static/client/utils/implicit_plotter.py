@@ -27,7 +27,7 @@ edge and is not stroked, as are poles and the border of ``rect``.
 
 Budget: at most ``max_evals`` evaluations and, with a ``clock``, ``deadline`` seconds.
 A curve whose sign-changing blocks would cost more than the budget is plotted on a
-coarser grid (up to 4 times coarser). When the budget runs out before every
+coarser grid (up to 8 times coarser). When the budget runs out before every
 sign-changing block is searched, the search stops and the result has ``complete`` False;
 running out among the blocks a zero may only be near does not count.
 
@@ -42,6 +42,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 Point = Tuple[float, float]
 
 NAN = float("nan")
+INF = float("inf")
 
 # Crossing kinds: a zero of g (stroked), a pole of g, the edge of g's domain, the border of rect
 ZERO = 0
@@ -55,6 +56,11 @@ DEFAULT_MAX_EVALS = 60000
 _DOMAIN_BISECTIONS = 6
 # Halvings that tell a pole from a zero next to a kink or a node
 _POLE_BISECTIONS = 6
+# A bracket end that moved and grew more than this past its edge end is near a pole (a
+# simple pole at least doubles it: each move halves the end's distance to the pole)
+_POLE_GROWTH = 1.5
+# Moves of the compass search for a small loop inside a maybe block
+_DESCENT_MOVES = 24
 # Cells per side above which the grid is refused (the caller picks a coarser cell)
 MAX_CELLS_PER_SIDE = 4000
 
@@ -74,7 +80,7 @@ class PlotResult:
         rings: With fill, the boundary rings of {g < 0} within rect, region on the left.
         complete: False when the budget stopped the search.
         evaluations: Calls of g (and of atom_of) made.
-        cell: The cell size used: the one asked for, or up to 4 times coarser when the
+        cell: The cell size used: the one asked for, or up to 8 times coarser when the
             curve was too dense for the budget at that size.
         asked_cell: The cell size asked for.
     """
@@ -177,7 +183,8 @@ def plot(
     # Every function's sure blocks first; the blocks where a zero may be share what is left
     grids: List[_Grid] = []
     for function in functions:
-        grid = _search_function(function, (x_min, y_min, x_max, y_max), cell, block, budget, fill, atom_of)
+        whole = g if len(functions) > 1 else None
+        grid = _search_function(function, (x_min, y_min, x_max, y_max), cell, block, budget, fill, atom_of, whole)
         grids.append(grid)
         result.cell = max(result.cell, grid.cell)
         if budget.spent:
@@ -199,7 +206,7 @@ def plot(
 # cells and crossings the curve passes through)
 _COST_PER_BLOCK_CELL = 15
 # A curve too dense for the budget at the asked cell size is plotted at most this much coarser
-_MAX_COARSENING = 4
+_MAX_COARSENING = 8
 
 
 def _search_function(
@@ -210,6 +217,7 @@ def _search_function(
     budget: _Budget,
     fill: bool,
     atom_of: Optional[Callable[[float, float], int]],
+    whole: Optional[Callable[[float, float], float]] = None,
 ) -> "_Grid":
     """Search one function, at a coarser cell when the curve is too dense for the budget
     (sin(x*y) = 0.5 over a wide view): a complete coarser plot is better than parts missing."""
@@ -219,6 +227,7 @@ def _search_function(
         assert layout is not None
         grid = _Grid(function, layout, cell * factor, block, budget)
         grid.atom_of = atom_of if fill else None
+        grid.whole = whole
         sure, maybe = grid.coarse(fill)
         needed = len(sure) * block * _COST_PER_BLOCK_CELL
         if needed <= budget.evals_left or factor >= _MAX_COARSENING or budget.spent:
@@ -276,6 +285,9 @@ class _Grid:
         self.budget = budget
         self.evaluations = 0
         self.atom_of: Optional[Callable[[float, float], int]] = None
+        # For a factor of a product: the product, which must be defined where the factor's
+        # zero is drawn (x*sqrt(y) = 0 is not x = 0 for y < 0)
+        self.whole: Optional[Callable[[float, float], float]] = None
         # Crossings by edge key (2 * node + 0 for the edge to i + 1, + 1 for the edge to j + 1)
         self.cross_x: Dict[int, float] = {}
         self.cross_y: Dict[int, float] = {}
@@ -419,11 +431,82 @@ class _Grid:
         if maybe:
             quarter = block // 4 or 1
             self._evaluate_lattice(i_s, i_e, j_s, j_e, quarter)
-            if self.budget.spent or not self._lattice_changes(i_s, i_e, j_s, j_e, quarter):
+            if self.budget.spent:
+                return
+            if not self._lattice_changes(i_s, i_e, j_s, j_e, quarter):
+                # A small loop between the lattice's nodes: walk down from its lowest node
+                seed = self._descend(i_s, i_e, j_s, j_e, quarter)
+                if seed is not None:
+                    stack.append(seed)
                 return
         for i in range(i_s, i_e):
             for j in range(j_s, j_e):
                 stack.append(i * nj + j)
+
+    def _descend(self, i_s: int, i_e: int, j_s: int, j_e: int, step: int) -> Optional[int]:
+        """A cell where g changes sign near the lattice node closest to zero, found by a
+        compass search (steps of step, halved down to one cell) within the block, or None.
+
+        A loop a few cells across between the lattice's nodes (a circle 8 px across) leaves
+        every sample on one side of zero; walking towards zero from the lowest one finds it.
+        """
+        values, stride, fill = self.values, self.stride, self.fill
+        sign = 0.0
+        best_i = best_j = -1
+        best = INF
+        for i in range(i_s, i_e + 1, step):
+            for j in range(j_s, j_e + 1, step):
+                value = values[i * stride + j]
+                if value is None or value != value:
+                    continue
+                if sign == 0.0:
+                    sign = 1.0 if value >= 0 else -1.0
+                if sign * value < best:
+                    best, best_i, best_j = sign * value, i, j
+        if best_i < 0:
+            return None
+        i, j = best_i, best_j
+        start = values[i * stride + j]
+        moves = 0
+        while step >= 1 and moves < _DESCENT_MOVES and not self.budget.spent:
+            moves += 1
+            target_i, target_j = i, j
+            for di, dj in ((step, 0), (-step, 0), (0, step), (0, -step)):
+                ni, nj = i + di, j + dj
+                if ni < i_s or ni > i_e or nj < j_s or nj > j_e:
+                    continue
+                self._evaluate_lattice(ni, ni, nj, nj, 1)
+                value = values[ni * stride + nj]
+                if value is None or value != value:
+                    continue
+                if _changes(start, value, fill):
+                    return self._cell_on_change(i, j, ni, nj)
+                if sign * value < best:
+                    best, target_i, target_j = sign * value, ni, nj
+            if (target_i, target_j) == (i, j):
+                step //= 2
+            else:
+                i, j = target_i, target_j
+        return None
+
+    def _cell_on_change(self, i: int, j: int, i_to: int, j_to: int) -> Optional[int]:
+        """The cell beside the first one-cell edge, walking from node (i, j) to (i_to, j_to)
+        along a row or column, where g changes sign."""
+        values, stride, fill = self.values, self.stride, self.fill
+        di = (i_to > i) - (i_to < i)
+        dj = (j_to > j) - (j_to < j)
+        start = values[i * stride + j]
+        while (i, j) != (i_to, j_to):
+            ni, nj = i + di, j + dj
+            self._evaluate_lattice(ni, ni, nj, nj, 1)
+            value = values[ni * stride + nj]
+            if value is not None and _changes(start, value, fill):
+                # The cell on the edge from (i, j) to (ni, nj), kept inside the grid
+                ci = min(i, ni) if di else min(i, self.ni - 1)
+                cj = min(j, nj) if dj else min(j, self.nj - 1)
+                return ci * self.nj + cj
+            i, j = ni, nj
+        return None
 
     def _perimeter(self) -> Tuple[List[int], List[int], List[int]]:
         """A block's perimeter edges, relative to its first node and cell: the two nodes of
@@ -718,13 +801,15 @@ class _Grid:
     def _bisect(
         self, x0: float, y0: float, dx: float, dy: float, va: float, vb: float, t: float, vm: float
     ) -> Tuple[int, float]:
-        """Halve the bracket that changes sign: (POLE, t) when both its ends move away
-        from zero, else (ZERO, t) at the bracket's chord point.
+        """Halve the bracket that changes sign: (POLE, t) when its ends move away from
+        zero, else (ZERO, t) at the bracket's chord point.
 
-        A zero's bracket ends shrink towards 0; a pole's grow past both edge ends. The max
-        and min of and/or (and |x|) cannot exceed their end values, so kinks stay zeros.
+        A zero's bracket ends shrink towards 0; a pole's grow. Each end that moved is
+        compared with the edge's end on its side (an end that never moved, when the pole
+        is within 1/64 of the edge from it, says nothing). The max and min of and/or (and
+        |x|) shrink towards their zero too, so kinks stay zeros.
         """
-        limit = max(abs(va), abs(vb))
+        start_a, start_b = abs(va), abs(vb)
         t_a, t_b = 0.0, 1.0
         # Start from the half of the edge that changes sign around the chord point
         if (vm < 0) == (va < 0):
@@ -742,11 +827,19 @@ class _Grid:
                 t_a, va = t, value
             else:
                 t_b, vb = t, value
-        if min(abs(va), abs(vb)) > limit:
+        grew_a = t_a > 0.0 and abs(va) > _POLE_GROWTH * start_a
+        grew_b = t_b < 1.0 and abs(vb) > _POLE_GROWTH * start_b
+        if (grew_a or t_a == 0.0) and (grew_b or t_b == 1.0):
             return POLE, 0.5 * (t_a + t_b)
         return ZERO, t_a + va / (va - vb) * (t_b - t_a)
 
     def _store(self, key: int, x: float, y: float, kind: int) -> None:
+        if kind == ZERO and self.whole is not None:
+            self.evaluations += 1
+            self.budget.evals_left -= 1
+            whole = _value_at(self.whole, x, y)
+            if whole != whole:
+                kind = DOMAIN
         self.cross_x[key] = x
         self.cross_y[key] = y
         self.cross_kind[key] = kind

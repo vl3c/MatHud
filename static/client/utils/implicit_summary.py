@@ -25,8 +25,9 @@ SUMMARY_MAX_EVALS = 15000
 REGION_SAMPLES = (40, 25)
 
 
-# A power whose exponent is a fraction or a decimal: x^(2/3), x^0.5 (complex for x < 0)
-_FRACTIONAL_POWER = re.compile(r"\^\s*\(?\s*-?\s*(?:\d+\s*/\s*\d+|\d*\.\d+)")
+# A power of x, y or a bracket whose exponent is a fraction in brackets or a decimal:
+# x^(2/3), (x - 1)^(1/3), y^0.5 (complex for a negative base); not x^2/9, which is x^2 over 9
+_FRACTIONAL_POWER = re.compile(r"(?:\b[xy]|\))\s*\^\s*(?:\(\s*-?\s*\d+\s*/\s*\d+\s*\)|\(?\s*-?\s*\d*\.\d*[1-9]\d*)")
 _FRACTIONAL_POWER_NOTE = (
     "A fractional power of a negative number is not real here (x^(2/3) for x < 0), so that part "
     "is not drawn; for the real cube root write cbrt(x), as in cbrt(x)^2 + cbrt(y)^2 = 1."
@@ -98,31 +99,53 @@ def curve_in_view(
     else:
         summary["note"] = (
             f"No point of {equation} was found in the view ({_view_text(bounds)}). It may lie outside "
-            "the view, or have no real points (x^2 + y^2 = -1), or be a single point or touch zero without "
-            "crossing it (x^2 + y^2 = 0), which is not drawn."
+            "the view, be smaller than a few pixels at this zoom (zoom in to see it), have no real points "
+            "(x^2 + y^2 = -1), or be a single point or touch zero without crossing it (x^2 + y^2 = 0), which "
+            "is not drawn."
         )
     if not result.complete:
         _add_note(summary, "The curve is intricate in this view and was only partly drawn.")
     elif drawn is not None and result.cell > 1.01 * result.asked_cell:
         _add_note(
             summary,
-            f"The curve is dense in this view, so it was drawn on a coarser grid ({result.cell * scale:.0f} px); "
-            "zooming in shows it in full detail.",
+            f"To stay within the plotting budget it was drawn on a coarser grid ({result.cell * scale:.0f} px cells "
+            f"instead of {result.asked_cell * scale:.0f} px), so fine detail may be smoothed.",
         )
     _add_note(summary, fractional_power_note(equation))
     return summary
 
 
+def _clip(ring: Sequence[Tuple[float, float]], bounds: Bounds) -> List[Tuple[float, float]]:
+    """The ring clipped to the bounds (Sutherland-Hodgman, one side of the box at a time)."""
+    points = list(ring)
+    for axis, limit, keep_above in (
+        (0, bounds[0], True),
+        (0, bounds[2], False),
+        (1, bounds[1], True),
+        (1, bounds[3], False),
+    ):
+        if not points:
+            break
+        clipped: List[Tuple[float, float]] = []
+        for k, current in enumerate(points):
+            previous = points[k - 1]
+            current_in = (current[axis] >= limit) == keep_above
+            previous_in = (previous[axis] >= limit) == keep_above
+            if current_in != previous_in:
+                t = (limit - previous[axis]) / (current[axis] - previous[axis])
+                clipped.append(
+                    (previous[0] + t * (current[0] - previous[0]), previous[1] + t * (current[1] - previous[1]))
+                )
+            if current_in:
+                clipped.append(current)
+        points = clipped
+    return points
+
+
 def _ring_area_in_view(rings: Sequence[Sequence[Tuple[float, float]]], bounds: Bounds) -> float:
-    """The area enclosed by the rings that have a vertex in bounds (outer rings count positive,
-    holes negative), or 0 when no ring reaches the view."""
-    x_min, y_min, x_max, y_max = bounds
-    total = 0.0
-    for ring in rings:
-        if not any(x_min <= x <= x_max and y_min <= y <= y_max for x, y in ring):
-            continue
-        total += ring_area(ring)
-    return abs(total)
+    """The area of the region the rings bound (outer rings counter-clockwise, holes
+    clockwise) within bounds."""
+    return float(abs(sum(ring_area(_clip(ring, bounds)) for ring in rings)))
 
 
 def region_in_view(
@@ -156,8 +179,9 @@ def region_in_view(
     if small_area > 0:
         view_area = (x_max - x_min) * (y_max - y_min)
         summary["shaded_share"] = float(f"{small_area / view_area:.2g}")
+        area = float(f"{small_area:.2g}")
         summary["note"] = (
-            f"The region is small in this view ({_view_text(bounds)}): about {small_area:.2g} square units; "
+            f"The region is small in this view ({_view_text(bounds)}): about {area:g} square units; "
             "zooming in shows it larger."
         )
     elif inside == 0:
@@ -167,5 +191,11 @@ def region_in_view(
         )
     elif inside == across * up:
         summary["note"] = f"The whole view ({_view_text(bounds)}) satisfies {inequality}; its boundary is outside it."
+    if drawn is not None and not drawn.complete:
+        _add_note(
+            summary,
+            "The region is too intricate in this view to fill: only parts of its boundary are drawn, without "
+            "shading. Zooming in shows it filled.",
+        )
     _add_note(summary, fractional_power_note(inequality))
     return summary

@@ -34,7 +34,16 @@ _INF = float("inf")
 # Sample points where an equation that holds everywhere (x = x) is caught
 _IDENTITY_PROBES = ((0.3711, -1.2093), (2.4417, 0.8813), (-3.1416, 2.7183), (5.5021, -4.0373), (-0.6931, -7.389))
 
-_UNICODE_OPERATORS = (("≤", "<="), ("≦", "<="), ("≥", ">="), ("≧", ">="), ("≠", "!="), ("−", "-"))
+_UNICODE_OPERATORS = (
+    ("≤", "<="),
+    ("≦", "<="),
+    ("⩽", "<="),
+    ("≥", ">="),
+    ("≧", ">="),
+    ("⩾", ">="),
+    ("≠", "!="),
+    ("−", "-"),
+)
 # Comparison operators, longest first ("=<" and "=>" have one reading: <= and >=)
 _COMPARISON = re.compile(r"<=|>=|=<|=>|==|!=|<|>|=")
 _OPERATOR_NAMES = {"<": "<", "<=": "<=", "=<": "<=", ">": ">", ">=": ">=", "=>": ">="}
@@ -301,6 +310,8 @@ def _wrapped_group(operand: str) -> Optional[str]:
     inner = operand[1:-1]
     if _has_top_level(inner, lambda part: bool(_COMPARISON.search(part) or _BOOLEAN_WORD.search(part) or "," in part)):
         return inner
+    if _wrapped_group(inner.strip()) is not None:
+        return inner  # ((x > 0))
     return None
 
 

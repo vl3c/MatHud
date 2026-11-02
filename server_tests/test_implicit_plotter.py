@@ -18,7 +18,7 @@ from server_tests import client_renderer  # noqa: F401  (browser stub, so MathUt
 from rendering.helpers.implicit_renderer import bridged_polygon, dashed
 from utils.implicit_plotter import PlotResult, plot, ring_area
 from utils.implicit_relations import parse_equation, parse_inequality
-from utils.implicit_summary import region_in_view
+from utils.implicit_summary import fractional_power_note, region_in_view
 
 Point = Tuple[float, float]
 
@@ -129,6 +129,8 @@ class TestInequalityParsing(unittest.TestCase):
             "y < x^2": ("y < x^2", 1),
             "x^2 + y^2 <= 4": ("x^2 + y^2 <= 4", 1),
             "y ≥ |x|": ("y >= |x|", 1),
+            "y ⩽ x^2": ("y <= x^2", 1),
+            "((x > 0)) and y > 0": ("x > 0 and y > 0", 2),
             "x =< y": ("x <= y", 1),
             "y > x^2 - 2 and y < 1": ("y > x^2 - 2 and y < 1", 2),
             "x + y <= 10, x >= 0, y >= 0": ("x + y <= 10 and x >= 0 and y >= 0", 3),
@@ -302,6 +304,44 @@ class TestCurves(unittest.TestCase):
             plot(lambda x, y: x, (0.0, 0.0, 1000.0, 1.0), 0.001)
 
 
+class TestPolesAndSmallLoops(unittest.TestCase):
+    """Cases the first PR review found: a pole within 1/64 of a cell from a node, and loops
+    a few cells across between the coarse samples."""
+
+    def _strokes_near_pole(self, curves: Sequence[Sequence[Tuple[float, float]]], pole: float, cell: float) -> int:
+        return sum(1 for path in curves for x, y in path if abs(x - pole) < 0.5 * cell and abs(y) < 1 / (2 * cell))
+
+    def test_asymptotes_near_a_node_are_not_joined(self) -> None:
+        for scale in (20.0, 25.0, 40.0, 50.0, 80.0, 100.0):
+            cell = 3.0 / scale
+            rect = (-1200 / scale, -800 / scale, 1200 / scale, 800 / scale)
+            for pole in range(-int(600 / scale) + 1, int(600 / scale)):
+                with self.subTest(scale=scale, pole=pole):
+                    equation = parse_equation(f"y = 1/(x - ({pole}))")
+                    result = plot(equation.g, rect, cell, factors=equation.factors)
+                    self.assertLessEqual(self._strokes_near_pole(result.curves, pole, result.cell), 2)
+
+    def test_region_boundary_skips_the_asymptote(self) -> None:
+        tree = parse_inequality("y < 1/(x - 1)")
+        result = plot(tree.value, (-30.0, -20.0, 30.0, 20.0), 0.075, fill=True, atom_of=tree.atom_of)
+        self.assertLessEqual(self._strokes_near_pole(result.curves, 1.0, result.cell), 2)
+
+    def test_a_factor_is_drawn_only_where_the_product_is_defined(self) -> None:
+        equation = parse_equation("x*sqrt(y) = 0")
+        result = plot(equation.g, RECT, CELL, factors=equation.factors)
+        points = [point for path in result.curves for point in path]
+        self.assertTrue(points)
+        self.assertGreater(min(y for _, y in points), -CELL)
+
+    def test_small_loops_between_samples_are_found(self) -> None:
+        rect = (-1200.0, -800.0, 1200.0, 800.0)  # the default view at 1 px per unit, with margins
+        for cx, cy in ((10.0, 10.0), (-200.5, 31.0), (333.3, -250.0), (17.0, 230.0)):
+            for radius in (3.0, 5.0, 8.0):
+                with self.subTest(centre=(cx, cy), radius=radius):
+                    result = plot(lambda x, y: (x - cx) ** 2 + (y - cy) ** 2 - radius**2, rect, 3.0)
+                    self.assertEqual(len(result.curves), 1)
+
+
 class TestRegions(unittest.TestCase):
     def test_disc_area_and_orientation(self) -> None:
         result = _region("x^2 + y^2 < 4")
@@ -385,6 +425,23 @@ class TestRenderHelpers(unittest.TestCase):
         self.assertEqual([[round(x, 6) for x, _ in piece] for piece in pieces], [[0.0, 6.0], [10.0, 16.0], [20.0]][:2])
         corner = dashed([(0.0, 0.0), (4.0, 0.0), (4.0, 4.0)], on=6.0, off=4.0)
         self.assertEqual(corner[0], [(0.0, 0.0), (4.0, 0.0), (4.0, 2.0)])
+
+
+class TestFractionalPowerNote(unittest.TestCase):
+    def test_fractions_and_decimals_in_exponents(self) -> None:
+        for text in ("x^(2/3) + y^(2/3) = 1", "y = x^0.5", "(x - 1)^(1/3) = y", "y = x^(-1/2)", "y^(.5) <= x"):
+            self.assertIsNotNone(fractional_power_note(text), text)
+
+    def test_a_power_over_a_number_is_not_a_fractional_power(self) -> None:
+        for text in (
+            "x^2/9 + y^2/4 = 1",
+            "x^2/16 - y^2/9 = 1",
+            "y = x^2/2",
+            "4 + x^2/4 > y",
+            "2^0.5*x = y",
+            "x^2.0 = y",
+        ):
+            self.assertIsNone(fractional_power_note(text), text)
 
 
 class TestRegionInView(unittest.TestCase):
