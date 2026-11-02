@@ -141,11 +141,12 @@ class ImplicitCurveManager:
             ValueError: If the inequality, color or opacity is refused; nothing is then changed
         """
         area = self.create_inequality_area(inequality, name, color, opacity)
-        bounds, _ = self._view()
+        bounds, scale = self._view()
+        drawn = self._drawn_plot(area, scale)
         return {
             "name": area.name,
             "inequality": area.inequality,
-            "in_view": region_in_view(area.inequality, area.contains, bounds),
+            "in_view": region_in_view(area.inequality, area.contains, bounds, drawn=drawn),
         }
 
     def create_inequality_area(

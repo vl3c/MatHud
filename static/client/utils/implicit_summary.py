@@ -12,9 +12,9 @@ Pure Python (no browser imports), so server-side pytest imports it directly.
 from __future__ import annotations
 
 import re
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-from utils.implicit_plotter import PlotResult, plot
+from utils.implicit_plotter import PlotResult, plot, ring_area
 
 Bounds = Tuple[float, float, float, float]  # x_min, y_min, x_max, y_max
 
@@ -81,7 +81,9 @@ def curve_in_view(
         except ValueError:
             summary["points_found"] = False
             return summary
-    xs, ys, pieces = [], [], 0
+    xs: List[float] = []
+    ys: List[float] = []
+    pieces = 0
     for path in result.curves:
         inside = [(x, y) for x, y in path if x_min <= x <= x_max and y_min <= y <= y_max]
         if inside:
@@ -111,10 +113,31 @@ def curve_in_view(
     return summary
 
 
+def _ring_area_in_view(rings: Sequence[Sequence[Tuple[float, float]]], bounds: Bounds) -> float:
+    """The area enclosed by the rings that have a vertex in bounds (outer rings count positive,
+    holes negative), or 0 when no ring reaches the view."""
+    x_min, y_min, x_max, y_max = bounds
+    total = 0.0
+    for ring in rings:
+        if not any(x_min <= x <= x_max and y_min <= y <= y_max for x, y in ring):
+            continue
+        total += ring_area(ring)
+    return abs(total)
+
+
 def region_in_view(
-    inequality: str, contains: Callable[[float, float], bool], bounds: Bounds, samples: Optional[Tuple[int, int]] = None
+    inequality: str,
+    contains: Callable[[float, float], bool],
+    bounds: Bounds,
+    samples: Optional[Tuple[int, int]] = None,
+    drawn: Optional[PlotResult] = None,
 ) -> Dict[str, Any]:
-    """{"shaded_share"} of the view (sampled), plus a "note" when none or all of it is shaded."""
+    """{"shaded_share"} of the view (sampled), plus a "note" when none or all of it is shaded.
+
+    drawn: The plot the renderer made; when no sample falls in the region but the drawn
+        region reaches the view, the share is its area over the view's and a note says the
+        region is small in this view.
+    """
     x_min, y_min, x_max, y_max = bounds
     across, up = samples or REGION_SAMPLES
     inside = 0
@@ -129,7 +152,15 @@ def region_in_view(
                 continue
     share = inside / float(across * up)
     summary: Dict[str, Any] = {"view": _view_text(bounds), "shaded_share": round(share, 3)}
-    if inside == 0:
+    small_area = _ring_area_in_view(drawn.rings, bounds) if inside == 0 and drawn is not None else 0.0
+    if small_area > 0:
+        view_area = (x_max - x_min) * (y_max - y_min)
+        summary["shaded_share"] = float(f"{small_area / view_area:.2g}")
+        summary["note"] = (
+            f"The region is small in this view ({_view_text(bounds)}): about {small_area:.2g} square units; "
+            "zooming in shows it larger."
+        )
+    elif inside == 0:
         summary["note"] = (
             f"No sample point of the view ({_view_text(bounds)}) satisfies {inequality}. The region "
             "may lie outside the view, be thinner than the samples, or be empty (x^2 + y^2 < 0)."

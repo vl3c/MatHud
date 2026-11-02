@@ -18,6 +18,7 @@ from server_tests import client_renderer  # noqa: F401  (browser stub, so MathUt
 from rendering.helpers.implicit_renderer import bridged_polygon, dashed
 from utils.implicit_plotter import PlotResult, plot, ring_area
 from utils.implicit_relations import parse_equation, parse_inequality
+from utils.implicit_summary import region_in_view
 
 Point = Tuple[float, float]
 
@@ -384,6 +385,31 @@ class TestRenderHelpers(unittest.TestCase):
         self.assertEqual([[round(x, 6) for x, _ in piece] for piece in pieces], [[0.0, 6.0], [10.0, 16.0], [20.0]][:2])
         corner = dashed([(0.0, 0.0), (4.0, 0.0), (4.0, 4.0)], on=6.0, off=4.0)
         self.assertEqual(corner[0], [(0.0, 0.0), (4.0, 0.0), (4.0, 2.0)])
+
+
+class TestRegionInView(unittest.TestCase):
+    def test_a_region_smaller_than_the_samples_reports_its_drawn_area(self) -> None:
+        text = "x + y <= 10, x >= 0, y >= 0"
+        tree = parse_inequality(text)
+        view = (-600.0, -480.0, 600.0, 480.0)
+        drawn = plot(tree.value, view, 3.0, fill=True, atom_of=tree.atom_of)
+        missed = region_in_view(text, tree.contains, view)
+        self.assertEqual(missed["shaded_share"], 0.0)
+        self.assertIn("No sample point", missed["note"])
+        summary = region_in_view(text, tree.contains, view, drawn=drawn)
+        self.assertGreater(summary["shaded_share"], 0.0)
+        self.assertIn("small in this view", summary["note"])
+        area = float(summary["note"].split("about ")[1].split(" ")[0])
+        self.assertAlmostEqual(area, 50.0, delta=6.0)  # within a 3-unit cell along the edges
+
+    def test_a_region_outside_the_view_still_says_none(self) -> None:
+        text = "x > 1000"
+        tree = parse_inequality(text)
+        view = (-10.0, -10.0, 10.0, 10.0)
+        drawn = plot(tree.value, (-20.0, -20.0, 20.0, 20.0), 0.1, fill=True, atom_of=tree.atom_of)
+        summary = region_in_view(text, tree.contains, view, drawn=drawn)
+        self.assertEqual(summary["shaded_share"], 0.0)
+        self.assertIn("No sample point", summary["note"])
 
 
 if __name__ == "__main__":
