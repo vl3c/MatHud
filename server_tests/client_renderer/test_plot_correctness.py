@@ -71,6 +71,7 @@ CASES: Dict[str, Tuple[Callable[[float], float], View, CurveModel]] = {
     "sec(3x) on [-11.63, 12.37]": _case(lambda x: 1 / math.cos(3 * x), (-11.63, 12.37, 9.0, -9.0), period=1.0),
     "csc(2x) on [-21.63, 22.37]": _case(lambda x: 1 / math.sin(2 * x), (-21.63, 22.37, 16.5, -16.5), period=1.11),
     "cot(x) on [-30, 30]": _case(lambda x: math.cos(x) / math.sin(x), (-30.0, 30.0, 22.5, -22.5), period=1.25),
+    "sec(x) on [-100, 100]": _case(lambda x: 1 / math.cos(x), (-100.0, 100.0, 75.0, -75.0), period=1.0),
     "1/x": _case(lambda x: 1 / x, asymptotes=[0.0], period=2.5),
     "1/(x-0.3)": _case(lambda x: 1 / (x - 0.3), asymptotes=[0.3], period=2.0),
     "x/(x^2-4)": _case(lambda x: x / (x * x - 4), asymptotes=[-2.0, 2.0], period=2.5),
@@ -84,6 +85,10 @@ CASES: Dict[str, Tuple[Callable[[float], float], View, CurveModel]] = {
     "1/(1+exp(-50x))": _case(lambda x: 1 / (1 + math.exp(-50 * x))),
     "x^10": _case(lambda x: x**10, period=1.0),
     "cbrt(x)": _case(lambda x: math.copysign(abs(x) ** (1 / 3), x)),
+    # Vertical tangents of higher odd roots, at 0 off the sample grid (round 2 of the PR review)
+    "nthroot(x, 5) panned": _case(lambda x: math.copysign(abs(x) ** 0.2, x), (-0.63, 1.37, 0.75, -0.75)),
+    "2nthroot(x-1, 5)+1": _case(lambda x: 2 * math.copysign(abs(x - 1) ** 0.2, x - 1) + 1, (-1.26, 2.74, 1.5, -1.5)),
+    "nthroot(x, 7)": _case(lambda x: math.copysign(abs(x) ** (1 / 7), x), (-1.0, 1.0, 0.75, -0.75)),
     "1000(x-1.234)": _case(lambda x: 1000 * (x - 1.234)),
     "10000(x-0.3)": _case(lambda x: 10000 * (x - 0.3)),
     # Corners and domain edges

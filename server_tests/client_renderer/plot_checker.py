@@ -132,7 +132,8 @@ def _truth_runs(f: Callable[[float], float], view: View) -> List[List[Point]]:
                 add(c, yc)
                 return
         if depth >= 40 or c - a < 1e-9:
-            end_run()
+            if not _shrinks_when_narrowed(screen_y, a, ya, c, yc):
+                end_run()
             add(c, yc)
             return
         m = (a + c) / 2
@@ -149,6 +150,24 @@ def _truth_runs(f: Callable[[float], float], view: View) -> List[List[Point]]:
         sx = nx
     end_run()
     return runs
+
+
+def _shrinks_when_narrowed(
+    screen_y: Callable[[float], Optional[float]], a: float, ya: Optional[float], c: float, yc: Optional[float]
+) -> bool:
+    """Whether a step left at the bisection limit is a steep continuous curve, not a jump.
+
+    Across a jump or a pole the step stays as tall however narrow the interval; across
+    a steep continuous curve (x^(1/7) at 0) it keeps shrinking, so compare it with the
+    step across an interval 2^20 times wider around the same point.
+    """
+    if ya is None or yc is None:
+        return False
+    half_wide = (c - a) * 2.0**19
+    wide_a, wide_c = screen_y(a - half_wide), screen_y(c + half_wide)
+    if wide_a is None or wide_c is None:
+        return False
+    return abs(yc - ya) < 0.5 * abs(wide_c - wide_a)
 
 
 def _segment_distance(px: float, py: float, ax: float, ay: float, bx: float, by: float) -> float:

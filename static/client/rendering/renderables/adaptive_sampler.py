@@ -44,14 +44,16 @@ MIN_BRANCH_SAMPLES: int = 4
 # is bisected towards its larger half (JUMP_BISECTIONS halvings at most). It is
 # continuous once the gap is under JUMP_CONTINUOUS_PX; a break (a jump, a pole or an
 # undefined point) once the bracket is narrower than JUMP_NARROW_PX and the gap has
-# shrunk by less than JUMP_SHRINK_RATIO for JUMP_STEADY_HALVINGS halvings in a row.
+# shrunk by less than JUMP_SHRINK_RATIO over the last JUMP_STEADY_HALVINGS halvings. A jump
+# tends to ratio 1 and a pole's gap grows; a vertical tangent of x^(1/n) shrinks by
+# 2^(-8/n) over 8 halvings (0.33 for n = 5, 0.89 for n = 50), so it stays continuous.
 JUMP_SUSPECT_PX: float = 8.0
 JUMP_NEIGHBOUR_RATIO: float = 2.0
 JUMP_CONTINUOUS_PX: float = 1.0
 JUMP_BISECTIONS: int = 40
 JUMP_NARROW_PX: float = 1e-3
 JUMP_SHRINK_RATIO: float = 0.9
-JUMP_STEADY_HALVINGS: int = 3
+JUMP_STEADY_HALVINGS: int = 8
 # ... and continuous as soon as the gap has shrunk to at most JUMP_SMOOTH_RATIO of itself for
 # JUMP_SMOOTH_HALVINGS halvings in a row (a jump J keeps the gap above J, so this needs the
 # smooth part to be over 4 J; after the halvings J is under 1/32 of the pair's step).
@@ -658,8 +660,8 @@ class AdaptiveSampler:
 
         A pair is suspect when its screen-y step exceeds JUMP_SUSPECT_PX and it stands out from
         its neighbours (see _stands_out: not a steep stretch, the approach to a pole, or a fast
-        oscillation), has an end beyond the viewport band, or steps over half the band against
-        both neighbours' direction (a pole between two samples in the band), unless both samples
+        oscillation), has an end beyond the viewport band, or steps against both neighbours'
+        direction (a pole between two samples, see _against_neighbours), unless both samples
         are above, or both below, the band, or it leaves the band the way the curve already heads.
         Each suspect (the MAX_JUMP_TESTS largest) is bisected toward its larger half (see
         _locate_break): a break is a gap that stops shrinking once the bracket is far below a
@@ -688,7 +690,6 @@ class AdaptiveSampler:
                 steps.append(step)
                 mags.append(abs(step) / max(abs(p_b[0] - p_a[0]), 1e-12))
 
-        flip_px = (bottom - top) / 2.0 if viewport_band is not None else math.inf
         suspects: List[Tuple[float, int]] = []
         for i, step in enumerate(steps):
             # The size test first, inline: most pairs are small steps
@@ -697,9 +698,9 @@ class AdaptiveSampler:
             # A pair with an end beyond the band is tested whatever its neighbours: next to a pole
             # its neighbour is as steep, and drawn it would be a stroke across the view
             crosses = AdaptiveSampler._has_end_beyond(top, bottom, points[i], points[i + 1])
-            # So is a step over half the band against both neighbours' direction: the curve runs
-            # off one edge and back from the other, through a pole between the two samples
-            flips = abs(step) > flip_px and AdaptiveSampler._against_neighbours(steps, i)
+            # So is a step against both neighbours' direction: the curve runs off one way and
+            # comes back from the other, through a pole between the two samples
+            flips = AdaptiveSampler._against_neighbours(steps, i)
             if (crosses or flips or AdaptiveSampler._stands_out(steps, mags, i)) and not (
                 AdaptiveSampler._leaves_band_heading_on(steps, points, i, viewport_band)
             ):
@@ -740,13 +741,20 @@ class AdaptiveSampler:
 
     @staticmethod
     def _against_neighbours(steps: List[Optional[float]], i: int) -> bool:
-        """True when step i goes the other way from the drawn steps on both sides of it."""
+        """True when step i goes the other way from the drawn steps on both sides of it, and the
+        curve keeps its direction for two steps on at least one side: a branch running into a pole
+        and the next coming out of it, not a zigzag (an oscillation faster than the samples)."""
         if i == 0 or i + 1 >= len(steps):
             return False
         step, before, after = steps[i], steps[i - 1], steps[i + 1]
         if step is None or before is None or after is None:
             return False
-        return (before > 0) != (step > 0) and (after > 0) != (step > 0)
+        rising = step > 0
+        if (before > 0) == rising or (after > 0) == rising:
+            return False
+        earlier = steps[i - 2] if i >= 2 else None
+        later = steps[i + 2] if i + 2 < len(steps) else None
+        return (earlier is not None and (earlier > 0) != rising) or (later is not None and (later > 0) != rising)
 
     @staticmethod
     def _stands_out(steps: List[Optional[float]], mags: List[float], i: int) -> bool:
@@ -838,7 +846,7 @@ class AdaptiveSampler:
         if p_a is None or p_b is None:
             return None
         gap = abs(p_b[1] - p_a[1])
-        not_shrinking = 0
+        narrow_gaps: List[float] = []
         halving = 0
         for _ in range(JUMP_BISECTIONS):
             x_m = (x_a + x_b) / 2.0
@@ -867,13 +875,13 @@ class AdaptiveSampler:
             if AdaptiveSampler._both_beyond_band(viewport_band, p_a, p_b):
                 return None
             # A jump keeps its gap and a pole's grows, while a continuous curve's shrinks (by
-            # half where it is smooth, by 0.79 per halving at cbrt's vertical tangent)
-            if abs(p_b[0] - p_a[0]) < JUMP_NARROW_PX and new_gap > JUMP_SHRINK_RATIO * gap:
-                not_shrinking += 1
-                if not_shrinking >= JUMP_STEADY_HALVINGS:
+            # half where it is smooth, by 2^(-1/n) per halving at x^(1/n)'s vertical tangent,
+            # unevenly while the tangent's point moves within the bracket: judged over a window)
+            if abs(p_b[0] - p_a[0]) < JUMP_NARROW_PX:
+                narrow_gaps.append(new_gap)
+                window = len(narrow_gaps) - 1 - JUMP_STEADY_HALVINGS
+                if window >= 0 and new_gap > JUMP_SHRINK_RATIO * narrow_gaps[window]:
                     return (x_a, p_a), (x_b, p_b)
-            else:
-                not_shrinking = 0
             gap = new_gap
         # Still shrinking after every halving (a vertical tangent): continuous
         return None
