@@ -589,7 +589,14 @@ class TestOddRootPowerNote(_FunctionToolTestCase):
         self.assertIn("nthroot(x, 3)^2 instead of x^(2/3)", result)
 
     def test_no_note_without_negative_x_or_an_odd_root(self) -> None:
-        cases = [("x^(1/3)", 0, 5), ("x^(1/2)", -5, 5), ("x^(6/3)", -5, 5), ("x^3", -5, 5), ("cbrt(x)", -5, 5)]
+        cases = [
+            ("x^(1/3)", 0, 5),
+            ("x^(1/2)", -5, 5),
+            ("x^(6/3)", -5, 5),
+            ("x^3", -5, 5),
+            ("cbrt(x)", -5, 5),
+            ("2^(1/3)*x", -5, 5),
+        ]
         for index, (expression, left, right) in enumerate(cases):
             with self.subTest(expression=expression, left=left):
                 result = self.draw(expression, f"f{index}", left, right)

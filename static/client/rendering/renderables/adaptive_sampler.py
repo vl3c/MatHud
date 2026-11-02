@@ -656,9 +656,11 @@ class AdaptiveSampler:
         """Find where the curve breaks between consecutive samples (jumps and poles the
         expression analysis did not list: floor, round, mod, sign, ...).
 
-        A pair is suspect when its screen-y step exceeds JUMP_SUSPECT_PX and stands out from
+        A pair is suspect when its screen-y step exceeds JUMP_SUSPECT_PX and it stands out from
         its neighbours (see _stands_out: not a steep stretch, the approach to a pole, or a fast
-        oscillation), unless both samples are above, or both below, the viewport band.
+        oscillation), has an end beyond the viewport band, or steps over half the band against
+        both neighbours' direction (a pole between two samples in the band), unless both samples
+        are above, or both below, the band, or it leaves the band the way the curve already heads.
         Each suspect (the MAX_JUMP_TESTS largest) is bisected toward its larger half (see
         _locate_break): a break is a gap that stops shrinking once the bracket is far below a
         pixel, or a probe where the function is undefined. The bracket ends are added to results and
@@ -686,13 +688,20 @@ class AdaptiveSampler:
                 steps.append(step)
                 mags.append(abs(step) / max(abs(p_b[0] - p_a[0]), 1e-12))
 
+        flip_px = (bottom - top) / 2.0 if viewport_band is not None else math.inf
         suspects: List[Tuple[float, int]] = []
         for i, step in enumerate(steps):
             # The size test first, inline: most pairs are small steps
             if step is None or -JUMP_SUSPECT_PX <= step <= JUMP_SUSPECT_PX:
                 continue
-            if AdaptiveSampler._stands_out(steps, mags, i) and not AdaptiveSampler._leaves_band_heading_on(
-                steps, points, i, viewport_band
+            # A pair with an end beyond the band is tested whatever its neighbours: next to a pole
+            # its neighbour is as steep, and drawn it would be a stroke across the view
+            crosses = AdaptiveSampler._has_end_beyond(top, bottom, points[i], points[i + 1])
+            # So is a step over half the band against both neighbours' direction: the curve runs
+            # off one edge and back from the other, through a pole between the two samples
+            flips = abs(step) > flip_px and AdaptiveSampler._against_neighbours(steps, i)
+            if (crosses or flips or AdaptiveSampler._stands_out(steps, mags, i)) and not (
+                AdaptiveSampler._leaves_band_heading_on(steps, points, i, viewport_band)
             ):
                 suspects.append((abs(step), i))
         suspects.sort(reverse=True)
@@ -719,6 +728,25 @@ class AdaptiveSampler:
         budget = max(len(results), max_samples) + BREAK_SAMPLES * len(breaks)
         AdaptiveSampler._refine(queue, eval_func, math_to_screen, results, budget, viewport_band)
         return breaks
+
+    @staticmethod
+    def _has_end_beyond(
+        top: float, bottom: float, p_a: Optional[Tuple[float, float]], p_b: Optional[Tuple[float, float]]
+    ) -> bool:
+        """True when one of the two points (not both on one side) is above or below the band."""
+        if p_a is None or p_b is None:
+            return False
+        return not (top <= p_a[1] <= bottom and top <= p_b[1] <= bottom)
+
+    @staticmethod
+    def _against_neighbours(steps: List[Optional[float]], i: int) -> bool:
+        """True when step i goes the other way from the drawn steps on both sides of it."""
+        if i == 0 or i + 1 >= len(steps):
+            return False
+        step, before, after = steps[i], steps[i - 1], steps[i + 1]
+        if step is None or before is None or after is None:
+            return False
+        return (before > 0) != (step > 0) and (after > 0) != (step > 0)
 
     @staticmethod
     def _stands_out(steps: List[Optional[float]], mags: List[float], i: int) -> bool:

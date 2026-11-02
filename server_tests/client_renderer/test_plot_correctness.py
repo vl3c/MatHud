@@ -65,6 +65,12 @@ CASES: Dict[str, Tuple[Callable[[float], float], View, CurveModel]] = {
     ),
     "cot(x) (poles not listed)": _case(lambda x: math.cos(x) / math.sin(x), period=1.25),
     "1/cos(x)": _case(lambda x: 1 / math.cos(x), asymptotes=periodic_asymptotes(HALF_PI, math.pi, 785), period=1.0),
+    # sec/csc/cot poles are not listed; in wider views a pole falls between two samples whose
+    # neighbours are as steep (round 1 of the PR review)
+    "sec(2x) on [-17.63, 18.37]": _case(lambda x: 1 / math.cos(2 * x), (-17.63, 18.37, 13.5, -13.5), period=1.0),
+    "sec(3x) on [-11.63, 12.37]": _case(lambda x: 1 / math.cos(3 * x), (-11.63, 12.37, 9.0, -9.0), period=1.0),
+    "csc(2x) on [-21.63, 22.37]": _case(lambda x: 1 / math.sin(2 * x), (-21.63, 22.37, 16.5, -16.5), period=1.11),
+    "cot(x) on [-30, 30]": _case(lambda x: math.cos(x) / math.sin(x), (-30.0, 30.0, 22.5, -22.5), period=1.25),
     "1/x": _case(lambda x: 1 / x, asymptotes=[0.0], period=2.5),
     "1/(x-0.3)": _case(lambda x: 1 / (x - 0.3), asymptotes=[0.3], period=2.0),
     "x/(x^2-4)": _case(lambda x: x / (x * x - 4), asymptotes=[-2.0, 2.0], period=2.5),

@@ -34,8 +34,8 @@ from utils.taylor import Taylor
 from process_function_calls import ProcessFunctionCalls
 from tool_kinds import UNDOABLE_TOOLS
 
-# A power of a fraction with an odd denominator, as ^(1/3), ** (2/5) or ^(-1/3)
-_ODD_ROOT_POWER = re.compile(r"(?:\^|\*\*)\s*\(\s*(-?\d+)\s*/\s*(\d*[13579])\s*\)")
+# x or a bracket raised to a fraction with an odd denominator, as x^(1/3), (x-1)**(2/5) or x^(-1/3)
+_ODD_ROOT_POWER = re.compile(r"[x)]\s*(?:\^|\*\*)\s*\(\s*(-?\d+)\s*/\s*(\d*[13579])\s*\)")
 
 if TYPE_CHECKING:
     from ai_interface import AIInterface
@@ -206,12 +206,11 @@ class FunctionRegistry:
         so that part is not drawn, though the model may expect the real root."""
         if left_bound is not None and left_bound >= 0:
             return ""
-        match = _ODD_ROOT_POWER.search(function_string)
-        if match is None:
+        powers = [(int(m.group(1)), int(m.group(2))) for m in _ODD_ROOT_POWER.finditer(function_string)]
+        fractional = [(n, d) for n, d in powers if n % d != 0]
+        if not fractional:
             return ""
-        numerator, denominator = int(match.group(1)), int(match.group(2))
-        if numerator % denominator == 0:
-            return ""
+        numerator, denominator = fractional[0]
         power = f"{numerator}/{denominator}"
         return (
             f"Note: a power of ({power}) is not real for a negative base, so the curve is not drawn "
