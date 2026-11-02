@@ -18,8 +18,9 @@ from __future__ import annotations
 import math
 from bisect import bisect_left
 from copy import deepcopy
-from typing import Any, Callable, Dict, List, Optional, cast
+from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 
+import compiled_expression
 from compiled_expression import substitute_variable
 from constants import default_color, default_point_size
 from drawables.drawable import Drawable
@@ -259,22 +260,48 @@ class Function(Drawable):
         self.undefined_at = list(undefined_at) if undefined_at else []
         self.reanalyze()
 
-    def reanalyze(self) -> None:
-        """Recompute asymptotes, discontinuities and periodicity from the expression and bounds."""
-        self._calculate_asymptotes_and_discontinuities()
+    def reanalyze(self, view_bounds: Optional[Tuple[float, float]] = None) -> None:
+        """Recompute asymptotes, discontinuities and periodicity from the expression and bounds.
+
+        Parameters are read at their current values. view_bounds (a live slider or animation
+        frame) limits the asymptote search of an unbounded function to that x range and
+        skips the periodicity check; the full analysis runs when the change settles.
+        """
+        self._calculate_asymptotes_and_discontinuities(view_bounds)
         for hole in self.undefined_at:
             if hole not in self.point_discontinuities:
                 self.point_discontinuities.append(hole)
         self.point_discontinuities.sort()
-        self._detect_periodicity()
+        if view_bounds is None:
+            self._detect_periodicity()
 
-    def _calculate_asymptotes_and_discontinuities(self) -> None:
+    def parameter_names(self) -> Tuple[str, ...]:
+        """The current parameters the expression reads, sorted."""
+        try:
+            names: Tuple[str, ...] = compiled_expression.compile_expression(self.function_string).parameter_names
+        except Exception:
+            return ()
+        return names
+
+    def analysis_text(self) -> str:
+        """The expression with each parameter replaced by its current value (for text analysis)."""
+        text: str = compiled_expression.with_parameter_values(self.function_string, self.parameter_names())
+        return text
+
+    def _calculate_asymptotes_and_discontinuities(self, view_bounds: Optional[Tuple[float, float]] = None) -> None:
         """Calculate vertical and horizontal asymptotes and point discontinuities of the function"""
         from utils.math_utils import MathUtils
 
+        left, right = self.left_bound, self.right_bound
+        if view_bounds is not None:
+            left = view_bounds[0] if left is None else max(left, view_bounds[0])
+            right = view_bounds[1] if right is None else min(right, view_bounds[1])
+            if left >= right:  # off screen: nothing to split while the change runs
+                self.vertical_asymptotes, self.horizontal_asymptotes, self.point_discontinuities = [], [], []
+                return
         # Calculate asymptotes and discontinuities using MathUtil
         self.vertical_asymptotes, self.horizontal_asymptotes, self.point_discontinuities = (
-            MathUtils.calculate_asymptotes_and_discontinuities(self.function_string, self.left_bound, self.right_bound)
+            MathUtils.calculate_asymptotes_and_discontinuities(self.analysis_text(), left, right)
         )
 
     def has_point_discontinuity_between_x(self, x1: float, x2: float) -> bool:

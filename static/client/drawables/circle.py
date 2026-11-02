@@ -25,13 +25,14 @@ from __future__ import annotations
 
 import math
 from copy import deepcopy
-from typing import Any, Collection, Dict, cast
+from typing import Any, Collection, Dict, Optional, Tuple, cast
 
 from constants import default_color
 from drawables.drawable import Drawable
 from drawables.point import Point
 from name_generator.base import with_unique_suffix
 from utils.math_utils import MathUtils
+from utils.parameter_expressions import definition_parameters, evaluate_definition
 
 
 class Circle(Drawable):
@@ -46,6 +47,12 @@ class Circle(Drawable):
         radius (float): Radius in mathematical coordinate units
         circle_formula (str): Algebraic circle equation, computed from the current geometry
         has_custom_name (bool): True when the name was chosen rather than generated
+        radius_expression (str or None): An expression in parameters that defines the
+            radius (the circle follows the parameters); None for a plain number. The radius
+            is its absolute value, as (x-h)^2 + (y-k)^2 = r^2 draws it. Scaling such a
+            circle is refused.
+        undefined (bool): The radius expression is not a finite real number, or is 0, at the
+            current parameter values; the circle keeps its last radius and is not drawn.
     """
 
     def __init__(self, center_point: Point, radius: float, color: str = default_color, name: str = "") -> None:
@@ -59,6 +66,8 @@ class Circle(Drawable):
         """
         self.center: Point = center_point
         self.radius: float = radius
+        self.radius_expression: Optional[str] = None
+        self.undefined: bool = False
         self.has_custom_name: bool = bool(name)
         super().__init__(name=name or self._generate_default_name(), color=color)
 
@@ -87,8 +96,41 @@ class Circle(Drawable):
             "name": self.name,
             "args": {"center": center, "radius": radius, "circle_formula": self.circle_formula},
         }
+        if self.radius_expression is not None:
+            state["args"]["radius_expression"] = self.radius_expression
+        if self.undefined:
+            state["args"]["undefined"] = True
         self._add_color_to_state(state)
         return state
+
+    def parameter_names(self) -> Tuple[str, ...]:
+        """The current parameters the radius definition reads, sorted (the centre's are its own)."""
+        names: Tuple[str, ...] = definition_parameters(self.radius_expression)
+        return names
+
+    def set_radius_definition(self, radius_expression: Optional[str]) -> None:
+        """Define the radius by an expression in parameters (already checked by read_definition)."""
+        self.radius_expression = radius_expression
+        self.refresh_definition()
+
+    def refresh_definition(self) -> bool:
+        """Set the radius to |definition| at the current values; True if it changed.
+
+        Not a finite real number, or 0: the circle is marked undefined (not drawn) and keeps
+        its radius.
+        """
+        if self.radius_expression is None:
+            return False
+        value = evaluate_definition(self.radius_expression)
+        if value is None or value == 0:
+            self.undefined = True
+            return False
+        self.undefined = False
+        radius = abs(value)
+        if radius == self.radius:
+            return False
+        self.radius = radius
+        return True
 
     def __deepcopy__(self, memo: Dict[int, Any]) -> Any:
         if id(self) in memo:
@@ -97,6 +139,8 @@ class Circle(Drawable):
         new_center: Point = deepcopy(self.center, memo)
         # Create a new Circle instance with the copied center point and other properties
         new_circle: Circle = Circle(new_center, self.radius, color=self.color)
+        new_circle.radius_expression = self.radius_expression
+        new_circle.undefined = self.undefined
         new_circle.name = self.name
         new_circle.has_custom_name = self.has_custom_name
         memo[id(self)] = new_circle
@@ -145,6 +189,10 @@ class Circle(Drawable):
         pass
 
     def _generate_default_name(self) -> str:
+        """'<center>(<radius>)'; a radius defined by parameters is named by its expression: A(b)."""
+        expression = getattr(self, "radius_expression", None)
+        if expression is not None:
+            return f"{self.center.name}({expression})"
         return f"{self.center.name}({self._format_radius_for_name(self.radius)})"
 
     def _format_radius_for_name(self, radius: float) -> str:
