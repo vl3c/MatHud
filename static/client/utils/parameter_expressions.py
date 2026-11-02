@@ -28,6 +28,13 @@ _CALLED_NAME = re.compile(r"(\w+)\s*\(")
 _QUOTES = ('"', "'")
 # Names that are always variables, never parameters (drawables/parameter.py CURVE_VARIABLES)
 _VARIABLE_NAMES = frozenset({"x", "y", "θ", "theta"})
+# A name that is another kind of curve's variable: the tool that plots in it
+_OTHER_VARIABLE_TOOLS = {
+    "n": "For a sequence in n use plot_sequence (search_tools 'sequence' finds it)",
+    "t": "For a curve in t use draw_parametric_function",
+    "theta": "For a curve r(θ) use draw_polar_function",
+    "θ": "For a curve r(θ) use draw_polar_function",
+}
 # Where the model finds set_parameter when tools are searched
 _CREATE_HINT = "set_parameter (search_tools 'slider' finds it if it is not loaded)"
 
@@ -52,6 +59,16 @@ def undefined_names_hint(text: str, names: Sequence[str], variables: Sequence[st
     verb = "is" if len(names) == 1 else "are"
     message = f"'{text}' reads {quoted}, which {verb} not defined."
     for name in names:
+        called = _glued_call(name, variables)
+        if called is not None:
+            return f"{message} Functions need parentheses: write {called}."
+    for name in names:
+        tool = _OTHER_VARIABLE_TOOLS.get(name)
+        if tool is not None and name not in variables:
+            if name in _VARIABLE_NAMES:  # never a parameter's name
+                return f"{message} {tool}."
+            return f"{message} {tool}; for a parameter named {name}, create it with {_CREATE_HINT}."
+    for name in names:
         glued = _glued_product(name, variables)
         if glued is not None:
             head, variable = glued
@@ -64,6 +81,15 @@ def undefined_names_hint(text: str, names: Sequence[str], variables: Sequence[st
         f"{message} Create the parameter first with {_CREATE_HINT}: set_parameter(name='{first}', value=...), "
         f"or write a number in its place."
     )
+
+
+def _glued_call(name: str, variables: Sequence[str]) -> Optional[str]:
+    """sinx -> sin(x): a function name glued to a variable."""
+    for variable in variables:
+        head = name[: -len(variable)] if name.endswith(variable) else ""
+        if head and head in ef.ALLOWED_FUNCTIONS and head not in ("pi", "e"):
+            return f"{head}({variable})"
+    return None
 
 
 def _glued_product(name: str, variables: Sequence[str]) -> Optional[Tuple[str, str]]:

@@ -131,6 +131,15 @@ class TestDefinitionsAndHints(_CleanNamespace):
         self.assertIn("For a times x write a*x", message)
         self.assertIn("search_tools 'slider'", message)
 
+    def test_other_variables_and_glued_calls_get_their_hint(self) -> None:
+        self.assertIn("write sin(x)", undefined_names_hint("sinx", ["sinx"], ("x",)))
+        self.assertNotIn("write pi(x)", undefined_names_hint("pix", ["pix"], ("x",)))
+        self.assertIn("plot_sequence", undefined_names_hint("1/n", ["n"], ("x",)))
+        self.assertIn("draw_parametric_function", undefined_names_hint("t^2", ["t"], ("x",)))
+        polar = undefined_names_hint("theta", ["theta"], ("x",))
+        self.assertIn("draw_polar_function", polar)
+        self.assertNotIn("set_parameter", polar)
+
     def test_unknown_name_gets_the_create_hint(self) -> None:
         message = undefined_names_hint("k*x", ["k"], ("x",))
         self.assertIn("set_parameter(name='k'", message)

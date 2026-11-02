@@ -383,6 +383,21 @@ class TestCopiesAndRestore(_ParameterTestCase):
         self.assertEqual(self.canvas.get_point_by_name("P").y_expression, "a^2")
         self.assertEqual(self.canvas.drawable_manager.drawables.Functions[0].function(1.0), 2.0)
 
+    def test_polar_curve_with_no_real_value_now_is_kept_and_reloads(self) -> None:
+        self.set("a", value=-1)
+        polar = {"r_expression": "sqrt(a)*(1 + cos(θ))", "name": "r1", "theta_min": None, "theta_max": None}
+        _, traced = self.run_batch(("draw_polar_function", dict(polar, color=None)))
+        self.assert_ok(traced[0])
+        state = json.loads(json.dumps(self.workspace_manager._snapshot_persistable_canvas_state()))
+        self.canvas.clear()
+        self.workspace_manager._restore_workspace_state(state)
+        curves = self.canvas.drawable_manager.drawables.PolarFunctions
+        self.assertEqual([curve.name for curve in curves], ["r1"])
+        _, traced = self.run_batch(
+            ("draw_polar_function", dict(polar, r_expression="sqrt(-1)*(1 + cos(θ))", name="r2", color=None))
+        )
+        self.assert_error(traced[0], "real")
+
 
 class TestNamespaceOwner(_ParameterTestCase):
     def test_other_canvases_never_write_the_namespace(self) -> None:

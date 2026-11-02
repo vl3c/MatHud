@@ -73,9 +73,10 @@ class PolarFunction(Drawable):
             theta_min: Start of the θ range (radians)
             theta_max: End of the θ range (radians)
             color: Display color
-            check: Refuse names other than θ and the current parameters, and an r with no
-                real value on the range; copies (undo) pass False, since their parameters'
-                values may differ from the current ones while a state is restored
+            check: Refuse names other than θ and the current parameters, and an r reading
+                no parameters with no real value on the range; copies (undo) pass False,
+                since their parameters' values may differ from the current ones while a
+                state is restored
 
         Raises:
             ValueError: If the expression cannot be parsed or reads other names, the range is
@@ -87,7 +88,9 @@ class PolarFunction(Drawable):
         self.r_expression: str
         self._r_function: Callable[[float], float]
         self.r_expression, self._r_function = self.parse_r_expression(r_expression, check_names=check)
-        if check:
+        if check and not self.parameter_names():
+            # A curve reading parameters may have no real value at their current values (a = 0
+            # in θ/a); it draws nothing until they change, and a saved one still loads.
             self.check_has_real_value(self.r_expression, self._r_function, self.theta_min, self.theta_max)
         super().__init__(name=name or "r", color=color)
 

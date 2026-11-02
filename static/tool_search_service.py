@@ -493,10 +493,13 @@ _OTHER_PARAMETER_CONTEXT = (
     | {"confidence", "hypothesis", "test", "fit", "fitted", "fitting", "regression", "model", "parametric"}
 )
 # A parameter's name: one lowercase letter (not a variable, e or i), optionally with a digit or
-# _digit, or a Greek letter. r and t are parameter names too, but "t goes from 0 to 2*pi" is
-# a curve's variable, so "<name> goes from" uses the narrower name.
-_RANGED_PARAMETER_NAME = r"(?:[abcdfghk-qsuvwzα-ωΑ-Ω](?:_?\d)?)"
-_PARAMETER_NAME = r"(?:[abcdfghk-wzα-ωΑ-Ω](?:_?\d)?)"
+# _digit, or a Greek letter other than θ. r and t are parameter names too, but in
+# "<name> goes from" t, n and k are usually a curve's or a sequence's variable, so that form
+# uses the narrower name.
+_RANGED_PARAMETER_NAME = r"(?:[abcdfghlmo-qsuvwzα-ηι-ωΑ-ΗΙ-Ω](?:_?\d)?)"
+_PARAMETER_NAME = r"(?:[abcdfghk-wzα-ηι-ωΑ-ΗΙ-Ω](?:_?\d)?)"
+# The same without f, g and h, which usually name functions
+_UNFUNCTION_PARAMETER_NAME = r"(?:[abcdk-wzα-ηι-ωΑ-ΗΙ-Ω](?:_?\d)?)"
 # A value: a number or pi, optionally times or over another ("pi/2", "1/2", "2*pi")
 _PARAMETER_VALUE = r"-?(?i:\d+\.?\d*|\.\d+|pi|π)(?:\s*[*/]\s*(?i:\d+\.?\d*|\.\d+|pi|π))*"
 # "set a to 3", "let k = 7", "change the value of a to 4", "reset parameter a to 0": a value
@@ -509,18 +512,20 @@ _PARAMETER_ASSIGNMENT_RE = re.compile(
 # "set the range of a from -5 to 5", "set the step of k to 0.5", "make the max of a 10"
 _PARAMETER_SETTING_RE = re.compile(
     r"^\s*(?i:set|change|make|update|give)\s+(?i:the\s+)?(?i:range|min|max|minimum|maximum|step|limits?)\s+"
-    r"(?i:of|for)\s+(?i:(?:the\s+)?(?:parameter|slider)\s+)?" + _PARAMETER_NAME + r"\b"
+    r"(?i:of|for)\s+(?i:(?:the\s+)?(?:parameter|slider)\s+)?" + _UNFUNCTION_PARAMETER_NAME + r"\b"
 )
 # "delete a", "remove the slider k" (f, g and h are usually functions)
 _PARAMETER_DELETE_RE = re.compile(
     r"^\s*(?i:delete|remove|erase|drop)\s+(?i:the\s+)?(?i:(?:parameter|slider)\s+)?"
-    r"(?:[abcdk-wzα-ωΑ-Ω](?:_?\d)?)\s*$"
+    + _UNFUNCTION_PARAMETER_NAME
+    + r"\s*$"
 )
 _PARAMETER_TOOLS = ("set_parameter", "animate_parameter", "delete_parameter")
 _DELETE_WORDS = frozenset({"delete", "remove", "erase", "drop", "get rid"})
 # "n goes from 1 to 10" in a sum or a sequence is an index, not a slider
 _RANGE_OTHER_CONTEXT = frozenset(
     {"sum", "summation", "series", "sequence", "sequences", "integral", "integrate", "limit", "product", "cobweb"}
+    | {"term", "terms", "iterate", "iterates", "iteration", "iterations", "orbit", "recursion", "recursive"}
 )
 # "vary a from 0 to 1", "as a varies from -2 to 2", "let a run from -3 to 3", "slide a from 1 to 3"
 _PARAMETER_RANGE_RE = re.compile(
