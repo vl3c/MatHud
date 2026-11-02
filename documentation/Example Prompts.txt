@@ -30,6 +30,16 @@ What is P(X <= 3) for a Poisson distribution with mean 2.5?
 Find the 97.5th percentile of a t distribution with 15 degrees of freedom.
 For a normal distribution with mean 100 and sigma 15, what is P(85 < X < 115)?
 What are the mean and variance of an F distribution with 5 and 10 degrees of freedom?
+A sample of 36 has mean 103; the population sigma is 15. Test H0: mu = 100 against mu > 100 at the 5% level.
+Run a t-test on the data 12.1, 11.8, 12.5, 12.0, 11.6, 12.3 against a mean of 12.
+Drug A: 0.7, -1.6, -0.2, -1.2, -0.1, 3.4, 3.7, 0.8, 0.0, 2.0. Drug B: 1.9, 0.8, 1.1, 0.1, -0.1, 4.4, 5.5, 1.6, 4.6, 3.4. Is the difference in means significant (Welch t test)? Then repeat as a paired t test.
+Is the coin fair? 60 heads in 100 flips, test at alpha 0.05.
+Compare two proportions: 45 of 100 in group A against 30 of 100 in group B.
+Give a 95% confidence interval for the mean of 12, 15, 11, 14, 13.
+What is the margin of error of a 99% confidence interval for 45 successes out of 100?
+Run a chi-square test of independence on the table [[762, 327, 468], [484, 239, 477]].
+Goodness of fit: observed 89, 37, 30, 28, 2 against probabilities 0.40, 0.20, 0.20, 0.19, 0.01.
+Find the p-value for t = 2.1 with 15 degrees of freedom, two-tailed.
 Plot a bar chart named Poll with values [10, 20, 5], labels below ["A", "B", "C"], labels above ["10", "20", "5"], bar_width 2.0, bar_spacing 0.5, fill color "#222", fill opacity 0.5, stroke color "#111". Zoom so everything is visible.
 Draw a histogram of the test scores 55, 62, 70, 71, 78, 85, 90, 90 with bins of width 10 starting at 50.
 Make a density histogram of these reaction times in seconds and overlay a normal curve with the same mean and standard deviation: 0.8, 1.1, 1.2, 1.4, 1.5, 1.5, 1.7, 1.9, 2.2, 2.6.
@@ -198,6 +208,13 @@ Partial fractions of (3x+5)/((x+1)(x+2)).
 Expand (x^2+1)/(x-1) in partial fractions. (An improper fraction also gives its polynomial part: x + 1 + 2/(x-1).)
 Taylor polynomial of cos(x) at 0 to order 6, and plot it with cos(x).
 Find the Taylor polynomial of ln(x) at x = 1 to order 3 and say how large the error is near 1.
+Find the arc length of y = x^2 from x = 0 to 1. (arc_length: 1.47894285754, with an error estimate.)
+Draw y = ln(x) from 1 to e and find the length of the curve. (A plotted curve by name is measured over its own bounds.)
+How long is the astroid x(t) = cos(t)^3, y(t) = sin(t)^3? (6; parametric and polar curves default to t from 0 to 2*pi.)
+What is the perimeter of the cardioid r = 1 + cos(θ)? (8.)
+Find the length of the polar curve r = cos(θ) from 0 to 2*pi. (The range traces the circle twice: the tool reports traced_times 2 and one trace, π.)
+Perimeter of the ellipse E. (A circle, circle arc or ellipse on the canvas is measured by name.)
+What is the arc length of 1/x from -1 to 1? (Refused: the curve has no point at x = 0 and goes off to infinity there; measure each side separately.)
 What is the Maclaurin polynomial of e^x of order 4? (Orders 0 to 10; abs(x) or sqrt(x) at 0 is refused, since they are not smooth there.)
 Find a closed form for the sum of k^2 from k = 1 to n. (simplify of summation(k^2, k, 1, n): n*(n+1)*(2*n+1)/6.)
 What is the sum of 1/k^2 from k = 1 to infinity? (pi^2/6; a divergent series such as 1/k is reported as diverging.)

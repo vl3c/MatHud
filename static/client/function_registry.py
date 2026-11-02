@@ -26,6 +26,7 @@ from creation_report import CreationReport
 from no_change_result import NoChangeResult
 from utils.math_utils import MathUtils
 from utils.statistics.distribution_tool import compute_distribution_tool
+from utils.statistics.inference_tool import chi_squared_test_tool, confidence_interval_tool, hypothesis_test_tool
 from utils.statistics.tool import compute_descriptive_statistics_tool
 from utils.step_checker import StepChecker
 from utils.taylor import Taylor
@@ -304,6 +305,7 @@ class FunctionRegistry:
             "derive": MathUtils.derivative,
             "integrate": MathUtils.integral,
             "numeric_integrate": MathUtils.numeric_integrate,
+            "arc_length": canvas.drawable_manager.function_manager.arc_length,
             "simplify": MathUtils.simplify,
             "expand": MathUtils.expand,
             "factor": MathUtils.factor,
@@ -344,6 +346,9 @@ class FunctionRegistry:
             "fit_regression": canvas.fit_regression,
             "compute_descriptive_statistics": compute_descriptive_statistics_tool,
             "compute_distribution": compute_distribution_tool,
+            "hypothesis_test": hypothesis_test_tool,
+            "confidence_interval": confidence_interval_tool,
+            "chi_squared_test": chi_squared_test_tool,
             # ===== ANGLE OPERATIONS =====
             "create_angle": canvas.create_angle,
             "delete_angle": canvas.delete_angle,

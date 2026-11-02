@@ -328,6 +328,39 @@
           ]
         }
       ]
+    },
+    {
+      "id": "MC-12",
+      "title": "Arc length of a plotted curve and of a cardioid",
+      "tags": ["math", "polar"],
+      "smoke": false,
+      "targets": "arc_length: a plotted function measured by name over its own bounds, and a polar curve by expression",
+      "steps": [
+        {
+          "user": "Draw y = x^2 from 0 to 1 and find its arc length.",
+          "reference": [
+            {
+              "tool": "draw_function",
+              "args": {"function_string": "x^2", "name": "f", "left_bound": 0, "right_bound": 1}
+            },
+            {"tool": "arc_length", "args": {"curve_name": "f"}}
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "tool_result", "tool": "arc_length", "path": "length", "eq": 1.4789428575, "tol": 1e-08},
+            {"check": "answer_mentions", "matches": "1\\.47"}
+          ]
+        },
+        {
+          "user": "How long is the cardioid r = 1 + cos(θ)?",
+          "reference": [{"tool": "arc_length", "args": {"r_expression": "1 + cos(θ)", "lower_bound": 0, "upper_bound": "2*pi"}}],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "tool_result", "tool": "arc_length", "path": "length", "eq": 8, "tol": 1e-08},
+            {"check": "answer_mentions", "matches": "\\b8\\b"}
+          ]
+        }
+      ]
     }
   ]
 }

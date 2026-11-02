@@ -632,3 +632,311 @@ def test_d_by_dx_is_a_derivative(service: ToolSearchService) -> None:
 )
 def test_normal_line_and_normal_distribution(service: ToolSearchService, query: str, expected: str) -> None:
     assert _names(service, query)[0] == expected
+
+
+# Hypothesis tests, confidence intervals and chi-squared tests: matched on the raw text, because the
+# tokenizer drops "t" and "p" ("t-test", "p-value") and χ².
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("run a t-test on the data 5 6 7 8 against mean 5", "hypothesis_test"),
+        ("two sample t test", "hypothesis_test"),
+        ("paired t test before after", "hypothesis_test"),
+        ("test the hypothesis that the mean is 50", "hypothesis_test"),
+        ("1-PropZTest with x=45 n=100 p0=0.5", "hypothesis_test"),
+        ("2-SampTTest on lists 1 2 3 and 4 5 6", "hypothesis_test"),
+        ("is the coin fair? 60 heads in 100 flips, test at alpha 0.05", "hypothesis_test"),
+        ("is the difference between the two group means significant at the 5% level?", "hypothesis_test"),
+        ("compare two proportions with a test: 45 of 100 vs 30 of 100", "hypothesis_test"),
+        ("95% confidence interval for the mean", "confidence_interval"),
+        ("margin of error for a proportion", "confidence_interval"),
+        ("ZInterval with sigma 15 mean 103 n 36", "confidence_interval"),
+        ("with 95% confidence, estimate the mean weight from 12 13 14", "confidence_interval"),
+        ("χ² test for the table [[10,20],[30,40]]", "chi_squared_test"),
+        ("chi-square test of independence for this table", "chi_squared_test"),
+        ("chi-square goodness of fit test with observed 20 30 50", "chi_squared_test"),
+        ("find the p-value for t = 2.1 with 15 df, two-tailed", "compute_distribution"),
+        ("p-value for z = -1.8, left-tailed", "compute_distribution"),
+        ("critical value of t with 5 df", "compute_distribution"),
+        ("what is P(X<3) for a normal with mean 5", "compute_distribution"),
+        ("plot a chi-square distribution with 3 degrees of freedom", "plot_distribution"),
+        ("run tests", "run_tests"),
+        ("run the client tests", "run_tests"),
+        ("draw the normal to f at x = 2", "draw_normal_line"),
+        ("solve x^2 < 4 on the interval [0, 3]", "solve"),
+        ("integrate x^2 over the interval [0, 2]", "integrate"),
+    ],
+)
+def test_inference_requests(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected
+
+
+@pytest.mark.parametrize(
+    "query",
+    ["run a t-test on the data 5 6 7 8", "paired t test before after", "two sample t test"],
+)
+def test_a_t_test_is_not_the_test_suite(service: ToolSearchService, query: str) -> None:
+    assert "run_tests" not in _names(service, query)
+
+
+@pytest.mark.parametrize(
+    "query",
+    ["interval where f is increasing", "On which interval is f increasing?", "solve x^2 < 4 on the interval [0, 3]"],
+)
+def test_an_interval_of_x_is_not_a_confidence_interval(service: ToolSearchService, query: str) -> None:
+    assert "confidence_interval" not in _names(service, query)[:3]
+
+
+@pytest.mark.parametrize(
+    "query",
+    ["test if A, B, C are collinear", "round to 3 significant figures", "are these vectors linearly independent"],
+)
+def test_other_test_words_stay_away_from_inference(service: ToolSearchService, query: str) -> None:
+    names = _names(service, query)
+    assert not names or names[0] not in ("hypothesis_test", "chi_squared_test", "confidence_interval"), names
+
+
+# Review round 1: "test", "interval" and "significance" outside statistics, pictures and critical values.
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("is the sequence convergent? test with the ratio test", "evaluate_expression"),
+        ("test for symmetry of y = x^3", "evaluate_expression"),
+        ("what is the significance of the second derivative", "derive"),
+        ("plot a normal distribution and shade the p-value for z = 2.1", "plot_distribution"),
+        ("plot a t distribution with 10 df and shade the p-value for t = 2.3", "plot_distribution"),
+        ("draw the 95% confidence interval on a normal curve", "plot_distribution"),
+        ("critical z value for 95% confidence", "compute_distribution"),
+        ("z* for 90% confidence", "compute_distribution"),
+        ("t* for 95% confidence with 14 df", "compute_distribution"),
+        (
+            "fit a linear regression to x=[1,2,3] y=[2,4,7] and give the confidence interval of the slope",
+            "fit_regression",
+        ),
+        ("run a t-test on data 5 6 7 8 against 5 and give the critical value", "hypothesis_test"),
+        ("test H0: mu = 50 against mu > 50 with data 51 52 53", "hypothesis_test"),
+        ("test whether the mean is 50 using 48 52 49 51 47", "hypothesis_test"),
+    ],
+)
+def test_inference_words_in_other_requests(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "plot points h0 and h1",
+        "create point H0 at (1, 2)",
+        "p values of these points",
+        "use the ratio test on sum 1/n!",
+    ],
+)
+def test_names_and_series_tests_are_not_hypothesis_tests(service: ToolSearchService, query: str) -> None:
+    assert not {"hypothesis_test", "chi_squared_test"} & set(_names(service, query)[:3])
+
+
+def test_outlier_test_keeps_descriptive_statistics(service: ToolSearchService) -> None:
+    names = _names(service, "find the standard deviation and test for outliers in 2, 4, 6, 100")
+    assert "compute_descriptive_statistics" in names[:2], names
+
+
+# Review round 2: products of t or z, calculus critical values, "make"/"show" without a picture, textbook wording.
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("compute z * conj(z) for z = 3 + 4i", "evaluate_expression"),
+        ("evaluate 2*z*3 where z = 4", "evaluate_expression"),
+        ("find t such that t*2 = 10", "solve"),
+        ("find the critical values of f(x) = x^3 - 3x", "evaluate_expression"),
+        ("make a 95% confidence interval for the mean of 4, 5, 6, 7, 8", "confidence_interval"),
+        ("display the 95% confidence interval for mean 12.3, sd 2.1, n 50", "confidence_interval"),
+        ("show the p-value for a two sample t test of [1,2,3] and [4,5,6]", "hypothesis_test"),
+        ("test the claim that the mean weight is 500 g; sample mean 495, s = 10, n = 25", "hypothesis_test"),
+        ("is there evidence that the mean exceeds 50? sample mean 52, sd 5, n 40, test at 5%", "hypothesis_test"),
+        ("carry out a test at the 5% level that the proportion is 0.3; 45 successes in 120", "hypothesis_test"),
+        ("test whether angle alpha is a right angle", "create_angle"),
+        ("what z gives 95% confidence", "compute_distribution"),
+    ],
+)
+def test_inference_review_round_two(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected
+
+
+def test_theorem_hypotheses_are_not_a_hypothesis_test(service: ToolSearchService) -> None:
+    names = _names(service, "verify the hypotheses of the mean value theorem for f(x) = x^2 on [0, 2]")
+    assert names[0] != "hypothesis_test", names
+
+
+# Review round 3: p-values of a known statistic or a named distribution, regression significance, sample size.
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("p-value for a chi-squared statistic of 7.8 with 3 degrees of freedom", "compute_distribution"),
+        ("p-value when chi-square is 7.8 with 3 df", "compute_distribution"),
+        ("the chi-square statistic is 11.2 with 4 df; find the p-value", "compute_distribution"),
+        ("the test statistic is t = 2.3 with 12 df, find the p-value", "compute_distribution"),
+        (
+            "using the binomial distribution, find the p-value of getting 15 or more heads in 20 flips",
+            "compute_distribution",
+        ),
+        ("find the p-value P(X >= 15) for a binomial with n=20 p=0.5", "compute_distribution"),
+        ("is the slope of the regression line significantly different from 0", "fit_regression"),
+        ("test whether the regression slope is zero at alpha 0.05", "fit_regression"),
+        ("what is the p-value of the regression", "fit_regression"),
+        ("find the critical t value for 95% confidence and 10 df", "compute_distribution"),
+    ],
+)
+def test_inference_review_round_three(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected
+
+
+def test_sample_size_planning_is_not_an_interval(service: ToolSearchService) -> None:
+    names = _names(service, "what sample size is needed for a margin of error of 3 with sigma 15 at 95% confidence")
+    assert not {"confidence_interval", "hypothesis_test"} & set(names), names
+
+
+# Review round 4: a sample size given as data, exact discrete tails asked as "significant", calculus in t.
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("for a sample size of 30 with mean 98.2 and s 0.6, test H0: mu = 98.6 at alpha 0.05", "hypothesis_test"),
+        ("a sample size of 25 has mean 52 and sd 6; construct a 95% confidence interval", "confidence_interval"),
+        (
+            "the probability of 9 or more successes out of 10 with p = 0.5; is it significant at 0.05?",
+            "compute_distribution",
+        ),
+        ("binomial: is 9 out of 10 successes significant at the 5% level when p = 0.5", "compute_distribution"),
+        (
+            "for a binomial with n = 20 and p = 0.5, find P(X >= 15) and decide whether it is significant at the 5% level",
+            "compute_distribution",
+        ),
+        (
+            "assume a normal distribution; find the p-value for H0: mu = 50 with sample mean 52, sd 5, n 30",
+            "hypothesis_test",
+        ),
+        ("find the critical values of s(t) = t^2 - 4t where t is 0 to 5", "evaluate_expression"),
+        ("p-value for chi2(3) = 7.8", "compute_distribution"),
+        ("make a binomial distribution with n=10 and p=0.5", "plot_distribution"),
+    ],
+)
+def test_inference_review_round_four(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected
+
+
+def test_survey_size_planning_is_not_an_interval(service: ToolSearchService) -> None:
+    names = _names(service, "how many people must be surveyed for a margin of error of 3%?")
+    assert "confidence_interval" not in names, names
+
+
+# Review round 5: "geometric", p(x) and "test" in algebra stay with their tools; a binomial p-value from a sample
+# is an exact tail; "test whether p > 0.5 at alpha 0.05" crosses the decimal point.
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("use the ratio test on the geometric series sum (1/2)^n", "simplify"),
+        ("test whether the geometric series 1 + 2 + 4 + ... converges", "simplify"),
+        ("use the rational root test on p(x) = x^3 - 6x^2 + 11x - 6", "evaluate_expression"),
+        ("if alpha and beta are the roots of p(x) = x^2 + 3x + 2, find alpha^2 + beta^2", "solve"),
+        ("geometric construction: bisect angle alpha", "construct_angle_bisector"),
+        ("goodness of fit test: do the observed counts 30, 50, 20 follow a binomial distribution", "chi_squared_test"),
+        ("in a sample of 30 with p = 0.5, find the binomial p-value of 21 or more successes", "compute_distribution"),
+        (
+            "a random sample of 15 is binomial with p = 0.4; find the p-value of 10 or more successes",
+            "compute_distribution",
+        ),
+        (
+            "the number of defects follows a poisson distribution; 15 defects observed; test whether the mean is 10",
+            "compute_distribution",
+        ),
+        ("a survey of 500 voters finds 270 support the measure; test whether p > 0.5 at alpha 0.05", "hypothesis_test"),
+        ("test whether mu > 3.5 at alpha 0.05 given x̄ = 3.8, s = 0.9, n = 40", "hypothesis_test"),
+        ("test whether p differs from 0.4 at alpha = 0.01; 52 of 150 said yes", "hypothesis_test"),
+        ("test mu = 2.5 at alpha 0.05 with mean 2.7, sd 0.4, n 20", "hypothesis_test"),
+        (
+            "using the normal approximation to the binomial, test whether p = 0.5 when 60 of 100 are heads",
+            "hypothesis_test",
+        ),
+    ],
+)
+def test_inference_review_round_five(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected
+
+
+# Review round 6: a named binomial test that mentions a proportion is an exact tail; p(x) and logic p, q are not p.
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        (
+            "a manufacturer claims the proportion of faulty bulbs is 0.05; 4 of 25 are faulty; "
+            "use a binomial test at the 5% level",
+            "compute_distribution",
+        ),
+        (
+            "in a binomial experiment the success proportion is 0.4; find the p-value of 12 or more successes in 20",
+            "compute_distribution",
+        ),
+        ("test whether p(x) = x^2 + 1 has real roots", "solve"),
+        ("test if p(x) = x^2 - 4 has a root at x = 2", "evaluate_expression"),
+        ("test whether p(t) = 3t^2 has a maximum", "find_function_features"),
+        ("test whether p and q are logically equivalent", "check_steps"),
+        ("a survey of 500 voters finds 270 support the measure; test whether p > 0.5 at alpha 0.05", "hypothesis_test"),
+        ("test whether mu exceeds 3.5 at alpha 0.05 given mean 3.8, sd 0.9, n = 40", "hypothesis_test"),
+    ],
+)
+def test_inference_review_round_six(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected
+
+
+# Review round 7: p and mu compared in words; P as a point, p as a p-series exponent and calculus with alpha
+# or a t-interval stay with their tools.
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("test whether p is 0.5 with 60 heads in 100 tosses", "hypothesis_test"),
+        ("test whether p equals 0.5 given 60 of 100", "hypothesis_test"),
+        ("test whether mu is 100 given x̄ = 103, s = 15, n = 50", "hypothesis_test"),
+        ("test whether p has increased from 0.4 given 52 of 100", "hypothesis_test"),
+        ("test whether p is larger than 0.5 given 60 of 100", "hypothesis_test"),
+        ("test if P is at the midpoint of AB", "construct_midpoint"),
+        ("test whether p = 2 gives a convergent p-series", "simplify"),
+        ("use the second derivative test on f(x) = x^2 - alpha x with alpha = 0.3", "derive"),
+        ("plot y = sin(alpha x) with alpha = 0.5 and test where it crosses zero", "draw_function"),
+        ("draw x(t) = t^2, y(t) = t^3 over the t-interval (-1, 1)", "draw_parametric_function"),
+    ],
+)
+def test_inference_review_round_seven(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected
+
+
+# Review round 8: samples named x and y are data, not functions; "t interval" with a space is an interval;
+# CI as an abbreviation only before "for" or "of".
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("2-SampTTest on x = 5, 6, 7, 8 and y = 6, 7, 9, 10", "hypothesis_test"),
+        ("test whether mu = 12 at alpha 0.05 for y = 12, 15, 11, 14, 13", "hypothesis_test"),
+        ("t-interval for y = 3, 5, 7, 9", "confidence_interval"),
+        ("find a z-interval with y = 52, sigma = 6, n = 25", "confidence_interval"),
+        ("construct a one-sample t interval for the mean of 12, 15, 11, 14, 13", "confidence_interval"),
+        ("find a 90% z interval for the mean with xbar 50, sigma 4, n 25", "confidence_interval"),
+        ("find a CI for the mean of 5, 7, 9", "confidence_interval"),
+        ("run the CI tests", "run_tests"),
+        ("plot y = 2x + 3", "draw_function"),
+    ],
+)
+def test_inference_review_round_eight(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected
+
+
+# Review round 9: TI-84 braces and parentheses around a sample are data too.
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("2-SampTTest with x = {5, 6, 7, 8} and y = {6, 7, 9, 10}", "hypothesis_test"),
+        ("test whether mu = 12 at alpha 0.05 for y = (12, 15, 11, 14, 13)", "hypothesis_test"),
+        ("t-interval for y = {3, 5, 7, 9}", "confidence_interval"),
+        ("plot y = (x + 1)^2", "draw_function"),
+    ],
+)
+def test_inference_review_round_nine(service: ToolSearchService, query: str, expected: str) -> None:
+    assert _names(service, query)[0] == expected

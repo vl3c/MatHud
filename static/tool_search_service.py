@@ -72,9 +72,86 @@ _NAMED_FUNCTION_AT_POINT_RE = re.compile(
     r"\b[a-z]\((?=[^)]{0,40}(?:\d|\bpi\b|\be\b))(?:[\d.+\-*/^\s()]|\bpi\b|\be\b|\bsqrt\b){1,40}\)"
 )
 # Measurements a tool takes (calculate_area): an "exact" one still goes to that tool first.
-# No tool measures a distance or a length, and create_angle draws an angle in decimal
-# degrees, so an exact distance, length or angle goes to simplify.
+# No tool measures a distance or a segment's length, and create_angle draws an angle in
+# decimal degrees, so an exact distance, length or angle goes to simplify. A curve's length
+# (_CURVE_LENGTH_RE) has arc_length.
 _MEASUREMENT_WORDS = frozenset({"area"})
+
+# The length of a curve, which arc_length measures: "arc length", "the length of the curve",
+# "the curve's length", "how long is the graph of e^x", "the perimeter of the cardioid",
+# "the circumference of an ellipse", "the length of the arc AB" (a circle arc). Not a segment,
+# side, vector or polygon.
+_CURVE_NOUNS = (
+    r"(?:curves?|graphs?|spirals?|parabolas?|cardioids?|lima[cç]ons?|lemniscates?|roses?|astroids?"
+    r"|cycloids?|catenary|catenaries|ellipses?|helix|loops?|arcs?"
+    r"|(?:sine|cosine) (?:curve|wave)s?|trajector(?:y|ies)|paths? of (?:the |a )?(?:particle|point|curve))"
+)
+_CURVE_LENGTH_RE = re.compile(
+    r"\barc[\s-]*lengths?\b"
+    # (not a parabola's or ellipse's focal length, latus rectum length or axis length)
+    rf"|(?<!focal\s)(?<!rectum\s)(?<!axis\s)\b(?:length|perimeter|circumference)s?\s+of\s+(?:(?:the|a|an|this|that|its|one)\s+)?(?:[\w()-]+\s+)?{_CURVE_NOUNS}"
+    rf"|\b{_CURVE_NOUNS}(?:'s)?\s+(?:arc\s+)?(?:length|perimeter|circumference)\b"
+    rf"|\bhow\s+long\s+is\s+(?:the\s+|a\s+|this\s+)?(?:[\w()-]+\s+)?{_CURVE_NOUNS}"
+    # "the length of y = x^2 from 0 to 1", "length of sin(x) on [0, pi]", "length of r = 2θ"
+    r"|\b(?:length|perimeter|circumference)\s+of\s+(?:the\s+)?(?:function\s+)?"
+    r"(?:[yr]\s*=|[a-z]\s*\(\s*[a-z]\s*\)\s*=|x\s*\(\s*t\s*\)|x\s*\^|(?:sin|cos|tan|ln|log|exp|sqrt|cosh|sinh)\s*\(|e\s*\^)"
+)
+# One arch, petal or loop of a curve: "the length of one arch of the cycloid", "one petal of r = sin(2θ)"
+_CURVE_PART_LENGTH_RE = re.compile(
+    r"\b(?:length|perimeter)\s+of\s+(?:one|each|an?|the|a\s+single)\s+(?:arch|petal|loop|leaf|leaves|turn)(?:es|s)?\b"
+)
+# "Plot the cardioid r = 1 + cos(θ) and compute its perimeter": a curve's length by pronoun,
+# when the query names a curve
+_ITS_LENGTH_RE = re.compile(r"\b(?:its|their)\s+(?:arc\s+)?(?:length|perimeter|circumference)s?\b")
+# ... unless "its" may be a polygon or segment's, or the length is optimised ("a rectangle inscribed
+# under y = 4 - x^2; maximize its perimeter")
+_ITS_OTHER_SHAPE_RE = re.compile(
+    r"\b(?:rectangles?|triangles?|squares?|polygons?|segments?|lines?|sides?|chords?|ladders?|fences?)\b"
+    r"|\b(?:maximi[sz]e|minimi[sz]e|maximum|minimum|largest|smallest|greatest|least|optimi[sz]e)\b"
+)
+_NAMES_CURVE_RE = re.compile(
+    rf"\b{_CURVE_NOUNS}|\by\s*=|\br\s*=[^,;.]*(?:θ|theta)|\b[a-z]\s*\(\s*[a-z]\s*\)\s*=|\bx\s*\(\s*t\s*\)|\b(?:parametric|polar)\b"
+)
+# A graph of vertices and edges named or placed: "graph G", "in G1", "in the graph", "A-B-C-A"
+_NAMED_GRAPH_RE = re.compile(
+    r"\b[Gg]raph\s+[A-Z]\w*\b|\b[Ii]n\s+(?:the\s+|this\s+)?graph\b|\bin\s+G\d*\b|\b[A-Z]\s*-\s*[A-Z]\s*-\s*[A-Z]\b"
+)
+# Words for a length that, without a curve, is not arc_length's ("the length of segment AB")
+_LENGTH_WORDS = frozenset({"length", "lengths", "long", "perimeter", "circumference"})
+# "The distance travelled along (x(t), y(t))": arc length when the motion is in the plane
+_DISTANCE_TRAVELLED_RE = re.compile(
+    r"\bdistances?\s+(?:travel+ed|covered|walked|moved)\b|\btotal\s+distance\b|\bhow\s+far\s+does\b.*\btravel"
+)
+# Motion along a line, from a velocity or a position: the distance travelled is an integral
+# of |v(t)| ("v(t) = 10 - 2t, find the total distance from t = 0 to 8")
+_LINE_MOTION_WORDS = frozenset({"velocity", "speed", "position", "particle", "displacement"})
+_LINE_MOTION_RE = re.compile(r"\b[vsx]\s*\(\s*t\s*\)")
+# A distance travelled that is not the length of a path given by positions: from velocity
+# components ("dx/dt = 3t^2 and dy/dt = 2t", "velocity vector (2t, 3t^2)") the distance is the
+# integral of the speed; a scalar velocity "v(t) = 2t - 4" is motion along a line; a projectile's
+# horizontal or vertical distance is a coordinate, not a length
+_NOT_PATH_DISTANCE_RE = re.compile(
+    r"\bd[xy]\s*/\s*dt\b|\b[xy]\s*'\s*\(\s*t\s*\)|\bvelocity\s+vectors?\b"
+    r"|\bvelocity\s+(?:is\s+|of\s+)?(?:v\s*\(\s*t\s*\)\s*=\s*)?[(<]"
+    r"|\bv\s*\(\s*t\s*\)\s*=\s*[^\s]"
+    r"|\bhorizontal(?:ly)?\b|\bvertical(?:ly)?\b|\bheight\b|\bshortest\b"
+)
+# A path between named points ("from A to B to C") is a polyline or a graph path
+_BETWEEN_POINTS_RE = re.compile(r"\bfrom\s+[A-Z]\s+to\s+[A-Z]\b")
+# Velocity components: integrate the speed sqrt(x'(t)^2 + y'(t)^2)
+_VELOCITY_COMPONENTS_RE = re.compile(
+    r"\bd[xy]\s*/\s*dt\b|\b[xy]\s*'\s*\(\s*t\s*\)|\bvelocity\s+vectors?\b"
+    r"|\bvelocity\s+(?:is\s+|of\s+)?(?:v\s*\(\s*t\s*\)\s*=\s*)?[(<]|\bv\s*\(\s*t\s*\)\s*=\s*[(<]"
+)
+# Motion in the plane: a pair (x(t), y(t)) that is not a call such as v(t), both x(t) and y(t)
+# (or x = ... t and y = ... t), along y = f(x) or r = f(θ), or a word for a curve
+_PLANE_MOTION_RE = re.compile(
+    r"(?<![\w)])\(\s*[^,;=]*(?<![a-z])t\b[^,;=]*,[^,;=]*(?<![a-z])t\b"
+    r"|\bx\s*\(\s*t\s*\)[^.;]*\by\s*\(\s*t\s*\)"
+    r"|\bx\s*=[^,;]*(?<![a-z])t\b[,;]?[^.;]*\by\s*=[^,;]*(?<![a-z])t\b"
+    r"|\balong\s+(?:the\s+(?:graph\s+of\s+)?)?[yr]\s*="
+    r"|\bparametric|\bplane\b|\bcurve\b|\bpath\b"
+)
 
 # "graph" means a graph of vertices and edges (generate_graph) rather than the plot of
 # a function when the query names that structure (_GRAPH_STRUCTURE_WORDS). Two weaker
@@ -243,6 +320,95 @@ _PICTURE_WORDS = frozenset(
 _NORMAL_LINE_RE = re.compile(
     r"\bnormals?\s+(?:to\b|at\b|(?:of|for)\s+(?:[a-z]\b|the\s+(?:graph|curve|parabola|circle|ellipse|function)))"
 )
+# Hypothesis tests, confidence intervals and chi-squared tests (_inference_intent), matched on the
+# lowercased raw query because the tokenizer drops one-letter words ("t-test", "p-value") and χ².
+# A comparison of a parameter with a value: a symbol, or "differs from", "is at least", "has increased from".
+_PARAMETER_COMPARISON = (
+    r"(?:[<>=≠≤≥]|!=|\b(?:differs?|exceeds?|equals?|has|is)\b(?:\s+(?:greater|less|more|larger|bigger|smaller"
+    r"|higher|lower|different|equal|not|at|least|most|above|below|over|under|than|to|from|or|increased"
+    r"|decreased|changed|risen|fallen|exactly))*)\s*(?:[<>=≠≤≥]\s*)?"
+)
+_HYPOTHESIS_TEST_RE = re.compile(
+    r"\b[tz][- ]?tests?\b|\bp[- ]?values?\b(?!\s+of\s+(?:these|the|those)\s+points)|\bhypothes[ie]s\b"
+    r"|\bh[_ ]?0\s*(?::|=|is\b)|\bnull\s+h[_ ]?0\b|\bsignificance\s+(?:level|test)|\blevel\s+of\s+significance\b"
+    r"|\bstatistically\s+significant|\bsignificant(?:ly)?\s+(?:at|different|difference|level)\b"
+    r"|\breject(?:s|ed|ing)?\s+(?:the\s+)?(?:null|h[_ ]?0)\b"
+    r"|\b(?:2-?)?samp[tz]test\b|\b[12]-?propztest\b|\bpaired\b[^.]*\btests?\b"
+    r"|\b(?:one|two|1|2)[- ]?(?:sample|proportion|prop)s?\b[^.]*\btests?\b|\bproportion\s+tests?\b"
+    r"|\btest(?:s|ed)?\s+(?:whether|if|that)\s+(?:the\s+)?(?:population\s+)?(?:means?|proportions?|averages?)\b"
+    # "test whether p > 0.5" or "mu is 100": p compared with a proportion, mu with a number; not "p(x) = x^2 + 1",
+    # "p and q", "P is at the midpoint of AB" or "p = 2 gives a convergent p-series".
+    r"|\btest(?:s|ed)?\s+(?:whether|if|that)\s+(?:p\s*" + _PARAMETER_COMPARISON + r"(?:0?\.\d|[01](?![\d.])"
+    r"|\d{1,2}(?:\.\d+)?\s*%)|(?:mu|μ)\s*" + _PARAMETER_COMPARISON + r"-?\.?\d)"
+    r"|\bh[_ ]?[1a]\s*:"
+    r"|\btest(?:s|ed)?\b(?:[^.;?]|\.\d)*(?:\balpha\b|α)\s*(?:=|of|level)?\s*0?\.\d|(?:\balpha\b|α)\s*=?\s*0?\.\d(?:[^.;?]|\.\d)*\btest"
+    r"|\btest\s+(?:the\s+|this\s+)?claim\b|\b(?:evidence|claim)\s+that\s+(?:the\s+)?(?:population\s+)?(?:mean|proportion)"
+    r"|\btest\b(?:[^.;?]|\.\d)*\bat\s+(?:the\s+)?\d+(?:\.\d+)?\s*%|\b(?:at|with)\s+(?:the\s+)?\d+(?:\.\d+)?\s*%\s+(?:significance\s+)?level"
+)
+_CHI_SQUARED_TEST_RE = re.compile(
+    r"(?:χ²|χ2|\bchi[- ]?(?:squared?|sq|2)?)[- ]?(?:gof[- ]?)?(?:tests?\b|goodness\b)"
+    r"|\bgoodness[- ]of[- ]fit\b|\bcontingency\b|\btests?\s+(?:of|for)\s+(?:independence|homogeneity)\b"
+    r"|\bindependence\s+tests?\b|\bgof\b"
+)
+_CONFIDENCE_INTERVAL_RE = re.compile(
+    r"\bconfidence\s+(?:intervals?|levels?|bounds?)\b|\bmargin\s+of\s+error\b|\b[tz]-?intervals?\b(?!\s*\[)"
+    r"|\b[tz]\s+intervals?\b(?!\s*(?:[\[(]|-?\d|to\b|from\b))|\bci\s+(?:for|of)\b"
+    r"|\b[12]-?propzint\b|\b(?:2-?)?samp[tz]int\b|\b\d+(?:\.\d+)?\s*%\s*(?:ci|intervals?|confiden)"
+    r"|\binterval\s+estimates?\b"
+)
+# A p-value of a statistic already computed ("p-value for t = 2.1 with 15 df"): compute_distribution.
+_STATISTIC_VALUE_RE = re.compile(
+    r"(?:\b[tz]|\bchi[- ]?(?:squared?|sq|2)?|χ²|χ2)(?:\s*\(\s*\d+\s*\))?[- ]?(?:\s*(?:score|statistic|stat|value))?"
+    r"\s*(?:=|\bis\b|\bof\b|\bequals\b)\s*-?\.?\d|\bstatistic\s+(?:of|is|=|equals)\s*-?\.?\d"
+)
+# A discrete distribution, P(X ...) or "the probability of 9 or more" named outright ("using the binomial
+# distribution, is 15 or more heads significant?"): its exact tail is compute_distribution's, not a
+# normal-approximation test.
+_NAMED_DISTRIBUTION_RE = re.compile(
+    r"\b(?:binomial|poisson)\b|\bgeometric\s+(?:distribution|random|probability|model)|\bp\s*\(\s*x\s*(?:[<>=≤≥]|!=)"
+    r"|\bprobability\b[^.;?]*\b(?:or\s+(?:more|fewer|less)|at\s+(?:least|most))\b"
+)
+# A named distribution routes to compute_distribution only next to a test word ("geometric series" does not).
+_INFERENCE_SIGNAL_RE = re.compile(r"significan|\bp[- ]?values?\b|\bh[_ ]?[01]\b|\bnull\b|\btest\b|\balpha\b|α")
+_STATISTIC_P_VALUE_RE = re.compile(r"\bp[- ]?values?\b|\bcritical\s+values?\b")
+# "critical value of t with 5 df", "z* for 90% confidence": a quantile, also without a statistic's value.
+_CRITICAL_VALUE_RE = re.compile(
+    r"\bcritical\s+(?:[tz]\s+|chi[- ]?squared?\s+)?values?\b|\b[tz]\s*\*(?!\s*[\d(.])(?!\s*[a-z]\b)|\bwhat\s+[tz](?:\s+value)?\s+gives\b"
+)
+# A critical value is a statistics question only next to one of these ("critical values of f" is calculus).
+_CRITICAL_CONTEXT_RE = re.compile(
+    r"confiden|\balpha\b|α|\bdf\b|degrees?\s+of\s+freedom|significan|\d\s*%|\b(?:one|two|left|right|upper|lower)[- ]tail"
+)
+# Statistics words that keep a test or interval next to function notation ("the p-value of a t test, with y = ..." data).
+_STATISTICS_CONTEXT_RE = re.compile(
+    r"\bp[- ]?values?\b|\bhypothes[ie]s\b|\bh[_ ]?[01a]\b|\bnull\b|\b[tz][- ]?tests?\b|\bmeans?\b|\bproportions?\b"
+    r"|\bsamples?\b|significan|\bconfidence\b|\bmargin\s+of\s+error\b|\bci\b"
+)
+_FUNCTION_CONTEXT_RE = re.compile(r"\b[a-z]\(\s*[a-z]\s*\)|\by\s*=|\bfunction\b")
+# Values named like a variable ("x = 5, 6, 7 and y = 6, 7, 9", "y = [3, 5]", "y = {3, 5}", "y = 52, s = 6"):
+# data, not a function.
+_DATA_VALUES_RE = re.compile(r"\b[a-z]\s*=\s*(?:[\[{(]|c\()?\s*-?(?:\d+(?:\.\d+)?|\.\d+)\s*(?:[,;\]})]|\s+-?\.?\d|$)")
+_TEST_WORD_RE = re.compile(r"\btest(?:s|ed|ing)?\b|\bp[- ]?values?\b|\bhypothes[ie]s\b")
+# A picture of a distribution ("shade the p-value on a normal curve") is plot_distribution's.
+_DISTRIBUTION_PICTURE_WORDS = frozenset({"distribution", "curve", "normal", "bell", "gaussian", "density"})
+# Words that make "test" a statistics request even without a test pattern.
+_SAMPLE_WORDS = frozenset({"mean", "means", "proportion", "proportions", "sample", "samples", "population", "sigma"})
+# A test or interval of a regression slope, intercept or correlation (LinRegTTest, LinRegTInt) is out of
+# scope: those requests stay with fit_regression and compute_descriptive_statistics.
+_REGRESSION_WORDS = frozenset(
+    {"regression", "slope", "intercept", "fit", "fitting", "correlation", "correlated", "correlate"}
+)
+# Sample-size planning ("how large a sample for a margin of error of 3") is not an interval.
+_SAMPLE_SIZE_RE = re.compile(
+    r"\b(?:what|which|minimum|smallest|required|needed)\s+sample\s+size\b|\bsample\s+size\s+(?:is\s+)?(?:needed|required)\b"
+    r"|\bhow\s+(?:large|big)\s+(?:a\s+|the\s+)?sample\b|\bhow\s+many\b[^.?]*\b(?:surveyed|sampled|needed|required)\b"
+)
+# Summary figures, or a normal-approximation test asked by name, that make a named binomial question a
+# test of data after all ("a sample of 30", "test whether the mean is 10" stay exact tails).
+_SAMPLE_SUMMARY_WORDS = frozenset({"sd", "sigma", "approximation"})
+_Z_TEST_RE = re.compile(r"\bz[- ]?tests?\b|\b1-?propztest\b|\bstandard\s+deviation\b")
+# Words that ask for the test suite even next to a test word.
+_TEST_SUITE_WORDS = frozenset({"run", "suite", "client", "server", "unit", "brython"})
 _FUNCTION_NAME_WORDS = frozenset({"sin", "cos", "exp", "ln", "log", "squared", "cubed"})
 _FUNCTION_EQUATION_RE = re.compile(r"\b[a-z]\(\s*[a-z]\s*\)|[=^]")
 _PIECEWISE_RE = re.compile(r"for\s+x\s*[<>]|when\s+x\s*[<>]|x\s*>=|x\s*<=")
@@ -547,7 +713,7 @@ TOOL_CATEGORIES: Dict[str, CategoryEntry] = {
             "convert", "limit", "derive", "integrate", "numeric_integrate",
             "simplify", "expand", "factor", "solve",
             "solve_system_of_equations", "solve_numeric", "check_steps",
-            "taylor_polynomial",
+            "taylor_polynomial", "arc_length",
         ],
         "keywords": [
             "calculate", "evaluate", "solve", "derivative", "integral",
@@ -565,6 +731,7 @@ TOOL_CATEGORIES: Dict[str, CategoryEntry] = {
             "plot_distribution", "plot_bars", "plot_histogram", "plot_box",
             "plot_scatter", "delete_plot",
             "fit_regression", "compute_descriptive_statistics", "compute_distribution",
+            "hypothesis_test", "confidence_interval", "chi_squared_test",
         ],
         "keywords": [
             "statistics", "distribution", "bar", "chart", "mean",
@@ -1128,6 +1295,30 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         return equation
 
     @staticmethod
+    def _asks_for_curve_length(token_set: Set[str], raw_query: str, raw_lower: str) -> bool:
+        """Whether a query asks for the length of a curve: "arc length of y = x^2", "the length of
+        the spiral", "distance travelled by (t^2, t^3)"; not "the length of segment AB", nor a
+        loop, arc or path of a graph of vertices and edges ("the length of the loop in graph G")."""
+        if (token_set & (_GRAPH_STRUCTURE_WORDS | _GRAPH_THEORY_ONLY_WORDS) or _NAMED_GRAPH_RE.search(raw_query)) and not (
+            _FUNCTION_DEFINITION_RE.search(raw_lower) or _POLAR_CURVE_RE.search(raw_lower)
+        ):
+            return False
+        if _CURVE_LENGTH_RE.search(raw_lower) or _CURVE_PART_LENGTH_RE.search(raw_lower):
+            return True
+        if (
+            _ITS_LENGTH_RE.search(raw_lower)
+            and _NAMES_CURVE_RE.search(raw_lower)
+            and not _ITS_OTHER_SHAPE_RE.search(raw_lower)
+        ):
+            return True
+        return bool(
+            _DISTANCE_TRAVELLED_RE.search(raw_lower)
+            and _PLANE_MOTION_RE.search(raw_lower)
+            and not _NOT_PATH_DISTANCE_RE.search(raw_lower)
+            and not _BETWEEN_POINTS_RE.search(raw_query)
+        )
+
+    @staticmethod
     def _asks_for_histogram(token_set: set[str]) -> bool:
         """Whether a query asks for a histogram of data, not a bar chart of grouped values
         ("a histogram-like bar plot from these grouped values" is a bar chart)."""
@@ -1223,13 +1414,15 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["plot_sequence"] += 10.0
 
     @staticmethod
-    def _boost_distribution_tools(token_set: set[str], scores: Dict[str, float], normal_line: bool) -> None:
+    def _boost_distribution_tools(
+        token_set: set[str], scores: Dict[str, float], normal_line: bool, compute: bool = True
+    ) -> None:
         """compute_distribution for probabilities and quantiles, plot_distribution for pictures.
 
         A distribution is named outright (binomial, poisson, chi, student, calculator names
         such as normalcdf), or by an everyday word (normal, exponential, uniform, geometric)
         next to a distribution word; exponential growth, geometric sequences and uniform
-        scaling stay with their own tools.
+        scaling stay with their own tools. ``compute=False`` keeps only the picture boost.
         """
         named = bool(token_set & _DISTRIBUTION_NAME_WORDS) or bool(
             token_set & _AMBIGUOUS_DISTRIBUTION_WORDS and token_set & _DISTRIBUTION_CONTEXT_WORDS
@@ -1245,8 +1438,92 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             if named:
                 scores["plot_distribution"] += 6.0
             return
+        if not compute:
+            return
         # Calculator names (invNorm, binomcdf) outrank evaluate_expression's call-syntax boost.
         scores["compute_distribution"] += (10.0 if token_set & _DISTRIBUTION_NAME_WORDS else 8.0) if named else 3.0
+
+    @staticmethod
+    def _inference_intent(raw_lower: str) -> set[str]:
+        """The inference tools a query asks for; compute_distribution for a known statistic's tail.
+
+        "p-value for t = 2.1 with 15 df" names a statistic's value and "critical value of t with
+        5 df" or "z* for 90% confidence" a quantile: distribution questions. χ² tests ask for
+        chi_squared_test (checked first: "chi-square test" also reads as a test), t/z tests,
+        p-values and hypotheses for hypothesis_test, and confidence intervals or margins of
+        error for confidence_interval.
+        """
+        function = _FUNCTION_CONTEXT_RE.search(_DATA_VALUES_RE.sub(" ", raw_lower))
+        if _STATISTIC_P_VALUE_RE.search(raw_lower) and not (_NUMBER_LIST_RE.search(raw_lower) or function):
+            if _STATISTIC_VALUE_RE.search(raw_lower):
+                return {"compute_distribution"}
+        if (
+            _NAMED_DISTRIBUTION_RE.search(raw_lower)
+            and _INFERENCE_SIGNAL_RE.search(raw_lower)
+            and not (function or _CHI_SQUARED_TEST_RE.search(raw_lower) or _Z_TEST_RE.search(raw_lower))
+            and not set(re.findall(r"[a-z]+", raw_lower)) & _SAMPLE_SUMMARY_WORDS
+        ):
+            return {"compute_distribution"}
+        tools: set[str] = set()
+        if _CRITICAL_VALUE_RE.search(raw_lower) and _CRITICAL_CONTEXT_RE.search(raw_lower) and not function:
+            tools.add("compute_distribution")
+        if _CHI_SQUARED_TEST_RE.search(raw_lower):
+            tools.add("chi_squared_test")
+        elif _HYPOTHESIS_TEST_RE.search(raw_lower) and "theorem" not in raw_lower:
+            # "the critical value of t at the 5% level" names a level, not a test; "the second derivative
+            # test on f(x) = x^2 - alpha x with alpha = 0.3" is calculus.
+            if (not tools or _TEST_WORD_RE.search(raw_lower)) and not (
+                function and not _STATISTICS_CONTEXT_RE.search(raw_lower)
+            ):
+                tools.add("hypothesis_test")
+        if _CONFIDENCE_INTERVAL_RE.search(raw_lower) and not (function or _PARAMETRIC_RE.search(raw_lower)):
+            tools.add("confidence_interval")
+        elif _CONFIDENCE_INTERVAL_RE.search(raw_lower) and _STATISTICS_CONTEXT_RE.search(raw_lower):
+            # "draw x(t) = t^2, y(t) = t^3 over the t-interval (-1, 1)" is a parameter range.
+            tools.add("confidence_interval")
+        return tools
+
+    @staticmethod
+    def _boost_inference_tools(tools: set[str], token_set: set[str], scores: Dict[str, float]) -> None:
+        """Raise the tools ``_inference_intent`` found above the statistics and test-word matches.
+
+        A picture of a distribution ("plot a normal and shade the p-value") gets no boost and
+        ranks below plot_distribution, which draws it; "show the p-value of a t test" is not one. A critical value asked next to a test ranks behind the test, and a confidence
+        interval of a regression slope or correlation stays with fit_regression.
+        """
+        drawing = scores.get("plot_distribution", 0.0)
+        draws_distribution = token_set & _PICTURE_WORDS and token_set & (
+            _DISTRIBUTION_PICTURE_WORDS | _DISTRIBUTION_NAME_WORDS
+        )
+        if draws_distribution and drawing > 0.0:
+            for tool in tools:
+                if scores.get(tool, 0.0) >= drawing:
+                    scores[tool] = drawing - 0.5
+            return
+        for tool in tools:
+            if tool in ("confidence_interval", "hypothesis_test") and token_set & _REGRESSION_WORDS:
+                scores.pop(tool, None)
+                continue
+            boost = 14.0
+            if tool == "compute_distribution" and tools & {"hypothesis_test", "chi_squared_test"}:
+                boost = 10.0  # a test's critical value: the test first
+            if tool == "confidence_interval" and "compute_distribution" in tools:
+                boost = 4.0  # "critical z value for 95% confidence": the quantile first
+            scores[tool] += boost
+
+    @staticmethod
+    def _quiet_inference_tools(token_set: set[str], scores: Dict[str, float]) -> None:
+        """No inference intent: the tool names' "test" and "interval" do not make a ratio test,
+        a symmetry test or an interval of x a statistics request."""
+        if token_set & TEST_QUERY_WORDS and not token_set & _SAMPLE_WORDS:
+            scores.pop("hypothesis_test", None)
+            scores.pop("chi_squared_test", None)
+            # Their descriptions name hypothesis_test, which indexes as "test".
+            for tool in ("compute_distribution", "confidence_interval"):
+                if tool in scores:
+                    scores[tool] -= 1.0
+        if token_set & {"interval", "intervals"}:
+            scores.pop("confidence_interval", None)
 
     @staticmethod
     def _apply_intent_boosts(
@@ -1298,7 +1575,20 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["plot_distribution"] += 6.0
         if token_set & {"normal", "normally"} and not normal_line:
             scores["plot_distribution"] += 4.0
-        ToolSearchService._boost_distribution_tools(token_set, scores, normal_line)
+        inference = ToolSearchService._inference_intent(raw_lower)
+        tests_data = bool(inference - {"compute_distribution"})
+        # A test's p-value or interval is not a distribution question; its picture still is.
+        ToolSearchService._boost_distribution_tools(token_set, scores, normal_line, compute=not inference)
+        if inference:
+            ToolSearchService._boost_inference_tools(inference, token_set, scores)
+            if not token_set & _TEST_SUITE_WORDS:
+                scores.pop("run_tests", None)
+        else:
+            ToolSearchService._quiet_inference_tools(token_set, scores)
+        if _SAMPLE_SIZE_RE.search(raw_lower):
+            # Planning n for a margin of error is arithmetic the inference tools cannot do.
+            scores.pop("confidence_interval", None)
+            scores.pop("hypothesis_test", None)
         ToolSearchService._boost_sequence_tools(token_set, raw_lower, scores)
         histogram = ToolSearchService._asks_for_histogram(token_set)
         box_plot = ToolSearchService._asks_for_box_plot(token_set)
@@ -1317,7 +1607,8 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["draw_function"] += 4.0
         if token_set & {"regression", "fit", "fitting", "trend"}:
             scores["fit_regression"] += 6.0
-        if token_set & _DESCRIPTIVE_STATISTICS_WORDS:
+        # A test or interval of a mean is not a summary of the data.
+        if token_set & _DESCRIPTIVE_STATISTICS_WORDS and not tests_data:
             scores["compute_descriptive_statistics"] += 7.0
         if {"five", "summary"} <= token_set and not box_plot:
             # "the five-number summary of 4, 8, 15": statistics, not an expression to evaluate
@@ -1474,7 +1765,44 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         wants_exact = bool(token_set & {"exact", "fraction", "fractions", "radical"})
         named_at_point = wants_exact and _NAMED_FUNCTION_AT_POINT_RE.search(raw_lower) is not None
         at_point = named_at_point or _FUNCTION_AT_POINT_RE.search(raw_lower) is not None
-        exact_alongside = wants_exact and (named_at_point or bool(token_set & _MEASUREMENT_WORDS))
+        curve_length = ToolSearchService._asks_for_curve_length(token_set, raw_query, raw_lower)
+        exact_alongside = wants_exact and (named_at_point or curve_length or bool(token_set & _MEASUREMENT_WORDS))
+        if curve_length:
+            # arc_length measures it; integrate gives the exact integral of the speed
+            scores["arc_length"] += 20.0
+            scores["integrate"] += 12.0 if wants_exact else 1.0
+            if token_set & {"integral", "integrate", "integration", "numerical", "numerically"}:
+                # "use numerical integration to approximate the arc length of y = ...": the integral asked for
+                scores["integrate"] += 10.0
+                scores["numeric_integrate"] += 12.0
+            if (
+                token_set & {"draw", "plot", "graph", "sketch"}
+                and _FUNCTION_DEFINITION_RE.search(raw_lower)
+                and not _PARAMETRIC_RE.search(raw_lower)
+            ):
+                # "draw y = x^2 and find its arc length": the curve is drawn first
+                scores["draw_function"] += 10.0
+        elif token_set & _LENGTH_WORDS:
+            # Its name and description share these words with every other length
+            scores["arc_length"] -= 6.0
+        elif _DISTANCE_TRAVELLED_RE.search(raw_lower) and (
+            token_set & _LINE_MOTION_WORDS
+            or _LINE_MOTION_RE.search(raw_lower)
+            or _VELOCITY_COMPONENTS_RE.search(raw_lower)
+        ):
+            # "the distance travelled with velocity v(t) = 3t^2 from 0 to 2", or from a position x(t),
+            # along a line; or from velocity components, the integral of the speed
+            scores["integrate"] += 6.0
+            scores["numeric_integrate"] += 4.0
+            if _VELOCITY_COMPONENTS_RE.search(raw_lower) and "arc_length" in scores:
+                # Its description names dx/dt only to send them here
+                scores["arc_length"] -= 4.0
+        if not curve_length and "arc_length" in scores:
+            # Behind the math tools it ties with on category and description words alone
+            scores["arc_length"] -= 1.5
+        if scores.get("arc_length", 1.0) <= 0.0:
+            # A negative score would end the results before the demoted destructive tools
+            del scores["arc_length"]
         if wants_exact:
             scores["simplify"] += 3.0 if exact_alongside else 6.0
         only_exact = wants_exact and not exact_alongside
