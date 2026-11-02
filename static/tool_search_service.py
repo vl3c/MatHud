@@ -123,6 +123,9 @@ _SEQUENCE_WORDS = frozenset(
 )
 _COBWEB_WORDS = frozenset({"cobweb", "cobwebs", "orbit", "orbits", "staircase"})
 _ITERATION_WORDS = frozenset({"iterate", "iterates", "iteration", "iterations", "iterating", "iterated"})
+# "5 iterations of Newton's method": a root finder's iterations, not an orbit to draw
+_ROOT_METHOD_WORDS = frozenset({"newton", "newtons", "raphson", "bisection", "secant", "method", "methods"})
+_ROOT_METHOD_WORDS = _ROOT_METHOD_WORDS | frozenset({"root", "roots", "zero", "zeros", "decimal", "decimals"})
 # A sum or series of terms is a computation, not a plot of the terms (nor an orbit)
 _SEQUENCE_SUM_WORDS = frozenset({"sum", "sums", "summation", "series", "sigma"})
 # A limit or convergence test of a sequence is a computation; an iteration's convergence is a cobweb
@@ -156,11 +159,11 @@ _NOT_ITERATION_WORDS = (_SEQUENCE_OBJECT_WORDS - {"point", "points"}) | frozense
     {"vertices", "vertex", "nodes", "edges", "graph", "tree", "dag", "bfs", "dfs", "traversal", "list", "workspaces"}
 )
 # u(n), a(n), u(n-1), x(n+1), a_n, u_{n-1}: a term of a sequence
-_SEQUENCE_TERM_RE = re.compile(r"\b[a-z]\s*\(\s*n\s*(?:[-+]\s*\d\s*)?\)|\b[a-z]_\{?n\b")
+_SEQUENCE_TERM_RE = re.compile(r"(?<![a-z])[a-z]\s*\(\s*n\s*(?:[-+]\s*\d\s*)?\)|\b[a-z]_\{?n\b")
 # u(n-1), a(n-2): a previous term of a recursion
-_PREVIOUS_TERM_RE = re.compile(r"\b[a-z]\s*\(\s*n\s*-\s*[12]\s*\)")
+_PREVIOUS_TERM_RE = re.compile(r"(?<![a-z])[a-z]\s*\(\s*n\s*-\s*[12]\s*\)")
 # x(n+1) = ..., x_{n+1}: a first-order iteration, drawn as a cobweb
-_NEXT_TERM_RE = re.compile(r"\b[a-z]\s*\(\s*n\s*\+\s*1\s*\)|\b[a-z]_[({]?n\s*\+\s*1")
+_NEXT_TERM_RE = re.compile(r"(?<![a-z])[a-z]\s*\(\s*n\s*\+\s*1\s*\)|\b[a-z]_[({]?n\s*\+\s*1")
 _PLOT_NOUN_WORDS = frozenset({"diagram", "diagrams", "plot", "plots", "chart", "picture"})
 # "plot the convergent sequence 1/n": a plot request, whatever else it asks about the sequence
 _SEQUENCE_PLOT_VERBS = frozenset({"plot", "plots", "plotting", "graph", "draw", "sketch", "visualize", "visualise"})
@@ -1157,8 +1160,11 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         if sum_words and not web:
             ToolSearchService._penalize(scores, ("plot_sequence", "plot_cobweb"), 8.0)
             return
+        fixed_point = "fixed point" in raw_lower.replace("-", " ")
         iterates = bool(token_set & _ITERATION_WORDS) or "logistic map" in raw_lower
-        stability = "fixed point" in raw_lower.replace("-", " ") and bool(token_set & _STABILITY_WORDS)
+        if iterates and token_set & _ROOT_METHOD_WORDS and not fixed_point:
+            iterates = False
+        stability = fixed_point and bool(token_set & _STABILITY_WORDS)
         next_term = _NEXT_TERM_RE.search(raw_lower) is not None
         if (web or next_term or stability or iterates) and not token_set & _NOT_ITERATION_WORDS:
             # A named web or cobweb outranks the curve words it is drawn with ("a web plot for the logistic map")

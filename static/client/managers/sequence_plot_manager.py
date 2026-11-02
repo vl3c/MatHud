@@ -188,7 +188,7 @@ class SequencePlotManager:
 
 
 def _rounded(value: Optional[float], digits: int = 12) -> Optional[float]:
-    return None if value is None else round_significant(float(value), digits)
+    return None if value is None else round_significant(float(value), digits) + 0.0  # no -0.0
 
 
 def _listed(key: str, values: Sequence[float]) -> Dict[str, List[Optional[float]]]:
@@ -252,6 +252,12 @@ def _behaviour_note(summary: Dict[str, Any], result: Dict[str, Any]) -> str:
     result["pattern"] = pattern
     if pattern == "monotone":
         return f"{after} the values still move one way (last change {result['last_change']}): it may converge or diverge slowly"
+    if pattern == "shrinking" and summary.get("period"):
+        result["period"] = summary["period"]
+        return (
+            f"{after} the gaps between values {summary['period']} steps apart are still shrinking: the orbit "
+            f"may be settling slowly into a cycle of period {summary['period']}"
+        )
     if pattern == "shrinking":
         return f"{after} the changes are still shrinking (last change {result['last_change']}): it may be converging slowly"
     return f"no fixed point or cycle of period up to 12 {after}: the orbit may be chaotic"

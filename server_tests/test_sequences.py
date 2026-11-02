@@ -23,6 +23,7 @@ from managers.sequence_plot_manager import SequencePlotManager
 from plot_kinds import build_saved_plot, plot_kind
 from static.canvas_state_formatter import render_state
 from static.canvas_view_note import measure_shapes
+from static.tool_search_service import ToolSearchService
 from utils.sequences import (
     CLASSIFY_STEPS,
     MAX_SEQUENCE_TERMS,
@@ -232,6 +233,21 @@ class TestOrbits(unittest.TestCase):
                 behaviour = _behaviour(text, x0)
                 self.assertEqual((behaviour["behaviour"], behaviour["pattern"]), ("none", "shrinking"))
 
+    def test_a_slow_approach_to_a_cycle_is_shrinking_with_its_period(self) -> None:
+        for r, period in ((3.45, 2), (3.4495, 2), (3.544, 4), (3.564, 8)):
+            with self.subTest(r=r):
+                behaviour = _behaviour(f"{r}*x*(1-x)", 0.2)
+                self.assertEqual((behaviour["behaviour"], behaviour["pattern"]), ("none", "shrinking"))
+                self.assertEqual(behaviour["period"], period)
+        for r in (3.57, 3.6, 3.7, 3.9):
+            g = parse_iteration_function(f"{r}*x*(1-x)").evaluate
+            for start in (0.03, 0.2, 0.41, 0.77):
+                with self.subTest(r=r, x0=start):
+                    self.assertEqual(orbit_until_settled(g, start, 20)[1]["pattern"], "irregular")
+
+    def test_a_large_start_moving_by_one_is_not_settled(self) -> None:
+        self.assertEqual(_behaviour("x + 1", 1e10)["behaviour"], "diverges")
+
     def test_a_slow_approach_is_a_fixed_point_not_a_cycle(self) -> None:
         for text, x0, point in (("2.97*x*(1-x)", 0.2, 1 - 1 / 2.97), ("1-0.99*x", 0.0, 1 / 1.99)):
             with self.subTest(g=text):
@@ -271,6 +287,33 @@ class TestOrbits(unittest.TestCase):
     def test_classify_reports_iterations(self) -> None:
         g = parse_iteration_function("x").evaluate
         self.assertEqual(classify_orbit(g, Orbit(values=[1.0, 1.0]))["iterations"], 1)
+
+
+class TestToolSearch(unittest.TestCase):
+    def setUp(self) -> None:
+        self.service = ToolSearchService.__new__(ToolSearchService)
+
+    def _top(self, query: str) -> List[str]:
+        return [tool["function"]["name"] for tool in self.service.search_tools_local(query, 5)]
+
+    def test_root_finder_iterations_are_not_cobwebs(self) -> None:
+        for query in (
+            "apply newton's method to x^2 - 2 starting at 1 for 5 iterations",
+            "do 5 iterations of the bisection method on x^3 - x - 2 on [1, 2]",
+        ):
+            with self.subTest(query=query):
+                self.assertNotEqual(self._top(query)[:1], ["plot_cobweb"])
+        self.assertEqual(self._top("Fixed-point iteration for x = cos(x) from x0 = 0.5")[:1], ["plot_cobweb"])
+
+    def test_plot_requests_keep_plot_sequence(self) -> None:
+        for query in (
+            "graph u(n) = 2u(n-1) + 1 with u(0) = 1",
+            "plot the convergent sequence 1/n",
+            "graph the sequence 1/n to see whether it converges",
+        ):
+            with self.subTest(query=query):
+                self.assertEqual(self._top(query)[:1], ["plot_sequence"])
+        self.assertEqual(self._top("delete the sequence")[:1], ["delete_plot"])
 
 
 class TestDrawables(unittest.TestCase):

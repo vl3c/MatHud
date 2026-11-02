@@ -604,8 +604,13 @@ def _settled(g: Callable[[float], float], values: List[float]) -> Optional[Dict[
         # solve of g(x) = x from the last two values tells it from a cycle of close points.
         point = _refined_fixed_point(g, values[-2], values[-1])
         image = _real_value(g, point)
+        # g(p) - p must also be well below the last step: x + 1 from 1e10 moves by 1, which
+        # the relative tolerance alone would call settled
+        step = abs(values[-1] - values[-2])
         if image is not None and _close(image, point):
-            return _fixed_point(g, point)
+            residual = abs(image - point)
+            if residual <= 0.5 * step or residual <= 1e-15 * max(1.0, abs(point)):
+                return _fixed_point(g, point)
     cycle = _cycle(g, values)
     if cycle is None:
         return None
@@ -627,8 +632,9 @@ def _settled(g: Callable[[float], float], values: List[float]) -> Optional[Dict[
 def _unsettled(values: List[float]) -> Dict[str, Any]:
     """``diverges`` for steady growth, else ``none`` with what the last values are doing.
 
-    ``pattern`` is "monotone" (still moving one way), "shrinking" (the changes are shrinking)
-    or "irregular" (neither: the orbit may be chaotic).
+    ``pattern`` is "monotone" (still moving one way), "shrinking" (the changes are shrinking;
+    with ``period`` p > 1 when it is the gaps x(k+p) - x(k) that shrink, a slow approach to a
+    p-cycle, as near a period doubling) or "irregular" (neither: the orbit may be chaotic).
     """
     change = abs(values[-1] - values[-2]) if len(values) >= 2 else None
     tail = values[-(DIVERGENCE_WINDOW + 1) :]
@@ -643,9 +649,20 @@ def _unsettled(values: List[float]) -> Dict[str, Any]:
     if all(d > 0 for d in diffs) or all(d < 0 for d in diffs):
         return {"behaviour": "none", "pattern": "monotone", "last_change": change}
     steps = [abs(d) for d in diffs]
-    if steps[-1] < steps[0] and all(b <= a * (1 + 1e-9) for a, b in zip(steps, steps[1:])):
+    if _shrinking(steps, 1):
         return {"behaviour": "none", "pattern": "shrinking", "last_change": change}
+    for period in range(2, MAX_PERIOD + 1):
+        # eight comparisons for each point of the cycle, so a chaotic orbit does not pass by chance
+        window = values[-max(DIVERGENCE_WINDOW + period, 9 * period) :]
+        gaps = [abs(b - a) for a, b in zip(window, window[period:])]
+        if len(gaps) >= 8 * period and _shrinking(gaps, period):
+            return {"behaviour": "none", "pattern": "shrinking", "period": period, "last_change": change}
     return {"behaviour": "none", "pattern": "irregular", "last_change": change}
+
+
+def _shrinking(gaps: List[float], period: int) -> bool:
+    """True when every gap is at most the one a period before it, and the last is smaller than the first."""
+    return gaps[-1] < gaps[0] and all(b <= a * (1 + 1e-9) for a, b in zip(gaps, gaps[period:]))
 
 
 def _refined_fixed_point(g: Callable[[float], float], before: float, last: float) -> float:

@@ -938,6 +938,8 @@ def _orbit_behaviour_text(summary: Mapping[str, Any]) -> str:
         )
     if behaviour == "diverges":
         return "diverges" + after
+    if summary.get("pattern") == "shrinking" and summary.get("period"):
+        return f"settling slowly into a {format_number(summary.get('period'))}-cycle" + after
     return "no fixed point or cycle" + after
 
 
