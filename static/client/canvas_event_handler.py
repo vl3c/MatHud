@@ -192,6 +192,8 @@ class CanvasEventHandler:
             def _raf_callback(_ts: Any = None) -> None:
                 self._zoom_draw_scheduled = False
                 try:
+                    # Slow plots (implicit curves) may reuse their last plot until the zoom settles
+                    self.canvas.coordinate_mapper.zoom_in_progress = True
                     self.canvas.draw(True)
                 except Exception:
                     pass
@@ -211,6 +213,7 @@ class CanvasEventHandler:
 
         def _settle_callback() -> None:
             try:
+                self.canvas.coordinate_mapper.zoom_in_progress = False
                 self.canvas.draw(False)
             except Exception:
                 pass

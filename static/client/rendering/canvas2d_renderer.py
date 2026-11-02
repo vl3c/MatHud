@@ -529,6 +529,11 @@ class Canvas2DRenderer(RendererProtocol):
         area_dependencies = self._collect_area_dependencies(drawable, drawable_name)
         if area_dependencies:
             snapshot["_area_dependencies"] = area_dependencies
+        if getattr(drawable, "reuses_plot_while_zooming", False) and getattr(
+            coordinate_mapper, "zoom_in_progress", False
+        ):
+            # Its mid-zoom plan maps an old plot; the settle draw must not hit it in the cache
+            snapshot["_zoom_preview"] = True
         view_mode = view_mode_for(drawable_name)
         if view_mode != ViewMode.FIXED and coordinate_mapper is not None:
             scale = getattr(coordinate_mapper, "scale_factor", None)
