@@ -102,6 +102,30 @@ class TestLiveNamespace(_CleanNamespace):
         self.assertEqual(ce.plain_number_text(2.5e-7), "0.00000025")
 
 
+class _CornerFunction:
+    """A drawable as the render caches see it: saved state, parameters and derived corners."""
+
+    def __init__(self, corners: list) -> None:
+        self.corner_points = corners
+
+    def get_state(self) -> dict:
+        return {"name": "f", "args": {"function_string": "100*abs(x - b)"}}
+
+    def parameter_names(self) -> tuple:
+        return ("b",)
+
+
+class TestSignatureState(_CleanNamespace):
+    def test_corners_recomputed_at_the_same_values_change_the_signature(self) -> None:
+        from rendering.signature_state import signature_state
+
+        ce.set_parameter_values({"b": 0.3})
+        live_frame = signature_state(_CornerFunction([0.1]))  # throttled analysis: stale corner
+        settled = signature_state(_CornerFunction([0.3]))
+        self.assertNotEqual(live_frame, settled)
+        self.assertEqual(settled, signature_state(_CornerFunction([0.3])))
+
+
 class TestDefinitionsAndHints(_CleanNamespace):
     def test_read_definition(self) -> None:
         ce.set_parameter_values({"a": 2.0})
