@@ -300,3 +300,44 @@ def levenberg_marquardt(
     if sse == 0.0:
         converged = True
     return FitRun(params, list(base), sse, iterations, converged)
+
+
+def polish(
+    residuals: Residuals, params: Sequence[float], budget: EvaluationBudget, tolerance: float, steps: int = 4
+) -> Optional[FitRun]:
+    """Gauss-Newton steps from params (each halved until it lowers the sum of squares), until a
+    full step promises to lower the sum by at most tolerance relatively (that step is still
+    taken when it lowers the sum); None when params cannot be evaluated. ``converged`` says
+    whether that point was reached.
+
+    Levenberg-Marquardt crawls along a long narrow valley (nearly collinear constants, such
+    as a sine's frequency and phase at x near 2000) while its damping shrinks; undamped
+    steps cross it at once.
+    """
+    point = [float(value) for value in params]
+    first = residuals(point)
+    if first is None:
+        return None
+    base: List[float] = first
+    sse = sum_of_squares(base)
+    iterations = 0
+    while sse > 0.0 and iterations < steps and not budget.exhausted:
+        iterations += 1
+        columns = jacobian(residuals, point, base, budget)
+        delta, _ = solve_least_squares(columns, [-value for value in base])
+        if not all(math.isfinite(value) for value in delta):
+            break
+        stationary = sse - _linear_prediction(columns, base, delta) <= tolerance * sse
+        for _ in range(1 if stationary else 4):
+            trial = [point[j] + delta[j] for j in range(len(point))]
+            values = residuals(trial)
+            if values is not None and sum_of_squares(values) < sse:
+                point, base, sse = trial, values, sum_of_squares(values)
+                break
+            delta = [value / 2.0 for value in delta]
+        else:
+            if not stationary:
+                break
+        if stationary:
+            return FitRun(point, list(base), sse, iterations, True)
+    return FitRun(point, list(base), sse, iterations, sse == 0.0)

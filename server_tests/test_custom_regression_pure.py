@@ -248,7 +248,7 @@ class TestTextbookFits(unittest.TestCase):
         near_limit = _noisy(lambda x: math.sin(2.9 * x), samples, 0.3, 3)
         fit = _fit("a*sin(b*x + c) + d", samples, near_limit)
         self.assertAlmostEqual(fit.values["b"], 2.9, places=4)
-        self.assertLess(fit.evaluations, 1.5 * EVALUATION_LIMIT)
+        self.assertLess(fit.evaluations, 1.8 * EVALUATION_LIMIT)
 
     def test_a_slow_sine_in_noisy_hourly_data_is_not_aliased(self) -> None:
         hours = [float(h) for h in range(480)]
@@ -258,6 +258,39 @@ class TestTextbookFits(unittest.TestCase):
                 self.assertAlmostEqual(
                     _fit("A*sin(2*pi*(x - C)/T) + D", hours, temperatures).values["T"], 24, delta=0.2
                 )
+
+    def test_a_period_is_found_when_aliases_screen_better(self) -> None:
+        # Two weeks of hourly data from 0: on the screened points an alias fits better, and the
+        # curve that does not swing is refined with its own budget
+        days = [i / 24 for i in range(336)]
+        temperatures = _noisy(lambda x: 18 + 9.4 * math.sin(2 * math.pi * (x - 0.25)), days, 2.8, 10)
+        fit = _fit("A*sin(2*pi*(x-C)/T)+D", days, temperatures)
+        self.assertAlmostEqual(fit.values["T"], 1.0, delta=0.005)
+        self.assertGreater(fit.r_squared, 0.85)
+
+    def test_sines_over_x_far_from_zero_are_fitted_in_a_shift(self) -> None:
+        # Decimal years and spreadsheet day numbers: frequency and phase are nearly collinear
+        # in x, so the fit runs in x - shift and comes back in the model's own constants
+        years = [2021 + i / 365.25 for i in range(1000)]
+        daily = _noisy(lambda x: 12 + 9 * math.sin(2 * math.pi * (x - 2021.3)), years, 3.0, 7)
+        days = [45000 + i / 24 for i in range(720)]
+        hourly = _noisy(lambda x: 15 + 6 * math.sin(2 * math.pi * (x - 0.4)), days, 2.0, 8)
+        for xs, ys, shift, model in (
+            (years, daily, 2021, "a*sin(b*x+c)+d"),
+            (years, daily, 2021, "A*sin(2*pi*(x-C)/T)+D"),
+            (years, daily, 2021, "a*sin(b*x+c)+d+k*x"),
+            (days, hourly, 45000, "a*sin(b*x+c)+d"),
+            (days, hourly, 45000, "a*cos(b*(x-c))+d"),
+        ):
+            with self.subTest(model=model, shift=shift):
+                fit = _fit(model, xs, ys)
+                reference = _fit(model, [x - shift for x in xs], ys)
+                self.assertLessEqual(fit.sse, reference.sse * (1 + 1e-6))
+                self.assertTrue(fit.converged)
+                self.assertFalse(any("work limit" in note or "far from 0" in note for note in fit.notes), fit.notes)
+                self.assertLess(fit.evaluations, 450_000)
+                curve = read_model(model).predictions(xs, [fit.values[name] for name in read_model(model).constants])
+                self.assertAlmostEqual(curve[0], reference.predictions[0], delta=1e-3)
 
     def test_damped_oscillations_with_a_phase_are_found(self) -> None:
         xs = _grid(0, 5, 80)
@@ -318,7 +351,7 @@ class TestTextbookFits(unittest.TestCase):
         self.assertLess(fit.evaluations, 1.3 * EVALUATION_LIMIT)
         self.assertGreater(fit.r_squared, 0.99)
         small = fit_custom_model(xs, ys, read_model("a*exp(-(x - m)^2/s^2) + b*exp(-(x - n)^2/r^2)"), None, 20_000)
-        self.assertLess(small.evaluations, 60_000)
+        self.assertLess(small.evaluations, 80_000)
 
 
 class TestNotes(unittest.TestCase):
@@ -367,7 +400,7 @@ class TestNotes(unittest.TestCase):
         population = [76.2, 92.2, 106.0, 123.2, 132.2, 151.3, 179.3, 203.2, 226.5, 248.7, 281.4, 308.7, 331.4]
         fit = _fit("K/(1+A*exp(-k*x))", years, population)
         notes = " ".join(fit.notes)
-        self.assertIn("written in x - 1900, as K/(1+A*exp(-k*(x - 1900))), it fits with R² = 0.9986", notes)
+        self.assertIn("written in x - 1900, as K/(1+A*exp(-k*(x - 1900))), the model fits with R² = 0.9986", notes)
         self.assertIn("A = 7.48", notes)
 
     def test_x_far_from_zero_gives_the_shifted_fit_of_a_fast_rate(self) -> None:
@@ -385,7 +418,7 @@ class TestNotes(unittest.TestCase):
         logistic = [round(500 / (1 + math.exp(-0.4 * (x - 2010))), 1) for x in years]
         fit = _fit("K/(1+((K-P0)/P0)*exp(-r*x))", years, logistic)
         notes = " ".join(fit.notes)
-        self.assertIn("written in x - 2000, as K/(1+((K-P0)/P0)*exp(-r*(x - 2000))), it fits with R² = 1", notes)
+        self.assertIn("written in x - 2000, as K/(1+((K-P0)/P0)*exp(-r*(x - 2000))), the model fits with R² = 1", notes)
         self.assertNotIn("cannot determine", notes)
         rise = [50 + 300 * (1 - math.exp(-0.3 * (x - 2000))) for x in years]
         notes = " ".join(_fit("a*(1-exp(-k*x))+c", years, rise).notes)
