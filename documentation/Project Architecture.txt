@@ -71,7 +71,7 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
 ## Drawing and Visualization
 - Renderer-driven drawing: `Canvas2DRenderer` (default) or the frozen `SvgRenderer` fallback converts math-space models to screen-space primitives
 - Coordinate mapping centralized in `CoordinateMapper` (math_to_screen, screen_to_math, zoom, pan, visible bounds, zoom-box fitting via `set_visible_bounds`)
-- Function plotting via `FunctionRenderable` with sampling, discontinuity and asymptote handling; capped and adaptive density
+- Function plotting via `FunctionRenderable` and `AdaptiveSampler`: breadth-first adaptive sampling (one sample per pixel of the sampled width), listed asymptotes and discontinuities as split points, a numeric jump and pole test between samples (jumps such as floor(x) and poles the text analysis missed end a path), abs() corners sampled exactly, and steep segments clipped to the view
 - Colored areas via dedicated renderables (paired sampling for function areas; robust reverse path handling)
 - Angle arcs correct in screen y-down space; styling centralized in renderer
 - Undo/Redo and Workspace Management unchanged; state serialization via `get_state()` on models

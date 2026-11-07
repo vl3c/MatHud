@@ -210,12 +210,13 @@ class TestMathUtilsSolving(unittest.TestCase):
     def test_vertical_asymptotes_multiple_denominators(self) -> None:
         self.assertEqual(MathUtils.calculate_vertical_asymptotes("1/(x-1)+1/(x+2)"), [-2, 1])
 
-    def test_point_discontinuities_abs_with_irrational_corners(self) -> None:
-        result = MathUtils.calculate_point_discontinuities("abs(x^2-2)")
+    def test_corner_points_abs_with_irrational_corners(self) -> None:
+        result = MathUtils.calculate_corner_points("abs(x^2-2)")
         self.assertEqual([round(x, 9) for x in result], [round(-math.sqrt(2), 9), round(math.sqrt(2), 9)])
 
-    def test_point_discontinuities_abs_with_nested_parentheses(self) -> None:
-        self.assertEqual(MathUtils.calculate_point_discontinuities("abs((x-1)*2)"), [1])
+    def test_corner_points_abs_with_nested_parentheses(self) -> None:
+        self.assertEqual(MathUtils.calculate_corner_points("abs((x-1)*2)"), [1])
+        self.assertEqual(MathUtils.calculate_point_discontinuities("abs((x-1)*2)"), [])
 
     # ------------------------------------------------------------------
     # solve

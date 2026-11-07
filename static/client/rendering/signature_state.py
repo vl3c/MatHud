@@ -7,7 +7,8 @@ parameter value leaves it undefined.
 A function such as ``a*sin(x)`` keeps the same ``get_state()`` when the parameter ``a``
 changes, yet its samples change. Render caches (plan signatures, area dependencies, the
 function renderable's model signature) key on ``signature_state(drawable)`` instead, which
-adds the current values of the parameters the drawable reads (``parameter_names()``).
+adds the current values of the parameters the drawable reads (``parameter_names()``)
+and, for those, the derived ``corner_points`` (not in ``get_state()``).
 """
 
 from __future__ import annotations
@@ -39,6 +40,12 @@ def signature_state(drawable: Any) -> Optional[Any]:
         return state
     keyed = dict(state)
     keyed["_parameters"] = tuple((name, compiled_expression.parameter_value(name)) for name in names)
+    # Corners are derived, not saved, and a live change analyses them at most every 100 ms in
+    # the view only: the settle that recomputes them keeps the parameter values, so they are
+    # keyed too, or the last live frame's paths would stay drawn
+    corners = getattr(drawable, "corner_points", None)
+    if corners:
+        keyed["_corners"] = tuple(corners)
     return keyed
 
 

@@ -1005,7 +1005,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "properties": {
                     "function_string": {
                         "type": "string",
-                        "description": "The mathematical expression represented as a string, e.g., '2*x + 3'. It may read parameters made with set_parameter, such as 'a*sin(b*x)' (write products explicitly: a*x); the plot follows them.",
+                        "description": "The mathematical expression represented as a string, e.g., '2*x + 3'. It may read parameters made with set_parameter, such as 'a*sin(b*x)' (write products explicitly: a*x); the plot follows them. A fractional power such as x^(1/3) is not real for x < 0; write cbrt(x) or nthroot(x, 3) for the real cube root (nthroot(x, 3)^2 for x^(2/3)).",
                     },
                     "name": {
                         "type": ["string", "null"],
