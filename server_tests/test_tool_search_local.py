@@ -495,6 +495,12 @@ class TestCreativePrompts:
             ("draw x = 3 through A", "draw_implicit_curve"),
             ("draw the vertical line x = 3 through point A", "draw_implicit_curve"),
             ("curve fit the data with y = y0 + A*sin(2*pi*x/T)", "fit_regression"),
+            # An "A" opening the query is an article; x2 pasted from x² is still x
+            ("A parabola y = x^2 + 1, plot it", "draw_function"),
+            ("A line x = 3, plot it", "draw_implicit_curve"),
+            ("plot x2 + y2 = 25", "draw_implicit_curve"),
+            ("shade x2 + y2 < 9", "shade_inequality"),
+            ("shade the feasible region x1 + x2 <= 4, x1 >= 0, x2 >= 0", "shade_inequality"),
         ):
             assert _top_n(self.service, query)[0] == tool, query
         top = _top_n(self.service, "plot x^2 + y^2 = a with a slider a")

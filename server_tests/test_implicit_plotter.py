@@ -103,6 +103,7 @@ class TestEquationParsing(unittest.TestCase):
             "2 = 3": "no x or y",
             "a*x = y": "'a', which is not defined. Create the parameter first with set_parameter",
             "ax = y": "write a\\*x",
+            "x2 + y2 = 25": "For a power write x\\^2",
             "x(x+1) = y": "function call",
             "(x+1)(y-1) = 1": "\\(x \\+ 1\\)\\*\\(y - 1\\)",
             "x^2 + y^2 = ((25)": "parentheses",

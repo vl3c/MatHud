@@ -584,6 +584,9 @@ def _check_names(compiled: compiled_expression.CompiledExpression, text: str, wh
     if set(free) & {"X", "Y"}:
         raise ValueError(f"{message} Use lowercase x and y.")
     for name in free:
+        if re.fullmatch(r"[xy][23]", name):  # a pasted superscript: x2 for x²
+            raise ValueError(f"{message} For a power write {name[0]}^{name[1]}.")
+    for name in free:
         if set(name) <= set("xy"):
             raise ValueError(f"{message} Write products explicitly: {'*'.join(name)}.")
     from utils.parameter_expressions import undefined_names_hint
