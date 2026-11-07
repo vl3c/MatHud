@@ -238,6 +238,18 @@ class TestTextbookFits(unittest.TestCase):
         daily = _noisy(lambda x: 15 + 5 * math.sin(2 * math.pi * (x - 8) / 24), hours, 0.5, 2)
         self.assertAlmostEqual(_fit("A*sin(2*pi*(x - C)/T) + D", hours, daily).values["T"], 24.0, delta=0.01)
 
+    def test_noisy_sines_beyond_80_half_cycles_are_found(self) -> None:
+        days = [i / 24 for i in range(1000)]
+        hourly = _noisy(lambda x: 4 * math.sin(2 * math.pi * (x - 0.3)) + 15, days, 2.0, 5)
+        for model, rate, truth in (("a*sin(b*x + c) + d", "b", 2 * math.pi), ("a*sin(2*pi*f*x + p) + d", "f", 1.0)):
+            with self.subTest(model=model):
+                self.assertAlmostEqual(_fit(model, days, hourly).values[rate], truth, delta=0.01 * truth)
+        samples = [float(i) for i in range(1000)]
+        near_limit = _noisy(lambda x: math.sin(2.9 * x), samples, 0.3, 3)
+        fit = _fit("a*sin(b*x + c) + d", samples, near_limit)
+        self.assertAlmostEqual(fit.values["b"], 2.9, places=4)
+        self.assertLess(fit.evaluations, 1.5 * EVALUATION_LIMIT)
+
     def test_damped_oscillations_with_a_phase_are_found(self) -> None:
         xs = _grid(0, 5, 80)
         for rate in (10.0, 11.0):
@@ -348,6 +360,16 @@ class TestNotes(unittest.TestCase):
         notes = " ".join(fit.notes)
         self.assertIn("written in x - 1900, as K/(1+A*exp(-k*(x - 1900))), it fits with R² = 0.9986", notes)
         self.assertIn("A = 7.48", notes)
+
+    def test_x_far_from_zero_gives_the_shifted_fit_of_a_fast_rate(self) -> None:
+        years = _grid(1990, 1995, 15)
+        decay = _noisy(lambda x: 500 * math.exp(-0.5 * (x - 1990)) + 20, years, 1.0, 6)
+        notes = " ".join(_fit("a*exp(-k*x) + c", years, decay).notes)
+        self.assertIn("written in x - 1990, as a*exp(-k*(x - 1990)) + c, it fits with R² = 0.99", notes)
+        self.assertIn("k = 0.49", notes)
+        moore = _grid(1971, 2019, 25)
+        fit = _fit("a*exp(b*x)", moore, _noisy(lambda x: 2300 * 2 ** ((x - 1971) / 2), moore, 0.0, 7))
+        self.assertAlmostEqual(fit.values["b"], math.log(2) / 2, places=6)
 
     def test_no_shift_is_suggested_when_it_would_change_the_model(self) -> None:
         years = _grid(2000, 2020, 21)

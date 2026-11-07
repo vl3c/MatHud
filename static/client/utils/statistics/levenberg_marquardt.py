@@ -81,7 +81,18 @@ def sum_of_squares(values: Sequence[float]) -> float:
 
 
 def _norm(values: Sequence[float]) -> float:
-    return math.sqrt(sum_of_squares(values))
+    """The Euclidean norm, scaled by the largest entry when squares would underflow or overflow
+    (exp(-0.2*x) at x near 2000 is about 1e-174)."""
+    largest = 0.0
+    for value in values:
+        size = abs(value)
+        if size > largest:
+            largest = size
+    if largest == 0.0 or not math.isfinite(largest):
+        return largest
+    if 1e-150 < largest < 1e150:
+        return math.sqrt(sum_of_squares(values))
+    return largest * math.sqrt(sum_of_squares([value / largest for value in values]))
 
 
 def _dot(u: Sequence[float], v: Sequence[float], offset: int) -> float:

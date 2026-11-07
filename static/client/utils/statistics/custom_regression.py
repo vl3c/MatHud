@@ -33,7 +33,7 @@ import math
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from utils.statistics.custom_model import CustomModel, read_model
-from utils.statistics.fit_starts import Shape, half_cycles, screen, subsample, variation
+from utils.statistics.fit_starts import MAX_HALF_CYCLES, Shape, half_cycle_counts, screen, subsample, variation
 from utils.statistics.levenberg_marquardt import EvaluationBudget, FitRun, levenberg_marquardt, undetermined_columns
 from utils.statistics.regression import calculate_r_squared
 from utils.statistics.variable_projection import Projector, linear_constants
@@ -45,6 +45,7 @@ EVALUATION_LIMIT = 250_000
 # share of the budget; every start is refined on at most COARSE_POINTS points, the best
 # FINAL_RUNS of them on all points with FINAL_SHARE of the budget kept for them
 SCREEN_POINTS = 40
+MAX_SCREEN_POINTS = 161
 SCREEN_SHARE = 0.3
 FINAL_SHARE = 0.4
 COARSE_POINTS = 100
@@ -161,9 +162,17 @@ def _fit_constants(
     canonical_budget = EvaluationBudget(min(CANONICAL_EVALUATIONS, evaluation_limit // 10))
     budget = EvaluationBudget(evaluation_limit - screen_budget.limit - final_budget.limit)
     full = Projector(model, xs, ys, linear, nonlinear, final_budget if staged else budget)
-    cycles = half_cycles(xs, ys)
-    screener = full.on(*subsample(xs, ys, max(SCREEN_POINTS, cycles + 1)), screen_budget)
-    screening = screen(screener, xs, given, cycles, REFINED_STARTS)
+    counts = half_cycle_counts(xs, ys)
+    # Screened on a point per half cycle tried (frequencies sampled), at least SCREEN_POINTS
+    # and at most MAX_SCREEN_POINTS (a frequency near the sampling limit still fits the points
+    # it is screened on; refining on more points tells it from its aliases); a model with no
+    # sine or cosine on at most as many as MAX_HALF_CYCLES needs
+    cycles = int(math.ceil(max(counts))) if counts else 1
+    if not model.trig_arguments():
+        cycles = min(cycles, MAX_HALF_CYCLES)
+    screen_points = max(SCREEN_POINTS, min(cycles + 1, MAX_SCREEN_POINTS))
+    screener = full.on(*subsample(xs, ys, screen_points), screen_budget)
+    screening = screen(screener, xs, given, counts, REFINED_STARTS)
     # At least 4 points per estimated cycle (2 per half cycle), so refining does not alias
     coarse = full.on(*subsample(xs, ys, max(COARSE_POINTS, int(1.6 * cycles))), budget) if staged else full
     starts = list(screening.starts)
@@ -623,12 +632,13 @@ def _offset_note(
 ) -> Optional[str]:
     """Suggest x - shift when x lies far from 0 (years) and the fit looks ill-conditioned.
 
-    A model the shift merely rewrites (exp(b*x) becomes exp(b*(x - 2000)) with another a,
-    checked by refitting its linear constants with the same nonlinear ones) is suggested
-    when the fit did not converge or has extreme values. Any other model (K/(1+A*exp(-k*x)),
-    whose A changes too) is refitted in x - shift with evaluation_limit, and suggested with
-    its fit when that fits better, or as well with plainer values. A model linear in every
-    constant is solved exactly and never needs it.
+    The model is refitted in x - shift with evaluation_limit, and suggested with that fit
+    when it fits better, or as well with plainer values. A model the shift merely rewrites
+    (exp(b*x) becomes exp(b*(x - 2000)) with another a, checked by refitting its linear
+    constants with the same nonlinear ones) is refitted only when the fit did not converge
+    or has extreme values (a beyond the float range sticks the rate at its edge); a model
+    the shift changes (K/(1+A*exp(-k*x)), whose A changes too) also when R² is below
+    SHIFT_FIT. A model linear in every constant is solved exactly and never needs it.
     """
     xs = projector.xs
     low, high = min(xs), max(xs)
@@ -645,10 +655,9 @@ def _offset_note(
 
     shifted = f"(x - {shift_text})"
     rewritten = substitute_variable(model.text, "x", shifted).replace(f"({shifted})", shifted)
-    lead = f"x runs from {_number(low)} to {_number(high)}, far from 0, which makes this model hard to fit; "
     rewrites = _rewrites(rewritten, model, projector, best)
-    if rewrites is not None:
-        return f"{lead}write it in x - {shift_text} instead, such as {rewritten}." if rewrites and troubled else None
+    if rewrites is False or (rewrites and not troubled):
+        return None
     refit = _shifted_fit(rewritten, xs, projector.ys, evaluation_limit)
     if refit is None:
         return None
@@ -662,7 +671,8 @@ def _offset_note(
         return None
     values = ", ".join(f"{name} = {_number(value)}" for name, value in refit.values.items())
     return (
-        f"{lead}written in x - {shift_text}, as {rewritten}, it fits with R² = {_number(refit.r_squared)} ({values})."
+        f"x runs from {_number(low)} to {_number(high)}, far from 0, which makes this model hard to fit; written in "
+        f"x - {shift_text}, as {rewritten}, it fits with R² = {_number(refit.r_squared)} ({values})."
     )
 
 

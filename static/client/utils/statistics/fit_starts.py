@@ -4,8 +4,8 @@ Candidate values for each nonlinear constant are 0; magnitudes from 0.01 to 30 i
 units of 1, the x range and 1/(x range); and the x deciles (shifts). A constant setting
 the frequency of a trigonometric argument (b, f or T in sin(b*x), sin(2*pi*f*x),
 sin(2*pi*x/T)) also gets the values giving 1 to MIN_HALF_CYCLES half cycles over the x
-range, and more when the data crosses its mean more often (a window around that count
-beyond MAX_HALF_CYCLES); a phase or shift gets values across one period (_Trig); a
+range, and more when the data crosses its mean more often (beyond MAX_HALF_CYCLES, the
+peaks of the data's spectrum: half_cycle_counts); a phase or shift gets values across one period (_Trig); a
 constant raised to a power of x (b^x) gets growth factors near 1. A coordinate search
 scans one constant at a time (frequencies first), twice over, from up to three seeds,
 each with its share of the work, and the best values per constant are combined.
@@ -26,10 +26,16 @@ from utils.statistics.variable_projection import Projector
 
 # Frequencies tried: at least MIN_HALF_CYCLES half cycles over the x range, more when the
 # data crosses its mean more often (every count up to MAX_HALF_CYCLES, beyond it at most
-# WINDOW_VALUES counts around the estimate); never beyond the data's own sampling limit
+# WINDOW_VALUES counts around the estimate, or the spectrum's peaks); never beyond the
+# data's own sampling limit (see half_cycle_counts)
 MIN_HALF_CYCLES = 40
 MAX_HALF_CYCLES = 80
 WINDOW_VALUES = 40
+UNEVEN_HALF_CYCLES = 160
+# Spectral peaks tried, and how far above the median power a peak must stand (noise alone
+# rarely reaches 14 times its mean power, about 20 times its median, over 1000 bins)
+SPECTRAL_PEAKS = 4
+PEAK_RATIO = 30.0
 # Candidates per constant kept for the combination stage, and the most combinations tried
 COMBINED_PER_CONSTANT = 3
 MAX_COMBINATIONS = 243
@@ -37,6 +43,9 @@ MAX_COMBINATIONS = 243
 # are checked for the best one that does not swing when none of those qualifies
 RANKED_CANDIDATES = 12
 STEADY_CHECKS = 60
+# A candidate that does not swing is refined before better ones that do while its sum of
+# squares is within this factor of the best
+STEADY_SLACK = 1.5
 # A setting where moving each other constant changes the fit by less than this fraction is a dead end
 DEAD_END_CHANGE = 1e-9
 # Share of the data's variation left unexplained below which screening stops after one seed
@@ -126,16 +135,105 @@ def candidate_values(xs: List[float]) -> List[float]:
     return _distinct(values)
 
 
-def half_cycle_counts(cycles: int) -> List[int]:
-    """Half-cycle counts whose frequencies are tried: every one up to MAX_HALF_CYCLES; beyond,
-    WINDOW_VALUES counts spread over the top 40% of cycles (where the estimate from mean
-    crossings lies)."""
-    counts = list(range(1, min(cycles, MAX_HALF_CYCLES) + 1))
-    if cycles > MAX_HALF_CYCLES:
-        low = max(MAX_HALF_CYCLES + 1, int(0.6 * cycles))
-        stride = max(1, (cycles - low + 1) // WINDOW_VALUES)
-        counts.extend(range(low, cycles + 1, stride))
+def half_cycle_counts(xs: List[float], ys: List[float]) -> List[float]:
+    """Half-cycle counts over the x range whose frequencies are tried.
+
+    Every count up to MAX_HALF_CYCLES, or up to the estimate from mean crossings
+    (half_cycles) when lower. Beyond MAX_HALF_CYCLES, noise inflates that estimate, so
+    evenly spaced data takes the counts of the strongest peaks of its spectrum instead
+    (spectral_counts, each with its neighbours half a count away); unevenly spaced data
+    takes WINDOW_VALUES counts spread over the top 40% of the estimate, at most
+    UNEVEN_HALF_CYCLES.
+    """
+    cycles = half_cycles(xs, ys)
+    counts: List[float] = [float(k) for k in range(1, min(cycles, MAX_HALF_CYCLES) + 1)]
+    if cycles <= MAX_HALF_CYCLES:
+        return counts
+    peaks = spectral_counts(xs, ys)
+    if peaks is None:
+        top = min(cycles, UNEVEN_HALF_CYCLES)
+        low = max(MAX_HALF_CYCLES + 1, int(0.6 * top))
+        stride = max(1, (top - low + 1) // WINDOW_VALUES)
+        counts.extend(float(k) for k in range(low, top + 1, stride))
+        return counts
+    limit = len(xs) - 1
+    for peak in peaks:
+        counts.extend(count for count in (peak - 0.5, peak, peak + 0.5) if MAX_HALF_CYCLES < count <= limit)
     return counts
+
+
+def spectral_counts(xs: List[float], ys: List[float]) -> Optional[List[float]]:
+    """Half-cycle counts of the strongest peaks (at most SPECTRAL_PEAKS, each at least
+    PEAK_RATIO times the median power) in the spectrum of evenly spaced data, linear trend
+    removed; None for unevenly spaced data."""
+    order = sorted(range(len(xs)), key=lambda i: xs[i])
+    count = len(order)
+    low, high = xs[order[0]], xs[order[-1]]
+    step = (high - low) / (count - 1) if count > 1 else 0.0
+    if step <= 0.0 or any(abs(xs[order[i]] - (low + i * step)) > 1e-6 * step for i in range(count)):
+        return None
+    values = _detrended([ys[i] for i in order])
+    power, size = _power_spectrum(values)
+    inner = power[1:-1]
+    if not inner:
+        return []
+    median = sorted(inner)[len(inner) // 2]
+    peaks = [
+        j
+        for j in range(1, len(power) - 1)
+        if power[j] >= power[j - 1] and power[j] >= power[j + 1] and power[j] > PEAK_RATIO * median
+    ]
+    peaks.sort(key=lambda j: -power[j])
+    # Bin j holds j/size cycles per step, so 2*j*(count - 1)/size half cycles over the x range
+    return [2.0 * j * (count - 1) / size for j in peaks[:SPECTRAL_PEAKS]]
+
+
+def _detrended(values: List[float]) -> List[float]:
+    """The values minus their least-squares line over their index."""
+    count = len(values)
+    mid = (count - 1) / 2.0
+    mean = sum(values) / count
+    spread = 0.0
+    slope = 0.0
+    for i, value in enumerate(values):
+        spread += (i - mid) * (i - mid)
+        slope += (i - mid) * (value - mean)
+    slope = slope / spread if spread > 0.0 else 0.0
+    return [values[i] - mean - slope * (i - mid) for i in range(count)]
+
+
+def _power_spectrum(values: List[float]) -> Tuple[List[float], int]:
+    """|DFT|^2 of the values zero-padded to size (a power of two, at least twice their count),
+    at bins 0 to size/2, by an iterative radix-2 FFT; and size."""
+    size = 1
+    while size < 2 * len(values):
+        size *= 2
+    re = list(values) + [0.0] * (size - len(values))
+    im = [0.0] * size
+    j = 0
+    for i in range(1, size):
+        bit = size >> 1
+        while j & bit:
+            j ^= bit
+            bit >>= 1
+        j |= bit
+        if i < j:
+            re[i], re[j] = re[j], re[i]
+    length = 2
+    while length <= size:
+        half = length // 2
+        angle = -2.0 * math.pi / length
+        for k in range(half):
+            wr, wi = math.cos(angle * k), math.sin(angle * k)
+            for start in range(k, size, length):
+                other = start + half
+                tr = re[other] * wr - im[other] * wi
+                ti = re[other] * wi + im[other] * wr
+                re[other], im[other] = re[start] - tr, im[start] - ti
+                re[start] += tr
+                im[start] += ti
+        length *= 2
+    return [re[j] * re[j] + im[j] * im[j] for j in range(size // 2 + 1)], size
 
 
 class _Trig:
@@ -149,14 +247,14 @@ class _Trig:
     what matters.
     """
 
-    def __init__(self, projector: Projector, xs: List[float], cycles: int) -> None:
+    def __init__(self, projector: Projector, xs: List[float], counts: List[float]) -> None:
         model = projector.model
         self.nonlinear = projector.nonlinear
         self.count = len(model.constants)
         self.arguments = model.trig_arguments()
         self.low, self.high = min(xs), max(xs)
         span = (self.high - self.low) or 1.0
-        targets = [math.pi * k / span for k in half_cycle_counts(cycles)]
+        targets = [math.pi * k / span for k in counts]
         self.frequencies: Dict[int, List[float]] = {}
         self.phases: Dict[int, Callable[..., float]] = {}
         base = [1.0] * self.count
@@ -236,7 +334,7 @@ def screen(
     projector: Projector,
     xs: List[float],
     seed_values: Mapping[int, float],
-    cycles: int,
+    counts: List[float],
     count: int,
 ) -> Screening:
     """The count best distinct candidates (full constant lists), curves that swing last.
@@ -252,7 +350,7 @@ def screen(
         return Screening([projected[0]] if projected is not None else [], None)
     values = candidate_values(xs)
     growth = growth_values(xs)
-    trig = _Trig(projector, xs, cycles)
+    trig = _Trig(projector, xs, counts)
     model = projector.model
     per_constant = []
     for index, k in enumerate(nonlinear):
@@ -282,15 +380,19 @@ def screen(
     shape = Shape(projector.model, projector.xs)
     cost = len(shape.grid) + len(shape.points)
     flags: List[bool] = []
-    for index, params in enumerate(distinct):
+    for index, (_, params) in enumerate(distinct):
         if index >= RANKED_CANDIDATES and (False in flags):
             break  # the ranked candidates hold one that does not swing; the rest are not needed
         flags.append(shape.swings(params))
         projector.budget.spend(cost)
     distinct = distinct[: len(flags)]
-    ranked = sorted(range(len(distinct)), key=lambda index: (flags[index], index))
-    steady = next((distinct[index] for index in ranked if not flags[index]), None)
-    return Screening([distinct[index] for index in ranked[:count]], steady)
+    # Curves that do not swing come first, unless they fit much worse than the best (every
+    # good curve swings for a sine near the sampling limit): refining a poor start first
+    # could spend the work the good ones need
+    plausible = STEADY_SLACK * distinct[0][0] + 1e-300 if distinct else 0.0
+    ranked = sorted(range(len(distinct)), key=lambda index: (distinct[index][0] > plausible, flags[index], index))
+    steady = next((distinct[index][1] for index in range(len(distinct)) if not flags[index]), None)
+    return Screening([distinct[index][1] for index in ranked[:count]], steady)
 
 
 def _coordinate_search(
@@ -375,14 +477,14 @@ def _combine(projector: Projector, rankings: List[List[Tuple[float, float]]], po
             pool.append((result[1], result[0]))
 
 
-def _best_distinct(projector: Projector, pool: List[Candidate], limit: int) -> List[List[float]]:
+def _best_distinct(projector: Projector, pool: List[Candidate], limit: int) -> List[Candidate]:
     """The best candidates, at most limit, each drawing its own curve over the screened points.
 
     Candidates whose curves match (a pulse that has died out after the first point, whatever
     its rate: k = 90, 300 or 900) would fill the starts with one dead end.
     """
     pool.sort(key=lambda item: item[0])
-    distinct: List[List[float]] = []
+    distinct: List[Candidate] = []
     curves: List[List[float]] = []
     nonlinear = projector.nonlinear
     # The screened points and the midpoints between them, where sines aliased on the points differ
@@ -391,12 +493,12 @@ def _best_distinct(projector: Projector, pool: List[Candidate], limit: int) -> L
     for sse, params in pool:
         if len(distinct) >= limit:
             break
-        if not math.isfinite(sse) or not all(_differs(params, other, nonlinear) for other in distinct):
+        if not math.isfinite(sse) or not all(_differs(params, other, nonlinear) for _, other in distinct):
             continue
         curve = projector.model.predictions(probe, params)
         projector.budget.spend(len(probe))
         if curve is None or all(_curves_differ(curve, other) for other in curves):
-            distinct.append(params)
+            distinct.append((sse, params))
             if curve is not None:
                 curves.append(curve)
     return distinct

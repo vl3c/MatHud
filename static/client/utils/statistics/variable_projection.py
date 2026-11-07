@@ -224,6 +224,8 @@ class Projector:
         if columns is None:
             return None
         solution, _ = solve_least_squares(columns, rhs)
+        if not all(math.isfinite(value) for value in solution):
+            return None  # a linear constant beyond the float range (a*exp(-0.5*x) at x = 2000)
         for index, k in enumerate(self.linear):
             params[k] = solution[index]
         remaining = rhs

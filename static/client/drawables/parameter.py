@@ -164,6 +164,9 @@ def range_around(value: float) -> Tuple[float, float, float]:
     is left as it is (not snapped to the step).
     """
     half = abs(value) if value != 0.0 else 1.0
+    if half > 1e300:
+        # value ± |value| would overflow: run from 0 to the value
+        return min(0.0, value), max(0.0, value), _round_text(half / 100.0)
     raw_step = 2.0 * half / 100.0
     power = 10.0 ** math.floor(math.log10(raw_step))
     step = next(m * power for m in (1.0, 2.0, 5.0, 10.0) if m * power >= raw_step * (1.0 - 1e-12))

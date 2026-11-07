@@ -15,6 +15,7 @@ import compiled_expression
 from json_safe import loads_json
 from utils.statistics.custom_model import read_model
 from utils.statistics.custom_regression import fit_custom_model
+from utils.statistics.fit_starts import spectral_counts
 
 from .test_parameters import _ParameterTestCase
 
@@ -119,3 +120,13 @@ class TestCustomRegression(_ParameterTestCase):
         elapsed = time.time() - started
         self.assertGreater(fit.r_squared, 0.999)
         self.assertLess(elapsed, 15.0)
+
+    def test_the_spectrum_finds_a_fast_sine_quickly(self) -> None:
+        xs = [i / 24 for i in range(1000)]
+        ys = [4 * math.sin(2 * math.pi * (x - 0.3)) + 15 + 2 * math.sin(37.1 * i) for i, x in enumerate(xs)]
+        started = time.time()
+        counts = spectral_counts(xs, ys)
+        elapsed = time.time() - started
+        self.assertIsNotNone(counts)
+        self.assertAlmostEqual(counts[0], 2 * (xs[-1] - xs[0]), delta=1.0)
+        self.assertLess(elapsed, 3.0)
