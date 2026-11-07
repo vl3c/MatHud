@@ -876,8 +876,13 @@ class ExpressionValidator(ast.NodeVisitor):
 
     @staticmethod
     def _parse_with_python(function_string: str) -> Callable[[float], float]:
-        """Parse a function string using Python's built-in evaluation (faster)"""
-        return cast(Callable[[float], float], compiled_expression.compile_expression(function_string).bind())
+        """Parse a function string using Python's built-in evaluation (faster).
+
+        The callable reads the canvas's parameters (compiled_expression.set_parameter_values).
+        """
+        return cast(
+            Callable[[float], float], compiled_expression.compile_expression(function_string).bind(parameters=True)
+        )
 
     @staticmethod
     def parse_function_string(function_string: str, use_mathjs: bool = False) -> Callable[[float], Any]:
@@ -913,11 +918,12 @@ class ExpressionValidator(ast.NodeVisitor):
         """Parse a parametric expression string using Python's built-in evaluation.
 
         Uses 't' as the parameter variable instead of 'x', and only the curve-safe functions.
+        The callable reads the canvas's parameters (compiled_expression.set_parameter_values).
         """
         compiled = compiled_expression.compile_expression(
             expression_string, ("t",), compiled_expression.FUNCTIONS_CURVE
         )
-        return cast(Callable[[float], float], compiled.bind())
+        return cast(Callable[[float], float], compiled.bind(parameters=True))
 
     @staticmethod
     def parse_parametric_expression(expression_string: str) -> Callable[[float], float]:

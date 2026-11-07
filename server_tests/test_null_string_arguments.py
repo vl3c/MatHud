@@ -152,7 +152,10 @@ class TestNormalizeNullStrings(unittest.TestCase):
         self.assertIsNone(result["arguments"]["color"])
 
     def test_a_failed_validation_still_returns_null_for_null_strings(self) -> None:
-        result = ToolArgumentValidator.validate("create_point", {"x": "far", "y": 1, "color": "null", "name": None})
+        result = ToolArgumentValidator.validate(
+            "create_label",
+            {"x": "far", "y": 1, "text": "t", "color": "null", "name": None, "font_size": None, "rotation_degrees": None},
+        )
         self.assertFalse(result["valid"])
         self.assertIsNone(result["arguments"]["color"])
         self.assertEqual(result["arguments"]["x"], "far")

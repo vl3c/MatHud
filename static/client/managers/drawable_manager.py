@@ -55,6 +55,7 @@ from managers.function_manager import FunctionManager
 from managers.piecewise_function_manager import PiecewiseFunctionManager
 from managers.parametric_function_manager import ParametricFunctionManager
 from managers.polar_function_manager import PolarFunctionManager
+from managers.implicit_curve_manager import ImplicitCurveManager
 from managers.circle_manager import CircleManager
 from managers.ellipse_manager import EllipseManager
 from managers.polygon_manager import PolygonManager
@@ -75,6 +76,7 @@ from managers.bar_manager import BarManager
 from managers.tangent_manager import TangentManager
 from managers.construction_manager import ConstructionManager
 from managers.intersection_manager import IntersectionManager
+from managers.parameter_manager import ParameterManager
 from drawables.closed_shape_colored_area import ClosedShapeColoredArea
 
 if TYPE_CHECKING:
@@ -166,6 +168,10 @@ class DrawableManager:
             canvas, self.drawables, self.name_generator, self.dependency_manager
         )
 
+        self.implicit_curve_manager: ImplicitCurveManager = ImplicitCurveManager(
+            canvas, self.drawables, self.dependency_manager
+        )
+
         self.circle_manager: CircleManager = CircleManager(
             canvas, self.drawables, self.name_generator, self.dependency_manager, self.point_manager, self.proxy
         )
@@ -255,6 +261,8 @@ class DrawableManager:
             self.drawables,
             self.point_manager,
         )
+
+        self.parameter_manager: ParameterManager = ParameterManager(canvas, self.drawables)
 
         # No need for the loop that sets drawable_manager anymore
         # The proxy handles forwarding calls to the appropriate managers

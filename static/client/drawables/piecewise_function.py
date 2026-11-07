@@ -26,8 +26,9 @@ Dependencies:
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional, Set, Tuple, cast
 
+import compiled_expression
 from compiled_expression import substitute_variable
 from constants import default_color
 from drawables.drawable import Drawable
@@ -51,6 +52,7 @@ class PiecewiseFunction(Drawable):
         vertical_asymptotes: Optional[List[float]] = None,
         horizontal_asymptotes: Optional[List[float]] = None,
         point_discontinuities: Optional[List[float]] = None,
+        analyze: bool = True,
     ) -> None:
         """Initialize a piecewise function.
 
@@ -66,6 +68,8 @@ class PiecewiseFunction(Drawable):
             vertical_asymptotes: Pre-computed vertical asymptotes (optional)
             horizontal_asymptotes: Pre-computed horizontal asymptotes (optional)
             point_discontinuities: Pre-computed discontinuities (optional)
+            analyze: Compute discontinuities and asymptotes (default True); copies pass
+                False and keep the given ones, so a copy never evaluates the pieces
         """
         self.intervals: List[PiecewiseFunctionInterval] = []
         self.is_periodic: bool = False
@@ -85,13 +89,16 @@ class PiecewiseFunction(Drawable):
         else:
             self.horizontal_asymptotes = []
 
-        if point_discontinuities is not None:
-            self.point_discontinuities = point_discontinuities
+        if point_discontinuities is not None or not analyze:
+            self.point_discontinuities = point_discontinuities or []
         else:
             self._compute_discontinuities()
 
-        self._compute_asymptotes()
-        self._compute_corner_points()
+        if analyze:
+            self._compute_asymptotes()
+            self._compute_corner_points()
+        else:
+            self.corner_points = []
 
         super().__init__(name=name or "f", color=color)
 
@@ -182,7 +189,7 @@ class PiecewiseFunction(Drawable):
 
         for interval in self.intervals:
             interval_discontinuities = MathUtils.calculate_point_discontinuities(
-                interval.expression,
+                compiled_expression.with_parameter_values(interval.expression),
                 interval.left,
                 interval.right,
             )
@@ -196,7 +203,8 @@ class PiecewiseFunction(Drawable):
         """Corners of each piece within its interval (abs() arguments at zero); derived, not saved."""
         corners: List[float] = []
         for interval in self.intervals:
-            for corner in MathUtils.calculate_corner_points(interval.expression, interval.left, interval.right):
+            expression = compiled_expression.with_parameter_values(interval.expression)
+            for corner in MathUtils.calculate_corner_points(expression, interval.left, interval.right):
                 if corner not in corners:
                     corners.append(corner)
         self.corner_points: List[float] = sorted(corners)
@@ -246,7 +254,7 @@ class PiecewiseFunction(Drawable):
 
         for interval in self.intervals:
             interval_asymptotes, _, _ = MathUtils.calculate_asymptotes_and_discontinuities(
-                interval.expression,
+                compiled_expression.with_parameter_values(interval.expression),
                 interval.left,
                 interval.right,
             )
@@ -255,6 +263,26 @@ class PiecewiseFunction(Drawable):
                     all_asymptotes.append(asymp)
 
         self.vertical_asymptotes = sorted(all_asymptotes)
+
+    def parameter_names(self) -> Tuple[str, ...]:
+        """The current parameters the pieces read, sorted."""
+        names: Set[str] = set()
+        for interval in self.intervals:
+            try:
+                names.update(compiled_expression.compile_expression(interval.expression).parameter_names)
+            except Exception:
+                continue
+        return tuple(sorted(names))
+
+    def reanalyze(self, view_bounds: Optional[Tuple[float, float]] = None) -> None:
+        """Recompute discontinuities and asymptotes at the current parameter values.
+
+        The pieces have their own bounds, so view_bounds (a live change) changes nothing here.
+        """
+        self.vertical_asymptotes = []
+        self._compute_discontinuities()
+        self._compute_asymptotes()
+        self._compute_corner_points()
 
     def function(self, x: float) -> float:
         """Evaluate the piecewise function at x.
@@ -304,7 +332,9 @@ class PiecewiseFunction(Drawable):
             vertical_asymptotes=self.vertical_asymptotes.copy() if self.vertical_asymptotes else None,
             horizontal_asymptotes=self.horizontal_asymptotes.copy() if self.horizontal_asymptotes else None,
             point_discontinuities=self.point_discontinuities.copy() if self.point_discontinuities else None,
+            analyze=False,
         )
+        new_function.corner_points = list(self.corner_points)
         memo[id(self)] = new_function
         return new_function
 

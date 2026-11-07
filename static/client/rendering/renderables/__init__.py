@@ -4,6 +4,7 @@ from rendering.renderables.closed_shape_area_renderable import ClosedShapeAreaRe
 from rendering.renderables.function_renderable import FunctionRenderable
 from rendering.renderables.function_segment_area_renderable import FunctionSegmentAreaRenderable
 from rendering.renderables.functions_area_renderable import FunctionsBoundedAreaRenderable
+from rendering.renderables.implicit_renderable import ImplicitRenderable
 from rendering.renderables.parametric_function_renderable import ParametricFunctionRenderable
 from rendering.renderables.segments_area_renderable import SegmentsBoundedAreaRenderable
 
@@ -12,6 +13,7 @@ __all__ = [
     "FunctionRenderable",
     "FunctionSegmentAreaRenderable",
     "FunctionsBoundedAreaRenderable",
+    "ImplicitRenderable",
     "ParametricFunctionRenderable",
     "SegmentsBoundedAreaRenderable",
 ]

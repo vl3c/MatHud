@@ -39,6 +39,7 @@ from rendering.cached_render_plan import (
     has_plan_helper,
     view_mode_for,
 )
+from rendering.signature_state import is_undefined, signature_state
 
 # Fraction of the viewport that function plots also sample beyond each edge.
 # Function plans are then only rebuilt when a pan leaves its half-screen bucket;
@@ -439,6 +440,8 @@ class Canvas2DRenderer(RendererProtocol):
                 return
         except Exception:
             return
+        if is_undefined(drawable):
+            return
         if drawable_name is None:
             drawable_name = self._resolve_drawable_name(drawable)
         map_state = self._capture_map_state(coordinate_mapper)
@@ -508,13 +511,7 @@ class Canvas2DRenderer(RendererProtocol):
             return signature + self._fixed_signature_view(drawable, coordinate_mapper, drawable_name)
         if drawable_name is None:
             drawable_name = self._resolve_drawable_name(drawable)
-        state_func = getattr(drawable, "get_state", None)
-        state: Any = None
-        if callable(state_func):
-            try:
-                state = state_func()
-            except Exception:
-                state = None
+        state: Any = signature_state(drawable)
         fallback: Dict[str, Any] = {}
         for attr in ("name", "color"):
             if hasattr(drawable, attr):
@@ -529,6 +526,11 @@ class Canvas2DRenderer(RendererProtocol):
         area_dependencies = self._collect_area_dependencies(drawable, drawable_name)
         if area_dependencies:
             snapshot["_area_dependencies"] = area_dependencies
+        if getattr(drawable, "reuses_plot_while_zooming", False) and getattr(
+            coordinate_mapper, "zoom_in_progress", False
+        ):
+            # Its mid-zoom plan maps an old plot; the settle draw must not hit it in the cache
+            snapshot["_zoom_preview"] = True
         view_mode = view_mode_for(drawable_name)
         if view_mode != ViewMode.FIXED and coordinate_mapper is not None:
             scale = getattr(coordinate_mapper, "scale_factor", None)
@@ -591,14 +593,7 @@ class Canvas2DRenderer(RendererProtocol):
         """Serialized state plus referenced point coordinates of one bounding drawable."""
         if dependency is None or isinstance(dependency, (int, float, str, bool)):
             return dependency
-        state: Any = None
-        state_func = getattr(dependency, "get_state", None)
-        if callable(state_func):
-            try:
-                state = state_func()
-            except Exception:
-                state = None
-        return (state, self._collect_dependent_coordinates(dependency))
+        return (signature_state(dependency), self._collect_dependent_coordinates(dependency))
 
     def _freeze_signature(self, value: Any) -> Tuple[Any, ...]:
         if isinstance(value, dict):

@@ -23,13 +23,14 @@ Dependencies:
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, cast
+from typing import Any, Dict, Optional, Tuple, cast
 
 from constants import default_color
 from drawables.attached_label import AttachedLabel
 from drawables.drawable import Drawable
 from drawables.position import Position
 from utils.math_utils import MathUtils
+from utils.parameter_expressions import definition_parameters, evaluate_definition
 
 
 class Point(Drawable):
@@ -41,6 +42,12 @@ class Point(Drawable):
 
     Attributes:
         x, y (float): Mathematical coordinates (unaffected by zoom/pan)
+        x_expression, y_expression (str or None): Expressions in parameters that define
+            the coordinates (the point follows the parameters); None for a plain number.
+            Transforms refuse to move a defined point; update_point with a number
+            replaces that coordinate's expression.
+        undefined (bool): A definition is not a finite real number at the current
+            parameter values; the point stays at its last position and is not drawn.
     """
 
     def __init__(self, x: float, y: float, name: str = "", color: str = default_color) -> None:
@@ -54,6 +61,9 @@ class Point(Drawable):
         """
         self._x: float = float(x)
         self._y: float = float(y)
+        self.x_expression: Optional[str] = None
+        self.y_expression: Optional[str] = None
+        self.undefined: bool = False
         super().__init__(name=name, color=color)
         self.label = AttachedLabel(
             self._x,
@@ -80,8 +90,62 @@ class Point(Drawable):
 
     def get_state(self) -> Dict[str, Any]:
         state: Dict[str, Any] = {"name": self.name, "args": {"position": {"x": self.x, "y": self.y}}}
+        if self.x_expression is not None:
+            state["args"]["x_expression"] = self.x_expression
+        if self.y_expression is not None:
+            state["args"]["y_expression"] = self.y_expression
+        if self.undefined:
+            state["args"]["undefined"] = True
         self._add_color_to_state(state)
         return state
+
+    @property
+    def has_definition(self) -> bool:
+        """Whether a coordinate is defined by an expression in parameters."""
+        return self.x_expression is not None or self.y_expression is not None
+
+    def parameter_names(self) -> Tuple[str, ...]:
+        """The current parameters the coordinate definitions read, sorted."""
+        names = set(definition_parameters(self.x_expression)) | set(definition_parameters(self.y_expression))
+        return tuple(sorted(names))
+
+    def set_definition(self, x_expression: Optional[str], y_expression: Optional[str]) -> None:
+        """Define the coordinates by expressions in parameters (None keeps that one a number).
+
+        The expressions are stored forms already checked by read_definition; the point moves
+        to their current values.
+        """
+        self.x_expression = x_expression
+        self.y_expression = y_expression
+        self.refresh_definition()
+
+    def clear_definition(self) -> bool:
+        """Make the point free (plain numbers); True if it had a definition."""
+        had = self.has_definition
+        self.x_expression = None
+        self.y_expression = None
+        self.undefined = False
+        return had
+
+    def refresh_definition(self) -> bool:
+        """Move the point to its definition's current values; True if it moved.
+
+        A definition that is not a finite real number marks the point undefined and leaves
+        it where it is.
+        """
+        if not self.has_definition:
+            return False
+        x_value = evaluate_definition(self.x_expression) if self.x_expression is not None else self._x
+        y_value = evaluate_definition(self.y_expression) if self.y_expression is not None else self._y
+        if x_value is None or y_value is None:
+            self.undefined = True
+            return False
+        self.undefined = False
+        if x_value == self._x and y_value == self._y:
+            return False
+        self._x, self._y = float(x_value), float(y_value)
+        self._sync_label_position()
+        return True
 
     def __deepcopy__(self, memo: Dict[int, Any]) -> Point:
         if id(self) in memo:
@@ -89,18 +153,21 @@ class Point(Drawable):
         # For undo / redo / archive functionality
         # Create a new Point instance with the same coordinates and properties
         new_point: Point = Point(self.x, self.y, name=self.name, color=self.color)
+        new_point.x_expression = self.x_expression
+        new_point.y_expression = self.y_expression
+        new_point.undefined = self.undefined
         memo[id(self)] = new_point
         return new_point
 
     def translate(self, x_offset: float, y_offset: float) -> None:
-        self.x += x_offset
-        self.y += y_offset
+        self._x += x_offset
+        self._y += y_offset
         self._sync_label_position()
 
     def update_position(self, x: float, y: float) -> None:
         """Update both coordinates at once to keep math-space state consistent."""
-        self.x = float(x)
-        self.y = float(y)
+        self._x = float(x)
+        self._y = float(y)
         self._sync_label_position()
 
     def update_color(self, color: str) -> None:

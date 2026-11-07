@@ -15,6 +15,7 @@ from workspace_manager import WorkspaceManager
 # Every drawable bucket that a saved workspace can contain. Bars are derived from
 # plot composites and are intentionally not persisted.
 EXPECTED_DRAWABLE_KEYS: Tuple[str, ...] = (
+    "Parameters",
     "Points",
     "Segments",
     "Vectors",
@@ -37,10 +38,12 @@ EXPECTED_DRAWABLE_KEYS: Tuple[str, ...] = (
     "PiecewiseFunctions",
     "ParametricFunctions",
     "PolarFunctions",
+    "ImplicitCurves",
     "FunctionsBoundedColoredAreas",
     "SegmentsBoundedColoredAreas",
     "FunctionSegmentBoundedColoredAreas",
     "ClosedShapeColoredAreas",
+    "InequalityColoredAreas",
     "ContinuousPlots",
     "DiscretePlots",
     "BarsPlots",
@@ -134,6 +137,9 @@ def _build_functions_and_areas(c: Canvas) -> None:
     c.drawable_manager.polar_function_manager.draw_polar_function(
         "1 + cos(θ)", name="card", theta_min=0.0, theta_max=4.0, color="red"
     )
+    implicit = c.drawable_manager.implicit_curve_manager
+    implicit.draw_implicit_curve("x^2 + y^2 = 25", name="circ", color="green")
+    implicit.shade_inequality("y < x^2, x > -1", name="R", color="orange", opacity=0.25)
     s1 = c.create_segment(-4, 1, 4, 2, extra_graphics=False)
     s2 = c.create_segment(-4, -1, 4, -2, extra_graphics=False)
     c.create_colored_area("f", "g", left_bound=-1, right_bound=1)
@@ -212,6 +218,18 @@ def _build_graphs(c: Canvas) -> None:
     )
 
 
+def _build_parameters(c: Canvas) -> None:
+    parameters = c.drawable_manager.parameter_manager
+    parameters.set_parameter("a", 1.5, -5, 5, 0.5)
+    parameters.set_parameter("ω", 2.0)
+    c.draw_function("a*sin(ω*x)", name="wave")
+    point = c.drawable_manager.point_manager.create_point(1.5, 2.25, "P", distinct=True)
+    point.set_definition("a", "a^2")
+    circle = c.create_circle(0, 40, 2)
+    circle.set_radius_definition("ω")
+    circle.regenerate_name(c.drawable_manager.drawables.names_in_use(exclude=circle))
+
+
 SCENES: Tuple[Tuple[str, Callable[[Canvas], None]], ...] = (
     ("primitives", _build_primitives),
     ("small_polygons", _build_small_polygons),
@@ -226,6 +244,7 @@ SCENES: Tuple[Tuple[str, Callable[[Canvas], None]], ...] = (
     ("functions_and_areas", _build_functions_and_areas),
     ("plots", _build_plots),
     ("graphs", _build_graphs),
+    ("parameters", _build_parameters),
 )
 
 
@@ -264,8 +283,13 @@ class TestWorkspaceRoundTrip(unittest.TestCase):
             with self.subTest(scene=scene_name):
                 canvas = Canvas(500, 500, draw_enabled=False)
                 manager = WorkspaceManager(canvas)
-                build(canvas)
-                before, after = self._round_trip(manager)
+                parameters = canvas.drawable_manager.parameter_manager
+                previous_owner = parameters.claim_namespace()  # the scene's parameters are the live ones
+                try:
+                    build(canvas)
+                    before, after = self._round_trip(manager)
+                finally:
+                    parameters.release_namespace(previous_owner)
                 before_buckets = self._drawable_buckets(before)
                 after_buckets = self._drawable_buckets(after)
                 covered.update(before_buckets.keys())

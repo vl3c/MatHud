@@ -17,6 +17,7 @@ from __future__ import annotations
 import math
 from typing import Any, Callable, Dict, Optional, Tuple, cast
 
+import compiled_expression
 from constants import default_color
 from drawables.drawable import Drawable
 from expression_validator import ExpressionValidator
@@ -104,6 +105,17 @@ class ParametricFunction(Drawable):
     def get_class_name(self) -> str:
         """Return the class name for serialization and type identification."""
         return "ParametricFunction"
+
+    def parameter_names(self) -> Tuple[str, ...]:
+        """The current parameters x(t) and y(t) read, sorted."""
+        names = set()
+        for text in (self.x_expression, self.y_expression):
+            try:
+                compiled = compiled_expression.compile_expression(text, ("t",), compiled_expression.FUNCTIONS_CURVE)
+            except Exception:
+                continue
+            names.update(compiled.parameter_names)
+        return tuple(sorted(names))
 
     def get_state(self) -> Dict[str, Any]:
         """

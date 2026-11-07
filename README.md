@@ -35,18 +35,19 @@ The app may be rewritten in another language or stack along the way. What has to
 
 1. Draw and manipulate geometric objects (points, segments, vectors, polygons, circles, ellipses, angles) directly on the canvas.
 2. Ask the assistant to solve algebra, calculus, trigonometry, statistics, and linear algebra problems with LaTeX-formatted explanations.
-3. Plot functions, parametric curves, polar curves r(θ), sequences u(n) (explicit or recursive) and cobweb diagrams of iterations x → g(x), measure arc length, compare intersections, shade bounded regions, and translate/rotate objects to explore relationships visually.
-4. Plot statistics visualizations (probability distributions, bar charts, histograms, box plots and scatter plots) and compute probabilities, tails and quantiles of normal, uniform, exponential, t, χ², F, binomial, Poisson and geometric distributions; run hypothesis tests (z, t, two-sample, paired, proportion and χ² tests) and confidence intervals.
-5. Fit regression models to data (linear, polynomial, exponential, logarithmic, power, logistic, sinusoidal) and visualize fitted curves with R² statistics.
-6. Compute descriptive statistics (mean, median, mode, standard deviation, variance, min, max, quartiles, IQR) for any dataset.
-7. Create and analyze graph theory graphs (graphs, trees, DAGs).
-8. Save, list, load, and delete named workspaces so projects can be resumed or shared later.
-9. Share the current canvas with the assistant using Vision mode to get feedback grounded in your drawing.
-10. Attach images directly to chat messages for the AI to analyze alongside your prompts.
-11. Use slash commands (`/help`, `/vision`, `/model`, `/image`, etc.) for quick local operations without waiting for an AI response.
-12. Type math symbols with the Σ palette, backslash completion (`\alpha` → α) or Alt shortcuts (`Alt+P` → π).
-13. Choose from multiple AI providers — a local `llama-server` (LocalAgent, the default), OpenAI, Anthropic (Claude), and OpenRouter — with the model dropdown automatically filtered by which API keys you have configured and which local server is reachable.
-14. Trigger client-side tests from the UI or chat to verify canvas behavior without leaving the app.
+3. Plot functions, parametric curves, polar curves r(θ), implicit curves F(x, y) = 0, sequences u(n) (explicit or recursive) and cobweb diagrams of iterations x → g(x), measure arc length, compare intersections, shade bounded regions and inequalities in x and y, and translate/rotate objects to explore relationships visually.
+4. Make parameters with sliders (`y = a*sin(b*x)`, a point at `(a, a^2)`, a circle of radius `r`) and set or animate them; everything that reads them follows.
+5. Plot statistics visualizations (probability distributions, bar charts, histograms, box plots and scatter plots) and compute probabilities, tails and quantiles of normal, uniform, exponential, t, χ², F, binomial, Poisson and geometric distributions; run hypothesis tests (z, t, two-sample, paired, proportion and χ² tests) and confidence intervals.
+6. Fit regression models to data (linear, polynomial, exponential, logarithmic, power, logistic, sinusoidal) and visualize fitted curves with R² statistics.
+7. Compute descriptive statistics (mean, median, mode, standard deviation, variance, min, max, quartiles, IQR) for any dataset.
+8. Create and analyze graph theory graphs (graphs, trees, DAGs).
+9. Save, list, load, and delete named workspaces so projects can be resumed or shared later.
+10. Share the current canvas with the assistant using Vision mode to get feedback grounded in your drawing.
+11. Attach images directly to chat messages for the AI to analyze alongside your prompts.
+12. Use slash commands (`/help`, `/vision`, `/model`, `/image`, etc.) for quick local operations without waiting for an AI response.
+13. Type math symbols with the Σ palette, backslash completion (`\alpha` → α) or Alt shortcuts (`Alt+P` → π).
+14. Choose from multiple AI providers — a local `llama-server` (LocalAgent, the default), OpenAI, Anthropic (Claude), and OpenRouter — with the model dropdown automatically filtered by which API keys you have configured and which local server is reachable.
+15. Trigger client-side tests from the UI or chat to verify canvas behavior without leaving the app.
 
 ## 3. Architecture Overview
 

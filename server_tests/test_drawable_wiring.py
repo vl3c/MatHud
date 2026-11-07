@@ -47,6 +47,8 @@ DRAWN_BY_PARTS = {
     "DiscretePlots",
     "BarsPlots",
 }
+# Drawables never drawn on the canvas: parameters are shown by the slider panel.
+NOT_DRAWN = {"Parameters"}
 
 
 def _drawable_buckets() -> Set[str]:
@@ -104,7 +106,7 @@ class TestDrawableWiring(unittest.TestCase):
 
     def test_every_drawable_has_a_plan_helper_or_is_drawn_by_its_parts(self) -> None:
         planned = {name + "s" for name in _plan_helper_classes()}
-        self.assertEqual(sorted(self.buckets - planned - DRAWN_BY_PARTS), [])
+        self.assertEqual(sorted(self.buckets - planned - DRAWN_BY_PARTS - NOT_DRAWN), [])
         self.assertEqual(sorted(planned & DRAWN_BY_PARTS), [])
         self.assertEqual(sorted(planned - self.buckets), [])
 

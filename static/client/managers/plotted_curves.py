@@ -13,6 +13,7 @@ from __future__ import annotations
 import math
 from typing import Any, Callable, List, Optional, Sequence, Tuple
 
+from managers.implicit_refusals import implicit_refusal
 from utils.arc_length import Point
 from utils.arc_length_tool import NamedCurve
 
@@ -39,6 +40,9 @@ def resolve_plotted_curve(drawables: Any, name: str) -> NamedCurve:
         for drawable in list(getattr(drawables, container, None) or []):
             if getattr(drawable, "name", None) == name:
                 return _BUILDERS[kind](drawable)
+    refusal = implicit_refusal(drawables, name, "arc_length")
+    if refusal:
+        raise ValueError(refusal)
     raise ValueError(
         f"No function, parametric or polar curve, circle, circle arc or ellipse named '{name}' is on the canvas. "
         "Give the curve's name as the canvas shows it, or its expression instead."

@@ -295,6 +295,11 @@ class CircleManager(BaseDrawableManager):
         new_center_y: Optional[float] = None,
     ) -> bool:
         circle = self._get_circle_or_raise(circle_name)
+        if (new_center_x is not None or new_center_y is not None) and circle.center.has_definition:
+            raise ValueError(
+                f"The centre {circle.center.name} of '{circle_name}' is defined by parameters; change them with "
+                f"set_parameter, or first give {circle.center.name} numbers with update_point."
+            )
         pending_fields = self._collect_circle_requested_fields(new_color, new_center_x, new_center_y)
         rules = self._validate_circle_policy(list(pending_fields.keys()))
         self._enforce_circle_rules(circle, rules, new_center_x, new_center_y)

@@ -14,6 +14,7 @@ from constants import default_font_family
 from rendering.renderables import ParametricFunctionRenderable
 from rendering.helpers.shape_decorator import _manages_shape
 from rendering.primitives import FontStyle, StrokeStyle, TextAlignment
+import compiled_expression
 
 
 @_manages_shape
@@ -30,8 +31,28 @@ def _render_parametric_paths(primitives, screen_paths, stroke):
         primitives.stroke_polyline(path, stroke)
 
 
+def _parameter_signature(func):
+    """The values of the parameters the curve reads (None when it reads none).
+
+    Other model changes (a new expression or range) replace or invalidate the renderable
+    where they happen; parameter values change without touching the curve.
+    """
+    if not compiled_expression.has_parameters():
+        return None
+    try:
+        names = func.parameter_names()
+    except Exception:
+        return None
+    if not names:
+        return None
+    return tuple((name, compiled_expression.parameter_value(name)) for name in names)
+
+
 def _get_or_create_renderable(func, coordinate_mapper):
-    """Get or create a ParametricFunctionRenderable for the given function."""
+    """Get or create a ParametricFunctionRenderable for the given curve (parametric or polar).
+
+    Cached paths are dropped when a parameter value the curve reads changes.
+    """
     renderable = getattr(func, "_renderable", None)
     if renderable is None or renderable.mapper is not coordinate_mapper:
         renderable = ParametricFunctionRenderable(func, coordinate_mapper)
@@ -41,6 +62,10 @@ def _get_or_create_renderable(func, coordinate_mapper):
             pass
     else:
         renderable.mapper = coordinate_mapper
+    signature = _parameter_signature(func)
+    if signature != getattr(renderable, "_parameter_signature", None):
+        renderable.invalidate_cache()
+        renderable._parameter_signature = signature
     return renderable
 
 

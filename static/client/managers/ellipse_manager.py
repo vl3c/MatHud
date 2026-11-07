@@ -37,7 +37,7 @@ from __future__ import annotations
 
 import math
 import re
-from typing import TYPE_CHECKING, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from drawables.ellipse import Ellipse
 from managers.base_drawable_manager import BaseDrawableManager
@@ -353,6 +353,12 @@ class EllipseManager(BaseDrawableManager):
         new_center_y: Optional[float] = None,
     ) -> bool:
         ellipse = self._get_ellipse_or_raise(ellipse_name)
+        center: Any = getattr(ellipse, "center", None)
+        if (new_center_x is not None or new_center_y is not None) and getattr(center, "has_definition", False):
+            raise ValueError(
+                f"The centre {center.name} of '{ellipse_name}' is defined by parameters; change them with "
+                f"set_parameter, or first give {center.name} numbers with update_point."
+            )
         pending_fields = self._collect_ellipse_requested_fields(
             new_color, new_radius_x, new_radius_y, new_rotation_angle, new_center_x, new_center_y
         )

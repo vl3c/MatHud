@@ -411,6 +411,21 @@ class DrawablesContainer:
         return self.get_by_class_name("PolarFunction")
 
     @property
+    def ImplicitCurves(self) -> List["Drawable"]:
+        """Get all ImplicitCurve objects."""
+        return self.get_by_class_name("ImplicitCurve")
+
+    @property
+    def InequalityColoredAreas(self) -> List["Drawable"]:
+        """Get all InequalityColoredArea objects."""
+        return self.get_by_class_name("InequalityColoredArea")
+
+    @property
+    def Parameters(self) -> List["Drawable"]:
+        """Get all Parameter objects (sliders; never drawn on the canvas)."""
+        return self.get_by_class_name("Parameter")
+
+    @property
     def Labels(self) -> List["Drawable"]:
         """Get all Label objects."""
         return self.get_by_class_name("Label")

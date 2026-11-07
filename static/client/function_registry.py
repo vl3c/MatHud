@@ -23,6 +23,7 @@ import re
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, cast
 
 import no_op_tools
+import parameter_tools
 from creation_report import CreationReport
 from no_change_result import NoChangeResult
 from utils.math_utils import MathUtils
@@ -258,9 +259,11 @@ class FunctionRegistry:
                 ),
             },
             # ===== POINT OPERATIONS =====
-            "create_point": FunctionRegistry._create_point_tool(canvas),
+            "create_point": parameter_tools.create_point_tool(canvas, FunctionRegistry._create_point_tool(canvas)),
             "delete_point": canvas.delete_point,
-            "update_point": no_op_tools.update_tool(canvas, "update_point", canvas.update_point),
+            "update_point": parameter_tools.update_point_tool(
+                canvas, no_op_tools.update_tool(canvas, "update_point", canvas.update_point)
+            ),
             # ===== SEGMENT OPERATIONS =====
             "create_segment": canvas.create_segment,
             "delete_segment": canvas.delete_segment,
@@ -274,7 +277,7 @@ class FunctionRegistry:
             "delete_polygon": canvas.delete_polygon,
             "update_polygon": no_op_tools.update_tool(canvas, "update_polygon", canvas.update_polygon),
             # ===== CIRCLE OPERATIONS =====
-            "create_circle": canvas.create_circle,
+            "create_circle": parameter_tools.create_circle_tool(canvas, canvas.create_circle),
             "delete_circle": canvas.delete_circle,
             "update_circle": no_op_tools.update_tool(canvas, "update_circle", canvas.update_circle),
             # ===== CIRCLE ARC OPERATIONS =====
@@ -290,18 +293,24 @@ class FunctionRegistry:
             "delete_label": canvas.delete_label,
             "update_label": no_op_tools.update_tool(canvas, "update_label", canvas.update_label),
             # ===== FUNCTION PLOTTING =====
-            "draw_function": FunctionRegistry._draw_function_tool(canvas),
+            "draw_function": parameter_tools.checked_plot_tool(
+                "draw_function", FunctionRegistry._draw_function_tool(canvas)
+            ),
             "delete_function": canvas.delete_function,
             "update_function": no_op_tools.update_tool(canvas, "update_function", canvas.update_function),
             "find_function_features": canvas.find_function_features,
             # ===== PIECEWISE FUNCTION PLOTTING =====
-            "draw_piecewise_function": canvas.draw_piecewise_function,
+            "draw_piecewise_function": parameter_tools.checked_plot_tool(
+                "draw_piecewise_function", canvas.draw_piecewise_function
+            ),
             "delete_piecewise_function": canvas.delete_piecewise_function,
             "update_piecewise_function": no_op_tools.update_tool(
                 canvas, "update_piecewise_function", canvas.update_piecewise_function
             ),
             # ===== PARAMETRIC FUNCTION PLOTTING =====
-            "draw_parametric_function": canvas.draw_parametric_function,
+            "draw_parametric_function": parameter_tools.checked_plot_tool(
+                "draw_parametric_function", canvas.draw_parametric_function
+            ),
             "delete_parametric_function": canvas.delete_parametric_function,
             "update_parametric_function": no_op_tools.update_tool(
                 canvas, "update_parametric_function", canvas.update_parametric_function
@@ -314,6 +323,19 @@ class FunctionRegistry:
                 "update_polar_function",
                 canvas.drawable_manager.polar_function_manager.update_polar_function,
             ),
+            # ===== IMPLICIT CURVES AND INEQUALITY REGIONS =====
+            "draw_implicit_curve": canvas.drawable_manager.implicit_curve_manager.draw_implicit_curve,
+            "delete_implicit_curve": canvas.drawable_manager.implicit_curve_manager.delete_implicit_curve,
+            "update_implicit_curve": no_op_tools.update_tool(
+                canvas,
+                "update_implicit_curve",
+                canvas.drawable_manager.implicit_curve_manager.update_implicit_curve,
+            ),
+            "shade_inequality": canvas.drawable_manager.implicit_curve_manager.shade_inequality,
+            # ===== PARAMETERS (SLIDERS) =====
+            "set_parameter": canvas.drawable_manager.parameter_manager.set_parameter,
+            "animate_parameter": canvas.drawable_manager.parameter_manager.animate_parameter,
+            "delete_parameter": canvas.drawable_manager.parameter_manager.delete_parameter,
             # ===== TANGENT AND NORMAL LINES =====
             "draw_tangent_line": canvas.create_tangent_line,
             "draw_normal_line": canvas.create_normal_line,
@@ -332,7 +354,7 @@ class FunctionRegistry:
             "scale_object": canvas.scale_object,
             "shear_object": canvas.shear_object,
             # ===== MATHEMATICAL OPERATIONS =====
-            "evaluate_expression": ProcessFunctionCalls.evaluate_expression,
+            "evaluate_expression": parameter_tools.evaluate_expression_tool(ProcessFunctionCalls.evaluate_expression),
             "evaluate_linear_algebra_expression": ProcessFunctionCalls.evaluate_linear_algebra_expression,
             "convert": MathUtils.convert,
             "limit": MathUtils.limit,

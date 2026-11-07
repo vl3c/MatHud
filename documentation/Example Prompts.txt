@@ -73,6 +73,23 @@ Find the area enclosed by r = 1 + cos(θ) (integrate 0.5*r^2 over θ from 0 to 2
 Change the θ range of f_polar to 0 to 4*pi and make it blue.
 Delete the polar curve f_polar.
 
+# Implicit Curves and Inequality Regions
+Draw the curve x^2 + y^2 = 25.
+Graph the ellipse (x - 1)^2/9 + (y + 2)^2/4 = 1 as an implicit curve.
+Draw the hyperbola x*y = 4 in red.
+Plot the folium of Descartes x^3 + y^3 = 6*x*y.
+Draw the elliptic curve y^2 = x^3 - x.
+Draw the astroid cbrt(x)^2 + cbrt(y)^2 = 1 (cbrt is the real cube root; x^(2/3) is not real for x < 0).
+Graph sin(x) = cos(y).
+Shade the region y > 2*x + 1.
+Shade x^2 + y^2 <= 9 in green with opacity 0.3.
+Shade the feasible region x + y <= 10, x >= 0, y >= 0, 2*x + y <= 16.
+Shade where y < -1 or y > 1.
+Shade y > x^2 - 2 and (x < 0 or y < 1).
+Make the region R1 blue. (Regions are colored areas: update_colored_area and delete_colored_area edit them.)
+Change the color of the implicit curve c1 to orange.
+Delete the implicit curve c1.
+
 # Sequences and Iteration
 Plot the sequence u(n) = 1/n for n from 1 to 20.
 Plot u(n) = (-1)^n/n for n from 1 to 30 and tell me whether it is increasing, decreasing or neither.
@@ -82,6 +99,17 @@ Draw a cobweb diagram of g(x) = cos(x) starting at x0 = 1. Where does the orbit 
 Draw the cobweb of the logistic map 3.2*x*(1-x) from x0 = 0.1 for 60 steps. Does it settle on a cycle?
 Iterate g(x) = 3.9*x*(1-x) from 0.2 and draw the cobweb; is the orbit chaotic?
 Delete the cobweb diagram named "cobweb".
+
+# Parameters and Sliders
+Make a slider a from -5 to 5 and plot y = a*x^2. (Write products with *: a*x, not ax.)
+Plot y = a*sin(b*x) with sliders a and b, then set a to 2 and b to 3.
+Put a point P at (a, a^2) that follows the slider a.
+Draw a circle centred at the origin with radius r, where r is a slider from 1 to 5.
+Plot the parametric curve x(t) = cos(a*t), y(t) = sin(t) and animate a from 1 to 5 over 8 seconds.
+Draw the rose r = 2*sin(k*θ) and bounce k back and forth between 1 and 7.
+Stop the animation of k.
+Change the range of the slider a to 0 to 10 with step 0.5.
+Delete the slider b. (Refused while objects use it; delete them first.)
 
 # Tangent and Normal Lines
 Plot y = x^2 and draw its tangent line at x = 2.

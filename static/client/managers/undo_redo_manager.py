@@ -158,13 +158,29 @@ class UndoRedoManager:
 
     def _apply_state(self, state: Dict[str, Any], view_parts: Sequence[str], redraw: bool) -> None:
         """Replace the drawables and computations with the state's, and the given parts of its view."""
+        self._presync_parameters(state["drawables"])
         self.canvas.drawable_manager.drawables._drawables = copy.deepcopy(state["drawables"])
         self.canvas.drawable_manager.drawables.rebuild_renderables()
         self.canvas.computations = copy.deepcopy(state.get("computations", []))
         zoom_changed = self._restore_view(state, view_parts)
         self._rebuild_dependency_graph()
+        self._resync_parameters()
         if redraw:
             self.canvas.draw(apply_zoom=zoom_changed)
+
+    def _presync_parameters(self, drawables: Dict[str, Any]) -> None:
+        """Let the expression namespace hold the state's parameters before its drawables are copied."""
+        manager = getattr(getattr(self.canvas, "drawable_manager", None), "parameter_manager", None)
+        sync_from = getattr(manager, "sync_namespace_from", None)
+        if callable(sync_from):
+            sync_from(list(drawables.get("Parameter", [])))
+
+    def _resync_parameters(self) -> None:
+        """Stop parameter animations and point the expression namespace at the restored parameters."""
+        manager = getattr(getattr(self.canvas, "drawable_manager", None), "parameter_manager", None)
+        on_restored = getattr(manager, "on_state_restored", None)
+        if callable(on_restored):
+            on_restored()
 
     def _restore_view(self, state: Dict[str, Any], view_parts: Sequence[str]) -> bool:
         """Apply the given parts of the state's view, if it has one; True when the zoom level changed."""

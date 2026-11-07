@@ -10,13 +10,22 @@ positionally, in order:
     F = compile_expression("x^2 + y^2 - 1", ("x", "y")).bind()     # F(1.0, 1.0) == 1.0
 
 ``functions`` picks the namespace: ``FUNCTIONS_ALL`` (every function, used for function
-and piecewise plots) or ``FUNCTIONS_CURVE`` (the curve-safe rows, for parametric curves).
+and piecewise plots), ``FUNCTIONS_CURVE`` (the curve-safe rows, for parametric curves) or
+``FUNCTIONS_REAL`` (the curve-safe rows with sqrt, log, asin... giving NaN outside their
+domain, for evaluating on a grid: implicit curves and regions).
 Names the expression reads that are neither functions, constants, the imaginary unit nor
 variables are listed in ``free_names``; they are not rejected (``a*x`` parses and fails
 per sample, as before).
 
 ``substitute_variable(text, name, replacement)`` rewrites one variable as a whole token,
 for shifting a graph: substitute_variable("x^2 + max(x, 1)", "x", "(x - 2)").
+
+Parameters (the canvas's sliders) live in one namespace per page, written only by the
+namespace owner's ParameterManager (the page canvas) through ``set_parameter_values``. ``bind(parameters=True)``
+compiles against "live" globals that hold them, so a free name such as ``a`` in
+``a*sin(x)`` is read at call time: changing a value changes every such callable at once,
+with no recompiling. Plain ``bind()`` never sees parameters, so the CAS checks keep their
+meaning of a name.
 
 Pure Python (no browser imports), so server-side pytest imports it directly.
 """
@@ -25,22 +34,25 @@ from __future__ import annotations
 
 import ast
 import re
-from typing import Any, Callable, Dict, FrozenSet, List, Optional, Sequence, Tuple, cast
+from typing import Any, Callable, Dict, FrozenSet, List, Mapping, Optional, Sequence, Tuple, cast
 
 import expression_functions as ef
 from expression_validator import ExpressionValidator
 
 FUNCTIONS_ALL = "all"
 FUNCTIONS_CURVE = "curve"
+FUNCTIONS_REAL = "real"
 
 # Names each namespace defines (functions and constants), without resolving MathUtils
 _NAMESPACE_KEYS: Dict[str, FrozenSet[str]] = {
     FUNCTIONS_ALL: frozenset(ef.BY_NAME) | frozenset(ef.CONSTANTS),
     FUNCTIONS_CURVE: frozenset(ef.CURVE_NAMES) | frozenset(ef.CONSTANTS),
+    FUNCTIONS_REAL: frozenset(ef.CURVE_NAMES) | frozenset(ef.CONSTANTS),
 }
 _NAMESPACE_BUILDERS: Dict[str, Callable[[], Dict[str, Any]]] = {
     FUNCTIONS_ALL: ef.build_python_namespace,
     FUNCTIONS_CURVE: ef.build_curve_namespace,
+    FUNCTIONS_REAL: ef.build_real_namespace,
 }
 _NAMESPACES: Dict[str, Dict[str, Any]] = {}
 
@@ -61,8 +73,13 @@ class _Parsed:
 
 _CACHE: Dict[str, _Parsed] = {}
 # Bound lambdas per (Python text, variables, functions), and their globals per function set
-_LAMBDAS: Dict[Tuple[str, Tuple[str, ...], str], Callable[..., float]] = {}
+_LAMBDAS: Dict[Tuple[str, Tuple[str, ...], str, bool], Callable[..., float]] = {}
 _LAMBDA_GLOBALS: Dict[str, Dict[str, Any]] = {}
+# Globals of lambdas bound with parameters=True, per function set: the plain globals plus
+# the current parameter values, updated in place by set_parameter_values
+_LIVE_GLOBALS: Dict[str, Dict[str, Any]] = {}
+# The current parameter values (name -> float); the single source the live globals copy
+_PARAMETERS: Dict[str, float] = {}
 
 # Identifiers (Unicode letters too, so θ and Δx are names) and number literals matched whole,
 # so a variable is never found inside a longer name (max, x2, Δx) or a number (1e5)
@@ -87,7 +104,7 @@ class CompiledExpression:
         source: The text as given.
         python_text: The text after fix_math_expression (Python form).
         variables: The variable names, normalised (ϑ -> θ), in argument order.
-        functions: FUNCTIONS_ALL or FUNCTIONS_CURVE.
+        functions: FUNCTIONS_ALL, FUNCTIONS_CURVE or FUNCTIONS_REAL.
     """
 
     __slots__ = ("source", "python_text", "variables", "functions", "_parsed")
@@ -116,11 +133,53 @@ class CompiledExpression:
             )
         )
 
-    def bind(self) -> Callable[..., float]:
+    @property
+    def variables_read(self) -> Tuple[str, ...]:
+        """The variables the expression reads, in the order of ``variables``."""
+        names = self._parsed.names
+        return tuple(name for name in self.variables if name in names)
+
+    def factors(self) -> Tuple["CompiledExpression", ...]:
+        """The factors of a product or integer power at the top of the expression.
+
+        (x - y)*(x + y) gives x - y and x + y; (x^2 + y^2 - 1)^2 gives x^2 + y^2 - 1; -x*y
+        gives x and y. The expression is zero exactly where one of its factors is, so a
+        zero set can be found factor by factor (an even power never changes sign). A
+        factor that repeats is listed once; any other expression is its own only factor.
+        Only the top of the tree is split: nothing is expanded.
+        """
+        nodes = _top_level_factors(self._parsed.tree.body)
+        if len(nodes) == 1 and nodes[0] is self._parsed.tree.body:
+            return (self,)
+        found: List[CompiledExpression] = []
+        seen: Dict[str, bool] = {}
+        for node in nodes:
+            signature = ast.dump(node, annotate_fields=False)
+            if signature in seen:
+                continue
+            seen[signature] = True
+            tree = ast.Expression(body=node)
+            parsed = _Parsed(f"{self.python_text}\x00{signature}", tree, _read_names(tree))
+            found.append(CompiledExpression(self.source, parsed, self.variables, self.functions))
+        return tuple(found)
+
+    @property
+    def parameter_names(self) -> Tuple[str, ...]:
+        """The free names that are current parameters, sorted."""
+        return tuple(name for name in self.free_names if name in _PARAMETERS)
+
+    @property
+    def undefined_names(self) -> Tuple[str, ...]:
+        """The free names that are not current parameters, sorted (they raise NameError)."""
+        return tuple(name for name in self.free_names if name not in _PARAMETERS)
+
+    def bind(self, parameters: bool = False) -> Callable[..., float]:
         """A callable taking the variables positionally and returning a float.
 
         Calling it raises what evaluating the expression raises
-        (NameError for a free name, ValueError for a domain error...).
+        (NameError for a free name, ValueError for a domain error...). With parameters=True
+        a free name that is a current parameter reads its value at call time
+        (set_parameter_values); other free names still raise NameError.
 
         The callable is a lambda compiled once per (Python text, variables, functions)
         and shared by every bind of them: Brython's eval(code, namespace) translates the
@@ -128,10 +187,10 @@ class CompiledExpression:
         from the validated tree (no text is re-parsed), and its globals are one namespace
         per function set, never written while evaluating.
         """
-        key = (self.python_text, self.variables, self.functions)
+        key = (self.python_text, self.variables, self.functions, bool(parameters))
         evaluate = _LAMBDAS.get(key)
         if evaluate is None:
-            evaluate = _compile_lambda(self._parsed, self.variables, self.functions)
+            evaluate = _compile_lambda(self._parsed, self.variables, self.functions, bool(parameters))
             if len(_LAMBDAS) >= _CACHE_LIMIT:
                 _LAMBDAS.clear()
             _LAMBDAS[key] = evaluate
@@ -143,14 +202,19 @@ class CompiledExpression:
 _FLOAT = "<float>"
 
 
-def _compile_lambda(parsed: _Parsed, variables: Tuple[str, ...], functions: str) -> Callable[..., float]:
+def _compile_lambda(
+    parsed: _Parsed, variables: Tuple[str, ...], functions: str, parameters: bool = False
+) -> Callable[..., float]:
     """lambda <variables>: float(<validated tree>), built from the tree, never from text.
 
     The tree itself compiled while parsing, and the lambda adds two nodes above it, well
-    within the depth the validator allows.
+    within the depth the validator allows. With parameters, its globals are the live ones,
+    so later parameter values are read at call time (checked in Brython too: a lambda made
+    by eval(code, g) sees later writes to g).
     """
     code = compile(_lambda_tree(parsed.tree, variables), "<string>", mode="eval")
-    return cast(Callable[..., float], eval(code, _lambda_globals(functions)))
+    namespace = _live_globals(functions) if parameters else _lambda_globals(functions)
+    return cast(Callable[..., float], eval(code, namespace))
 
 
 def _lambda_tree(tree: ast.Expression, variables: Tuple[str, ...]) -> ast.Expression:
@@ -185,6 +249,102 @@ def _lambda_globals(functions: str) -> Dict[str, Any]:
     return namespace
 
 
+def _live_globals(functions: str) -> Dict[str, Any]:
+    """The globals of lambdas bound with parameters: the plain globals plus the parameters."""
+    namespace = _LIVE_GLOBALS.get(functions)
+    if namespace is None:
+        namespace = dict(_lambda_globals(functions))
+        namespace.update(_PARAMETERS)
+        _LIVE_GLOBALS[functions] = namespace
+    return namespace
+
+
+def set_parameter_values(values: Mapping[str, float]) -> None:
+    """Replace the current parameter values (name -> number), in place in every live namespace.
+
+    Names that are no longer parameters are removed, so callables reading them raise
+    NameError again. Each name must be an identifier that no namespace defines; the
+    ParameterManager's name rules guarantee it, and this check keeps a bad name from
+    replacing a function such as sin.
+
+    Raises:
+        ValueError: A name is not an identifier, starts with "_" or is reserved, or a value
+            is not a real number.
+    """
+    checked: Dict[str, float] = {}
+    for name, value in values.items():
+        if not isinstance(name, str) or not name.isidentifier() or name.startswith("_") or name in ef.RESERVED_NAMES:
+            raise ValueError(f"Invalid parameter name {name!r}")
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError(f"Parameter {name!r} must be a number, got {value!r}")
+        checked[name] = float(value)
+    if checked == _PARAMETERS:
+        return
+    removed = [name for name in _PARAMETERS if name not in checked]
+    _PARAMETERS.clear()
+    _PARAMETERS.update(checked)
+    for namespace in _LIVE_GLOBALS.values():
+        for name in removed:
+            namespace.pop(name, None)
+        namespace.update(checked)
+
+
+def has_parameters() -> bool:
+    """Whether any parameter exists (render caches skip their lookups when none does)."""
+    return bool(_PARAMETERS)
+
+
+def parameter_values() -> Dict[str, float]:
+    """A copy of the current parameter values."""
+    return dict(_PARAMETERS)
+
+
+def parameter_value(name: str) -> Optional[float]:
+    """The current value of one parameter, or None when it is not a parameter."""
+    return _PARAMETERS.get(name)
+
+
+def plain_number_text(value: float) -> str:
+    """The shortest repr of a finite float written without an exponent (1e-05 -> 0.00001).
+
+    Expression text reads 1e-05 as a number, but 2e-3 style is easy to misread next to
+    Euler's e, so substituted values never use it.
+    """
+    text = repr(float(value))
+    if "e" not in text and "E" not in text:
+        return text
+    # repr's exponent form has one non-zero digit before the point: 1.5e-10, 1e+20
+    mantissa, exponent_text = text.lower().split("e")
+    sign = ""
+    if mantissa.startswith("-"):
+        sign, mantissa = "-", mantissa[1:]
+    whole, _, fraction = mantissa.partition(".")
+    digits = whole + fraction
+    point = len(whole) + int(exponent_text)
+    if point <= 0:
+        body = "0." + "0" * (-point) + digits
+    elif point >= len(digits):
+        body = digits + "0" * (point - len(digits))
+    else:
+        body = digits[:point] + "." + digits[point:]
+    return sign + body
+
+
+def with_parameter_values(text: str, names: Optional[Sequence[str]] = None) -> str:
+    """The text with each parameter name (or each of the given ones) replaced by its value.
+
+    Values go in parentheses, so a*x^2 with a = -2 becomes (-2.0)*x^2. Names that are not
+    current parameters are left alone. Used where a text, not a callable, is analysed
+    (a function's asymptotes at the current values).
+    """
+    result = text
+    for name in names if names is not None else tuple(_PARAMETERS):
+        value = _PARAMETERS.get(name)
+        if value is not None:
+            result = substitute_variable(result, name, f"({plain_number_text(value)})")
+    return result
+
+
 def compile_expression(
     text: str, variables: Sequence[str] = ("x",), functions: str = FUNCTIONS_ALL
 ) -> CompiledExpression:
@@ -193,7 +353,7 @@ def compile_expression(
     Args:
         text: The expression as typed or stored (math.js or Python form).
         variables: Variable names, in the order the bound callable takes them.
-        functions: FUNCTIONS_ALL or FUNCTIONS_CURVE.
+        functions: FUNCTIONS_ALL, FUNCTIONS_CURVE or FUNCTIONS_REAL.
 
     Raises:
         ValueError: The text does not validate (the messages of
@@ -218,6 +378,25 @@ def _parse(text: str) -> _Parsed:
     return _Parsed(python_text, tree, _read_names(tree))
 
 
+def _top_level_factors(node: ast.expr) -> List[ast.expr]:
+    """Factors of a product, a power with a whole exponent of at least 1, or a negation."""
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mult):
+        return _top_level_factors(node.left) + _top_level_factors(node.right)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow):
+        exponent = node.right
+        if (
+            isinstance(exponent, ast.Constant)
+            and not isinstance(exponent.value, bool)
+            and isinstance(exponent.value, (int, float))
+            and float(exponent.value).is_integer()
+            and exponent.value >= 1
+        ):
+            return _top_level_factors(node.left)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+        return _top_level_factors(node.operand)
+    return [node]
+
+
 def _read_names(tree: ast.AST) -> FrozenSet[str]:
     """Names the tree reads, except those only called (sin in sin(x))."""
     nodes = list(ast.walk(tree))
@@ -227,7 +406,9 @@ def _read_names(tree: ast.AST) -> FrozenSet[str]:
 
 def _checked_functions(functions: str) -> str:
     if functions not in _NAMESPACE_KEYS:
-        raise ValueError(f"Unknown function set {functions!r}; expected {FUNCTIONS_ALL!r} or {FUNCTIONS_CURVE!r}")
+        raise ValueError(
+            f"Unknown function set {functions!r}; expected {FUNCTIONS_ALL!r}, {FUNCTIONS_CURVE!r} or {FUNCTIONS_REAL!r}"
+        )
     return functions
 
 
