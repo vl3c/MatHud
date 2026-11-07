@@ -573,19 +573,20 @@ def _current_parameters(names: FrozenSet[str]) -> Tuple[str, ...]:
     return tuple(sorted(name for name in names if compiled_expression.parameter_value(name) is not None))
 
 
-def _check_indexed_names(free: Sequence[str], text: str, message: str) -> None:
-    """Refuse x1, y2 and the like with a hint that does not turn them into something else:
-    "y1 = x^2" is a function, "x1 + x2 <= 4" a relation in other variables, and only x2, y3
-    alone read as pasted powers (x2 for x²)."""
-    indexed = [name for name in free if re.fullmatch(r"[xy]\d+", name)]
+def _check_indexed_names(free: Sequence[str], message: str) -> None:
+    """Refuse x1, y2, Y1, x_0 and the like with every reading at once, since the text cannot say
+    which is meant: a constant (a centre x0, y0), another variable (a linear program in x1, x2,
+    a calculator's Y1 = f(x)) or a pasted power (x2 for x²). Never only one of them: following
+    the wrong one draws a different relation without an error."""
+    indexed = [name for name in free if re.fullmatch(r"[xyXY]_?\d+", name)]
     if not indexed:
         return
-    if len(indexed) == 1 and re.match(r"\s*y\d+\s*=", text):
-        raise ValueError(f"{message} For a function y = f(x) use draw_function, or write y here.")
-    if all(name in ("x2", "x3", "y2", "y3") for name in indexed):
-        powers = ", ".join(f"{name[0]}^{name[1]} for {name}" for name in indexed)
-        raise ValueError(f"{message} For a power write {powers}.")
-    raise ValueError(f"{message} Only x and y are variables here: write the relation in x and y.")
+    names = ", ".join(free)
+    raise ValueError(
+        f"{message} Only x and y are variables, so: a constant ({names}) is created with set_parameter "
+        "or written as a number; a relation in other variables (x1, x2) is written in x and y; a power "
+        "is written x^2 (not x2); and a function y1 = f(x) is drawn with draw_function."
+    )
 
 
 def _check_names(compiled: compiled_expression.CompiledExpression, text: str, what: str) -> None:
@@ -599,7 +600,7 @@ def _check_names(compiled: compiled_expression.CompiledExpression, text: str, wh
     message = f"The {what} '{text}' may use only x, y and parameters; {names} {verb} not defined."
     if set(free) & {"X", "Y"}:
         raise ValueError(f"{message} Use lowercase x and y.")
-    _check_indexed_names(free, text, message)
+    _check_indexed_names(free, message)
     for name in free:
         if set(name) <= set("xy"):
             raise ValueError(f"{message} Write products explicitly: {'*'.join(name)}.")
