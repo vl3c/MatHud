@@ -573,6 +573,21 @@ def _current_parameters(names: FrozenSet[str]) -> Tuple[str, ...]:
     return tuple(sorted(name for name in names if compiled_expression.parameter_value(name) is not None))
 
 
+def _check_indexed_names(free: Sequence[str], text: str, message: str) -> None:
+    """Refuse x1, y2 and the like with a hint that does not turn them into something else:
+    "y1 = x^2" is a function, "x1 + x2 <= 4" a relation in other variables, and only x2, y3
+    alone read as pasted powers (x2 for x²)."""
+    indexed = [name for name in free if re.fullmatch(r"[xy]\d+", name)]
+    if not indexed:
+        return
+    if len(indexed) == 1 and re.match(r"\s*y\d+\s*=", text):
+        raise ValueError(f"{message} For a function y = f(x) use draw_function, or write y here.")
+    if all(name in ("x2", "x3", "y2", "y3") for name in indexed):
+        powers = ", ".join(f"{name[0]}^{name[1]} for {name}" for name in indexed)
+        raise ValueError(f"{message} For a power write {powers}.")
+    raise ValueError(f"{message} Only x and y are variables here: write the relation in x and y.")
+
+
 def _check_names(compiled: compiled_expression.CompiledExpression, text: str, what: str) -> None:
     if not _CHECKING_NAMES[0]:
         return
@@ -580,12 +595,11 @@ def _check_names(compiled: compiled_expression.CompiledExpression, text: str, wh
     if not free:
         return
     names = ", ".join(f"'{name}'" for name in free)
-    message = f"The {what} '{text}' may use only x, y and parameters; {names} is not defined."
+    verb = "is" if len(free) == 1 else "are"
+    message = f"The {what} '{text}' may use only x, y and parameters; {names} {verb} not defined."
     if set(free) & {"X", "Y"}:
         raise ValueError(f"{message} Use lowercase x and y.")
-    for name in free:
-        if re.fullmatch(r"[xy][23]", name):  # a pasted superscript: x2 for x²
-            raise ValueError(f"{message} For a power write {name[0]}^{name[1]}.")
+    _check_indexed_names(free, text, message)
     for name in free:
         if set(name) <= set("xy"):
             raise ValueError(f"{message} Write products explicitly: {'*'.join(name)}.")
