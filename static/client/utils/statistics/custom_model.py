@@ -23,6 +23,8 @@ EXAMPLE = "a*exp(-b*x)*cos(c*x) + d"
 # "y =", "y ~" or "f(x) =" before the model
 _MODEL_PREFIX = re.compile(r"^\s*(?:[yY]|[A-Za-z]\w*\s*\(\s*x\s*\))\s*(?:=|~)\s*")
 _NAME = re.compile(r"[^\W\d]\w*")
+# Two operands side by side with only spaces between them (a sin(b x), b x): a product without '*'
+_SPACED_PRODUCT = re.compile(r"([A-Za-z0-9_.]+)\s+([A-Za-z_][A-Za-z0-9_]*)")
 _LAMBDA = re.compile(r"\blambda\b")
 # Function names never mistaken for constants in the hints below (constants e and pi are values)
 _VALUE_NAMES = frozenset(ef.CONSTANTS)
@@ -174,6 +176,12 @@ def read_model(text: Any) -> CustomModel:
             if " (and create " in hint:
                 hint = hint.split(" (and create ")[0] + ", or use a known function such as sin(x)."
             raise ValueError(hint) from exc
+        spaced = _SPACED_PRODUCT.search(source)
+        if spaced is not None:
+            raise ValueError(
+                f"In '{source}', '{spaced.group(0)}' has no operator between its parts; write products with '*' "
+                f"({spaced.group(1)}*{spaced.group(2)}), such as {EXAMPLE}."
+            ) from exc
         raise ValueError(
             f"Could not read the model '{source}': {exc}. Write every function with parentheses and every "
             f"product with '*': {EXAMPLE}."

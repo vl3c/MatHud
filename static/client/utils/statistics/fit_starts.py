@@ -1,12 +1,16 @@
 """Starting values for a custom fit: screening candidate values of the nonlinear constants.
 
 Candidate values for each nonlinear constant are 0; magnitudes from 0.01 to 30 in the
-units of 1, the x range and 1/(x range); the x deciles (shifts); the frequencies of 1
-to MIN_HALF_CYCLES half cycles over the x range (more for data that crosses its mean
-often); and, for a constant raised to a power of x (b^x), growth factors near 1. A coordinate search scans one constant at a time,
-twice over, from two seeds, and the best values per constant are combined. Candidates
-whose curve swings between the data points (an aliased sine) are ranked after the others
-(``Shape.swings``).
+units of 1, the x range and 1/(x range); and the x deciles (shifts). A constant setting
+the frequency of a trigonometric argument (b, f or T in sin(b*x), sin(2*pi*f*x),
+sin(2*pi*x/T)) also gets the values giving 1 to MIN_HALF_CYCLES half cycles over the x
+range, and more when the data crosses its mean more often (a window around that count
+beyond MAX_HALF_CYCLES); a phase or shift gets values across one period (_Trig); a
+constant raised to a power of x (b^x) gets growth factors near 1. A coordinate search
+scans one constant at a time (frequencies first), twice over, from up to three seeds,
+each with its share of the work, and the best values per constant are combined.
+Candidates whose curve swings between the data points (an aliased sine) are ranked after
+the others (``Shape.swings``).
 
 Pure Python (no browser imports), so server-side pytest imports it directly.
 """
@@ -14,17 +18,18 @@ Pure Python (no browser imports), so server-side pytest imports it directly.
 from __future__ import annotations
 
 import math
-from typing import List, Mapping, Optional, Tuple
+from typing import Callable, Dict, List, Mapping, Optional, Tuple
 
 from utils.statistics.custom_model import CustomModel
 from utils.statistics.levenberg_marquardt import sum_of_squares
 from utils.statistics.variable_projection import Projector
 
-# Frequencies tried: at least MIN_HALF_CYCLES half cycles over the x range, more (up to
-# MAX_HALF_CYCLES) when the data crosses its mean more often; never beyond the data's own
-# sampling limit
+# Frequencies tried: at least MIN_HALF_CYCLES half cycles over the x range, more when the
+# data crosses its mean more often (every count up to MAX_HALF_CYCLES, beyond it at most
+# WINDOW_VALUES counts around the estimate); never beyond the data's own sampling limit
 MIN_HALF_CYCLES = 40
 MAX_HALF_CYCLES = 80
+WINDOW_VALUES = 40
 # Candidates per constant kept for the combination stage, and the most combinations tried
 COMBINED_PER_CONSTANT = 3
 MAX_COMBINATIONS = 243
@@ -32,6 +37,8 @@ MAX_COMBINATIONS = 243
 # are checked for the best one that does not swing when none of those qualifies
 RANKED_CANDIDATES = 12
 STEADY_CHECKS = 60
+# A setting where moving each other constant changes the fit by less than this fraction is a dead end
+DEAD_END_CHANGE = 1e-9
 # Share of the data's variation left unexplained below which screening stops after one seed
 GOOD_SCREEN = 0.01
 # Points of the dense grid curves are compared on (at least this many, and 4 per data point)
@@ -88,7 +95,7 @@ def subsample(xs: List[float], ys: List[float], size: int) -> Tuple[List[float],
 
 
 def half_cycles(xs: List[float], ys: List[float]) -> int:
-    """How many half cycles of frequency candidates to try (see MIN_HALF_CYCLES).
+    """Up to how many half cycles of frequency candidates to try (see MIN_HALF_CYCLES).
 
     Oscillating data crosses its mean about once per half cycle; a quarter more covers the
     estimate's error. The data's sampling limit (n - 1 half cycles) caps it.
@@ -100,11 +107,11 @@ def half_cycles(xs: List[float], ys: List[float]) -> int:
         if (ys[order[index]] - mean) * (ys[order[index + 1]] - mean) < 0.0:
             crossings += 1
     wanted = max(MIN_HALF_CYCLES, int(crossings * 1.25) + 1)
-    return max(1, min(wanted, MAX_HALF_CYCLES, len(xs) - 1))
+    return max(1, min(wanted, len(xs) - 1))
 
 
-def candidate_values(xs: List[float], cycles: int) -> List[float]:
-    """Values tried for each nonlinear constant: magnitudes, x quartiles and frequencies."""
+def candidate_values(xs: List[float]) -> List[float]:
+    """Values tried for each nonlinear constant: magnitudes and x deciles."""
     low, high = min(xs), max(xs)
     span = high - low
     if span <= 0.0:
@@ -116,8 +123,87 @@ def candidate_values(xs: List[float], cycles: int) -> List[float]:
             values.extend((magnitude * unit, -magnitude * unit))
     ordered = sorted(xs)
     values.extend(ordered[round(q * (len(ordered) - 1))] for q in [i / 10.0 for i in range(11)])
-    values.extend(math.pi * k / span for k in range(1, cycles + 1))
     return _distinct(values)
+
+
+def half_cycle_counts(cycles: int) -> List[int]:
+    """Half-cycle counts whose frequencies are tried: every one up to MAX_HALF_CYCLES; beyond,
+    WINDOW_VALUES counts spread over the top 40% of cycles (where the estimate from mean
+    crossings lies)."""
+    counts = list(range(1, min(cycles, MAX_HALF_CYCLES) + 1))
+    if cycles > MAX_HALF_CYCLES:
+        low = max(MAX_HALF_CYCLES + 1, int(0.6 * cycles))
+        stride = max(1, (cycles - low + 1) // WINDOW_VALUES)
+        counts.extend(range(low, cycles + 1, stride))
+    return counts
+
+
+class _Trig:
+    """How each nonlinear constant enters the model's trigonometric arguments.
+
+    A constant the argument's slope in x is proportional to (b in sin(b*x + c), B in
+    B*(x - C), f in 2*pi*f*x) or inversely proportional to (T in 2*pi*x/T) gets the values
+    giving k half cycles over the x range (frequencies). A constant that moves the argument
+    without changing its slope (a phase c, a shift C) gets, at each scan, the values one
+    eighth of a period apart over the period around its current value, as one period is
+    what matters.
+    """
+
+    def __init__(self, projector: Projector, xs: List[float], cycles: int) -> None:
+        model = projector.model
+        self.nonlinear = projector.nonlinear
+        self.count = len(model.constants)
+        self.arguments = model.trig_arguments()
+        self.low, self.high = min(xs), max(xs)
+        span = (self.high - self.low) or 1.0
+        targets = [math.pi * k / span for k in half_cycle_counts(cycles)]
+        self.frequencies: Dict[int, List[float]] = {}
+        self.phases: Dict[int, Callable[..., float]] = {}
+        base = [1.0] * self.count
+        for index, k in enumerate(self.nonlinear):
+            for argument in self.arguments:
+                first, second = self._slope(argument, base, k, 1.0), self._slope(argument, base, k, 2.0)
+                if first is None or second is None:
+                    continue
+                if abs(first) > 1e-12 and abs(second / first - 2.0) < 1e-6:
+                    self.frequencies.setdefault(index, [target / first for target in targets])
+                elif abs(first) > 1e-12 and abs(second / first - 0.5) < 1e-6:
+                    self.frequencies.setdefault(index, [first / target for target in targets])
+                elif abs(second - first) <= 1e-9 * max(1.0, abs(first)):
+                    self.phases.setdefault(index, argument)
+
+    def turns(self, index: int, theta: List[float]) -> List[float]:
+        """Values one eighth of a period apart around a phase constant's current value."""
+        argument = self.phases.get(index)
+        if argument is None:
+            return []
+        params = self._params(theta)
+        step = 1e-3 * (abs(params[self.nonlinear[index]]) + 1.0)
+        moved = list(params)
+        moved[self.nonlinear[index]] += step
+        try:
+            effect = (argument(self.low, *moved) - argument(self.low, *params)) / step
+        except Exception:
+            return []
+        if not math.isfinite(effect) or effect == 0.0:
+            return []
+        eighth = (math.pi / 4.0) / abs(effect)
+        return [theta[index] + j * eighth for j in range(-4, 4) if j != 0]
+
+    def _params(self, theta: List[float]) -> List[float]:
+        params = [1.0] * self.count
+        for index, k in enumerate(self.nonlinear):
+            params[k] = theta[index]
+        return params
+
+    def _slope(self, argument: Callable[..., float], base: List[float], k: int, value: float) -> Optional[float]:
+        params = list(base)
+        params[k] = value
+        try:
+            slope = (argument(self.high, *params) - argument(self.low, *params)) / ((self.high - self.low) or 1.0)
+        except Exception:
+            return None
+        return slope if math.isfinite(slope) else None
 
 
 def growth_values(xs: List[float]) -> List[float]:
@@ -164,12 +250,14 @@ def screen(
     if not nonlinear:
         projected = projector.project([])
         return Screening([projected[0]] if projected is not None else [], None)
-    values = candidate_values(xs, cycles)
+    values = candidate_values(xs)
     growth = growth_values(xs)
+    trig = _Trig(projector, xs, cycles)
     model = projector.model
-    per_constant = [
-        _distinct(values + growth) if model.constants[k] in model.growth_constants else values for k in nonlinear
-    ]
+    per_constant = []
+    for index, k in enumerate(nonlinear):
+        extra = (growth if model.constants[k] in model.growth_constants else []) + trig.frequencies.get(index, [])
+        per_constant.append(_distinct(values + extra) if extra else values)
     pool: List[Candidate] = []
     rankings: List[List[Tuple[float, float]]] = [[] for _ in nonlinear]
     middle = sorted(xs)[len(xs) // 2]
@@ -180,10 +268,14 @@ def screen(
     seeds.append([0.0] * len(nonlinear))
     mean = sum(projector.ys) / len(projector.ys)
     total = sum_of_squares([y - mean for y in projector.ys])
-    for seed in seeds:
+    budget = projector.budget
+    for number, seed in enumerate(seeds):
         if pool and min(sse for sse, _ in pool) <= GOOD_SCREEN * total:
             break
-        _coordinate_search(projector, per_constant, seed, pool, rankings)
+        # Each seed scans every constant once, then a second round within its share of what
+        # is left, so the last seed is still scanned
+        stop = budget.used + max(0, budget.limit - budget.used) // (len(seeds) - number)
+        _coordinate_search(projector, per_constant, seed, pool, rankings, trig, stop)
     if len(nonlinear) > 1:
         _combine(projector, rankings, pool)
     distinct = _best_distinct(projector, pool, RANKED_CANDIDATES + STEADY_CHECKS)
@@ -207,10 +299,15 @@ def _coordinate_search(
     seed: List[float],
     pool: List[Candidate],
     rankings: List[List[Tuple[float, float]]],
+    trig: "_Trig",
+    stop: int,
 ) -> None:
-    """Scan each nonlinear constant over its values, keeping the best so far (twice when there are several).
+    """Scan each nonlinear constant over its values, keeping the best so far (twice when there are several),
+    constants setting a frequency first.
 
-    Every evaluated candidate joins pool; the first round's results per constant join rankings.
+    A phase constant also scans a period around its current value (_Trig.turns). The second
+    round stops once the budget's used count reaches stop. Every evaluated candidate joins
+    pool; the first round's results per constant join rankings.
     """
     current = list(seed)
     best_sse = math.inf
@@ -219,12 +316,14 @@ def _coordinate_search(
         pool.append((projected[1], projected[0]))
         best_sse = projected[1]
     count = len(current)
+    # Frequencies first: before a decay or a growth has been fitted to the first points alone
+    order = sorted(range(count), key=lambda index: index not in trig.frequencies)
     for round_index in range(2 if count > 1 else 1):
-        for index in range(count):
-            if projector.budget.exhausted:
+        for index in order:
+            if projector.budget.exhausted or (round_index > 0 and projector.budget.used >= stop):
                 return
             scanned: List[Tuple[float, float]] = []
-            for value in values[index]:
+            for value in values[index] + trig.turns(index, current):
                 theta = list(current)
                 theta[index] = value
                 result = projector.project(theta)
@@ -254,7 +353,7 @@ def _hides_the_others(projector: Projector, theta: List[float], index: int, sse:
         moved = list(theta)
         moved[other] = theta[other] * 1.5 + 0.5
         result = projector.project(moved)
-        if result is None or abs(result[1] - sse) > 1e-9 * sse + 1e-300:
+        if result is None or abs(result[1] - sse) > DEAD_END_CHANGE * sse + 1e-300:
             return False
     return True
 

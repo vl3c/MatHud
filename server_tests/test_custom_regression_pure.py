@@ -92,6 +92,8 @@ class TestReadModel(unittest.TestCase):
             "2*x + 1": "no constants",
             "a*x^2+b*x+c+d*x^3+f*x^4+g*x^5+h*x^6+k*x^7+m*x^8+p*x^9+q*x^10": "at most 10",
             "a(x + 1)": "write a*(x + 1), or use",
+            "a sin(b x) + c": "'a sin' has no operator between its parts; write products with '*' (a*sin)",
+            "a*exp(-b x)": "(b*x)",
             "a*x^4 + b*x^3 + c*x^2 + d*x + e": "e is Euler's number",
             "a*exp(-b*x) + c*exp(-d*x) + e": "such as e1 or k",
         }
@@ -216,6 +218,35 @@ class TestTextbookFits(unittest.TestCase):
         fit = _fit("a*exp(-b*x)*cos(c*x) + d", xs, [9.4 * math.exp(-0.0169 * x) * math.cos(3.82 * x) + 1 for x in xs])
         self.assertAlmostEqual(fit.values["c"], 3.82, places=6)
 
+    def test_sines_over_many_cycles_are_found(self) -> None:
+        months = [float(m) for m in range(1, 145)]
+        monthly = [10 + 4 * math.sin(2 * math.pi * (x - 3) / 12) for x in months]
+        for model, rate, truth in (
+            ("A*sin(2*pi*(x - C)/T) + D", "T", 12.0),
+            ("A*cos(2*pi*(x - h)/P) + k", "P", 12.0),
+            ("A*sin(2*pi*f*x + p) + D", "f", 1 / 12),
+            ("a*sin(b*x + c) + d", "b", math.pi / 6),
+        ):
+            with self.subTest(model=model):
+                fit = _fit(model, months, monthly)
+                self.assertGreater(fit.r_squared, 1 - 1e-9)
+                self.assertAlmostEqual(fit.values[rate], truth, places=6)
+        seconds = [i / 1000 for i in range(1000)]
+        mains = _noisy(lambda x: 2 * math.sin(2 * math.pi * 50 * x + 0.7) + 0.5, seconds, 0.05, 1)
+        self.assertAlmostEqual(_fit("A*sin(w*x + p) + c", seconds, mains).values["w"], 100 * math.pi, delta=0.1)
+        hours = [float(h) for h in range(984)]
+        daily = _noisy(lambda x: 15 + 5 * math.sin(2 * math.pi * (x - 8) / 24), hours, 0.5, 2)
+        self.assertAlmostEqual(_fit("A*sin(2*pi*(x - C)/T) + D", hours, daily).values["T"], 24.0, delta=0.01)
+
+    def test_damped_oscillations_with_a_phase_are_found(self) -> None:
+        xs = _grid(0, 5, 80)
+        for rate in (10.0, 11.0):
+            with self.subTest(rate=rate):
+                ys = [3 * math.exp(-0.3 * x) * math.sin(rate * x - 1) + 1 for x in xs]
+                fit = _fit("a*exp(-b*x)*cos(c*x + p) + d", xs, ys)
+                self.assertGreater(fit.r_squared, 1 - 1e-9)
+                self.assertAlmostEqual(fit.values["c"], rate, places=6)
+
     def test_sines_report_a_positive_amplitude_and_frequency_and_a_phase_within_pi(self) -> None:
         months = [float(m) for m in range(1, 13)]
         temperatures = [-5.0, -3.0, 2.0, 9.0, 15.0, 20.0, 23.0, 21.0, 16.0, 9.0, 3.0, -2.0]
@@ -309,6 +340,14 @@ class TestNotes(unittest.TestCase):
         xs = _grid(2000, 2020, 21)
         fit = _fit("a*exp(b*x)", xs, [5 * math.exp(0.6 * (x - 2000)) for x in xs])
         self.assertTrue(any("a*exp(b*(x - 2000))" in note for note in fit.notes), fit.notes)
+
+    def test_x_far_from_zero_refits_a_model_the_shift_changes(self) -> None:
+        years = [1900.0 + 10 * k for k in range(13)]
+        population = [76.2, 92.2, 106.0, 123.2, 132.2, 151.3, 179.3, 203.2, 226.5, 248.7, 281.4, 308.7, 331.4]
+        fit = _fit("K/(1+A*exp(-k*x))", years, population)
+        notes = " ".join(fit.notes)
+        self.assertIn("written in x - 1900, as K/(1+A*exp(-k*(x - 1900))), it fits with R² = 0.9986", notes)
+        self.assertIn("A = 7.48", notes)
 
     def test_no_shift_is_suggested_when_it_would_change_the_model(self) -> None:
         years = _grid(2000, 2020, 21)
