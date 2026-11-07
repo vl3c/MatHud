@@ -11,9 +11,10 @@ gives A - B (B - A for >), "and" takes the largest of its parts and "or" the sma
 A comparison that is undefined at a point (the square root of a negative) is false there.
 
 Names other than x and y must be parameters (set_parameter); their values are read at
-call time, so a curve or region follows its sliders. ``check_names=False`` (copies and
-saved workspaces) accepts any name: one that is not a parameter makes the relation
-undefined everywhere until it becomes one.
+call time, so a curve or region follows its sliders. ``check_names=False`` (copies made for
+undo; saved workspaces restore their parameters first and keep the check) accepts any
+name: one that is not a parameter makes the relation undefined everywhere until it
+becomes one.
 
 Input follows the tools' standard syntax (functions with parentheses, explicit products);
 calculator spellings (sin x, sinx, xy) are refused with the form to write, never guessed.

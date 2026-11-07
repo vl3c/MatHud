@@ -491,6 +491,10 @@ class TestCreativePrompts:
             ("draw y = sin(x) in red", "draw_function"),
             ("draw x^2/a^2 + y^2/b^2 = 1 with sliders a and b", "draw_implicit_curve"),
             ("graph a circle x^2 + y^2 = 9", "create_circle"),
+            # A is an article here, and y0 a name, not y
+            ("draw x = 3 through A", "draw_implicit_curve"),
+            ("draw the vertical line x = 3 through point A", "draw_implicit_curve"),
+            ("curve fit the data with y = y0 + A*sin(2*pi*x/T)", "fit_regression"),
         ):
             assert _top_n(self.service, query)[0] == tool, query
         top = _top_n(self.service, "plot x^2 + y^2 = a with a slider a")

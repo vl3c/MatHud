@@ -320,15 +320,17 @@ _PICTURE_WORDS = frozenset(
 # Math in a query is read around each relation sign: the operand runs to the nearest comma,
 # semicolon, other sign or English word that cannot be part of an expression.
 _RELATION_SIGN_RE = re.compile(r"<=|>=|=<|=>|≤|≥|<(?!-)|(?<!-)>|(?<![<>=!])=(?![=<>])")  # not arrows -> <-
-# "a" is an article before a word ("a circle"), otherwise a parameter ("y > a*x", "x = a")
+# "a" is a parameter next to an operator or opening an operand ("y > a*x", "x = a", "y < 2x + a"),
+# otherwise an article ("a circle", "x = 3 through a")
 _OPERAND_STOP_RE = re.compile(
     r"[,;:?!]|<=|>=|=<|=>|≤|≥|<|>|=|\b(?:and|or|for|when|if|where|with|from|to|then|than|is|are|of|on|in|the|an"
-    r"|a(?=\s+[a-z]{2})(?!\s+(?:with|and|or|for|when|if|where|from|to|then|is|in|on|of|as|between)\b)"
+    r"|(?<![-*^+/(=<>≤≥])(?<![-*^+/(=<>≤≥]\s)(?<!\A)(?<!\A\s)a(?!\s*[-*^+/()=<>≤≥])"
     r"|plot|graph|draw|shade|sketch|show|region|inequality|inequalities|equation|curve|call|name|named|it|as"
     r"|over|between|above|below|under|inside|outside|color|colour|red|blue|green)\b|\.(?:\s|$)"
 )
-_Y_VARIABLE_RE = re.compile(r"(?<![a-z_])(?:y|xy|yx)(?![a-z_(])|(?<![a-z_])x\*?y(?![a-z_(])")
-_X_VARIABLE_RE = re.compile(r"(?<![a-z_])x(?![a-z_(])|(?<![a-z_])xy(?![a-z_(])")
+# y0, x1 are names of their own ("y = y0 + A*sin(x)")
+_Y_VARIABLE_RE = re.compile(r"(?<![a-z_])(?:y|xy|yx)(?![a-z_\d(])|(?<![a-z_])x\*?y(?![a-z_\d(])")
+_X_VARIABLE_RE = re.compile(r"(?<![a-z_])x(?![a-z_\d(])|(?<![a-z_])xy(?![a-z_\d(])")
 # y in a form no function y = f(x) has: a power, a product with x, inside a function, |y|
 _NONLINEAR_Y_RE = re.compile(
     r"(?<![a-z_])y\s*(?:\^|\*\*|²|³)|(?<![a-z_])x\s*\*?\s*y(?![a-z_(])|(?<![a-z_])xy(?![a-z_(])"
