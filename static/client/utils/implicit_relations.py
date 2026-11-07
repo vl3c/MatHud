@@ -584,7 +584,7 @@ def _check_indexed_names(free: Sequence[str], message: str) -> None:
     names = ", ".join(free)
     raise ValueError(
         f"{message} Only x and y are variables, so: a constant ({names}) is created with set_parameter "
-        "or written as a number; a relation in other variables (x1, x2) is written in x and y; a power "
+        "(search_tools 'slider' finds it if it is not loaded) or written as a number; a relation in other variables (x1, x2) is written in x and y; a power "
         "is written x^2 (not x2); and a function y1 = f(x) is drawn with draw_function."
     )
 
