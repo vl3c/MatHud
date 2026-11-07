@@ -19,4 +19,6 @@ def same_outcome(actual: Any, expected: Any) -> bool:
         actual_value, expected_value = float(actual), float(expected)
     except ValueError:
         return False
-    return math.isclose(actual_value, expected_value, rel_tol=1e-13, abs_tol=1e-300)
+    if actual_value == 0 or expected_value == 0:
+        return False  # the texts differ, so this is 0.0 against -0.0 or against a number
+    return math.isclose(actual_value, expected_value, rel_tol=1e-13)
