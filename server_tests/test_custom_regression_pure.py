@@ -64,7 +64,7 @@ class TestReadModel(unittest.TestCase):
         self.assertEqual(read_model("a*exp(-b*x)*cos(c*x) + d").constants, ("a", "b", "c", "d"))
         self.assertEqual(read_model("Vmax*x/(Km + x)").constants, ("Vmax", "Km"))
         self.assertEqual(read_model("L/(1 + exp(-k*(x - x0)))").constants, ("L", "k", "x0"))
-        self.assertEqual(read_model("a*x + pi*b + e").constants, ("a", "b"))
+        self.assertEqual(read_model("a*x + pi*b + e^c").constants, ("a", "b", "c"))
 
     def test_prefixes_are_dropped(self) -> None:
         for text in ("y = a*x + b", "y ~ a*x + b", "f(x) = a*x + b", "  a*x + b  "):
@@ -92,6 +92,8 @@ class TestReadModel(unittest.TestCase):
             "2*x + 1": "no constants",
             "a*x^2+b*x+c+d*x^3+f*x^4+g*x^5+h*x^6+k*x^7+m*x^8+p*x^9+q*x^10": "at most 10",
             "a(x + 1)": "write a*(x + 1), or use",
+            "a*x^4 + b*x^3 + c*x^2 + d*x + e": "e is Euler's number",
+            "a*exp(-b*x) + c*exp(-d*x) + e": "such as e1 or k",
         }
         for text, hint in cases.items():
             with self.subTest(text=text):
@@ -185,6 +187,35 @@ class TestTextbookFits(unittest.TestCase):
         fit = _fit("a*exp(-((x - m)/s)^2)", xs, [4 * math.exp(-(((x - 1) / 1.5) ** 2)) for x in xs])
         self.assertAlmostEqual(fit.values["s"], 1.5, places=6)
 
+    def test_sines_in_shift_form_report_positive_amplitude_and_period_and_a_shift_within_it(self) -> None:
+        months = [float(m) for m in range(1, 13)]
+        temperatures = [-2.0, 0.0, 5.0, 11.0, 17.0, 21.0, 24.0, 23.0, 18.0, 11.0, 5.0, 0.0]
+        for model, rate, shift in (
+            ("A*cos(B*(x - C)) + D", "B", "C"),
+            ("A*sin(B*(x - C)) + D", "B", "C"),
+            ("A*cos(2*pi*(x - C)/T) + D", "T", "C"),
+        ):
+            with self.subTest(model=model):
+                values = _fit(model, months, temperatures).values
+                self.assertGreater(values["A"], 0.0)
+                self.assertGreater(values[rate], 0.0)
+                period = 2 * math.pi / values["B"] if rate == "B" else values["T"]
+                self.assertGreaterEqual(values[shift], 0.0)
+                self.assertLess(values[shift], period)
+        xs = _grid(0, 20, 50)
+        values = _fit("a*cos(b*x + c) + d", xs, [2.7 * math.cos(1.4 * x - 0.5) + 9 for x in xs]).values
+        self.assertAlmostEqual(values["b"], 1.4, places=6)
+        self.assertAlmostEqual(values["c"], -0.5, places=6)
+
+    def test_damped_oscillations_are_found_on_well_sampled_data(self) -> None:
+        xs = _grid(0, 30, 100)
+        fit = _fit("A*exp(-k*x)*cos(w*x + p)", xs, [3 * math.exp(-0.05 * x) * math.cos(x + 2.8) for x in xs])
+        self.assertGreater(fit.r_squared, 1 - 1e-9)
+        self.assertEqual((fit.held, fit.undetermined, fit.alternative), ({}, [], None))
+        xs = _grid(0, 20, 150)
+        fit = _fit("a*exp(-b*x)*cos(c*x) + d", xs, [9.4 * math.exp(-0.0169 * x) * math.cos(3.82 * x) + 1 for x in xs])
+        self.assertAlmostEqual(fit.values["c"], 3.82, places=6)
+
     def test_sines_report_a_positive_amplitude_and_frequency_and_a_phase_within_pi(self) -> None:
         months = [float(m) for m in range(1, 13)]
         temperatures = [-5.0, -3.0, 2.0, 9.0, 15.0, 20.0, 23.0, 21.0, 16.0, 9.0, 3.0, -2.0]
@@ -258,11 +289,16 @@ class TestNotes(unittest.TestCase):
         self.assertAlmostEqual(fit.values["a"] * fit.values["b"], 2.0, places=9)
         self.assertTrue(fit.held or fit.undetermined)
 
-    def test_aliasing_prefers_the_slow_sine_and_names_the_other(self) -> None:
+    def test_aliasing_prefers_the_slow_sine(self) -> None:
         fit = _fit("a*sin(b*x + c) + d", [0, 1, 2, 3, 4], [0.1, 0.9, 0.05, -1.1, 0.0])
         self.assertLess(abs(fit.values["b"]), math.pi)
         self.assertFalse(fit.swings)
-        self.assertIsNotNone(fit.alternative)
+        for step in (0.1, 0.25, 0.5, 1.0):
+            xs = [step * i for i in range(int(10 / step) + 1)]
+            with self.subTest(step=step):
+                fit = _fit("a*sin(b*x + c) + d", xs, [2 * math.sin(0.5 * x + 0.3) + 1 for x in xs])
+                self.assertAlmostEqual(fit.values["b"], 0.5, places=6)
+                self.assertFalse(fit.swings)
 
     def test_as_many_points_as_constants(self) -> None:
         fit = _fit("a*exp(b*x) + c", [0, 1, 2], [1, 3, 7])

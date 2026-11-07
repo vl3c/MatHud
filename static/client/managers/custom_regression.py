@@ -269,10 +269,10 @@ def _rounded(value: float, digits: int) -> float:
 def refuse_custom_arguments(model: Any, initial_values: Any, update_parameters: Any) -> None:
     """model, initial_values and update_parameters belong to custom fits only.
 
-    Empty fillers ("" and []) count as not given, as some models send them for unused arguments.
+    Empty fillers ("", [] and {}) count as not given, as some models send them for unused arguments.
     """
     for label, value in (("model", model), ("initial_values", initial_values)):
-        if value is not None and value != [] and not (isinstance(value, str) and not value.strip()):
+        if value is not None and value != [] and value != {} and not (isinstance(value, str) and not value.strip()):
             raise ValueError(f"{label} is only read with model_type '{CUSTOM_MODEL_TYPE}'; pass null.")
     if update_parameters:
         raise ValueError(f"update_parameters is only read with model_type '{CUSTOM_MODEL_TYPE}'; pass null.")

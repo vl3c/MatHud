@@ -40,7 +40,7 @@ class CustomModel:
         growth_constants: Constants read in the base of a power whose exponent reads x (b^x).
     """
 
-    __slots__ = ("text", "constants", "power_constants", "growth_constants", "_batch")
+    __slots__ = ("text", "constants", "power_constants", "growth_constants", "_batch", "_trig")
 
     def __init__(
         self,
@@ -55,6 +55,7 @@ class CustomModel:
         self.growth_constants = growth_constants
         compiled = compiled_expression.compile_expression(text, ("x",) + constants)
         self._batch = _batch_evaluator(compiled.bind(), len(constants))
+        self._trig: Optional[List[Callable[..., float]]] = None
 
     def predictions(self, x_data: Sequence[float], params: Sequence[float]) -> Optional[List[float]]:
         """The model's values at x_data, or None if any is not a finite real number."""
@@ -65,6 +66,21 @@ class CustomModel:
         total = sum(values)
         # inf - inf and nan - nan are nan; a finite sum of finite values gives 0
         return values if total - total == 0.0 else None
+
+    def trig_arguments(self) -> List[Callable[..., float]]:
+        """The arguments of the model's trigonometric calls (b*x + c in sin(b*x + c)), each as f(x, *params).
+
+        Compiled on first use; an argument that does not compile on its own is left out.
+        """
+        if self._trig is None:
+            self._trig = []
+            for argument in _trig_argument_texts(self.text):
+                try:
+                    compiled = compiled_expression.compile_expression(argument, ("x",) + self.constants)
+                except Exception:
+                    continue
+                self._trig.append(compiled.bind())
+        return self._trig
 
     def with_values(self, values: Mapping[str, float], digits: Optional[int] = None) -> str:
         """The model text with each constant replaced by its value.
@@ -86,6 +102,22 @@ class CustomModel:
                 number = f"({number})"
             text = compiled_expression.substitute_variable(text, name, number)
         return text
+
+
+_TRIG_CALL = re.compile(r"\b(?:sin|cos|tan|sec|csc|cot)\s*\(")
+
+
+def _trig_argument_texts(text: str) -> List[str]:
+    """The argument texts of sin(...), cos(...) and the other trigonometric calls in text."""
+    arguments = []
+    for match in _TRIG_CALL.finditer(text):
+        depth, start = 1, match.end()
+        for index in range(start, len(text)):
+            depth += {"(": 1, ")": -1}.get(text[index], 0)
+            if depth == 0:
+                arguments.append(text[start:index])
+                break
+    return arguments
 
 
 def _batch_evaluator(evaluate: Callable[..., float], count: int) -> Batch:
@@ -148,6 +180,7 @@ def read_model(text: Any) -> CustomModel:
         ) from exc
     tree = ast.parse(compiled.python_text, mode="eval")
     _refuse_bare_functions(source, tree)
+    _refuse_bare_e(source, tree)
     names = compiled.free_names
     constants = _in_order(source, [name for name in names if name != "x"])
     for name in constants:
@@ -184,6 +217,17 @@ def _refuse_bare_functions(source: str, tree: ast.AST) -> None:
                     f"In '{source}', '{name}' is a function, so it cannot name a constant; "
                     f"use another name, such as {name[0]} or {name[0]}1."
                 )
+
+
+def _refuse_bare_e(source: str, tree: ast.AST) -> None:
+    """e outside e^(...) is Euler's number, never fitted: refuse it, as a..e naming five constants is common."""
+    nodes = list(ast.walk(tree))
+    bases = {id(node.left) for node in nodes if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow)}
+    if any(isinstance(node, ast.Name) and node.id == "e" and id(node) not in bases for node in nodes):
+        raise ValueError(
+            f"In '{source}', e is Euler's number (2.718...), so it cannot name a constant to fit; "
+            f"use another name, such as e1 or k (e is only read in powers such as e^(k*x))."
+        )
 
 
 def _written_name(source: str, name: str) -> str:

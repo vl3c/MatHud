@@ -19,8 +19,9 @@ Starting values are the hard part of nonlinear fitting. The fit:
    negated, a Gaussian's width negated), the plainest is reported; notes say what the
    user should know.
 
-Work is bounded by a count of model evaluations (EVALUATION_LIMIT), so a fit gives the
-same answer on every machine.
+Work is bounded by a count of model evaluations (EVALUATION_LIMIT, plus
+CANONICAL_EVALUATIONS for the plainest report), so a fit gives the same answer on every
+machine.
 
 Pure Python (no browser imports), so server-side pytest imports it directly.
 """
@@ -28,7 +29,7 @@ Pure Python (no browser imports), so server-side pytest imports it directly.
 from __future__ import annotations
 
 import math
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from utils.statistics.custom_model import CustomModel, read_model
 from utils.statistics.fit_starts import Shape, half_cycles, screen, subsample, variation
@@ -51,16 +52,22 @@ FINAL_RUNS = 2
 # A run is refined on all points only when its sum of squares on the coarse points is
 # within this factor of the best one's
 FINALIST_RATIO = 1.5
-# Fits whose sums of squares are within this fraction of the best fit the data equally well
+# Fits whose sums of squares are within this fraction of the best fit the data equally well,
+# and, times the sum of y squared, the rounding an exact fit's sum of squares may hold (an
+# argument near 100 in sin() keeps about 1e-12 of each value)
 TIE_TOLERANCE = 1e-6
+EXACT_SLACK = 1e-18
 # Relative step of the undetermined-constant probe, and the fraction of a constant's effect
 # that must remain once the other constants have absorbed what they can
 PROBE_STEP = 1e-5
 DETERMINED_FRACTION = 1e-6
 # Below this R² a note suggests initial values
 POOR_FIT = 0.9
-# Variants of the fitted constants tried for the plainest equivalent report (symmetries)
-CANONICAL_TRIES = 150
+# Model evaluations spent, beyond EVALUATION_LIMIT (and at most a tenth of it), looking for
+# the plainest equivalent report (symmetries), and how many of the plainest are checked on
+# every point
+CANONICAL_EVALUATIONS = 15_000
+CANONICAL_CONFIRMED = 3
 
 
 class CustomFit:
@@ -135,6 +142,7 @@ def fit_custom_model(
     screen_budget = EvaluationBudget(int(evaluation_limit * SCREEN_SHARE))
     staged = len(xs) > COARSE_POINTS
     final_budget = EvaluationBudget(int(evaluation_limit * FINAL_SHARE) if staged else 0)
+    canonical_budget = EvaluationBudget(min(CANONICAL_EVALUATIONS, evaluation_limit // 10))
     budget = EvaluationBudget(evaluation_limit - screen_budget.limit - final_budget.limit)
     full = Projector(model, xs, ys, linear, nonlinear, final_budget if staged else budget)
     cycles = half_cycles(xs, ys)
@@ -162,9 +170,9 @@ def fit_custom_model(
 
     fit = CustomFit()
     best, projector = _hold_undetermined(full, coarse, best, given, fit)
-    best = _canonical(projector, shape, best)
+    best = _canonical(projector, shape, best, canonical_budget)
     _describe(fit, model, projector, best, alternative, shape)
-    fit.evaluations = budget.used + screen_budget.used + final_budget.used
+    fit.evaluations = budget.used + screen_budget.used + final_budget.used + canonical_budget.used
     return fit
 
 
@@ -350,10 +358,19 @@ def _hold_undetermined(
                 continue
             trial = projector.holding({k: float(value)})
             run = _refine_one(trial, trial.theta(best.params))
-            if run is not None and _ties(run.sse, best.sse):
-                best, projector = run, trial
-                fit.held[model.constants[k]] = float(value)
+            if run is None or not _ties(run.sse, best.sse):
+                continue
+            if not _ties(best.sse, run.sse):
+                # Holding it found a much better fit: best was stuck, not undetermined; free it again
+                freed = _refine_one(projector, projector.theta(run.params))
+                if freed is not None and freed.sse <= run.sse:
+                    best = freed
+                else:
+                    best, projector = run, trial
                 break
+            best, projector = run, trial
+            fit.held[model.constants[k]] = float(value)
+            break
         else:
             fit.undetermined.append(model.constants[k])
     fit.undetermined.extend(model.constants[k] for k in linear)
@@ -361,67 +378,136 @@ def _hold_undetermined(
     return best, projector
 
 
-def _canonical(projector: Projector, shape: Shape, best: FitRun) -> FitRun:
+def _canonical(projector: Projector, shape: Shape, best: FitRun, budget: EvaluationBudget) -> FitRun:
     """The plainest of the constant sets that fit exactly as well as best (symmetries).
 
-    A sine's phase fits as well shifted by a multiple of π (its amplitude changes sign),
-    a frequency and phase as well both negated, a width as well negated. Variants from
-    negating one or two nonlinear constants, and from moving one into [-π, π], are
-    explored on a subsample while they keep tying; the plainest (_plainness) is kept
-    when it ties on every point too and swings no more than best.
+    A sine fits as well with its phase or shift moved by half a period (its amplitude
+    changes sign), with frequency and phase both negated, and a width as well negated.
+    Variants from negating one or two nonlinear constants and from moving one by half
+    periods (_Phases) are explored on a subsample while they keep tying; the plainest
+    (_Phases.plainness) that also ties on every point and swings no more than best wins.
     """
     if not projector.nonlinear:
         return best
     xs, ys = subsample(projector.xs, projector.ys, COARSE_POINTS)
-    sample = projector.on(xs, ys, EvaluationBudget(EVALUATION_LIMIT))
+    sample = projector.on(xs, ys, budget)
     start = sample.project(sample.theta(best.params))
     if start is None:
         return best
-    slack = 1e-24 * sum(y * y for y in ys)
+    phases = _Phases(projector, start[0])
+    slack = EXACT_SLACK * sum(y * y for y in ys)
     target = start[1] * (1.0 + TIE_TOLERANCE) + slack
     seen = {_key(sample.theta(best.params))}
     frontier = [start[0]]
-    plainest = start[0]
-    tries = 0
-    while frontier and tries < CANONICAL_TRIES:
+    tied = [start[0]]
+    while frontier and not sample.budget.exhausted:
         params = frontier.pop(0)
-        for theta in _variants(sample.theta(params)):
+        for theta in phases.variants(sample.theta(params)):
             key = _key(theta)
-            if key in seen or tries >= CANONICAL_TRIES:
+            if key in seen or sample.budget.exhausted:
                 continue
             seen.add(key)
-            tries += 1
             projected = sample.project(theta)
-            if projected is None or projected[1] > target:
-                continue
-            frontier.append(projected[0])
-            if _plainness(sample, projected[0]) < _plainness(sample, plainest):
-                plainest = projected[0]
-    if plainest is start[0]:
-        return best
-    confirmed = projector.project(projector.theta(plainest))
-    if confirmed is None or confirmed[1] > best.sse * (1.0 + TIE_TOLERANCE) + slack * len(projector.ys):
-        return best
-    if shape.swings(confirmed[0]) and not shape.swings(best.params):
-        return best
-    return FitRun(confirmed[0], [], confirmed[1], best.iterations, best.converged)
+            if projected is not None and projected[1] <= target:
+                frontier.append(projected[0])
+                tied.append(projected[0])
+    tied.sort(key=phases.plainness)
+    full_target = best.sse * (1.0 + TIE_TOLERANCE) + slack * len(projector.ys)
+    full = projector.on(projector.xs, projector.ys, budget)
+    for params in tied[:CANONICAL_CONFIRMED]:
+        if params is start[0]:
+            return best
+        confirmed = full.project(full.theta(params))
+        if confirmed is None or confirmed[1] > full_target:
+            continue
+        if shape.swings(confirmed[0]) and not shape.swings(best.params):
+            continue
+        return FitRun(confirmed[0], [], confirmed[1], best.iterations, best.converged)
+    return best
 
 
-def _variants(theta: List[float]) -> List[List[float]]:
-    """theta with one or two values negated, or one moved into [-π, π] by a multiple of π."""
-    variants = []
-    count = len(theta)
-    for i in range(count):
-        if theta[i] != 0.0:
-            variants.append(_with(theta, {i: -theta[i]}))
-        turns = math.floor(theta[i] / math.pi)
-        for shift in (turns, turns + 1):
-            if shift != 0:
-                variants.append(_with(theta, {i: theta[i] - shift * math.pi}))
-        for j in range(i + 1, count):
-            if theta[i] != 0.0 and theta[j] != 0.0:
-                variants.append(_with(theta, {i: -theta[i], j: -theta[j]}))
-    return variants
+class _Phases:
+    """The trigonometric arguments of a model at fitted constants: what a plain report looks like.
+
+    For each trigonometric argument (b*x + c, B*(x - C), 2*pi*(x - C)/T): its slope in x
+    (the frequency's sign), and the constants it is affine in with their effect on it: a
+    constant adding g to the argument per unit repeats the curve every pi/|g| (with the
+    amplitude negated), so it can be moved by that half period. A phase (c) is kept within
+    (-pi, pi], a shift of x (C) within one period from 0.
+    """
+
+    def __init__(self, projector: Projector, params: List[float]) -> None:
+        self.projector = projector
+        self.low, self.high = min(projector.xs), max(projector.xs)
+        self.arguments = projector.model.trig_arguments()
+        # constant -> (half period, whether it shifts x: B*(x - C), where it moves the argument
+        # by minus its slope, rather than adding a phase)
+        self.half_periods: Dict[int, Tuple[float, bool]] = {}
+        for argument in self.arguments:
+            slope = self._slope(argument, params) / ((self.high - self.low) or 1.0)
+            for k in projector.nonlinear:
+                effect = self._effect(argument, params, k)
+                if effect is not None and effect != 0.0 and k not in self.half_periods:
+                    shifts_x = abs(effect + slope) <= 1e-6 * abs(effect)
+                    self.half_periods[k] = (math.pi / abs(effect), shifts_x)
+
+    def variants(self, theta: List[float]) -> List[List[float]]:
+        """theta with one or two values negated, or one moved by half periods towards its plain range."""
+        nonlinear = self.projector.nonlinear
+        variants = []
+        for i in range(len(theta)):
+            if theta[i] != 0.0:
+                variants.append(_with(theta, {i: -theta[i]}))
+            half = self.half_periods.get(nonlinear[i], (math.pi, False))[0]
+            turns = math.floor(theta[i] / half)
+            for shift in range(turns - 1, turns + 3):
+                if shift != 0:
+                    variants.append(_with(theta, {i: theta[i] - shift * half}))
+            for j in range(i + 1, len(theta)):
+                if theta[i] != 0.0 and theta[j] != 0.0:
+                    variants.append(_with(theta, {i: -theta[i], j: -theta[j]}))
+        return variants
+
+    def plainness(self, params: List[float]) -> Tuple[int, int, float, int, float]:
+        """Smaller is plainer: positive frequencies, positive amplitudes, phases in (-pi, pi] and
+        shifts in [0, period), positive values, small values."""
+        projector = self.projector
+        backwards = sum(1 for argument in self.arguments if self._slope(argument, params) < 0.0)
+        negative_linear = sum(1 for k in projector.linear if params[k] < 0.0)
+        beyond = 0.0
+        negative = 0
+        for k in projector.nonlinear:
+            value = params[k]
+            half, shifts_x = self.half_periods.get(k, (math.inf, False))
+            low, high = (0.0, 2.0 * half) if shifts_x else (-half, half)
+            beyond += max(0.0, low - value, value - high) / (half if math.isfinite(half) else 1.0)
+            if value < 0.0 and k not in self.half_periods:
+                negative += 1
+        return backwards, negative_linear, beyond, negative, sum(abs(params[k]) for k in projector.nonlinear)
+
+    def _slope(self, argument: Callable[..., float], params: List[float]) -> float:
+        try:
+            return float(argument(self.high, *params) - argument(self.low, *params))
+        except Exception:
+            return 0.0
+
+    def _effect(self, argument: Callable[..., float], params: List[float], k: int) -> Optional[float]:
+        """d(argument)/d(constant k) when the argument is affine in it with the same effect at every x."""
+        step = 1e-3 * (abs(params[k]) + 1.0)
+        effects = []
+        try:
+            for x in (self.low, self.high):
+                base = argument(x, *params)
+                for multiple in (1.0, 2.0):
+                    moved = list(params)
+                    moved[k] += multiple * step
+                    effects.append((argument(x, *moved) - base) / (multiple * step))
+        except Exception:
+            return None
+        first = effects[0]
+        if not all(math.isfinite(effect) and abs(effect - first) <= 1e-6 * abs(first) for effect in effects):
+            return None
+        return first
 
 
 def _with(theta: List[float], changes: Dict[int, float]) -> List[float]:
@@ -433,15 +519,6 @@ def _with(theta: List[float], changes: Dict[int, float]) -> List[float]:
 
 def _key(theta: Sequence[float]) -> Tuple[float, ...]:
     return tuple(round(value, 9) for value in theta)
-
-
-def _plainness(projector: Projector, params: List[float]) -> Tuple[int, float, int, float]:
-    """Smaller is plainer: positive amplitudes, values within [-π, π], positive values, small values."""
-    negative_linear = sum(1 for k in projector.linear if params[k] < 0.0)
-    nonlinear = [params[k] for k in projector.nonlinear]
-    beyond = sum(max(0.0, abs(value) - math.pi) for value in nonlinear)
-    negative = sum(1 for value in nonlinear if value < 0.0)
-    return negative_linear, beyond, negative, sum(abs(value) for value in nonlinear)
 
 
 # ---------------------------------------------------------------------------
@@ -467,7 +544,8 @@ def _describe(
     fit.converged = best.converged
     fit.swings = shape.swings(best.params)
     fit.exact = len(xs) == len(model.constants)
-    if alternative is not None:
+    exact = EXACT_SLACK * sum(y * y for y in ys)
+    if alternative is not None and alternative.sse <= best.sse * (1.0 + TIE_TOLERANCE) + exact:
         fit.alternative = {name: alternative.params[k] for k, name in enumerate(model.constants)}
     fit.notes = _notes(fit, model, projector, best)
 
@@ -568,5 +646,5 @@ def _rewrites(text: str, model: CustomModel, projector: Projector, best: FitRun)
         projector.fixed,
     )
     projected = check.project(projector.theta(best.params))
-    slack = 1e-24 * sum(y * y for y in projector.ys)
+    slack = EXACT_SLACK * sum(y * y for y in projector.ys)
     return projected is not None and projected[1] <= best.sse * (1.0 + TIE_TOLERANCE) + slack

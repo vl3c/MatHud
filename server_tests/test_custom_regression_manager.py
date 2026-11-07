@@ -184,7 +184,12 @@ class TestCustomFit(CustomFitHarness):
         self.assertEqual(self.undo.batches, 1)
 
     def test_fixed_types_accept_empty_fillers_for_custom_arguments(self) -> None:
-        for filler in ({"model": ""}, {"initial_values": []}, {"model": "  ", "update_parameters": False}):
+        for filler in (
+            {"model": ""},
+            {"initial_values": []},
+            {"initial_values": {}},
+            {"model": "  ", "update_parameters": False},
+        ):
             with self.subTest(filler=filler):
                 args = {"model_type": "linear", "model": None, "x_data": [1, 2, 3], "y_data": [2, 4, 6]}
                 result = self.fit(**{**args, **filler})
