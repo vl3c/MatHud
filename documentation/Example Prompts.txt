@@ -86,6 +86,8 @@ Shade x^2 + y^2 <= 9 in green with opacity 0.3.
 Shade the feasible region x + y <= 10, x >= 0, y >= 0, 2*x + y <= 16.
 Shade where y < -1 or y > 1.
 Shade y > x^2 - 2 and (x < 0 or y < 1).
+Make a slider r from 1 to 5 and draw the circle x^2 + y^2 = r^2 as an implicit curve.
+Make sliders a and b and shade y > a*x + b.
 Make the region R1 blue. (Regions are colored areas: update_colored_area and delete_colored_area edit them.)
 Change the color of the implicit curve c1 to orange.
 Delete the implicit curve c1.
