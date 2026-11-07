@@ -232,6 +232,12 @@ UPDATE_SPECS: Dict[str, _UpdateSpec] = {
         _by_name(lambda canvas: canvas.drawable_manager.polar_function_manager.get_polar_function),
         (COLOR_FIELD,),
     ),
+    "update_implicit_curve": _UpdateSpec(
+        "Implicit curve",
+        "name",
+        _by_name(lambda canvas: canvas.drawable_manager.implicit_curve_manager.get_implicit_curve),
+        (COLOR_FIELD,),
+    ),
     "update_angle": _UpdateSpec(
         "Angle",
         "name",

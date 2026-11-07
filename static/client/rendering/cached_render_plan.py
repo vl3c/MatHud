@@ -1247,6 +1247,9 @@ _HELPERS: Dict[str, _HelperEntry] = {
     "ParametricFunction": _HelperEntry(shared.render_parametric_function_helper, ViewMode.SCALE),
     # Polar curves expose the parametric interface (evaluate, t_min, t_max), so the same helper draws them
     "PolarFunction": _HelperEntry(shared.render_parametric_function_helper, ViewMode.SCALE),
+    # Implicit curves and inequality regions are plotted over the view plus a margin, like functions
+    "ImplicitCurve": _HelperEntry(shared.render_implicit_curve_helper, ViewMode.SCALE_BUCKETED_OFFSET),
+    "InequalityColoredArea": _HelperEntry(shared.render_inequality_area_helper, ViewMode.SCALE_BUCKETED_OFFSET),
     "Bar": _HelperEntry(shared.render_bar_helper),
     "HistogramPlot": _HelperEntry(shared.render_histogram_plot_helper),
     "BoxPlot": _HelperEntry(shared.render_box_plot_helper),

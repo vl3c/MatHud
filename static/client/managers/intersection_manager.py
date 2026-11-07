@@ -15,6 +15,7 @@ import math
 from typing import TYPE_CHECKING, Any, Dict, List, MutableMapping, Optional, Sequence, Tuple, cast
 
 from managers.dependency_removal import get_polygon_segments
+from managers.implicit_refusals import implicit_refusal
 from managers.point_placement import place_points_at
 from utils.function_features import round_report_value
 from utils.geometry_utils import GeometryUtils
@@ -133,6 +134,9 @@ class IntersectionManager:
         for name in names:
             match = self._find_object(name)
             if match is None:
+                refusal = implicit_refusal(self.drawables, name, "find_intersections")
+                if refusal:
+                    raise ValueError(refusal)
                 raise ValueError(
                     f"No segment, vector, circle, arc, ellipse, function, parametric or polar curve or polygon named "
                     f"'{name}'. Points cannot be intersected."

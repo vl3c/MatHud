@@ -71,6 +71,11 @@ UNDOABLE_TOOLS: Tuple[str, ...] = (
     "draw_polar_function",
     "delete_polar_function",
     "update_polar_function",
+    # Implicit curves and inequality regions
+    "draw_implicit_curve",
+    "delete_implicit_curve",
+    "update_implicit_curve",
+    "shade_inequality",
     # Tangent and normal line operations
     "draw_tangent_line",
     "draw_normal_line",

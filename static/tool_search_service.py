@@ -329,6 +329,156 @@ _PICTURE_WORDS = frozenset(
     {"plot", "draw", "graph", "sketch", "shade", "shaded", "shading", "show", "display", "visualize"}
     | {"visualise", "picture", "curve", "bars", "histogram", "create", "make", "put", "canvas"}
 )
+# -- Implicit curves and inequality regions (draw_implicit_curve, shade_inequality) --
+# Math in a query is read around each relation sign: the operand runs to the nearest comma,
+# semicolon, other sign or English word that cannot be part of an expression.
+_RELATION_SIGN_RE = re.compile(r"<=|>=|=<|=>|≤|≥|<(?!-)|(?<!-)>|(?<![<>=!])=(?![=<>])")  # not arrows -> <-
+_OPERAND_STOP_RE = re.compile(
+    r"[,;:?!]|<=|>=|=<|=>|≤|≥|<|>|=|\b(?:and|or|for|when|if|where|with|from|to|then|than|is|are|of|on|in|the|a|an"
+    r"|plot|graph|draw|shade|sketch|show|region|inequality|inequalities|equation|curve|call|name|named|it|as"
+    r"|over|between|above|below|under|inside|outside|color|colour|red|blue|green)\b|\.(?:\s|$)"
+)
+_Y_VARIABLE_RE = re.compile(r"(?<![a-z_])(?:y|xy|yx)(?![a-z_(])|(?<![a-z_])x\*?y(?![a-z_(])")
+_X_VARIABLE_RE = re.compile(r"(?<![a-z_])x(?![a-z_(])|(?<![a-z_])xy(?![a-z_(])")
+# y in a form no function y = f(x) has: a power, a product with x, inside a function, |y|
+_NONLINEAR_Y_RE = re.compile(
+    r"(?<![a-z_])y\s*(?:\^|\*\*|²|³)|(?<![a-z_])x\s*\*?\s*y(?![a-z_(])|(?<![a-z_])xy(?![a-z_(])"
+    r"|\b(?:sin|cos|tan|exp|ln|log|sqrt|abs|cbrt)\s*\([^)]*(?<![a-z_])y(?![a-z_])|e\s*\^\s*\(?\s*y(?![a-z_])"
+    r"|\|\s*y\s*\||\([^()]*(?<![a-z_])y(?![a-z_])[^()]*\)\s*(?:\^|\*\*|²)"
+)
+# Words that ask for something other than a picture of the relation: solving, systems,
+# intersections, derivatives (implicit differentiation), distributions
+_IMPLICIT_EXCLUDED_WORDS = frozenset(
+    {"solve", "solving", "intersection", "intersections", "intersect", "meet", "meets", "derivative"}
+    | {"differentiate", "differentiation", "dy", "dx", "slope", "tangent", "normal", "probability", "distribution"}
+    | {"parametric", "polar", "piecewise", "evaluate", "simplify", "factor", "expand", "check", "steps"}
+    | {"intersects", "crosses", "confirm", "verify", "prove", "reflect", "mirror", "across", "rotate"}
+    | {"translate", "rules", "rule", "when", "otherwise", "complete", "rewrite"}
+    # Measuring or other objects: "the area of the region x^2 + y^2 <= 4", "arc length of
+    # x^2 + y^2 = 1", "the intercepts of 2x + 3y = 6", "zoom so that -10 < x < 10", "a segment
+    # from x = 0 to x = 5", "shade between it and y = 0" (a colored area)
+    | {"zoom", "segment", "segments", "histogram", "histograms", "between", "under", "vector", "vectors"}
+)
+# Measuring words: with a graph verb ("plot x^2 + y^2 = 4 and find its perimeter") the
+# relation is still drawn, ranked under the measuring tool; without one it is not drawn
+_IMPLICIT_MEASURE_WORDS = frozenset(
+    {"integrate", "integral", "arc", "perimeter", "circumference", "intercept", "intercepts", "calculate"}
+    | {"compute", "measure", "how", "distance", "find"}
+)
+# "the area of the region ...", "the length of the curve ...": a measurement
+_IMPLICIT_MEASURE_RE = re.compile(r"\b(?:area|length|size)\s+(?:of|is|enclosed|inside|bounded)\b")
+# A relation in x and y is drawn or shaded only when the query asks for a picture: bare
+# relations ("2x + 3y = 7 and x - y = 4") are equations to solve
+_IMPLICIT_PICTURE_WORDS = frozenset(
+    {"draw", "plot", "graph", "sketch", "show", "display", "visualize", "visualise", "trace", "shade"}
+    | {"shaded", "shading", "region", "regions", "feasible", "curve", "curves", "implicit", "implicitly"}
+    | {"conic", "locus", "contour", "picture", "highlight", "color", "colour", "fill", "look", "looks"}
+)
+# Function names that may lead or end an operand; other words are English around the math
+_OPERAND_FUNCTION_WORDS = frozenset({"sin", "cos", "tan", "exp", "ln", "log", "sqrt", "abs", "cbrt", "pi", "e"})
+_GRAPH_VERBS = frozenset({"draw", "plot", "graph", "sketch", "show", "display"})
+# Verbs that ask for the relation's picture even next to a measurement ("shade ... and find the
+# corner points")
+_DRAWING_VERBS = _GRAPH_VERBS | {"shade", "fill", "color", "colour"}
+# Words that make a relation sign in x alone a region to shade ("graph the inequality x > 2")
+_REGION_WORDS = frozenset({"shade", "shaded", "shading", "region", "inequality", "inequalities", "feasible", "half"})
+
+
+def _relation_operands(raw_lower: str) -> List[Tuple[str, str, str]]:
+    """(left operand, sign, right operand) around each relation sign of a query."""
+    found: List[Tuple[str, str, str]] = []
+    for match in _RELATION_SIGN_RE.finditer(raw_lower):
+        before = raw_lower[: match.start()]
+        after = raw_lower[match.end() :]
+        stops = list(_OPERAND_STOP_RE.finditer(before))
+        left = before[stops[-1].end() :] if stops else before
+        stop = _OPERAND_STOP_RE.search(after)
+        right = after[: stop.start()] if stop else after
+        found.append((_trim_words(left, leading=True), match.group(0), _trim_words(right, leading=False)))
+    return found
+
+
+def _trim_words(operand: str, leading: bool) -> str:
+    """The operand without English words before it (leading) or after it: "parabola y" -> "y"."""
+    parts = operand.split()
+    while parts:
+        part = parts[0] if leading else parts[-1]
+        # Two-letter words go too ("given by y", "show me y"), but not the products xy and yx
+        if not (part.isalpha() and len(part) > 1 and part not in _OPERAND_FUNCTION_WORDS | {"xy", "yx"}):
+            break
+        parts.pop(0 if leading else -1)
+    return " ".join(parts)
+
+
+def implicit_measuring(raw_lower: str) -> bool:
+    """Whether a query measures something: "the area of", "its perimeter", "how long"; not "how
+    does x^2 + y^2 = 25 look"."""
+    words = set(re.findall(r"[a-z]+", raw_lower))
+    if words & {"look", "looks"}:
+        words.discard("how")
+    return bool(words & _IMPLICIT_MEASURE_WORDS or _IMPLICIT_MEASURE_RE.search(raw_lower))
+
+
+def implicit_intent(raw_lower: str) -> Optional[str]:
+    """What a query draws: "curve" for an equation in x and y that is not y = f(x) (x^2 + y^2 = 25,
+    x = y^2, 2x + 3y = 6, x = 3 alone), "region" when it gives an inequality in y (y > 2x + 1)
+    or in x next to region words (shade x > 2), else None. Solving, systems, intersections,
+    derivatives, distributions, parametric, polar and piecewise queries are left alone."""
+    raw_lower = re.sub(r"\s+equals\s+", " = ", raw_lower)
+    words = set(re.findall(r"[a-z]+", raw_lower))
+    if not words & _IMPLICIT_PICTURE_WORDS or words & _IMPLICIT_EXCLUDED_WORDS:
+        return None
+    if implicit_measuring(raw_lower) and not words & _DRAWING_VERBS:
+        return None
+    if re.search(r"\bp\s*\(|\b[xyr]\s*\(\s*[tθ]|\bθ|theta", raw_lower):
+        return None
+    relations = _relation_operands(raw_lower)
+    if _is_vertical_line(raw_lower, relations, words):
+        return "curve"
+    has_equation = any(sign == "=" for _, sign, _ in relations)
+    defines_function = bool(_FUNCTION_DEFINITION_RE.search(raw_lower)) and any(
+        sign == "=" and re.fullmatch(r"y|[a-z]\(\s*x\s*\)", left) and not _Y_VARIABLE_RE.search(right)
+        for left, sign, right in relations
+    )
+    region = curve = False
+    for left, sign, right in relations:
+        if not left or not right:
+            continue
+        both = f"{left} {sign} {right}"
+        has_y = bool(_Y_VARIABLE_RE.search(left) or _Y_VARIABLE_RE.search(right))
+        has_x = bool(_X_VARIABLE_RE.search(left) or _X_VARIABLE_RE.search(right))
+        if sign != "=":
+            if defines_function and re.fullmatch(r"[xy]", left) and re.fullmatch(r"-?[\d.]+", right):
+                continue  # "plot y = x^2 - 4 and shade where y < 0": part of the function's area
+            # x alone: a region when region words say so, or "graph -1 < x <= 2" with no
+            # equation ("plot y = x^2 for x > 0" restricts a function's domain)
+            if has_y or (has_x and (words & _REGION_WORDS or (words & _GRAPH_VERBS and not has_equation))):
+                region = True
+            continue
+        if not has_y:
+            continue
+        explicit = re.fullmatch(r"y", left) and not _Y_VARIABLE_RE.search(right)
+        if _NONLINEAR_Y_RE.search(both) or (has_x and not explicit and not re.fullmatch(r"[a-z]", right)):
+            # "y = 3" or "x = 2, y = 5" name values, not curves
+            curve = curve or not (re.fullmatch(r"[xy]", left) and re.fullmatch(r"-?[\d.]+", right))
+    if region:
+        return "region"
+    if curve and "system" in words and not words & _GRAPH_VERBS:
+        return None  # "the system 2x + 3y = 7, x - y = 4": equations to solve
+    return "curve" if curve else None
+
+
+def _is_vertical_line(raw_lower: str, relations: List[Tuple[str, str, str]], words: Set[str]) -> bool:
+    """Whether a query draws a vertical line ("draw x = 3", "plot the vertical line x = -2 and
+    call it v"): one relation x = number, a drawing verb, and no y or other math in the query."""
+    if len(relations) != 1 or not words & _GRAPH_VERBS or _Y_VARIABLE_RE.search(raw_lower):
+        return False
+    left, sign, right = relations[0]
+    return sign == "=" and left == "x" and re.fullmatch(r"-?\d+(?:\.\d+)?", right) is not None and not re.search(
+        r"[\^(]", raw_lower
+    )
+
+
 # "the normal to f at x = 2", "the normal of the parabola": a normal line, not a normal distribution.
 _NORMAL_LINE_RE = re.compile(
     r"\bnormals?\s+(?:to\b|at\b|(?:of|for)\s+(?:[a-z]\b|the\s+(?:graph|curve|parabola|circle|ellipse|function)))"
@@ -893,6 +1043,13 @@ TOOL_CATEGORIES: Dict[str, CategoryEntry] = {
             "enlarge", "shrink", "stretch", "turn", "spin",
             "slide", "twice", "double", "bigger", "smaller", "larger",
         ],
+    },
+    "implicit": {
+        "tools": [
+            "draw_implicit_curve", "delete_implicit_curve", "update_implicit_curve",
+            "shade_inequality",
+        ],
+        "keywords": ["inequality", "inequalities", "feasible"],
     },
     "areas": {
         "tools": [
@@ -1634,6 +1791,89 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores.pop("confidence_interval", None)
 
     @staticmethod
+    def _boost_implicit_tools(token_set: set[str], scores: Dict[str, float], raw_lower: str) -> None:
+        """Implicit curves and inequality regions: drawing them, and editing them by name.
+
+        A relation in x and y (implicit_intent) puts draw_implicit_curve or shade_inequality
+        first; "delete the implicit curve c1" and "make implicit curve c1 blue" go to its delete
+        and update tools; deleting or recolouring a shaded region or area goes to the colored
+        area tools, which edit shaded inequality regions too.
+        """
+        if "implicit" in token_set and token_set & {"differentiation", "differentiate", "derivative", "dy"}:
+            # Implicit differentiation: derivatives of F(x, y), not a curve to draw
+            scores["derive"] += 8.0
+            for name in ("draw_implicit_curve", "update_implicit_curve", "delete_implicit_curve"):
+                scores.pop(name, None)
+            return
+        deleting = bool(token_set & {"delete", "remove", "erase"})
+        editing = bool(token_set & (_POLAR_UPDATE_VERBS | _POLAR_EDIT_WORDS | {"opacity", "transparency"}))
+        if "implicit" in token_set and token_set & {"curve", "curves", "plot", "graph"}:
+            if deleting:
+                scores["delete_implicit_curve"] += 12.0
+                return
+            if editing and not token_set & _GRAPH_VERBS:
+                scores["update_implicit_curve"] += 12.0
+                return
+            if token_set & _GRAPH_VERBS and not token_set & (_IMPLICIT_EXCLUDED_WORDS | _IMPLICIT_MEASURE_WORDS):
+                scores["draw_implicit_curve"] += 8.0
+        intent = implicit_intent(raw_lower)
+        if intent is not None and deleting:
+            scores["delete_implicit_curve" if intent == "curve" else "delete_colored_area"] += 12.0
+            return
+        if intent is not None:
+            drawn = "shade_inequality" if intent == "region" else "draw_implicit_curve"
+            leading = max(scores.values(), default=0.0)
+            named_shape = intent == "curve" and "implicit" not in token_set and token_set & {"circle", "ellipse"}
+            if named_shape:
+                # "graph the circle x^2 + y^2 = 4": the circle tool stays first, the implicit
+                # curve second
+                shape_tool = "create_circle" if "circle" in token_set else "create_ellipse"
+                scores[shape_tool] = max(scores[shape_tool], leading) + 1.0
+                scores[drawn] = max(scores[drawn], leading)
+                return
+            if implicit_measuring(raw_lower):
+                # "plot x^2 + y^2 = 4 and find its perimeter": a measuring tool that leads stays
+                # first; the drawing tools that cannot draw the relation go below it
+                unable = ("draw_function", "draw_piecewise_function", "create_colored_area", "create_region_colored_area")
+                scores[drawn] = max(scores[drawn], leading - 0.01)
+                for name in unable:
+                    if name in scores and scores[name] >= scores[drawn]:
+                        scores[name] = scores[drawn] - 0.005
+                return
+            scores[drawn] = max(scores[drawn], leading) + 6.0
+            return
+        region_words = token_set & {"region", "shaded", "shading", "feasible"}
+        if "area" in token_set and re.search(r"\b(?:colou?red|shaded|filled)\s+areas?\b|\bareas?\s+[a-z]\w*\d", raw_lower):
+            region_words = region_words | {"area"}  # "the colored area", "area A1"; not "its area is 10"
+        tool: Optional[str] = None
+        creating = token_set & {"create", "draw", "plot", "graph", "sketch", "between", "under", "fill", "shade"}
+        # "fill the region inside circle c1", "the region enclosed by AB, BC": a new area
+        creating = creating or token_set & {"inside", "enclosed", "bounded", "outside", "within"}
+        named = re.search(r"\b(?:region|area)\s+[a-z]\w*\d", raw_lower)
+        if named and not token_set & {"between", "under", "inside", "enclosed", "bounded", "outside", "within"}:
+            creating = set()  # "shade region R2 blue", "fill region R1 with yellow": an existing area
+        # "delete point P in the shaded region": another object goes
+        other_object = re.search(
+            r"\b(?:delete|remove|erase)\s+(?:the\s+)?(?:point|segment|vector|triangle|circle|ellipse|polygon"
+            r"|rectangle|function|graph|label|angle|line|curve)s?\b",
+            raw_lower,
+        )
+        if region_words and not creating and not other_object:
+            if deleting:
+                tool = "delete_colored_area"
+            elif token_set & (_POLAR_UPDATE_VERBS | {"set", "opacity", "transparency"}) or (
+                editing and re.search(r"\b[a-z]\w*\d+\b", raw_lower)
+            ):
+                # "change the opacity of the shaded region", "make the region R1 red"; not "color
+                # the region enclosed by AB, BC" (a new area)
+                tool = "update_colored_area"
+        if tool is not None:
+            # "delete the shaded region R1", "make the region R1 red": an existing area, so above
+            # the create tools that "region" and "shaded" boost
+            leading = max(scores.values(), default=0.0)
+            scores[tool] = max(scores[tool], leading) + 2.0
+
+    @staticmethod
     def _boost_parameter_tools(token_set: Set[str], raw_query: str, scores: Dict[str, float]) -> None:
         """Sliders: creating, setting, animating, stopping and deleting parameters.
 
@@ -2172,6 +2412,8 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             scores["set_coordinate_system"] += 6.0
 
         ToolSearchService._boost_parameter_tools(token_set, raw_query or raw_lower, scores)
+
+        ToolSearchService._boost_implicit_tools(token_set, scores, raw_lower)
 
         # Simplify's +3 alone falls under RELATIVE_SCORE_CUTOFF of a function value's score
         # and behind the other area tools, so it scores one point under the leading tool

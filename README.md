@@ -35,7 +35,7 @@ The app may be rewritten in another language or stack along the way. What has to
 
 1. Draw and manipulate geometric objects (points, segments, vectors, polygons, circles, ellipses, angles) directly on the canvas.
 2. Ask the assistant to solve algebra, calculus, trigonometry, statistics, and linear algebra problems with LaTeX-formatted explanations.
-3. Plot functions, parametric curves, polar curves r(θ), sequences u(n) (explicit or recursive) and cobweb diagrams of iterations x → g(x), measure arc length, compare intersections, shade bounded regions, and translate/rotate objects to explore relationships visually.
+3. Plot functions, parametric curves, polar curves r(θ), implicit curves F(x, y) = 0, sequences u(n) (explicit or recursive) and cobweb diagrams of iterations x → g(x), measure arc length, compare intersections, shade bounded regions and inequalities in x and y, and translate/rotate objects to explore relationships visually.
 4. Make parameters with sliders (`y = a*sin(b*x)`, a point at `(a, a^2)`, a circle of radius `r`) and set or animate them; everything that reads them follows.
 5. Plot statistics visualizations (probability distributions, bar charts, histograms, box plots and scatter plots) and compute probabilities, tails and quantiles of normal, uniform, exponential, t, χ², F, binomial, Poisson and geometric distributions; run hypothesis tests (z, t, two-sample, paired, proportion and χ² tests) and confidence intervals.
 6. Fit regression models to data (linear, polynomial, exponential, logarithmic, power, logistic, sinusoidal, or your own model with named constants such as `a*exp(-b*x)*cos(c*x) + d`, whose fitted constants become sliders) and visualize fitted curves with R², RMSE and residuals.

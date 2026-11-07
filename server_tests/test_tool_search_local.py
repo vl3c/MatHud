@@ -405,6 +405,113 @@ class TestCreativePrompts:
         top = _top_n(self.service, "draw y = x^2 and find its arc length from 0 to 1")
         assert top[:2] == ["arc_length", "draw_function"]
 
+    # -- Implicit curves and inequality regions --
+
+    def test_equations_in_x_and_y_draw_an_implicit_curve(self) -> None:
+        for query in (
+            "draw x^2 + y^2 = 25",
+            "graph the hyperbola x^2 - y^2 = 1",
+            "plot x = y^2 - 4",
+            "sketch the folium x^3 + y^3 = 6xy",
+            "draw the vertical line x = -2",
+            "plot the line 2x + 3y = 6",
+            "draw the curve where x^2 + y^2 equals 9",
+        ):
+            assert _top_n(self.service, query)[0] == "draw_implicit_curve", query
+
+    def test_inequalities_shade_a_region(self) -> None:
+        for query in (
+            "graph the inequality y > 2x + 1",
+            "shade x^2 + y^2 <= 9",
+            "shade the feasible region x + y <= 10, x >= 0, y >= 0",
+            "graph the system y < x^2",
+            "graph -1 < x <= 2",
+            "shade where y < -1 or y > 1",
+        ):
+            assert _top_n(self.service, query)[0] == "shade_inequality", query
+
+    def test_relations_for_other_tools_keep_their_tools(self) -> None:
+        for query, tool in (
+            ("plot y = x^2 from x = -5 to 5", "draw_function"),
+            ("graph the parabola y = x^2 - 4", "draw_function"),
+            ("draw a point B at x=50, y=-30", "create_point"),
+            ("find (x,y) for 2x+3y=7 and x-y=4", "solve_system_of_equations"),
+            ("solve x^2 - 4 >= 0", "solve"),
+            ("solve for y: x^2 + y^2 = 25", "solve"),
+            ("plot x(t) = cos(t), y(t) = sin(t) for 0 <= t <= 2*pi", "draw_parametric_function"),
+            ("Graph f(x) with two rules: -x when x<2, and x-4 when x>=2.", "draw_piecewise_function"),
+            ("implicit differentiation of x^2 + y^2 = 25", "derive"),
+            # Bare relations are equations to solve; measuring and other objects keep their tools
+            ("2x + 3y = 7 and x - y = 4", "solve_system_of_equations"),
+            ("x^2 + y^2 = 25 and x + y = 7", "solve_system_of_equations"),
+            ("calculate the area of the region x^2 + y^2 <= 4", "calculate_area"),
+            ("what is the area of the circle x^2 + y^2 = 25", "calculate_area"),
+            ("arc length of x^2 + y^2 = 1", "arc_length"),
+            ("integrate x*y over the region x^2 + y^2 < 1", "integrate"),
+            ("zoom so that -10 < x < 10 and -5 < y < 5", "zoom"),
+            ("draw a segment from x = 0 to x = 5 at y = 2", "create_segment"),
+            ("plot the histogram where x > 5", "plot_histogram"),
+            ("plot y = x^2 - 1 and shade between it and y = 0 for -1 < x < 1", "create_colored_area"),
+            ("plot the function y = x^2 - 4 and shade where y < 0", "draw_function"),
+            ("graph the circle x^2 + y^2 = 4", "create_circle"),
+        ):
+            assert _top_n(self.service, query)[0] == tool, query
+        for query, tool in (
+            ("2x + y = 5, x - 3y = -1", "solve"),
+            ("what are the intercepts of 2x + 3y = 6", "solve"),
+        ):
+            assert tool in _top_n(self.service, query), query
+
+    def test_drawing_and_measuring_keeps_both_tools(self) -> None:
+        for query, first in (
+            ("draw x^2/9 + y^2/4 = 1 and calculate the arc length", "arc_length"),
+            ("draw x*y = 4 and find the intercepts", "solve"),
+        ):
+            assert _top_n(self.service, query)[:2] == [first, "draw_implicit_curve"], query
+        for query in (
+            "plot x^2 + y^2 = 4 and find its perimeter",
+            "graph x^2 + y^2 = 25 and compute the circumference",
+        ):
+            assert "draw_implicit_curve" in _top_n(self.service, query)[:2], query
+        for query in ("how does x^2 + y^2 = 25 look", "what does x^3 + y^3 = 6xy look like"):
+            assert _top_n(self.service, query)[0] == "draw_implicit_curve", query
+        # draw_function cannot draw these relations, so it goes below the implicit tool
+        for query in ("plot x^2 + y^2 = 4 and find its perimeter", "graph 2x + 3y = 6 and find the intercepts"):
+            top = _top_n(self.service, query)
+            assert top.index("draw_implicit_curve") < top.index("draw_function"), query
+        top = _top_n(self.service, "shade x + y <= 4, x >= 0, y >= 0 and find the corner points")
+        assert "shade_inequality" in top[:2]
+        top = _top_n(self.service, "shade the feasible region x + y <= 4, x >= 0, y >= 0 and find the vertices")
+        assert top.index("shade_inequality") < top.index("create_region_colored_area")
+
+    def test_explicit_functions_after_short_words_stay_functions(self) -> None:
+        for query, tool in (
+            ("plot the curve given by y = x^2", "draw_function"),
+            ("graph the line given by y = 2x + 1", "draw_function"),
+            ("plot for me y = sin(x)", "draw_function"),
+            ("shade the region bounded by y = x^2 and y = 4", "create_region_colored_area"),
+            ("fill region R1 inside circle c1 with red", "create_region_colored_area"),
+        ):
+            assert _top_n(self.service, query)[0] == tool, query
+
+    def test_editing_implicit_curves_and_shaded_regions(self) -> None:
+        for query, tool in (
+            ("delete the implicit curve c1", "delete_implicit_curve"),
+            ("make implicit curve c1 blue", "update_implicit_curve"),
+            ("erase the curve x^2 + y^2 = 4", "delete_implicit_curve"),
+            ("delete the shaded region R1", "delete_colored_area"),
+            ("remove the feasible region", "delete_colored_area"),
+            ("make the region R1 red", "update_colored_area"),
+            ("change region R2 opacity to 0.1", "update_colored_area"),
+            ("shade region R2 blue", "update_colored_area"),
+            ("fill region R1 with yellow", "update_colored_area"),
+            ("Color the polygonal region enclosed by segments AB, BC, CD, DA.", "create_region_colored_area"),
+            ("fill the region inside circle c1 with red", "create_region_colored_area"),
+            ("delete point P in the shaded region", "delete_point"),
+            ("change the triangle so its area is 10", "calculate_area"),
+        ):
+            assert _top_n(self.service, query)[0] == tool, query
+
     # -- Math class homework scenarios --
 
     def test_homework_quadratic(self) -> None:

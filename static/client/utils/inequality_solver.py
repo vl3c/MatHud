@@ -237,8 +237,15 @@ class InequalitySolver:
         """Refuse an inequality without the variable, or with other free names (a parameter, a second variable)."""
         others = InequalitySolver.other_names(parts, variable, strict=True)
         if others:
+            # An inequality in x and y describes a region of the plane
+            hint = (
+                " To shade where it holds in the plane, use shade_inequality."
+                if {variable, *others} == {"x", "y"}
+                else ""
+            )
             raise ValueError(
-                f"solve handles inequalities in one variable; besides {variable} it also contains {', '.join(others)}."
+                f"solve handles inequalities in one variable; besides {variable} it also contains "
+                f"{', '.join(others)}.{hint}"
             )
         if not any(re.search(rf"(?<![A-Za-z_]){re.escape(variable)}(?![A-Za-z0-9_])", part) for part in parts):
             raise ValueError(f"the inequality does not contain {variable}.")

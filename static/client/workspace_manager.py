@@ -121,6 +121,8 @@ class WorkspaceManager:
         "PiecewiseFunctions",
         "ParametricFunctions",
         "PolarFunctions",
+        "ImplicitCurves",
+        "InequalityColoredAreas",
         "FunctionsBoundedColoredAreas",
         "SegmentsBoundedColoredAreas",
         "FunctionSegmentBoundedColoredAreas",
@@ -879,6 +881,33 @@ class WorkspaceManager:
             color=args.get("color"),
         )
 
+    def _create_implicit_curves(self, state: Dict[str, Any]) -> None:
+        """Create implicit curves from workspace state."""
+        if "ImplicitCurves" not in state:
+            return
+        self._restore_items("ImplicitCurves", state["ImplicitCurves"], self._restore_implicit_curve)
+
+    def _restore_implicit_curve(self, item_state: Dict[str, Any]) -> None:
+        args = item_state.get("args", {})
+        self.canvas.drawable_manager.implicit_curve_manager.create_implicit_curve(
+            args.get("equation", ""), name=item_state.get("name", ""), color=args.get("color")
+        )
+
+    def _create_inequality_areas(self, state: Dict[str, Any]) -> None:
+        """Create inequality regions from workspace state."""
+        if "InequalityColoredAreas" not in state:
+            return
+        self._restore_items("InequalityColoredAreas", state["InequalityColoredAreas"], self._restore_inequality_area)
+
+    def _restore_inequality_area(self, item_state: Dict[str, Any]) -> None:
+        args = item_state.get("args", {})
+        self.canvas.drawable_manager.implicit_curve_manager.create_inequality_area(
+            args.get("inequality", ""),
+            name=item_state.get("name", ""),
+            color=args.get("color"),
+            opacity=args.get("opacity"),
+        )
+
     def _create_colored_areas(self, state: Dict[str, Any]) -> None:
         """Create colored areas from workspace state."""
         handlers = self._colored_area_handlers()
@@ -1255,6 +1284,8 @@ class WorkspaceManager:
             self._create_piecewise_functions,
             self._create_parametric_functions,
             self._create_polar_functions,
+            self._create_implicit_curves,
+            self._create_inequality_areas,
         ]
 
     def _run_restore_steps(

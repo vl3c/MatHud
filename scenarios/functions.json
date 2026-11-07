@@ -597,6 +597,43 @@
           ]
         }
       ]
+    },
+    {
+      "id": "FN-16",
+      "title": "Implicit curves and a shaded system of inequalities",
+      "tags": ["functions", "implicit", "areas"],
+      "smoke": false,
+      "targets": "draw_implicit_curve for relations that are not y = f(x), and shade_inequality for a linear programming feasible region (the ImplicitCurves and InequalityColoredAreas buckets)",
+      "steps": [
+        {
+          "user": "Draw the curve x^2 + y^2 = 25 and the hyperbola x*y = 4 in red.",
+          "reference": [
+            {"tool": "draw_implicit_curve", "args": {"equation": "x^2 + y^2 = 25", "name": null, "color": null}},
+            {"tool": "draw_implicit_curve", "args": {"equation": "x*y = 4", "name": null, "color": "red"}}
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "count", "select": {"type": "ImplicitCurve"}, "eq": 2},
+            {"check": "exists", "select": {"type": "ImplicitCurve", "where": {"args.color": "red"}}},
+            {"check": "tool_called", "tool": "draw_implicit_curve"}
+          ]
+        },
+        {
+          "user": "Now shade the feasible region x + y <= 10, x >= 0, y >= 0.",
+          "reference": [
+            {
+              "tool": "shade_inequality",
+              "args": {"inequality": "x + y <= 10, x >= 0, y >= 0", "name": null, "color": null, "opacity": null}
+            }
+          ],
+          "checks": [
+            {"check": "no_tool_errors"},
+            {"check": "count", "select": {"type": "InequalityColoredArea"}, "eq": 1},
+            {"check": "count", "select": {"type": "ImplicitCurve"}, "eq": 2},
+            {"check": "tool_result", "tool": "shade_inequality", "path": "in_view.shaded_share", "gt": 0}
+          ]
+        }
+      ]
     }
   ]
 }

@@ -38,10 +38,12 @@ EXPECTED_DRAWABLE_KEYS: Tuple[str, ...] = (
     "PiecewiseFunctions",
     "ParametricFunctions",
     "PolarFunctions",
+    "ImplicitCurves",
     "FunctionsBoundedColoredAreas",
     "SegmentsBoundedColoredAreas",
     "FunctionSegmentBoundedColoredAreas",
     "ClosedShapeColoredAreas",
+    "InequalityColoredAreas",
     "ContinuousPlots",
     "DiscretePlots",
     "BarsPlots",
@@ -135,6 +137,9 @@ def _build_functions_and_areas(c: Canvas) -> None:
     c.drawable_manager.polar_function_manager.draw_polar_function(
         "1 + cos(θ)", name="card", theta_min=0.0, theta_max=4.0, color="red"
     )
+    implicit = c.drawable_manager.implicit_curve_manager
+    implicit.draw_implicit_curve("x^2 + y^2 = 25", name="circ", color="green")
+    implicit.shade_inequality("y < x^2, x > -1", name="R", color="orange", opacity=0.25)
     s1 = c.create_segment(-4, 1, 4, 2, extra_graphics=False)
     s2 = c.create_segment(-4, -1, 4, -2, extra_graphics=False)
     c.create_colored_area("f", "g", left_bound=-1, right_bound=1)
