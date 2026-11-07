@@ -475,10 +475,10 @@ class FunctionManager:
 
     @staticmethod
     def _feature_breakpoints(curves: List[Any]) -> List[float]:
-        """Vertical asymptotes, point discontinuities and holes of every curve."""
+        """Vertical asymptotes, point discontinuities, holes and corners of every curve."""
         breakpoints: List[float] = []
         for curve in curves:
-            for attribute in ("vertical_asymptotes", "point_discontinuities", "undefined_at"):
+            for attribute in ("vertical_asymptotes", "point_discontinuities", "undefined_at", "corner_points"):
                 breakpoints.extend(float(x) for x in (getattr(curve, attribute, None) or []))
         return breakpoints
 

@@ -8,6 +8,7 @@ math-only and the renderer consumes a clean representation.
 
 from __future__ import annotations
 
+import bisect
 import math
 from typing import Any, Dict, List, Optional, Set, Tuple, cast
 
@@ -33,6 +34,8 @@ class FunctionRenderable:
         self._eval_cache: Optional[Dict[float, Any]] = None
         self._discontinuity_set: Optional[Set[float]] = None
         self._sorted_asymptotes: Optional[List[float]] = None
+        # Left ends of the breaks the sampler found (jumps, unlisted poles), per build
+        self._break_starts: Optional[Set[float]] = None
         # Fraction of the viewport also sampled beyond each edge. A renderer that
         # reprojects cached plans on pan sets this so small pans stay covered.
         self.view_margin: float = 0.0
@@ -257,6 +260,8 @@ class FunctionRenderable:
         """
         # The sample budget covers the viewport plus the margins on both sides.
         canvas_width = int((getattr(self.mapper, "canvas_width", 800) or 800) * (1 + 2 * self.view_margin))
+        max_samples = canvas_width
+        breaks: List[Tuple[float, float]] = []
         viewport_height = getattr(self.mapper, "canvas_height", None) or None
         viewport_band = self._vertical_band(viewport_height) if viewport_height else None
 
@@ -274,7 +279,7 @@ class FunctionRenderable:
         all_split_points = sorted(set(asymptotes + point_discontinuities))
 
         if all_split_points:
-            return cast(
+            subranges = cast(
                 list[list[float]],
                 AdaptiveSampler.generate_samples_with_asymptotes(
                     left_bound,
@@ -283,8 +288,9 @@ class FunctionRenderable:
                     self.mapper.math_to_screen,
                     all_split_points,
                     initial_segments,
-                    max_samples=canvas_width,
+                    max_samples=max_samples,
                     viewport_band=viewport_band,
+                    breaks=breaks,
                 ),
             )
         else:
@@ -295,10 +301,27 @@ class FunctionRenderable:
                 self._evaluate_cached,
                 self.mapper.math_to_screen,
                 initial_segments,
-                max_samples=canvas_width,
+                max_samples=max_samples,
                 viewport_band=viewport_band,
+                breaks=breaks,
             )
-            return [samples] if samples else []
+            subranges = [samples] if samples else []
+        self._break_starts = {left for left, _ in breaks}
+        return [self._with_corners(samples, breaks) for samples in subranges]
+
+    def _with_corners(self, samples: list[float], breaks: List[Tuple[float, float]]) -> list[float]:
+        """The samples plus the corners (abs() arguments at zero) within them, so the drawn
+        polyline passes through each corner exactly instead of cutting it. A corner inside a
+        break's bracket (sign(x) + abs(x) at 0) is left out: the path breaks at the bracket's
+        left end, so a sample within it would be joined straight across the jump."""
+        corners = getattr(self.func, "corner_points", None)
+        if not corners or len(samples) < 2:
+            return samples
+        low, high = samples[0], samples[-1]
+        inside = [float(c) for c in corners if low < c < high and not any(left < c < right for left, right in breaks)]
+        if not inside:
+            return samples
+        return sorted(set(samples).union(inside))
 
     def _eval_scaled_point(self, x_val: float) -> Tuple[Tuple[Optional[float], Optional[float]], Any]:
         y_val: Any = self._evaluate_cached(x_val)
@@ -311,9 +334,6 @@ class FunctionRenderable:
             return (sx, sy), y_val
         except Exception:
             return (None, None), None
-
-    def _is_large_jump(self, prev_sy: float, sy: float, height: float) -> bool:
-        return abs(prev_sy - sy) > height * 2
 
     def _finalize_path(self, current_path: list[tuple[float, float]], paths: list[list[tuple[float, float]]]) -> None:
         """Add current path to paths list if non-empty."""
@@ -330,6 +350,7 @@ class FunctionRenderable:
         self._eval_cache = {}
         self._discontinuity_set = set(getattr(self.func, "point_discontinuities", None) or [])
         self._sorted_asymptotes = self._collect_sorted_asymptotes()
+        self._break_starts = set()
         try:
             # Get samples split by asymptotes - each sub-list is a continuous range
             sample_subranges = self._calculate_sample_points_by_subrange(left_bound, right_bound)
@@ -344,6 +365,7 @@ class FunctionRenderable:
             self._eval_cache = None
             self._discontinuity_set = None
             self._sorted_asymptotes = None
+            self._break_starts = None
 
     def _vertical_band(self, height: float) -> Tuple[float, float]:
         """Screen-y band kept in paths: the viewport plus the view margin above and below."""
@@ -366,6 +388,17 @@ class FunctionRenderable:
             return (sx1 + t * (sx2 - sx1), height)
         return None
 
+    def _band_crossing_segment(
+        self, sx1: float, sy1: float, sx2: float, sy2: float, top: float, bottom: float
+    ) -> list[tuple[float, float]]:
+        """The part of the segment from (sx1, sy1) to (sx2, sy2) inside the band [top, bottom],
+        for two points on opposite sides of it."""
+
+        def at(y: float) -> tuple[float, float]:
+            return (sx1 + (y - sy1) / (sy2 - sy1) * (sx2 - sx1), y)
+
+        return [at(top), at(bottom)] if sy1 < top else [at(bottom), at(top)]
+
     def _is_on_screen(self, sy: float, height: float, top: float = 0.0) -> bool:
         """Check if y coordinate is within the band [top, height]."""
         return top <= sy <= height
@@ -373,7 +406,8 @@ class FunctionRenderable:
     def _build_path_from_samples(self, sample_points: list[float], height: float) -> list[list[tuple[float, float]]]:
         """
         Build screen paths from a list of sample x-values (within a single sub-range).
-        Path breaks on: failed evaluation, large y-jumps, discontinuities, or asymptotes.
+        Path breaks on: failed evaluation, discontinuities, asymptotes, or a break the
+        sampler found between two samples (a jump or a pole).
         """
         if len(sample_points) < 2:
             return []
@@ -387,7 +421,10 @@ class FunctionRenderable:
         # Samples ascend, so asymptotes are found by walking a pointer instead
         # of searching the asymptote list for every sample.
         asymptotes = self._sorted_asymptotes
-        asymptote_index = 0
+        # Start at the first asymptote after this sub-range's first sample: tan(10x) lists
+        # thousands, and a walk from the start for each of its many sub-ranges was most of a build
+        asymptote_index = bisect.bisect_left(asymptotes, sample_points[0]) if asymptotes else 0
+        break_starts = self._break_starts or set()
 
         for x in sample_points:
             if self._is_discontinuity(x):
@@ -406,7 +443,7 @@ class FunctionRenderable:
                     crosses_asymptote = asymptote_index < len(asymptotes) and asymptotes[asymptote_index] < x
                 else:
                     crosses_asymptote = self._get_asymptote_between(prev_x, x) is not None
-            if crosses_asymptote:
+            if crosses_asymptote or (prev_x is not None and prev_x in break_starts):
                 self._finalize_path(current_path, paths)
                 current_path = []
                 prev_sy = None
@@ -425,7 +462,7 @@ class FunctionRenderable:
             on_screen = self._is_on_screen(sy, band_bottom, band_top)
             prev_on_screen = prev_sy is not None and self._is_on_screen(prev_sy, band_bottom, band_top)
 
-            # Handle boundary crossings BEFORE large jump check
+            # Handle boundary crossings
             if prev_sx is not None and prev_sy is not None:
                 crossing = self._interpolate_boundary_crossing(prev_sx, prev_sy, sx, sy, band_bottom, band_top)
                 if crossing:
@@ -435,11 +472,10 @@ class FunctionRenderable:
                         current_path = []
                     elif not prev_on_screen and on_screen:
                         current_path.append(crossing)
-
-            # Large jump without crossing = discontinuity, break path
-            if prev_sy is not None and self._is_large_jump(prev_sy, sy, height) and on_screen and prev_on_screen:
-                self._finalize_path(current_path, paths)
-                current_path = []
+                    elif not prev_on_screen and not on_screen:
+                        # From above the band to below it (or back) with no break between: a
+                        # steep stretch crossing the whole band, drawn clipped to it
+                        paths.append(self._band_crossing_segment(prev_sx, prev_sy, sx, sy, band_top, band_bottom))
 
             if on_screen:
                 current_path.append((sx, sy))

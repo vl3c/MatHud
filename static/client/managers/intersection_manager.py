@@ -223,7 +223,7 @@ class IntersectionManager:
         """The function where it is plotted: its own bounds, else the visible x range."""
         left, right = self._function_range(curve)
         breakpoints: List[float] = []
-        for attribute in ("vertical_asymptotes", "point_discontinuities", "undefined_at"):
+        for attribute in ("vertical_asymptotes", "point_discontinuities", "undefined_at", "corner_points"):
             breakpoints.extend(float(x) for x in (getattr(curve, attribute, None) or []))
         period = None
         if getattr(curve, "is_periodic", False) and getattr(curve, "estimated_period", None):

@@ -19,6 +19,7 @@ Dependencies:
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, cast
 
 import no_op_tools
@@ -33,6 +34,9 @@ from utils.step_checker import StepChecker
 from utils.taylor import Taylor
 from process_function_calls import ProcessFunctionCalls
 from tool_kinds import UNDOABLE_TOOLS
+
+# x or a bracket raised to a fraction with an odd denominator, as x^(1/3), (x-1)**(2/5) or x^(-1/3)
+_ODD_ROOT_POWER = re.compile(r"[x)]\s*(?:\^|\*\*)\s*\(\s*(-?\d+)\s*/\s*(\d*[13579])\s*\)")
 
 if TYPE_CHECKING:
     from ai_interface import AIInterface
@@ -177,16 +181,46 @@ class FunctionRegistry:
             function = canvas.draw_function(
                 function_string, name, left_bound, right_bound, color=color, undefined_at=undefined_at
             )
-            if left_bound is None or right_bound is None or left_bound <= right_bound:
+            swapped = left_bound is not None and right_bound is not None and left_bound > right_bound
+            low = right_bound if swapped else left_bound
+            power_note = FunctionRegistry._odd_root_power_note(function_string, low)
+            if not swapped and not power_note:
                 return function
-            return (
-                f"Function '{getattr(function, 'name', name)}' was drawn with its bounds swapped to "
-                f"[{FunctionRegistry._format_coordinate(right_bound)}, "
-                f"{FunctionRegistry._format_coordinate(left_bound)}]: left_bound {left_bound} was greater "
-                f"than right_bound {right_bound}."
-            )
+            drawn_name = getattr(function, "name", name)
+            if swapped:
+                message = (
+                    f"Function '{drawn_name}' was drawn with its bounds swapped to "
+                    f"[{FunctionRegistry._format_coordinate(right_bound)}, "
+                    f"{FunctionRegistry._format_coordinate(left_bound)}]: left_bound {left_bound} was greater "
+                    f"than right_bound {right_bound}."
+                )
+            else:
+                message = f"Function '{drawn_name}' was drawn."
+            return f"{message} {power_note}" if power_note else message
 
         return draw_function
+
+    @staticmethod
+    def _odd_root_power_note(function_string: str, left_bound: Optional[float]) -> str:
+        """A note when the expression raises to a fraction with an odd denominator, as x^(1/3) or
+        x^(2/5), and the drawn range reaches x < 0: such a power is not real for a negative base,
+        so that part is not drawn, though the model may expect the real root."""
+        if left_bound is not None and left_bound >= 0:
+            return ""
+        powers = [(int(m.group(1)), int(m.group(2))) for m in _ODD_ROOT_POWER.finditer(function_string)]
+        fractional = [(n, d) for n, d in powers if n % d != 0]
+        if not fractional:
+            return ""
+        numerator, denominator = fractional[0]
+        power = f"{numerator}/{denominator}"
+        exponent = "" if numerator == 1 else f"^({numerator})" if numerator < 0 else f"^{numerator}"
+        return (
+            f"Note: a power of ({power}) is not real for a negative base, so the curve is not drawn "
+            f"where that base is below 0. For the real root of a negative base u write "
+            f"nthroot(u, {denominator}){exponent} instead of u^({power}), keeping the base as it is "
+            f"(nthroot(x - 1, {denominator}){exponent} for (x - 1)^({power}))"
+            + ("; cbrt(u) is nthroot(u, 3)." if denominator == 3 and numerator == 1 else ".")
+        )
 
     @staticmethod
     def _format_coordinate(value: Any) -> str:
