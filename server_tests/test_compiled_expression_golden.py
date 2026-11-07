@@ -26,6 +26,7 @@ import unittest
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from server_tests import client_renderer  # noqa: F401  (installs the browser stub)
+from server_tests.golden_values import golden_match
 from drawables.function import Function
 from drawables.piecewise_function import PiecewiseFunction
 from expression_validator import ExpressionValidator
@@ -361,7 +362,9 @@ class TestCompiledExpressionGolden(unittest.TestCase):
     def _assert_section(self, name: str, actual: Dict[str, Any]) -> None:
         expected = self.golden[name]
         self.assertEqual(sorted(actual), sorted(expected), f"{name}: keys differ")
-        mismatches = {key: (actual[key], expected[key]) for key in expected if actual[key] != expected[key]}
+        mismatches = {
+            key: (actual[key], expected[key]) for key in expected if not golden_match(actual[key], expected[key])
+        }
         self.assertEqual(mismatches, {}, f"{name}: (actual, expected) per key")
 
     def test_function_values(self) -> None:
