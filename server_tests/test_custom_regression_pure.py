@@ -250,6 +250,15 @@ class TestTextbookFits(unittest.TestCase):
         self.assertAlmostEqual(fit.values["b"], 2.9, places=4)
         self.assertLess(fit.evaluations, 1.5 * EVALUATION_LIMIT)
 
+    def test_a_slow_sine_in_noisy_hourly_data_is_not_aliased(self) -> None:
+        hours = [float(h) for h in range(480)]
+        for seed in (3, 4):
+            with self.subTest(seed=seed):
+                temperatures = _noisy(lambda x: 15 + 6 * math.sin(2 * math.pi * (x - 5.7) / 24), hours, 3.0, seed)
+                self.assertAlmostEqual(
+                    _fit("A*sin(2*pi*(x - C)/T) + D", hours, temperatures).values["T"], 24, delta=0.2
+                )
+
     def test_damped_oscillations_with_a_phase_are_found(self) -> None:
         xs = _grid(0, 5, 80)
         for rate in (10.0, 11.0):
@@ -370,6 +379,17 @@ class TestNotes(unittest.TestCase):
         moore = _grid(1971, 2019, 25)
         fit = _fit("a*exp(b*x)", moore, _noisy(lambda x: 2300 * 2 ** ((x - 1971) / 2), moore, 0.0, 7))
         self.assertAlmostEqual(fit.values["b"], math.log(2) / 2, places=6)
+
+    def test_x_far_from_zero_refits_textbook_forms(self) -> None:
+        years = _grid(2000, 2020, 21)
+        logistic = [round(500 / (1 + math.exp(-0.4 * (x - 2010))), 1) for x in years]
+        fit = _fit("K/(1+((K-P0)/P0)*exp(-r*x))", years, logistic)
+        notes = " ".join(fit.notes)
+        self.assertIn("written in x - 2000, as K/(1+((K-P0)/P0)*exp(-r*(x - 2000))), it fits with R² = 1", notes)
+        self.assertNotIn("cannot determine", notes)
+        rise = [50 + 300 * (1 - math.exp(-0.3 * (x - 2000))) for x in years]
+        notes = " ".join(_fit("a*(1-exp(-k*x))+c", years, rise).notes)
+        self.assertIn("k = 0.3", notes)
 
     def test_no_shift_is_suggested_when_it_would_change_the_model(self) -> None:
         years = _grid(2000, 2020, 21)

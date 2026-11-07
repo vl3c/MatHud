@@ -33,7 +33,15 @@ import math
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from utils.statistics.custom_model import CustomModel, read_model
-from utils.statistics.fit_starts import MAX_HALF_CYCLES, Shape, half_cycle_counts, screen, subsample, variation
+from utils.statistics.fit_starts import (
+    MAX_HALF_CYCLES,
+    Shape,
+    half_cycle_counts,
+    half_cycles,
+    screen,
+    subsample,
+    variation,
+)
 from utils.statistics.levenberg_marquardt import EvaluationBudget, FitRun, levenberg_marquardt, undetermined_columns
 from utils.statistics.regression import calculate_r_squared
 from utils.statistics.variable_projection import Projector, linear_constants
@@ -144,16 +152,16 @@ def fit_custom_model(
     xs, ys = _checked_data(x_data, y_data, model)
     guesses = initial_values or {}
     given = {k: float(guesses[name]) for k, name in enumerate(model.constants) if name in guesses}
-    fit, projector, best = _fit_constants(xs, ys, model, given, evaluation_limit)
-    offset = _offset_note(fit, model, projector, best, evaluation_limit // SHIFT_SHARE)
+    fit, projector = _fit_constants(xs, ys, model, given, evaluation_limit)
+    offset = _offset_note(fit, model, projector, evaluation_limit // SHIFT_SHARE)
     fit.notes = _notes(fit, offset)
     return fit
 
 
 def _fit_constants(
     xs: List[float], ys: List[float], model: CustomModel, given: Dict[int, float], evaluation_limit: int
-) -> Tuple[CustomFit, Projector, FitRun]:
-    """The fit without its notes, with the projector and run it came from."""
+) -> Tuple[CustomFit, Projector]:
+    """The fit without its notes, with the projector it came from."""
     linear = linear_constants(model, xs)
     nonlinear = [k for k in range(len(model.constants)) if k not in linear]
     screen_budget = EvaluationBudget(int(evaluation_limit * SCREEN_SHARE))
@@ -163,14 +171,17 @@ def _fit_constants(
     budget = EvaluationBudget(evaluation_limit - screen_budget.limit - final_budget.limit)
     full = Projector(model, xs, ys, linear, nonlinear, final_budget if staged else budget)
     counts = half_cycle_counts(xs, ys)
-    # Screened on a point per half cycle tried (frequencies sampled), at least SCREEN_POINTS
-    # and at most MAX_SCREEN_POINTS (a frequency near the sampling limit still fits the points
-    # it is screened on; refining on more points tells it from its aliases); a model with no
-    # sine or cosine on at most as many as MAX_HALF_CYCLES needs
+    # Screened on a point per half cycle tried or counted from mean crossings (so a slow sine
+    # in noisy data has no fast alias on the screened points), at least SCREEN_POINTS and at
+    # most MAX_SCREEN_POINTS (a frequency near the sampling limit still fits the points it is
+    # screened on; refining on more points tells it from its aliases); a model with no sine
+    # or cosine on at most as many as MAX_HALF_CYCLES needs
     cycles = int(math.ceil(max(counts))) if counts else 1
-    if not model.trig_arguments():
-        cycles = min(cycles, MAX_HALF_CYCLES)
-    screen_points = max(SCREEN_POINTS, min(cycles + 1, MAX_SCREEN_POINTS))
+    if model.trig_arguments():
+        screen_cycles = max(cycles, half_cycles(xs, ys))
+    else:
+        cycles = screen_cycles = min(cycles, MAX_HALF_CYCLES)
+    screen_points = max(SCREEN_POINTS, min(screen_cycles + 1, MAX_SCREEN_POINTS))
     screener = full.on(*subsample(xs, ys, screen_points), screen_budget)
     screening = screen(screener, xs, given, counts, REFINED_STARTS)
     # At least 4 points per estimated cycle (2 per half cycle), so refining does not alias
@@ -199,7 +210,7 @@ def _fit_constants(
     best = _canonical(projector, shape, best, canonical_budget)
     _describe(fit, model, projector, best, alternative, shape)
     fit.evaluations = budget.used + screen_budget.used + final_budget.used + canonical_budget.used
-    return fit, projector, best
+    return fit, projector
 
 
 def _checked_data(
@@ -585,13 +596,16 @@ def _number(value: float) -> str:
 
 
 def _notes(fit: CustomFit, offset: Optional[str]) -> List[str]:
+    """The notes on the fit; offset is the x - shift note, which replaces the notes on
+    constants the data cannot determine (those come from the ill-conditioned form)."""
     notes = []
-    for name, value in fit.held.items():
+    held = {} if offset else fit.held
+    for name, value in held.items():
         notes.append(
             f"The data cannot determine {name} separately from the other constants; it was held at "
             f"{_number(value)}, and any value fits equally well once they adjust."
         )
-    if fit.undetermined:
+    if fit.undetermined and not offset:
         names = ", ".join(fit.undetermined)
         notes.append(
             f"The data cannot determine {names} separately from the other constants; "
@@ -627,18 +641,14 @@ def _notes(fit: CustomFit, offset: Optional[str]) -> List[str]:
     return notes
 
 
-def _offset_note(
-    fit: CustomFit, model: CustomModel, projector: Projector, best: FitRun, evaluation_limit: int
-) -> Optional[str]:
+def _offset_note(fit: CustomFit, model: CustomModel, projector: Projector, evaluation_limit: int) -> Optional[str]:
     """Suggest x - shift when x lies far from 0 (years) and the fit looks ill-conditioned.
 
-    The model is refitted in x - shift with evaluation_limit, and suggested with that fit
-    when it fits better, or as well with plainer values. A model the shift merely rewrites
-    (exp(b*x) becomes exp(b*(x - 2000)) with another a, checked by refitting its linear
-    constants with the same nonlinear ones) is refitted only when the fit did not converge
-    or has extreme values (a beyond the float range sticks the rate at its edge); a model
-    the shift changes (K/(1+A*exp(-k*x)), whose A changes too) also when R² is below
-    SHIFT_FIT. A model linear in every constant is solved exactly and never needs it.
+    When the fit did not converge, has extreme values (a beyond the float range sticks the
+    rate at its edge) or an R² below SHIFT_FIT, the model is refitted in x - shift with
+    evaluation_limit, and suggested with that fit when it fits better, or as well with
+    plainer values: exp(b*x) becomes exp(b*(x - 2000)) with another a, K/(1+A*exp(-k*x))
+    gets another A. A model linear in every constant is solved exactly and never needs it.
     """
     xs = projector.xs
     low, high = min(xs), max(xs)
@@ -655,9 +665,6 @@ def _offset_note(
 
     shifted = f"(x - {shift_text})"
     rewritten = substitute_variable(model.text, "x", shifted).replace(f"({shifted})", shifted)
-    rewrites = _rewrites(rewritten, model, projector, best)
-    if rewrites is False or (rewrites and not troubled):
-        return None
     refit = _shifted_fit(rewritten, xs, projector.ys, evaluation_limit)
     if refit is None:
         return None
@@ -687,29 +694,3 @@ def _shifted_fit(text: str, xs: List[float], ys: List[float], evaluation_limit: 
         return _fit_constants(xs, ys, shifted, {}, evaluation_limit)[0]
     except ValueError:
         return None
-
-
-def _rewrites(text: str, model: CustomModel, projector: Projector, best: FitRun) -> Optional[bool]:
-    """Whether the model text fits the data as well as model with the same nonlinear constants.
-
-    None when it does not (the shift changes a nonlinear constant too), False when it cannot
-    be read or names other constants.
-    """
-    try:
-        shifted = read_model(text)
-    except ValueError:
-        return False
-    if shifted.constants != model.constants:
-        return False
-    check = Projector(
-        shifted,
-        projector.xs,
-        projector.ys,
-        projector.linear,
-        projector.nonlinear,
-        EvaluationBudget(EVALUATION_LIMIT),
-        projector.fixed,
-    )
-    projected = check.project(projector.theta(best.params))
-    slack = EXACT_SLACK * sum(y * y for y in projector.ys)
-    return True if projected is not None and projected[1] <= best.sse * (1.0 + TIE_TOLERANCE) + slack else None
