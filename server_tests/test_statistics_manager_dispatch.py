@@ -33,6 +33,7 @@ class _FunctionManager:
     def __init__(self) -> None:
         self.drawn: List[Tuple[str, Optional[str], float, float]] = []
         self.deleted: List[str] = []
+        self.updated: List[Tuple[str, Optional[str], Optional[float], Optional[float]]] = []
 
     def draw_function(
         self, expression: str, *, name: str, left_bound: float, right_bound: float, color: Optional[str]
@@ -42,6 +43,16 @@ class _FunctionManager:
 
     def delete_function(self, name: str) -> None:
         self.deleted.append(name)
+
+    def update_function(
+        self,
+        name: str,
+        new_color: Optional[str] = None,
+        new_left_bound: Optional[float] = None,
+        new_right_bound: Optional[float] = None,
+    ) -> bool:
+        self.updated.append((name, new_color, new_left_bound, new_right_bound))
+        return True
 
 
 class _AreaManager:

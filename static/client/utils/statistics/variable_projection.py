@@ -22,7 +22,11 @@ from utils.statistics.levenberg_marquardt import (
     undetermined_columns,
 )
 
-# Reference values of the constants for the linearity test (several, as some fail to evaluate)
+# Reference values of the constants for the linearity test (several, as some fail to
+# evaluate or hide a constant: exp(b*x) overflows or underflows at x = 2000 unless b is
+# small, exp(-x/tau) unless tau is large, b^x unless b is near 1), each as (first, spread)
+# for constant k = first + spread*k. Settings scaled by the largest |x| (both ways) and
+# settings near 1 are added per data set.
 _REFERENCE_STARTS = ((0.53, 0.21), (1.31, -0.17), (0.047, 0.031), (-0.61, 0.29), (2.2, 0.37))
 _LINEAR_TOLERANCE = 1e-8
 # Offsets from the reference value at which a linear constant's effect must stay on its line:
@@ -35,18 +39,40 @@ _SAMPLE_POINTS = 12
 
 
 def linear_constants(model: CustomModel, xs: List[float]) -> List[int]:
-    """Indices of constants the model is jointly affine in (tested at two reference settings)."""
+    """Indices of constants the model is jointly affine in.
+
+    A constant is linear when it moves the model's values on a straight line at every
+    reference setting where it moves them at all, and it does so at two settings or more
+    (one when only one setting can be evaluated).
+    """
     count = len(model.constants)
     sample = _sample(xs, _SAMPLE_POINTS)
-    settings = [
-        _reference(count, setting) for setting in _REFERENCE_STARTS if _alive(model, sample, _reference(count, setting))
-    ][:2]
+    settings = [ref for ref in _reference_settings(count, xs) if _alive(model, sample, ref)]
     if not settings:
         return []
-    candidates = [k for k in range(count) if all(_affine_in(model, sample, ref, k) for ref in settings)]
-    while candidates and not all(_jointly_affine(model, sample, ref, candidates) for ref in settings):
+    candidates = []
+    for k in range(count):
+        verdicts = [_affine_in(model, sample, ref, k) for ref in settings]
+        if False not in verdicts and verdicts.count(True) >= min(2, len(settings)):
+            candidates.append(k)
+    joint = [ref for ref in settings if all(_moves(model, sample, ref, k) for k in candidates)][:2] or settings[:2]
+    while candidates and not all(_jointly_affine(model, sample, ref, candidates) for ref in joint):
         candidates.pop()
     return candidates
+
+
+def _reference_settings(count: int, xs: List[float]) -> List[List[float]]:
+    scale = max(1.0, max(abs(x) for x in xs))
+    starts = list(_REFERENCE_STARTS)
+    if scale > 1.0:
+        starts += [(first / scale, spread / scale) for first, spread in _REFERENCE_STARTS[:3]]
+        starts += [(first * scale, spread * scale) for first, spread in _REFERENCE_STARTS[:2]]
+    starts += [(1.0 + first / scale, spread / scale) for first, spread in _REFERENCE_STARTS[:2]]
+    return [_reference(count, setting) for setting in starts]
+
+
+def _moves(model: CustomModel, sample: List[float], reference: List[float], k: int) -> bool:
+    return _affine_in(model, sample, reference, k) is not None
 
 
 def _alive(model: CustomModel, sample: List[float], params: List[float]) -> bool:
@@ -73,21 +99,24 @@ def _on_line(value: float, base: float, change: float) -> bool:
     return error <= _LINEAR_TOLERANCE * abs(change) + _ROUNDING * (abs(value) + abs(base)) + 1e-300
 
 
-def _affine_in(model: CustomModel, sample: List[float], reference: List[float], k: int) -> bool:
+def _affine_in(model: CustomModel, sample: List[float], reference: List[float], k: int) -> Optional[bool]:
     """Whether the model's values move on a straight line as constant k moves, the others held.
 
-    A constant that does not move them at the reference is not called linear: treating a
-    linear constant as nonlinear only costs time, the other way round gives wrong fits.
+    None when the constant does not move them at the reference (an underflowed exp), which
+    is no evidence either way. Treating a linear constant as nonlinear only costs time, the
+    other way round gives wrong fits.
     """
     base = model.predictions(sample, reference)
     below = list(reference)
     below[k] -= 1.0
     lower = model.predictions(sample, below)
-    if base is None or lower is None:
-        return False
+    if base is None:
+        return None
+    if lower is None:
+        return False  # a linear constant never stops the model evaluating
     slopes = [base[i] - lower[i] for i in range(len(sample))]
     if all(abs(slopes[i]) <= _ROUNDING * abs(base[i]) for i in range(len(sample))):
-        return False  # no effect here (an underflowed exp): no evidence it is linear
+        return None
     for offset in _LINEAR_OFFSETS:
         params = list(reference)
         params[k] += offset

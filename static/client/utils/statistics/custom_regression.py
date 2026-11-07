@@ -14,9 +14,10 @@ Starting values are the hard part of nonlinear fitting. The fit:
    every point, and keeps the lowest sum of squares. Among equally good fits, one whose
    curve does not swing between the data points wins, then the smoothest (aliasing).
 4. Checks the result: a nonlinear constant the data cannot determine (A*exp(k*(x - x0)):
-   x0 trades against A) is held at a plain value and the others re-solved; a negative
-   constant whose negation fits as well (a Gaussian's width) is reported positive; notes
-   say what the user should know.
+   x0 trades against A) is held at a plain value and the others re-solved; among constant
+   sets that fit exactly as well by symmetry (a sine's phase plus π with its amplitude
+   negated, a Gaussian's width negated), the plainest is reported; notes say what the
+   user should know.
 
 Work is bounded by a count of model evaluations (EVALUATION_LIMIT), so a fit gives the
 same answer on every machine.
@@ -29,7 +30,7 @@ from __future__ import annotations
 import math
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
-from utils.statistics.custom_model import CustomModel
+from utils.statistics.custom_model import CustomModel, read_model
 from utils.statistics.fit_starts import Shape, half_cycles, screen, subsample, variation
 from utils.statistics.levenberg_marquardt import EvaluationBudget, FitRun, levenberg_marquardt, undetermined_columns
 from utils.statistics.regression import calculate_r_squared
@@ -58,6 +59,8 @@ PROBE_STEP = 1e-5
 DETERMINED_FRACTION = 1e-6
 # Below this R² a note suggests initial values
 POOR_FIT = 0.9
+# Variants of the fitted constants tried for the plainest equivalent report (symmetries)
+CANONICAL_TRIES = 150
 
 
 class CustomFit:
@@ -159,8 +162,8 @@ def fit_custom_model(
 
     fit = CustomFit()
     best, projector = _hold_undetermined(full, coarse, best, given, fit)
-    best = _prefer_positive(projector, best)
-    _describe(fit, model, xs, ys, best, alternative, shape)
+    best = _canonical(projector, shape, best)
+    _describe(fit, model, projector, best, alternative, shape)
     fit.evaluations = budget.used + screen_budget.used + final_budget.used
     return fit
 
@@ -358,16 +361,87 @@ def _hold_undetermined(
     return best, projector
 
 
-def _prefer_positive(projector: Projector, best: FitRun) -> FitRun:
-    """Report a negative nonlinear constant positive when its negation fits as well (a width)."""
-    for k in projector.nonlinear:
-        if best.params[k] < 0.0:
-            flipped = list(best.params)
-            flipped[k] = -flipped[k]
-            projected = projector.project(projector.theta(flipped))
-            if projected is not None and _ties(projected[1], best.sse):
-                best = FitRun(projected[0], [], projected[1], best.iterations, best.converged)
-    return best
+def _canonical(projector: Projector, shape: Shape, best: FitRun) -> FitRun:
+    """The plainest of the constant sets that fit exactly as well as best (symmetries).
+
+    A sine's phase fits as well shifted by a multiple of π (its amplitude changes sign),
+    a frequency and phase as well both negated, a width as well negated. Variants from
+    negating one or two nonlinear constants, and from moving one into [-π, π], are
+    explored on a subsample while they keep tying; the plainest (_plainness) is kept
+    when it ties on every point too and swings no more than best.
+    """
+    if not projector.nonlinear:
+        return best
+    xs, ys = subsample(projector.xs, projector.ys, COARSE_POINTS)
+    sample = projector.on(xs, ys, EvaluationBudget(EVALUATION_LIMIT))
+    start = sample.project(sample.theta(best.params))
+    if start is None:
+        return best
+    slack = 1e-24 * sum(y * y for y in ys)
+    target = start[1] * (1.0 + TIE_TOLERANCE) + slack
+    seen = {_key(sample.theta(best.params))}
+    frontier = [start[0]]
+    plainest = start[0]
+    tries = 0
+    while frontier and tries < CANONICAL_TRIES:
+        params = frontier.pop(0)
+        for theta in _variants(sample.theta(params)):
+            key = _key(theta)
+            if key in seen or tries >= CANONICAL_TRIES:
+                continue
+            seen.add(key)
+            tries += 1
+            projected = sample.project(theta)
+            if projected is None or projected[1] > target:
+                continue
+            frontier.append(projected[0])
+            if _plainness(sample, projected[0]) < _plainness(sample, plainest):
+                plainest = projected[0]
+    if plainest is start[0]:
+        return best
+    confirmed = projector.project(projector.theta(plainest))
+    if confirmed is None or confirmed[1] > best.sse * (1.0 + TIE_TOLERANCE) + slack * len(projector.ys):
+        return best
+    if shape.swings(confirmed[0]) and not shape.swings(best.params):
+        return best
+    return FitRun(confirmed[0], [], confirmed[1], best.iterations, best.converged)
+
+
+def _variants(theta: List[float]) -> List[List[float]]:
+    """theta with one or two values negated, or one moved into [-π, π] by a multiple of π."""
+    variants = []
+    count = len(theta)
+    for i in range(count):
+        if theta[i] != 0.0:
+            variants.append(_with(theta, {i: -theta[i]}))
+        turns = math.floor(theta[i] / math.pi)
+        for shift in (turns, turns + 1):
+            if shift != 0:
+                variants.append(_with(theta, {i: theta[i] - shift * math.pi}))
+        for j in range(i + 1, count):
+            if theta[i] != 0.0 and theta[j] != 0.0:
+                variants.append(_with(theta, {i: -theta[i], j: -theta[j]}))
+    return variants
+
+
+def _with(theta: List[float], changes: Dict[int, float]) -> List[float]:
+    changed = list(theta)
+    for index, value in changes.items():
+        changed[index] = value
+    return changed
+
+
+def _key(theta: Sequence[float]) -> Tuple[float, ...]:
+    return tuple(round(value, 9) for value in theta)
+
+
+def _plainness(projector: Projector, params: List[float]) -> Tuple[int, float, int, float]:
+    """Smaller is plainer: positive amplitudes, values within [-π, π], positive values, small values."""
+    negative_linear = sum(1 for k in projector.linear if params[k] < 0.0)
+    nonlinear = [params[k] for k in projector.nonlinear]
+    beyond = sum(max(0.0, abs(value) - math.pi) for value in nonlinear)
+    negative = sum(1 for value in nonlinear if value < 0.0)
+    return negative_linear, beyond, negative, sum(abs(value) for value in nonlinear)
 
 
 # ---------------------------------------------------------------------------
@@ -378,12 +452,12 @@ def _prefer_positive(projector: Projector, best: FitRun) -> FitRun:
 def _describe(
     fit: CustomFit,
     model: CustomModel,
-    xs: List[float],
-    ys: List[float],
+    projector: Projector,
     best: FitRun,
     alternative: Optional[FitRun],
     shape: Shape,
 ) -> None:
+    xs, ys = projector.xs, projector.ys
     fit.values = {name: best.params[k] for k, name in enumerate(model.constants)}
     fit.predictions = model.predictions(xs, best.params) or []
     fit.residuals = [ys[i] - fit.predictions[i] for i in range(len(ys))] if fit.predictions else []
@@ -395,14 +469,14 @@ def _describe(
     fit.exact = len(xs) == len(model.constants)
     if alternative is not None:
         fit.alternative = {name: alternative.params[k] for k, name in enumerate(model.constants)}
-    fit.notes = _notes(fit, model, xs)
+    fit.notes = _notes(fit, model, projector, best)
 
 
 def _number(value: float) -> str:
     return f"{value:.6g}"
 
 
-def _notes(fit: CustomFit, model: CustomModel, xs: List[float]) -> List[str]:
+def _notes(fit: CustomFit, model: CustomModel, projector: Projector, best: FitRun) -> List[str]:
     notes = []
     for name, value in fit.held.items():
         notes.append(
@@ -435,7 +509,7 @@ def _notes(fit: CustomFit, model: CustomModel, xs: List[float]) -> List[str]:
         notes.append(
             "The fit stopped at its work limit before converging; give initial_values near the expected constants."
         )
-    offset = _offset_note(fit, model, xs)
+    offset = _offset_note(fit, model, projector, best)
     if offset:
         notes.append(offset)
     elif fit.r_squared < POOR_FIT and not fit.exact:
@@ -446,23 +520,53 @@ def _notes(fit: CustomFit, model: CustomModel, xs: List[float]) -> List[str]:
     return notes
 
 
-def _offset_note(fit: CustomFit, model: CustomModel, xs: List[float]) -> Optional[str]:
-    """Suggest x - shift when x lies far from 0 (years) and the fit looks ill-conditioned."""
+def _offset_note(fit: CustomFit, model: CustomModel, projector: Projector, best: FitRun) -> Optional[str]:
+    """Suggest x - shift when x lies far from 0 (years) and the fit looks ill-conditioned.
+
+    Only for a model the shift merely rewrites (exp(b*x) becomes exp(b*(x - 2000)) with
+    another a): checked by refitting the linear constants of the shifted model with the same
+    nonlinear ones. A model linear in every constant is solved exactly and never needs it.
+    """
+    xs = projector.xs
     low, high = min(xs), max(xs)
     span = high - low
     centre = (low + high) / 2.0
-    if span <= 0.0 or abs(centre) <= 10.0 * span:
+    if span <= 0.0 or abs(centre) <= 10.0 * span or not projector.nonlinear:
         return None
     extreme = any(value != 0.0 and not 1e-12 < abs(value) < 1e12 for value in fit.values.values())
     if fit.converged and fit.r_squared >= 0.99 and not extreme:
         return None
     unit = 10.0 ** math.floor(math.log10(span))
-    shift = math.floor(low / unit) * unit
-    shift_text = _number(shift)
+    shift_text = _number(math.floor(low / unit) * unit)
     from compiled_expression import substitute_variable
 
-    rewritten = substitute_variable(model.text, "x", f"(x - {shift_text})")
+    shifted = f"(x - {shift_text})"
+    rewritten = substitute_variable(model.text, "x", shifted).replace(f"({shifted})", shifted)
+    if not _rewrites(rewritten, model, projector, best):
+        return None
     return (
         f"x runs from {_number(low)} to {_number(high)}, far from 0, which makes this model hard to fit; "
         f"write it in x - {shift_text} instead, such as {rewritten}."
     )
+
+
+def _rewrites(text: str, model: CustomModel, projector: Projector, best: FitRun) -> bool:
+    """Whether the model text fits the data as well as model with the same nonlinear constants."""
+    try:
+        shifted = read_model(text)
+    except ValueError:
+        return False
+    if shifted.constants != model.constants:
+        return False
+    check = Projector(
+        shifted,
+        projector.xs,
+        projector.ys,
+        projector.linear,
+        projector.nonlinear,
+        EvaluationBudget(EVALUATION_LIMIT),
+        projector.fixed,
+    )
+    projected = check.project(projector.theta(best.params))
+    slack = 1e-24 * sum(y * y for y in projector.ys)
+    return projected is not None and projected[1] <= best.sse * (1.0 + TIE_TOLERANCE) + slack

@@ -21,7 +21,7 @@ MAX_CONSTANTS = 10
 EXAMPLE = "a*exp(-b*x)*cos(c*x) + d"
 
 # "y =", "y ~" or "f(x) =" before the model
-_MODEL_PREFIX = re.compile(r"^\s*(?:y|[A-Za-z]\w*\s*\(\s*x\s*\))\s*(?:=|~)\s*")
+_MODEL_PREFIX = re.compile(r"^\s*(?:[yY]|[A-Za-z]\w*\s*\(\s*x\s*\))\s*(?:=|~)\s*")
 _NAME = re.compile(r"[^\W\d]\w*")
 _LAMBDA = re.compile(r"\blambda\b")
 # Function names never mistaken for constants in the hints below (constants e and pi are values)
@@ -37,14 +37,22 @@ class CustomModel:
         text: The model as given, without a leading "y =".
         constants: The constants, in order of first appearance.
         power_constants: Constants read in the exponent of a power of x itself (x^n).
+        growth_constants: Constants read in the base of a power whose exponent reads x (b^x).
     """
 
-    __slots__ = ("text", "constants", "power_constants", "_batch")
+    __slots__ = ("text", "constants", "power_constants", "growth_constants", "_batch")
 
-    def __init__(self, text: str, constants: Tuple[str, ...], power_constants: FrozenSet[str] = frozenset()) -> None:
+    def __init__(
+        self,
+        text: str,
+        constants: Tuple[str, ...],
+        power_constants: FrozenSet[str] = frozenset(),
+        growth_constants: FrozenSet[str] = frozenset(),
+    ) -> None:
         self.text = text
         self.constants = constants
         self.power_constants = power_constants
+        self.growth_constants = growth_constants
         compiled = compiled_expression.compile_expression(text, ("x",) + constants)
         self._batch = _batch_evaluator(compiled.bind(), len(constants))
 
@@ -70,6 +78,7 @@ class CustomModel:
             value = float(values[name])
             if digits is not None and value != 0.0:
                 value = float(f"{value:.{digits}g}")
+            value += 0.0  # -0.0 is written 0
             number = compiled_expression.plain_number_text(value)
             if number.endswith(".0"):
                 number = number[:-2]
@@ -151,7 +160,7 @@ def read_model(text: Any) -> CustomModel:
         )
     if len(constants) > MAX_CONSTANTS:
         raise ValueError(f"The model has {len(constants)} constants; at most {MAX_CONSTANTS} can be fitted.")
-    return CustomModel(source, constants, _power_constants(tree, constants))
+    return CustomModel(source, constants, _power_constants(tree, constants), _growth_constants(tree, constants))
 
 
 def _in_order(source: str, names: List[str]) -> Tuple[str, ...]:
@@ -194,6 +203,18 @@ def _power_constants(tree: ast.AST, constants: Tuple[str, ...]) -> FrozenSet[str
             if isinstance(node.left, ast.Name) and node.left.id == "x":
                 found.update(
                     child.id for child in ast.walk(node.right) if isinstance(child, ast.Name) and child.id in constants
+                )
+    return frozenset(found)
+
+
+def _growth_constants(tree: ast.AST, constants: Tuple[str, ...]) -> FrozenSet[str]:
+    """Constants read in the base of a power whose exponent reads x (b^x, (1 + r)^(x/2))."""
+    found: Set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow):
+            if any(isinstance(child, ast.Name) and child.id == "x" for child in ast.walk(node.right)):
+                found.update(
+                    child.id for child in ast.walk(node.left) if isinstance(child, ast.Name) and child.id in constants
                 )
     return frozenset(found)
 

@@ -117,13 +117,52 @@ class TestCustomFit(CustomFitHarness):
     def test_a_function_drawing_the_model_is_reused(self) -> None:
         for name in "abcd":
             self.parameters.set_parameter(name, 1.0)
-        self.drawables.add(Function("a*exp(-b*x)*cos(c*x)+d", name="f"))
-        result = self.fit()
+        self.drawables.add(Function("a*exp(-b*x)*cos(c*x)+d", name="f", left_bound=0.0, right_bound=5.0))
+        result = self.fit(curve_color="red")
         self.assertEqual(result["function_name"], "f")
         self.assertEqual(self.functions.drawn, [])
-        self.assertNotIn("bounds", result)
+        name, color, left, right = self.functions.updated[0]
+        self.assertEqual((name, color), ("f", "red"))
+        self.assertEqual((round(left, 9), round(right, 9)), (-0.95, 10.45))
+        self.assertEqual(result["bounds"], {"left": left, "right": right})
         self.assertNotIn("moved_objects", result)
         self.assertAlmostEqual(self.parameter_values()["c"], 2.5, places=8)
+
+    def test_a_refit_on_other_data_grows_the_curve_to_cover_it(self) -> None:
+        for name in "abcd":
+            self.parameters.set_parameter(name, 1.0)
+        self.drawables.add(Function("a*exp(-b*x)*cos(c*x)+d", name="f", left_bound=-1.0, right_bound=11.0))
+        xs = [50.0 + x for x in XS]
+        result = self.fit(x_data=xs, y_data=[3 * math.exp(-0.4 * (x - 50)) * math.cos(2.5 * x) + 1 for x in xs])
+        self.assertEqual(result["bounds"], {"left": -1.0, "right": 60.45})
+        result = self.fit(x_data=xs, plot_bounds={"left_bound": 40, "right_bound": None})
+        self.assertEqual(result["bounds"], {"left": 40.0, "right": 60.45})
+
+    def test_a_reused_curve_drawn_across_the_view_stays_so(self) -> None:
+        for name in "abcd":
+            self.parameters.set_parameter(name, 1.0)
+        self.drawables.add(Function("a*exp(-b*x)*cos(c*x)+d", name="f"))
+        result = self.fit()
+        self.assertEqual(result["bounds"], {"left": None, "right": None})
+        self.assertEqual(self.functions.updated, [])
+
+    def test_another_name_draws_another_curve_after_consent(self) -> None:
+        self.fit()
+        self.drawables.add(Function(self.functions.drawn[0][0], name="custom_fit"))
+        self.assertRefused("update_parameters: true", name="second")
+        result = self.fit(name="second", update_parameters=True)
+        self.assertEqual(result["moved_objects"], ["custom_fit"])
+        self.assertEqual(self.functions.drawn[-1][1], "second")
+
+    def test_the_expression_has_enough_digits_to_reproduce_the_curve(self) -> None:
+        years = [1990.0 + i for i in range(31)]
+        ys = [0.05 * (x - 1990) ** 2 + 0.3 * (x - 1990) + 350 + 0.5 * math.sin(3 * x) for x in years]
+        result = self.fit(model="a*x^3 + b*x^2 + c*x + d", x_data=years, y_data=ys)
+        expression = Function(result["expression"], name="check")
+        for x, y in zip(years, ys):
+            self.assertAlmostEqual(expression.function(x), y - result["residuals"][years.index(x)], delta=1e-3)
+        short = self.fit(name="other", model="p*exp(-q*x)*cos(r*x) + s")
+        self.assertEqual(short["expression"], "3*exp(-0.4*x)*cos(2.5*x) + 1")
 
     def test_a_constant_named_like_another_object_is_refused(self) -> None:
         self.drawables.add(Point(0.0, 0.0, name="A"))
@@ -143,6 +182,13 @@ class TestCustomFit(CustomFitHarness):
     def test_one_undo_batch(self) -> None:
         self.fit()
         self.assertEqual(self.undo.batches, 1)
+
+    def test_fixed_types_accept_empty_fillers_for_custom_arguments(self) -> None:
+        for filler in ({"model": ""}, {"initial_values": []}, {"model": "  ", "update_parameters": False}):
+            with self.subTest(filler=filler):
+                args = {"model_type": "linear", "model": None, "x_data": [1, 2, 3], "y_data": [2, 4, 6]}
+                result = self.fit(**{**args, **filler})
+                self.assertEqual(result["model_type"], "linear")
 
     def test_fixed_types_report_rmse_and_residuals(self) -> None:
         result = self.fit(model_type="linear", model=None, x_data=[1, 2, 3, 4], y_data=[2, 4, 5, 8])

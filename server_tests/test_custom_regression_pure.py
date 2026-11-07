@@ -122,8 +122,14 @@ class TestLinearSplit(unittest.TestCase):
         # atan(b3/(x - b4)) looks linear in b3 for small changes at large x
         self.assertEqual(self.split("b1 - b2*x - atan(b3/(x - b4))/pi", _grid(-4000.0, -1000.0, 25)), ["b1", "b2"])
 
-    def test_an_underflowing_peak_is_not_called_linear(self) -> None:
-        self.assertEqual(self.split("(b1/b2)*exp(-0.5*((x - b3)/b2)^2)", _grid(400.0, 500.0, 35)), [])
+    def test_constants_hidden_at_small_values_are_found_far_from_0(self) -> None:
+        # At x = 400..500 a peak or exp(b*x) underflows or overflows unless the constants are scaled to x
+        self.assertEqual(self.split("(b1/b2)*exp(-0.5*((x - b3)/b2)^2)", _grid(400.0, 500.0, 35)), ["b1"])
+        years = _grid(1960.0, 2020.0, 13)
+        self.assertEqual(self.split("a*exp(b*x) + c", years), ["a", "c"])
+        self.assertEqual(self.split("a*exp(-b*x) + c", years), ["a", "c"])
+        self.assertEqual(self.split("c + a*exp(-x/tau)", years), ["c", "a"])
+        self.assertEqual(self.split("a*b^x + c", years), ["a", "c"])
 
 
 class TestTextbookFits(unittest.TestCase):
@@ -179,6 +185,41 @@ class TestTextbookFits(unittest.TestCase):
         fit = _fit("a*exp(-((x - m)/s)^2)", xs, [4 * math.exp(-(((x - 1) / 1.5) ** 2)) for x in xs])
         self.assertAlmostEqual(fit.values["s"], 1.5, places=6)
 
+    def test_sines_report_a_positive_amplitude_and_frequency_and_a_phase_within_pi(self) -> None:
+        months = [float(m) for m in range(1, 13)]
+        temperatures = [-5.0, -3.0, 2.0, 9.0, 15.0, 20.0, 23.0, 21.0, 16.0, 9.0, 3.0, -2.0]
+        xs = _grid(0, 20, 21)
+        cases = [
+            ("a*sin(b*x + c) + d", months, temperatures),
+            ("a*sin(b*x + c) + d", xs, [2 * math.sin(0.5 * x) + 1 for x in xs]),
+            ("a*exp(-b*x)*cos(c*x + d)", xs, [3 * math.exp(-0.3 * x) * math.cos(2 * x + 0.2) for x in xs]),
+        ]
+        for model, x_data, y_data in cases:
+            with self.subTest(model=model, points=len(x_data)):
+                values = _fit(model, x_data, y_data).values
+                amplitude, frequency = values["a"], values["b" if "sin" in model else "c"]
+                phase = values["c" if "sin" in model else "d"]
+                self.assertGreater(amplitude, 0.0)
+                self.assertGreater(frequency, 0.0)
+                self.assertLessEqual(abs(phase), math.pi + 1e-9)
+        values = _fit(*cases[2]).values
+        for name, truth in {"a": 3.0, "b": 0.3, "c": 2.0, "d": 0.2}.items():
+            self.assertAlmostEqual(values[name], truth, places=6)
+
+    def test_an_exponential_with_an_offset_over_years(self) -> None:
+        years = _grid(1960, 2020, 13)
+        ys = _noisy(lambda x: 280 + 37 * math.exp(0.0175 * (x - 1960)), years, 0.3, 4)
+        for model, rate in (("a*exp(b*x) + c", "b"), ("c + a*exp(b*x)", "b"), ("a*b^x + c", "b")):
+            with self.subTest(model=model):
+                fit = _fit(model, years, ys)
+                self.assertGreater(fit.r_squared, 0.9999)
+                self.assertAlmostEqual(fit.values["c"], 280.0, delta=1.0)
+                growth = fit.values[rate] if "exp" in model else math.log(fit.values[rate])
+                self.assertAlmostEqual(growth, 0.0175, delta=2e-4)
+        decay = _grid(1990, 2020, 16)
+        fit = _fit("c + a*exp(-x/tau)", decay, _noisy(lambda x: 20 + 60 * math.exp(-0.1 * (x - 1990)), decay, 0.3, 5))
+        self.assertAlmostEqual(fit.values["tau"], 10.0, delta=0.3)
+
     def test_results_are_deterministic(self) -> None:
         xs = _grid(0, 10, 30)
         ys = _noisy(lambda x: 2 * math.sin(1.3 * x + 0.4) + 1, xs, 0.1, 3)
@@ -232,6 +273,14 @@ class TestNotes(unittest.TestCase):
         xs = _grid(2000, 2020, 21)
         fit = _fit("a*exp(b*x)", xs, [5 * math.exp(0.6 * (x - 2000)) for x in xs])
         self.assertTrue(any("a*exp(b*(x - 2000))" in note for note in fit.notes), fit.notes)
+
+    def test_no_shift_is_suggested_when_it_would_change_the_model(self) -> None:
+        years = _grid(2000, 2020, 21)
+        wavy = [math.sin(x) + 0.01 * x for x in years]
+        for model in ("a*ln(x) + b", "a/x + b", "a*x^b"):
+            with self.subTest(model=model):
+                fit = _fit(model, years, wavy)
+                self.assertFalse(any("far from 0" in note for note in fit.notes), fit.notes)
 
     def test_a_work_limit_note(self) -> None:
         xs = _grid(0, 10, 300)

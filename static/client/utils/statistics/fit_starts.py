@@ -1,11 +1,12 @@
 """Starting values for a custom fit: screening candidate values of the nonlinear constants.
 
 Candidate values for each nonlinear constant are 0; magnitudes from 0.01 to 30 in the
-units of 1, the x range and 1/(x range); the x quartiles (shifts); and the frequencies of
-1 to MIN_HALF_CYCLES half cycles over the x range (more for data that crosses its mean
-often). A coordinate search scans one constant at a time, twice over, from two seeds, and
-the best values per constant are combined. Candidates whose curve swings between the
-data points (an aliased sine) are ranked after the others (``Shape.swings``).
+units of 1, the x range and 1/(x range); the x quartiles (shifts); the frequencies of 1
+to MIN_HALF_CYCLES half cycles over the x range (more for data that crosses its mean
+often); and, for a constant raised to a power of x (b^x), growth factors near 1. A coordinate search scans one constant at a time,
+twice over, from two seeds, and the best values per constant are combined. Candidates
+whose curve swings between the data points (an aliased sine) are ranked after the others
+(``Shape.swings``).
 
 Pure Python (no browser imports), so server-side pytest imports it directly.
 """
@@ -114,6 +115,13 @@ def candidate_values(xs: List[float], cycles: int) -> List[float]:
     return _distinct(values)
 
 
+def growth_values(xs: List[float]) -> List[float]:
+    """Extra values tried for a constant raised to a power of x (b^x): factors near 1 per unit of x,
+    as b^x must neither overflow nor flatten over the x range (x in years)."""
+    span = (max(xs) - min(xs)) or 1.0
+    return [value for m in (0.1, 0.3, 1.0, 3.0) for value in (1.0 + m / span, 1.0 - m / span) if value > 0.0]
+
+
 def _distinct(values: List[float]) -> List[float]:
     """The values sorted, without near-duplicates."""
     result: List[float] = []
@@ -152,6 +160,11 @@ def screen(
         projected = projector.project([])
         return Screening([projected[0]] if projected is not None else [], None)
     values = candidate_values(xs, cycles)
+    growth = growth_values(xs)
+    model = projector.model
+    per_constant = [
+        _distinct(values + growth) if model.constants[k] in model.growth_constants else values for k in nonlinear
+    ]
     pool: List[Candidate] = []
     rankings: List[List[Tuple[float, float]]] = [[] for _ in nonlinear]
     middle = sorted(xs)[len(xs) // 2]
@@ -163,7 +176,7 @@ def screen(
     for seed in seeds:
         if pool and min(sse for sse, _ in pool) <= GOOD_SCREEN * total:
             break
-        _coordinate_search(projector, values, seed, pool, rankings)
+        _coordinate_search(projector, per_constant, seed, pool, rankings)
     if len(nonlinear) > 1:
         _combine(projector, rankings, pool)
     distinct = _best_distinct(pool, nonlinear, RANKED_CANDIDATES + STEADY_CHECKS)
@@ -183,12 +196,12 @@ def screen(
 
 def _coordinate_search(
     projector: Projector,
-    values: List[float],
+    values: List[List[float]],
     seed: List[float],
     pool: List[Candidate],
     rankings: List[List[Tuple[float, float]]],
 ) -> None:
-    """Scan each nonlinear constant over values, keeping the best so far (twice when there are several).
+    """Scan each nonlinear constant over its values, keeping the best so far (twice when there are several).
 
     Every evaluated candidate joins pool; the first round's results per constant join rankings.
     """
@@ -204,7 +217,7 @@ def _coordinate_search(
             if projector.budget.exhausted:
                 return
             best_value = current[index]
-            for value in values:
+            for value in values[index]:
                 theta = list(current)
                 theta[index] = value
                 result = projector.project(theta)

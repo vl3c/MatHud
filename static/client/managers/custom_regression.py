@@ -36,7 +36,8 @@ if TYPE_CHECKING:
     from utils.statistics.custom_regression import CustomFit
 
 CUSTOM_MODEL_TYPE = "custom"
-# Significant digits of the constants substituted into the reported expression
+# Significant digits of the constants substituted into the reported expression (at least;
+# see expression_digits)
 EXPRESSION_DIGITS = 6
 
 
@@ -49,12 +50,13 @@ class CustomFitPlan:
         moved: Names of other objects that read the existing parameters (update_parameters).
     """
 
-    __slots__ = ("model", "fit", "y_data", "existing", "own_function", "moved")
+    __slots__ = ("model", "fit", "x_data", "y_data", "existing", "own_function", "moved")
 
     def __init__(
         self,
         model: CustomModel,
         fit: CustomFit,
+        x_data: List[float],
         y_data: List[float],
         existing: Dict[str, Any],
         own_function: Optional[Any],
@@ -62,6 +64,7 @@ class CustomFitPlan:
     ) -> None:
         self.model = model
         self.fit = fit
+        self.x_data = x_data
         self.y_data = y_data
         self.existing = existing
         self.own_function = own_function
@@ -82,8 +85,12 @@ class CustomRegression:
         y_data: Sequence[float],
         initial_values: Any,
         update_parameters: Optional[bool],
+        name: Optional[str] = None,
     ) -> CustomFitPlan:
         """Read, check and fit the model; nothing on the canvas changes.
+
+        A function already drawing the model is reused (refitted) unless name asks for
+        another curve.
 
         Raises:
             ValueError: With a hint, for a bad model, constant name, initial value or data,
@@ -98,11 +105,13 @@ class CustomRegression:
         model = read_model(model_text)
         existing = self._existing_parameters(model)
         self._check_free_names(model, existing)
-        own_function = self._function_drawing(model)
+        own_function = self._function_drawing(model, name)
         moved = self._moved_objects(existing, own_function, update_parameters)
         starts = starting_values(model, initial_values, existing)
         fit = fit_custom_model(x_data, y_data, model, starts)
-        return CustomFitPlan(model, fit, [float(y) for y in y_data], existing, own_function, moved)
+        return CustomFitPlan(
+            model, fit, [float(x) for x in x_data], [float(y) for y in y_data], existing, own_function, moved
+        )
 
     def apply(self, plan: CustomFitPlan) -> List[str]:
         """Set each constant's parameter to its fitted value; return notes on widened ranges.
@@ -129,7 +138,7 @@ class CustomRegression:
         fields: Dict[str, Any] = {
             "model_type": CUSTOM_MODEL_TYPE,
             "model": model.text,
-            "expression": model.with_values(fit.values, EXPRESSION_DIGITS),
+            "expression": model.with_values(fit.values, expression_digits(plan)),
             "coefficients": dict(fit.values),
             "parameters": list(model.constants),
             "created_parameters": [name for name in model.constants if name not in plan.existing],
@@ -140,7 +149,7 @@ class CustomRegression:
         if plan.own_function is not None:
             notes.append(
                 f"Function {plan.own_function.name} already draws this model, so no new curve was drawn; "
-                f"it now shows the fit."
+                f"it now shows this fit. Give another name for a separate curve (with differently named constants)."
             )
         if plan.moved:
             fields["moved_objects"] = list(plan.moved)
@@ -172,11 +181,14 @@ class CustomRegression:
                     f"rename the constant in the model, such as {name}1."
                 )
 
-    def _function_drawing(self, model: CustomModel) -> Optional[Any]:
-        """An existing function whose expression is the model, or None."""
+    def _function_drawing(self, model: CustomModel, name: Optional[str]) -> Optional[Any]:
+        """An existing function whose expression is the model (and named name, if given), or None."""
         wanted = _compact(ExpressionValidator.fix_math_expression(model.text))
+        named = str(name or "").strip()
         for function in self.drawables.get_by_class_name("Function"):
-            if _compact(str(getattr(function, "function_string", ""))) == wanted:
+            if _compact(str(getattr(function, "function_string", ""))) != wanted:
+                continue
+            if not named or str(function.name) == named:
                 return function
         return None
 
@@ -231,10 +243,36 @@ def starting_values(model: CustomModel, initial_values: Any, existing: Dict[str,
     return starts
 
 
+def expression_digits(plan: CustomFitPlan) -> int:
+    """Significant digits for the reported expression: enough to reproduce the fitted values.
+
+    EXPRESSION_DIGITS, or more when rounding moves the curve by more than a millionth of the
+    data's y range at a data point (a cubic in years, whose terms nearly cancel).
+    """
+    model, fit = plan.model, plan.fit
+    span = max(plan.y_data) - min(plan.y_data) if plan.y_data else 0.0
+    allowed = 1e-6 * (span or max((abs(y) for y in plan.y_data), default=1.0) or 1.0)
+    for digits in range(EXPRESSION_DIGITS, 17):
+        rounded = [_rounded(fit.values[name], digits) for name in model.constants]
+        values = model.predictions(plan.x_data, rounded)
+        if values is not None and all(
+            abs(values[i] - fit.predictions[i]) <= allowed for i in range(min(len(values), len(fit.predictions)))
+        ):
+            return digits
+    return 17
+
+
+def _rounded(value: float, digits: int) -> float:
+    return float(f"{value:.{digits}g}") if value != 0.0 else 0.0
+
+
 def refuse_custom_arguments(model: Any, initial_values: Any, update_parameters: Any) -> None:
-    """model, initial_values and update_parameters belong to custom fits only."""
+    """model, initial_values and update_parameters belong to custom fits only.
+
+    Empty fillers ("" and []) count as not given, as some models send them for unused arguments.
+    """
     for label, value in (("model", model), ("initial_values", initial_values)):
-        if value is not None:
+        if value is not None and value != [] and not (isinstance(value, str) and not value.strip()):
             raise ValueError(f"{label} is only read with model_type '{CUSTOM_MODEL_TYPE}'; pass null.")
     if update_parameters:
         raise ValueError(f"update_parameters is only read with model_type '{CUSTOM_MODEL_TYPE}'; pass null.")

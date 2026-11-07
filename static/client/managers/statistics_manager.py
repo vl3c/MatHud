@@ -111,6 +111,26 @@ def _regression_bounds(x_data: List[float], plot_bounds: Optional[Dict[str, Any]
     return left_bound, right_bound
 
 
+def _reused_bounds(
+    function: Any, left_bound: float, right_bound: float, plot_bounds: Optional[Dict[str, Any]]
+) -> Tuple[Optional[float], Optional[float]]:
+    """An existing curve's new x range: plot_bounds' ends as given, else its range grown to cover the data.
+
+    An end the curve leaves open (None, drawn across the view) stays open unless plot_bounds sets it.
+    """
+    given = plot_bounds if isinstance(plot_bounds, dict) else {}
+    ends: List[Optional[float]] = []
+    for key, data_end, pick in (("left_bound", left_bound, min), ("right_bound", right_bound, max)):
+        current = getattr(function, key, None)
+        if given.get(key) is not None:
+            ends.append(data_end)
+        elif current is None:
+            ends.append(None)
+        else:
+            ends.append(pick(data_end, float(current)))
+    return ends[0], ends[1]
+
+
 class StatisticsManager:
     def __init__(
         self,
@@ -452,8 +472,9 @@ class StatisticsManager:
             order) when points are shown, and created_point_names,
             reused_point_names and a note when existing points were reused. A
             custom fit adds model, parameters, created_parameters, notes and
-            moved_objects (see CustomRegression.result_fields), and has no bounds
-            when an existing function already drew the model.
+            moved_objects (see CustomRegression.result_fields). When an existing
+            function already draws the model it is reused: its bounds grow to cover
+            the data (or become plot_bounds) and curve_color applies.
         """
         started_at = time.perf_counter()
         model = str(model_type or "").strip().lower()
@@ -473,7 +494,7 @@ class StatisticsManager:
             plan: Optional[CustomFitPlan] = None
             custom = self._custom_regression()
             if model == CUSTOM_MODEL_TYPE:
-                plan = custom.prepare(custom_model, x_data, y_data, initial_values, update_parameters)
+                plan = custom.prepare(custom_model, x_data, y_data, initial_values, update_parameters, name)
                 expression = plan.model.text
             else:
                 refuse_custom_arguments(custom_model, initial_values, update_parameters)
@@ -483,8 +504,15 @@ class StatisticsManager:
 
             # Everything is checked: change the canvas (parameters first, as the curve reads them)
             parameter_notes = custom.apply(plan) if plan is not None else []
+            bounds: Dict[str, Optional[float]] = {"left": left_bound, "right": right_bound}
             if plan is not None and plan.own_function is not None:
                 function_name = str(plan.own_function.name)
+                left, right = _reused_bounds(plan.own_function, left_bound, right_bound, plot_bounds)
+                if curve_color is not None or left is not None or right is not None:
+                    self.function_manager.update_function(
+                        function_name, new_color=curve_color, new_left_bound=left, new_right_bound=right
+                    )
+                bounds = {"left": left, "right": right}
             else:
                 base_name = self.name_generator.filter_string(name or "") or f"{model}_fit"
                 function_name = self.name_generator.generate_function_name(base_name)
@@ -528,8 +556,7 @@ class StatisticsManager:
                     # Pearson's r keeps the slope's sign, which the square root of R-squared loses
                     result_dict["r"] = result.get("r")
                 result_dict.update(residual_report([float(y) for y in y_data], result["predictions"]))
-            if plan is None or plan.own_function is None:
-                result_dict["bounds"] = {"left": left_bound, "right": right_bound}
+            result_dict["bounds"] = bounds
 
             if point_names:
                 result_dict["point_names"] = point_names
