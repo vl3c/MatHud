@@ -98,7 +98,7 @@ CANONICAL_CONFIRMED = 3
 # Model evaluations spent, beyond EVALUATION_LIMIT (and at most a fifth of it), finishing an
 # unconverged fit with Gauss-Newton steps (levenberg_marquardt.polish), which counts as
 # converged once a full step promises less than CONFIRM_TOLERANCE of its sum of squares
-# (a hundredth of a standard error per constant with 1000 points)
+# (about a third of a standard error per constant with 1000 points; the step is still taken)
 POLISH_EVALUATIONS = 40_000
 # Model evaluations spent, beyond EVALUATION_LIMIT (and at most a tenth of it), refining the
 # best screened curve that does not swing when every refined fit swings (aliases)
@@ -172,12 +172,15 @@ def fit_custom_model(
     xs, ys = _checked_data(x_data, y_data, model)
     guesses = initial_values or {}
     given = {k: float(guesses[name]) for k, name in enumerate(model.constants) if name in guesses}
-    shifted = _fit_in_shift(xs, ys, model, given, evaluation_limit)
+    shifted, abandoned = _fit_in_shift(xs, ys, model, given, evaluation_limit)
     if shifted is not None:
-        shifted.notes = _notes(shifted, None, False)
+        # A fit written back with extreme values carries the x-shift note (_fit_in_shift)
+        shifted.notes = _notes(shifted, shifted.notes[0] if shifted.notes else None, False)
         return shifted
     fit, projector, best = _fit_constants(xs, ys, model, given, evaluation_limit)
-    offset, better = _offset_note(fit, model, projector, best, evaluation_limit // SHIFT_SHARE)
+    if abandoned is not None:
+        fit.evaluations += abandoned.evaluations
+    offset, better = _offset_note(fit, model, projector, best, evaluation_limit // SHIFT_SHARE, abandoned)
     fit.notes = _notes(fit, offset, better)
     return fit
 
@@ -701,7 +704,12 @@ def _notes(fit: CustomFit, offset: Optional[str], shift_fits_better: bool) -> Li
 
 
 def _offset_note(
-    fit: CustomFit, model: CustomModel, projector: Projector, best: FitRun, evaluation_limit: int
+    fit: CustomFit,
+    model: CustomModel,
+    projector: Projector,
+    best: FitRun,
+    evaluation_limit: int,
+    prior: Optional[CustomFit] = None,
 ) -> Tuple[Optional[str], bool]:
     """Suggest x - shift when x lies far from 0 (years) and the fit looks ill-conditioned;
     and whether the refit fits better.
@@ -716,7 +724,7 @@ def _offset_note(
     the model's own constants (_carried_back) if they can draw it without extreme values, and
     the refit is suggested in a note otherwise; when it only confirms an unconverged fit, the
     fit counts as converged. A model linear in every constant is solved exactly and never
-    needs it.
+    needs it. prior is a fit in x - shift already made (_fit_in_shift), used as the fresh fit.
     """
     xs = projector.xs
     low, high = min(xs), max(xs)
@@ -746,10 +754,10 @@ def _offset_note(
     run = _refine_one(check, theta) if projected is not None else None
     refit = _fit_of(shifted, check, run) if run is not None else None
     spent = check.budget.used
-    if not rewrite and (troubled or fit.r_squared < FRESH_FIT):
-        fresh = _shifted_fit(model, xs, projector.ys, float(shift_text), evaluation_limit)
+    if prior is not None or (not rewrite and (troubled or fit.r_squared < FRESH_FIT)):
+        fresh = prior or _shifted_fit(model, xs, projector.ys, float(shift_text), evaluation_limit)
         if fresh is not None:
-            spent += fresh.evaluations
+            spent += 0 if fresh is prior else fresh.evaluations
             # The lower sum of squares, or the converged one of two that tie
             if (
                 refit is None
@@ -768,7 +776,7 @@ def _offset_note(
     )
     if not (better or plainer or confirms):
         return None, False
-    if not fit.held and refit.sse < fit.sse:
+    if not fit.held and not refit.held and refit.sse < fit.sse:
         # The model's own constants can usually draw the refit's curve: report that instead
         carried, used = _carried_back(model, shifted, projector, refit, evaluation_limit)
         fit.evaluations += used
@@ -782,11 +790,7 @@ def _offset_note(
         return None, False
     values = ", ".join(f"{name} = {_number(value)}" for name, value in refit.values.items())
     if rewrite:
-        return (
-            f"x runs from {_number(low)} to {_number(high)}, far from 0, which makes this model hard to fit; "
-            f"written in x - {shift_text}, as {rewritten}, it fits with R² = {_number(refit.r_squared)} ({values}).",
-            better,
-        )
+        return _hard_fit_note(xs, shift_text, rewritten, refit), better
     return (
         f"x runs from {_number(low)} to {_number(high)}, far from 0; written in x - {shift_text}, as {rewritten}, "
         f"the model fits with R² = {_number(refit.r_squared)} ({values}), against {_number(fit.r_squared)} here.",
@@ -794,8 +798,22 @@ def _offset_note(
     )
 
 
+def _hard_fit_note(xs: List[float], shift_text: str, rewritten: str, refit: CustomFit) -> str:
+    """The x-shift note for a model the shift only rewrites, with the fit in x - shift."""
+    values = ", ".join(f"{name} = {_number(value)}" for name, value in refit.values.items())
+    return (
+        f"x runs from {_number(min(xs))} to {_number(max(xs))}, far from 0, which makes this model hard to fit; "
+        f"written in x - {shift_text}, as {rewritten}, it fits with R² = {_number(refit.r_squared)} ({values})."
+    )
+
+
 def _carried_back(
-    model: CustomModel, shifted: CustomModel, projector: Projector, refit: CustomFit, evaluation_limit: int
+    model: CustomModel,
+    shifted: CustomModel,
+    projector: Projector,
+    refit: CustomFit,
+    evaluation_limit: int,
+    extreme: bool = False,
 ) -> Tuple[Optional[FitRun], int]:
     """The fit found in x - shift written in the model's own constants, and the evaluations spent.
 
@@ -803,7 +821,7 @@ def _carried_back(
     is moved so the argument matches the shifted one at the middle of the data; the other
     constants keep their values, the linear ones are solved again, and Gauss-Newton steps
     finish it (well conditioned this close). None unless it fits as well as the refit
-    without extreme values (a*exp(b*x) at x near 2000).
+    and, unless extreme is true, without extreme values (a*exp(b*x) at x near 2000).
     """
     xs, ys = projector.xs, projector.ys
     target = [refit.values[name] for name in model.constants]
@@ -818,7 +836,7 @@ def _carried_back(
     run = _polished(projector, FitRun(projected[0], [], projected[1], 0, False), budget)
     slack = EXACT_SLACK * sum(y * y for y in ys)
     values = {name: run.params[k] for k, name in enumerate(model.constants)}
-    if run.sse > refit.sse * (1.0 + CONFIRM_TOLERANCE) + slack or _extreme_values(values):
+    if run.sse > refit.sse * (1.0 + CONFIRM_TOLERANCE) + slack or (_extreme_values(values) and not extreme):
         return None, budget.used
     run.converged = run.converged or refit.converged
     canonical_budget = EvaluationBudget(min(CANONICAL_EVALUATIONS, evaluation_limit // 10))
@@ -871,9 +889,13 @@ def _shifted(model: CustomModel, xs: List[float]) -> Optional[Tuple[CustomModel,
 
 def _fit_in_shift(
     xs: List[float], ys: List[float], model: CustomModel, given: Dict[int, float], evaluation_limit: int
-) -> Optional[CustomFit]:
+) -> Tuple[Optional[CustomFit], Optional[CustomFit]]:
     """A model with sines or cosines of b*x + c, at x far from 0, fitted in x - shift and
-    written back in its own constants; None for any other model, or when that fails.
+    written back in its own constants; None for any other model, or when that fails. The
+    second value is the fit in x - shift when it could not be written back (a*exp(-b*x)
+    beyond the float range), with the work spent on it, for the x-shift note. Written back
+    with extreme values (a*exp(-b*x)*cos(c*x + d) over x from 300, a near 1e52), the fit
+    carries the x-shift note with the values in x - shift.
 
     At x near 2000 a frequency and a phase are nearly collinear (moving b by 0.001 moves the
     argument by 2 unless c moves by -2), so Levenberg-Marquardt crawls; in x - 2000 they are
@@ -881,33 +903,34 @@ def _fit_in_shift(
     shifted model draws (sin(b*x) without a phase does not).
     """
     if not model.trig_arguments() or not len(model.constants) > len(linear_constants(model, xs)):
-        return None
+        return None, None
     rewriting = _shifted(model, xs)
     if rewriting is None:
-        return None
+        return None, None
     shifted, shift_text = rewriting
     linear = linear_constants(model, xs)
     nonlinear = [k for k in range(len(model.constants)) if k not in linear]
     if not _phases_carry(model, shifted, xs, linear, nonlinear):
-        return None
+        return None, None
     shifted_given = given
     if given:
         start = [given.get(k, 1.0) for k in range(len(model.constants))]
         moved = _matched_phases(model.trig_arguments(), shifted.trig_arguments(), start, nonlinear, xs)
         if moved is None:
-            return None
+            return None, None
         shifted_given = {k: moved[k] for k in given}
     try:
         # Fitted on x - shift, so the values screened (magnitudes and deciles of x) suit it
         refit = _fit_constants([x - float(shift_text) for x in xs], ys, model, shifted_given, evaluation_limit)[0]
     except ValueError:
-        return None
+        return None, None
     projector = Projector(model, xs, ys, linear, nonlinear, EvaluationBudget(0))
     if refit.held:
         projector = projector.holding({model.constants.index(name): value for name, value in refit.held.items()})
-    carried, used = _carried_back(model, shifted, projector, refit, evaluation_limit)
+    carried, used = _carried_back(model, shifted, projector, refit, evaluation_limit, extreme=True)
     if carried is None:
-        return None
+        refit.evaluations += used
+        return None, refit
     fit = CustomFit()
     fit.held = dict(refit.held)
     fit.undetermined = list(refit.undetermined)
@@ -919,25 +942,33 @@ def _fit_in_shift(
         used += spent
     _describe(fit, model, projector, carried, alternative, Shape(model, xs))
     fit.evaluations = refit.evaluations + used
-    return fit
+    if _extreme(fit):
+        fit.notes = [_hard_fit_note(xs, shift_text, shifted.text, refit)]
+    return fit, None
 
 
 def _phases_carry(
     model: CustomModel, shifted: CustomModel, xs: List[float], linear: List[int], nonlinear: List[int]
 ) -> bool:
     """Whether the model, its phase constants moved, draws the shifted model's curve (checked at
-    plain constant values on a few points)."""
+    plain constant values on a few points: near 1, or near 1 over the middle x, where a rate
+    in exp(-b*x) at x near 2000 neither underflows nor overflows)."""
     sample = subsample(xs, xs, 24)[0]
-    params = [1.0 + 0.1 * k for k in range(len(model.constants))]
-    curve = shifted.predictions(sample, params)
-    if curve is None:
-        return False
-    moved = _matched_phases(shifted.trig_arguments(), model.trig_arguments(), params, nonlinear, xs)
-    if moved is None:
-        return False
-    check = Projector(model, sample, curve, linear, nonlinear, EvaluationBudget(len(sample) * (len(linear) + 2)))
-    projected = check.project(check.theta(moved))
-    return projected is not None and projected[1] <= 1e-12 * (sum(y * y for y in curve) + 1e-300)
+    centre = abs(sum(sample) / len(sample)) or 1.0
+    for scale in (1.0, 1.0 / centre):
+        params = [(1.0 + 0.1 * k) * scale for k in range(len(model.constants))]
+        curve = shifted.predictions(sample, params)
+        if curve is None or not all(math.isfinite(y) for y in curve) or variation(curve) == 0.0:
+            continue
+        moved = _matched_phases(shifted.trig_arguments(), model.trig_arguments(), params, nonlinear, xs)
+        if moved is None:
+            continue
+        budget = EvaluationBudget(len(sample) * (len(linear) + 2))
+        check = Projector(model, sample, curve, linear, nonlinear, budget)
+        projected = check.project(check.theta(moved))
+        if projected is not None and projected[1] <= 1e-12 * sum(y * y for y in curve):
+            return True
+    return False
 
 
 def _matched_phases(
@@ -948,7 +979,7 @@ def _matched_phases(
     xs: List[float],
 ) -> Optional[List[float]]:
     """params with, for each pair of trigonometric arguments, a phase constant of the target
-    moved so it equals the source (at params) in the middle of the data; an argument with no
+    moved so it equals the source (at params, up to whole turns) in the middle of the data; an argument with no
     phase constant is left alone. None when the arguments do not pair up or cannot be evaluated."""
     if len(sources) != len(targets):
         return None
@@ -965,6 +996,8 @@ def _matched_phases(
                 return None
             if not math.isfinite(gap):
                 return None
+            # Trigonometric calls repeat every 2*pi: the smallest move keeps the phase plain
+            gap -= 2.0 * math.pi * round(gap / (2.0 * math.pi))
             if abs(gap) <= 1e-12 * (abs(wanted) + 1.0):
                 break
             phase = _phase_effect(target, moved, nonlinear, low, high)

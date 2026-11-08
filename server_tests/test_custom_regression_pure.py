@@ -292,6 +292,28 @@ class TestTextbookFits(unittest.TestCase):
                 curve = read_model(model).predictions(xs, [fit.values[name] for name in read_model(model).constants])
                 self.assertAlmostEqual(curve[0], reference.predictions[0], delta=1e-3)
 
+    def test_phases_written_back_from_a_shift_stay_plain(self) -> None:
+        months = [2015 + i / 12 for i in range(120)]
+        seasonal = _noisy(
+            lambda x: 5 + 6 * math.sin(2 * math.pi * x + 1) + 2.4 * math.sin(4 * math.pi * x + 2), months, 0.6, 1
+        )
+        model = "a*sin(b*x+c)+d*sin(2*b*x+g)+f"
+        fit = _fit(model, months, seasonal)
+        reference = _fit(model, [x - 2015 for x in months], seasonal)
+        self.assertLessEqual(fit.sse, reference.sse * (1 + 1e-6))
+        self.assertLess(abs(fit.values["c"]), 2 * math.pi)
+        self.assertLess(abs(fit.values["g"]), 2 * math.pi)
+
+    def test_a_damped_cosine_over_years_is_fitted_in_a_shift(self) -> None:
+        years = _grid(2000, 2020, 1000)
+        ys = _noisy(lambda x: 5 * math.exp(-0.1 * (x - 2000)) * math.cos(math.pi * (x - 2000) + 0.3) + 1, years, 0.2, 3)
+        fit = _fit("a*exp(-b*x)*cos(c*x+d)+g", years, ys)
+        self.assertGreater(fit.r_squared, 0.98)
+        self.assertAlmostEqual(fit.values["b"], 0.1, delta=0.005)
+        self.assertLess(fit.evaluations, 450_000)
+        # a is near 1e89 here, so the note gives the plain values in x - 2000
+        self.assertTrue(any("written in x - 2000" in note and "a = 5.0" in note for note in fit.notes), fit.notes)
+
     def test_damped_oscillations_with_a_phase_are_found(self) -> None:
         xs = _grid(0, 5, 80)
         for rate in (10.0, 11.0):
