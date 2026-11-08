@@ -33,7 +33,18 @@ from utils.statistics.distribution_plot import (
     values_text,
 )
 from utils.statistics.distributions import DEFAULT_DISTRIBUTION_TYPE, DistributionSpec, get_distribution
-from utils.statistics.regression import fit_regression as _fit_regression, SUPPORTED_MODEL_TYPES
+from managers.custom_regression import (
+    CUSTOM_MODEL_TYPE,
+    CustomFitPlan,
+    CustomRegression,
+    refuse_custom_arguments,
+)
+from utils.statistics.regression import (
+    RegressionResult,
+    SUPPORTED_MODEL_TYPES,
+    fit_regression as _fit_regression,
+    residual_report,
+)
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -78,6 +89,46 @@ def _saved_shade(saved: Any) -> Optional[Tuple[float, float]]:
     if math.isnan(left) or math.isnan(right) or left > right:
         return None
     return left, right
+
+
+def _regression_bounds(x_data: List[float], plot_bounds: Optional[Dict[str, Any]]) -> Tuple[float, float]:
+    """The fitted curve's x range: the data's, padded by a tenth, unless plot_bounds gives an end."""
+    x_min = min(x_data)
+    x_max = max(x_data)
+    x_range = x_max - x_min
+    padding = x_range * 0.1 if x_range > 0 else 1.0
+    left_bound = x_min - padding
+    right_bound = x_max + padding
+    if plot_bounds is not None and isinstance(plot_bounds, dict):
+        if plot_bounds.get("left_bound") is not None:
+            left_bound = float(plot_bounds["left_bound"])
+        if plot_bounds.get("right_bound") is not None:
+            right_bound = float(plot_bounds["right_bound"])
+    if not math.isfinite(left_bound) or not math.isfinite(right_bound):
+        raise ValueError("plot_bounds must contain finite values")
+    if left_bound >= right_bound:
+        raise ValueError("left_bound must be less than right_bound")
+    return left_bound, right_bound
+
+
+def _reused_bounds(
+    function: Any, left_bound: float, right_bound: float, plot_bounds: Optional[Dict[str, Any]]
+) -> Tuple[Optional[float], Optional[float]]:
+    """An existing curve's new x range: plot_bounds' ends as given, else its range grown to cover the data.
+
+    An end the curve leaves open (None, drawn across the view) stays open unless plot_bounds sets it.
+    """
+    given = plot_bounds if isinstance(plot_bounds, dict) else {}
+    ends: List[Optional[float]] = []
+    for key, data_end, pick in (("left_bound", left_bound, min), ("right_bound", right_bound, max)):
+        current = getattr(function, key, None)
+        if given.get(key) is not None:
+            ends.append(data_end)
+        elif current is None:
+            ends.append(None)
+        else:
+            ends.append(pick(data_end, float(current)))
+    return ends[0], ends[1]
 
 
 class StatisticsManager:
@@ -345,6 +396,9 @@ class StatisticsManager:
         curve_color: Optional[str],
         show_points: Optional[bool],
         point_color: Optional[str],
+        model: Optional[str] = None,
+        initial_values: Optional[List[Dict[str, Any]]] = None,
+        update_parameters: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """Fit a regression model and plot it as one undo step (see ``_fit_and_plot_regression``).
 
@@ -364,6 +418,9 @@ class StatisticsManager:
                 curve_color=curve_color,
                 show_points=show_points,
                 point_color=point_color,
+                custom_model=model,
+                initial_values=initial_values,
+                update_parameters=update_parameters,
             )
         finally:
             undo_manager.end_batch()
@@ -380,6 +437,9 @@ class StatisticsManager:
         curve_color: Optional[str],
         show_points: Optional[bool],
         point_color: Optional[str],
+        custom_model: Optional[str] = None,
+        initial_values: Optional[List[Dict[str, Any]]] = None,
+        update_parameters: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """
         Fit a regression model to data points and plot the resulting curve.
@@ -395,18 +455,26 @@ class StatisticsManager:
             x_data: List of x values
             y_data: List of y values
             model_type: One of "linear", "polynomial", "exponential",
-                       "logarithmic", "power", "logistic", "sinusoidal"
+                       "logarithmic", "power", "logistic", "sinusoidal", "custom"
             degree: Polynomial degree (required for polynomial model)
             plot_bounds: Optional bounds {left_bound, right_bound} for plotting
             curve_color: Optional color for the curve
             show_points: Whether to plot the data points (default True)
             point_color: Optional color for data points
+            custom_model, initial_values, update_parameters: For "custom" only
+                (managers/custom_regression.py): the model with named constants,
+                starting guesses, and whether existing parameters other objects
+                read may be updated.
 
         Returns:
-            Dict with function_name, expression, coefficients, r_squared,
-            model_type, bounds, point_names (data order) when points are shown,
-            and created_point_names, reused_point_names and a note when existing
-            points were reused
+            Dict with function_name, expression, coefficients, r_squared, rmse,
+            residuals (or max_abs_residual), model_type, bounds, point_names (data
+            order) when points are shown, and created_point_names,
+            reused_point_names and a note when existing points were reused. A
+            custom fit adds model, parameters, created_parameters, notes and
+            moved_objects (see CustomRegression.result_fields). When an existing
+            function already draws the model it is reused: its bounds grow to cover
+            the data (or become plot_bounds) and curve_color applies.
         """
         started_at = time.perf_counter()
         model = str(model_type or "").strip().lower()
@@ -420,59 +488,42 @@ class StatisticsManager:
         )
         result_dict: Optional[Dict[str, Any]] = None
         try:
-            # Validate model type
-            if model not in SUPPORTED_MODEL_TYPES:
-                raise ValueError(
-                    f"Unsupported model_type '{model_type}'. Supported: {', '.join(SUPPORTED_MODEL_TYPES)}"
+            if model not in SUPPORTED_MODEL_TYPES and model != CUSTOM_MODEL_TYPE:
+                supported = ", ".join(SUPPORTED_MODEL_TYPES + (CUSTOM_MODEL_TYPE,))
+                raise ValueError(f"Unsupported model_type '{model_type}'. Supported: {supported}")
+            plan: Optional[CustomFitPlan] = None
+            custom = self._custom_regression()
+            if model == CUSTOM_MODEL_TYPE:
+                plan = custom.prepare(custom_model, x_data, y_data, initial_values, update_parameters, name)
+                expression = plan.model.text
+            else:
+                refuse_custom_arguments(custom_model, initial_values, update_parameters)
+                result = self._fixed_regression(model, x_data, y_data, degree)
+                expression = result["expression"]
+            left_bound, right_bound = _regression_bounds(x_data, plot_bounds)
+
+            # Everything is checked: change the canvas (parameters first, as the curve reads them)
+            parameter_notes = custom.apply(plan) if plan is not None else []
+            bounds: Dict[str, Optional[float]] = {"left": left_bound, "right": right_bound}
+            if plan is not None and plan.own_function is not None:
+                function_name = str(plan.own_function.name)
+                left, right = _reused_bounds(plan.own_function, left_bound, right_bound, plot_bounds)
+                if curve_color is not None or left is not None or right is not None:
+                    self.function_manager.update_function(
+                        function_name, new_color=curve_color, new_left_bound=left, new_right_bound=right
+                    )
+                bounds = {"left": left, "right": right}
+            else:
+                base_name = self.name_generator.filter_string(name or "") or f"{model}_fit"
+                function_name = self.name_generator.generate_function_name(base_name)
+                function_obj = self.function_manager.draw_function(
+                    expression,
+                    name=function_name,
+                    left_bound=left_bound,
+                    right_bound=right_bound,
+                    color=curve_color,
                 )
-
-            # Validate degree for polynomial
-            if model == "polynomial":
-                if degree is None:
-                    raise ValueError("degree is required for polynomial regression")
-                if not isinstance(degree, int) or degree < 1:
-                    raise ValueError("degree must be a positive integer")
-
-            # Fit the regression model
-            result = _fit_regression(x_data, y_data, model, degree)
-            expression = result["expression"]
-            coefficients = result["coefficients"]
-            r_squared = result["r_squared"]
-
-            # Generate base name for function and points
-            default_name = f"{model}_fit"
-            base_name = self.name_generator.filter_string(name or "") or default_name
-
-            # Determine plot bounds
-            x_min = min(x_data)
-            x_max = max(x_data)
-            x_range = x_max - x_min
-            padding = x_range * 0.1 if x_range > 0 else 1.0
-
-            left_bound = x_min - padding
-            right_bound = x_max + padding
-
-            if plot_bounds is not None and isinstance(plot_bounds, dict):
-                if plot_bounds.get("left_bound") is not None:
-                    left_bound = float(plot_bounds["left_bound"])
-                if plot_bounds.get("right_bound") is not None:
-                    right_bound = float(plot_bounds["right_bound"])
-
-            if not math.isfinite(left_bound) or not math.isfinite(right_bound):
-                raise ValueError("plot_bounds must contain finite values")
-            if left_bound >= right_bound:
-                raise ValueError("left_bound must be less than right_bound")
-
-            # Draw the fitted function
-            function_name = self.name_generator.generate_function_name(base_name)
-            function_obj = self.function_manager.draw_function(
-                expression,
-                name=function_name,
-                left_bound=left_bound,
-                right_bound=right_bound,
-                color=curve_color,
-            )
-            function_name = getattr(function_obj, "name", function_name)
+                function_name = getattr(function_obj, "name", function_name)
 
             # Optionally plot the data points
             point_names: List[str] = []
@@ -489,17 +540,23 @@ class StatisticsManager:
                 except Exception:
                     pass
 
-            result_dict = {
-                "function_name": function_name,
-                "expression": expression,
-                "coefficients": coefficients,
-                "r_squared": r_squared,
-                "model_type": model,
-                "bounds": {"left": left_bound, "right": right_bound},
-            }
-            if model == "linear":
-                # Pearson's r keeps the slope's sign, which the square root of R-squared loses
-                result_dict["r"] = result.get("r")
+            result_dict = {"function_name": function_name}
+            if plan is not None:
+                result_dict.update(CustomRegression.result_fields(plan, parameter_notes))
+            else:
+                result_dict.update(
+                    {
+                        "expression": expression,
+                        "coefficients": result["coefficients"],
+                        "r_squared": result["r_squared"],
+                        "model_type": model,
+                    }
+                )
+                if model == "linear":
+                    # Pearson's r keeps the slope's sign, which the square root of R-squared loses
+                    result_dict["r"] = result.get("r")
+                result_dict.update(residual_report([float(y) for y in y_data], result["predictions"]))
+            result_dict["bounds"] = bounds
 
             if point_names:
                 result_dict["point_names"] = point_names
@@ -538,6 +595,21 @@ class StatisticsManager:
                         "point_count": len(cast(List[str], result_dict.get("point_names", []))),
                     },
                 )
+
+    def _custom_regression(self) -> CustomRegression:
+        drawable_manager = getattr(self.canvas, "drawable_manager", None)
+        return CustomRegression(self.drawables, getattr(drawable_manager, "parameter_manager", None))
+
+    @staticmethod
+    def _fixed_regression(
+        model: str, x_data: List[float], y_data: List[float], degree: Optional[int]
+    ) -> RegressionResult:
+        if model == "polynomial":
+            if degree is None:
+                raise ValueError("degree is required for polynomial regression")
+            if not isinstance(degree, int) or degree < 1:
+                raise ValueError("degree must be a positive integer")
+        return _fit_regression(x_data, y_data, model, degree)
 
     def _plot_regression_points(
         self, x_data: List[float], y_data: List[float], point_color: Optional[str]

@@ -29,6 +29,8 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 from browser import document
 
+from json_safe import loads_json
+
 if TYPE_CHECKING:
     from canvas import Canvas
     from workspace_manager import WorkspaceManager
@@ -739,7 +741,7 @@ class SlashCommandHandler:
         json_str = " ".join(args)
 
         try:
-            state = json.loads(json_str)
+            state = loads_json(json_str)
             if not isinstance(state, dict):
                 return CommandResult(success=False, message="Invalid state: expected JSON object.")
 

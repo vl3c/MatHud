@@ -3189,7 +3189,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "fit_regression",
-            "description": "Fits a regression model to data points and plots the resulting curve. Supported model types: linear (y = mx + b), polynomial (y = a0 + a1*x + ... + an*x^n), exponential (y = a*e^(bx)), logarithmic (y = a + b*ln(x)), power (y = a*x^b), logistic (y = L/(1+e^(-k(x-x0)))), and sinusoidal (y = a*sin(bx+c)+d). Returns the function_name, fitted expression, coefficients, R-squared and, for the linear model, r (Pearson correlation, with the slope's sign; null when all y values are equal, while R-squared is then 1), and point_names (every data point in data order). A data point on an existing point reuses it; the result then adds reused_point_names (those points) and created_point_names (the points this call added). Use delete_function to remove the curve; to remove the data points, delete the point_names, or when reused_point_names is present only the created_point_names, never the reused ones (they belong to the user's existing drawing).",
+            "description": "Fits a regression model to data points and plots the resulting curve. Supported model types: linear (y = mx + b), polynomial (y = a0 + a1*x + ... + an*x^n), exponential (y = a*e^(bx)), logarithmic (y = a + b*ln(x)), power (y = a*x^b), logistic (y = L/(1+e^(-k(x-x0)))), sinusoidal (y = a*sin(bx+c)+d), and custom: a model written in x with named constants (model), e.g. a*exp(-b*x)*cos(c*x) + d, for a shape the fixed types do not cover or when the user names the constants. A custom model makes each constant a parameter (slider) set to the fitted constant (an existing parameter of that name is updated) and plots the model itself, so the curve follows the sliders; one undo step removes it all. Returns the function_name, the fitted expression (for custom, the model with the numbers substituted, to 6 or more significant digits), coefficients (full precision), R-squared, rmse (root of SSE/n, the RMS of the residuals) and residuals (y minus fitted y, in data order; for long data only max_abs_residual), for the linear model r (Pearson correlation, with the slope's sign; null when all y values are equal, while R-squared is then 1), and point_names (every data point in data order). A custom model also returns model, parameters, created_parameters and notes (a constant the data cannot pin down, other constants that match equally well, a curve that swings between the points, a work limit reached, a poor result, x far from 0): pass the notes on to the user. The fixed exponential and power types work on ln(y) like the ExpReg and PwrReg of graphing calculators, while custom minimises the squared residuals of y itself, so results can differ slightly on the same data. To plot residuals, call plot_scatter with x_data and the residuals. A data point on an existing point reuses it; the result then adds reused_point_names (those points) and created_point_names (the points this call added). Use delete_function to remove the curve (and delete_parameter for a custom model's created_parameters); to remove the data points, delete the point_names, or when reused_point_names is present only the created_point_names, never the reused ones (they belong to the user's existing drawing).",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -3201,7 +3201,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "x_data": {
                         "type": "array",
                         "items": {"type": "number"},
-                        "description": "Array of x values (independent variable). Must have at least 2 points (more for polynomial).",
+                        "description": "Array of x values (independent variable). Must have at least 2 points (more for polynomial; for custom at least as many as the model has constants, at most 1000).",
                     },
                     "y_data": {
                         "type": "array",
@@ -3218,8 +3218,30 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             "power",
                             "logistic",
                             "sinusoidal",
+                            "custom",
                         ],
-                        "description": "Type of regression model to fit. Note: exponential and power require positive y values; logarithmic and power require positive x values.",
+                        "description": "Type of regression model to fit. Note: exponential and power require positive y values; logarithmic and power require positive x values. custom fits the expression given in model.",
+                    },
+                    "model": {
+                        "type": ["string", "null"],
+                        "description": "For model_type custom only, else null: the model as an expression in x with named constants, such as a*exp(-b*x)*cos(c*x) + d, L/(1 + exp(-k*(x - x0))) or Vmax*x/(Km + x). Write every function call with parentheses (exp(-b*x), sin(c*x), ln(x), sqrt(x - h)), every product with * (a*x, never ax; sin(x), never sinx) and powers with ^. A constant is a name of letters, digits and _ starting with a letter (a, k, x0, b_2, Vmax), at most 10 of them; not x, y, e, pi, i or a function name (gamma, sign, ln); lambda is reserved, use k. A leading 'y =' is dropped. A number written in the model stays fixed: a*exp(-0.5*x) fits only a. Rewrite another variable (t) as x. A constant named like an existing parameter fits and updates that parameter; one named like another canvas object (point A) is refused.",
+                    },
+                    "initial_values": {
+                        "type": ["array", "null"],
+                        "description": "For model_type custom only, else null: optional starting guesses for some constants, such as [{name: 'b', value: 3}], when the automatic search may miss the fit (several peaks, a rational function, a frequency the user knows roughly). They are only guesses: every constant is still fitted. Usually null.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string", "description": "A constant of the model."},
+                                "value": {"type": "number", "description": "Its starting guess."},
+                            },
+                            "required": ["name", "value"],
+                            "additionalProperties": False,
+                        },
+                    },
+                    "update_parameters": {
+                        "type": ["boolean", "null"],
+                        "description": "For model_type custom only, else null: true lets the fit update existing parameters that other objects read; those objects move with them and are listed in moved_objects. Null refuses such a fit with a hint (name the constants differently, or ask the user before passing true).",
                     },
                     "degree": {
                         "type": ["integer", "null"],
@@ -3261,6 +3283,9 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     "curve_color",
                     "show_points",
                     "point_color",
+                    "model",
+                    "initial_values",
+                    "update_parameters",
                 ],
                 "additionalProperties": False,
             },

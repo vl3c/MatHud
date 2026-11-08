@@ -22,13 +22,18 @@ from typing import Any, Dict, List, Optional, TypedDict
 from utils.statistics.two_variable import paired_sums
 
 
+# Residuals listed in a fit's result; for more data points only the largest is given
+MAX_LISTED_RESIDUALS = 100
+
+
 class RegressionResult(TypedDict):
-    """Result of a regression fit."""
+    """Result of a regression fit (predictions: the fitted y at each data x, in data order)."""
 
     expression: str
     coefficients: Dict[str, float]
     r_squared: float
     model_type: str
+    predictions: List[float]
 
 
 class LinearRegressionResult(RegressionResult, total=False):
@@ -159,6 +164,30 @@ def calculate_r_squared(y_actual: List[float], y_predicted: List[float]) -> floa
     # only round-off above 1 is clamped
     r_squared = 1.0 - (ss_res / ss_tot)
     return min(1.0, r_squared)
+
+
+def residual_report(y_actual: List[float], y_predicted: List[float]) -> Dict[str, Any]:
+    """RMSE and the residuals (y - fitted y) for a fit's result.
+
+    rmse is √(SSE/n), the root mean square of the residuals (not the residual standard
+    error, which divides by n minus the number of constants). Up to MAX_LISTED_RESIDUALS
+    residuals are listed in data order, rounded to 6 significant digits; for more data
+    only the largest absolute residual is given, with a note.
+    """
+    residuals = [ya - yp for ya, yp in zip(y_actual, y_predicted)]
+    total = 0.0
+    for value in residuals:
+        total += value * value
+    report: Dict[str, Any] = {"rmse": math.sqrt(total / len(residuals)) if residuals else 0.0}
+    if len(residuals) <= MAX_LISTED_RESIDUALS:
+        report["residuals"] = [float(f"{value:.6g}") for value in residuals]
+    else:
+        report["max_abs_residual"] = float(f"{max(abs(value) for value in residuals):.6g}")
+        report["residuals_note"] = (
+            f"{len(residuals)} residuals: only the largest absolute one is listed. To plot them, "
+            f"compute y - fitted y and call plot_scatter."
+        )
+    return report
 
 
 # ---------------------------------------------------------------------------
@@ -324,6 +353,7 @@ def fit_linear(x_data: List[float], y_data: List[float]) -> LinearRegressionResu
         "expression": expression,
         "coefficients": coefficients,
         "r_squared": r_squared,
+        "predictions": y_predicted,
         "model_type": "linear",
         "r": paired_sums(x_data, y_data).r,
     }
@@ -448,6 +478,7 @@ def fit_polynomial(x_data: List[float], y_data: List[float], degree: int) -> Reg
         "expression": expression,
         "coefficients": coefficients,
         "r_squared": r_squared,
+        "predictions": y_predicted,
         "model_type": "polynomial",
     }
 
@@ -484,6 +515,7 @@ def fit_exponential(x_data: List[float], y_data: List[float]) -> RegressionResul
         "expression": expression,
         "coefficients": coefficients,
         "r_squared": r_squared,
+        "predictions": y_predicted,
         "model_type": "exponential",
     }
 
@@ -518,6 +550,7 @@ def fit_logarithmic(x_data: List[float], y_data: List[float]) -> RegressionResul
         "expression": expression,
         "coefficients": coefficients,
         "r_squared": r_squared,
+        "predictions": y_predicted,
         "model_type": "logarithmic",
     }
 
@@ -556,6 +589,7 @@ def fit_power(x_data: List[float], y_data: List[float]) -> RegressionResult:
         "expression": expression,
         "coefficients": coefficients,
         "r_squared": r_squared,
+        "predictions": y_predicted,
         "model_type": "power",
     }
 
@@ -693,6 +727,7 @@ def fit_logistic(
         "expression": expression,
         "coefficients": coefficients,
         "r_squared": r_squared,
+        "predictions": y_predicted,
         "model_type": "logistic",
     }
 
@@ -837,6 +872,7 @@ def fit_sinusoidal(
         "expression": expression,
         "coefficients": coefficients,
         "r_squared": r_squared,
+        "predictions": y_predicted,
         "model_type": "sinusoidal",
     }
 

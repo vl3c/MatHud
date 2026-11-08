@@ -944,3 +944,43 @@ class TestCreativePrompts:
         names = _top_n(self.service,
                        "remove the workspace named 'old_draft'")
         assert "delete_workspace" in names
+
+
+class TestCustomFitRouting:
+    """Custom-model fits asked for without "fit" or "regression" reach fit_regression."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self) -> None:
+        clear_search_cache()
+        self.service = ToolSearchService.__new__(ToolSearchService)
+        self.service._client = None
+        self.service._client_initialized = False
+        self.service.default_model = None
+        self.service.last_error = None
+
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "find a, b and c so that a*x^2 + b*x + c best fits the data",
+            "use least squares to find a and b in y = a*e^(b*x)",
+            "adjust a and b so the curve a*x^2 + b fits the points",
+            "least squares estimate of the rate constant k in y = 5*exp(-k*x)",
+            "model the data with y = a*sin(b*x) and find a and b",
+            "the data follows y = a*exp(b*x); find a and b",
+        ],
+    )
+    def test_custom_fit_phrasings(self, query: str) -> None:
+        assert "fit_regression" in _top_n(self.service, query)[:3]
+
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "solve the least squares system A x = b with A = [[1,1],[1,2],[1,3]]",
+            "least squares solution of Ax = b",
+            "the largest circle that fits inside triangle ABC",
+            "solve for a and b: a + b = 5, a - b = 1",
+            "find k if the curve y = k*x^2 passes through (2, 12)",
+        ],
+    )
+    def test_other_senses_stay_away(self, query: str) -> None:
+        assert "fit_regression" not in _top_n(self.service, query)[:2]

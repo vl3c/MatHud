@@ -186,6 +186,10 @@ Fit a logarithmic regression to x_data=[1,2,3,4,5,6] and y_data=[0,0.7,1.1,1.4,1
 Fit a sinusoidal model to the data x_data=[0,0.5,1,1.5,2,2.5,3] and y_data=[0,0.48,0.84,1.0,0.91,0.6,0.14]. Plot the curve with custom bounds from -1 to 4.
 Fit a logistic growth curve to x_data=[1,2,3,4,5,6,7,8,9,10] and y_data=[2,3,5,9,16,25,36,44,48,50]. What is the estimated carrying capacity (L)?
 Fit a quadratic to yearly sales x_data=[2018,2019,2020,2021,2022,2023] and y_data=[120,135,149,166,180,197] and report the coefficients and R-squared.
+Fit y = a*exp(-b*x)*cos(c*x) + d to x_data=[0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5] and y_data=[4.0,1.79,-0.6,-0.37,1.4,2.08,1.33,0.41,0.5,1.1,1.42]. Report the constants, R-squared and RMSE.
+Find Vmax and Km in v = Vmax*x/(Km + x) from the enzyme data x_data=[0.02,0.06,0.11,0.22,0.56,1.1] and y_data=[45,91,124,150,179,187], then move the Vmax slider to see the curve change.
+Fit a Gaussian peak a*exp(-(x - m)^2/(2*s^2)) to the data and show the residuals as a scatter plot.
+Fit y = a*sin(b*x) + c*sin(d*x) to the data, starting from b = 1 and d = 3.
 
 # Geometric Property Calculations
 What is the distance between point A and segment DE's midpoint?
