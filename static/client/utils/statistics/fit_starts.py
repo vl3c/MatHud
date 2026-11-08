@@ -5,10 +5,12 @@ units of 1, the x range and 1/(x range); and the x deciles (shifts). A constant 
 the frequency of a trigonometric argument (b, f or T in sin(b*x), sin(2*pi*f*x),
 sin(2*pi*x/T)) also gets the values giving 1 to MIN_HALF_CYCLES half cycles over the x
 range, and more when the data crosses its mean more often (beyond MAX_HALF_CYCLES, the
-peaks of the data's spectrum: half_cycle_counts); a phase or shift gets values across one period (_Trig); a
-constant raised to a power of x (b^x) gets growth factors near 1. A coordinate search
-scans one constant at a time (frequencies first), twice over, from up to three seeds,
-each with its share of the work, and the best values per constant are combined.
+peaks of the data's spectrum: half_cycle_counts), or its spectrum peaks beyond them; a
+phase or shift gets values across one period (_Trig); a constant raised to a power of x
+(b^x) gets growth factors near 1. A coordinate search scans one constant at a time
+(frequencies first), twice over, from up to four seeds (the first with the frequencies at
+the spectrum's strongest peak, the other constants scanned first), each with its share of
+the work, and the best values per constant are combined.
 Candidates whose curve swings between the data points (an aliased sine) are ranked after
 the others (``Shape.swings``).
 
@@ -36,6 +38,8 @@ UNEVEN_HALF_CYCLES = 160
 # rarely reaches 14 times its mean power, about 20 times its median, over 1000 bins)
 SPECTRAL_PEAKS = 4
 PEAK_RATIO = 30.0
+# A strongest peak with fewer half cycles over the x range seeds no screening (see screen)
+MIN_PEAK_HALF_CYCLES = 3.0
 # Candidates per constant kept for the combination stage, and the most combinations tried
 COMBINED_PER_CONSTANT = 3
 MAX_COMBINATIONS = 243
@@ -109,14 +113,19 @@ def half_cycles(xs: List[float], ys: List[float]) -> int:
     Oscillating data crosses its mean about once per half cycle; a quarter more covers the
     estimate's error. The data's sampling limit (n - 1 half cycles) caps it.
     """
+    wanted = max(MIN_HALF_CYCLES, _crossing_estimate(xs, ys))
+    return max(1, min(wanted, len(xs) - 1))
+
+
+def _crossing_estimate(xs: List[float], ys: List[float]) -> int:
+    """A quarter more than the number of times the data crosses its mean, in order of x."""
     order = sorted(range(len(xs)), key=lambda i: xs[i])
     mean = sum(ys) / len(ys)
     crossings = 0
     for index in range(len(order) - 1):
         if (ys[order[index]] - mean) * (ys[order[index + 1]] - mean) < 0.0:
             crossings += 1
-    wanted = max(MIN_HALF_CYCLES, int(crossings * 1.25) + 1)
-    return max(1, min(wanted, len(xs) - 1))
+    return int(crossings * 1.25) + 1
 
 
 def candidate_values(xs: List[float]) -> List[float]:
@@ -139,27 +148,42 @@ def half_cycle_counts(xs: List[float], ys: List[float]) -> List[float]:
     """Half-cycle counts over the x range whose frequencies are tried.
 
     Every count up to MAX_HALF_CYCLES, or up to the estimate from mean crossings
-    (half_cycles) when lower. Beyond MAX_HALF_CYCLES, noise inflates that estimate, so
-    evenly spaced data takes the counts of the strongest peaks of its spectrum instead
-    (spectral_counts, each with its neighbours half a count away); unevenly spaced data
-    takes WINDOW_VALUES counts spread over the top 40% of the estimate, at most
-    UNEVEN_HALF_CYCLES.
+    (half_cycles) when lower, with the counts of the spectrum's peaks above that estimate
+    for evenly spaced data (a trend hides a cycle from the crossings). Beyond
+    MAX_HALF_CYCLES, noise inflates that estimate, so evenly spaced data takes the counts
+    of the strongest peaks of its spectrum instead (spectral_counts, each with its
+    neighbours half a count away); unevenly spaced data takes WINDOW_VALUES counts spread
+    over the top 40% of the estimate, at most UNEVEN_HALF_CYCLES.
     """
     cycles = half_cycles(xs, ys)
     counts: List[float] = [float(k) for k in range(1, min(cycles, MAX_HALF_CYCLES) + 1)]
-    if cycles <= MAX_HALF_CYCLES:
-        return counts
     peaks = spectral_counts(xs, ys)
+    limit = len(xs) - 1
+    if cycles <= MAX_HALF_CYCLES:
+        # A trend hides a fast cycle from the mean crossings (a seasonal cycle on a rising
+        # line crosses its mean about once), but not from the spectrum of the detrended data
+        for peak in peaks or []:
+            counts.extend(count for count in (peak - 0.5, peak, peak + 0.5) if cycles < count <= limit)
+        return counts
     if peaks is None:
         top = min(cycles, UNEVEN_HALF_CYCLES)
         low = max(MAX_HALF_CYCLES + 1, int(0.6 * top))
         stride = max(1, (top - low + 1) // WINDOW_VALUES)
         counts.extend(float(k) for k in range(low, top + 1, stride))
         return counts
-    limit = len(xs) - 1
     for peak in peaks:
         counts.extend(count for count in (peak - 0.5, peak, peak + 0.5) if MAX_HALF_CYCLES < count <= limit)
     return counts
+
+
+def peak_half_cycles(xs: List[float], ys: List[float]) -> Optional[float]:
+    """The half-cycle count of the strongest peak of the spectrum of evenly spaced data
+    (linear trend removed), when it holds at least MIN_PEAK_HALF_CYCLES (fewer is the leak
+    of a curved trend); None otherwise."""
+    peaks = spectral_counts(xs, ys)
+    if not peaks or not MIN_PEAK_HALF_CYCLES <= peaks[0] <= len(xs) - 1:
+        return None
+    return peaks[0]
 
 
 def spectral_counts(xs: List[float], ys: List[float]) -> Optional[List[float]]:
@@ -254,8 +278,9 @@ class _Trig:
         self.arguments = model.trig_arguments()
         self.low, self.high = min(xs), max(xs)
         span = (self.high - self.low) or 1.0
-        targets = [math.pi * k / span for k in counts]
+        self.span = span
         self.frequencies: Dict[int, List[float]] = {}
+        self._rates: Dict[int, Tuple[float, bool]] = {}
         self.phases: Dict[int, Callable[..., float]] = {}
         base = [1.0] * self.count
         for index, k in enumerate(self.nonlinear):
@@ -264,11 +289,19 @@ class _Trig:
                 if first is None or second is None:
                     continue
                 if abs(first) > 1e-12 and abs(second / first - 2.0) < 1e-6:
-                    self.frequencies.setdefault(index, [target / first for target in targets])
+                    self._rates.setdefault(index, (first, False))
                 elif abs(first) > 1e-12 and abs(second / first - 0.5) < 1e-6:
-                    self.frequencies.setdefault(index, [first / target for target in targets])
+                    self._rates.setdefault(index, (first, True))
                 elif abs(second - first) <= 1e-9 * max(1.0, abs(first)):
                     self.phases.setdefault(index, argument)
+        for index in self._rates:
+            self.frequencies[index] = [self.frequency(index, k) for k in counts]
+
+    def frequency(self, index: int, count: float) -> float:
+        """The value of frequency constant index giving count half cycles over the x range."""
+        first, inverse = self._rates[index]
+        target = math.pi * count / self.span
+        return first / target if inverse else target / first
 
     def turns(self, index: int, theta: List[float]) -> List[float]:
         """Values one eighth of a period apart around a phase constant's current value."""
@@ -336,13 +369,17 @@ def screen(
     seed_values: Mapping[int, float],
     counts: List[float],
     count: int,
+    peak: Optional[float] = None,
 ) -> Screening:
     """The count best distinct candidates (full constant lists), curves that swing last.
 
     A coordinate search runs from up to three seeds: every nonlinear constant at 1 (or its
     value in seed_values), then every one at the median x, so a peak's centre and width are
     found together when the data lies far from 0, then every one at 0. A seed is skipped
-    when an earlier one already explains all but GOOD_SCREEN of the variation.
+    when an earlier one already explains all but GOOD_SCREEN of the variation. With peak
+    (the half-cycle count of the spectrum's strongest peak), a seed with the frequencies at
+    that peak comes first (after seed_values), its other constants scanned first: a trend
+    is fitted before the frequencies are scanned (it would hide a seasonal cycle from them).
     """
     nonlinear = projector.nonlinear
     if not nonlinear:
@@ -360,6 +397,12 @@ def screen(
     rankings: List[List[Tuple[float, float]]] = [[] for _ in nonlinear]
     middle = sorted(xs)[len(xs) // 2]
     seeds = [[float(seed_values.get(k, 1.0)) for k in nonlinear]]
+    trend_first = -1
+    if peak is not None and trig.frequencies:
+        trend_first = 1 if seed_values else 0
+        seeds.insert(
+            trend_first, [trig.frequency(i, peak) if i in trig.frequencies else 1.0 for i in range(len(nonlinear))]
+        )
     if abs(middle - 1.0) > 0.5:
         seeds.append([middle] * len(nonlinear))
     # From 0 a frequency is scanned before a fast decay has hidden it (exp(-b*x)*cos(c*x))
@@ -373,7 +416,7 @@ def screen(
         # Each seed scans every constant once, then a second round within its share of what
         # is left, so the last seed is still scanned
         stop = budget.used + max(0, budget.limit - budget.used) // (len(seeds) - number)
-        _coordinate_search(projector, per_constant, seed, pool, rankings, trig, stop)
+        _coordinate_search(projector, per_constant, seed, pool, rankings, trig, stop, number != trend_first)
     if len(nonlinear) > 1:
         _combine(projector, rankings, pool)
     distinct = _best_distinct(projector, pool, RANKED_CANDIDATES + STEADY_CHECKS)
@@ -403,13 +446,17 @@ def _coordinate_search(
     rankings: List[List[Tuple[float, float]]],
     trig: "_Trig",
     stop: int,
+    frequencies_first: bool = True,
 ) -> None:
     """Scan each nonlinear constant over its values, keeping the best so far (twice when there are several),
     constants setting a frequency first.
 
-    A phase constant also scans a period around its current value (_Trig.turns). The second
-    round stops once the budget's used count reaches stop. Every evaluated candidate joins
-    pool; the first round's results per constant join rankings.
+    With frequencies_first false (frequencies already set from the spectrum) the first round
+    leaves the frequencies alone and alternates phases and the other constants (a decay or a
+    trend is scanned on a cycle in phase, and the phase on the decay found), and the second
+    scans the frequencies last. A phase constant also scans a period around its current
+    value (_Trig.turns). The second round stops once the budget's used count reaches stop.
+    Every evaluated candidate joins pool; each constant's first scan joins rankings.
     """
     current = list(seed)
     best_sse = math.inf
@@ -418,12 +465,13 @@ def _coordinate_search(
         pool.append((projected[1], projected[0]))
         best_sse = projected[1]
     count = len(current)
-    # Frequencies first: before a decay or a growth has been fitted to the first points alone
-    order = sorted(range(count), key=lambda index: index not in trig.frequencies)
-    for round_index in range(2 if count > 1 else 1):
+    ranked: List[int] = []
+    for round_index, order in enumerate(_scan_rounds(trig, count, frequencies_first)):
         for index in order:
             if projector.budget.exhausted or (round_index > 0 and projector.budget.used >= stop):
                 return
+            first_scan = index not in ranked
+            ranked.append(index)
             scanned: List[Tuple[float, float]] = []
             for value in values[index] + trig.turns(index, current):
                 theta = list(current)
@@ -433,7 +481,7 @@ def _coordinate_search(
                     continue
                 pool.append((result[1], result[0]))
                 scanned.append((result[1], value))
-                if round_index == 0:
+                if first_scan:
                     rankings[index].append((result[1], value))
             for sse, value in sorted(scanned):
                 if sse >= best_sse:
@@ -443,6 +491,19 @@ def _coordinate_search(
                 if count == 1 or not _hides_the_others(projector, theta, index, sse):
                     best_sse, current[index] = sse, value
                     break
+
+
+def _scan_rounds(trig: "_Trig", count: int, frequencies_first: bool) -> List[List[int]]:
+    """The constants each round of _coordinate_search scans, in order."""
+    if frequencies_first:
+        # Frequencies first: before a decay or a growth has been fitted to the first points alone
+        order = sorted(range(count), key=lambda index: index not in trig.frequencies)
+        return [order, order] if count > 1 else [order]
+    frequencies = [index for index in range(count) if index in trig.frequencies]
+    phases = [index for index in range(count) if index in trig.phases and index not in trig.frequencies]
+    others = [index for index in range(count) if index not in trig.frequencies and index not in trig.phases]
+    first = phases + others + phases + others + phases if phases else others
+    return [first, phases + others + frequencies]
 
 
 def _hides_the_others(projector: Projector, theta: List[float], index: int, sse: float) -> bool:

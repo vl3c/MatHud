@@ -39,6 +39,7 @@ from utils.statistics.fit_starts import (
     Shape,
     half_cycle_counts,
     half_cycles,
+    peak_half_cycles,
     screen,
     subsample,
     variation,
@@ -211,7 +212,8 @@ def _fit_constants(
         cycles = screen_cycles = min(cycles, MAX_HALF_CYCLES)
     screen_points = max(SCREEN_POINTS, min(screen_cycles + 1, MAX_SCREEN_POINTS))
     screener = full.on(*subsample(xs, ys, screen_points), screen_budget)
-    screening = screen(screener, xs, given, counts, REFINED_STARTS)
+    peak = peak_half_cycles(xs, ys) if model.trig_arguments() else None
+    screening = screen(screener, xs, given, counts, REFINED_STARTS, peak)
     # At least 4 points per estimated cycle (2 per half cycle), so refining does not alias
     coarse = full.on(*subsample(xs, ys, max(COARSE_POINTS, int(1.6 * cycles))), budget) if staged else full
     starts = list(screening.starts)
@@ -966,7 +968,9 @@ def _fit_in_shift(
         projector = projector.holding({model.constants.index(name): value for name, value in refit.held.items()})
     carried, used = _carried_back(model, shifted, projector, refit, evaluation_limit, extreme=True)
     if carried is None:
-        if _overflows(model, shifted, projector, refit):
+        # Refused only for a fit worth suggesting: a poor or unconverged refit (a local
+        # minimum) says nothing about the model, which is then fitted in x
+        if refit.converged and refit.r_squared >= FRESH_FIT and _overflows(model, shifted, projector, refit):
             values = ", ".join(f"{name} = {_number(value)}" for name, value in refit.values.items())
             raise ValueError(
                 f"x runs from {_number(min(xs))} to {_number(max(xs))}, far from 0, where this model's constants "

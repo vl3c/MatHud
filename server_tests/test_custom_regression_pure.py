@@ -338,6 +338,37 @@ class TestTextbookFits(unittest.TestCase):
         self.assertIn("as a*exp(-b*(x - 2018))*cos(c*(x - 2018)+d)+g, it fits with R² = ", message)
         self.assertIn("b = 0.4", message)
 
+    def test_a_seasonal_cycle_on_a_trend_is_found_from_the_spectrum(self) -> None:
+        # A trend hides the cycle from the mean crossings (20 to 30 cycles, beyond the 40 half
+        # cycles always tried); the spectrum of the detrended data shows it
+        months = [(i + 0.5) / 12 for i in range(360)]
+        co2 = _noisy(lambda x: 300 + 1.5 * x + 3 * math.sin(2 * math.pi * x + 1), months, 0.3, 2)
+        fit = _fit("m*x + c*sin(w*x + d) + k", months, co2)
+        self.assertAlmostEqual(fit.values["w"], 2 * math.pi, delta=0.01)
+        self.assertAlmostEqual(fit.values["c"], 3, delta=0.1)
+        # Weekly data in years: no float-range refusal, and the exponential trend is found
+        weeks = [2000 + (i + 0.5) / 52 for i in range(1000)]
+        sales = _noisy(
+            lambda x: 20 + 30 * math.exp(0.03 * (x - 2000)) + 5 * math.sin(2 * math.pi * x + 1), weeks, 0.5, 4
+        )
+        fit = _fit("a*exp(r*x) + c*sin(w*x + d) + k", weeks, sales)
+        self.assertGreater(fit.r_squared, 0.995)
+        self.assertAlmostEqual(fit.values["r"], 0.03, delta=0.002)
+        self.assertAlmostEqual(fit.values["w"], 2 * math.pi, delta=0.01)
+
+    def test_a_damped_cosine_with_a_time_constant_decays(self) -> None:
+        # exp(-x/t) cannot pass from growth to decay but through t = infinity, so the decay is
+        # screened with the cycle's frequency taken from the spectrum and its phase found
+        for low, high, count, curve, decay in (
+            (0, 50, 200, lambda x: -15.502 + 7.471 * math.exp(-x / 45.903) * math.cos(0.47586 * x - 2.168), 45.903),
+            (0, 200, 100, lambda x: 16.353 + 7.215 * math.exp(-x / 218.36) * math.cos(0.27392 * x + 2.3449), 218.36),
+        ):
+            with self.subTest(decay=decay):
+                xs = _grid(low, high, count)
+                fit = _fit("a*exp(-x/t)*cos(w*x + p) + k", xs, [curve(x) for x in xs])
+                self.assertGreater(fit.r_squared, 0.999999)
+                self.assertAlmostEqual(fit.values["t"], decay, delta=0.01 * decay)
+
     def test_damped_oscillations_with_a_phase_are_found(self) -> None:
         xs = _grid(0, 5, 80)
         for rate in (10.0, 11.0):
