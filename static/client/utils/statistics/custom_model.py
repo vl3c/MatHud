@@ -84,6 +84,12 @@ class CustomModel:
                 self._trig.append(compiled.bind())
         return self._trig
 
+    def plain_sinusoid(self) -> bool:
+        """Whether the model has one trigonometric call, a sin or cos, in sums and products
+        only: not raised to a power (sin(w*x)^2) or inside another call (abs(sin(w*x))),
+        whose spectral peaks are at a multiple of its frequency."""
+        return _plain_sinusoid(self.text)
+
     def with_values(self, values: Mapping[str, float], digits: Optional[int] = None) -> str:
         """The model text with each constant replaced by its value.
 
@@ -120,6 +126,43 @@ def _trig_argument_texts(text: str) -> List[str]:
                 arguments.append(text[start:index])
                 break
     return arguments
+
+
+def _plain_sinusoid(text: str) -> bool:
+    """CustomModel.plain_sinusoid for the model text."""
+    matches = list(_TRIG_CALL.finditer(text))
+    if len(matches) != 1 or not matches[0].group(0).startswith(("sin", "cos")):
+        return False
+    close = _closing(text, matches[0].end() - 1)
+    if close is None or _POWER_AFTER.match(text[close + 1 :]):
+        return False
+    # Each group enclosing the call, read outwards: plain parentheses with no power after
+    depth = 0
+    for index in range(matches[0].start() - 1, -1, -1):
+        if text[index] == ")":
+            depth += 1
+        elif text[index] == "(" and depth > 0:
+            depth -= 1
+        elif text[index] == "(":
+            if re.search(r"[A-Za-z0-9_]\s*$", text[:index]):
+                return False  # a call: abs(...), sqrt(...), exp(...)
+            group_close = _closing(text, index)
+            if group_close is None or _POWER_AFTER.match(text[group_close + 1 :]):
+                return False
+    return True
+
+
+_POWER_AFTER = re.compile(r"\s*(\^|\*\*)")
+
+
+def _closing(text: str, open_index: int) -> Optional[int]:
+    """The index of the parenthesis closing the one at open_index, or None."""
+    depth = 0
+    for index in range(open_index, len(text)):
+        depth += {"(": 1, ")": -1}.get(text[index], 0)
+        if depth == 0:
+            return index
+    return None
 
 
 def _batch_evaluator(evaluate: Callable[..., float], count: int) -> Batch:

@@ -179,7 +179,11 @@ def fit_custom_model(
         # A fit written back with extreme values carries the x-shift note (_fit_in_shift)
         shifted.notes = _notes(shifted, shifted.notes[0] if shifted.notes else None, False)
         return shifted
-    fit, projector, best = _fit_constants(xs, ys, model, given, evaluation_limit)
+    # After an abandoned fit in x - shift, the fit in x gets what it left, at least half
+    limit = evaluation_limit
+    if abandoned is not None:
+        limit = max(evaluation_limit // 2, evaluation_limit - abandoned.evaluations)
+    fit, projector, best = _fit_constants(xs, ys, model, given, limit)
     if abandoned is not None:
         fit.evaluations += abandoned.evaluations
     offset, better = _offset_note(fit, model, projector, best, evaluation_limit // SHIFT_SHARE, abandoned)
@@ -749,8 +753,9 @@ def _offset_note(
         # rewrites the model
         refit, rewrite, spent = prior, True, 0
     else:
+        # A shift fit with extreme values (prior) is not made afresh: it was that fit
         refit, rewrite, spent = _refit_in_shift(
-            fit, model, shifted, projector, best, float(shift_text), evaluation_limit, troubled
+            fit, model, shifted, projector, best, float(shift_text), evaluation_limit, troubled, prior is None
         )
     fit.evaluations += spent
     if refit is None:
@@ -794,12 +799,14 @@ def _refit_in_shift(
     shift: float,
     evaluation_limit: int,
     troubled: bool,
+    afresh: bool = True,
 ) -> Tuple[Optional[CustomFit], bool, int]:
     """The fit of the model in x - shift for _offset_note, whether the shift only rewrites the
     model (the same sum of squares at the same nonlinear constants), and the evaluations spent.
 
     A model the shift rewrites is refined from the fit's nonlinear constants; any other is
-    also fitted afresh when the fit is troubled or its R² is below FRESH_FIT."""
+    also fitted afresh (unless afresh is false) when the fit is troubled or its R² is below
+    FRESH_FIT."""
     xs = projector.xs
     slack = EXACT_SLACK * sum(y * y for y in projector.ys)
     check = Projector(
@@ -817,7 +824,7 @@ def _refit_in_shift(
     run = _refine_one(check, theta) if projected is not None else None
     refit = _fit_of(shifted, check, run) if run is not None else None
     spent = check.budget.used
-    if not rewrite and (troubled or fit.r_squared < FRESH_FIT):
+    if afresh and not rewrite and (troubled or fit.r_squared < FRESH_FIT):
         fresh = _shifted_fit(model, xs, projector.ys, shift, evaluation_limit)
         if fresh is not None:
             spent += fresh.evaluations

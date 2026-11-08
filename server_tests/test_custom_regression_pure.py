@@ -109,6 +109,27 @@ class TestReadModel(unittest.TestCase):
         self.assertEqual(read_model("2b*x").with_values({"b": 0.5}), "2(0.5)*x")
 
 
+class TestPlainSinusoid(unittest.TestCase):
+    def test_one_sine_or_cosine_in_sums_and_products(self) -> None:
+        for text in ("a*sin(w*x+p)+d", "(a+b*x)*sin(w*x+p)+d", "a*exp(-x/t)*cos(w*x + p) + k", "a*(b+cos(w*x))"):
+            with self.subTest(text=text):
+                self.assertTrue(read_model(text).plain_sinusoid())
+
+    def test_powers_calls_and_several_trigonometric_terms_are_not(self) -> None:
+        for text in (
+            "a*sin(w*x + p)^2 + d",
+            "a*sin(b*x)**2",
+            "a*(sin(w*x)+1)^2",
+            "a*abs(sin(w*x + p)) + d",
+            "a*sqrt(sin(w*x)+2)",
+            "a*tan(b*x)",
+            "a*sin(b*x+c)+h*sin(f*x+g)",
+            "a*x + b",
+        ):
+            with self.subTest(text=text):
+                self.assertFalse(read_model(text).plain_sinusoid())
+
+
 class TestLinearSplit(unittest.TestCase):
     def split(self, text: str, xs: Optional[List[float]] = None) -> List[str]:
         model = read_model(text)
@@ -368,6 +389,23 @@ class TestTextbookFits(unittest.TestCase):
         fit = _fit("a*exp(r*x) + c*sin(w*x + p) + k", months, co2)
         self.assertAlmostEqual(fit.values["w"], 2 * math.pi, delta=0.001)
         self.assertAlmostEqual(fit.values["c"], 3, delta=0.1)
+
+    def test_a_seasonal_cycle_is_found_with_months_missing(self) -> None:
+        # Months left out keep the data on its monthly grid, so the spectrum still shows the cycle
+        months = [1990 + (i + 0.5) / 12 for i in range(360) if i not in (40, 100, 301)]
+        ys = [350 + 1.6 * (x - 1990) + 3 * math.sin(2 * math.pi * x + 1) for x in months]
+        fit = _fit("m*x + k + c*sin(w*x + p)", months, ys)
+        self.assertGreater(fit.r_squared, 0.999999)
+        self.assertAlmostEqual(fit.values["w"], 2 * math.pi, delta=1e-4)
+
+    def test_a_squared_or_rectified_sine_is_not_seeded_at_its_doubled_peak(self) -> None:
+        xs = [float(i) for i in range(200)]
+        for model, curve in (
+            ("a*sin(w*x + p)^2 + d", lambda x: 5 * math.sin(0.8 * x + 0.4) ** 2 + 2),
+            ("a*abs(sin(w*x + p)) + d", lambda x: 5 * abs(math.sin(0.5 * x + 0.4)) + 2),
+        ):
+            with self.subTest(model=model):
+                self.assertGreater(_fit(model, xs, [curve(x) for x in xs]).r_squared, 0.999999)
 
     def test_two_sines_are_not_both_started_at_the_strongest_peak(self) -> None:
         xs = _grid(0, 20, 101)

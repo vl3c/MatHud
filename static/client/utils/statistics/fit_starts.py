@@ -187,14 +187,14 @@ def peak_half_cycles(xs: List[float], ys: List[float]) -> Optional[float]:
 def spectral_counts(xs: List[float], ys: List[float], curved: bool = False) -> Optional[List[float]]:
     """Half-cycle counts of the strongest peaks (at most SPECTRAL_PEAKS, each at least
     PEAK_RATIO times the median power) in the spectrum of evenly spaced data, linear trend
-    (with curved, quadratic trend) removed; None for unevenly spaced data."""
-    order = sorted(range(len(xs)), key=lambda i: xs[i])
-    count = len(order)
-    low, high = xs[order[0]], xs[order[-1]]
-    step = (high - low) / (count - 1) if count > 1 else 0.0
-    if step <= 0.0 or any(abs(xs[order[i]] - (low + i * step)) > 1e-6 * step for i in range(count)):
+    (with curved, quadratic trend) removed; None for unevenly spaced data. Data on an even
+    grid with a few points missing (a month left out) counts as evenly spaced, the missing
+    values interpolated (_on_grid)."""
+    grid = _on_grid(xs, ys)
+    if grid is None:
         return None
-    values = _detrended([ys[i] for i in order], curved)
+    count = len(grid)
+    values = _detrended(grid, curved)
     power, size = _power_spectrum(values)
     inner = power[1:-1]
     if not inner:
@@ -208,6 +208,37 @@ def spectral_counts(xs: List[float], ys: List[float], curved: bool = False) -> O
     peaks.sort(key=lambda j: -power[j])
     # Bin j holds j/size cycles per step, so 2*j*(count - 1)/size half cycles over the x range
     return [2.0 * j * (count - 1) / size for j in peaks[:SPECTRAL_PEAKS]]
+
+
+def _on_grid(xs: List[float], ys: List[float]) -> Optional[List[float]]:
+    """The values in order of x on the even grid of the smallest step, the points missing from
+    it (at most as many as there are points) interpolated linearly; None when the x are not
+    on such a grid or repeat."""
+    order = sorted(range(len(xs)), key=lambda i: xs[i])
+    if len(order) < 2:
+        return None
+    low = xs[order[0]]
+    step = min(xs[order[i + 1]] - xs[order[i]] for i in range(len(order) - 1))
+    if not step > 0.0:
+        return None
+    span = xs[order[-1]] - low
+    size = int(round(span / step)) + 1
+    if size > 2 * len(order):
+        return None
+    positions = []
+    for i in order:
+        position = (xs[i] - low) / step
+        if abs(position - round(position)) > 1e-6:
+            return None
+        positions.append(int(round(position)))
+    values: List[float] = [0.0] * size
+    for index in range(len(order) - 1):
+        first, second = positions[index], positions[index + 1]
+        start, end = ys[order[index]], ys[order[index + 1]]
+        for k in range(first, second):
+            values[k] = start + (end - start) * (k - first) / (second - first)
+    values[positions[-1]] = ys[order[-1]]
+    return values
 
 
 def _detrended(values: List[float], curved: bool = False) -> List[float]:
@@ -404,9 +435,10 @@ def screen(
     middle = sorted(xs)[len(xs) // 2]
     seeds = [[float(seed_values.get(k, 1.0)) for k in nonlinear]]
     trend_first = -1
-    # Only for one sine or cosine with one frequency: with two, both would start at one peak
-    # (and cancel), and a harmonic's peak can be stronger than the fundamental's
-    if peak is not None and len(trig.frequencies) == 1 and len(trig.arguments) == 1:
+    # Only for one sine or cosine with one frequency, in sums and products: with two, both
+    # would start at one peak (and cancel), a harmonic's peak can be stronger than the
+    # fundamental's, and sin(w*x)^2 or abs(sin(w*x)) peaks at 2w
+    if peak is not None and len(trig.frequencies) == 1 and model.plain_sinusoid():
         trend_first = 1 if seed_values else 0
         seeds.insert(
             trend_first, [trig.frequency(i, peak) if i in trig.frequencies else 1.0 for i in range(len(nonlinear))]
