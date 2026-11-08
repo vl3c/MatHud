@@ -8,8 +8,8 @@ range, and more when the data crosses its mean more often (beyond MAX_HALF_CYCLE
 peaks of the data's spectrum: half_cycle_counts), or its spectrum peaks beyond them; a
 phase or shift gets values across one period (_Trig); a constant raised to a power of x
 (b^x) gets growth factors near 1. A coordinate search scans one constant at a time
-(frequencies first), twice over, from up to four seeds (the first with the frequencies at
-the spectrum's strongest peak, the other constants scanned first), each with its share of
+(frequencies first), twice over, from up to four seeds (for one sine, the first with its
+frequency at the spectrum's strongest peak, the other constants scanned first), each with its share of
 the work, and the best values per constant are combined.
 Candidates whose curve swings between the data points (an aliased sine) are ranked after
 the others (``Shape.swings``).
@@ -177,26 +177,24 @@ def half_cycle_counts(xs: List[float], ys: List[float]) -> List[float]:
 
 
 def peak_half_cycles(xs: List[float], ys: List[float]) -> Optional[float]:
-    """The half-cycle count of the strongest peak of the spectrum of evenly spaced data
-    (linear trend removed), when it holds at least MIN_PEAK_HALF_CYCLES (fewer is the leak
-    of a curved trend); None otherwise."""
-    peaks = spectral_counts(xs, ys)
-    if not peaks or not MIN_PEAK_HALF_CYCLES <= peaks[0] <= len(xs) - 1:
-        return None
-    return peaks[0]
+    """The half-cycle count of the strongest peak of the spectrum of evenly spaced data with
+    a quadratic trend removed (a curved trend's leak would outshine a seasonal cycle over 60
+    years of CO2 data), with at least MIN_PEAK_HALF_CYCLES; None when there is none."""
+    peaks = spectral_counts(xs, ys, curved=True) or []
+    return next((peak for peak in peaks if MIN_PEAK_HALF_CYCLES <= peak <= len(xs) - 1), None)
 
 
-def spectral_counts(xs: List[float], ys: List[float]) -> Optional[List[float]]:
+def spectral_counts(xs: List[float], ys: List[float], curved: bool = False) -> Optional[List[float]]:
     """Half-cycle counts of the strongest peaks (at most SPECTRAL_PEAKS, each at least
     PEAK_RATIO times the median power) in the spectrum of evenly spaced data, linear trend
-    removed; None for unevenly spaced data."""
+    (with curved, quadratic trend) removed; None for unevenly spaced data."""
     order = sorted(range(len(xs)), key=lambda i: xs[i])
     count = len(order)
     low, high = xs[order[0]], xs[order[-1]]
     step = (high - low) / (count - 1) if count > 1 else 0.0
     if step <= 0.0 or any(abs(xs[order[i]] - (low + i * step)) > 1e-6 * step for i in range(count)):
         return None
-    values = _detrended([ys[i] for i in order])
+    values = _detrended([ys[i] for i in order], curved)
     power, size = _power_spectrum(values)
     inner = power[1:-1]
     if not inner:
@@ -212,8 +210,8 @@ def spectral_counts(xs: List[float], ys: List[float]) -> Optional[List[float]]:
     return [2.0 * j * (count - 1) / size for j in peaks[:SPECTRAL_PEAKS]]
 
 
-def _detrended(values: List[float]) -> List[float]:
-    """The values minus their least-squares line over their index."""
+def _detrended(values: List[float], curved: bool = False) -> List[float]:
+    """The values minus their least-squares line (with curved, parabola) over their index."""
     count = len(values)
     mid = (count - 1) / 2.0
     mean = sum(values) / count
@@ -223,7 +221,14 @@ def _detrended(values: List[float]) -> List[float]:
         spread += (i - mid) * (i - mid)
         slope += (i - mid) * (value - mean)
     slope = slope / spread if spread > 0.0 else 0.0
-    return [values[i] - mean - slope * (i - mid) for i in range(count)]
+    residuals = [values[i] - mean - slope * (i - mid) for i in range(count)]
+    if not curved:
+        return residuals
+    # (i - mid)^2 minus its mean is orthogonal to 1 and to i - mid over symmetric indices
+    shape = [(i - mid) ** 2 - spread / count for i in range(count)]
+    norm = sum(value * value for value in shape)
+    weight = sum(r * q for r, q in zip(residuals, shape)) / norm if norm > 0.0 else 0.0
+    return [r - weight * q for r, q in zip(residuals, shape)]
 
 
 def _power_spectrum(values: List[float]) -> Tuple[List[float], int]:
@@ -377,9 +382,10 @@ def screen(
     value in seed_values), then every one at the median x, so a peak's centre and width are
     found together when the data lies far from 0, then every one at 0. A seed is skipped
     when an earlier one already explains all but GOOD_SCREEN of the variation. With peak
-    (the half-cycle count of the spectrum's strongest peak), a seed with the frequencies at
-    that peak comes first (after seed_values), its other constants scanned first: a trend
-    is fitted before the frequencies are scanned (it would hide a seasonal cycle from them).
+    (the half-cycle count of the spectrum's strongest peak) and a model with one
+    trigonometric argument and one frequency constant, a seed with the frequency at that
+    peak comes first (after seed_values), its other constants scanned first: a trend is
+    fitted before the frequency is scanned (it would hide a seasonal cycle from it).
     """
     nonlinear = projector.nonlinear
     if not nonlinear:
@@ -398,7 +404,9 @@ def screen(
     middle = sorted(xs)[len(xs) // 2]
     seeds = [[float(seed_values.get(k, 1.0)) for k in nonlinear]]
     trend_first = -1
-    if peak is not None and trig.frequencies:
+    # Only for one sine or cosine with one frequency: with two, both would start at one peak
+    # (and cancel), and a harmonic's peak can be stronger than the fundamental's
+    if peak is not None and len(trig.frequencies) == 1 and len(trig.arguments) == 1:
         trend_first = 1 if seed_values else 0
         seeds.insert(
             trend_first, [trig.frequency(i, peak) if i in trig.frequencies else 1.0 for i in range(len(nonlinear))]

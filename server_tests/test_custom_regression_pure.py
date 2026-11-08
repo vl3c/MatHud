@@ -356,6 +356,32 @@ class TestTextbookFits(unittest.TestCase):
         self.assertAlmostEqual(fit.values["r"], 0.03, delta=0.002)
         self.assertAlmostEqual(fit.values["w"], 2 * math.pi, delta=0.01)
 
+    def test_a_seasonal_cycle_is_found_past_the_leak_of_a_curved_trend(self) -> None:
+        # Over 60 years the strongest spectral peak is the curvature's leak (2 half cycles)
+        months = [1960 + (i + 0.5) / 12 for i in range(720)]
+        co2 = _noisy(
+            lambda x: 315 + 0.8 * (x - 1960) + 0.0125 * (x - 1960) ** 2 + 3 * math.sin(2 * math.pi * x + 1),
+            months,
+            0.3,
+            1,
+        )
+        fit = _fit("a*exp(r*x) + c*sin(w*x + p) + k", months, co2)
+        self.assertAlmostEqual(fit.values["w"], 2 * math.pi, delta=0.001)
+        self.assertAlmostEqual(fit.values["c"], 3, delta=0.1)
+
+    def test_two_sines_are_not_both_started_at_the_strongest_peak(self) -> None:
+        xs = _grid(0, 20, 101)
+        for curve in (
+            lambda x: 3 * math.sin(5 * x + 1) + 2 * math.sin(2 * x) + 4,
+            lambda x: 2 * x + 3 * math.sin(5 * x + 1) + 2 * math.sin(2 * x) + 4,
+        ):
+            ys = [curve(x) for x in xs]
+            fit = _fit("m*x + a*sin(b*x + c) + h*sin(f*x + g) + d", xs, ys)
+            self.assertGreater(fit.r_squared, 0.999999)
+        harmonics = [math.sin(x) + 2 * math.sin(2 * x + 1) + 3 * math.sin(3 * x + 2) for x in xs]
+        fit = _fit("a*sin(w*x + p) + b*sin(2*w*x + q) + c*sin(3*w*x + r) + d", xs, harmonics)
+        self.assertGreater(fit.r_squared, 0.999999)
+
     def test_a_damped_cosine_with_a_time_constant_decays(self) -> None:
         # exp(-x/t) cannot pass from growth to decay but through t = infinity, so the decay is
         # screened with the cycle's frequency taken from the spectrum and its phase found

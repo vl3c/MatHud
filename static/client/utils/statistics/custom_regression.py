@@ -968,9 +968,9 @@ def _fit_in_shift(
         projector = projector.holding({model.constants.index(name): value for name, value in refit.held.items()})
     carried, used = _carried_back(model, shifted, projector, refit, evaluation_limit, extreme=True)
     if carried is None:
-        # Refused only for a fit worth suggesting: a poor or unconverged refit (a local
-        # minimum) says nothing about the model, which is then fitted in x
-        if refit.converged and refit.r_squared >= FRESH_FIT and _overflows(model, shifted, projector, refit):
+        # Refused only for a fit worth suggesting: an unconverged refit (a local minimum)
+        # says nothing about the model, which is then fitted in x
+        if refit.converged and _overflows(model, shifted, projector, refit):
             values = ", ".join(f"{name} = {_number(value)}" for name, value in refit.values.items())
             raise ValueError(
                 f"x runs from {_number(min(xs))} to {_number(max(xs))}, far from 0, where this model's constants "
