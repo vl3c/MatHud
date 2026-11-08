@@ -42,7 +42,7 @@ class CustomModel:
         growth_constants: Constants read in the base of a power whose exponent reads x (b^x).
     """
 
-    __slots__ = ("text", "constants", "power_constants", "growth_constants", "_batch", "_trig")
+    __slots__ = ("text", "constants", "power_constants", "growth_constants", "_batch", "_trig", "_python_text")
 
     def __init__(
         self,
@@ -56,6 +56,8 @@ class CustomModel:
         self.power_constants = power_constants
         self.growth_constants = growth_constants
         compiled = compiled_expression.compile_expression(text, ("x",) + constants)
+        # The normalised spelling (abs(u) for |u|, u**2 for u², sin for sine), read for its calls
+        self._python_text = compiled.python_text
         self._batch = _batch_evaluator(compiled.bind(), len(constants))
         self._trig: Optional[List[Callable[..., float]]] = None
 
@@ -76,7 +78,7 @@ class CustomModel:
         """
         if self._trig is None:
             self._trig = []
-            for argument in _trig_argument_texts(self.text):
+            for argument in _trig_argument_texts(self._python_text):
                 try:
                     compiled = compiled_expression.compile_expression(argument, ("x",) + self.constants)
                 except Exception:
@@ -88,7 +90,7 @@ class CustomModel:
         """Whether the model has one trigonometric call, a sin or cos, in sums and products
         only: not raised to a power (sin(w*x)^2) or inside another call (abs(sin(w*x))),
         whose spectral peaks are at a multiple of its frequency."""
-        return _plain_sinusoid(self.text)
+        return _plain_sinusoid(self._python_text)
 
     def with_values(self, values: Mapping[str, float], digits: Optional[int] = None) -> str:
         """The model text with each constant replaced by its value.

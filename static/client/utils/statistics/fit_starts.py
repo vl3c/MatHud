@@ -222,6 +222,8 @@ def _on_grid(xs: List[float], ys: List[float]) -> Optional[List[float]]:
     if not step > 0.0:
         return None
     span = xs[order[-1]] - low
+    if not span / step <= 2 * len(order):
+        return None
     size = int(round(span / step)) + 1
     if size > 2 * len(order):
         return None

@@ -121,6 +121,8 @@ class TestPlainSinusoid(unittest.TestCase):
             "a*sin(b*x)**2",
             "a*(sin(w*x)+1)^2",
             "a*abs(sin(w*x + p)) + d",
+            "a*|sin(w*x + p)| + d",
+            "a*sin(w*x + p)² + d",
             "a*sqrt(sin(w*x)+2)",
             "a*tan(b*x)",
             "a*sin(b*x+c)+h*sin(f*x+g)",
@@ -128,6 +130,11 @@ class TestPlainSinusoid(unittest.TestCase):
         ):
             with self.subTest(text=text):
                 self.assertFalse(read_model(text).plain_sinusoid())
+
+    def test_trigonometric_aliases_are_read_as_their_calls(self) -> None:
+        model = read_model("a*sine(w*x + p) + d")
+        self.assertTrue(model.plain_sinusoid())
+        self.assertEqual(len(model.trig_arguments()), 1)
 
 
 class TestLinearSplit(unittest.TestCase):
