@@ -96,6 +96,9 @@ class PiecewiseFunction(Drawable):
 
         if analyze:
             self._compute_asymptotes()
+            self._compute_corner_points()
+        else:
+            self.corner_points = []
 
         super().__init__(name=name or "f", color=color)
 
@@ -196,6 +199,16 @@ class PiecewiseFunction(Drawable):
 
         self.point_discontinuities.sort()
 
+    def _compute_corner_points(self) -> None:
+        """Corners of each piece within its interval (abs() arguments at zero); derived, not saved."""
+        corners: List[float] = []
+        for interval in self.intervals:
+            expression = compiled_expression.with_parameter_values(interval.expression)
+            for corner in MathUtils.calculate_corner_points(expression, interval.left, interval.right):
+                if corner not in corners:
+                    corners.append(corner)
+        self.corner_points: List[float] = sorted(corners)
+
     # Offset (relative to max(1, |x|)) of the probes either side of a boundary
     _JUMP_PROBE_OFFSET = 1e-7
     # The one-sided limits at a boundary differ by more than this fraction of max(1, |limit|)
@@ -269,6 +282,7 @@ class PiecewiseFunction(Drawable):
         self.vertical_asymptotes = []
         self._compute_discontinuities()
         self._compute_asymptotes()
+        self._compute_corner_points()
 
     def function(self, x: float) -> float:
         """Evaluate the piecewise function at x.
@@ -320,6 +334,7 @@ class PiecewiseFunction(Drawable):
             point_discontinuities=self.point_discontinuities.copy() if self.point_discontinuities else None,
             analyze=False,
         )
+        new_function.corner_points = list(self.corner_points)
         memo[id(self)] = new_function
         return new_function
 
@@ -360,6 +375,7 @@ class PiecewiseFunction(Drawable):
         self._compute_bounds()
         self._compute_discontinuities()
         self._compute_asymptotes()
+        self._compute_corner_points()
 
     def rotate(self, angle: float) -> None:
         """Rotation is not applicable to functions."""

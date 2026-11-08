@@ -42,6 +42,7 @@ class Function(Drawable):
         vertical_asymptotes: List of x values with vertical asymptotes.
         horizontal_asymptotes: List of y values with horizontal asymptotes.
         point_discontinuities: List of x values with point discontinuities.
+        corner_points: x values of corners (abs() arguments at zero), derived, not saved.
         is_periodic: Whether the function is detected as periodic.
         estimated_period: Estimated period if is_periodic is True.
         undefined_at: Explicit list of x values where function is undefined.
@@ -61,6 +62,7 @@ class Function(Drawable):
         is_periodic: Optional[bool] = None,
         estimated_period: Optional[float] = None,
         undefined_at: Optional[List[float]] = None,
+        corner_points: Optional[List[float]] = None,
     ) -> None:
         self.step: float = step
         self.left_bound: Optional[float] = left_bound
@@ -87,6 +89,10 @@ class Function(Drawable):
                 if hole not in self.point_discontinuities:
                     self.point_discontinuities.append(hole)
             self.point_discontinuities.sort()
+            # Corners (abs() arguments at zero) are derived from the expression and not saved
+            self.corner_points: List[float] = (
+                list(corner_points) if corner_points is not None else self._calculate_corner_points()
+            )
             if is_periodic is not None:
                 self.is_periodic = is_periodic
                 self.estimated_period = estimated_period
@@ -161,6 +167,7 @@ class Function(Drawable):
             is_periodic=self.is_periodic,
             estimated_period=self.estimated_period,
             undefined_at=self.undefined_at.copy() if self.undefined_at else None,
+            corner_points=list(self.corner_points),
         )
         memo[id(self)] = new_function
         return new_function
@@ -210,7 +217,7 @@ class Function(Drawable):
     def _translate_analysis(self, x_offset: float, y_offset: float) -> None:
         """Shift the analysis derived from the expression along with the curve.
 
-        Vertical asymptotes and point discontinuities move by x_offset, horizontal
+        Vertical asymptotes, point discontinuities and corners move by x_offset, horizontal
         asymptotes by y_offset; the period is unchanged. New lists replace the old ones,
         so caches keyed on the list objects (the sorted asymptotes) are rebuilt.
         """
@@ -220,6 +227,8 @@ class Function(Drawable):
             self.horizontal_asymptotes = [y + y_offset for y in self.horizontal_asymptotes]
         if getattr(self, "point_discontinuities", None):
             self.point_discontinuities = [x + x_offset for x in self.point_discontinuities]
+        if getattr(self, "corner_points", None):
+            self.corner_points = [x + x_offset for x in self.corner_points]
 
     def rotate(self, angle: float) -> None:
         pass
@@ -261,7 +270,7 @@ class Function(Drawable):
         self.reanalyze()
 
     def reanalyze(self, view_bounds: Optional[Tuple[float, float]] = None) -> None:
-        """Recompute asymptotes, discontinuities and periodicity from the expression and bounds.
+        """Recompute asymptotes, discontinuities, corners and periodicity from the expression and bounds.
 
         Parameters are read at their current values. view_bounds (a live slider or animation
         frame) limits the asymptote search of an unbounded function to that x range and
@@ -272,6 +281,7 @@ class Function(Drawable):
             if hole not in self.point_discontinuities:
                 self.point_discontinuities.append(hole)
         self.point_discontinuities.sort()
+        self.corner_points = self._calculate_corner_points(view_bounds)
         if view_bounds is None:
             self._detect_periodicity()
 
@@ -303,6 +313,18 @@ class Function(Drawable):
         self.vertical_asymptotes, self.horizontal_asymptotes, self.point_discontinuities = (
             MathUtils.calculate_asymptotes_and_discontinuities(self.analysis_text(), left, right)
         )
+
+    def _calculate_corner_points(self, view_bounds: Optional[Tuple[float, float]] = None) -> List[float]:
+        """Corners of the graph within the bounds (and the view during a live change): where an
+        abs() argument is zero."""
+        left, right = self.left_bound, self.right_bound
+        if view_bounds is not None:
+            left = view_bounds[0] if left is None else max(left, view_bounds[0])
+            right = view_bounds[1] if right is None else min(right, view_bounds[1])
+            if left >= right:
+                return []
+        corners: List[float] = MathUtils.calculate_corner_points(self.analysis_text(), left, right)
+        return corners
 
     def has_point_discontinuity_between_x(self, x1: float, x2: float) -> bool:
         """Check if there is a point discontinuity between x1 and x2"""

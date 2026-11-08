@@ -114,6 +114,7 @@ from .test_function_analysis import (
     TestFunctionTangentGuard,
     TestFunctionTranslationAnalysis,
     TestLimitsCannotHang,
+    TestOddRootPowerNote,
     TestRemovableDiscontinuities,
 )
 from .test_parametric_function import (
@@ -124,7 +125,12 @@ from .test_parametric_function import (
 )
 from .test_parametric_function_manager import TestParametricFunctionManager
 from .test_polar_function_manager import TestPolarFunctionTools
-from .test_implicit_curves import TestImplicitCurveTools, TestImplicitPlotterInBrython, TestImplicitRendering
+from .test_implicit_curves import (
+    TestImplicitCurveTools,
+    TestImplicitParameters,
+    TestImplicitPlotterInBrython,
+    TestImplicitRendering,
+)
 from .test_arc_length import TestArcLengthTool
 from .test_parameters import (
     TestAnimation,
@@ -669,6 +675,7 @@ class Tests:
             TestFunctionAreaTranslation,
             TestRemovableDiscontinuities,
             TestLimitsCannotHang,
+            TestOddRootPowerNote,
             TestParametricFunction,
             TestParametricFunctionRenderable,
             TestParametricFunctionDiscontinuities,
@@ -678,6 +685,7 @@ class Tests:
             TestImplicitCurveTools,
             TestImplicitRendering,
             TestImplicitPlotterInBrython,
+            TestImplicitParameters,
             TestArcLengthTool,
             TestSetParameter,
             TestObjectsFollowParameters,

@@ -105,11 +105,16 @@ class TestFunctionTranslationAnalysis(_FunctionToolTestCase):
     def test_point_discontinuities_follow_the_translation(self) -> None:
         self.draw("abs(x)", "a", -5, 5)
         self.draw("x^2", "h", -5, 5, undefined_at=[1])
+        self.draw("floor(x)", "s", -2.5, 2.5)
 
         self.run_call("translate_object", name="a", x_offset=2, y_offset=0)
         self.run_call("translate_object", name="h", x_offset=2, y_offset=0)
+        self.run_call("translate_object", name="s", x_offset=0.5, y_offset=0)
 
-        self.assertEqual(_rounded(self.function_args("a").get("point_discontinuities")), [2.0])
+        # abs(x)'s corner is not a discontinuity; it moves as a corner
+        self.assertIsNone(self.function_args("a").get("point_discontinuities"))
+        self.assertEqual(_rounded(self.function("a").corner_points), [2.0])
+        self.assertEqual(_rounded(self.function_args("s").get("point_discontinuities")), [-1.5, -0.5, 0.5, 1.5, 2.5])
         h_args = self.function_args("h")
         self.assertEqual(_rounded(h_args.get("point_discontinuities")), [3.0])
         self.assertEqual(_rounded(h_args.get("undefined_at")), [3.0])
@@ -358,7 +363,7 @@ class TestFunctionAreaTranslation(_FunctionToolTestCase):
 
 
 # (expression, left, right, vertical asymptotes, point discontinuities)
-# abs(...) corners are always listed as point discontinuities, hence some 0s in the last list.
+# abs(...) corners are corners (corner_points), not point discontinuities.
 _SINGULARITY_CASES: List[Tuple[str, Optional[float], Optional[float], List[float], List[float]]] = [
     # Holes
     ("(x^2-1)/(x-1)", None, None, [], [1.0]),
@@ -383,14 +388,14 @@ _SINGULARITY_CASES: List[Tuple[str, Optional[float], Optional[float], List[float
     ("1/(x^2-1)", None, None, [-1.0, 1.0], []),
     ("sqrt(x)/x", None, None, [0.0], []),
     ("exp(1/x)", None, None, [0.0], []),
-    ("1/sqrt(abs(x))", None, None, [0.0], [0.0]),
+    ("1/sqrt(abs(x))", None, None, [0.0], []),
     ("sin(1/x)/x", None, None, [0.0], []),
     ("log(x)", None, None, [0.0], []),
     ("tan(x)", -2, 2, [round(-math.pi / 2, 6), round(math.pi / 2, 6)], []),
     # Slowly growing asymptotes; pure power growth is caught for any exponent (1/x^0.004 too)
     ("log(1/x)", None, None, [0.0], []),
     ("log(1/x^2)", None, None, [0.0], []),
-    ("ln(1/abs(x))", None, None, [0.0], [0.0]),
+    ("ln(1/abs(x))", None, None, [0.0], []),
     ("1/x^0.1", None, None, [0.0], []),
     ("1/x^(1/8)", None, None, [0.0], []),
     ("1/x^0.05", None, None, [0.0], []),
@@ -398,9 +403,9 @@ _SINGULARITY_CASES: List[Tuple[str, Optional[float], Optional[float], List[float
     ("log(log(1/x))", None, None, [0.0, 1.0], []),  # log(1/x) = 0 at x = 1 too
     # Adding a constant changes nothing
     ("ln(1/x)+500", None, None, [0.0], []),
-    ("ln(1/abs(x))+1000", None, None, [0.0], [0.0]),
+    ("ln(1/abs(x))+1000", None, None, [0.0], []),
     ("1/x^0.1+100", None, None, [0.0], []),
-    ("1/sqrt(abs(x))+20000", None, None, [0.0], [0.0]),
+    ("1/sqrt(abs(x))+20000", None, None, [0.0], []),
     ("1/x+10^7", None, None, [0.0], []),
     # Neither
     ("x^2 + 1", None, None, [], []),
@@ -565,6 +570,39 @@ _HORIZONTAL_ASYMPTOTE_CASES: List[Tuple[str, List[float]]] = [
     ("x^2/(x^2+1e6)", [1.0, 1.0]),
     ("atan(x/1000)", [round(-math.pi / 2, 6), round(math.pi / 2, 6)]),
 ]
+
+
+class TestOddRootPowerNote(_FunctionToolTestCase):
+    """draw_function says when a power such as x^(1/3) leaves x < 0 undrawn, and how to get the real root."""
+
+    def test_cube_root_power_over_negative_x_gets_the_note(self) -> None:
+        result = str(self.draw("x^(1/3)", "f", -5, 5))
+
+        self.assertIn("Function 'f' was drawn.", result)
+        self.assertIn("nthroot(u, 3) instead of u^(1/3)", result)
+        self.assertIn("cbrt(u)", result)
+        self.assertNotIn("^1 ", result)
+
+    def test_note_joins_the_swapped_bounds_message(self) -> None:
+        result = str(self.draw("(x-1)^(2/3)", "f", 5, -5))
+
+        self.assertIn("bounds swapped", result)
+        self.assertIn("nthroot(u, 3)^2 instead of u^(2/3)", result)
+        self.assertIn("keeping the base as it is", result)
+
+    def test_no_note_without_negative_x_or_an_odd_root(self) -> None:
+        cases = [
+            ("x^(1/3)", 0, 5),
+            ("x^(1/2)", -5, 5),
+            ("x^(6/3)", -5, 5),
+            ("x^3", -5, 5),
+            ("cbrt(x)", -5, 5),
+            ("2^(1/3)*x", -5, 5),
+        ]
+        for index, (expression, left, right) in enumerate(cases):
+            with self.subTest(expression=expression, left=left):
+                result = self.draw(expression, f"f{index}", left, right)
+                self.assertNotIn("nthroot", str(result))
 
 
 class TestLimitsCannotHang(_FunctionToolTestCase):

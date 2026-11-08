@@ -20,7 +20,7 @@ from typing import Any, Callable, Dict, List
 from unittest import mock
 
 from server_tests import client_renderer  # noqa: F401  (installs the browser stub)
-from server_tests.golden_values import golden_match
+from server_tests.golden_compare import same_outcome
 import expression_functions as ef
 from expression_validator import ExpressionValidator
 from utils.math_utils import MathUtils
@@ -275,7 +275,7 @@ class TestExpressionFunctionTables(unittest.TestCase):
         if isinstance(expected, dict):
             self.assertEqual(sorted(actual), sorted(expected), f"{name}: keys differ")
             mismatches = {
-                key: (actual[key], expected[key]) for key in expected if not golden_match(actual[key], expected[key])
+                key: (actual[key], expected[key]) for key in expected if not same_outcome(actual[key], expected[key])
             }
             self.assertEqual(mismatches, {}, f"{name}: (actual, expected) per key")
         else:

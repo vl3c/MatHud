@@ -13,7 +13,7 @@ Key Features:
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Optional, cast
+from typing import Any, Callable, Dict, Optional, Tuple, cast
 
 from constants import default_area_fill_color, default_area_opacity
 from drawables.colored_area import ColoredArea
@@ -37,6 +37,7 @@ class InequalityColoredArea(ColoredArea):
         name: Optional[str] = None,
         color: str = default_area_fill_color,
         opacity: float = default_area_opacity,
+        check_names: bool = True,
     ) -> None:
         """
         Initialize the region.
@@ -44,7 +45,7 @@ class InequalityColoredArea(ColoredArea):
         Raises:
             ValueError: If the inequality is refused (see implicit_relations.parse_inequality)
         """
-        self._relation: InequalityTree = parse_inequality(inequality)
+        self._relation: InequalityTree = parse_inequality(inequality, check_names=check_names)
         self.inequality: str = self._relation.text
         super().__init__(name=name or "region", color=color, opacity=opacity)
 
@@ -57,6 +58,14 @@ class InequalityColoredArea(ColoredArea):
     def value(self) -> Callable[[float, float], float]:
         """Negative exactly inside the region (see InequalityTree.value)."""
         return self._relation.value
+
+    def parameter_names(self) -> Tuple[str, ...]:
+        """The current parameters the inequalities read, sorted."""
+        return self._relation.parameter_names()
+
+    def reads_missing_names(self) -> bool:
+        """Whether it reads a name that is not a parameter now (it is then shaded nowhere)."""
+        return self._relation.reads_missing_names()
 
     def contains(self, x: float, y: float) -> bool:
         """Whether (x, y) satisfies the inequalities (a non-strict boundary point does)."""
@@ -77,6 +86,8 @@ class InequalityColoredArea(ColoredArea):
         """A copy rebuilt from the stored inequality."""
         if id(self) in memo:
             return cast("InequalityColoredArea", memo[id(self)])
-        copy = InequalityColoredArea(self.inequality, name=self.name, color=self.color, opacity=self.opacity)
+        copy = InequalityColoredArea(
+            self.inequality, name=self.name, color=self.color, opacity=self.opacity, check_names=False
+        )
         memo[id(self)] = copy
         return copy

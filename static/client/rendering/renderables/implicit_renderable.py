@@ -7,7 +7,7 @@ math coordinates, and maps it to the screen on each call.
 
 The cache key is the zoom, the canvas size, the drawable's relation and the pan bucket:
 pans within a bucket (the margin's size) stay inside the plotted area, so only a pan out
-of it, a zoom or a new relation plots again. While a wheel or pinch zoom is under way
+of it, a zoom, a new relation or a new value of a parameter it reads plots again. While a wheel or pinch zoom is under way
 (``coordinate_mapper.zoom_in_progress``) the last plot is mapped to the new view instead,
 and the plot is redone when the zoom settles. Plotting works in math coordinates on a grid
 anchored to the plane, so plots of neighbouring buckets agree where they overlap.
@@ -19,6 +19,7 @@ import math
 import time
 from typing import Any, Callable, List, Optional, Sequence, Tuple
 
+import compiled_expression
 from utils.implicit_plotter import PlotResult, plot
 
 Point = Tuple[float, float]
@@ -83,14 +84,22 @@ class ImplicitRenderable:
 
     # ------------------------------------------------------------------
 
-    def _relation_signature(self) -> str:
+    def _relation_signature(self) -> Tuple[str, Any]:
+        """The relation and the values of the parameters it reads: a slider change replots."""
         text = getattr(self.model, "equation", None)
         if text is None:
             text = getattr(self.model, "inequality", "")
-        return str(text)
+        values: Any = None
+        if compiled_expression.has_parameters():
+            try:
+                names = self.model.parameter_names()
+            except Exception:
+                names = ()
+            values = tuple((name, compiled_expression.parameter_value(name)) for name in names) or None
+        return str(text), values
 
     def _plot(self, scale: float, width: float, height: float, view_margin: float, fill: bool) -> PlotResult:
-        if scale <= 0 or width <= 0 or height <= 0:
+        if scale <= 0 or width <= 0 or height <= 0 or self._reads_missing_names():
             return PlotResult()
         bounds = self.mapper.get_visible_bounds()
         left, right = float(bounds["left"]), float(bounds["right"])
@@ -122,6 +131,13 @@ class ImplicitRenderable:
             deadline=DEADLINE_SECONDS,
             factors=self.model.factors,
         )
+
+    def _reads_missing_names(self) -> bool:
+        """A relation restored without one of its parameters is undefined everywhere."""
+        try:
+            return bool(self.model.reads_missing_names())
+        except Exception:
+            return False
 
     def _screen_mapping(self) -> Callable[[Sequence[Point]], List[Point]]:
         mapper = self.mapper

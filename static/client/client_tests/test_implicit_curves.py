@@ -1,21 +1,26 @@
 """Tests for implicit curves and inequality regions on a real canvas: the tools, undo, names,
 the colored-area tools on regions, refusals from tools that take parametrized curves,
-rendering (fill, solid and dashed strokes), the mid-zoom plot reuse, and the plotter
-itself in Brython (whose dicts and floats differ from CPython in places).
+rendering (fill, solid and dashed strokes), the mid-zoom plot reuse, parameters (sliders),
+and the plotter itself in Brython (whose dicts and floats differ from CPython in places).
 
 Parsing and the plotter's geometry are covered by pytest in server_tests/test_implicit_plotter.py.
 """
 
 from __future__ import annotations
 
+import copy
+import json
 import math
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from constants import successful_call_message
+from drawables.implicit_curve import ImplicitCurve
 from rendering.helpers.implicit_renderer import render_implicit_curve_helper, render_inequality_area_helper
 from utils.implicit_plotter import plot
+from rendering.signature_state import signature_state
 from utils.implicit_relations import parse_equation, parse_inequality
 
+from .test_parameters import _ParameterTestCase
 from .test_tool_batch_results import _ToolBatchTestCase
 
 Point = Tuple[float, float]
@@ -248,3 +253,85 @@ class TestImplicitPlotterInBrython(_ToolBatchTestCase):
             for k in range(len(ring))
         )
         self.assertAlmostEqual(area, 8.0, delta=0.01)
+
+
+class TestImplicitParameters(_ParameterTestCase):
+    """Implicit curves and regions read parameters and follow their sliders."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.mapper = self.canvas.coordinate_mapper
+        self.mapper.scale_factor = 40.0
+        self.mapper.zoom_in_progress = False
+
+    def draw_curve(self, equation: str, name: Optional[str] = None) -> Dict[str, Any]:
+        _, traced = self.run_batch(("draw_implicit_curve", {"equation": equation, "name": name, "color": None}))
+        return traced[0]
+
+    def shade(self, inequality: str) -> Dict[str, Any]:
+        call = {"inequality": inequality, "name": None, "color": None, "opacity": None}
+        _, traced = self.run_batch(("shade_inequality", call))
+        return traced[0]
+
+    def radius_on_screen(self, curve: Any) -> float:
+        primitives = _Primitives()
+        render_implicit_curve_helper(primitives, curve, self.mapper, _STYLE)
+        cx, cy = self.mapper.origin.x + self.mapper.offset.x, self.mapper.origin.y + self.mapper.offset.y
+        path = primitives.polylines[0]
+        return max(math.hypot(x - cx, y - cy) for x, y in path)
+
+    def test_a_curve_follows_its_parameter(self) -> None:
+        self.set("r", value=2)
+        traced = self.draw_curve("x^2 + y^2 = r^2", name="circ")
+        self.assert_ok(traced)
+        self.assertEqual(traced["result"]["parameters"], {"r": 2.0})
+        self.assertIn("follows the sliders", traced["result"]["in_view"]["note"])
+        curve = self.canvas.drawable_manager.drawables.ImplicitCurves[0]
+        self.assertEqual(curve.parameter_names(), ("r",))
+        self.assertAlmostEqual(self.radius_on_screen(curve), 80.0, delta=0.5)
+        self.set("r", value=3)
+        self.assertAlmostEqual(self.radius_on_screen(curve), 120.0, delta=0.5)
+
+    def test_a_region_follows_its_parameter(self) -> None:
+        self.set("a", value=1)
+        self.assert_ok(self.shade("y > a*x"))
+        area = self.canvas.drawable_manager.drawables.InequalityColoredAreas[0]
+        self.assertFalse(area.contains(1.0, 0.5))
+        self.set("a", value=0)
+        self.assertTrue(area.contains(1.0, 0.5))
+        self.assertEqual(signature_state(area)["_parameters"], (("a", 0.0),))
+
+    def test_unknown_names_are_refused_with_the_slider_hint(self) -> None:
+        self.assert_error(self.draw_curve("x^2 + y^2 = q^2"), "set_parameter")
+        self.assert_error(self.shade("y > q*x"), "set_parameter")
+
+    def test_the_parameter_cannot_be_deleted_while_used_and_undo_keeps_it(self) -> None:
+        self.set("r", value=2)
+        self.assert_ok(self.draw_curve("x^2 + y^2 = r^2", name="circ"))
+        _, traced = self.run_batch(("delete_parameter", {"name": "r"}))
+        self.assert_error(traced[0], "circ")
+        self.canvas.undo_redo_manager.undo()
+        self.assertEqual(len(self.canvas.drawable_manager.drawables.ImplicitCurves), 0)
+        self.canvas.undo_redo_manager.redo()
+        curve = self.canvas.drawable_manager.drawables.ImplicitCurves[0]
+        self.assertEqual(curve.parameter_names(), ("r",))
+
+    def test_saved_curves_and_regions_reload_with_their_parameters(self) -> None:
+        self.set("r", value=2)
+        self.assert_ok(self.draw_curve("x^2 + y^2 = r^2", name="circ"))
+        self.assert_ok(self.shade("x^2 + y^2 < r^2"))
+        state = json.loads(json.dumps(self.workspace_manager._snapshot_persistable_canvas_state()))
+        self.canvas.clear()
+        self.workspace_manager._restore_workspace_state(state)
+        drawables = self.canvas.drawable_manager.drawables
+        self.assertEqual([curve.name for curve in drawables.ImplicitCurves], ["circ"])
+        self.assertEqual(drawables.InequalityColoredAreas[0].parameter_names(), ("r",))
+
+    def test_a_copy_reading_a_missing_parameter_draws_nothing(self) -> None:
+        duplicate = ImplicitCurve("x^2 + y^2 = q^2", name="lost", check_names=False)
+        self.assertTrue(duplicate.reads_missing_names())
+        self.assertEqual(duplicate.parameter_names(), ())
+        primitives = _Primitives()
+        render_implicit_curve_helper(primitives, duplicate, self.mapper, _STYLE)
+        self.assertEqual(primitives.polylines, [])
+        self.assertTrue(copy.deepcopy(duplicate).reads_missing_names())

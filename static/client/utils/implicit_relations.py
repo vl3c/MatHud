@@ -10,6 +10,12 @@ parentheses. Its ``value`` is negative exactly inside the region: each compariso
 gives A - B (B - A for >), "and" takes the largest of its parts and "or" the smallest.
 A comparison that is undefined at a point (the square root of a negative) is false there.
 
+Names other than x and y must be parameters (set_parameter); their values are read at
+call time, so a curve or region follows its sliders. ``check_names=False`` (copies made for
+undo; saved workspaces restore their parameters first and keep the check) accepts any
+name: one that is not a parameter makes the relation undefined everywhere until it
+becomes one.
+
 Input follows the tools' standard syntax (functions with parentheses, explicit products);
 calculator spellings (sin x, sinx, xy) are refused with the form to write, never guessed.
 
@@ -19,7 +25,7 @@ Pure Python (no browser imports), so server-side pytest imports it directly.
 from __future__ import annotations
 
 import re
-from typing import Callable, List, Optional, Sequence, Tuple, Union
+from typing import Callable, FrozenSet, List, Optional, Sequence, Set, Tuple, Union
 
 import compiled_expression
 from expression_validator import ExpressionValidator
@@ -50,6 +56,8 @@ _OPERATOR_NAMES = {"<": "<", "<=": "<=", "=<": "<=", ">": ">", ">=": ">=", "=>":
 _BOOLEAN_WORD = re.compile(r"\b(and|or|not)\b", re.IGNORECASE)
 _EQUATION_EXAMPLE = "Examples: x^2 + y^2 = 25, x^2/9 + y^2/4 = 1, y^2 = x^3 - x, x = 3."
 _INEQUALITY_EXAMPLE = "Examples: y < x^2, x^2 + y^2 <= 4, y > x - 1 and y < 3, x + y <= 10, x >= 0, y >= 0."
+# Whether the parse in progress refuses names that are not parameters (see parse_equation)
+_CHECKING_NAMES = [True]
 _SYNTAX_HINT = (
     "Write every function with parentheses and every product with *: sin(x), 2*x, x*y, x*(x + 1), (x + 1)*(y - 1)."
 )
@@ -65,22 +73,40 @@ class ImplicitEquation:
             product or power when one side is 0, else (g,).
     """
 
-    def __init__(self, text: str, g: Callable[[float, float], float], factors: Tuple[Callable[..., float], ...]):
+    def __init__(
+        self,
+        text: str,
+        g: Callable[[float, float], float],
+        factors: Tuple[Callable[..., float], ...],
+        names: FrozenSet[str] = frozenset(),
+    ):
         self.text = text
         self.g = g
         self.factors = factors
+        self.names = names
+
+    def parameter_names(self) -> Tuple[str, ...]:
+        """The current parameters the equation reads, sorted."""
+        return _current_parameters(self.names)
+
+    def reads_missing_names(self) -> bool:
+        """Whether it reads a name that is not a parameter now (it is undefined everywhere)."""
+        return len(_current_parameters(self.names)) < len(self.names)
 
 
 class InequalityAtom:
     """One comparison A op B; the region is g < 0 (g <= 0 when not strict)."""
 
-    __slots__ = ("left", "op", "right", "g")
+    __slots__ = ("left", "op", "right", "g", "names")
 
-    def __init__(self, left: str, op: str, right: str, g: Callable[[float, float], float]) -> None:
+    def __init__(
+        self, left: str, op: str, right: str, g: Callable[[float, float], float], names: FrozenSet[str] = frozenset()
+    ) -> None:
         self.left = left
         self.op = op
         self.right = right
         self.g = g
+        self.names = names
 
     @property
     def strict(self) -> bool:
@@ -98,11 +124,22 @@ class InequalityTree:
         atoms: The comparisons, in the order written.
     """
 
-    def __init__(self, text: str, atoms: List[InequalityAtom], tree: _Node) -> None:
+    def __init__(
+        self, text: str, atoms: List[InequalityAtom], tree: _Node, names: FrozenSet[str] = frozenset()
+    ) -> None:
         self.text = text
         self.atoms = atoms
         self._tree = tree
+        self.names = names
         self.value: Callable[[float, float], float] = _build_value(tree, atoms)
+
+    def parameter_names(self) -> Tuple[str, ...]:
+        """The current parameters the inequalities read, sorted."""
+        return _current_parameters(self.names)
+
+    def reads_missing_names(self) -> bool:
+        """Whether it reads a name that is not a parameter now (it is undefined everywhere)."""
+        return len(_current_parameters(self.names)) < len(self.names)
 
     def atom_of(self, x: float, y: float) -> int:
         """The index of the comparison whose value is the region's value at (x, y)."""
@@ -119,14 +156,22 @@ class InequalityTree:
 # ----------------------------------------------------------------------
 
 
-def parse_equation(text: str) -> ImplicitEquation:
-    """Read an equation in x and y.
+def parse_equation(text: str, check_names: bool = True) -> ImplicitEquation:
+    """Read an equation in x and y, and parameters (see the module docstring).
 
     Raises:
         ValueError: With what to write instead, when the text is not one equation in
             standard syntax with x or y (no "=", an inequality, a free name, a calculator
             spelling, an equation that holds everywhere).
     """
+    _CHECKING_NAMES[0] = check_names
+    try:
+        return _parse_equation(text)
+    finally:
+        _CHECKING_NAMES[0] = True
+
+
+def _parse_equation(text: str) -> ImplicitEquation:
     source = _prepared(text, "equation")
     if re.search(r"<|>|!=", source):
         raise ValueError(
@@ -142,10 +187,12 @@ def parse_equation(text: str) -> ImplicitEquation:
     _check_names(combined, text, "equation")
     if not combined.variables_read:
         raise ValueError(f"'{text}' has no x or y; give an equation in x and y. {_EQUATION_EXAMPLE}")
-    g = combined.bind()
-    if _holds_everywhere(g):
+    g = combined.bind(parameters=True)
+    names = frozenset(combined.free_names)
+    # With parameters it may hold everywhere only at their current values (a*x = 0, a = 0)
+    if not names and _holds_everywhere(g):
         raise ValueError(f"'{text}' holds for every x and y (both sides are equal); there is no curve to draw.")
-    return ImplicitEquation(f"{left} = {right}", g, _equation_factors(left, right, g))
+    return ImplicitEquation(f"{left} = {right}", g, _equation_factors(left, right, g), names)
 
 
 def _equation_factors(left: str, right: str, g: Callable[..., float]) -> Tuple[Callable[..., float], ...]:
@@ -160,7 +207,7 @@ def _equation_factors(left: str, right: str, g: Callable[..., float]) -> Tuple[C
     factors = compiled.factors()
     if len(factors) == 1 and factors[0] is compiled:
         return (g,)
-    return tuple(factor.bind() for factor in factors if factor.variables_read) or (g,)
+    return tuple(factor.bind(parameters=True) for factor in factors if factor.variables_read) or (g,)
 
 
 def _is_zero(side: str) -> bool:
@@ -182,7 +229,7 @@ def _holds_everywhere(g: Callable[[float, float], float]) -> bool:
 # ----------------------------------------------------------------------
 
 
-def parse_inequality(text: str) -> InequalityTree:
+def parse_inequality(text: str, check_names: bool = True) -> InequalityTree:
     """Read inequalities in x and y joined by and/or; top-level commas separate conditions
     that must all hold (y < -1 or y > 1, x > 0 is (y < -1 or y > 1) and x > 0).
 
@@ -191,12 +238,23 @@ def parse_inequality(text: str) -> InequalityTree:
             without x or y, more than MAX_ATOMS comparisons, a free name, a calculator
             spelling, unbalanced parentheses).
     """
+    _CHECKING_NAMES[0] = check_names
+    try:
+        return _parse_inequality(text)
+    finally:
+        _CHECKING_NAMES[0] = True
+
+
+def _parse_inequality(text: str) -> InequalityTree:
     source = _prepared(text, "inequality")
     atoms: List[InequalityAtom] = []
     tree = _parse_system(source, text, atoms)
     if len(atoms) > MAX_ATOMS:
         raise ValueError(f"'{text}' has {len(atoms)} comparisons; at most {MAX_ATOMS} can be shaded together.")
-    return InequalityTree(_tree_text(tree, atoms, top=True), atoms, tree)
+    names: Set[str] = set()
+    for atom in atoms:
+        names.update(atom.names)
+    return InequalityTree(_tree_text(tree, atoms, top=True), atoms, tree, frozenset(names))
 
 
 def _parse_system(source: str, text: str, atoms: List[InequalityAtom]) -> _Node:
@@ -291,7 +349,7 @@ def _atom(left: str, operator: str, right: str, text: str) -> InequalityAtom:
     _check_names(compiled, text, "inequality")
     if not compiled.variables_read:
         raise ValueError(f"'{left} {operator} {right}' in '{text}' has no x or y; every comparison needs x or y.")
-    return InequalityAtom(left, operator, right, compiled.bind())
+    return InequalityAtom(left, operator, right, compiled.bind(parameters=True), frozenset(compiled.free_names))
 
 
 def _wrapped_group(operand: str) -> Optional[str]:
@@ -509,15 +567,43 @@ def _refuse_misspellings(side: str, whole: str) -> None:
         raise ValueError(f"In '{whole}', {found[0].reason}.")
 
 
+def _current_parameters(names: FrozenSet[str]) -> Tuple[str, ...]:
+    if not names or not compiled_expression.has_parameters():
+        return ()
+    return tuple(sorted(name for name in names if compiled_expression.parameter_value(name) is not None))
+
+
+def _check_indexed_names(free: Sequence[str], message: str) -> None:
+    """Refuse x1, y2, Y1, x_0 and the like with every reading at once, since the text cannot say
+    which is meant: a constant (a centre x0, y0), another variable (a linear program in x1, x2,
+    a calculator's Y1 = f(x)) or a pasted power (x2 for x²). Never only one of them: following
+    the wrong one draws a different relation without an error."""
+    indexed = [name for name in free if re.fullmatch(r"[xyXY]_?\d+", name)]
+    if not indexed:
+        return
+    names = ", ".join(free)
+    raise ValueError(
+        f"{message} Only x and y are variables, so: a constant ({names}) is created with set_parameter "
+        "(search_tools 'slider' finds it if it is not loaded) or written as a number; a relation in other variables (x1, x2) is written in x and y; a power "
+        "is written x^2 (not x2); and a function y1 = f(x) is drawn with draw_function."
+    )
+
+
 def _check_names(compiled: compiled_expression.CompiledExpression, text: str, what: str) -> None:
-    free = compiled.free_names
+    if not _CHECKING_NAMES[0]:
+        return
+    free = compiled.undefined_names
     if not free:
         return
     names = ", ".join(f"'{name}'" for name in free)
-    message = f"The {what} '{text}' may use only x and y; {names} is not defined."
+    verb = "is" if len(free) == 1 else "are"
+    message = f"The {what} '{text}' may use only x, y and parameters; {names} {verb} not defined."
     if set(free) & {"X", "Y"}:
         raise ValueError(f"{message} Use lowercase x and y.")
+    _check_indexed_names(free, message)
     for name in free:
         if set(name) <= set("xy"):
             raise ValueError(f"{message} Write products explicitly: {'*'.join(name)}.")
-    raise ValueError(f"{message} {_SYNTAX_HINT}")
+    from utils.parameter_expressions import undefined_names_hint
+
+    raise ValueError(f"The {what} {undefined_names_hint(text, free, VARIABLES)} {_SYNTAX_HINT}")
