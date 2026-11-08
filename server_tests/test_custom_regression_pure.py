@@ -314,6 +314,30 @@ class TestTextbookFits(unittest.TestCase):
         # a is near 1e89 here, so the note gives the plain values in x - 2000
         self.assertTrue(any("written in x - 2000" in note and "a = 5.0" in note for note in fit.notes), fit.notes)
 
+    def test_models_already_written_around_the_data_are_fitted_as_written(self) -> None:
+        xs = [2003 + i / 100 for i in range(100)]
+        ys = [19.21 + 4.109 * math.exp(-0.5839 * (x - 2003)) * math.cos(27.8 * (x - 2003) + 1.66) for x in xs]
+        fit = _fit("a*exp(-b*(x-2003))*cos(c*(x-2003)+d)+g", xs, ys)
+        self.assertGreater(fit.r_squared, 0.999999)
+        self.assertEqual(fit.notes, [])
+        months = [2000 + i / 12 for i in range(120)]
+        seasonal = _noisy(lambda x: 20 * math.exp(0.1 * (x - 2000)) + 3 * math.sin(2 * math.pi * x + 1), months, 0.3, 5)
+        fit = _fit("a*exp(k*(x-2000))+c*sin(b*(x-2000)+d)", months, seasonal)
+        self.assertAlmostEqual(fit.values["b"], 2 * math.pi, delta=0.01)
+        self.assertAlmostEqual(abs(fit.values["c"]), 3, delta=0.2)
+
+    def test_a_model_whose_constants_overflow_far_from_zero_is_refused_with_its_shifted_fit(self) -> None:
+        years = [2018 + i / 200 for i in range(1000)]
+        ys = _noisy(
+            lambda x: 17.7 + 7.6 * math.exp(-0.47 * (x - 2018)) * math.cos(10.3 * (x - 2018) + 1.8), years, 1.0, 4
+        )
+        with self.assertRaises(ValueError) as caught:
+            _fit("a*exp(-b*x)*cos(c*x+d)+g", years, ys)
+        message = str(caught.exception)
+        self.assertIn("pass the float range", message)
+        self.assertIn("as a*exp(-b*(x - 2018))*cos(c*(x - 2018)+d)+g, it fits with R² = ", message)
+        self.assertIn("b = 0.4", message)
+
     def test_damped_oscillations_with_a_phase_are_found(self) -> None:
         xs = _grid(0, 5, 80)
         for rate in (10.0, 11.0):
